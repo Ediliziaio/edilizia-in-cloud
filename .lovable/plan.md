@@ -1,299 +1,295 @@
 
-# Piano: Doppia Visualizzazione Ordini (Tabella + Pipeline) con Filtri Data
+
+# Piano: Dashboard Previsionale Cassa
 
 ## Panoramica
 
-Trasformare la pagina Ordini in una vista flessibile con:
-1. **Toggle Tabella/Pipeline** - Switch per passare tra le due modalita
-2. **Vista Pipeline (Kanban)** - Ordini organizzati in colonne per stato
-3. **Filtri Data Avanzati** - Filtro per Data Contratto, Data Posa e Arrivo Merce
+Creare una dashboard di previsione finanziaria che mostra le possibili entrate in base alle date previste di incasso, con statistiche rapide e dettagli filtrabili per periodo.
 
 ---
 
 ## Design Visivo
 
-### Header con Toggle Visualizzazione
+### Layout Principale
 
 ```
 +---------------------------------------------------------------------+
-| Ordini                                                               |
-| Gestisci gli ordini...                      [📊 Tabella] [🗂 Pipeline]  [+ Nuovo Ordine] |
+| Previsionale Cassa                                                   |
+| Analizza le entrate previste                                         |
 +---------------------------------------------------------------------+
-```
-
-### Sezione Filtri Ampliata
-
-```
+|                                                                       |
+|  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ |
+|  │ Questo Mese  │ │ Prossimo     │ │ Prossimi     │ │ Totale Non   │ |
+|  │              │ │ Mese         │ │ 3 Mesi       │ │ Incassato    │ |
+|  │ €12.500      │ │ €28.400      │ │ €45.200      │ │ €85.300      │ |
+|  │ 3 pagamenti  │ │ 8 pagamenti  │ │ 15 pagamenti │ │ 26 pagamenti │ |
+|  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ |
+|                                                                       |
+|  ┌─────────────────────────────────────────────────────────────────┐ |
+|  │ [Filtro Data: Da ____ A ____]               [Esporta CSV?]      │ |
+|  ├─────────────────────────────────────────────────────────────────┤ |
+|  │ Grafico Timeline Incassi Previsti                                │ |
+|  │ (BarChart con mesi sull'asse X e importi sull'asse Y)           │ |
+|  └─────────────────────────────────────────────────────────────────┘ |
+|                                                                       |
+|  ┌─────────────────────────────────────────────────────────────────┐ |
+|  │ Dettaglio Pagamenti Attesi                                       │ |
+|  ├─────────────────────────────────────────────────────────────────┤ |
+|  │ Data Prevista | Ordine      | Cliente      | Tipo     | Importo │ |
+|  │ 15/02/2026    | ORD-001     | Mario R.     | Saldo    | €5.400  │ |
+|  │ 20/02/2026    | ORD-003     | Luigi V.     | Acc. 1   | €3.000  │ |
+|  │ 01/03/2026    | ORD-005     | Anna B.      | Saldo    | €8.200  │ |
+|  └─────────────────────────────────────────────────────────────────┘ |
+|                                                                       |
 +---------------------------------------------------------------------+
-| 🔍 [Cerca per codice, descrizione...]                                |
-| [Stato ▼] [Pagamenti ▼] [Data Contratto ▼] [Arrivo Merce ▼] [Data Posa ▼] |
-+---------------------------------------------------------------------+
-```
-
-Ogni filtro data sara un Popover con un mini-form:
-- Range "Da - A" oppure
-- Opzioni rapide: "Oggi", "Questa settimana", "Questo mese", "Prossimi 7 giorni"
-
-### Vista Pipeline (Nuova)
-
-```
-+---------------------------------------------------------------------+
-|  Contratto     |  In Produzione |  In Magazzino  |  Posa Completata |
-|  Firmato (3)   |  (5)           |  (2)           |  (8)             |
-+---------------+----------------+----------------+------------------+
-|  ┌──────────┐ |  ┌──────────┐  |  ┌──────────┐  |  ┌──────────┐    |
-|  │ ORD-001  │ |  │ ORD-005  │  |  │ ORD-012  │  |  │ ORD-003  │    |
-|  │ Mario R. │ |  │ Luigi V. │  |  │ Anna B.  │  |  │ Marco P. │    |
-|  │ €5.400   │ |  │ €12.000  │  |  │ €8.200   │  |  │ €15.000  │    |
-|  │ 📅 15 Feb│ |  │ 🔔 Acc.1 │  |  │ ✅ OK    │  |  │ ✅ OK    │    |
-|  └──────────┘ |  └──────────┘  |  └──────────┘  |  └──────────┘    |
-|  ┌──────────┐ |  ┌──────────┐  |                |  ┌──────────┐    |
-|  │ ORD-002  │ |  │ ORD-008  │  |                |  │ ORD-007  │    |
-|  │ ...      │ |  │ ...      │  |                |  │ ...      │    |
-|  └──────────┘ |  └──────────┘  |                |  └──────────┘    |
-+---------------+----------------+----------------+------------------+
 ```
 
 ---
 
-## Struttura Componenti
+## Dati e Calcoli
 
-### Nuovi Componenti da Creare
+### Fonte Dati
 
-| Componente | Descrizione |
-|------------|-------------|
-| `OrdersViewToggle.tsx` | Toggle Tabella/Pipeline con icone |
-| `OrdersTableView.tsx` | Vista tabella estratta dal file attuale |
-| `OrdersPipelineView.tsx` | Vista pipeline/kanban per stato |
-| `OrdersPipelineColumn.tsx` | Singola colonna della pipeline |
-| `OrdersPipelineCard.tsx` | Card ordine nella pipeline |
-| `DateRangeFilter.tsx` | Filtro data con range picker |
+Da ogni ordine estrarremo i pagamenti NON ancora incassati:
+
+| Campo | Condizione | Data Prevista |
+|-------|-----------|---------------|
+| Acconto 1 | `deposit_paid = false` | `deposit_expected_date` |
+| Acconto 2 | `deposit_2_paid = false` | `deposit_2_expected_date` |
+| Saldo | `balance_paid = false` | `balance_expected_date` |
+
+### Struttura Dati Elaborati
+
+```typescript
+interface ExpectedPayment {
+  orderId: string;
+  orderCode: string | null;
+  customerName: string;
+  type: "Acconto 1" | "Acconto 2" | "Saldo";
+  amount: number;
+  expectedDate: Date | null;
+}
+```
+
+### Calcolo Statistiche Rapide
+
+```typescript
+// Questo mese
+const thisMonthPayments = payments.filter(p => 
+  p.expectedDate && isThisMonth(p.expectedDate)
+);
+
+// Prossimo mese
+const nextMonthPayments = payments.filter(p => 
+  p.expectedDate && isNextMonth(p.expectedDate)
+);
+
+// Prossimi 3 mesi
+const next3MonthsPayments = payments.filter(p => 
+  p.expectedDate && isWithinNext3Months(p.expectedDate)
+);
+
+// Totale non incassato (inclusi quelli senza data)
+const totalPending = payments.reduce((sum, p) => sum + p.amount, 0);
+```
 
 ---
 
-## Dettagli Tecnici
+## Componenti
 
-### 1. Stato per Toggle Visualizzazione
+### 1. Stat Cards (4 card in riga)
 
-```typescript
-// In OrdersList.tsx
-const [viewMode, setViewMode] = useState<"table" | "pipeline">("table");
-```
+| Card | Calcolo |
+|------|---------|
+| Questo Mese | Somma pagamenti con data prevista nel mese corrente |
+| Prossimo Mese | Somma pagamenti con data prevista nel mese successivo |
+| Prossimi 3 Mesi | Somma pagamenti con data prevista nei prossimi 3 mesi |
+| Totale Non Incassato | Somma di tutti i pagamenti non incassati |
 
-### 2. Nuovi Stati per Filtri Data
+### 2. Grafico Timeline (Recharts BarChart)
 
-```typescript
-// Filtri data con range
-const [contractDateRange, setContractDateRange] = useState<{
-  from: Date | undefined;
-  to: Date | undefined;
-}>({ from: undefined, to: undefined });
+- Asse X: Mesi (prossimi 6 mesi)
+- Asse Y: Importo in EUR
+- Barre colorate per tipo pagamento (Acconto 1, Acconto 2, Saldo)
 
-const [warehouseDateRange, setWarehouseDateRange] = useState<{
-  from: Date | undefined;
-  to: Date | undefined;
-}>({ from: undefined, to: undefined });
+### 3. Tabella Dettaglio
 
-const [expectedDateRange, setExpectedDateRange] = useState<{
-  from: Date | undefined;
-  to: Date | undefined;
-}>({ from: undefined, to: undefined });
-```
+Colonne:
+- Data Prevista (ordinabile)
+- Codice Ordine (link al dettaglio)
+- Cliente
+- Tipo Pagamento
+- Importo
 
-### 3. Logica Filtro Date
+Filtri:
+- Range data
+- Solo con data prevista / Tutti
 
-```typescript
-const filteredOrders = orders.filter((order) => {
-  // ... filtri esistenti ...
+---
 
-  // Filtro Data Contratto (created_at)
-  const matchesContractDate = 
-    (!contractDateRange.from || new Date(order.created_at) >= contractDateRange.from) &&
-    (!contractDateRange.to || new Date(order.created_at) <= contractDateRange.to);
+## Struttura File
 
-  // Filtro Arrivo Merce
-  const matchesWarehouseDate = 
-    !order.warehouse_arrival_date ||
-    ((!warehouseDateRange.from || new Date(order.warehouse_arrival_date) >= warehouseDateRange.from) &&
-     (!warehouseDateRange.to || new Date(order.warehouse_arrival_date) <= warehouseDateRange.to));
-
-  // Filtro Data Posa
-  const matchesExpectedDate = 
-    !order.expected_date ||
-    ((!expectedDateRange.from || new Date(order.expected_date) >= expectedDateRange.from) &&
-     (!expectedDateRange.to || new Date(order.expected_date) <= expectedDateRange.to));
-
-  return matchesSearch && matchesStatus && matchesPayment && 
-         matchesContractDate && matchesWarehouseDate && matchesExpectedDate;
-});
-```
-
-### 4. Componente DateRangeFilter
+### Nuovo File: `src/pages/azienda/CashFlowForecast.tsx`
 
 ```typescript
-interface DateRangeFilterProps {
-  label: string;
-  range: { from: Date | undefined; to: Date | undefined };
-  onRangeChange: (range: { from: Date | undefined; to: Date | undefined }) => void;
-}
-
-function DateRangeFilter({ label, range, onRangeChange }: DateRangeFilterProps) {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" className="w-[180px]">
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {range.from || range.to ? (
-            // Mostra range selezionato
-            formatDateShort(range.from) + " - " + formatDateShort(range.to)
-          ) : (
-            label
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-4" align="start">
-        {/* Quick filters */}
-        <div className="space-y-2 mb-4">
-          <Button size="sm" variant="ghost" onClick={() => setToday()}>Oggi</Button>
-          <Button size="sm" variant="ghost" onClick={() => setThisWeek()}>Questa settimana</Button>
-          <Button size="sm" variant="ghost" onClick={() => setThisMonth()}>Questo mese</Button>
-        </div>
-        <Separator />
-        {/* Date pickers Da - A */}
-        <div className="grid grid-cols-2 gap-2">
-          <Calendar mode="single" selected={range.from} onSelect={...} />
-          <Calendar mode="single" selected={range.to} onSelect={...} />
-        </div>
-        <Button onClick={() => onRangeChange({ from: undefined, to: undefined })}>
-          Cancella
-        </Button>
-      </PopoverContent>
-    </Popover>
-  );
-}
-```
-
-### 5. Vista Pipeline
-
-```typescript
-function OrdersPipelineView({ orders, statuses }: Props) {
-  // Raggruppa ordini per stato
-  const ordersByStatus = useMemo(() => {
-    const grouped: Record<string, OrderWithDetails[]> = {};
-    
-    // Inizializza tutte le colonne (anche vuote)
-    statuses.forEach(status => {
-      grouped[status.id] = [];
-    });
-    
-    // Popola con ordini
-    orders.forEach(order => {
-      if (order.current_status_id && grouped[order.current_status_id]) {
-        grouped[order.current_status_id].push(order);
+// Struttura principale
+export default function CashFlowForecast() {
+  // Query ordini con pagamenti non incassati
+  const { data: orders } = useQuery({...});
+  
+  // Elabora pagamenti attesi
+  const expectedPayments = useMemo(() => {
+    return orders.flatMap(order => {
+      const payments: ExpectedPayment[] = [];
+      
+      // Acconto 1
+      if (!order.deposit_paid && order.deposit_amount > 0) {
+        payments.push({
+          orderId: order.id,
+          orderCode: order.order_code,
+          customerName: `${order.customer?.first_name} ${order.customer?.last_name}`,
+          type: "Acconto 1",
+          amount: order.deposit_amount,
+          expectedDate: order.deposit_expected_date ? new Date(order.deposit_expected_date) : null,
+        });
       }
+      
+      // Acconto 2 (se presente)
+      if (!order.deposit_2_paid && order.deposit_2_amount > 0) {
+        payments.push({...});
+      }
+      
+      // Saldo
+      if (!order.balance_paid && order.balance_amount > 0) {
+        payments.push({...});
+      }
+      
+      return payments;
     });
-    
-    return grouped;
-  }, [orders, statuses]);
-
+  }, [orders]);
+  
+  // Calcola statistiche
+  const stats = useMemo(() => {...}, [expectedPayments]);
+  
+  // Prepara dati per grafico
+  const chartData = useMemo(() => {...}, [expectedPayments]);
+  
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
-      {statuses
-        .sort((a, b) => a.position - b.position)
-        .map(status => (
-          <OrdersPipelineColumn 
-            key={status.id}
-            status={status}
-            orders={ordersByStatus[status.id]}
-          />
-        ))}
+    <div className="space-y-6">
+      {/* Header */}
+      {/* Stat Cards */}
+      {/* Chart */}
+      {/* Filter + Table */}
     </div>
   );
 }
 ```
 
-### 6. Card Pipeline
+---
+
+## Dettagli Tecnici
+
+### Query Supabase
 
 ```typescript
-function OrdersPipelineCard({ order }: { order: OrderWithDetails }) {
-  const pendingPayments = getPendingPayments(order);
-  
+const { data: orders = [] } = useQuery({
+  queryKey: ["forecast-orders", user?.id],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("orders")
+      .select(`
+        id,
+        order_code,
+        deposit_amount,
+        deposit_paid,
+        deposit_expected_date,
+        deposit_2_amount,
+        deposit_2_paid,
+        deposit_2_expected_date,
+        balance_amount,
+        balance_paid,
+        balance_expected_date,
+        customer:profiles!orders_customer_id_fkey(first_name, last_name)
+      `)
+      .or(
+        "deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false"
+      );
+    
+    if (error) throw error;
+    return data;
+  },
+});
+```
+
+### Funzioni di Calcolo Date
+
+```typescript
+import { 
+  isThisMonth, 
+  isAfter, 
+  isBefore, 
+  startOfMonth, 
+  endOfMonth, 
+  addMonths,
+  format 
+} from "date-fns";
+
+function isInMonth(date: Date, monthOffset: number): boolean {
+  const targetMonth = addMonths(new Date(), monthOffset);
   return (
-    <Link to={`/azienda/ordini/${order.id}`}>
-      <Card className="p-3 hover:shadow-md transition-shadow cursor-pointer">
-        <div className="space-y-2">
-          {/* Codice */}
-          <p className="font-medium text-sm">{order.order_code || "—"}</p>
-          
-          {/* Cliente */}
-          <p className="text-sm text-muted-foreground">
-            {order.customer?.first_name} {order.customer?.last_name}
-          </p>
-          
-          {/* Totale */}
-          <p className="font-semibold">{formatCurrency(order.total_amount)}</p>
-          
-          {/* Footer: Data Posa + Badge Pagamenti */}
-          <div className="flex items-center justify-between">
-            {order.expected_date && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <CalendarIcon className="h-3 w-3" />
-                {formatDateShort(order.expected_date)}
-              </span>
-            )}
-            
-            {pendingPayments.length > 0 ? (
-              <Badge variant="outline" className="text-orange-600 border-orange-300">
-                {pendingPayments.join(", ")}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-green-600 border-green-300">
-                OK
-              </Badge>
-            )}
-          </div>
-        </div>
-      </Card>
-    </Link>
+    isAfter(date, startOfMonth(targetMonth)) &&
+    isBefore(date, endOfMonth(targetMonth))
   );
+}
+
+function isWithinMonths(date: Date, months: number): boolean {
+  const now = new Date();
+  const endDate = addMonths(now, months);
+  return isAfter(date, now) && isBefore(date, endDate);
 }
 ```
 
+### Dati Grafico (Recharts)
+
+```typescript
+const chartData = useMemo(() => {
+  const months: { month: string; acconto1: number; acconto2: number; saldo: number }[] = [];
+  
+  for (let i = 0; i < 6; i++) {
+    const monthDate = addMonths(new Date(), i);
+    const monthPayments = expectedPayments.filter(p => 
+      p.expectedDate && isInMonth(p.expectedDate, i)
+    );
+    
+    months.push({
+      month: format(monthDate, "MMM yyyy", { locale: it }),
+      acconto1: sum(monthPayments.filter(p => p.type === "Acconto 1")),
+      acconto2: sum(monthPayments.filter(p => p.type === "Acconto 2")),
+      saldo: sum(monthPayments.filter(p => p.type === "Saldo")),
+    });
+  }
+  
+  return months;
+}, [expectedPayments]);
+```
+
 ---
 
-## Layout Filtri (Responsive)
-
-### Desktop
-```
-[🔍 Cerca...                    ] [Stato ▼] [Pagamenti ▼]
-[Data Contratto ▼] [Arrivo Merce ▼] [Data Posa ▼]        [Pulisci Filtri]
-```
-
-### Mobile
-Tutti i filtri in colonna verticale, collassabili in un accordion "Filtri Avanzati".
-
----
-
-## File da Modificare/Creare
+## File da Creare/Modificare
 
 | File | Azione |
 |------|--------|
-| `src/pages/azienda/OrdersList.tsx` | Refactor principale con toggle e filtri |
-| `src/components/orders/OrdersTableView.tsx` | **Nuovo** - Estrazione vista tabella |
-| `src/components/orders/OrdersPipelineView.tsx` | **Nuovo** - Vista pipeline |
-| `src/components/orders/OrdersPipelineCard.tsx` | **Nuovo** - Card per pipeline |
-| `src/components/orders/DateRangeFilter.tsx` | **Nuovo** - Filtro data range |
+| `src/pages/azienda/CashFlowForecast.tsx` | **Nuovo** - Pagina principale |
+| `src/App.tsx` | Modificare route `/azienda/previsionale` |
 
 ---
 
 ## Riepilogo Funzionalita
 
-1. **Toggle Visualizzazione**: Switch tra Tabella e Pipeline con icone (LayoutList, Columns3)
-2. **Vista Pipeline**: Colonne per ogni stato ordine, card draggable (opzionale in futuro)
-3. **Filtro Data Contratto**: Range picker sulla data creazione ordine
-4. **Filtro Arrivo Merce**: Range picker sulla data warehouse_arrival_date
-5. **Filtro Data Posa**: Range picker sulla data expected_date
-6. **Quick Filters**: Oggi, Questa settimana, Questo mese, Prossimi 7 giorni
-7. **Reset Filtri**: Pulsante per pulire tutti i filtri attivi
-8. **Responsive**: Filtri collassabili su mobile, pipeline scrollabile orizzontalmente
+1. **4 Stat Cards**: Incassi previsti questo mese, prossimo mese, 3 mesi, totale pendente
+2. **Grafico a Barre**: Timeline dei prossimi 6 mesi con breakdown per tipo pagamento
+3. **Tabella Dettagliata**: Elenco pagamenti attesi con data, ordine, cliente, tipo e importo
+4. **Filtro Data**: Range picker per filtrare la tabella
+5. **Link Ordine**: Click sul codice ordine porta al dettaglio
+6. **Gestione Date Mancanti**: Pagamenti senza data prevista mostrati in sezione "Senza data"
 
