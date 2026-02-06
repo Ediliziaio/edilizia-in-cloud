@@ -1,146 +1,144 @@
 
 
-# Piano: Colonna Pagamenti in Sospeso, Fix Articoli e Nuovo Stato "Installato"
+# Piano: Miglioramento Lista Ordini con Nuove Colonne e Filtri
 
-## Problemi Identificati
+## Panoramica
 
-### 1. ArticleCombobox non crea nuovi articoli
-Il componente `ArticleCombobox.tsx` usa una query per ottenere il `company_id` dal profilo, ma se il profilo non ha un `company_id` associato (problema simile a quello risolto in precedenza), la creazione fallisce silenziosamente.
-
-**Soluzione**: Usare `effectiveCompany` dal contesto `AuthContext` invece di fare una query separata sul profilo.
-
-### 2. Manca la selezione dello stato articolo durante la creazione
-Attualmente quando si aggiunge un nuovo articolo, lo stato viene impostato automaticamente a "da_ordinare". L'utente vuole poter selezionare lo stato direttamente nel dialog di creazione/modifica.
-
-### 3. Manca lo stato "Installato" per gli articoli
-Gli stati attuali sono: `da_ordinare`, `ordinato`, `in_magazzino`. L'utente vuole aggiungere `installato`.
-
-### 4. Manca la colonna "Pagamenti in Sospeso" nella lista ordini
-Nella tabella degli ordini serve una colonna che mostri subito quali ordini hanno pagamenti da incassare.
+Miglioreremo la tabella degli ordini aggiungendo colonne informative e un filtro per i pagamenti in sospeso.
 
 ---
 
-## Modifiche da Effettuare
+## Modifiche Database
 
-### File: `src/components/orders/ArticleCombobox.tsx`
+Aggiungere un campo `order_code` per il Codice Ordine:
 
-- Rimuovere la query per ottenere il profilo
-- Usare `effectiveCompany` da `useAuth()` per ottenere il `company_id`
-- Questo risolve il bug della creazione articoli
-
-```typescript
-// PRIMA (problematico)
-const { data: profile } = useQuery({...});
-// company_id potrebbe essere null
-
-// DOPO (corretto)
-const { effectiveCompany } = useAuth();
-// effectiveCompany.id è sempre disponibile
+```sql
+ALTER TABLE orders
+ADD COLUMN order_code TEXT;
 ```
+
+Il codice ordine sara un campo testuale libero che l'utente puo impostare manualmente durante la creazione/modifica dell'ordine.
 
 ---
 
-### File: `src/components/orders/OrderItemsList.tsx`
+## Nuove Colonne nella Tabella
 
-#### Aggiungere stato "Installato"
-```typescript
-// PRIMA
-export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino';
+| Colonna | Campo Database | Descrizione |
+|---------|---------------|-------------|
+| Codice | `order_code` | Codice identificativo ordine (es. "ORD-2026-001") |
+| Data Contratto | `created_at` | Data di creazione dell'ordine |
+| Arrivo Merce | `warehouse_arrival_date` | Data prevista arrivo merce in magazzino |
+| Data Posa | `expected_date` | Data potenziale posa/consegna |
+| Pagamenti | (calcolato) | Stato pagamenti in sospeso |
+| Stato | `current_status_id` | Stato attuale dell'ordine |
 
-// DOPO
-export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino' | 'installato';
-
-// Nuova configurazione colore
-const STATUS_CONFIG = {
-  ...
-  installato: { 
-    label: "Installato", 
-    color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" 
-  },
-};
-```
-
-#### Aggiungere Select stato nel dialog di creazione/modifica
-Nel dialog per aggiungere/modificare un articolo, aggiungere un campo Select per lo stato:
+### Layout Nuova Tabella
 
 ```
-+------------------------------------------+
-| Nome Articolo *                          |
-| [Seleziona o digita nome articolo...]    |
-+------------------------------------------+
-| Descrizione                              |
-| [Dettagli aggiuntivi...]                 |
-+------------------------------------------+
-| Quantità      | Costo Acquisto           |
-| [1]           | € [0.00]                 |
-+------------------------------------------+
-| Stato Articolo                           |
-| [Da Ordinare ▼]                          |
-+------------------------------------------+
-| Fornitore                                |
-| [Nessun fornitore ▼]     [+]             |
-+------------------------------------------+
++--------+-------------+---------+--------+--------------+------------+------------+-------+--------+
+| Codice | Descrizione | Cliente | Totale | Data Contrat.| Arrivo     | Data Posa  | Pagam.| Stato  |
++--------+-------------+---------+--------+--------------+------------+------------+-------+--------+
+| ORD-01 | Finestre... | Mario R | €5.000 | 05 Feb 2026  | 15 Feb     | 01 Mar     | ✓ OK  | Conf.  |
+| ORD-02 | Porte...    | Luigi B | €3.000 | 04 Feb 2026  | 20 Feb     | --         | Saldo | In att.|
++--------+-------------+---------+--------+--------------+------------+------------+-------+--------+
 ```
 
 ---
 
-### File: `src/pages/azienda/OrdersList.tsx`
+## Nuovo Filtro Pagamenti
 
-Aggiungere colonna "Pagamenti" che mostra lo stato dei pagamenti in sospeso.
+Aggiungere un terzo filtro a tendina per i pagamenti:
 
-#### Logica calcolo pagamenti in sospeso
-```typescript
-function getPendingPayments(order: OrderWithDetails): string[] {
-  const pending = [];
-  
-  // Acconto 1
-  if (order.deposit_amount > 0 && !order.deposit_paid) {
-    pending.push("Acconto 1");
-  }
-  
-  // Acconto 2
-  if (order.deposit_2_amount > 0 && !order.deposit_2_paid) {
-    pending.push("Acconto 2");
-  }
-  
-  // Saldo
-  if (order.balance_amount > 0 && !order.balance_paid) {
-    pending.push("Saldo");
-  }
-  
-  return pending;
-}
+```
++------------------------------------------+
+| Filtri                                   |
+| [Cerca...]  [Stato ▼]  [Pagamenti ▼]     |
+|                        - Tutti           |
+|                        - In Sospeso      |
+|                        - Tutto Pagato    |
++------------------------------------------+
 ```
 
-#### Nuova colonna nella tabella
-```
-| Descrizione | Cliente | Totale | Pagamenti   | Stato | Data |
-|-------------|---------|--------|-------------|-------|------|
-| Finestre... | Mario R | €5.000 | Saldo       | ✓     | 05/02|
-| Porte...    | Luigi B | €3.000 | Acc 1, Saldo| ⏳    | 04/02|
-| Infissi...  | Anna V  | €8.000 | (tutto ok)  | ✓     | 03/02|
-```
+### Opzioni Filtro Pagamenti
 
-Visualizzazione:
-- Se tutti i pagamenti sono completati: badge verde "Tutto Pagato"
-- Se ci sono pagamenti in sospeso: badge arancione con lista (es. "Acc 1, Saldo")
+- **Tutti** - Mostra tutti gli ordini
+- **In Sospeso** - Mostra solo ordini con almeno un pagamento da incassare
+- **Tutto Pagato** - Mostra solo ordini completamente saldati
 
 ---
 
-## Riepilogo Modifiche
+## File da Modificare
 
 | File | Modifica |
 |------|----------|
-| `ArticleCombobox.tsx` | Usare `effectiveCompany` invece della query profilo |
-| `OrderItemsList.tsx` | Aggiungere stato "Installato" + Select stato nel dialog |
-| `OrdersList.tsx` | Aggiungere colonna "Pagamenti in Sospeso" |
+| Migrazione SQL | Aggiungere campo `order_code` |
+| `OrdersList.tsx` | Nuove colonne, nuovo filtro pagamenti |
+| `CreateOrder.tsx` | Campo input per codice ordine |
+| `EditOrder.tsx` | Campo input per codice ordine |
+| `OrderDetail.tsx` | Visualizzare codice ordine |
+
+---
+
+## Dettagli Tecnici
+
+### Aggiornamento Interface OrderWithDetails
+
+```typescript
+interface OrderWithDetails {
+  id: string;
+  order_code: string | null;  // NUOVO
+  description: string;
+  total_amount: number;
+  deposit_amount: number;
+  deposit_paid: boolean | null;
+  deposit_2_amount: number | null;
+  deposit_2_paid: boolean | null;
+  balance_amount: number;
+  balance_paid: boolean | null;
+  expected_date: string | null;
+  warehouse_arrival_date: string | null;  // NUOVO nella UI
+  created_at: string;
+  current_status_id: string | null;
+  customer: {...} | null;
+  status: {...} | null;
+}
+```
+
+### Nuovo Stato per Filtro Pagamenti
+
+```typescript
+const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid">("all");
+
+// Logica filtro
+const filteredOrders = orders.filter((order) => {
+  // ... filtri esistenti ...
+  
+  const pendingPayments = getPendingPayments(order);
+  const matchesPayment = 
+    paymentFilter === "all" ||
+    (paymentFilter === "pending" && pendingPayments.length > 0) ||
+    (paymentFilter === "paid" && pendingPayments.length === 0);
+  
+  return matchesSearch && matchesStatus && matchesPayment;
+});
+```
+
+### Colonne Responsive
+
+Per evitare che la tabella diventi troppo larga, su mobile nasconderemo alcune colonne meno critiche usando classi CSS:
+
+```typescript
+<TableHead className="hidden lg:table-cell">Arrivo Merce</TableHead>
+<TableHead className="hidden md:table-cell">Data Posa</TableHead>
+```
 
 ---
 
 ## Risultato Atteso
 
-1. **Creazione articoli funzionante** - Il combobox usa correttamente `effectiveCompany` per creare nuovi template
-2. **Nuovo stato "Installato"** - Gli articoli possono avere 4 stati: Da Ordinare, Ordinato, In Magazzino, Installato
-3. **Selezione stato alla creazione** - Nel dialog di nuovo articolo si può scegliere lo stato iniziale
-4. **Colonna Pagamenti** - Nella lista ordini si vede subito quali ordini hanno pagamenti in sospeso
+1. **Codice Ordine** - Colonna con codice identificativo personalizzabile
+2. **Date Chiave Visibili** - Data contratto, arrivo merce, data posa
+3. **Filtro Pagamenti** - Facile trovare ordini con pagamenti in sospeso
+4. **Tabella Responsive** - Si adatta bene a schermi di diverse dimensioni
+5. **Colonna Pagamenti Funzionante** - Badge colorato che mostra lo stato
 
