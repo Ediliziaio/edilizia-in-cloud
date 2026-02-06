@@ -53,7 +53,7 @@ export function CustomerFinancialSummary({
               {totalDeposits > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Acconti versati</span>
-                  <span className="text-green-600">- {formatCurrency(totalDeposits)}</span>
+                  <span className="text-primary">- {formatCurrency(totalDeposits)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-lg">
@@ -63,6 +63,12 @@ export function CustomerFinancialSummary({
             </>
           ) : (
             <>
+              {depositAmount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Acconto versato</span>
+                  <span className="text-primary">- {formatCurrency(depositAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Finanziamento</span>
                 <span>{formatCurrency(financingAmount)}</span>

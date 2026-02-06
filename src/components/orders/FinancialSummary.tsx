@@ -188,6 +188,27 @@ export function FinancialSummary({
           </>
         ) : (
           <>
+            {/* Deposit for financing (optional) */}
+            <div className="space-y-2">
+              <Label htmlFor="deposit-financing">Acconto (opzionale)</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  €
+                </span>
+                <Input
+                  id="deposit-financing"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={depositAmount}
+                  onChange={(e) => onDepositAmountChange(e.target.value)}
+                  className="pl-8"
+                  placeholder="0.00"
+                  disabled={readOnly}
+                />
+              </div>
+            </div>
+
             {/* Financing Amount */}
             <div className="space-y-2">
               <Label htmlFor="financing">Valore Finanziamento</Label>
@@ -291,6 +312,12 @@ export function FinancialSummaryReadOnly({
             </>
           ) : (
             <>
+              {depositAmount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Acconto</span>
+                  <span className="text-primary">{formatCurrency(depositAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Finanziamento</span>
                 <span className="text-accent-foreground">{formatCurrency(financingAmount)}</span>
