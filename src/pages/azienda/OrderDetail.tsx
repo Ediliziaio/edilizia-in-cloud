@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, Calendar, FileText, Clock, Trash2, Pencil } from "lucide-react";
+import { ArrowLeft, User, Calendar, FileText, Clock, Trash2, Pencil, AlertTriangle, AlertCircle, Package } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/formatters";
+import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +36,80 @@ import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderEconomics } from "@/components/orders/OrderEconomics";
 import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
+
+// Order Alert Interface
+interface OrderAlert {
+  type: 'urgent' | 'warning' | 'info';
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
+// Function to calculate order alerts based on items and dates
+function getOrderAlerts(
+  order: { expected_date: string | null; warehouse_arrival_date: string | null },
+  items: { name: string; status: string }[]
+): OrderAlert[] {
+  const alerts: OrderAlert[] = [];
+  const today = startOfDay(new Date());
+
+  // Filter items by status
+  const itemsDaOrdinare = items.filter(i => i.status === 'da_ordinare');
+  const itemsOrdinati = items.filter(i => i.status === 'ordinato');
+  const itemsNonPronti = items.filter(i => 
+    i.status === 'da_ordinare' || i.status === 'ordinato'
+  );
+
+  // Alert 1: Installation date approaching with items not ready
+  if (order.expected_date && itemsNonPronti.length > 0) {
+    const expectedDate = startOfDay(parseISO(order.expected_date));
+    const daysUntilPosa = differenceInDays(expectedDate, today);
+
+    if (daysUntilPosa <= 7) {
+      const itemNames = itemsNonPronti.slice(0, 3).map(i => i.name).join(', ');
+      const moreItems = itemsNonPronti.length > 3 ? ` e altri ${itemsNonPronti.length - 3}` : '';
+      
+      alerts.push({
+        type: 'urgent',
+        title: daysUntilPosa <= 0
+          ? 'Posa scaduta!'
+          : daysUntilPosa === 1
+            ? 'Posa prevista domani!'
+            : `Posa prevista tra ${daysUntilPosa} giorni`,
+        description: `${itemsNonPronti.length} articol${itemsNonPronti.length > 1 ? 'i' : 'o'} non ancora pront${itemsNonPronti.length > 1 ? 'i' : 'o'}: ${itemNames}${moreItems}`,
+        icon: <AlertTriangle className="h-4 w-4" />,
+      });
+    }
+  }
+
+  // Alert 2: Goods arrival delayed
+  if (order.warehouse_arrival_date && itemsOrdinati.length > 0) {
+    const arrivalDate = startOfDay(parseISO(order.warehouse_arrival_date));
+    if (isBefore(arrivalDate, today)) {
+      alerts.push({
+        type: 'warning',
+        title: 'Merce in ritardo',
+        description: `${itemsOrdinati.length} articol${itemsOrdinati.length > 1 ? 'i' : 'o'} dovrebbe${itemsOrdinati.length > 1 ? 'ro' : ''} essere già arrivat${itemsOrdinati.length > 1 ? 'i' : 'o'} in magazzino`,
+        icon: <AlertCircle className="h-4 w-4" />,
+      });
+    }
+  }
+
+  // Alert 3: Items to order (only if no more urgent alerts)
+  if (itemsDaOrdinare.length > 0 && alerts.length === 0) {
+    const itemNames = itemsDaOrdinare.slice(0, 3).map(i => i.name).join(', ');
+    const moreItems = itemsDaOrdinare.length > 3 ? ` e altri ${itemsDaOrdinare.length - 3}` : '';
+    
+    alerts.push({
+      type: 'info',
+      title: `${itemsDaOrdinare.length} articol${itemsDaOrdinare.length > 1 ? 'i' : 'o'} da ordinare`,
+      description: `${itemNames}${moreItems}`,
+      icon: <Package className="h-4 w-4" />,
+    });
+  }
+
+  return alerts;
+}
 
 interface OrderDetail {
   id: string;
@@ -408,6 +485,12 @@ export default function OrderDetail() {
     purchase_price: item.purchase_price,
   }));
 
+  // Calculate order alerts
+  const orderAlerts = useMemo(() => {
+    if (!order) return [];
+    return getOrderAlerts(order, displayItems);
+  }, [order, displayItems]);
+
   const handleAttachmentsRefresh = () => {
     refetchAttachments();
   };
@@ -488,6 +571,26 @@ export default function OrderDetail() {
           </AlertDialog>
         </div>
       </div>
+
+      {/* Order Alerts */}
+      {orderAlerts.length > 0 && (
+        <div className="space-y-3">
+          {orderAlerts.map((alert, index) => (
+            <Alert
+              key={index}
+              variant={alert.type === 'urgent' ? 'destructive' : 'default'}
+              className={cn(
+                alert.type === 'warning' && 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100 [&>svg]:text-amber-600',
+                alert.type === 'info' && 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-100 [&>svg]:text-blue-600'
+              )}
+            >
+              {alert.icon}
+              <AlertTitle>{alert.title}</AlertTitle>
+              <AlertDescription>{alert.description}</AlertDescription>
+            </Alert>
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column - Main Content */}
