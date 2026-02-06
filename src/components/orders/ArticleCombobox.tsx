@@ -37,46 +37,34 @@ export function ArticleCombobox({
 }: ArticleComboboxProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const { user } = useAuth();
+  const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch company ID
-  const { data: profile } = useQuery({
-    queryKey: ["profile", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("id", user!.id)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
+  const companyId = effectiveCompany?.id;
 
   // Fetch article templates
   const { data: templates = [] } = useQuery({
-    queryKey: ["article-templates", profile?.company_id],
+    queryKey: ["article-templates", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("article_templates")
         .select("id, name")
-        .eq("company_id", profile!.company_id)
+        .eq("company_id", companyId!)
         .order("name");
       if (error) throw error;
       return data as ArticleTemplate[];
     },
-    enabled: !!profile?.company_id,
+    enabled: !!companyId,
   });
 
   // Create new template mutation
   const createTemplateMutation = useMutation({
     mutationFn: async (name: string) => {
+      if (!companyId) throw new Error("Company ID non disponibile");
       const { data, error } = await supabase
         .from("article_templates")
         .insert({
-          company_id: profile!.company_id,
+          company_id: companyId,
           name: name.trim(),
         })
         .select()

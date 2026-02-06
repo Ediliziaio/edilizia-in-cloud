@@ -28,7 +28,7 @@ import { ArticleCombobox } from "./ArticleCombobox";
 import { SupplierSelect } from "./SupplierSelect";
 import { formatCurrency } from "@/lib/formatters";
 
-export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino';
+export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino' | 'installato';
 
 export interface OrderItem {
   id?: string;
@@ -55,6 +55,7 @@ const STATUS_CONFIG: Record<OrderItemStatus, { label: string; color: string }> =
   da_ordinare: { label: "Da Ordinare", color: "bg-muted text-muted-foreground" },
   ordinato: { label: "Ordinato", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
   in_magazzino: { label: "In Magazzino", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
+  installato: { label: "Installato", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
 };
 
 interface Supplier {
@@ -76,36 +77,23 @@ export function OrderItemsList({
   const [itemQuantity, setItemQuantity] = useState("1");
   const [itemSupplierId, setItemSupplierId] = useState<string | undefined>();
   const [itemPurchasePrice, setItemPurchasePrice] = useState("");
+  const [itemStatus, setItemStatus] = useState<OrderItemStatus>("da_ordinare");
 
-  const { user } = useAuth();
-
-  // Fetch company ID
-  const { data: profile } = useQuery({
-    queryKey: ["profile", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("id", user!.id)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
 
   // Fetch suppliers to display names
   const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers", profile?.company_id],
+    queryKey: ["suppliers", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
         .select("id, name")
-        .eq("company_id", profile!.company_id);
+        .eq("company_id", companyId!);
       if (error) throw error;
       return data as Supplier[];
     },
-    enabled: !!profile?.company_id,
+    enabled: !!companyId,
   });
 
   const getSupplierName = (supplierId?: string) => {
@@ -119,6 +107,7 @@ export function OrderItemsList({
     setItemQuantity("1");
     setItemSupplierId(undefined);
     setItemPurchasePrice("");
+    setItemStatus("da_ordinare");
     setEditingIndex(null);
   };
 
@@ -134,6 +123,7 @@ export function OrderItemsList({
     setItemQuantity(item.quantity.toString());
     setItemSupplierId(item.supplier_id);
     setItemPurchasePrice(item.purchase_price?.toString() || "");
+    setItemStatus(item.status);
     setEditingIndex(index);
     setDialogOpen(true);
   };
@@ -154,6 +144,7 @@ export function OrderItemsList({
         quantity,
         supplier_id: itemSupplierId,
         purchase_price: purchasePrice,
+        status: itemStatus,
       };
       onItemsChange(newItems);
     } else {
@@ -162,7 +153,7 @@ export function OrderItemsList({
         name: itemName.trim(),
         description: itemDescription.trim() || undefined,
         quantity,
-        status: 'da_ordinare',
+        status: itemStatus,
         position: items.length,
         supplier_id: itemSupplierId,
         purchase_price: purchasePrice,
@@ -358,6 +349,22 @@ export function OrderItemsList({
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Stato Articolo</Label>
+                <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                      <SelectItem key={status} value={status}>
+                        {config.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

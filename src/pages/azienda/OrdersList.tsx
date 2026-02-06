@@ -30,7 +30,11 @@ interface OrderWithDetails {
   description: string;
   total_amount: number;
   deposit_amount: number;
+  deposit_paid: boolean | null;
+  deposit_2_amount: number | null;
+  deposit_2_paid: boolean | null;
   balance_amount: number;
+  balance_paid: boolean | null;
   expected_date: string | null;
   created_at: string;
   current_status_id: string | null;
@@ -43,6 +47,25 @@ interface OrderWithDetails {
     name: string;
     color: string;
   } | null;
+}
+
+// Helper per calcolare pagamenti in sospeso
+function getPendingPayments(order: OrderWithDetails): string[] {
+  const pending: string[] = [];
+  
+  if (order.deposit_amount > 0 && !order.deposit_paid) {
+    pending.push("Acc. 1");
+  }
+  
+  if (order.deposit_2_amount && order.deposit_2_amount > 0 && !order.deposit_2_paid) {
+    pending.push("Acc. 2");
+  }
+  
+  if (order.balance_amount > 0 && !order.balance_paid) {
+    pending.push("Saldo");
+  }
+  
+  return pending;
 }
 
 export default function OrdersList() {
@@ -184,6 +207,7 @@ export default function OrdersList() {
                 <TableHead>Descrizione</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead className="text-right">Totale</TableHead>
+                <TableHead>Pagamenti</TableHead>
                 <TableHead>Stato</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>
@@ -202,6 +226,23 @@ export default function OrdersList() {
                   </TableCell>
                   <TableCell className="text-right">
                     {formatCurrency(order.total_amount)}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const pending = getPendingPayments(order);
+                      if (pending.length === 0) {
+                        return (
+                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-0">
+                            Tutto Pagato
+                          </Badge>
+                        );
+                      }
+                      return (
+                        <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-0">
+                          {pending.join(", ")}
+                        </Badge>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     {order.status ? (
