@@ -155,26 +155,24 @@ function CompanySidebar() {
 }
 
 export function CompanyLayout() {
-  const { effectiveCompany, isImpersonating } = useAuth();
+  const { effectiveCompany } = useAuth();
   
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex flex-col w-full">
-        <ImpersonationBanner />
-        <div className="flex flex-1">
-          <CompanySidebar />
-          <div className="flex-1 flex flex-col">
-            <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
-              <SidebarTrigger />
-              <div className="flex-1" />
-              <span className="text-sm text-muted-foreground">
-                {effectiveCompany?.name}
-              </span>
-            </header>
-            <main className="flex-1 p-6 bg-muted/30">
-              <Outlet />
-            </main>
-          </div>
+      <div className="min-h-screen flex w-full">
+        <CompanySidebar />
+        <div className="flex-1 flex flex-col">
+          <ImpersonationBanner />
+          <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
+            <SidebarTrigger />
+            <div className="flex-1" />
+            <span className="text-sm text-muted-foreground">
+              {effectiveCompany?.name}
+            </span>
+          </header>
+          <main className="flex-1 p-6 bg-muted/30">
+            <Outlet />
+          </main>
         </div>
       </div>
     </SidebarProvider>
