@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { Building2, Plus, Search } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Building2, Plus, Search, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,8 @@ export default function CompaniesList() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const { impersonateCompany } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchCompanies() {
@@ -45,6 +48,11 @@ export default function CompaniesList() {
       company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       company.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleImpersonate = async (companyId: string) => {
+    await impersonateCompany(companyId);
+    navigate("/azienda");
+  };
 
   return (
     <div className="space-y-6">
@@ -130,8 +138,17 @@ export default function CompaniesList() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <Badge variant="secondary">{sectorLabels[company.sector] || company.sector}</Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => handleImpersonate(company.id)}
+                >
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Accedi come Admin
+                </Button>
               </CardContent>
             </Card>
           ))}

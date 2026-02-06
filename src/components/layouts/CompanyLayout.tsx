@@ -1,4 +1,4 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
   Building2, 
@@ -8,7 +8,9 @@ import {
   HeadphonesIcon,
   Settings,
   LogOut,
-  TrendingUp
+  TrendingUp,
+  AlertTriangle,
+  ArrowLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,25 +37,66 @@ const navItems = [
   { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings },
 ];
 
+function ImpersonationBanner() {
+  const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
+  const navigate = useNavigate();
+
+  if (!isImpersonating) return null;
+
+  const handleExit = () => {
+    exitImpersonation();
+    navigate("/admin/aziende");
+  };
+
+  return (
+    <div className="bg-warning text-warning-foreground px-4 py-2 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4" />
+        <span className="font-medium">
+          Stai visualizzando come: <strong>{impersonatedCompany?.name}</strong>
+        </span>
+      </div>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={handleExit}
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Torna a Admin
+      </Button>
+    </div>
+  );
+}
+
 function CompanySidebar() {
-  const { signOut, company, profile } = useAuth();
+  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation } = useAuth();
+  const navigate = useNavigate();
   
+  const handleLogoutOrExit = () => {
+    if (isImpersonating) {
+      exitImpersonation();
+      navigate("/admin/aziende");
+    } else {
+      signOut();
+    }
+  };
+
   return (
     <Sidebar className="border-r">
       <div className="flex h-14 items-center border-b px-4">
         <Link to="/azienda" className="flex items-center gap-2">
-          {company?.logo_url ? (
+          {effectiveCompany?.logo_url ? (
             <Avatar className="h-8 w-8">
-              <AvatarImage src={company.logo_url} alt={company.name} />
+              <AvatarImage src={effectiveCompany.logo_url} alt={effectiveCompany.name} />
               <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {company.name.slice(0, 2).toUpperCase()}
+                {effectiveCompany.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
           ) : (
             <Building2 className="h-6 w-6 text-primary" />
           )}
           <span className="font-semibold text-foreground truncate max-w-[160px]">
-            {company?.name || "La tua azienda"}
+            {effectiveCompany?.name || "La tua azienda"}
           </span>
         </Link>
       </div>
@@ -93,17 +136,17 @@ function CompanySidebar() {
                 {profile?.first_name} {profile?.last_name}
               </p>
               <p className="text-xs text-muted-foreground truncate">
-                Admin
+                {isImpersonating ? "Super Admin (Impersonando)" : "Admin"}
               </p>
             </div>
           </div>
           <Button 
             variant="ghost" 
             className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-            onClick={() => signOut()}
+            onClick={handleLogoutOrExit}
           >
             <LogOut className="h-4 w-4" />
-            Esci
+            {isImpersonating ? "Torna a Admin" : "Esci"}
           </Button>
         </div>
       </SidebarContent>
@@ -112,23 +155,26 @@ function CompanySidebar() {
 }
 
 export function CompanyLayout() {
-  const { company } = useAuth();
+  const { effectiveCompany, isImpersonating } = useAuth();
   
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <CompanySidebar />
-        <div className="flex-1 flex flex-col">
-          <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
-            <SidebarTrigger />
-            <div className="flex-1" />
-            <span className="text-sm text-muted-foreground">
-              {company?.name}
-            </span>
-          </header>
-          <main className="flex-1 p-6 bg-muted/30">
-            <Outlet />
-          </main>
+      <div className="min-h-screen flex flex-col w-full">
+        <ImpersonationBanner />
+        <div className="flex flex-1">
+          <CompanySidebar />
+          <div className="flex-1 flex flex-col">
+            <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
+              <SidebarTrigger />
+              <div className="flex-1" />
+              <span className="text-sm text-muted-foreground">
+                {effectiveCompany?.name}
+              </span>
+            </header>
+            <main className="flex-1 p-6 bg-muted/30">
+              <Outlet />
+            </main>
+          </div>
         </div>
       </div>
     </SidebarProvider>
