@@ -52,6 +52,13 @@ interface OrderDetail {
   warehouse_arrival_date: string | null;
   work_start_date: string | null;
   work_end_date: string | null;
+  deposit_paid: boolean;
+  deposit_paid_date: string | null;
+  deposit_2_paid: boolean;
+  deposit_2_paid_date: string | null;
+  balance_paid: boolean;
+  balance_paid_date: string | null;
+  balance_expected_date: string | null;
   customer: {
     id: string;
     first_name: string;
@@ -593,6 +600,13 @@ export default function OrderDetail() {
             paymentType={(order.payment_type as PaymentType) || 'standard'}
             balanceAmount={order.balance_amount}
             vatRate={order.vat_rate || 22}
+            depositPaid={order.deposit_paid}
+            depositPaidDate={order.deposit_paid_date}
+            deposit2Paid={order.deposit_2_paid}
+            deposit2PaidDate={order.deposit_2_paid_date}
+            balancePaid={order.balance_paid}
+            balancePaidDate={order.balance_paid_date}
+            balanceExpectedDate={order.balance_expected_date}
           />
 
           {/* Order Economics */}

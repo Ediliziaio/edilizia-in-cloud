@@ -254,12 +254,19 @@ export type Database = {
       orders: {
         Row: {
           balance_amount: number
+          balance_expected_date: string | null
+          balance_paid: boolean | null
+          balance_paid_date: string | null
           company_id: string
           created_at: string
           current_status_id: string | null
           customer_id: string
           deposit_2_amount: number | null
+          deposit_2_paid: boolean | null
+          deposit_2_paid_date: string | null
           deposit_amount: number
+          deposit_paid: boolean | null
+          deposit_paid_date: string | null
           description: string
           expected_date: string | null
           financing_amount: number | null
@@ -275,12 +282,19 @@ export type Database = {
         }
         Insert: {
           balance_amount?: number
+          balance_expected_date?: string | null
+          balance_paid?: boolean | null
+          balance_paid_date?: string | null
           company_id: string
           created_at?: string
           current_status_id?: string | null
           customer_id: string
           deposit_2_amount?: number | null
+          deposit_2_paid?: boolean | null
+          deposit_2_paid_date?: string | null
           deposit_amount?: number
+          deposit_paid?: boolean | null
+          deposit_paid_date?: string | null
           description: string
           expected_date?: string | null
           financing_amount?: number | null
@@ -296,12 +310,19 @@ export type Database = {
         }
         Update: {
           balance_amount?: number
+          balance_expected_date?: string | null
+          balance_paid?: boolean | null
+          balance_paid_date?: string | null
           company_id?: string
           created_at?: string
           current_status_id?: string | null
           customer_id?: string
           deposit_2_amount?: number | null
+          deposit_2_paid?: boolean | null
+          deposit_2_paid_date?: string | null
           deposit_amount?: number
+          deposit_paid?: boolean | null
+          deposit_paid_date?: string | null
           description?: string
           expected_date?: string | null
           financing_amount?: number | null
