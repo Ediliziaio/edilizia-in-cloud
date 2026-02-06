@@ -33,6 +33,7 @@ import CreateCustomer from "@/pages/azienda/CreateCustomer";
 
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
+import CustomerOrderDetail from "@/pages/cliente/CustomerOrderDetail";
 
 const queryClient = new QueryClient();
 
@@ -95,7 +96,7 @@ const App = () => (
               }
             >
               <Route index element={<CustomerOrders />} />
-              <Route path="ordini/:id" element={<div className="text-muted-foreground">Dettaglio Ordine - Coming soon</div>} />
+              <Route path="ordini/:id" element={<CustomerOrderDetail />} />
               <Route path="assistenza" element={<div className="text-muted-foreground">Assistenza - Coming soon</div>} />
               <Route path="profilo" element={<div className="text-muted-foreground">Profilo - Coming soon</div>} />
             </Route>
