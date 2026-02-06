@@ -51,11 +51,27 @@ interface OrderItemsListProps {
   onAttachmentsRefresh?: () => void;
 }
 
-const STATUS_CONFIG: Record<OrderItemStatus, { label: string; color: string }> = {
-  da_ordinare: { label: "Da Ordinare", color: "bg-muted text-muted-foreground" },
-  ordinato: { label: "Ordinato", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
-  in_magazzino: { label: "In Magazzino", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
-  installato: { label: "Installato", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
+const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
+  da_ordinare: { 
+    label: "Da Ordinare", 
+    badgeColor: "bg-amber-500 text-white hover:bg-amber-500",
+    borderColor: "border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20"
+  },
+  ordinato: { 
+    label: "Ordinato", 
+    badgeColor: "bg-blue-500 text-white hover:bg-blue-500",
+    borderColor: "border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20"
+  },
+  in_magazzino: { 
+    label: "In Magazzino", 
+    badgeColor: "bg-emerald-500 text-white hover:bg-emerald-500",
+    borderColor: "border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20"
+  },
+  installato: { 
+    label: "Installato", 
+    badgeColor: "bg-purple-500 text-white hover:bg-purple-500",
+    borderColor: "border-l-4 border-l-purple-500 bg-purple-50 dark:bg-purple-950/20"
+  },
 };
 
 interface Supplier {
@@ -182,16 +198,36 @@ export function OrderItemsList({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <Package className="h-5 w-5" />
-          Articoli dell'Ordine
-        </CardTitle>
-        {editable && (
-          <Button type="button" size="sm" onClick={openAddDialog}>
-            <Plus className="h-4 w-4 mr-2" />
-            Aggiungi
-          </Button>
+      <CardHeader className="pb-3">
+        <div className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Articoli dell'Ordine
+          </CardTitle>
+          {editable && (
+            <Button type="button" size="sm" onClick={openAddDialog}>
+              <Plus className="h-4 w-4 mr-2" />
+              Aggiungi
+            </Button>
+          )}
+        </div>
+        {/* Status summary chips */}
+        {items.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {(Object.entries(
+              items.reduce((acc, item) => {
+                acc[item.status] = (acc[item.status] || 0) + 1;
+                return acc;
+              }, {} as Record<OrderItemStatus, number>)
+            ) as [OrderItemStatus, number][]).map(([status, count]) => (
+              <span
+                key={status}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_CONFIG[status].badgeColor}`}
+              >
+                {count} {STATUS_CONFIG[status].label}
+              </span>
+            ))}
+          </div>
         )}
       </CardHeader>
       <CardContent>
@@ -204,7 +240,7 @@ export function OrderItemsList({
             {items.map((item, index) => (
               <div
                 key={item.id || index}
-                className="p-3 border rounded-lg bg-card space-y-2"
+                className={`p-3 rounded-lg space-y-2 ${STATUS_CONFIG[item.status]?.borderColor || STATUS_CONFIG.da_ordinare.borderColor}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
@@ -245,7 +281,7 @@ export function OrderItemsList({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Badge className={STATUS_CONFIG[item.status]?.color || STATUS_CONFIG.da_ordinare.color}>
+                      <Badge className={STATUS_CONFIG[item.status]?.badgeColor || STATUS_CONFIG.da_ordinare.badgeColor}>
                         {STATUS_CONFIG[item.status]?.label || "Da Ordinare"}
                       </Badge>
                     )}
