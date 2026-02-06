@@ -24,7 +24,8 @@ import { StatusItem } from "./StatusItem";
 import { OrderProgressTracker, type OrderStatus } from "@/components/orders/OrderProgressTracker";
 
 export function OrderStatusConfig() {
-  const { company } = useAuth();
+  const { effectiveCompany } = useAuth();
+  const company = effectiveCompany;
   const { toast } = useToast();
   const [statuses, setStatuses] = useState<OrderStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -150,9 +151,14 @@ export function OrderStatusConfig() {
         description: "Gli stati ordine sono stati aggiornati",
       });
     } catch (error: any) {
+      // Handle specific error for status in use
+      let errorMessage = error.message || "Impossibile salvare le modifiche";
+      if (errorMessage.includes("stato usato") || errorMessage.includes("storico ordini")) {
+        errorMessage = "Impossibile eliminare uno stato già in uso. Alcuni stati sono associati a ordini esistenti o presenti nello storico.";
+      }
       toast({
         title: "Errore",
-        description: error.message || "Impossibile salvare le modifiche",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

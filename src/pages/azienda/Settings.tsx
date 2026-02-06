@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { OrderStatusConfig } from "@/components/settings/OrderStatusConfig";
 
 export default function Settings() {
-  const { company } = useAuth();
+  const { effectiveCompany } = useAuth();
+  const company = effectiveCompany;
   const [activeTab, setActiveTab] = useState("stati-ordine");
 
   return (
