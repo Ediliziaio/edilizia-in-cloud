@@ -1,148 +1,202 @@
 
-# Piano: Fix Fornitore, UX Stati Articoli e Caricamento Dati
+# Piano: Alert Visivo per Articoli e Scadenze nella Scheda Ordine
 
-## Problemi Identificati
+## Obiettivo
 
-### 1. Creazione Fornitore Fallisce
-Il componente `SupplierSelect.tsx` (linee 48-61) usa una query per ottenere `company_id` dal profilo utente, ma per il super_admin che sta impersonando un'azienda, `profile.company_id` e `null`. Il network request conferma: `{"company_id":null,"name":"mario"}`.
-
-**Soluzione**: Stessa fix gia applicata a `ArticleCombobox` - usare `effectiveCompany` da `useAuth()` invece della query sul profilo.
-
----
-
-### 2. Dati Non Visibili in Modifica Ordine
-Il problema e che gli articoli dell'ordine (`order_items`) vengono ricaricati correttamente dal database, ma quando si apre la pagina di modifica, gli articoli salvati dovrebbero apparire. Verifico che la logica di popolamento in `EditOrder.tsx` (linee 213-226) sia corretta.
-
-**Possibile causa**: Se gli articoli non sono mai stati salvati inizialmente (a causa del bug precedente del form submit), il database e vuoto.
+Aggiungere un sistema di alert visivo prominente nella scheda ordine che mostri:
+1. Se ci sono articoli ancora "Da Ordinare"
+2. Se la data di posa si sta avvicinando ma la merce non è ancora arrivata in magazzino
 
 ---
 
-### 3. UX Stati Articoli - Miglioramento Visivo
-I colori attuali sono troppo sottili. L'utente ha bisogno di:
-- **Colori piu vividi e distinti** per ogni stato
-- **Riepilogo visivo immediato** che mostri quanti articoli sono in ogni stato
-- **Evidenziazione problemi** - se alcuni articoli sono "Da Ordinare" mentre altri sono "In Magazzino"
+## Logica degli Alert
+
+### Alert 1: Articoli Da Ordinare
+Mostra un alert arancione se esistono articoli con stato `da_ordinare`.
+
+**Condizione**: `items.some(item => item.status === 'da_ordinare')`
+
+### Alert 2: Data Posa in Avvicinamento (Urgente)
+Mostra un alert rosso se:
+- C'è una data di posa (`expected_date`) 
+- La data è entro i prossimi 7 giorni (o passata)
+- Ci sono ancora articoli NON in magazzino o NON installati
+
+**Condizione**: 
+```
+expected_date <= oggi + 7 giorni 
+AND items.some(status === 'da_ordinare' OR status === 'ordinato')
+```
+
+### Alert 3: Merce Non Arrivata (Attenzione)
+Mostra un alert giallo se:
+- C'è una data arrivo merce (`warehouse_arrival_date`)
+- La data è passata
+- Ci sono ancora articoli con stato `ordinato` (non ancora arrivati)
+
+**Condizione**:
+```
+warehouse_arrival_date < oggi
+AND items.some(status === 'ordinato')
+```
 
 ---
 
-## Modifiche da Effettuare
+## Design Visivo degli Alert
 
-### File 1: `src/components/orders/SupplierSelect.tsx`
+Gli alert appariranno in cima alla scheda ordine, subito dopo l'header:
 
-#### Rimuovere query profilo, usare effectiveCompany
+```
++-------------------------------------------------------------+
+| ⚠️ ATTENZIONE: Posa prevista tra 5 giorni!                   |
+|    2 articoli non sono ancora in magazzino.                  |
++-------------------------------------------------------------+
 
++-------------------------------------------------------------+
+| 🔶 3 articoli da ordinare                                    |
+|    Finestre PVC, Porte interne, Maniglie                     |
++-------------------------------------------------------------+
+```
+
+### Stili degli Alert
+
+| Tipo | Colore | Icona | Priorità |
+|------|--------|-------|----------|
+| Urgente (posa imminente) | Rosso/Destructive | AlertTriangle | Alta |
+| Attenzione (merce in ritardo) | Arancione | AlertCircle | Media |
+| Info (articoli da ordinare) | Ambra/Giallo | Package | Bassa |
+
+---
+
+## Modifiche Tecniche
+
+### File: `src/pages/azienda/OrderDetail.tsx`
+
+#### 1. Nuovi Import
 ```typescript
-// PRIMA (linee 44-61)
-const { user } = useAuth();
-const { data: profile } = useQuery({...});
-
-// DOPO
-const { effectiveCompany } = useAuth();
-const companyId = effectiveCompany?.id;
-
-// Usare companyId invece di profile.company_id ovunque
+import { AlertTriangle, AlertCircle } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { differenceInDays, parseISO, isAfter, isBefore } from "date-fns";
 ```
 
----
-
-### File 2: `src/components/orders/OrderItemsList.tsx`
-
-#### A. Nuovi colori piu vividi per gli stati
-
+#### 2. Funzione per calcolare gli alert
 ```typescript
-const STATUS_CONFIG: Record<OrderItemStatus, { label: string; color: string; bgColor: string }> = {
-  da_ordinare: { 
-    label: "Da Ordinare", 
-    color: "bg-amber-500 text-white",  // Arancione vivace per attenzione
-    bgColor: "border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20"
-  },
-  ordinato: { 
-    label: "Ordinato", 
-    color: "bg-blue-500 text-white",   // Blu per "in processo"
-    bgColor: "border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20"
-  },
-  in_magazzino: { 
-    label: "In Magazzino", 
-    color: "bg-emerald-500 text-white", // Verde per "pronto"
-    bgColor: "border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20"
-  },
-  installato: { 
-    label: "Installato", 
-    color: "bg-purple-500 text-white",  // Viola per "completato"
-    bgColor: "border-l-4 border-l-purple-500 bg-purple-50 dark:bg-purple-950/20"
-  },
-};
+interface OrderAlert {
+  type: 'urgent' | 'warning' | 'info';
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
+function getOrderAlerts(
+  order: OrderDetail, 
+  items: OrderItem[]
+): OrderAlert[] {
+  const alerts: OrderAlert[] = [];
+  const today = new Date();
+  
+  // Articoli per stato
+  const itemsDaOrdinare = items.filter(i => i.status === 'da_ordinare');
+  const itemsOrdinati = items.filter(i => i.status === 'ordinato');
+  const itemsNonPronti = items.filter(i => 
+    i.status === 'da_ordinare' || i.status === 'ordinato'
+  );
+  
+  // Alert 1: Posa imminente con articoli non pronti
+  if (order.expected_date && itemsNonPronti.length > 0) {
+    const expectedDate = parseISO(order.expected_date);
+    const daysUntilPosa = differenceInDays(expectedDate, today);
+    
+    if (daysUntilPosa <= 7) {
+      alerts.push({
+        type: 'urgent',
+        title: daysUntilPosa <= 0 
+          ? 'Posa scaduta!' 
+          : `Posa prevista tra ${daysUntilPosa} giorni`,
+        description: `${itemsNonPronti.length} articol${itemsNonPronti.length > 1 ? 'i' : 'o'} non ancora pront${itemsNonPronti.length > 1 ? 'i' : 'o'}: ${itemsNonPronti.map(i => i.name).join(', ')}`,
+        icon: <AlertTriangle className="h-4 w-4" />,
+      });
+    }
+  }
+  
+  // Alert 2: Arrivo merce in ritardo
+  if (order.warehouse_arrival_date && itemsOrdinati.length > 0) {
+    const arrivalDate = parseISO(order.warehouse_arrival_date);
+    if (isBefore(arrivalDate, today)) {
+      alerts.push({
+        type: 'warning',
+        title: 'Merce in ritardo',
+        description: `${itemsOrdinati.length} articol${itemsOrdinati.length > 1 ? 'i' : 'o'} dovrebbero essere già arrivat${itemsOrdinati.length > 1 ? 'i' : 'o'} in magazzino`,
+        icon: <AlertCircle className="h-4 w-4" />,
+      });
+    }
+  }
+  
+  // Alert 3: Articoli da ordinare (solo se non ci sono alert più urgenti)
+  if (itemsDaOrdinare.length > 0 && alerts.length === 0) {
+    alerts.push({
+      type: 'info',
+      title: `${itemsDaOrdinare.length} articol${itemsDaOrdinare.length > 1 ? 'i' : 'o'} da ordinare`,
+      description: itemsDaOrdinare.map(i => i.name).join(', '),
+      icon: <Package className="h-4 w-4" />,
+    });
+  }
+  
+  return alerts;
+}
 ```
 
-#### B. Riepilogo visivo nell'header della card
+#### 3. Rendering degli Alert nel JSX
+Dopo l'header e prima del grid principale:
 
-Aggiungere un riepilogo che mostra immediatamente lo stato degli articoli:
-
+```tsx
+{/* Order Alerts */}
+{orderAlerts.length > 0 && (
+  <div className="space-y-3">
+    {orderAlerts.map((alert, index) => (
+      <Alert 
+        key={index}
+        variant={alert.type === 'urgent' ? 'destructive' : 'default'}
+        className={cn(
+          alert.type === 'warning' && 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100',
+          alert.type === 'info' && 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-100'
+        )}
+      >
+        {alert.icon}
+        <AlertTitle>{alert.title}</AlertTitle>
+        <AlertDescription>{alert.description}</AlertDescription>
+      </Alert>
+    ))}
+  </div>
+)}
 ```
-+--------------------------------------------------+
-| Articoli dell'Ordine                   [Aggiungi]|
-| ○ 2 Da Ordinare  ● 3 Ordinato  ● 1 In Magazzino  |
-+--------------------------------------------------+
-| [ARANCIO] Finestre PVC          x3   Da Ordinare |
-| [BLU]     Porte interne         x2   Ordinato    |
-| [VERDE]   Maniglie              x6   In Magazzino|
-+--------------------------------------------------+
-```
-
-#### C. Evidenziazione articoli con bordo colorato
-
-Ogni articolo avra un bordo sinistro colorato in base allo stato, rendendo immediata l'identificazione visiva.
-
----
-
-## Layout Nuovo Riepilogo Stati
-
-Il riepilogo mostra dei "chip" colorati con il conteggio per ogni stato:
-
-```typescript
-// Calcolare conteggio per stato
-const statusCounts = items.reduce((acc, item) => {
-  acc[item.status] = (acc[item.status] || 0) + 1;
-  return acc;
-}, {} as Record<OrderItemStatus, number>);
-
-// Mostrare solo stati con articoli > 0
-{Object.entries(statusCounts).map(([status, count]) => (
-  <span 
-    key={status} 
-    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CONFIG[status].color}`}
-  >
-    {count} {STATUS_CONFIG[status].label}
-  </span>
-))}
-```
-
----
-
-## Riepilogo Modifiche
-
-| File | Modifica |
-|------|----------|
-| `SupplierSelect.tsx` | Usare `effectiveCompany` invece della query profilo |
-| `OrderItemsList.tsx` | Colori vividi, bordi colorati, riepilogo stati nell'header |
-
----
-
-## Colori Proposti
-
-| Stato | Colore Badge | Bordo Sinistro | Significato |
-|-------|--------------|----------------|-------------|
-| Da Ordinare | Arancione (`amber-500`) | Arancione | Attenzione richiesta |
-| Ordinato | Blu (`blue-500`) | Blu | In lavorazione |
-| In Magazzino | Verde (`emerald-500`) | Verde | Pronto per la posa |
-| Installato | Viola (`purple-500`) | Viola | Completato |
 
 ---
 
 ## Risultato Atteso
 
-1. **Creazione fornitore funzionante** - Il componente usa `effectiveCompany` per ottenere il `company_id` corretto
-2. **Identificazione immediata** - Ogni articolo ha un bordo colorato che indica lo stato
-3. **Riepilogo nell'header** - Vedi subito quanti articoli sono in ogni stato (es. "2 Da Ordinare, 3 Ordinato")
-4. **Colori vividi** - Badge con colori pieni (non sbiaditi) per massima leggibilita
-5. **Attenzione visiva** - Gli articoli "Da Ordinare" hanno colore arancione che attira l'attenzione
+1. **Alert Urgente (Rosso)**: Appare quando la data di posa è entro 7 giorni e ci sono articoli non pronti
+2. **Alert Attenzione (Arancione)**: Appare quando la data arrivo merce è passata ma ci sono ancora articoli "Ordinato"
+3. **Alert Info (Blu)**: Appare quando ci sono articoli da ordinare (se non ci sono alert più urgenti)
+4. **Priorità Visiva**: Gli alert urgenti appaiono sempre per primi
+5. **Dettaglio Articoli**: Ogni alert elenca gli articoli coinvolti per azione immediata
+
+---
+
+## Esempio Visivo
+
+Quando apri la scheda ordine con problemi:
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║ ← Dettaglio Ordine (ORD-2026-001)                             ║
+║   Creato il 05 Feb 2026                                       ║
+╠═══════════════════════════════════════════════════════════════╣
+║ ⚠️ POSA PREVISTA TRA 3 GIORNI!                                ║
+║    2 articoli non ancora pronti: Finestre PVC, Porte interne  ║
+╠═══════════════════════════════════════════════════════════════╣
+║                                                               ║
+║ [Descrizione Lavoro]     [Cliente]                            ║
+║ [Articoli]               [Riepilogo Finanziario]              ║
+╚═══════════════════════════════════════════════════════════════╝
+```
