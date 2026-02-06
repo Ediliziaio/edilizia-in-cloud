@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { ClipboardList, Loader2, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import { formatCurrency } from "@/lib/formatters";
 
 interface Order {
   id: string;
@@ -114,9 +114,9 @@ export default function CustomerOrders() {
                       )}
                       
                       <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-                        <span>Totale: <span className="text-foreground font-medium">€{Number(order.total_amount).toLocaleString("it-IT")}</span></span>
-                        <span>Acconto: <span className="text-foreground">€{Number(order.deposit_amount).toLocaleString("it-IT")}</span></span>
-                        <span>Saldo: <span className="text-foreground">€{Number(order.balance_amount).toLocaleString("it-IT")}</span></span>
+                        <span>Totale: <span className="text-foreground font-medium">{formatCurrency(order.total_amount)}</span></span>
+                        <span>Acconto: <span className="text-foreground">{formatCurrency(order.deposit_amount)}</span></span>
+                        <span>Saldo: <span className="text-foreground">{formatCurrency(order.balance_amount)}</span></span>
                       </div>
                       
                       {order.expected_date && (
