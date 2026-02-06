@@ -2,3 +2,6 @@ project_id = "guqgszwelffntrgtsycm"
 
 [functions.create-customer]
 verify_jwt = false
+
+[functions.reset-customer-password]
+verify_jwt = false

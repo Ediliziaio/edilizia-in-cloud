@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Users, Plus, Search, Mail, Phone, ClipboardList } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +16,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface CustomerWithOrders {
   id: string;
@@ -25,11 +45,27 @@ interface CustomerWithOrders {
   order_count: number;
 }
 
+interface ResetPasswordResult {
+  newPassword: string;
+  customer: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  };
+}
+
 export default function CustomersList() {
   const [searchQuery, setSearchQuery] = useState("");
-  const { effectiveCompany, isImpersonating, user } = useAuth();
-
-  const companyId = isImpersonating ? effectiveCompany?.id : null;
+  const [resetPasswordDialog, setResetPasswordDialog] = useState<{
+    open: boolean;
+    customer: CustomerWithOrders | null;
+    newPassword: string | null;
+    copied: boolean;
+  }>({ open: false, customer: null, newPassword: null, copied: false });
+  
+  const { effectiveCompany, user } = useAuth();
+  const { toast } = useToast();
 
   // Fetch customers for the company
   const { data: customers = [], isLoading } = useQuery({
@@ -87,6 +123,65 @@ export default function CustomersList() {
     },
     enabled: !!effectiveCompany?.id,
   });
+
+  // Reset password mutation
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (customerId: string) => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      if (!token) {
+        throw new Error("Non autenticato");
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-customer-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ customer_id: customerId }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Errore durante il reset della password");
+      }
+
+      return data as { success: boolean; newPassword: string; customer: ResetPasswordResult["customer"] };
+    },
+    onSuccess: (data, customerId) => {
+      const customer = customers.find((c) => c.id === customerId);
+      setResetPasswordDialog({
+        open: true,
+        customer: customer || null,
+        newPassword: data.newPassword,
+        copied: false,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Errore",
+        description: error instanceof Error ? error.message : "Impossibile resettare la password",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCopyPassword = async () => {
+    if (resetPasswordDialog.newPassword) {
+      await navigator.clipboard.writeText(resetPasswordDialog.newPassword);
+      setResetPasswordDialog((prev) => ({ ...prev, copied: true }));
+      toast({
+        title: "Copiato",
+        description: "Password copiata negli appunti",
+      });
+    }
+  };
 
   const filteredCustomers = customers.filter(
     (customer) =>
@@ -160,6 +255,7 @@ export default function CustomersList() {
                 <TableHead>Email</TableHead>
                 <TableHead>Telefono</TableHead>
                 <TableHead className="text-center">Ordini</TableHead>
+                <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -190,12 +286,114 @@ export default function CustomersList() {
                       <span>{customer.order_count}</span>
                     </div>
                   </TableCell>
+                  <TableCell className="text-right">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={resetPasswordMutation.isPending}
+                        >
+                          <KeyRound className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Reset Password</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Vuoi resettare la password per {customer.first_name} {customer.last_name}?
+                            <br />
+                            <span className="text-muted-foreground">
+                              Verrà generata una nuova password che dovrai comunicare al cliente.
+                            </span>
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annulla</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => resetPasswordMutation.mutate(customer.id)}
+                          >
+                            Conferma Reset
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </Card>
       )}
+
+      {/* New Password Dialog */}
+      <Dialog
+        open={resetPasswordDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetPasswordDialog({
+              open: false,
+              customer: null,
+              newPassword: null,
+              copied: false,
+            });
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Password Resettata</DialogTitle>
+            <DialogDescription>
+              La password per {resetPasswordDialog.customer?.first_name}{" "}
+              {resetPasswordDialog.customer?.last_name} è stata resettata con successo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/50 p-4">
+              <p className="text-sm text-muted-foreground mb-2">Nuova Password:</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded bg-background px-3 py-2 font-mono text-lg">
+                  {resetPasswordDialog.newPassword}
+                </code>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCopyPassword}
+                >
+                {resetPasswordDialog.copied ? (
+                    <Check className="h-4 w-4 text-success" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-warning/30 bg-warning/10 p-4">
+              <p className="text-sm text-warning-foreground">
+                <strong>Importante:</strong> Comunica questa password al cliente in modo sicuro.
+                La password non sarà più visibile dopo aver chiuso questa finestra.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() =>
+                setResetPasswordDialog({
+                  open: false,
+                  customer: null,
+                  newPassword: null,
+                  copied: false,
+                })
+              }
+            >
+              Ho Copiato la Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
