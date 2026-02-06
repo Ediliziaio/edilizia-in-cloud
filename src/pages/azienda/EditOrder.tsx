@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarIcon, Plus } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Plus, Paperclip } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
+import { OrderAttachments } from "@/components/orders/OrderAttachments";
 
 interface Customer {
   id: string;
@@ -618,6 +619,9 @@ export default function EditOrder() {
           editable={true}
           showStatusControls={true}
         />
+
+        {/* Order Attachments */}
+        <OrderAttachments orderId={id!} editable={true} />
 
         {/* Actions */}
         <div className="flex justify-end gap-4">
