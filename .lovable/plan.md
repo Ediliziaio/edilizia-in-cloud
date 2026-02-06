@@ -1,214 +1,224 @@
 
-# Piano: Nuova Pagina di Login con Due Aree Separate
+# Piano: Ottimizzazione Area Super Admin
 
-## Problemi Attuali
-1. Layout troppo compatto - poca spaziatura
-2. Un solo form di login generico - non distingue tra cliente e azienda/admin
+## Stato Attuale Analizzato
 
-## Nuova Proposta
+### Cosa esiste gia:
+1. **Dashboard** (`AdminDashboard.tsx`): Mostra statistiche base (aziende, ordini, clienti)
+2. **Lista Aziende** (`CompaniesList.tsx`): Visualizza aziende con ricerca e impersonation
+3. **Crea Azienda** (`CreateCompany.tsx`): Form completo per creare aziende
+4. **Layout** (`AdminLayout.tsx`): Sidebar con solo 2 voci (Dashboard, Aziende)
 
-### Layout Generale
-Pagina a **schermo intero** con due grandi sezioni cliccabili affiancate (su desktop) o impilate (su mobile):
-
-```
-+------------------------------------------+------------------------------------------+
-|                                          |                                          |
-|           AREA CLIENTI                   |          AREA AZIENDA                    |
-|                                          |                                          |
-|    [Icona grande User/Home]              |    [Icona grande Building/Briefcase]     |
-|                                          |                                          |
-|    "Sei un Cliente?"                     |    "Sei un'Azienda?"                     |
-|                                          |                                          |
-|    Accedi al portale per                 |    Accedi per gestire ordini,            |
-|    visualizzare i tuoi ordini            |    clienti e assistenza                  |
-|    e richiedere assistenza               |                                          |
-|                                          |                                          |
-|    [ACCEDI COME CLIENTE]                 |    [ACCEDI COME AZIENDA]                 |
-|                                          |                                          |
-|    Sfondo: gradiente chiaro/soft         |    Sfondo: gradiente primary/blu         |
-|                                          |                                          |
-+------------------------------------------+------------------------------------------+
-```
-
-### Flusso Utente
-1. L'utente arriva sulla pagina e vede le due opzioni ben distinte
-2. Cliccando su una delle due aree, si apre un **modal/dialog** o una **transizione** al form di login specifico
-3. Il form contiene:
-   - Logo EdiliziaInCloud
-   - Titolo contestuale ("Accesso Clienti" o "Accesso Azienda")
-   - Form email + password
-   - Pulsante per tornare alla selezione
-
-### Opzione A: Due Card Grandi con Modal
-- Due grandi card affiancate occupano tutto lo schermo
-- Cliccando si apre un Dialog con il form di login
-- Sfondo rimane visibile, focus sul form
-
-### Opzione B: Transizione a Schermo Intero
-- Due grandi aree affiancate
-- Cliccando, l'area selezionata si espande e mostra il form
-- Animazione fluida
-
-**Proposta consigliata: Opzione A** - piu pulita e mantiene il contesto visivo
+### Cosa manca:
+1. **Nessuna visibilita sui ticket di supporto** - Il super admin non puo vedere le richieste di assistenza globali
+2. **Nessun modo di modificare/eliminare aziende** - Solo creazione disponibile
+3. **Dashboard poco informativa** - Mancano grafici, trend, e dettagli recenti
+4. **Nessuna visione degli ordini globali** - Non puo vedere tutti gli ordini della piattaforma
+5. **Sidebar minimale** - Solo 2 voci di navigazione
+6. **Manca profilo Super Admin** - Nessuna pagina per gestire il proprio account
+7. **Nessun log di attivita** - Non traccia le azioni effettuate
 
 ---
 
-## Struttura UI Dettagliata
+## Implementazione Proposta
 
-### Pagina Iniziale (Selezione Tipo Utente)
+### FASE 1: Miglioramento Dashboard
 
-```
-+--------------------------------------------------------------------------------+
-|                                                                                |
-|                         [Logo EdiliziaInCloud - centrato in alto]              |
-|                                                                                |
-+--------------------------------------------------------------------------------+
-|                                    |                                           |
-|                                    |                                           |
-|        +-----------------------+   |   +---------------------------+           |
-|        |                       |   |   |                           |           |
-|        |    [Icona User]       |   |   |    [Icona Building]       |           |
-|        |                       |   |   |                           |           |
-|        |   Accesso Clienti     |   |   |   Accesso Azienda         |           |
-|        |                       |   |   |                           |           |
-|        |   Visualizza ordini   |   |   |   Gestisci ordini,        |           |
-|        |   e richiedi          |   |   |   clienti e assistenza    |           |
-|        |   assistenza          |   |   |                           |           |
-|        |                       |   |   |                           |           |
-|        |   [ACCEDI]            |   |   |   [ACCEDI]                |           |
-|        |                       |   |   |                           |           |
-|        +-----------------------+   |   +---------------------------+           |
-|                                    |                                           |
-|                                    |                                           |
-+--------------------------------------------------------------------------------+
-```
-
-### Modal Login (Esempio Cliente)
+Trasformare la dashboard in un pannello di controllo completo:
 
 ```
-+----------------------------------+
-|          [X]                     |
-|                                  |
-|    [Logo EdiliziaInCloud]        |
-|                                  |
-|    Accesso Area Clienti          |
-|    Inserisci le tue credenziali  |
-|                                  |
-|    Email                         |
-|    [______________________]      |
-|                                  |
-|    Password                      |
-|    [______________________] [👁]  |
-|                                  |
-|    [        ACCEDI        ]      |
-|                                  |
-|    -------------------------     |
-|    Problemi? Contatta la tua     |
-|    azienda di riferimento        |
-|                                  |
-+----------------------------------+
++--------------------------------------------------+
+|  Dashboard Super Admin                           |
++--------------------------------------------------+
+|                                                  |
+|  [4 STAT CARDS con tendenze]                     |
+|  - Aziende attive (+ nuove questa settimana)     |
+|  - Ordini totali (+ valore complessivo in EUR)   |
+|  - Clienti totali                                |
+|  - Ticket aperti (con indicatore urgenza)        |
+|                                                  |
++--------------------------------------------------+
+|                     |                            |
+|  AZIENDE RECENTI    |    ATTIVITA RECENTE        |
+|  (ultime 5)         |    (ultimi ordini/ticket)  |
+|  [Card azienda]     |    [Timeline attivita]     |
+|  [Card azienda]     |                            |
+|  ...                |                            |
+|                     |                            |
++--------------------------------------------------+
+```
+
+**Nuove metriche:**
+- Valore totale ordini piattaforma
+- Numero ticket in attesa
+- Aziende aggiunte questo mese
+- Grafico trend ordini ultimi 7 giorni (opzionale)
+
+---
+
+### FASE 2: Nuove Pagine Admin
+
+#### 2.1 Pagina Ordini Globali (`/admin/ordini`)
+Visualizza tutti gli ordini di tutte le aziende con:
+- Filtro per azienda
+- Filtro per stato
+- Ricerca per descrizione/cliente
+- Link rapido per impersonare l'azienda e vedere dettagli
+
+#### 2.2 Pagina Ticket Globali (`/admin/ticket`)
+Visualizza tutti i ticket di supporto con:
+- Filtro per azienda
+- Filtro per stato (aperto, in lavorazione, risolto)
+- Ordinamento per data/urgenza
+- Possibilita di rispondere direttamente o impersonare
+
+#### 2.3 Pagina Dettaglio Azienda (`/admin/aziende/:id`)
+Scheda completa dell'azienda con:
+- Informazioni azienda (nome, email, settore, logo)
+- Statistiche specifiche (ordini, clienti, ticket)
+- Lista admin azienda
+- Azioni: Modifica, Disattiva, Impersona
+
+#### 2.4 Pagina Modifica Azienda (`/admin/aziende/:id/modifica`)
+Form per modificare:
+- Nome azienda
+- Email
+- Settore
+- Logo
+
+---
+
+### FASE 3: Aggiornamento Sidebar
+
+Nuova struttura navigazione:
+
+```
++---------------------------+
+|  [Logo EdiliziaInCloud]   |
++---------------------------+
+|  NAVIGAZIONE              |
+|  > Dashboard              |
+|  > Aziende                |
+|  > Ordini                 |  <- NUOVO
+|  > Ticket                 |  <- NUOVO
++---------------------------+
+|  ACCOUNT                  |
+|  > Impostazioni           |  <- NUOVO
++---------------------------+
+|  [Avatar + Nome]          |
+|  Super Admin              |
+|  [Logout]                 |
++---------------------------+
 ```
 
 ---
 
-## Design Visivo
+### FASE 4: Pagina Impostazioni Admin (`/admin/impostazioni`)
 
-### Card Clienti
-- Sfondo: Gradiente leggero (grigio/azzurro chiaro)
-- Icona: `UserCircle` o `Home` in colore primary
-- Hover: Leggera elevazione con ombra
-
-### Card Azienda
-- Sfondo: Gradiente primary (blu)
-- Icona: `Building2` o `Briefcase` in bianco
-- Testo: Bianco
-- Hover: Leggera luminosita
-
-### Spaziatura
-- Padding generoso (p-8 o p-12)
-- Gap tra elementi aumentato
-- Card con altezza minima per non sembrare compatte
+Permette al super admin di:
+- Visualizzare il proprio profilo
+- Modificare nome/cognome
+- Cambiare password (opzionale)
 
 ---
 
-## File da Modificare
+## File da Creare/Modificare
 
-| File | Azione |
-|------|--------|
-| `src/components/auth/LoginForm.tsx` | Riscrivere completamente con nuovo layout |
+| File | Azione | Descrizione |
+|------|--------|-------------|
+| `src/pages/admin/AdminDashboard.tsx` | Modificare | Dashboard arricchita con piu statistiche e attivita recente |
+| `src/pages/admin/GlobalOrders.tsx` | Creare | Lista ordini globali con filtri |
+| `src/pages/admin/GlobalTickets.tsx` | Creare | Lista ticket globali con filtri |
+| `src/pages/admin/CompanyDetail.tsx` | Creare | Dettaglio singola azienda |
+| `src/pages/admin/EditCompany.tsx` | Creare | Form modifica azienda |
+| `src/pages/admin/AdminSettings.tsx` | Creare | Impostazioni account super admin |
+| `src/components/layouts/AdminLayout.tsx` | Modificare | Aggiungere nuove voci sidebar |
+| `src/App.tsx` | Modificare | Aggiungere nuove routes |
 
 ---
 
-## Dettagli Tecnici
+## Dettagli Implementativi
 
-### Stato Componente
+### Dashboard Migliorata
+
 ```tsx
-const [selectedType, setSelectedType] = useState<'cliente' | 'azienda' | null>(null);
-const [isDialogOpen, setIsDialogOpen] = useState(false);
+// Nuove statistiche
+const stats = {
+  totalCompanies: number,
+  companiesThisMonth: number,   // NUOVO
+  totalOrders: number,
+  totalOrdersValue: number,     // NUOVO - somma total_amount
+  totalCustomers: number,
+  openTickets: number,          // NUOVO
+}
+
+// Sezione attivita recente
+<Card>
+  <CardHeader>Attivita Recente</CardHeader>
+  <CardContent>
+    {/* Ultimi ordini creati */}
+    {/* Ultimi ticket aperti */}
+    {/* Ultime aziende create */}
+  </CardContent>
+</Card>
 ```
 
-### Struttura Componente
+### Ordini Globali
+
 ```tsx
-<div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-  {/* Header con Logo */}
-  <div className="py-8 text-center">
-    <img src={ediliziaLogo} className="h-12 mx-auto" />
-  </div>
-  
-  {/* Griglia Selezione */}
-  <div className="container max-w-5xl mx-auto px-6 py-12">
-    <div className="grid md:grid-cols-2 gap-8">
-      
-      {/* Card Clienti */}
-      <Card className="p-8 cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-slate-50 to-blue-50 border-2 hover:border-primary">
-        <UserCircle className="h-16 w-16 text-primary mx-auto mb-6" />
-        <h2 className="text-2xl font-bold text-center mb-3">Sei un Cliente?</h2>
-        <p className="text-muted-foreground text-center mb-8">
-          Accedi per visualizzare lo stato dei tuoi ordini e richiedere assistenza
-        </p>
-        <Button className="w-full" size="lg" onClick={() => openLoginDialog('cliente')}>
-          Accedi come Cliente
-        </Button>
-      </Card>
-      
-      {/* Card Azienda */}
-      <Card className="p-8 cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-primary to-primary/80 text-white border-0">
-        <Building2 className="h-16 w-16 mx-auto mb-6" />
-        <h2 className="text-2xl font-bold text-center mb-3">Sei un'Azienda?</h2>
-        <p className="text-white/80 text-center mb-8">
-          Gestisci ordini, clienti e richieste di assistenza
-        </p>
-        <Button variant="secondary" className="w-full" size="lg" onClick={() => openLoginDialog('azienda')}>
-          Accedi come Azienda
-        </Button>
-      </Card>
-      
-    </div>
-  </div>
-  
-  {/* Dialog Login */}
-  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-    <DialogContent className="sm:max-w-md">
-      {/* Form di login con contesto specifico */}
-    </DialogContent>
-  </Dialog>
-</div>
+// Query per ordini globali
+const { data } = await supabase
+  .from("orders")
+  .select(`
+    *,
+    company:companies(name, logo_url),
+    customer:profiles!orders_customer_id_fkey(first_name, last_name),
+    status:order_statuses(name, color)
+  `)
+  .order("created_at", { ascending: false });
+```
+
+### Ticket Globali
+
+```tsx
+// Query per ticket globali  
+const { data } = await supabase
+  .from("tickets")
+  .select(`
+    *,
+    company:companies(name),
+    customer:profiles!tickets_customer_id_fkey(first_name, last_name, email)
+  `)
+  .order("created_at", { ascending: false });
+```
+
+### Nuove Routes
+
+```tsx
+// In App.tsx, sotto le routes admin esistenti
+<Route path="ordini" element={<GlobalOrders />} />
+<Route path="ticket" element={<GlobalTickets />} />
+<Route path="aziende/:id" element={<CompanyDetail />} />
+<Route path="aziende/:id/modifica" element={<EditCompany />} />
+<Route path="impostazioni" element={<AdminSettings />} />
 ```
 
 ---
 
-## Responsive
+## Priorita Implementazione
 
-- **Desktop**: Due card affiancate, grande impatto visivo
-- **Tablet**: Due card affiancate piu strette
-- **Mobile**: Card impilate verticalmente, full-width
+1. **Alta**: Dashboard migliorata + Sidebar aggiornata
+2. **Alta**: Pagina Ordini Globali
+3. **Alta**: Pagina Ticket Globali
+4. **Media**: Dettaglio Azienda + Modifica
+5. **Bassa**: Impostazioni Admin
 
 ---
 
 ## Risultato Atteso
 
-1. Pagina di login spaziosa e ariosa
-2. Chiara distinzione tra area clienti e area azienda
-3. Esperienza utente guidata - l'utente capisce subito dove cliccare
-4. Form di login in modal per mantenere il contesto
-5. Design professionale e moderno
+1. Super Admin ha visibilita completa su tutta la piattaforma
+2. Puo monitorare ordini e ticket senza dover impersonare ogni azienda
+3. Dashboard informativa con metriche chiave
+4. Navigazione completa e intuitiva
+5. Possibilita di gestire le aziende (visualizzare, modificare)
