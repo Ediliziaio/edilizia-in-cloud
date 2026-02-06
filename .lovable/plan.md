@@ -1,182 +1,168 @@
 
-# Piano di Implementazione - Pagina Profilo Cliente e Test Sistema Ticket
+# Analisi Software e Piano di Miglioramento
 
-## Panoramica
+## Stato Attuale
 
-Questo piano copre due aree:
-1. Implementazione della pagina Profilo Cliente con modifica dati personali
-2. Test end-to-end del sistema ticket (creazione come cliente, risposta come admin)
+### Utenti nel Database
+Analizzando il database, sono presenti 3 utenti:
+1. **Super Admin**: `flo.andriciuc@gmail.com` (password: `Tekno2026!`)
+2. **Company Admin**: `amministrazione@domusgroupitalia.it` 
+3. **Customer**: `mario.rossi@example.com` (password generata automaticamente)
 
----
-
-## 1. Pagina Profilo Cliente
-
-### File: `src/pages/cliente/CustomerProfile.tsx`
-
-Creeremo una pagina dedicata alla gestione del profilo personale del cliente con:
-
-**Layout:**
-- Header con titolo "Il Mio Profilo"
-- Card con form di modifica dati
-- Indicatore di caricamento/salvataggio
-- Feedback toast per conferma modifiche
-
-**Campi Modificabili:**
-- Nome (obbligatorio)
-- Cognome (obbligatorio)  
-- Telefono (opzionale)
-- Indirizzo (opzionale)
-
-**Campi in Sola Lettura:**
-- Email (visualizzata ma non modificabile, legata all'autenticazione)
-
-### Struttura UI
-
-```text
-+----------------------------------+
-| Il Mio Profilo                   |
-+----------------------------------+
-| Informazioni Personali           |
-|                                  |
-| Email (solo lettura)             |
-| [mario.rossi@example.com]        |
-|                                  |
-| Nome *          | Cognome *      |
-| [Mario       ]  | [Rossi      ] |
-|                                  |
-| Telefono                         |
-| [333-1234567               ]     |
-|                                  |
-| Indirizzo                        |
-| [Via Roma 123, Milano      ]     |
-|                                  |
-|           [Salva Modifiche]      |
-+----------------------------------+
-```
+### Problema di Autenticazione Identificato
+L'errore `invalid_credentials` si verifica perche le password potrebbero essere state modificate o ci sono problemi con auth.users. La password del super admin e hardcoded nella edge function come `Tekno2026!`.
 
 ---
 
-## 2. Funzionalita Tecnica
+## Problemi Identificati
 
-### Sicurezza
-La RLS policy esistente permette agli utenti di:
-- Leggere il proprio profilo: `(id = auth.uid())`
-- Aggiornare il proprio profilo: `(id = auth.uid())`
+### 1. Codice Duplicato (Priorita Alta)
+La funzione `formatCurrency` e definita localmente in 4 file diversi invece di usare quella centralizzata in `src/lib/formatters.ts`:
+- `src/pages/azienda/CreateOrder.tsx` (linea 204)
+- `src/pages/azienda/EditOrder.tsx` (linea 182)
+- `src/pages/azienda/OrderDetail.tsx` (linea 260)
+- `src/pages/azienda/OrdersList.tsx` (linea 100)
 
-Quindi il cliente puo modificare solo i propri dati.
+**Soluzione**: Rimuovere le definizioni locali e importare da `@/lib/formatters`.
 
-### Validazione Form
-- Nome e Cognome sono obbligatori
-- Telefono e Indirizzo sono opzionali
-- Lunghezza massima per evitare abusi
+### 2. Funzioni formatDate Duplicate
+Simile a formatCurrency, le funzioni `formatDate` e `formatDateTime` sono duplicate:
+- `src/pages/azienda/OrderDetail.tsx` (linee 267-272)
+- `src/pages/azienda/OrdersList.tsx` (linea 107)
 
-### Integrazione con AuthContext
-Dopo il salvataggio, verra chiamato `refreshAuth()` per aggiornare i dati del profilo nel contesto, in modo che il nome visualizzato nell'header sia sempre sincronizzato.
+**Soluzione**: Usare le funzioni gia esistenti in `@/lib/formatters.ts`.
 
----
+### 3. CORS Headers Inconsistenti
+Le edge functions hanno CORS headers diversi:
+- `create-super-admin`: Header base
+- `create-customer`: Header completi con headers aggiuntivi Supabase
 
-## 3. File da Creare
+**Soluzione**: Standardizzare tutti i CORS headers con il formato completo.
 
-```text
-src/pages/cliente/CustomerProfile.tsx  - Pagina profilo cliente
-```
-
----
-
-## 4. File da Modificare
-
-```text
-src/App.tsx - Sostituire il placeholder alla linea 111 con CustomerProfile
-```
-
-La route `/cliente/profilo` attualmente mostra un placeholder e verra collegata alla nuova pagina.
-
----
-
-## 5. Componenti Utilizzati
-
-- `Card`, `CardHeader`, `CardTitle`, `CardContent` (shadcn)
-- `Input`, `Label`, `Button` (shadcn)
-- `useAuth` per accedere al profilo e refreshAuth
-- `useMutation` per gestire l'aggiornamento
-- `useToast` per feedback utente
-
----
-
-## 6. Query Database
-
-### Aggiornamento Profilo
+### 4. Password Super Admin Hardcoded
+In `create-super-admin/index.ts`, email e password sono hardcoded:
 ```typescript
-const { error } = await supabase
-  .from("profiles")
-  .update({
-    first_name: firstName.trim(),
-    last_name: lastName.trim(),
-    phone: phone.trim() || null,
-    address: address.trim() || null,
-    updated_at: new Date().toISOString(),
-  })
-  .eq("id", user.id);
+const email = "flo.andriciuc@gmail.com";
+const password = "Tekno2026!";
 ```
 
----
+**Soluzione**: Accettare i parametri dal body della richiesta o da secrets.
 
-## 7. Flusso di Test Previsto
+### 5. Manca Reset Password per Admin
+Quando un admin crea un cliente, la password e mostrata una sola volta. Non esiste modo di resettarla successivamente.
 
-Dopo l'implementazione, eseguiro i seguenti test:
+**Soluzione**: Creare edge function `reset-customer-password`.
 
-### Test 1: Login Cliente e Verifica Profilo
-1. Effettuare login come mario.rossi@example.com
-2. Navigare a /cliente/profilo
-3. Verificare che i dati siano precompilati
-4. Modificare il telefono
-5. Salvare e verificare toast di conferma
-
-### Test 2: Creazione Ticket Cliente
-1. Navigare a /cliente/assistenza
-2. Cliccare "Nuovo Ticket"
-3. Compilare oggetto e messaggio
-4. Inviare il ticket
-5. Verificare che appaia nella lista
-
-### Test 3: Risposta Admin al Ticket
-1. Logout dal cliente
-2. Login come admin azienda
-3. Navigare a /azienda/assistenza
-4. Aprire il ticket creato
-5. Inviare una risposta
-6. Cambiare stato a "In Lavorazione"
-
-### Test 4: Verifica Risposta lato Cliente
-1. Logout dall'admin
-2. Login come cliente
-3. Verificare che il ticket mostri la risposta
-4. Verificare che lo stato sia aggiornato
+### 6. Query Non Ottimizzate in CustomersList
+In `CustomersList.tsx` vengono eseguite 3 query separate (profiles, user_roles, orders) che potrebbero essere ottimizzate.
 
 ---
 
-## 8. Responsive Design
+## Piano di Implementazione
 
-La pagina sara ottimizzata per mobile:
-- Layout a singola colonna
-- Campi a larghezza piena su schermi piccoli
-- Pulsante salva prominente e touch-friendly
+### Fase 1: Pulizia Codice Duplicato
+
+**File da modificare:**
+
+1. **`src/pages/azienda/OrdersList.tsx`**
+   - Rimuovere la definizione locale di `formatCurrency` (linee 100-105)
+   - Rimuovere la definizione locale di `formatDate` (linee 107-113)
+   - Aggiungere import: `import { formatCurrency, formatDateShort } from "@/lib/formatters";`
+   - Sostituire `formatDate` con `formatDateShort`
+
+2. **`src/pages/azienda/OrderDetail.tsx`**
+   - Rimuovere la definizione locale di `formatCurrency` (linee 260-265)
+   - Rimuovere la definizione locale di `formatDate` (linee 267-269)
+   - Rimuovere la definizione locale di `formatDateTime` (linee 271-273)
+   - Aggiungere import: `import { formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";`
+
+3. **`src/pages/azienda/CreateOrder.tsx`**
+   - Rimuovere la definizione locale di `formatCurrency` (linee 204-209)
+   - Aggiungere import: `import { formatCurrency } from "@/lib/formatters";`
+
+4. **`src/pages/azienda/EditOrder.tsx`**
+   - Rimuovere la definizione locale di `formatCurrency` (linee 182-187)
+   - Aggiungere import: `import { formatCurrency } from "@/lib/formatters";`
+
+### Fase 2: Standardizzazione CORS nelle Edge Functions
+
+**File da modificare:**
+
+1. **`supabase/functions/create-super-admin/index.ts`**
+   - Aggiornare i CORS headers per includere tutti gli header necessari:
+   ```typescript
+   const corsHeaders = {
+     "Access-Control-Allow-Origin": "*",
+     "Access-Control-Allow-Headers":
+       "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+   };
+   ```
+
+2. **`supabase/functions/create-company/index.ts`**
+   - Stesso aggiornamento CORS headers
+
+### Fase 3: Reset Password per Clienti
+
+**File da creare:**
+
+1. **`supabase/functions/reset-customer-password/index.ts`**
+   - Accetta `customer_id` nel body
+   - Verifica che il chiamante sia un admin dell'azienda del cliente
+   - Genera una nuova password sicura
+   - Aggiorna la password in auth.users
+   - Restituisce la nuova password
+
+**File da modificare:**
+
+2. **`supabase/config.toml`**
+   - Aggiungere configurazione per la nuova edge function
+
+3. **`src/pages/azienda/CustomersList.tsx`**
+   - Aggiungere bottone "Reset Password" per ogni cliente
+   - Dialog di conferma e visualizzazione nuova password
+
+### Fase 4: Miglioramenti UX
+
+**Modifiche opzionali ma consigliate:**
+
+1. **Dashboard Company**: La dashboard non mostra `effectiveCompany` correttamente quando il super admin fa impersonation (usa `company` invece di `effectiveCompany`)
+
+2. **Filtro clienti by role**: Attualmente `CustomersList` filtra lato client, potrebbe usare una view o RPC per efficienza
 
 ---
 
-## Dettagli Tecnici
+## Riepilogo File da Modificare
 
-### Gestione Stato Form
-Utilizzeremo `useState` per ogni campo con valori iniziali dal profilo:
-```typescript
-const { profile, refreshAuth } = useAuth();
-const [firstName, setFirstName] = useState(profile?.first_name || "");
-const [lastName, setLastName] = useState(profile?.last_name || "");
-const [phone, setPhone] = useState(profile?.phone || "");
-const [address, setAddress] = useState(profile?.address || "");
-```
+| File | Azione | Priorita |
+|------|--------|----------|
+| `src/pages/azienda/OrdersList.tsx` | Rimuovere duplicati formatCurrency/formatDate | Alta |
+| `src/pages/azienda/OrderDetail.tsx` | Rimuovere duplicati formatCurrency/formatDate/formatDateTime | Alta |
+| `src/pages/azienda/CreateOrder.tsx` | Rimuovere duplicato formatCurrency | Alta |
+| `src/pages/azienda/EditOrder.tsx` | Rimuovere duplicato formatCurrency | Alta |
+| `supabase/functions/create-super-admin/index.ts` | Standardizzare CORS | Media |
+| `supabase/functions/create-company/index.ts` | Standardizzare CORS | Media |
+| `supabase/functions/reset-customer-password/index.ts` | Creare nuova funzione | Media |
+| `src/pages/azienda/CustomersList.tsx` | Aggiungere reset password UI | Media |
+| `src/pages/azienda/CompanyDashboard.tsx` | Usare effectiveCompany | Bassa |
 
-### Gestione Errori
-- Validazione client-side prima dell'invio
-- Toast di errore in caso di fallimento
-- Disabilitazione pulsante durante il salvataggio
+---
+
+## Verifica Integrazioni
+
+### Funzionalita Integrate Correttamente
+- Sistema di autenticazione con ruoli (super_admin, company_admin, customer)
+- Impersonation del super admin
+- Sistema ordini con progress tracker personalizzabile
+- Sistema ticket di assistenza cliente-admin
+- Profilo cliente modificabile
+- Creazione clienti con password generata
+
+### Test da Eseguire Post-Implementazione
+1. Login super admin con `Tekno2026!`
+2. Impersonation azienda
+3. Creazione cliente → copia password
+4. Login cliente con nuova password
+5. Modifica profilo cliente
+6. Creazione ticket assistenza
+7. Risposta admin al ticket
+8. Reset password cliente (nuova funzionalita)
