@@ -1,137 +1,129 @@
 
 
-# Piano: Correzione Riepilogo Finanziario e Bug Articoli
+# Piano: Colonna Pagamenti in Sospeso, Fix Articoli e Nuovo Stato "Installato"
 
 ## Problemi Identificati
 
-### 1. Input/Cancellazione Importi Non Funziona Correttamente
-Il problema e causato dalla logica di conversione tra modalita "Imponibile" e "IVA Inclusa". Quando l'utente e in modalita "gross" (IVA Inclusa), il campo mostra `totalWithVat.toFixed(2)` che viene ricalcolato continuamente, rendendo impossibile la modifica e la cancellazione.
+### 1. ArticleCombobox non crea nuovi articoli
+Il componente `ArticleCombobox.tsx` usa una query per ottenere il `company_id` dal profilo, ma se il profilo non ha un `company_id` associato (problema simile a quello risolto in precedenza), la creazione fallisce silenziosamente.
 
-**Causa**: Il `displayAmount` viene ricalcolato ad ogni render, sovrascrivendo l'input dell'utente.
+**Soluzione**: Usare `effectiveCompany` dal contesto `AuthContext` invece di fare una query separata sul profilo.
 
-**Soluzione**: Usare uno stato separato per l'input grezzo (`rawInput`) e sincronizzarlo con la logica di calcolo solo quando l'utente cambia modalita o aliquota IVA.
+### 2. Manca la selezione dello stato articolo durante la creazione
+Attualmente quando si aggiunge un nuovo articolo, lo stato viene impostato automaticamente a "da_ordinare". L'utente vuole poter selezionare lo stato direttamente nel dialog di creazione/modifica.
 
----
+### 3. Manca lo stato "Installato" per gli articoli
+Gli stati attuali sono: `da_ordinare`, `ordinato`, `in_magazzino`. L'utente vuole aggiungere `installato`.
 
-### 2. Stato Pagamento (Pagato/Non Pagato) Poco Chiaro
-Attualmente viene usato un checkbox che non e intuitivo. L'utente preferisce un menu a tendina.
-
-**Soluzione**: Sostituire il checkbox con un Select che mostra:
-- "Non Pagato" 
-- "Pagato"
-
-Aggiungere anche la possibilita di impostare la **data prevista di incasso** per gli acconti non ancora pagati (non solo per il saldo).
-
----
-
-### 3. Click su "Aggiungi" Articoli Causa Uscita dalla Pagina
-Il problema e che il bottone "Aggiungi" si trova dentro un `<form>` e, se non ha `type="button"`, viene trattato come `type="submit"` di default, causando l'invio del form.
-
-**Soluzione**: Assicurarsi che tutti i bottoni nel componente `OrderItemsList` abbiano `type="button"` esplicito.
+### 4. Manca la colonna "Pagamenti in Sospeso" nella lista ordini
+Nella tabella degli ordini serve una colonna che mostri subito quali ordini hanno pagamenti da incassare.
 
 ---
 
 ## Modifiche da Effettuare
 
-### File: `src/components/orders/FinancialSummary.tsx`
+### File: `src/components/orders/ArticleCombobox.tsx`
 
-1. **Correggere la gestione dell'input importo**
-   - Usare uno stato locale `rawInput` per l'importo inserito dall'utente
-   - Sincronizzare con il parent solo quando l'input perde il focus o al cambio modalita
-   - Permettere la cancellazione completa del campo
+- Rimuovere la query per ottenere il profilo
+- Usare `effectiveCompany` da `useAuth()` per ottenere il `company_id`
+- Questo risolve il bug della creazione articoli
 
-2. **Sostituire Checkbox con Select per stato pagamento**
-   - Cambiare da checkbox a menu tendina con opzioni "Non Pagato" / "Pagato"
-   - Mostrare data incasso quando pagato
-   - Mostrare data prevista incasso quando NON pagato (per tutti: Acconto 1, Acconto 2, Saldo)
+```typescript
+// PRIMA (problematico)
+const { data: profile } = useQuery({...});
+// company_id potrebbe essere null
 
-3. **Aggiungere date previste per gli acconti**
-   - Nuove props: `depositExpectedDate`, `deposit2ExpectedDate`
-   - Nuovi campi nel database per queste date
+// DOPO (corretto)
+const { effectiveCompany } = useAuth();
+// effectiveCompany.id è sempre disponibile
+```
 
 ---
 
 ### File: `src/components/orders/OrderItemsList.tsx`
 
-1. **Aggiungere `type="button"` al pulsante "Aggiungi"**
-   - Linea 200: Il bottone `<Button size="sm" onClick={openAddDialog}>` deve avere `type="button"`
-   - Questo previene il submit del form quando si clicca su "Aggiungi"
-
----
-
-### Migrazione Database (opzionale)
-
-Se si vogliono le date previste anche per gli acconti:
-
-```sql
-ALTER TABLE orders
-ADD COLUMN deposit_expected_date DATE,
-ADD COLUMN deposit_2_expected_date DATE;
-```
-
----
-
-## Nuovo Design UI - Stato Pagamento
-
-### Acconto 1 (con Select invece di Checkbox)
-```
-+------------------------------------------+
-| Acconto 1                                |
-| € [5.000,00]                             |
-+------------------------------------------+
-| Stato: [Non Pagato ▼]                    |
-|        - Non Pagato                      |
-|        - Pagato                          |
-|                                          |
-| Data Prevista Incasso: [01/03/2026]      |
-+------------------------------------------+
-```
-
-### Acconto 1 (quando Pagato)
-```
-+------------------------------------------+
-| Acconto 1                                |
-| € [5.000,00]                             |
-+------------------------------------------+
-| Stato: [Pagato ▼]                        |
-| Data Incasso: [05/02/2026]               |
-+------------------------------------------+
-```
-
----
-
-## Correzione Input Importo
-
-### Prima (problematico)
+#### Aggiungere stato "Installato"
 ```typescript
-// Problema: displayAmount viene ricalcolato ogni render
-const displayAmount = inputMode === 'gross' ? totalWithVat.toFixed(2) : totalAmount;
+// PRIMA
+export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino';
 
-<Input value={displayAmount} onChange={...} />
-```
+// DOPO
+export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino' | 'installato';
 
-### Dopo (corretto)
-```typescript
-// Soluzione: stato locale per l'input
-const [rawInput, setRawInput] = useState("");
-
-// Sincronizzazione solo al blur o cambio modalita
-const handleBlur = () => {
-  if (inputMode === 'gross') {
-    const grossAmount = parseFloat(rawInput) || 0;
-    const netAmount = grossAmount / (1 + vat / 100);
-    onTotalAmountChange(netAmount.toFixed(2));
-  } else {
-    onTotalAmountChange(rawInput);
-  }
+// Nuova configurazione colore
+const STATUS_CONFIG = {
+  ...
+  installato: { 
+    label: "Installato", 
+    color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" 
+  },
 };
-
-<Input 
-  value={rawInput} 
-  onChange={(e) => setRawInput(e.target.value)}
-  onBlur={handleBlur}
-/>
 ```
+
+#### Aggiungere Select stato nel dialog di creazione/modifica
+Nel dialog per aggiungere/modificare un articolo, aggiungere un campo Select per lo stato:
+
+```
++------------------------------------------+
+| Nome Articolo *                          |
+| [Seleziona o digita nome articolo...]    |
++------------------------------------------+
+| Descrizione                              |
+| [Dettagli aggiuntivi...]                 |
++------------------------------------------+
+| Quantità      | Costo Acquisto           |
+| [1]           | € [0.00]                 |
++------------------------------------------+
+| Stato Articolo                           |
+| [Da Ordinare ▼]                          |
++------------------------------------------+
+| Fornitore                                |
+| [Nessun fornitore ▼]     [+]             |
++------------------------------------------+
+```
+
+---
+
+### File: `src/pages/azienda/OrdersList.tsx`
+
+Aggiungere colonna "Pagamenti" che mostra lo stato dei pagamenti in sospeso.
+
+#### Logica calcolo pagamenti in sospeso
+```typescript
+function getPendingPayments(order: OrderWithDetails): string[] {
+  const pending = [];
+  
+  // Acconto 1
+  if (order.deposit_amount > 0 && !order.deposit_paid) {
+    pending.push("Acconto 1");
+  }
+  
+  // Acconto 2
+  if (order.deposit_2_amount > 0 && !order.deposit_2_paid) {
+    pending.push("Acconto 2");
+  }
+  
+  // Saldo
+  if (order.balance_amount > 0 && !order.balance_paid) {
+    pending.push("Saldo");
+  }
+  
+  return pending;
+}
+```
+
+#### Nuova colonna nella tabella
+```
+| Descrizione | Cliente | Totale | Pagamenti   | Stato | Data |
+|-------------|---------|--------|-------------|-------|------|
+| Finestre... | Mario R | €5.000 | Saldo       | ✓     | 05/02|
+| Porte...    | Luigi B | €3.000 | Acc 1, Saldo| ⏳    | 04/02|
+| Infissi...  | Anna V  | €8.000 | (tutto ok)  | ✓     | 03/02|
+```
+
+Visualizzazione:
+- Se tutti i pagamenti sono completati: badge verde "Tutto Pagato"
+- Se ci sono pagamenti in sospeso: badge arancione con lista (es. "Acc 1, Saldo")
 
 ---
 
@@ -139,18 +131,16 @@ const handleBlur = () => {
 
 | File | Modifica |
 |------|----------|
-| `FinancialSummary.tsx` | Correggere input importo, Select per pagato/non pagato, date previste acconti |
-| `OrderItemsList.tsx` | Aggiungere `type="button"` al pulsante Aggiungi |
-| `CreateOrder.tsx` | Passare nuove props per date previste acconti |
-| `EditOrder.tsx` | Passare nuove props per date previste acconti |
-| Migrazione SQL | Aggiungere colonne `deposit_expected_date`, `deposit_2_expected_date` |
+| `ArticleCombobox.tsx` | Usare `effectiveCompany` invece della query profilo |
+| `OrderItemsList.tsx` | Aggiungere stato "Installato" + Select stato nel dialog |
+| `OrdersList.tsx` | Aggiungere colonna "Pagamenti in Sospeso" |
 
 ---
 
 ## Risultato Atteso
 
-1. **Input funzionante** - L'utente puo inserire, modificare e cancellare gli importi senza problemi
-2. **Stato pagamento chiaro** - Menu a tendina "Non Pagato" / "Pagato" intuitivo
-3. **Date previste per tutti** - Ogni acconto e saldo non pagato puo avere una data prevista di incasso
-4. **Nessuna uscita inaspettata** - Cliccare su "Aggiungi" articolo apre il dialog senza fare submit del form
+1. **Creazione articoli funzionante** - Il combobox usa correttamente `effectiveCompany` per creare nuovi template
+2. **Nuovo stato "Installato"** - Gli articoli possono avere 4 stati: Da Ordinare, Ordinato, In Magazzino, Installato
+3. **Selezione stato alla creazione** - Nel dialog di nuovo articolo si può scegliere lo stato iniziale
+4. **Colonna Pagamenti** - Nella lista ordini si vede subito quali ordini hanno pagamenti in sospeso
 
