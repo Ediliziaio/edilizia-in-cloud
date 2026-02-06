@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, Calendar, Euro, FileText, Clock, Trash2 } from "lucide-react";
+import { ArrowLeft, User, Calendar, Euro, FileText, Clock, Trash2, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -312,32 +312,40 @@ export default function OrderDetail() {
             </p>
           </div>
         </div>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" size="sm">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Elimina
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Eliminare l'ordine?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Questa azione è irreversibile. L'ordine e tutto lo storico stati
-                verranno eliminati permanentemente.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => deleteOrderMutation.mutate()}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link to={`/azienda/ordini/${id}/modifica`}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Modifica
+            </Link>
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <Trash2 className="h-4 w-4 mr-2" />
                 Elimina
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Eliminare l'ordine?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Questa azione è irreversibile. L'ordine e tutto lo storico stati
+                  verranno eliminati permanentemente.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => deleteOrderMutation.mutate()}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Elimina
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

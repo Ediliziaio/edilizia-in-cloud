@@ -27,6 +27,9 @@ import Settings from "@/pages/azienda/Settings";
 import OrdersList from "@/pages/azienda/OrdersList";
 import CreateOrder from "@/pages/azienda/CreateOrder";
 import OrderDetail from "@/pages/azienda/OrderDetail";
+import EditOrder from "@/pages/azienda/EditOrder";
+import CustomersList from "@/pages/azienda/CustomersList";
+import CreateCustomer from "@/pages/azienda/CreateCustomer";
 
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
@@ -65,7 +68,7 @@ const App = () => (
             <Route
               path="/azienda"
               element={
-                <ProtectedRoute allowedRoles={["company_admin"]}>
+                <ProtectedRoute allowedRoles={["company_admin", "super_admin"]}>
                   <CompanyLayout />
                 </ProtectedRoute>
               }
@@ -74,8 +77,9 @@ const App = () => (
               <Route path="ordini" element={<OrdersList />} />
               <Route path="ordini/nuovo" element={<CreateOrder />} />
               <Route path="ordini/:id" element={<OrderDetail />} />
-              <Route path="clienti" element={<div className="text-muted-foreground">Lista Clienti - Coming soon</div>} />
-              <Route path="clienti/nuovo" element={<div className="text-muted-foreground">Nuovo Cliente - Coming soon</div>} />
+              <Route path="ordini/:id/modifica" element={<EditOrder />} />
+              <Route path="clienti" element={<CustomersList />} />
+              <Route path="clienti/nuovo" element={<CreateCustomer />} />
               <Route path="assistenza" element={<div className="text-muted-foreground">Assistenza - Coming soon</div>} />
               <Route path="previsionale" element={<div className="text-muted-foreground">Previsionale Cassa - Coming soon</div>} />
               <Route path="impostazioni" element={<Settings />} />
