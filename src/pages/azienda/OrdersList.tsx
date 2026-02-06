@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Plus, Search, Package, Eye } from "lucide-react";
+import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -97,20 +98,6 @@ export default function OrdersList() {
     return matchesSearch && matchesStatus;
   });
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("it-IT", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -231,7 +218,7 @@ export default function OrdersList() {
                       "—"
                     )}
                   </TableCell>
-                  <TableCell>{formatDate(order.created_at)}</TableCell>
+                  <TableCell>{formatDateShort(order.created_at)}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="sm" asChild>
                       <Link to={`/azienda/ordini/${order.id}`}>

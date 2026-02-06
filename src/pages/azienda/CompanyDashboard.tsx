@@ -30,7 +30,8 @@ interface RecentOrder {
 }
 
 export default function CompanyDashboard() {
-  const { company } = useAuth();
+  const { effectiveCompany } = useAuth();
+  const company = effectiveCompany;
   const [stats, setStats] = useState<DashboardStats>({
     totalOrders: 0,
     totalCustomers: 0,

@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, User, Calendar, Euro, FileText, Clock, Trash2, Pencil } from "lucide-react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -257,20 +256,6 @@ export default function OrderDetail() {
     updateNotesMutation.mutate(editedNotes);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "d MMMM yyyy", { locale: it });
-  };
-
-  const formatDateTime = (dateString: string) => {
-    return format(new Date(dateString), "d MMM yyyy, HH:mm", { locale: it });
-  };
 
   // Convert status history for progress tracker
   const progressHistory: StatusHistoryItem[] = statusHistory.map((h) => ({
