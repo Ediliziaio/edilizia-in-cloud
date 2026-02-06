@@ -44,7 +44,7 @@ interface OrderStatus {
 
 export default function CreateOrder() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -67,6 +67,15 @@ export default function CreateOrder() {
   const [financingAmount, setFinancingAmount] = useState("");
   const [vatRate, setVatRate] = useState("22");
 
+  // Payment status state
+  const [depositPaid, setDepositPaid] = useState(false);
+  const [depositPaidDate, setDepositPaidDate] = useState<Date | undefined>();
+  const [deposit2Paid, setDeposit2Paid] = useState(false);
+  const [deposit2PaidDate, setDeposit2PaidDate] = useState<Date | undefined>();
+  const [balancePaid, setBalancePaid] = useState(false);
+  const [balancePaidDate, setBalancePaidDate] = useState<Date | undefined>();
+  const [balanceExpectedDate, setBalanceExpectedDate] = useState<Date | undefined>();
+
   // Order items state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
@@ -77,7 +86,9 @@ export default function CreateOrder() {
   const total = parseFloat(totalAmount) || 0;
   const deposit = parseFloat(depositAmount) || 0;
   const deposit2 = parseFloat(deposit2Amount) || 0;
-  const balance = paymentType === 'standard' ? Math.max(0, total - deposit - deposit2) : 0;
+  const vat = parseFloat(vatRate) || 22;
+  const totalWithVat = total * (1 + vat / 100);
+  const balance = paymentType === 'standard' ? Math.max(0, totalWithVat - deposit - deposit2) : 0;
 
   // Fetch customers for the company
   const { data: customers = [] } = useQuery({
@@ -117,35 +128,19 @@ export default function CreateOrder() {
     }
   }, [statuses, statusId]);
 
-  // Get company ID
-  const { data: profile } = useQuery({
-    queryKey: ["profile", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("id", user!.id)
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async () => {
-      if (!profile?.company_id) throw new Error("Company not found");
+      if (!effectiveCompany?.id) throw new Error("Company not found");
 
       const financing = parseFloat(financingAmount) || 0;
-      const vat = parseFloat(vatRate) || 22;
+      const vatValue = parseFloat(vatRate) || 22;
 
       // Create the order
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
-          company_id: profile.company_id,
+          company_id: effectiveCompany.id,
           customer_id: customerId,
           description,
           total_amount: total,
@@ -157,10 +152,17 @@ export default function CreateOrder() {
           expected_date: expectedDate?.toISOString().split("T")[0] || null,
           internal_notes: internalNotes || null,
           current_status_id: statusId,
-          vat_rate: vat,
+          vat_rate: vatValue,
           warehouse_arrival_date: warehouseArrivalDate?.toISOString().split("T")[0] || null,
           work_start_date: workStartDate?.toISOString().split("T")[0] || null,
           work_end_date: workEndDate?.toISOString().split("T")[0] || null,
+          deposit_paid: depositPaid,
+          deposit_paid_date: depositPaidDate?.toISOString().split("T")[0] || null,
+          deposit_2_paid: deposit2Paid,
+          deposit_2_paid_date: deposit2PaidDate?.toISOString().split("T")[0] || null,
+          balance_paid: balancePaid,
+          balance_paid_date: balancePaidDate?.toISOString().split("T")[0] || null,
+          balance_expected_date: balanceExpectedDate?.toISOString().split("T")[0] || null,
         })
         .select()
         .single();
@@ -349,7 +351,6 @@ export default function CreateOrder() {
             </CardContent>
           </Card>
 
-          {/* Financial Summary */}
           <FinancialSummary
             totalAmount={totalAmount}
             depositAmount={depositAmount}
@@ -364,6 +365,20 @@ export default function CreateOrder() {
             onPaymentTypeChange={setPaymentType}
             onVatRateChange={setVatRate}
             balance={balance}
+            depositPaid={depositPaid}
+            depositPaidDate={depositPaidDate}
+            deposit2Paid={deposit2Paid}
+            deposit2PaidDate={deposit2PaidDate}
+            balancePaid={balancePaid}
+            balancePaidDate={balancePaidDate}
+            balanceExpectedDate={balanceExpectedDate}
+            onDepositPaidChange={setDepositPaid}
+            onDepositPaidDateChange={setDepositPaidDate}
+            onDeposit2PaidChange={setDeposit2Paid}
+            onDeposit2PaidDateChange={setDeposit2PaidDate}
+            onBalancePaidChange={setBalancePaid}
+            onBalancePaidDateChange={setBalancePaidDate}
+            onBalanceExpectedDateChange={setBalanceExpectedDate}
           />
         </div>
 
