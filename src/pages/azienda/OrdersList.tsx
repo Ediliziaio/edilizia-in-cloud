@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Plus, Search, Package, Eye } from "lucide-react";
+import { Plus, Search, Package, Eye, LayoutList, Columns3, X } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,6 +24,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
+import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
 
 interface OrderWithDetails {
   id: string;
@@ -51,6 +54,11 @@ interface OrderWithDetails {
   } | null;
 }
 
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
+
 // Helper per calcolare pagamenti in sospeso
 function getPendingPayments(order: OrderWithDetails): string[] {
   const pending: string[] = [];
@@ -75,6 +83,12 @@ export default function OrdersList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid">("all");
+  const [viewMode, setViewMode] = useState<"table" | "pipeline">("table");
+  
+  // Date range filters
+  const [contractDateRange, setContractDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [warehouseDateRange, setWarehouseDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [expectedDateRange, setExpectedDateRange] = useState<DateRange>({ from: undefined, to: undefined });
 
   // Fetch orders for the company
   const { data: orders = [], isLoading } = useQuery({
@@ -101,7 +115,7 @@ export default function OrdersList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_statuses")
-        .select("id, name, color")
+        .select("id, name, color, position")
         .order("position");
 
       if (error) throw error;
@@ -109,6 +123,20 @@ export default function OrdersList() {
     },
     enabled: !!user,
   });
+
+  // Check if any date filter is active
+  const hasDateFilters = contractDateRange.from || contractDateRange.to || 
+                         warehouseDateRange.from || warehouseDateRange.to ||
+                         expectedDateRange.from || expectedDateRange.to;
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setPaymentFilter("all");
+    setContractDateRange({ from: undefined, to: undefined });
+    setWarehouseDateRange({ from: undefined, to: undefined });
+    setExpectedDateRange({ from: undefined, to: undefined });
+  };
 
   // Filter orders
   const filteredOrders = orders.filter((order) => {
@@ -128,9 +156,41 @@ export default function OrdersList() {
       (paymentFilter === "pending" && pendingPayments.length > 0) ||
       (paymentFilter === "paid" && pendingPayments.length === 0);
 
-    return matchesSearch && matchesStatus && matchesPayment;
-  });
+    // Filtro Data Contratto (created_at)
+    const orderCreatedAt = new Date(order.created_at);
+    const matchesContractDate = 
+      (!contractDateRange.from || orderCreatedAt >= contractDateRange.from) &&
+      (!contractDateRange.to || orderCreatedAt <= new Date(contractDateRange.to.getTime() + 86400000 - 1));
 
+    // Filtro Arrivo Merce
+    let matchesWarehouseDate = true;
+    if (warehouseDateRange.from || warehouseDateRange.to) {
+      if (!order.warehouse_arrival_date) {
+        matchesWarehouseDate = false;
+      } else {
+        const warehouseDate = new Date(order.warehouse_arrival_date);
+        matchesWarehouseDate = 
+          (!warehouseDateRange.from || warehouseDate >= warehouseDateRange.from) &&
+          (!warehouseDateRange.to || warehouseDate <= new Date(warehouseDateRange.to.getTime() + 86400000 - 1));
+      }
+    }
+
+    // Filtro Data Posa
+    let matchesExpectedDate = true;
+    if (expectedDateRange.from || expectedDateRange.to) {
+      if (!order.expected_date) {
+        matchesExpectedDate = false;
+      } else {
+        const expectedDate = new Date(order.expected_date);
+        matchesExpectedDate = 
+          (!expectedDateRange.from || expectedDate >= expectedDateRange.from) &&
+          (!expectedDateRange.to || expectedDate <= new Date(expectedDateRange.to.getTime() + 86400000 - 1));
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesPayment && 
+           matchesContractDate && matchesWarehouseDate && matchesExpectedDate;
+  });
 
   return (
     <div className="space-y-6">
@@ -142,15 +202,30 @@ export default function OrdersList() {
             Gestisci gli ordini della tua azienda
           </p>
         </div>
-        <Button asChild>
-          <Link to="/azienda/ordini/nuovo">
-            <Plus className="h-4 w-4 mr-2" />
-            Nuovo Ordine
-          </Link>
-        </Button>
+        <div className="flex items-center gap-3">
+          <ToggleGroup 
+            type="single" 
+            value={viewMode} 
+            onValueChange={(value) => value && setViewMode(value as "table" | "pipeline")}
+            className="border rounded-md"
+          >
+            <ToggleGroupItem value="table" aria-label="Vista tabella" className="px-3">
+              <LayoutList className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="pipeline" aria-label="Vista pipeline" className="px-3">
+              <Columns3 className="h-4 w-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Button asChild>
+            <Link to="/azienda/ordini/nuovo">
+              <Plus className="h-4 w-4 mr-2" />
+              Nuovo Ordine
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters Row 1: Search + Status + Payment */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -192,7 +267,33 @@ export default function OrdersList() {
         </Select>
       </div>
 
-      {/* Orders Table */}
+      {/* Filters Row 2: Date Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <DateRangeFilter
+          label="Data Contratto"
+          range={contractDateRange}
+          onRangeChange={setContractDateRange}
+        />
+        <DateRangeFilter
+          label="Arrivo Merce"
+          range={warehouseDateRange}
+          onRangeChange={setWarehouseDateRange}
+        />
+        <DateRangeFilter
+          label="Data Posa"
+          range={expectedDateRange}
+          onRangeChange={setExpectedDateRange}
+        />
+        
+        {(hasDateFilters || searchQuery || statusFilter !== "all" || paymentFilter !== "all") && (
+          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground">
+            <X className="h-4 w-4 mr-1" />
+            Pulisci filtri
+          </Button>
+        )}
+      </div>
+
+      {/* Content */}
       {isLoading ? (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
@@ -219,6 +320,8 @@ export default function OrdersList() {
             )}
           </CardContent>
         </Card>
+      ) : viewMode === "pipeline" ? (
+        <OrdersPipelineView orders={filteredOrders} statuses={statuses} />
       ) : (
         <Card>
           <div className="overflow-x-auto">
