@@ -1,4 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from "@dnd-kit/core";
+import { OrdersPipelineColumn } from "./OrdersPipelineColumn";
 import { OrdersPipelineCard } from "./OrdersPipelineCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -38,9 +49,21 @@ interface OrderStatus {
 interface OrdersPipelineViewProps {
   orders: OrderWithDetails[];
   statuses: OrderStatus[];
+  onStatusChange?: (orderId: string, newStatusId: string) => Promise<void>;
 }
 
-export function OrdersPipelineView({ orders, statuses }: OrdersPipelineViewProps) {
+export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersPipelineViewProps) {
+  const [activeOrder, setActiveOrder] = useState<OrderWithDetails | null>(null);
+
+  // Sensors configuration
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
   // Raggruppa ordini per stato
   const ordersByStatus = useMemo(() => {
     const grouped: Record<string, OrderWithDetails[]> = {};
@@ -68,63 +91,97 @@ export function OrdersPipelineView({ orders, statuses }: OrdersPipelineViewProps
   // Ordini senza stato assegnato
   const ordersWithoutStatus = ordersByStatus["no-status"] || [];
 
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const order = orders.find(o => o.id === active.id);
+    if (order) {
+      setActiveOrder(order);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveOrder(null);
+    
+    if (!over) return;
+
+    const orderId = active.id as string;
+    const newStatusId = over.id as string;
+    
+    // Trova l'ordine corrente
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    // Se lo stato è lo stesso, non fare nulla
+    if (order.current_status_id === newStatusId) return;
+
+    // Verifica che lo stato di destinazione sia valido
+    const isValidStatus = statuses.some(s => s.id === newStatusId);
+    if (!isValidStatus) return;
+
+    // Chiama il callback per aggiornare lo stato
+    if (onStatusChange) {
+      await onStatusChange(orderId, newStatusId);
+    }
+  };
+
+  const handleDragCancel = () => {
+    setActiveOrder(null);
+  };
+
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4 min-h-[500px]">
-      {/* Colonne per ogni stato */}
-      {statuses.map(status => (
-        <div 
-          key={status.id} 
-          className="flex-shrink-0 w-[280px] bg-muted/30 rounded-lg p-3"
-        >
-          {/* Header colonna */}
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b">
-            <div 
-              className="w-3 h-3 rounded-full" 
-              style={{ backgroundColor: status.color }}
-            />
-            <h3 className="font-medium text-sm">{status.name}</h3>
-            <span className="ml-auto text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
-              {ordersByStatus[status.id]?.length || 0}
-            </span>
-          </div>
-          
-          {/* Cards */}
-          <ScrollArea className="h-[calc(100vh-350px)] pr-2">
-            <div className="space-y-2">
-              {ordersByStatus[status.id]?.map(order => (
-                <OrdersPipelineCard key={order.id} order={order} />
-              ))}
-              
-              {ordersByStatus[status.id]?.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  Nessun ordine
-                </p>
-              )}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
+      <div className="flex gap-4 overflow-x-auto pb-4 min-h-[500px]">
+        {/* Colonne per ogni stato */}
+        {statuses.map(status => (
+          <OrdersPipelineColumn 
+            key={status.id}
+            status={status}
+            orders={ordersByStatus[status.id] || []}
+            isDragEnabled={!!onStatusChange}
+          />
+        ))}
+        
+        {/* Colonna per ordini senza stato (se ce ne sono) */}
+        {ordersWithoutStatus.length > 0 && (
+          <div className="flex-shrink-0 w-[280px] bg-muted/30 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b">
+              <div className="w-3 h-3 rounded-full bg-gray-400" />
+              <h3 className="font-medium text-sm">Senza stato</h3>
+              <span className="ml-auto text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+                {ordersWithoutStatus.length}
+              </span>
             </div>
-          </ScrollArea>
-        </div>
-      ))}
-      
-      {/* Colonna per ordini senza stato (se ce ne sono) */}
-      {ordersWithoutStatus.length > 0 && (
-        <div className="flex-shrink-0 w-[280px] bg-muted/30 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b">
-            <div className="w-3 h-3 rounded-full bg-gray-400" />
-            <h3 className="font-medium text-sm">Senza stato</h3>
-            <span className="ml-auto text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
-              {ordersWithoutStatus.length}
-            </span>
+            
+            <ScrollArea className="h-[calc(100vh-350px)] pr-2">
+              <div className="space-y-2">
+                {ordersWithoutStatus.map(order => (
+                  <OrdersPipelineCard 
+                    key={order.id} 
+                    order={order} 
+                    isDraggable={false}
+                  />
+                ))}
+              </div>
+            </ScrollArea>
           </div>
-          
-          <ScrollArea className="h-[calc(100vh-350px)] pr-2">
-            <div className="space-y-2">
-              {ordersWithoutStatus.map(order => (
-                <OrdersPipelineCard key={order.id} order={order} />
-              ))}
-            </div>
-          </ScrollArea>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+
+      {/* Drag Overlay - mostra la card durante il trascinamento */}
+      <DragOverlay>
+        {activeOrder ? (
+          <div className="w-[260px]">
+            <OrdersPipelineCard order={activeOrder} isDraggable={false} />
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
