@@ -1,12 +1,12 @@
 import { Link, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
-  Building2, 
   LayoutDashboard, 
   Building, 
   LogOut,
   Menu
 } from "lucide-react";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -36,9 +36,8 @@ function AdminSidebar() {
   return (
     <Sidebar className="border-r">
       <div className="flex h-14 items-center border-b px-4">
-        <Link to="/admin" className="flex items-center gap-2 text-primary font-semibold">
-          <Building2 className="h-6 w-6" />
-          <span>EdiliziaInCloud</span>
+        <Link to="/admin" className="flex items-center">
+          <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
         </Link>
       </div>
       <SidebarContent>

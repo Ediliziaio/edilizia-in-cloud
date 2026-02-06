@@ -1,13 +1,13 @@
 import { Link, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
-  Building2, 
   ClipboardList, 
   HeadphonesIcon,
   User,
   LogOut,
   Menu
 } from "lucide-react";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -43,7 +43,7 @@ export function CustomerLayout() {
                 </AvatarFallback>
               </Avatar>
             ) : (
-              <Building2 className="h-6 w-6 text-primary" />
+              <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
             )}
             <span className="font-semibold text-foreground hidden sm:block">
               {company?.name || "EdiliziaInCloud"}

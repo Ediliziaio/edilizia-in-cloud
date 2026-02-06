@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -52,10 +53,7 @@ export function LoginForm() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className="flex items-center gap-2 text-primary">
-              <Building2 className="h-10 w-10" />
-              <span className="text-2xl font-bold">EdiliziaInCloud</span>
-            </div>
+            <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-12" />
           </div>
           <div>
             <CardTitle className="text-xl">Accedi al tuo account</CardTitle>
