@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Plus, Search, Package, Eye, LayoutList, Columns3, X } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
@@ -27,6 +27,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
+import { useToast } from "@/hooks/use-toast";
 
 interface OrderWithDetails {
   id: string;
@@ -80,6 +81,8 @@ function getPendingPayments(order: OrderWithDetails): string[] {
 
 export default function OrdersList() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid">("all");
@@ -123,6 +126,49 @@ export default function OrdersList() {
     },
     enabled: !!user,
   });
+
+  // Mutation for updating order status
+  const { mutateAsync: updateOrderStatus } = useMutation({
+    mutationFn: async ({ orderId, statusId }: { orderId: string; statusId: string }) => {
+      // 1. Update order status
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({ current_status_id: statusId })
+        .eq("id", orderId);
+      
+      if (updateError) throw updateError;
+
+      // 2. Record in status history
+      const { error: historyError } = await supabase
+        .from("order_status_history")
+        .insert({
+          order_id: orderId,
+          status_id: statusId,
+          changed_by: user?.id || "",
+        });
+      
+      if (historyError) throw historyError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast({
+        title: "Stato aggiornato",
+        description: "L'ordine è stato spostato al nuovo stato",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile aggiornare lo stato dell'ordine",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handler for pipeline status change
+  const handleStatusChange = async (orderId: string, newStatusId: string) => {
+    await updateOrderStatus({ orderId, statusId: newStatusId });
+  };
 
   // Check if any date filter is active
   const hasDateFilters = contractDateRange.from || contractDateRange.to || 
@@ -321,7 +367,11 @@ export default function OrdersList() {
           </CardContent>
         </Card>
       ) : viewMode === "pipeline" ? (
-        <OrdersPipelineView orders={filteredOrders} statuses={statuses} />
+        <OrdersPipelineView 
+          orders={filteredOrders} 
+          statuses={statuses} 
+          onStatusChange={handleStatusChange}
+        />
       ) : (
         <Card>
           <div className="overflow-x-auto">
