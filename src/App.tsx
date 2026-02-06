@@ -36,6 +36,7 @@ import EditOrder from "@/pages/azienda/EditOrder";
 import CustomersList from "@/pages/azienda/CustomersList";
 import CreateCustomer from "@/pages/azienda/CreateCustomer";
 import CashFlowForecast from "@/pages/azienda/CashFlowForecast";
+import Warehouse from "@/pages/azienda/Warehouse";
 
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
@@ -98,6 +99,7 @@ const App = () => (
               <Route path="ordini/nuovo" element={<CreateOrder />} />
               <Route path="ordini/:id" element={<OrderDetail />} />
               <Route path="ordini/:id/modifica" element={<EditOrder />} />
+              <Route path="magazzino" element={<Warehouse />} />
               <Route path="clienti" element={<CustomersList />} />
               <Route path="clienti/nuovo" element={<CreateCustomer />} />
               <Route path="assistenza" element={<TicketsList />} />

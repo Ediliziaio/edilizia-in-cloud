@@ -9,7 +9,8 @@ import {
   LogOut,
   TrendingUp,
   AlertTriangle,
-  ArrowLeft
+  ArrowLeft,
+  Warehouse,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import { NavLink } from "@/components/NavLink";
 const navItems = [
   { title: "Dashboard", url: "/azienda", icon: LayoutDashboard },
   { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList },
+  { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse },
   { title: "Clienti", url: "/azienda/clienti", icon: Users },
   { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon },
   { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp },
