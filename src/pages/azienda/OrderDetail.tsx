@@ -36,6 +36,7 @@ import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderPr
 
 interface OrderDetail {
   id: string;
+  order_code: string | null;
   description: string;
   total_amount: number;
   deposit_amount: number;
@@ -439,7 +440,14 @@ export default function OrderDetail() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Dettaglio Ordine</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">Dettaglio Ordine</h1>
+              {order.order_code && (
+                <span className="text-lg text-muted-foreground font-medium">
+                  ({order.order_code})
+                </span>
+              )}
+            </div>
             <p className="text-muted-foreground">
               Creato il {formatDate(order.created_at)}
             </p>

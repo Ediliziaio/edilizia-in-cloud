@@ -274,6 +274,7 @@ export type Database = {
           financing_amount: number | null
           id: string
           internal_notes: string | null
+          order_code: string | null
           payment_type: string | null
           total_amount: number
           updated_at: string
@@ -304,6 +305,7 @@ export type Database = {
           financing_amount?: number | null
           id?: string
           internal_notes?: string | null
+          order_code?: string | null
           payment_type?: string | null
           total_amount?: number
           updated_at?: string
@@ -334,6 +336,7 @@ export type Database = {
           financing_amount?: number | null
           id?: string
           internal_notes?: string | null
+          order_code?: string | null
           payment_type?: string | null
           total_amount?: number
           updated_at?: string
