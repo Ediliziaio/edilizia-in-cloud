@@ -1,189 +1,210 @@
 
-# Piano di Implementazione - Portale Cliente con Progress Tracker
+# Piano di Implementazione - Sistema Ticket Assistenza e Ottimizzazione UX
 
 ## Panoramica
 
-Implementeremo la pagina di dettaglio ordine per i clienti (`/cliente/ordini/:id`) che permettera loro di visualizzare lo stato dei propri ordini con il progress tracker visivo.
+Questo piano copre tre aree principali:
+1. Test portale cliente (login e visualizzazione ordini)
+2. Sistema ticket assistenza per clienti
+3. Pulizia e ottimizzazione codice/UX
 
 ---
 
-## Test Impersonation e Flusso (Eseguiti)
+## 1. Stato Attuale Analizzato
 
-Ho testato con successo:
+### Database
+- Le tabelle `tickets` e `ticket_messages` esistono gia con RLS policies corrette
+- Enum `ticket_status`: `aperto`, `in_lavorazione`, `risolto`
+- Campo `order_id` nullable per collegare ticket a ordini specifici
 
-1. **Login Super Admin**: flo.andriciuc@gmail.com funziona correttamente
-2. **Impersonation**: Cliccando "Accedi come Admin" su Test Serramenti:
-   - Banner giallo visibile con nome azienda
-   - Pulsante "Torna a Admin" funzionante
-   - Sidebar mostra "(Impersonando)"
-3. **Creazione Cliente**: Ho creato Mario Rossi (mario.rossi@example.com) con password auto-generata
-4. **Navigazione ordini**: La pagina ordini e accessibile ma il test di creazione ordine e stato interrotto da un errore di rendering (DOM issue non correlato alle nuove funzionalita)
+### Routing Esistente
+- `/cliente/assistenza` mostra solo placeholder "Coming soon"
+- `/azienda/assistenza` mostra solo placeholder "Coming soon"
+- Il portale cliente ha gia `CustomerOrders.tsx` e `CustomerOrderDetail.tsx` funzionanti
+
+### Problemi Identificati
+1. **Codice duplicato**: `formatCurrency()` e `formatDate()` sono ripetuti in molti file
+2. **Query inefficienti**: In `CustomersList.tsx` ci sono 3 query separate che potrebbero essere ottimizzate
+3. **Import inutilizzati**: `CardDescription` importato ma non usato in `CustomerOrders.tsx`
+4. **Placeholder routes**: Pagine "Coming soon" per assistenza e profilo
+5. **UX inconsistente**: Lo stile delle date varia tra componenti
 
 ---
 
-## 1. Pagina Dettaglio Ordine Cliente
+## 2. Struttura File da Creare
 
-### File: `src/pages/cliente/CustomerOrderDetail.tsx`
+### Pagine Cliente
+```
+src/pages/cliente/CustomerSupport.tsx          - Lista ticket del cliente
+src/pages/cliente/CustomerTicketDetail.tsx     - Dettaglio singolo ticket con chat
+src/pages/cliente/CreateTicket.tsx             - Form creazione nuovo ticket
+```
 
-Creeremo una versione semplificata della pagina dettaglio ordine per i clienti che include:
+### Pagine Azienda
+```
+src/pages/azienda/TicketsList.tsx              - Lista tutti i ticket per admin
+src/pages/azienda/TicketDetail.tsx             - Gestione ticket con risposta
+```
 
-**Layout:**
-- Header con titolo e pulsante "Torna ai miei ordini"
-- Progress tracker visivo (componente esistente) in modalita read-only
-- Card informazioni ordine (descrizione, importi, data prevista)
-- Card storico stati con timeline
-
-**Differenze rispetto alla versione Admin:**
-- Nessun pulsante di modifica/elimina
-- Progress tracker NON interattivo (solo visualizzazione)
-- Nessuna sezione note interne (sono private per l'azienda)
-- Layout piu semplice e mobile-first
-
-### Struttura UI
-
-```text
-+----------------------------------+
-| ← I Miei Ordini                  |
-| Ordine #123                      |
-+----------------------------------+
-| [===========○-------] Progress   |
-| Contratto → Produzione → ...     |
-+----------------------------------+
-| Descrizione                      |
-| Fornitura e posa serramenti...   |
-+----------------------------------+
-| Riepilogo Finanziario            |
-| Totale:    €5,000                |
-| Acconto:   €2,000                |
-| Saldo:     €3,000                |
-+----------------------------------+
-| Data prevista: 15 Marzo 2026     |
-+----------------------------------+
-| Storico Aggiornamenti            |
-| • In Produzione - 5 Feb 2026     |
-| • Acconto Pagato - 1 Feb 2026    |
-| • Contratto Firmato - 28 Gen     |
-+----------------------------------+
+### Utility condivise
+```
+src/lib/formatters.ts                          - Funzioni di formattazione riutilizzabili
 ```
 
 ---
 
-## 2. Funzionalita Progress Tracker per Cliente
+## 3. Sistema Ticket Cliente
 
-Il componente `OrderProgressTracker` gia implementato supporta:
-- `interactive={false}` per disabilitare i click
-- Visualizzazione responsive (orizzontale su desktop, verticale su mobile)
-- Date dei cambi stato dallo storico
-- Icone e colori personalizzati per ogni step
+### CustomerSupport.tsx
+Lista ticket del cliente con:
+- Titolo sezione e pulsante "Nuovo Ticket"
+- Card per ogni ticket con: oggetto, stato (badge colorato), ordine collegato, data
+- Empty state quando non ci sono ticket
+- Filtro per stato (tutti, aperti, risolti)
 
-Per il cliente useremo:
-```jsx
-<OrderProgressTracker
-  statuses={statuses}
-  currentStatusId={order.current_status_id}
-  statusHistory={statusHistory}
-  interactive={false}  // Read-only per cliente
-  size="md"
-/>
-```
+### CreateTicket.tsx
+Form creazione ticket:
+- Dropdown ordine (opzionale, per collegare ad ordine esistente)
+- Campo oggetto (obbligatorio)
+- Campo messaggio iniziale (textarea)
+- Invio crea ticket + primo messaggio
+
+### CustomerTicketDetail.tsx
+Visualizzazione dettaglio con:
+- Header con oggetto e stato
+- Link all'ordine collegato (se presente)
+- Timeline messaggi stile chat
+- Form per rispondere (textarea + invio)
 
 ---
 
-## 3. Query Database
+## 4. Sistema Ticket Admin Azienda
 
-Il cliente puo vedere solo i propri ordini grazie alle RLS policies gia configurate:
+### TicketsList.tsx
+Lista ticket per admin:
+- Tabella con colonne: Cliente, Oggetto, Ordine, Stato, Data
+- Filtri per stato e ricerca
+- Badge colorati per stato
+- Click per aprire dettaglio
 
+### TicketDetail.tsx
+Gestione ticket:
+- Header con info cliente e ordine collegato
+- Dropdown per cambiare stato
+- Timeline messaggi
+- Form risposta
+
+---
+
+## 5. Ottimizzazioni Codice
+
+### Nuovo file: src/lib/formatters.ts
+Centralizza funzioni ripetute:
+- `formatCurrency(amount: number)`: Formatta importo in EUR
+- `formatDate(date: string)`: Formato breve (d MMM yyyy)
+- `formatDateTime(date: string)`: Con ora (d MMM yyyy, HH:mm)
+
+### File da aggiornare per usare formatters:
+- `src/pages/azienda/OrdersList.tsx`
+- `src/pages/azienda/OrderDetail.tsx`
+- `src/pages/azienda/CreateOrder.tsx`
+- `src/pages/azienda/EditOrder.tsx`
+- `src/pages/cliente/CustomerOrders.tsx`
+- `src/pages/cliente/CustomerOrderDetail.tsx`
+
+### Cleanup CustomerOrders.tsx
+- Rimuovere import inutilizzato `CardDescription`
+
+### Ottimizzazione CustomersList.tsx
+- Unificare query con una singola chiamata che fa il join appropriato
+
+---
+
+## 6. Miglioramenti UX
+
+### Customer Portal
+- Aggiungere icona badge su ordine se ha ticket aperti
+- Pulsante "Richiedi Assistenza" nel dettaglio ordine
+- Notifica visiva per nuovi messaggi
+
+### Ticket UI
+- Stati con colori semantici:
+  - `aperto`: Blu (primary)
+  - `in_lavorazione`: Giallo (warning)
+  - `risolto`: Verde (success)
+- Messaggi con bubble chat differenziate per mittente
+- Timestamp relativi ("2 ore fa") per messaggi recenti
+
+### Responsive Design
+- Layout mobile-first per pagine cliente
+- Sidebar collassabile su mobile per admin
+
+---
+
+## 7. File da Modificare
+
+### Routing (src/App.tsx)
+Sostituire placeholder con nuove pagine:
+- `/cliente/assistenza` -> CustomerSupport
+- `/cliente/assistenza/nuovo` -> CreateTicket
+- `/cliente/assistenza/:id` -> CustomerTicketDetail
+- `/azienda/assistenza` -> TicketsList
+- `/azienda/assistenza/:id` -> TicketDetail
+
+### CustomerOrderDetail.tsx
+Aggiungere pulsante "Richiedi Assistenza" che naviga a CreateTicket preselezionando l'ordine
+
+---
+
+## 8. Query Database per Ticket
+
+### Lista ticket cliente
 ```sql
--- Policy esistente (verificata nel contesto):
-Policy: "Customers can view their own orders"
-Command: SELECT
-Using: (customer_id = auth.uid())
+SELECT t.*, 
+       o.description as order_description
+FROM tickets t
+LEFT JOIN orders o ON t.order_id = o.id
+WHERE t.customer_id = auth.uid()
+ORDER BY t.updated_at DESC
 ```
 
-Quindi il cliente potra accedere a:
-- `orders` - i propri ordini
-- `order_statuses` - stati dell'azienda (policy esistente per company_id)
-- `order_status_history` - storico dei propri ordini (policy esistente)
+### Messaggi ticket
+```sql
+SELECT tm.*, 
+       p.first_name, p.last_name
+FROM ticket_messages tm
+LEFT JOIN profiles p ON tm.sender_id = p.id
+WHERE tm.ticket_id = [ticket_id]
+ORDER BY tm.created_at ASC
+```
 
 ---
 
-## 4. File da Creare
+## 9. Componenti Riutilizzati
 
-```text
-src/pages/cliente/CustomerOrderDetail.tsx  - Pagina dettaglio ordine cliente
-```
-
----
-
-## 5. File da Modificare
-
-```text
-src/App.tsx - Sostituire il placeholder alla linea 98 con CustomerOrderDetail
-```
-
-La route `/cliente/ordini/:id` attualmente mostra un placeholder ("Dettaglio Ordine - Coming soon") e verra collegata alla nuova pagina.
+- `Card`, `Badge`, `Button`, `Input`, `Textarea` (shadcn)
+- `OrderProgressTracker` (esistente, read-only per cliente)
+- `CustomerLayout` / `CompanyLayout` (esistenti)
 
 ---
 
-## 6. Componenti Riutilizzati
+## 10. Sicurezza
 
-- `OrderProgressTracker` - Gia implementato in `src/components/orders/OrderProgressTracker.tsx`
-- `Card`, `Badge`, `Button` - Componenti shadcn esistenti
-- `CustomerLayout` - Layout gia configurato per i clienti
-
----
-
-## 7. Sicurezza
-
-La sicurezza e garantita dalle RLS policies esistenti:
-- I clienti possono vedere SOLO i propri ordini (`customer_id = auth.uid()`)
-- Gli stati dell'azienda sono visibili ai clienti della stessa azienda
-- Lo storico stati e filtrato per order_id, quindi solo lo storico dei propri ordini
+Le RLS policies esistenti sono gia corrette:
+- Clienti possono creare/vedere solo i propri ticket
+- Admin azienda possono gestire tutti i ticket della loro azienda
+- Super admin accede a tutto
 
 ---
 
-## 8. Responsive Design
+## Flusso di Test Previsto
 
-La pagina sara ottimizzata per mobile (considerando che i clienti accederanno principalmente da smartphone):
-- Layout a singola colonna su mobile
-- Progress tracker verticale su schermi piccoli
-- Card impilate verticalmente
-- Touch-friendly con aree di tap adeguate
-
----
-
-## Dettagli Tecnici
-
-### Query per Dettaglio Ordine
-```typescript
-const { data: order } = await supabase
-  .from("orders")
-  .select(`
-    id, description, total_amount, deposit_amount, balance_amount,
-    expected_date, created_at, current_status_id,
-    status:order_statuses(name, color, icon)
-  `)
-  .eq("id", orderId)
-  .eq("customer_id", user.id) // Doppia verifica per sicurezza
-  .single();
-```
-
-### Query per Stati Azienda
-```typescript
-const { data: statuses } = await supabase
-  .from("order_statuses")
-  .select("id, name, icon, color, position")
-  .order("position");
-```
-
-### Query per Storico Stati
-```typescript
-const { data: history } = await supabase
-  .from("order_status_history")
-  .select(`
-    id, status_id, changed_at,
-    status:order_statuses(name, color)
-  `)
-  .eq("order_id", orderId)
-  .order("changed_at", { ascending: false });
-```
+1. Login come cliente
+2. Visualizzare lista ordini (vuota o con ordini)
+3. Andare a /cliente/assistenza
+4. Creare nuovo ticket (collegato o meno a ordine)
+5. Inviare messaggi nel ticket
+6. Login come admin azienda
+7. Visualizzare ticket nella lista
+8. Rispondere al ticket e cambiare stato
+9. Verificare che il cliente veda la risposta
