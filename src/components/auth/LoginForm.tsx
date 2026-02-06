@@ -1,21 +1,45 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Lock, Eye, EyeOff, CheckCircle2, Package, Users, Headphones } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Loader2, Mail, Lock, Eye, EyeOff, UserCircle, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 
+type LoginType = "cliente" | "azienda" | null;
+
 export function LoginForm() {
+  const [selectedType, setSelectedType] = useState<LoginType>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { signIn } = useAuth();
-  const navigate = useNavigate();
   const { toast } = useToast();
+
+  const openLoginDialog = (type: LoginType) => {
+    setSelectedType(type);
+    setIsDialogOpen(true);
+    setEmail("");
+    setPassword("");
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setSelectedType(null);
+    setEmail("");
+    setPassword("");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +59,7 @@ export function LoginForm() {
           title: "Accesso effettuato",
           description: "Benvenuto in EdiliziaInCloud!",
         });
+        closeDialog();
       }
     } catch (error) {
       toast({
@@ -47,86 +72,126 @@ export function LoginForm() {
     }
   };
 
-  const features = [
-    { icon: Package, text: "Ordini sempre sotto controllo" },
-    { icon: Users, text: "Clienti connessi in tempo reale" },
-    { icon: Headphones, text: "Assistenza integrata" },
-  ];
+  const getDialogTitle = () => {
+    return selectedType === "cliente" 
+      ? "Accesso Area Clienti" 
+      : "Accesso Area Azienda";
+  };
+
+  const getDialogDescription = () => {
+    return selectedType === "cliente"
+      ? "Inserisci le tue credenziali per visualizzare i tuoi ordini"
+      : "Inserisci le tue credenziali per gestire la piattaforma";
+  };
+
+  const getHelpText = () => {
+    return selectedType === "cliente"
+      ? "Problemi di accesso? Contatta la tua azienda di riferimento"
+      : "Problemi di accesso? Contatta l'amministratore";
+  };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Branding Panel - Hidden on mobile */}
-      <div className="hidden lg:flex lg:w-3/5 bg-gradient-to-br from-primary via-primary/90 to-primary/80 relative overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl" />
-          <div className="absolute bottom-40 right-20 w-96 h-96 bg-white rounded-full blur-3xl" />
-          <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-white rounded-full blur-3xl" />
-        </div>
-        
-        {/* Grid Pattern Overlay */}
-        <div 
-          className="absolute inset-0 opacity-5"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)`,
-            backgroundSize: '50px 50px'
-          }}
+    <div className="min-h-screen bg-gradient-to-br from-muted/30 via-background to-muted/50 flex flex-col">
+      {/* Header con Logo */}
+      <div className="py-10 text-center">
+        <img 
+          src={ediliziaLogo} 
+          alt="EdiliziaInCloud" 
+          className="h-12 md:h-14 mx-auto" 
         />
-
-        {/* Content */}
-        <div className="relative z-10 flex flex-col justify-center p-12 xl:p-16">
-          <img 
-            src={ediliziaLogo} 
-            alt="EdiliziaInCloud" 
-            className="h-14 xl:h-16 w-auto mb-12 brightness-0 invert" 
-          />
-          
-          <h1 className="text-3xl xl:text-4xl font-bold text-primary-foreground mb-4 leading-tight">
-            Gestisci i tuoi cantieri<br />
-            in modo semplice e veloce
-          </h1>
-          
-          <p className="text-primary-foreground/80 text-lg mb-10 max-w-md">
-            La piattaforma completa per la gestione degli ordini, clienti e assistenza nel settore dell'edilizia.
-          </p>
-
-          <ul className="space-y-4">
-            {features.map((feature, index) => (
-              <li key={index} className="flex items-center gap-3 text-primary-foreground/90">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary-foreground/10 backdrop-blur-sm">
-                  <feature.icon className="h-5 w-5 text-primary-foreground" />
-                </div>
-                <span className="text-base xl:text-lg">{feature.text}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
 
-      {/* Login Form Panel */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-background">
-        <div className="w-full max-w-md">
-          {/* Mobile Logo */}
-          <div className="lg:hidden mb-8 text-center">
-            <img 
-              src={ediliziaLogo} 
-              alt="EdiliziaInCloud" 
-              className="h-10 mx-auto" 
-            />
-          </div>
-
-          {/* Header */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-foreground mb-2">
-              Bentornato!
-            </h2>
-            <p className="text-muted-foreground">
-              Accedi al tuo account per continuare
+      {/* Contenuto principale */}
+      <div className="flex-1 flex items-center justify-center px-6 pb-12">
+        <div className="w-full max-w-5xl">
+          {/* Titolo principale */}
+          <div className="text-center mb-12">
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3">
+              Benvenuto in EdiliziaInCloud
+            </h1>
+            <p className="text-lg text-muted-foreground">
+              Seleziona il tipo di accesso per continuare
             </p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Griglia Selezione */}
+          <div className="grid md:grid-cols-2 gap-8 md:gap-10">
+            {/* Card Clienti */}
+            <Card 
+              className="p-10 md:p-12 cursor-pointer transition-all duration-300 bg-gradient-to-br from-background to-muted/30 border-2 border-border hover:border-primary hover:shadow-xl group"
+              onClick={() => openLoginDialog("cliente")}
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-8 group-hover:bg-primary/20 transition-colors">
+                  <UserCircle className="h-10 w-10 text-primary" />
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
+                  Sei un Cliente?
+                </h2>
+                <p className="text-muted-foreground mb-10 text-base md:text-lg leading-relaxed max-w-sm">
+                  Accedi al portale per visualizzare lo stato dei tuoi ordini e richiedere assistenza
+                </p>
+                <Button 
+                  className="w-full max-w-xs" 
+                  size="lg"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openLoginDialog("cliente");
+                  }}
+                >
+                  Accedi come Cliente
+                </Button>
+              </div>
+            </Card>
+
+            {/* Card Azienda */}
+            <Card 
+              className="p-10 md:p-12 cursor-pointer transition-all duration-300 bg-gradient-to-br from-primary to-primary/80 border-0 hover:shadow-xl hover:from-primary/95 hover:to-primary/75 group"
+              onClick={() => openLoginDialog("azienda")}
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-20 h-20 rounded-full bg-primary-foreground/20 flex items-center justify-center mb-8 group-hover:bg-primary-foreground/30 transition-colors">
+                  <Building2 className="h-10 w-10 text-primary-foreground" />
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-primary-foreground mb-4">
+                  Sei un'Azienda?
+                </h2>
+                <p className="text-primary-foreground/80 mb-10 text-base md:text-lg leading-relaxed max-w-sm">
+                  Gestisci ordini, clienti e richieste di assistenza dalla tua dashboard
+                </p>
+                <Button 
+                  variant="secondary"
+                  className="w-full max-w-xs" 
+                  size="lg"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openLoginDialog("azienda");
+                  }}
+                >
+                  Accedi come Azienda
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* Dialog Login */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="text-center pb-2">
+            <div className="flex justify-center mb-4">
+              <img 
+                src={ediliziaLogo} 
+                alt="EdiliziaInCloud" 
+                className="h-10" 
+              />
+            </div>
+            <DialogTitle className="text-xl">{getDialogTitle()}</DialogTitle>
+            <DialogDescription>{getDialogDescription()}</DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="space-y-5 pt-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
@@ -134,7 +199,7 @@ export function LoginForm() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="mario.rossi@azienda.it"
+                  placeholder="inserisci la tua email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -191,17 +256,13 @@ export function LoginForm() {
             </Button>
           </form>
 
-          {/* Help Text */}
-          <div className="mt-8 pt-6 border-t border-border">
+          <div className="mt-4 pt-4 border-t border-border">
             <p className="text-center text-sm text-muted-foreground">
-              Hai problemi di accesso?{" "}
-              <span className="text-foreground">
-                Contatta il tuo amministratore
-              </span>
+              {getHelpText()}
             </p>
           </div>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
