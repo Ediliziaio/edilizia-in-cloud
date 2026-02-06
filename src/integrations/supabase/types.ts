@@ -14,6 +14,35 @@ export type Database = {
   }
   public: {
     Tables: {
+      article_templates: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           created_at: string
@@ -93,8 +122,10 @@ export type Database = {
           name: string
           order_id: string
           position: number | null
+          purchase_price: number | null
           quantity: number | null
           status: string | null
+          supplier_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -104,8 +135,10 @@ export type Database = {
           name: string
           order_id: string
           position?: number | null
+          purchase_price?: number | null
           quantity?: number | null
           status?: string | null
+          supplier_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -115,8 +148,10 @@ export type Database = {
           name?: string
           order_id?: string
           position?: number | null
+          purchase_price?: number | null
           quantity?: number | null
           status?: string | null
+          supplier_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -125,6 +160,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
@@ -226,6 +268,10 @@ export type Database = {
           payment_type: string | null
           total_amount: number
           updated_at: string
+          vat_rate: number | null
+          warehouse_arrival_date: string | null
+          work_end_date: string | null
+          work_start_date: string | null
         }
         Insert: {
           balance_amount?: number
@@ -243,6 +289,10 @@ export type Database = {
           payment_type?: string | null
           total_amount?: number
           updated_at?: string
+          vat_rate?: number | null
+          warehouse_arrival_date?: string | null
+          work_end_date?: string | null
+          work_start_date?: string | null
         }
         Update: {
           balance_amount?: number
@@ -260,6 +310,10 @@ export type Database = {
           payment_type?: string | null
           total_amount?: number
           updated_at?: string
+          vat_rate?: number | null
+          warehouse_arrival_date?: string | null
+          work_end_date?: string | null
+          work_start_date?: string | null
         }
         Relationships: [
           {
@@ -322,6 +376,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"

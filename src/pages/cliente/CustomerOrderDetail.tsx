@@ -7,28 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
-import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
-import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/FinancialSummary";
-import { ArrowLeft, Calendar, Clock, CheckCircle2, MessageSquare } from "lucide-react";
+import { CustomerFinancialSummary } from "@/components/orders/CustomerFinancialSummary";
+import { CustomerDatesCard } from "@/components/orders/CustomerDatesCard";
+import { ArrowLeft, Clock, CheckCircle2, MessageSquare, FileText } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/formatters";
-
-interface OrderItemData {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity: number;
-  status: string;
-  position: number;
-}
-
-interface OrderItemAttachmentData {
-  id: string;
-  order_item_id: string;
-  file_name: string;
-  file_url: string;
-  file_type: string;
-  file_size: number;
-}
 
 export default function CustomerOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -43,8 +25,9 @@ export default function CustomerOrderDetail() {
         .from("orders")
         .select(`
           id, description, total_amount, deposit_amount, deposit_2_amount,
-          financing_amount, payment_type, balance_amount,
+          financing_amount, payment_type, balance_amount, vat_rate,
           expected_date, created_at, current_status_id, company_id,
+          warehouse_arrival_date, work_start_date, work_end_date,
           status:order_statuses(name, color, icon)
         `)
         .eq("id", id!)
@@ -54,41 +37,6 @@ export default function CustomerOrderDetail() {
       return data;
     },
     enabled: !!id && !!user,
-  });
-
-  // Fetch order items
-  const { data: orderItems = [] } = useQuery({
-    queryKey: ["order-items", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_items")
-        .select("*")
-        .eq("order_id", id!)
-        .order("position");
-
-      if (error) throw error;
-      return data as OrderItemData[];
-    },
-    enabled: !!id && !!user,
-  });
-
-  // Fetch attachments for all order items
-  const { data: attachments = [] } = useQuery({
-    queryKey: ["order-item-attachments", id],
-    queryFn: async () => {
-      const itemIds = orderItems.map(item => item.id);
-      if (itemIds.length === 0) return [];
-
-      const { data, error } = await supabase
-        .from("order_item_attachments")
-        .select("*")
-        .in("order_item_id", itemIds)
-        .order("created_at");
-
-      if (error) throw error;
-      return data as OrderItemAttachmentData[];
-    },
-    enabled: orderItems.length > 0,
   });
 
   // Fetch all order statuses for this company
@@ -152,25 +100,6 @@ export default function CustomerOrderDetail() {
     changed_at: h.changed_at,
   }));
 
-  // Convert order items for the list with attachments
-  const displayItems: OrderItem[] = orderItems.map(item => ({
-    id: item.id,
-    name: item.name,
-    description: item.description || undefined,
-    quantity: item.quantity,
-    status: item.status as OrderItem['status'],
-    position: item.position,
-    attachments: attachments
-      .filter(att => att.order_item_id === item.id)
-      .map(att => ({
-        id: att.id,
-        file_name: att.file_name,
-        file_url: att.file_url,
-        file_type: att.file_type,
-        file_size: att.file_size,
-      })),
-  }));
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -223,7 +152,10 @@ export default function CustomerOrderDetail() {
       {/* Order Description */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Descrizione lavoro</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Descrizione lavoro
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-foreground whitespace-pre-wrap">
@@ -232,40 +164,23 @@ export default function CustomerOrderDetail() {
         </CardContent>
       </Card>
 
-      {/* Order Items (read-only for customer) */}
-      {displayItems.length > 0 && (
-        <OrderItemsList
-          items={displayItems}
-          onItemsChange={() => {}}
-          editable={false}
-          showStatusControls={false}
-        />
-      )}
+      {/* Customer Dates */}
+      <CustomerDatesCard
+        warehouseArrivalDate={order.warehouse_arrival_date}
+        workStartDate={order.work_start_date}
+        workEndDate={order.work_end_date}
+      />
 
-      {/* Financial Summary */}
-      <FinancialSummaryReadOnly
+      {/* Financial Summary with VAT */}
+      <CustomerFinancialSummary
         totalAmount={order.total_amount}
         depositAmount={order.deposit_amount}
         deposit2Amount={order.deposit_2_amount || 0}
         financingAmount={order.financing_amount || 0}
-        paymentType={(order.payment_type as PaymentType) || 'standard'}
+        paymentType={order.payment_type || 'standard'}
         balanceAmount={order.balance_amount}
+        vatRate={order.vat_rate || 22}
       />
-
-      {/* Expected Date */}
-      {order.expected_date && (
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <Calendar className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-sm text-muted-foreground">Data prevista consegna</p>
-              <p className="font-medium">
-                {formatDate(order.expected_date)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Status History Timeline */}
       {statusHistory.length > 0 && (

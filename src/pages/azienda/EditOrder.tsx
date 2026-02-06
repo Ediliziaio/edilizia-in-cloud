@@ -48,6 +48,10 @@ interface OrderData {
   balance_amount: number;
   expected_date: string | null;
   internal_notes: string | null;
+  vat_rate: number;
+  warehouse_arrival_date: string | null;
+  work_start_date: string | null;
+  work_end_date: string | null;
 }
 
 interface OrderItemData {
@@ -57,6 +61,8 @@ interface OrderItemData {
   quantity: number;
   status: string;
   position: number;
+  supplier_id: string | null;
+  purchase_price: number | null;
 }
 
 export default function EditOrder() {
@@ -71,12 +77,18 @@ export default function EditOrder() {
   const [expectedDate, setExpectedDate] = useState<Date | undefined>();
   const [internalNotes, setInternalNotes] = useState("");
 
+  // Date per il cliente
+  const [warehouseArrivalDate, setWarehouseArrivalDate] = useState<Date | undefined>();
+  const [workStartDate, setWorkStartDate] = useState<Date | undefined>();
+  const [workEndDate, setWorkEndDate] = useState<Date | undefined>();
+
   // Financial state
   const [paymentType, setPaymentType] = useState<PaymentType>('standard');
   const [totalAmount, setTotalAmount] = useState("");
   const [depositAmount, setDepositAmount] = useState("");
   const [deposit2Amount, setDeposit2Amount] = useState("");
   const [financingAmount, setFinancingAmount] = useState("");
+  const [vatRate, setVatRate] = useState("22");
 
   // Order items state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -133,8 +145,18 @@ export default function EditOrder() {
       setFinancingAmount((order.financing_amount || 0).toString());
       setPaymentType((order.payment_type as PaymentType) || 'standard');
       setInternalNotes(order.internal_notes || "");
+      setVatRate((order.vat_rate || 22).toString());
       if (order.expected_date) {
         setExpectedDate(new Date(order.expected_date));
+      }
+      if (order.warehouse_arrival_date) {
+        setWarehouseArrivalDate(new Date(order.warehouse_arrival_date));
+      }
+      if (order.work_start_date) {
+        setWorkStartDate(new Date(order.work_start_date));
+      }
+      if (order.work_end_date) {
+        setWorkEndDate(new Date(order.work_end_date));
       }
     }
   }, [order]);
@@ -149,6 +171,8 @@ export default function EditOrder() {
         quantity: item.quantity,
         status: item.status as OrderItem['status'],
         position: item.position,
+        supplier_id: item.supplier_id || undefined,
+        purchase_price: item.purchase_price || undefined,
       })));
     }
   }, [existingItems]);
@@ -172,6 +196,7 @@ export default function EditOrder() {
   const updateOrderMutation = useMutation({
     mutationFn: async () => {
       const financing = parseFloat(financingAmount) || 0;
+      const vat = parseFloat(vatRate) || 22;
 
       // Update order
       const { error } = await supabase
@@ -187,6 +212,10 @@ export default function EditOrder() {
           balance_amount: balance,
           expected_date: expectedDate?.toISOString().split("T")[0] || null,
           internal_notes: internalNotes || null,
+          vat_rate: vat,
+          warehouse_arrival_date: warehouseArrivalDate?.toISOString().split("T")[0] || null,
+          work_start_date: workStartDate?.toISOString().split("T")[0] || null,
+          work_end_date: workEndDate?.toISOString().split("T")[0] || null,
         })
         .eq("id", id!);
 
@@ -207,6 +236,8 @@ export default function EditOrder() {
           quantity: item.quantity,
           status: item.status,
           position: index,
+          supplier_id: item.supplier_id || null,
+          purchase_price: item.purchase_price || 0,
         }));
 
         const { error: itemsError } = await supabase
@@ -355,38 +386,6 @@ export default function EditOrder() {
                 />
               </div>
 
-              {/* Expected Date */}
-              <div className="space-y-2">
-                <Label>Data Prevista Consegna</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !expectedDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {expectedDate ? (
-                        format(expectedDate, "d MMMM yyyy", { locale: it })
-                      ) : (
-                        <span>Seleziona data</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={expectedDate}
-                      onSelect={setExpectedDate}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
               {/* Internal Notes */}
               <div className="space-y-2">
                 <Label htmlFor="notes">Note Interne</Label>
@@ -408,14 +407,122 @@ export default function EditOrder() {
             deposit2Amount={deposit2Amount}
             financingAmount={financingAmount}
             paymentType={paymentType}
+            vatRate={vatRate}
             onTotalAmountChange={setTotalAmount}
             onDepositAmountChange={setDepositAmount}
             onDeposit2AmountChange={setDeposit2Amount}
             onFinancingAmountChange={setFinancingAmount}
             onPaymentTypeChange={setPaymentType}
+            onVatRateChange={setVatRate}
             balance={balance}
           />
         </div>
+
+        {/* Customer Dates Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tempistiche per il Cliente</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              {/* Warehouse Arrival Date */}
+              <div className="space-y-2">
+                <Label>Arrivo Merce in Magazzino</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !warehouseArrivalDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {warehouseArrivalDate ? (
+                        format(warehouseArrivalDate, "d MMMM yyyy", { locale: it })
+                      ) : (
+                        <span>Seleziona data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={warehouseArrivalDate}
+                      onSelect={setWarehouseArrivalDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Work Start Date */}
+              <div className="space-y-2">
+                <Label>Inizio Lavori</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !workStartDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {workStartDate ? (
+                        format(workStartDate, "d MMMM yyyy", { locale: it })
+                      ) : (
+                        <span>Seleziona data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={workStartDate}
+                      onSelect={setWorkStartDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Work End Date */}
+              <div className="space-y-2">
+                <Label>Fine Lavori</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !workEndDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {workEndDate ? (
+                        format(workEndDate, "d MMMM yyyy", { locale: it })
+                      ) : (
+                        <span>Seleziona data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={workEndDate}
+                      onSelect={setWorkEndDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Order Items */}
         <OrderItemsList
