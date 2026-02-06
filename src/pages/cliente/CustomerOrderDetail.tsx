@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,9 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
-import { ArrowLeft, Calendar, Euro, Clock, CheckCircle2 } from "lucide-react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { ArrowLeft, Calendar, Euro, Clock, CheckCircle2, MessageSquare } from "lucide-react";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
 
 export default function CustomerOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -92,12 +91,7 @@ export default function CustomerOrderDetail() {
     );
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-    }).format(amount);
-  };
+  // formatCurrency now imported from @/lib/formatters
 
   const historyForTracker = statusHistory.map((h) => ({
     status_id: h.status_id,
@@ -115,14 +109,20 @@ export default function CustomerOrderDetail() {
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold">
             Ordine #{order.id.slice(0, 8).toUpperCase()}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Creato il {format(new Date(order.created_at), "d MMMM yyyy", { locale: it })}
+            Creato il {formatDate(order.created_at)}
           </p>
         </div>
+        <Button asChild variant="outline">
+          <Link to={`/cliente/assistenza/nuovo?ordine=${order.id}`}>
+            <MessageSquare className="mr-2 h-4 w-4" />
+            Richiedi Assistenza
+          </Link>
+        </Button>
       </div>
 
       {/* Progress Tracker */}
@@ -197,7 +197,7 @@ export default function CustomerOrderDetail() {
             <div>
               <p className="text-sm text-muted-foreground">Data prevista consegna</p>
               <p className="font-medium">
-                {format(new Date(order.expected_date), "d MMMM yyyy", { locale: it })}
+                {formatDate(order.expected_date)}
               </p>
             </div>
           </CardContent>
@@ -241,7 +241,7 @@ export default function CustomerOrderDetail() {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(item.changed_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                        {formatDateTime(item.changed_at)}
                       </p>
                     </div>
                     {index === 0 && (

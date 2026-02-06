@@ -34,6 +34,13 @@ import CreateCustomer from "@/pages/azienda/CreateCustomer";
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
 import CustomerOrderDetail from "@/pages/cliente/CustomerOrderDetail";
+import CustomerSupport from "@/pages/cliente/CustomerSupport";
+import CreateTicket from "@/pages/cliente/CreateTicket";
+import CustomerTicketDetail from "@/pages/cliente/CustomerTicketDetail";
+
+// Company Ticket Pages
+import TicketsList from "@/pages/azienda/TicketsList";
+import TicketDetail from "@/pages/azienda/TicketDetail";
 
 const queryClient = new QueryClient();
 
@@ -81,7 +88,8 @@ const App = () => (
               <Route path="ordini/:id/modifica" element={<EditOrder />} />
               <Route path="clienti" element={<CustomersList />} />
               <Route path="clienti/nuovo" element={<CreateCustomer />} />
-              <Route path="assistenza" element={<div className="text-muted-foreground">Assistenza - Coming soon</div>} />
+              <Route path="assistenza" element={<TicketsList />} />
+              <Route path="assistenza/:id" element={<TicketDetail />} />
               <Route path="previsionale" element={<div className="text-muted-foreground">Previsionale Cassa - Coming soon</div>} />
               <Route path="impostazioni" element={<Settings />} />
             </Route>
@@ -97,7 +105,9 @@ const App = () => (
             >
               <Route index element={<CustomerOrders />} />
               <Route path="ordini/:id" element={<CustomerOrderDetail />} />
-              <Route path="assistenza" element={<div className="text-muted-foreground">Assistenza - Coming soon</div>} />
+              <Route path="assistenza" element={<CustomerSupport />} />
+              <Route path="assistenza/nuovo" element={<CreateTicket />} />
+              <Route path="assistenza/:id" element={<CustomerTicketDetail />} />
               <Route path="profilo" element={<div className="text-muted-foreground">Profilo - Coming soon</div>} />
             </Route>
 
