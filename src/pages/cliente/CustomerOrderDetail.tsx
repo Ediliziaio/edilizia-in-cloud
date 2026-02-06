@@ -7,8 +7,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
-import { ArrowLeft, Calendar, Euro, Clock, CheckCircle2, MessageSquare } from "lucide-react";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
+import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
+import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/FinancialSummary";
+import { ArrowLeft, Calendar, Clock, CheckCircle2, MessageSquare } from "lucide-react";
+import { formatDate, formatDateTime } from "@/lib/formatters";
+
+interface OrderItemData {
+  id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  status: string;
+  position: number;
+}
 
 export default function CustomerOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -22,7 +33,8 @@ export default function CustomerOrderDetail() {
       const { data, error } = await supabase
         .from("orders")
         .select(`
-          id, description, total_amount, deposit_amount, balance_amount,
+          id, description, total_amount, deposit_amount, deposit_2_amount,
+          financing_amount, payment_type, balance_amount,
           expected_date, created_at, current_status_id, company_id,
           status:order_statuses(name, color, icon)
         `)
@@ -31,6 +43,22 @@ export default function CustomerOrderDetail() {
 
       if (error) throw error;
       return data;
+    },
+    enabled: !!id && !!user,
+  });
+
+  // Fetch order items
+  const { data: orderItems = [] } = useQuery({
+    queryKey: ["order-items", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_items")
+        .select("*")
+        .eq("order_id", id!)
+        .order("position");
+
+      if (error) throw error;
+      return data as OrderItemData[];
     },
     enabled: !!id && !!user,
   });
@@ -91,11 +119,19 @@ export default function CustomerOrderDetail() {
     );
   }
 
-  // formatCurrency now imported from @/lib/formatters
-
   const historyForTracker = statusHistory.map((h) => ({
     status_id: h.status_id,
     changed_at: h.changed_at,
+  }));
+
+  // Convert order items for the list
+  const displayItems: OrderItem[] = orderItems.map(item => ({
+    id: item.id,
+    name: item.name,
+    description: item.description || undefined,
+    quantity: item.quantity,
+    status: item.status as OrderItem['status'],
+    position: item.position,
   }));
 
   return (
@@ -159,35 +195,25 @@ export default function CustomerOrderDetail() {
         </CardContent>
       </Card>
 
+      {/* Order Items (read-only for customer) */}
+      {displayItems.length > 0 && (
+        <OrderItemsList
+          items={displayItems}
+          onItemsChange={() => {}}
+          editable={false}
+          showStatusControls={false}
+        />
+      )}
+
       {/* Financial Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Euro className="h-5 w-5" />
-            Riepilogo finanziario
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between items-center py-2 border-b">
-            <span className="text-muted-foreground">Importo totale</span>
-            <span className="font-semibold text-lg">
-              {formatCurrency(order.total_amount)}
-            </span>
-          </div>
-          <div className="flex justify-between items-center py-2 border-b">
-            <span className="text-muted-foreground">Acconto versato</span>
-            <span className="font-medium text-success">
-              {formatCurrency(order.deposit_amount)}
-            </span>
-          </div>
-          <div className="flex justify-between items-center py-2">
-            <span className="text-muted-foreground">Saldo da versare</span>
-            <span className="font-semibold text-lg">
-              {formatCurrency(order.balance_amount)}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+      <FinancialSummaryReadOnly
+        totalAmount={order.total_amount}
+        depositAmount={order.deposit_amount}
+        deposit2Amount={order.deposit_2_amount || 0}
+        financingAmount={order.financing_amount || 0}
+        paymentType={(order.payment_type as PaymentType) || 'standard'}
+        balanceAmount={order.balance_amount}
+      />
 
       {/* Expected Date */}
       {order.expected_date && (
@@ -245,7 +271,7 @@ export default function CustomerOrderDetail() {
                       </p>
                     </div>
                     {index === 0 && (
-                      <CheckCircle2 className="h-4 w-4 text-success" />
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
                     )}
                   </div>
                 );

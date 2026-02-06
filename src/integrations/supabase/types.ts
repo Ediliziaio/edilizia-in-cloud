@@ -44,6 +44,50 @@ export type Database = {
         }
         Relationships: []
       }
+      order_items: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          order_id: string
+          position: number | null
+          quantity: number | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          order_id: string
+          position?: number | null
+          quantity?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          order_id?: string
+          position?: number | null
+          quantity?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_status_history: {
         Row: {
           changed_at: string
@@ -131,11 +175,14 @@ export type Database = {
           created_at: string
           current_status_id: string | null
           customer_id: string
+          deposit_2_amount: number | null
           deposit_amount: number
           description: string
           expected_date: string | null
+          financing_amount: number | null
           id: string
           internal_notes: string | null
+          payment_type: string | null
           total_amount: number
           updated_at: string
         }
@@ -145,11 +192,14 @@ export type Database = {
           created_at?: string
           current_status_id?: string | null
           customer_id: string
+          deposit_2_amount?: number | null
           deposit_amount?: number
           description: string
           expected_date?: string | null
+          financing_amount?: number | null
           id?: string
           internal_notes?: string | null
+          payment_type?: string | null
           total_amount?: number
           updated_at?: string
         }
@@ -159,11 +209,14 @@ export type Database = {
           created_at?: string
           current_status_id?: string | null
           customer_id?: string
+          deposit_2_amount?: number | null
           deposit_amount?: number
           description?: string
           expected_date?: string | null
+          financing_amount?: number | null
           id?: string
           internal_notes?: string | null
+          payment_type?: string | null
           total_amount?: number
           updated_at?: string
         }

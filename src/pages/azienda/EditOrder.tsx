@@ -1,15 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarIcon } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -27,6 +25,9 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
+import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
+import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 
 interface Customer {
   id: string;
@@ -41,9 +42,21 @@ interface OrderData {
   description: string;
   total_amount: number;
   deposit_amount: number;
+  deposit_2_amount: number;
+  financing_amount: number;
+  payment_type: string;
   balance_amount: number;
   expected_date: string | null;
   internal_notes: string | null;
+}
+
+interface OrderItemData {
+  id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  status: string;
+  position: number;
 }
 
 export default function EditOrder() {
@@ -55,15 +68,27 @@ export default function EditOrder() {
 
   const [customerId, setCustomerId] = useState("");
   const [description, setDescription] = useState("");
-  const [totalAmount, setTotalAmount] = useState("");
-  const [depositAmount, setDepositAmount] = useState("");
   const [expectedDate, setExpectedDate] = useState<Date | undefined>();
   const [internalNotes, setInternalNotes] = useState("");
+
+  // Financial state
+  const [paymentType, setPaymentType] = useState<PaymentType>('standard');
+  const [totalAmount, setTotalAmount] = useState("");
+  const [depositAmount, setDepositAmount] = useState("");
+  const [deposit2Amount, setDeposit2Amount] = useState("");
+  const [financingAmount, setFinancingAmount] = useState("");
+
+  // Order items state
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+
+  // Customer creation dialog
+  const [showCreateCustomer, setShowCreateCustomer] = useState(false);
 
   // Calculate balance
   const total = parseFloat(totalAmount) || 0;
   const deposit = parseFloat(depositAmount) || 0;
-  const balance = Math.max(0, total - deposit);
+  const deposit2 = parseFloat(deposit2Amount) || 0;
+  const balance = paymentType === 'standard' ? Math.max(0, total - deposit - deposit2) : 0;
 
   // Fetch order data
   const { data: order, isLoading: orderLoading } = useQuery({
@@ -81,6 +106,22 @@ export default function EditOrder() {
     enabled: !!id && !!user,
   });
 
+  // Fetch order items
+  const { data: existingItems = [] } = useQuery({
+    queryKey: ["order-items", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_items")
+        .select("*")
+        .eq("order_id", id!)
+        .order("position");
+
+      if (error) throw error;
+      return data as OrderItemData[];
+    },
+    enabled: !!id && !!user,
+  });
+
   // Populate form when order data is loaded
   useEffect(() => {
     if (order) {
@@ -88,12 +129,29 @@ export default function EditOrder() {
       setDescription(order.description);
       setTotalAmount(order.total_amount.toString());
       setDepositAmount(order.deposit_amount.toString());
+      setDeposit2Amount((order.deposit_2_amount || 0).toString());
+      setFinancingAmount((order.financing_amount || 0).toString());
+      setPaymentType((order.payment_type as PaymentType) || 'standard');
       setInternalNotes(order.internal_notes || "");
       if (order.expected_date) {
         setExpectedDate(new Date(order.expected_date));
       }
     }
   }, [order]);
+
+  // Populate order items
+  useEffect(() => {
+    if (existingItems.length > 0) {
+      setOrderItems(existingItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        description: item.description || undefined,
+        quantity: item.quantity,
+        status: item.status as OrderItem['status'],
+        position: item.position,
+      })));
+    }
+  }, [existingItems]);
 
   // Fetch customers for the company
   const { data: customers = [] } = useQuery({
@@ -113,6 +171,9 @@ export default function EditOrder() {
   // Update order mutation
   const updateOrderMutation = useMutation({
     mutationFn: async () => {
+      const financing = parseFloat(financingAmount) || 0;
+
+      // Update order
       const { error } = await supabase
         .from("orders")
         .update({
@@ -120,6 +181,9 @@ export default function EditOrder() {
           description,
           total_amount: total,
           deposit_amount: deposit,
+          deposit_2_amount: deposit2,
+          financing_amount: financing,
+          payment_type: paymentType,
           balance_amount: balance,
           expected_date: expectedDate?.toISOString().split("T")[0] || null,
           internal_notes: internalNotes || null,
@@ -127,10 +191,35 @@ export default function EditOrder() {
         .eq("id", id!);
 
       if (error) throw error;
+
+      // Delete existing items and recreate
+      await supabase
+        .from("order_items")
+        .delete()
+        .eq("order_id", id!);
+
+      // Insert updated items
+      if (orderItems.length > 0) {
+        const itemsToInsert = orderItems.map((item, index) => ({
+          order_id: id!,
+          name: item.name,
+          description: item.description || null,
+          quantity: item.quantity,
+          status: item.status,
+          position: index,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from("order_items")
+          .insert(itemsToInsert);
+
+        if (itemsError) throw itemsError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["order", id] });
+      queryClient.invalidateQueries({ queryKey: ["order-items", id] });
       toast({
         title: "Ordine aggiornato",
         description: "L'ordine è stato aggiornato con successo.",
@@ -180,6 +269,9 @@ export default function EditOrder() {
     updateOrderMutation.mutate();
   };
 
+  const handleCustomerCreated = (newCustomerId: string) => {
+    setCustomerId(newCustomerId);
+  };
 
   if (orderLoading) {
     return (
@@ -223,21 +315,32 @@ export default function EditOrder() {
               <CardTitle>Dettagli Ordine</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Customer */}
+              {/* Customer with inline creation */}
               <div className="space-y-2">
                 <Label htmlFor="customer">Cliente *</Label>
-                <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleziona un cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.first_name} {customer.last_name} ({customer.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={customerId} onValueChange={setCustomerId}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Seleziona un cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          {customer.first_name} {customer.last_name} ({customer.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowCreateCustomer(true)}
+                    title="Nuovo cliente"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               {/* Description */}
@@ -299,61 +402,28 @@ export default function EditOrder() {
           </Card>
 
           {/* Financial Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Riepilogo Finanziario</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Total Amount */}
-              <div className="space-y-2">
-                <Label htmlFor="total">Importo Totale *</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    €
-                  </span>
-                  <Input
-                    id="total"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={totalAmount}
-                    onChange={(e) => setTotalAmount(e.target.value)}
-                    className="pl-8"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              {/* Deposit Amount */}
-              <div className="space-y-2">
-                <Label htmlFor="deposit">Acconto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    €
-                  </span>
-                  <Input
-                    id="deposit"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    className="pl-8"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              {/* Balance (Calculated) */}
-              <div className="pt-4 border-t">
-                <div className="flex justify-between items-center text-lg font-semibold">
-                  <span>Saldo da Pagare</span>
-                  <span>{formatCurrency(balance)}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <FinancialSummary
+            totalAmount={totalAmount}
+            depositAmount={depositAmount}
+            deposit2Amount={deposit2Amount}
+            financingAmount={financingAmount}
+            paymentType={paymentType}
+            onTotalAmountChange={setTotalAmount}
+            onDepositAmountChange={setDepositAmount}
+            onDeposit2AmountChange={setDeposit2Amount}
+            onFinancingAmountChange={setFinancingAmount}
+            onPaymentTypeChange={setPaymentType}
+            balance={balance}
+          />
         </div>
+
+        {/* Order Items */}
+        <OrderItemsList
+          items={orderItems}
+          onItemsChange={setOrderItems}
+          editable={true}
+          showStatusControls={true}
+        />
 
         {/* Actions */}
         <div className="flex justify-end gap-4">
@@ -369,6 +439,13 @@ export default function EditOrder() {
           </Button>
         </div>
       </form>
+
+      {/* Create Customer Dialog */}
+      <CreateCustomerDialog
+        open={showCreateCustomer}
+        onOpenChange={setShowCreateCustomer}
+        onCustomerCreated={handleCustomerCreated}
+      />
     </div>
   );
 }
