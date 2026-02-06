@@ -1,71 +1,181 @@
-# Piano: Allegati per Articoli dell'Ordine ✅ COMPLETATO
 
-# Piano: Allegati per Articoli dell'Ordine
+# Piano: Gestione Avanzata Articoli Ordine e Conto Economico
 
-## Obiettivo
-Permettere di allegare documenti e foto a ogni singolo articolo dell'ordine (es: schede tecniche, foto di installazione, preventivi fornitori).
+## Richieste dell'Utente
 
----
-
-## Modifiche Database
-
-### 1. Nuovo Bucket Storage: `order-attachments`
-Bucket pubblico per memorizzare i file allegati agli articoli.
-
-```sql
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('order-attachments', 'order-attachments', true);
-```
-
-### 2. Nuova Tabella: `order_item_attachments`
-Traccia i file allegati a ogni articolo.
-
-| Colonna | Tipo | Descrizione |
-|---------|------|-------------|
-| id | UUID | Primary key |
-| order_item_id | UUID | FK verso order_items |
-| file_name | TEXT | Nome originale del file |
-| file_url | TEXT | URL pubblico del file |
-| file_type | TEXT | MIME type (image/jpeg, application/pdf, ecc.) |
-| file_size | INTEGER | Dimensione in bytes |
-| uploaded_by | UUID | Chi ha caricato il file |
-| created_at | TIMESTAMPTZ | Data upload |
-
-### 3. RLS Policies
-- Company admin puo gestire allegati dei propri ordini
-- Clienti possono vedere (ma non modificare) i propri allegati
-- Super admin accesso completo
+1. **Nome articolo con autocomplete** - Dropdown che mostra articoli usati in precedenza + possibilita di aggiungerne nuovi
+2. **Fornitore per ogni articolo** - Selezione fornitore per tracciare dove ordinare
+3. **Stati articolo semplificati** - "Da Ordinare", "Ordinato", "In Magazzino" (per uso interno azienda)
+4. **Importo di acquisto per articolo** - Costo per calcolare margine
+5. **Vista cliente semplificata** - Il cliente vede SOLO: data arrivo merce, data inizio lavori, data fine lavori (NON i singoli articoli)
+6. **Conto economico ordine** - Totale Vendita, Totale Costi, con gestione IVA
 
 ---
 
-## Modifiche UI
+## FASE 1: Database - Nuove Tabelle e Modifiche
 
-### Componente `OrderItemsList`
-
-**Vista articolo con allegati:**
+### Nuova Tabella: `suppliers` (Fornitori)
 ```
-+----------------------------------------------------+
-| Finestre soggiorno (x4)                [Ordinato]  |
-| Dettagli aggiuntivi...                             |
-|                                                    |
-| Allegati: [foto1.jpg] [scheda.pdf] [+ Aggiungi]    |
-+----------------------------------------------------+
++------------------------------------------+
+| suppliers                                |
++------------------------------------------+
+| id          | UUID PK                    |
+| company_id  | UUID FK -> companies       |
+| name        | TEXT NOT NULL              |
+| created_at  | TIMESTAMPTZ                |
++------------------------------------------+
 ```
 
-**Funzionalita:**
-- Pulsante "Allega" per ogni articolo (solo se editable=true)
-- Preview miniatura per immagini
-- Icona documento per PDF/altri file
-- Click per aprire/scaricare
-- Pulsante elimina per ogni allegato
+### Nuova Tabella: `article_templates` (Nomi Articoli Salvati)
+Per l'autocomplete dei nomi articoli gia usati.
+```
++------------------------------------------+
+| article_templates                        |
++------------------------------------------+
+| id          | UUID PK                    |
+| company_id  | UUID FK -> companies       |
+| name        | TEXT NOT NULL              |
+| created_at  | TIMESTAMPTZ                |
+| UNIQUE (company_id, name)                |
++------------------------------------------+
+```
 
-### Dialog Allegati
-Quando si clicca su "Allega" o sull'icona allegati:
-- Lista file esistenti con anteprima
-- Pulsante per caricare nuovi file
-- Drag & drop supportato
-- Formati: JPG, PNG, PDF, DOCX
-- Max 5MB per file
+### Modifiche Tabella: `order_items`
+Nuovi campi:
+- `supplier_id` - UUID FK verso suppliers (opzionale)
+- `purchase_price` - NUMERIC per costo acquisto
+
+### Modifiche Tabella: `orders`
+Nuovi campi per date cliente e conto economico:
+- `warehouse_arrival_date` - Data prevista arrivo merce
+- `work_start_date` - Data inizio lavori
+- `work_end_date` - Data fine lavori
+- `vat_rate` - Aliquota IVA (default 22)
+- `total_costs` - Totale costi (calcolato sommando purchase_price articoli)
+
+### Stati Articolo Aggiornati
+Cambiare da 5 stati a 3 stati interni:
+- `da_ordinare` -> "Da Ordinare"
+- `ordinato` -> "Ordinato"
+- `in_magazzino` -> "In Magazzino"
+
+---
+
+## FASE 2: Componente OrderItemsList Aggiornato
+
+### Dialog Aggiunta/Modifica Articolo
+```
++------------------------------------------+
+| Nuovo Articolo                           |
++------------------------------------------+
+| Nome Articolo *                          |
+| [ComboBox: cerca o crea nuovo    ▼]      |
+|   - Finestre (usato 5 volte)             |
+|   - Tapparelle (usato 3 volte)           |
+|   - Porta blindata (usato 2 volte)       |
+|   + Aggiungi "Nuovo nome..."             |
++------------------------------------------+
+| Descrizione                              |
+| [____________________________]           |
++------------------------------------------+
+| Quantita       | Fornitore               |
+| [__1__]        | [Seleziona fornitore ▼] |
+|                | + Nuovo fornitore       |
++------------------------------------------+
+| Costo Acquisto (opzionale)               |
+| € [________]                             |
++------------------------------------------+
+|        [Annulla]  [Aggiungi]             |
++------------------------------------------+
+```
+
+### Comportamento Autocomplete Nome
+1. Mostra lista articoli usati precedentemente dalla stessa azienda
+2. Filtra mentre l'utente digita
+3. Se il testo non corrisponde, mostra opzione "Aggiungi: [testo digitato]"
+4. Al salvataggio, se nuovo nome, lo salva in `article_templates`
+
+### Vista Lista Articoli (per Azienda)
+```
++----------------------------------------------------------+
+| Articoli dell'Ordine                    [+ Aggiungi]     |
++----------------------------------------------------------+
+| Finestre soggiorno (x4)                                  |
+| Fornitore: ABC Serramenti | Costo: €1.200    [Ordinato]  |
+| [Allegati] [Modifica] [Elimina]                          |
++----------------------------------------------------------+
+| Tapparelle (x4)                                          |
+| Fornitore: XYZ Avvolgibili | Costo: €800   [Da Ordinare] |
+| [Allegati] [Modifica] [Elimina]                          |
++----------------------------------------------------------+
+```
+
+---
+
+## FASE 3: Vista Cliente Semplificata
+
+### CustomerOrderDetail - Cosa Vede il Cliente
+Il cliente NON vede:
+- Lista articoli singoli
+- Stati articoli
+- Costi acquisto
+- Fornitori
+
+Il cliente VEDE SOLO:
+```
++------------------------------------------+
+| Stato Ordine                             |
+| [Progress Tracker generale]              |
++------------------------------------------+
+| Tempistiche Previste                     |
++------------------------------------------+
+| Arrivo Merce in Magazzino                |
+| 📦 15 Marzo 2026                         |
++------------------------------------------+
+| Inizio Lavori                            |
+| 🔧 20 Marzo 2026                         |
++------------------------------------------+
+| Fine Lavori                              |
+| ✅ 25 Marzo 2026                         |
++------------------------------------------+
+| Riepilogo Economico                      |
+| Totale: €15.000,00                       |
+| IVA (22%): €3.300,00                     |
+| Totale con IVA: €18.300,00               |
+| Acconto versato: €5.000,00               |
+| Saldo: €13.300,00                        |
++------------------------------------------+
+```
+
+---
+
+## FASE 4: Conto Economico Ordine (Vista Azienda)
+
+### Nuova Card nel Dettaglio Ordine
+```
++------------------------------------------+
+| Conto Economico                          |
++------------------------------------------+
+| VENDITA                                  |
+| Imponibile:           € 15.000,00        |
+| IVA (22%):            €  3.300,00        |
+| Totale con IVA:       € 18.300,00        |
++------------------------------------------+
+| COSTI ARTICOLI                           |
+| Finestre:             €  1.200,00        |
+| Tapparelle:           €    800,00        |
+| Porta:                €    500,00        |
+| Totale Costi:         €  2.500,00        |
++------------------------------------------+
+| MARGINE                                  |
+| Margine Lordo:        € 12.500,00        |
+| Margine %:            83.3%              |
++------------------------------------------+
+```
+
+### Campi Aggiuntivi nel Form Ordine
+- Aliquota IVA (default 22%, modificabile: 4%, 10%, 22%)
+- Date per cliente: Arrivo merce, Inizio lavori, Fine lavori
 
 ---
 
@@ -73,80 +183,128 @@ Quando si clicca su "Allega" o sull'icona allegati:
 
 | File | Azione | Descrizione |
 |------|--------|-------------|
-| Migrazione SQL | Creare | Bucket storage + tabella attachments |
-| `src/components/orders/OrderItemAttachments.tsx` | Creare | Componente per gestire allegati singolo articolo |
-| `src/components/orders/OrderItemsList.tsx` | Modificare | Aggiungere sezione allegati a ogni articolo |
-| `src/pages/azienda/OrderDetail.tsx` | Modificare | Passare dati allegati e gestire refresh |
-| `src/pages/cliente/CustomerOrderDetail.tsx` | Modificare | Mostrare allegati (sola lettura) |
+| Migrazione SQL | Creare | Tabelle suppliers, article_templates, nuovi campi |
+| `src/components/orders/ArticleCombobox.tsx` | Creare | Combobox autocomplete per nome articolo |
+| `src/components/orders/SupplierSelect.tsx` | Creare | Select con creazione fornitore inline |
+| `src/components/orders/OrderItemsList.tsx` | Modificare | Aggiungere fornitore, costo, nuovi stati, combobox |
+| `src/components/orders/OrderEconomics.tsx` | Creare | Card conto economico |
+| `src/components/orders/FinancialSummary.tsx` | Modificare | Aggiungere IVA |
+| `src/pages/azienda/CreateOrder.tsx` | Modificare | Aggiungere date cliente, aliquota IVA |
+| `src/pages/azienda/EditOrder.tsx` | Modificare | Stesso di CreateOrder |
+| `src/pages/azienda/OrderDetail.tsx` | Modificare | Mostrare conto economico |
+| `src/pages/cliente/CustomerOrderDetail.tsx` | Modificare | Rimuovere articoli, mostrare date e riepilogo con IVA |
 
 ---
 
-## Dettagli Tecnici
+## Migrazione SQL
 
-### Struttura File Storage
+```sql
+-- 1. Tabella fornitori
+CREATE TABLE suppliers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (company_id, name)
+);
+
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Company admins can manage their suppliers"
+  ON suppliers FOR ALL
+  USING (
+    has_role(auth.uid(), 'company_admin') AND
+    company_id = get_user_company_id(auth.uid())
+  );
+
+CREATE POLICY "Super admins can manage all suppliers"
+  ON suppliers FOR ALL
+  USING (has_role(auth.uid(), 'super_admin'));
+
+-- 2. Tabella template articoli (autocomplete)
+CREATE TABLE article_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (company_id, name)
+);
+
+ALTER TABLE article_templates ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Company admins can manage their article templates"
+  ON article_templates FOR ALL
+  USING (
+    has_role(auth.uid(), 'company_admin') AND
+    company_id = get_user_company_id(auth.uid())
+  );
+
+CREATE POLICY "Super admins can manage all article templates"
+  ON article_templates FOR ALL
+  USING (has_role(auth.uid(), 'super_admin'));
+
+-- 3. Nuovi campi order_items
+ALTER TABLE order_items
+ADD COLUMN supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL,
+ADD COLUMN purchase_price NUMERIC DEFAULT 0;
+
+-- 4. Nuovi campi orders (date cliente e IVA)
+ALTER TABLE orders
+ADD COLUMN warehouse_arrival_date DATE,
+ADD COLUMN work_start_date DATE,
+ADD COLUMN work_end_date DATE,
+ADD COLUMN vat_rate NUMERIC DEFAULT 22;
+
+-- 5. Aggiornare check constraint status (rimuovere vecchi stati)
+-- I nuovi stati saranno: 'da_ordinare', 'ordinato', 'in_magazzino'
+ALTER TABLE order_items DROP CONSTRAINT IF EXISTS order_items_status_check;
+ALTER TABLE order_items ADD CONSTRAINT order_items_status_check 
+  CHECK (status IN ('da_ordinare', 'ordinato', 'in_magazzino'));
+
+-- Aggiornare eventuali record con stati vecchi
+UPDATE order_items SET status = 'in_magazzino' 
+WHERE status IN ('in_produzione', 'consegnato', 'installato');
 ```
-order-attachments/
-  └── {order_item_id}/
-      ├── foto-installazione.jpg
-      ├── scheda-tecnica.pdf
-      └── preventivo.docx
-```
 
-### Flusso Upload
-1. Utente seleziona file
-2. Validazione tipo e dimensione
-3. Upload su storage `order-attachments/{item_id}/{filename}`
-4. Ottieni URL pubblico
-5. Salva record in `order_item_attachments`
-6. Refresh lista allegati
+---
 
-### Query per Caricare Allegati
+## Interfacce TypeScript Aggiornate
+
 ```typescript
-const { data: attachments } = await supabase
-  .from("order_item_attachments")
-  .select("*")
-  .in("order_item_id", itemIds)
-  .order("created_at");
-```
+export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino';
 
-### Interfaccia OrderItem Aggiornata
-```typescript
-interface OrderItem {
+export interface OrderItem {
   id?: string;
   name: string;
   description?: string;
   quantity: number;
   status: OrderItemStatus;
   position: number;
-  attachments?: OrderItemAttachment[];  // NUOVO
+  supplier_id?: string;
+  supplier_name?: string;
+  purchase_price?: number;
+  attachments?: OrderItemAttachment[];
 }
 
-interface OrderItemAttachment {
+export interface Supplier {
   id: string;
-  file_name: string;
-  file_url: string;
-  file_type: string;
-  file_size: number;
+  name: string;
+}
+
+export interface ArticleTemplate {
+  id: string;
+  name: string;
 }
 ```
 
 ---
 
-## Comportamento per Ruolo
-
-| Ruolo | Visualizza | Carica | Elimina |
-|-------|-----------|--------|---------|
-| Company Admin | Si | Si | Si |
-| Cliente | Si | No | No |
-| Super Admin | Si | Si | Si |
-
----
-
 ## Risultato Atteso
 
-1. Ogni articolo dell'ordine puo avere allegati multipli
-2. L'azienda puo caricare schede tecniche, foto, documenti
-3. Il cliente vede gli allegati relativi ai propri articoli
-4. I file sono organizzati per articolo in modo chiaro
-5. Supporto per immagini e documenti comuni
+1. **Autocomplete articoli** - L'utente puo selezionare nomi usati in precedenza o crearne di nuovi
+2. **Gestione fornitori** - Ogni articolo puo avere un fornitore assegnato
+3. **Tracciamento costi** - Importo di acquisto per calcolare margini
+4. **Vista cliente pulita** - Il cliente vede solo le date importanti e il riepilogo economico con IVA
+5. **Conto economico** - L'azienda vede vendita, costi, margine in un colpo d'occhio
+6. **Gestione IVA** - Supporto per aliquote 4%, 10%, 22%
 
