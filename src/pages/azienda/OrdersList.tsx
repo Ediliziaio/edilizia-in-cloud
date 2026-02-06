@@ -27,6 +27,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 interface OrderWithDetails {
   id: string;
+  order_code: string | null;
   description: string;
   total_amount: number;
   deposit_amount: number;
@@ -36,6 +37,7 @@ interface OrderWithDetails {
   balance_amount: number;
   balance_paid: boolean | null;
   expected_date: string | null;
+  warehouse_arrival_date: string | null;
   created_at: string;
   current_status_id: string | null;
   customer: {
@@ -72,6 +74,7 @@ export default function OrdersList() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid">("all");
 
   // Fetch orders for the company
   const { data: orders = [], isLoading } = useQuery({
@@ -111,6 +114,7 @@ export default function OrdersList() {
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
       order.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.order_code?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
       `${order.customer?.first_name} ${order.customer?.last_name}`
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
@@ -118,7 +122,13 @@ export default function OrdersList() {
     const matchesStatus =
       statusFilter === "all" || order.current_status_id === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    const pendingPayments = getPendingPayments(order);
+    const matchesPayment =
+      paymentFilter === "all" ||
+      (paymentFilter === "pending" && pendingPayments.length > 0) ||
+      (paymentFilter === "paid" && pendingPayments.length === 0);
+
+    return matchesSearch && matchesStatus && matchesPayment;
   });
 
 
@@ -145,14 +155,14 @@ export default function OrdersList() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca per descrizione o cliente..."
+            placeholder="Cerca per codice, descrizione o cliente..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[200px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Filtra per stato" />
           </SelectTrigger>
           <SelectContent>
@@ -168,6 +178,16 @@ export default function OrdersList() {
                 </div>
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={paymentFilter} onValueChange={(val) => setPaymentFilter(val as "all" | "pending" | "paid")}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="Filtra pagamenti" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti i pagamenti</SelectItem>
+            <SelectItem value="pending">In Sospeso</SelectItem>
+            <SelectItem value="paid">Tutto Pagato</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -201,76 +221,92 @@ export default function OrdersList() {
         </Card>
       ) : (
         <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Descrizione</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead className="text-right">Totale</TableHead>
-                <TableHead>Pagamenti</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead className="text-right">Azioni</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-medium max-w-[200px] truncate">
-                    {order.description}
-                  </TableCell>
-                  <TableCell>
-                    {order.customer
-                      ? `${order.customer.first_name} ${order.customer.last_name}`
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(order.total_amount)}
-                  </TableCell>
-                  <TableCell>
-                    {(() => {
-                      const pending = getPendingPayments(order);
-                      if (pending.length === 0) {
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Codice</TableHead>
+                  <TableHead>Descrizione</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="text-right">Totale</TableHead>
+                  <TableHead className="hidden md:table-cell">Data Contratto</TableHead>
+                  <TableHead className="hidden lg:table-cell">Arrivo Merce</TableHead>
+                  <TableHead className="hidden lg:table-cell">Data Posa</TableHead>
+                  <TableHead>Pagamenti</TableHead>
+                  <TableHead>Stato</TableHead>
+                  <TableHead className="text-right">Azioni</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-medium">
+                      {order.order_code || "—"}
+                    </TableCell>
+                    <TableCell className="max-w-[150px] truncate">
+                      {order.description}
+                    </TableCell>
+                    <TableCell>
+                      {order.customer
+                        ? `${order.customer.first_name} ${order.customer.last_name}`
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(order.total_amount)}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {formatDateShort(order.created_at)}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {order.warehouse_arrival_date ? formatDateShort(order.warehouse_arrival_date) : "—"}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {order.expected_date ? formatDateShort(order.expected_date) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const pending = getPendingPayments(order);
+                        if (pending.length === 0) {
+                          return (
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-0">
+                              OK
+                            </Badge>
+                          );
+                        }
                         return (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-0">
-                            Tutto Pagato
+                          <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-0">
+                            {pending.join(", ")}
                           </Badge>
                         );
-                      }
-                      return (
-                        <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-0">
-                          {pending.join(", ")}
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      {order.status ? (
+                        <Badge
+                          variant="outline"
+                          style={{
+                            borderColor: order.status.color,
+                            color: order.status.color,
+                          }}
+                        >
+                          {order.status.name}
                         </Badge>
-                      );
-                    })()}
-                  </TableCell>
-                  <TableCell>
-                    {order.status ? (
-                      <Badge
-                        variant="outline"
-                        style={{
-                          borderColor: order.status.color,
-                          color: order.status.color,
-                        }}
-                      >
-                        {order.status.name}
-                      </Badge>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell>{formatDateShort(order.created_at)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link to={`/azienda/ordini/${order.id}`}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link to={`/azienda/ordini/${order.id}`}>
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       )}
     </div>

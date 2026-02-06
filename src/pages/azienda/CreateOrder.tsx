@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -49,6 +50,7 @@ export default function CreateOrder() {
   const queryClient = useQueryClient();
 
   const [customerId, setCustomerId] = useState("");
+  const [orderCode, setOrderCode] = useState("");
   const [description, setDescription] = useState("");
   const [expectedDate, setExpectedDate] = useState<Date | undefined>();
   const [internalNotes, setInternalNotes] = useState("");
@@ -144,6 +146,7 @@ export default function CreateOrder() {
         .insert({
           company_id: effectiveCompany.id,
           customer_id: customerId,
+          order_code: orderCode.trim() || null,
           description,
           total_amount: total,
           deposit_amount: deposit,
@@ -284,6 +287,17 @@ export default function CreateOrder() {
               <CardTitle>Dettagli Ordine</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Order Code */}
+              <div className="space-y-2">
+                <Label htmlFor="orderCode">Codice Ordine</Label>
+                <Input
+                  id="orderCode"
+                  value={orderCode}
+                  onChange={(e) => setOrderCode(e.target.value)}
+                  placeholder="es. ORD-2026-001"
+                />
+              </div>
+
               {/* Customer with inline creation */}
               <div className="space-y-2">
                 <Label htmlFor="customer">Cliente *</Label>
