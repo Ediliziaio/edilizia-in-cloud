@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Plus, Search, Package, Eye, LayoutList, Columns3, X } from "lucide-react";
+import { Plus, Search, Package, Eye, LayoutList, Columns3, X, Euro } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +28,12 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
 
 interface OrderWithDetails {
   id: string;
@@ -92,6 +98,11 @@ export default function OrdersList() {
   const [contractDateRange, setContractDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [warehouseDateRange, setWarehouseDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [expectedDateRange, setExpectedDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  
+  // Customer and amount filters
+  const [customerFilter, setCustomerFilter] = useState<string>("all");
+  const [amountMin, setAmountMin] = useState<string>("");
+  const [amountMax, setAmountMax] = useState<string>("");
 
   // Fetch orders for the company
   const { data: orders = [], isLoading } = useQuery({
@@ -175,10 +186,33 @@ export default function OrdersList() {
                          warehouseDateRange.from || warehouseDateRange.to ||
                          expectedDateRange.from || expectedDateRange.to;
 
+  // Check if any filter is active
+  const hasAnyFilter = hasDateFilters || searchQuery || statusFilter !== "all" || 
+                       paymentFilter !== "all" || customerFilter !== "all" || 
+                       amountMin || amountMax;
+
+  // Extract unique customers from orders
+  const uniqueCustomers = useMemo(() => {
+    const customerMap = new Map<string, { id: string; name: string }>();
+    orders.forEach(order => {
+      if (order.customer) {
+        const customerId = `${order.customer.first_name}-${order.customer.last_name}-${order.customer.email}`;
+        customerMap.set(customerId, {
+          id: customerId,
+          name: `${order.customer.first_name} ${order.customer.last_name}`,
+        });
+      }
+    });
+    return Array.from(customerMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [orders]);
+
   const clearAllFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
     setPaymentFilter("all");
+    setCustomerFilter("all");
+    setAmountMin("");
+    setAmountMax("");
     setContractDateRange({ from: undefined, to: undefined });
     setWarehouseDateRange({ from: undefined, to: undefined });
     setExpectedDateRange({ from: undefined, to: undefined });
@@ -201,6 +235,19 @@ export default function OrdersList() {
       paymentFilter === "all" ||
       (paymentFilter === "pending" && pendingPayments.length > 0) ||
       (paymentFilter === "paid" && pendingPayments.length === 0);
+
+    // Filtro Cliente
+    const customerKey = order.customer 
+      ? `${order.customer.first_name}-${order.customer.last_name}-${order.customer.email}`
+      : "";
+    const matchesCustomer = customerFilter === "all" || customerKey === customerFilter;
+
+    // Filtro Importo
+    const minAmount = amountMin ? parseFloat(amountMin) : null;
+    const maxAmount = amountMax ? parseFloat(amountMax) : null;
+    const matchesAmount = 
+      (minAmount === null || order.total_amount >= minAmount) &&
+      (maxAmount === null || order.total_amount <= maxAmount);
 
     // Filtro Data Contratto (created_at)
     const orderCreatedAt = new Date(order.created_at);
@@ -234,7 +281,7 @@ export default function OrdersList() {
       }
     }
 
-    return matchesSearch && matchesStatus && matchesPayment && 
+    return matchesSearch && matchesStatus && matchesPayment && matchesCustomer && matchesAmount &&
            matchesContractDate && matchesWarehouseDate && matchesExpectedDate;
   });
 
@@ -313,8 +360,94 @@ export default function OrdersList() {
         </Select>
       </div>
 
-      {/* Filters Row 2: Date Filters */}
+      {/* Filters Row 2: Customer, Amount, Date Filters */}
       <div className="flex flex-wrap gap-3 items-center">
+        {/* Customer Filter */}
+        <Select value={customerFilter} onValueChange={setCustomerFilter}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="Filtra cliente" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti i clienti</SelectItem>
+            {uniqueCustomers.map((customer) => (
+              <SelectItem key={customer.id} value={customer.id}>
+                {customer.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Amount Range Filter */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={`w-full sm:w-[180px] justify-start text-left font-normal ${
+                (amountMin || amountMax) ? "border-primary" : ""
+              }`}
+            >
+              <Euro className="mr-2 h-4 w-4" />
+              {amountMin || amountMax ? (
+                <span className="truncate">
+                  {amountMin ? `€${amountMin}` : "..."} - {amountMax ? `€${amountMax}` : "..."}
+                </span>
+              ) : (
+                <span>Importo</span>
+              )}
+              {(amountMin || amountMax) && (
+                <X 
+                  className="ml-auto h-4 w-4 opacity-50 hover:opacity-100" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAmountMin("");
+                    setAmountMax("");
+                  }}
+                />
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[220px] p-4" align="start">
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">Range Importo</p>
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs">Minimo (€)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={amountMin}
+                    onChange={(e) => setAmountMin(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Massimo (€)</Label>
+                  <Input
+                    type="number"
+                    placeholder="∞"
+                    value={amountMax}
+                    onChange={(e) => setAmountMax(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              {(amountMin || amountMax) && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => {
+                    setAmountMin("");
+                    setAmountMax("");
+                  }}
+                >
+                  Cancella
+                </Button>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+
         <DateRangeFilter
           label="Data Contratto"
           range={contractDateRange}
@@ -331,7 +464,7 @@ export default function OrdersList() {
           onRangeChange={setExpectedDateRange}
         />
         
-        {(hasDateFilters || searchQuery || statusFilter !== "all" || paymentFilter !== "all") && (
+        {hasAnyFilter && (
           <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground">
             <X className="h-4 w-4 mr-1" />
             Pulisci filtri
