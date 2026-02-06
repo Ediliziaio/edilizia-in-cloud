@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, Calendar, Euro, FileText, Clock, Trash2, Pencil } from "lucide-react";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
+import { ArrowLeft, User, Calendar, FileText, Clock, Trash2, Pencil } from "lucide-react";
+import { formatDate, formatDateTime } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +29,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
+import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
+import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/FinancialSummary";
 import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 
 interface OrderDetail {
@@ -37,6 +38,9 @@ interface OrderDetail {
   description: string;
   total_amount: number;
   deposit_amount: number;
+  deposit_2_amount: number;
+  financing_amount: number;
+  payment_type: string;
   balance_amount: number;
   expected_date: string | null;
   created_at: string;
@@ -62,6 +66,15 @@ interface StatusHistoryEntry {
     name: string;
     color: string;
   };
+}
+
+interface OrderItemData {
+  id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  status: string;
+  position: number;
 }
 
 export default function OrderDetail() {
@@ -94,6 +107,22 @@ export default function OrderDetail() {
 
       if (error) throw error;
       return data as OrderDetail;
+    },
+    enabled: !!id && !!user,
+  });
+
+  // Fetch order items
+  const { data: orderItems = [] } = useQuery({
+    queryKey: ["order-items", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_items")
+        .select("*")
+        .eq("order_id", id!)
+        .order("position");
+
+      if (error) throw error;
+      return data as OrderItemData[];
     },
     enabled: !!id && !!user,
   });
@@ -173,6 +202,48 @@ export default function OrderDetail() {
         variant: "destructive",
       });
       console.error("Update status error:", error);
+    },
+  });
+
+  // Update order items mutation
+  const updateOrderItemsMutation = useMutation({
+    mutationFn: async (items: OrderItem[]) => {
+      // Delete existing items and recreate
+      await supabase
+        .from("order_items")
+        .delete()
+        .eq("order_id", id!);
+
+      if (items.length > 0) {
+        const itemsToInsert = items.map((item, index) => ({
+          order_id: id!,
+          name: item.name,
+          description: item.description || null,
+          quantity: item.quantity,
+          status: item.status,
+          position: index,
+        }));
+
+        const { error } = await supabase
+          .from("order_items")
+          .insert(itemsToInsert);
+
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-items", id] });
+      toast({
+        title: "Articoli aggiornati",
+        description: "Gli articoli dell'ordine sono stati aggiornati.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Si è verificato un errore durante l'aggiornamento degli articoli.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -256,11 +327,24 @@ export default function OrderDetail() {
     updateNotesMutation.mutate(editedNotes);
   };
 
+  const handleItemsChange = (items: OrderItem[]) => {
+    updateOrderItemsMutation.mutate(items);
+  };
 
   // Convert status history for progress tracker
   const progressHistory: StatusHistoryItem[] = statusHistory.map((h) => ({
     status_id: h.status_id,
     changed_at: h.changed_at,
+  }));
+
+  // Convert order items for the list
+  const displayItems: OrderItem[] = orderItems.map(item => ({
+    id: item.id,
+    name: item.name,
+    description: item.description || undefined,
+    quantity: item.quantity,
+    status: item.status as OrderItem['status'],
+    position: item.position,
   }));
 
   if (orderLoading) {
@@ -349,6 +433,16 @@ export default function OrderDetail() {
             </CardContent>
           </Card>
 
+          {/* Order Items */}
+          {displayItems.length > 0 && (
+            <OrderItemsList
+              items={displayItems}
+              onItemsChange={handleItemsChange}
+              editable={false}
+              showStatusControls={true}
+            />
+          )}
+
           {/* Progress Tracker */}
           <Card>
             <CardHeader>
@@ -433,28 +527,14 @@ export default function OrderDetail() {
           </Card>
 
           {/* Financial Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Euro className="h-5 w-5" />
-                Riepilogo
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Totale</span>
-                <span className="font-medium">{formatCurrency(order.total_amount)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Acconto</span>
-                <span className="text-success">{formatCurrency(order.deposit_amount)}</span>
-              </div>
-              <div className="flex justify-between pt-2 border-t">
-                <span className="font-medium">Saldo</span>
-                <span className="font-bold text-lg">{formatCurrency(order.balance_amount)}</span>
-              </div>
-            </CardContent>
-          </Card>
+          <FinancialSummaryReadOnly
+            totalAmount={order.total_amount}
+            depositAmount={order.deposit_amount}
+            deposit2Amount={order.deposit_2_amount || 0}
+            financingAmount={order.financing_amount || 0}
+            paymentType={(order.payment_type as PaymentType) || 'standard'}
+            balanceAmount={order.balance_amount}
+          />
 
           {/* Expected Date */}
           {order.expected_date && (

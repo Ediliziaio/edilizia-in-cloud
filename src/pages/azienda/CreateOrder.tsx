@@ -1,15 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarIcon } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -27,6 +25,9 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
+import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
+import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 
 interface Customer {
   id: string;
@@ -49,16 +50,28 @@ export default function CreateOrder() {
 
   const [customerId, setCustomerId] = useState("");
   const [description, setDescription] = useState("");
-  const [totalAmount, setTotalAmount] = useState("");
-  const [depositAmount, setDepositAmount] = useState("");
   const [expectedDate, setExpectedDate] = useState<Date | undefined>();
   const [internalNotes, setInternalNotes] = useState("");
   const [statusId, setStatusId] = useState("");
 
+  // Financial state
+  const [paymentType, setPaymentType] = useState<PaymentType>('standard');
+  const [totalAmount, setTotalAmount] = useState("");
+  const [depositAmount, setDepositAmount] = useState("");
+  const [deposit2Amount, setDeposit2Amount] = useState("");
+  const [financingAmount, setFinancingAmount] = useState("");
+
+  // Order items state
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+
+  // Customer creation dialog
+  const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+
   // Calculate balance
   const total = parseFloat(totalAmount) || 0;
   const deposit = parseFloat(depositAmount) || 0;
-  const balance = Math.max(0, total - deposit);
+  const deposit2 = parseFloat(deposit2Amount) || 0;
+  const balance = paymentType === 'standard' ? Math.max(0, total - deposit - deposit2) : 0;
 
   // Fetch customers for the company
   const { data: customers = [] } = useQuery({
@@ -119,6 +132,8 @@ export default function CreateOrder() {
     mutationFn: async () => {
       if (!profile?.company_id) throw new Error("Company not found");
 
+      const financing = parseFloat(financingAmount) || 0;
+
       // Create the order
       const { data: order, error: orderError } = await supabase
         .from("orders")
@@ -128,6 +143,9 @@ export default function CreateOrder() {
           description,
           total_amount: total,
           deposit_amount: deposit,
+          deposit_2_amount: deposit2,
+          financing_amount: financing,
+          payment_type: paymentType,
           balance_amount: balance,
           expected_date: expectedDate?.toISOString().split("T")[0] || null,
           internal_notes: internalNotes || null,
@@ -148,6 +166,24 @@ export default function CreateOrder() {
         });
 
       if (historyError) throw historyError;
+
+      // Create order items if any
+      if (orderItems.length > 0) {
+        const itemsToInsert = orderItems.map((item, index) => ({
+          order_id: order.id,
+          name: item.name,
+          description: item.description || null,
+          quantity: item.quantity,
+          status: item.status,
+          position: index,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from("order_items")
+          .insert(itemsToInsert);
+
+        if (itemsError) throw itemsError;
+      }
 
       return order;
     },
@@ -202,6 +238,9 @@ export default function CreateOrder() {
     createOrderMutation.mutate();
   };
 
+  const handleCustomerCreated = (newCustomerId: string) => {
+    setCustomerId(newCustomerId);
+  };
 
   return (
     <div className="space-y-6">
@@ -226,21 +265,32 @@ export default function CreateOrder() {
               <CardTitle>Dettagli Ordine</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Customer */}
+              {/* Customer with inline creation */}
               <div className="space-y-2">
                 <Label htmlFor="customer">Cliente *</Label>
-                <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleziona un cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.first_name} {customer.last_name} ({customer.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={customerId} onValueChange={setCustomerId}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Seleziona un cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          {customer.first_name} {customer.last_name} ({customer.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowCreateCustomer(true)}
+                    title="Nuovo cliente"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               {/* Description */}
@@ -319,61 +369,28 @@ export default function CreateOrder() {
           </Card>
 
           {/* Financial Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Riepilogo Finanziario</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Total Amount */}
-              <div className="space-y-2">
-                <Label htmlFor="total">Importo Totale *</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    €
-                  </span>
-                  <Input
-                    id="total"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={totalAmount}
-                    onChange={(e) => setTotalAmount(e.target.value)}
-                    className="pl-8"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              {/* Deposit Amount */}
-              <div className="space-y-2">
-                <Label htmlFor="deposit">Acconto</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    €
-                  </span>
-                  <Input
-                    id="deposit"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    className="pl-8"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              {/* Balance (Calculated) */}
-              <div className="pt-4 border-t">
-                <div className="flex justify-between items-center text-lg font-semibold">
-                  <span>Saldo da Pagare</span>
-                  <span>{formatCurrency(balance)}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <FinancialSummary
+            totalAmount={totalAmount}
+            depositAmount={depositAmount}
+            deposit2Amount={deposit2Amount}
+            financingAmount={financingAmount}
+            paymentType={paymentType}
+            onTotalAmountChange={setTotalAmount}
+            onDepositAmountChange={setDepositAmount}
+            onDeposit2AmountChange={setDeposit2Amount}
+            onFinancingAmountChange={setFinancingAmount}
+            onPaymentTypeChange={setPaymentType}
+            balance={balance}
+          />
         </div>
+
+        {/* Order Items */}
+        <OrderItemsList
+          items={orderItems}
+          onItemsChange={setOrderItems}
+          editable={true}
+          showStatusControls={false}
+        />
 
         {/* Actions */}
         <div className="flex justify-end gap-4">
@@ -389,6 +406,13 @@ export default function CreateOrder() {
           </Button>
         </div>
       </form>
+
+      {/* Create Customer Dialog */}
+      <CreateCustomerDialog
+        open={showCreateCustomer}
+        onOpenChange={setShowCreateCustomer}
+        onCustomerCreated={handleCustomerCreated}
+      />
     </div>
   );
 }
