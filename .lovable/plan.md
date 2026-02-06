@@ -1,157 +1,228 @@
 
 
-# Piano di Implementazione - Gestione Ordini Admin Azienda
+# Piano di Implementazione - Nuove Funzionalita
 
 ## Panoramica
 
-Implementeremo la pagina completa per la gestione degli ordini dell'admin azienda, inclusa la lista ordini con filtri, il form di creazione ordine e la visualizzazione dettaglio ordine con progress tracker interattivo.
+Questo piano copre quattro aree principali:
+1. Accesso del Super Admin agli account delle aziende (impersonation)
+2. Modifica ordini esistenti dalla pagina dettaglio
+3. Pagina gestione clienti per l'admin azienda
+4. Test del flusso completo
 
 ---
 
-## 1. Dashboard Super Admin - Statistiche
+## 1. Accesso Super Admin agli Account Azienda
 
-Le statistiche reali sono gia implementate correttamente nel file `AdminDashboard.tsx` (linee 18-40). La dashboard sta gia recuperando:
-- Numero di aziende dalla tabella `companies`
-- Numero di ordini dalla tabella `orders`  
-- Numero di clienti dalla tabella `user_roles` filtrata per ruolo `customer`
+### Approccio
+Il super admin potra "entrare" nella vista di un'azienda senza effettuare un login separato. Implementeremo un sistema di "impersonation" lato client che:
 
-Non sono necessarie modifiche.
+- Salva temporaneamente in sessionStorage il company_id selezionato
+- Aggiorna il contesto Auth per fornire i dati dell'azienda impersonata
+- Mostra un banner giallo nell'interfaccia azienda per indicare la modalita impersonation
+- Permette di tornare alla vista super admin con un click
 
----
-
-## 2. Pagina Lista Ordini (Admin Azienda)
-
-### File: `src/pages/azienda/OrdersList.tsx`
-
-Creeremo una pagina con:
-- Titolo e pulsante "Nuovo Ordine"
-- Barra di ricerca per descrizione e cliente
-- Filtri per stato ordine (dropdown)
-- Tabella ordini con colonne:
-  - Descrizione (troncata)
-  - Cliente (nome + cognome)
-  - Importo totale
-  - Stato (badge colorato)
-  - Data creazione
-  - Azioni (visualizza/modifica)
-- Paginazione
-- Empty state quando non ci sono ordini
-
-### Query Database
+### Modifiche AuthContext
+Aggiungeremo al contesto:
 ```text
-SELECT 
-  orders.*,
-  profiles.first_name, profiles.last_name,
-  order_statuses.name as status_name, 
-  order_statuses.color as status_color
-FROM orders
-LEFT JOIN profiles ON orders.customer_id = profiles.id
-LEFT JOIN order_statuses ON orders.current_status_id = order_statuses.id
-WHERE orders.company_id = [company_id]
-ORDER BY created_at DESC
+- impersonatedCompanyId: string | null
+- impersonateCompany: (companyId: string) => Promise<void>
+- exitImpersonation: () => void
+- isImpersonating: boolean
+```
+
+### UI in CompaniesList
+Ogni card azienda avra un pulsante "Accedi come admin" che:
+1. Chiama `impersonateCompany(companyId)`
+2. Reindirizza a `/azienda`
+
+### Banner Impersonation
+Nel `CompanyLayout`, se `isImpersonating` e true, mostrare un banner:
+```text
++--------------------------------------------------+
+| ⚠️ Stai visualizzando come: [NomeAzienda] [Esci] |
++--------------------------------------------------+
 ```
 
 ---
 
-## 3. Pagina Creazione Ordine
+## 2. Modifica Ordine Esistente
 
-### File: `src/pages/azienda/CreateOrder.tsx`
+### Nuovo File: `src/pages/azienda/EditOrder.tsx`
+Creeremo una pagina di modifica ordine che:
+- Riutilizza la stessa struttura del form di `CreateOrder.tsx`
+- Pre-popola i campi con i dati dell'ordine esistente
+- Aggiorna l'ordine invece di crearne uno nuovo
 
-Form con i seguenti campi:
-- **Cliente** (dropdown con ricerca - lista clienti dell'azienda)
-- **Descrizione lavoro** (textarea)
-- **Importo totale** (input numerico con formattazione euro)
-- **Importo acconto** (input numerico)
-- **Importo saldo** (calcolato automaticamente: totale - acconto)
-- **Data prevista consegna** (date picker)
-- **Note interne** (textarea, opzionale)
-- **Stato iniziale** (dropdown con stati dell'azienda - default primo stato)
+### Modifiche OrderDetail.tsx
+Aggiungeremo un pulsante "Modifica" nell'header accanto al pulsante Elimina che naviga a `/azienda/ordini/:id/modifica`.
 
-### Logica
-1. Salva ordine in tabella `orders`
-2. Crea prima entry in `order_status_history` con stato iniziale
-3. Redirect alla lista ordini con toast di conferma
+### Route
+Aggiungere in `App.tsx`:
+```text
+/azienda/ordini/:id/modifica -> EditOrder
+```
 
----
-
-## 4. Pagina Dettaglio Ordine
-
-### File: `src/pages/azienda/OrderDetail.tsx`
-
-Layout a due colonne:
-
-**Colonna sinistra (2/3):**
-- Card con descrizione ordine
-- Progress tracker visivo interattivo (componente esistente)
-- Storico cambi stato con timestamp e autore
-
-**Colonna destra (1/3):**
-- Card informazioni cliente (nome, email, telefono)
-- Card riepilogo finanziario (totale, acconto, saldo)
-- Card note interne (editabili)
-- Pulsanti azione (modifica ordine, elimina)
-
-### Progress Tracker Interattivo
-- Admin puo cliccare sugli step per aggiornare lo stato
-- Dialog di conferma prima del cambio stato
-- Aggiornamento automatico di `orders.current_status_id`
-- Nuova entry in `order_status_history`
+### Campi Modificabili
+- Descrizione lavoro
+- Importo totale, acconto, saldo
+- Data prevista consegna
+- Note interne
+- Cliente (con attenzione, potrebbe avere implicazioni)
 
 ---
 
-## 5. File da Creare
+## 3. Gestione Clienti Admin Azienda
+
+### File: `src/pages/azienda/CustomersList.tsx`
+Lista clienti con:
+- Tabella con colonne: Nome, Cognome, Email, Telefono, Ordini attivi
+- Barra di ricerca
+- Pulsante "Nuovo Cliente"
+- Empty state
+
+### File: `src/pages/azienda/CreateCustomer.tsx`
+Form creazione cliente con:
+- Nome (obbligatorio)
+- Cognome (obbligatorio)
+- Email (obbligatorio)
+- Telefono (opzionale)
+- Indirizzo (opzionale)
+
+### Logica Backend
+La creazione cliente richiede la creazione di un utente in auth.users e l'assegnazione del ruolo "customer". Utilizzeremo una Edge Function simile a `create-company` che:
+1. Crea l'utente in auth.users con password generata
+2. Crea il profilo in `profiles` con company_id
+3. Assegna il ruolo `customer` in `user_roles`
+4. Restituisce i dati del cliente creato
+
+Per ora, la password sara generata automaticamente e mostrata in un toast (mock, come da piano originale).
+
+### File: `supabase/functions/create-customer/index.ts`
+Edge function per creare il cliente.
+
+---
+
+## 4. File da Creare
 
 ```text
-src/pages/azienda/OrdersList.tsx       - Lista ordini con filtri e tabella
-src/pages/azienda/CreateOrder.tsx      - Form creazione nuovo ordine
-src/pages/azienda/OrderDetail.tsx      - Visualizzazione dettaglio ordine
+src/pages/azienda/CustomersList.tsx       - Lista clienti con ricerca
+src/pages/azienda/CreateCustomer.tsx      - Form creazione cliente
+src/pages/azienda/EditOrder.tsx           - Form modifica ordine
+supabase/functions/create-customer/index.ts - Edge function creazione cliente
 ```
 
 ---
 
-## 6. File da Modificare
+## 5. File da Modificare
 
 ```text
-src/App.tsx - Aggiornare route ordini:
-  - /azienda/ordini        -> OrdersList
-  - /azienda/ordini/nuovo  -> CreateOrder
-  - /azienda/ordini/:id    -> OrderDetail
+src/contexts/AuthContext.tsx              - Aggiungere logica impersonation
+src/components/layouts/CompanyLayout.tsx  - Aggiungere banner impersonation
+src/pages/admin/CompaniesList.tsx         - Aggiungere pulsante "Accedi"
+src/pages/azienda/OrderDetail.tsx         - Aggiungere pulsante "Modifica"
+src/App.tsx                               - Aggiungere nuove route
 ```
 
 ---
 
-## 7. Componenti UI Riutilizzati
+## 6. Struttura Impersonation
 
-- `OrderProgressTracker` - Gia implementato, usato con `interactive=true` per admin
-- `Card`, `Table`, `Badge` - Componenti shadcn esistenti
-- `Button`, `Input`, `Select`, `Textarea` - Form controls esistenti
+```text
+Super Admin Dashboard
+        |
+        v
++-------------------+
+| Lista Aziende     |
+| [Card Azienda 1]  |
+|   [Accedi ↗]      |
++-------------------+
+        |
+        v (click Accedi)
++-------------------+
+| ⚠️ Impersonating  |
+| [Torna a Admin]   |
++-------------------+
+| Dashboard Azienda |
+| (vista completa)  |
++-------------------+
+```
 
 ---
 
-## 8. Struttura OrdersList
+## 7. Struttura CustomersList
 
 ```text
 +------------------------------------------+
-| Ordini                    [+ Nuovo Ordine]|
+| Clienti                   [+ Nuovo Cliente]|
 +------------------------------------------+
-| [Cerca ordine...]  [Filtra per stato v]  |
+| [Cerca cliente...]                        |
 +------------------------------------------+
-| Descrizione | Cliente | Totale | Stato | Data |
-|-------------|---------|--------|-------|------|
-| Fornitura   | Mario   | €5,000 | [🔵]  | 1/2  |
-| Lavoro di   | Luigi   | €3,200 | [🟢]  | 28/1 |
+| Nome     | Email      | Telefono | Ordini |
+|----------|------------|----------|--------|
+| Mario R. | mario@...  | 333...   |   3    |
+| Luigi V. | luigi@...  | 339...   |   1    |
 +------------------------------------------+
 ```
 
 ---
 
-## 9. Flusso di Test
+## 8. Flusso di Test
 
-1. Accedere come admin azienda
-2. Navigare a /azienda/ordini - verificare lista vuota con empty state
-3. Cliccare "Nuovo Ordine" - compilare form
-4. Verificare ordine creato nella lista
-5. Cliccare su ordine per vedere dettaglio
-6. Testare cambio stato tramite progress tracker
-7. Verificare aggiornamento in lista
+Dopo l'implementazione testero:
+
+1. **Super Admin - Impersonation**
+   - Login come super admin (flo.andriciuc@gmail.com / Tekno2026!)
+   - Andare alla lista aziende
+   - Cliccare "Accedi" su un'azienda
+   - Verificare banner impersonation
+   - Navigare le pagine azienda
+   - Cliccare "Torna a Admin"
+
+2. **Admin Azienda - Gestione Clienti**
+   - Andare a /azienda/clienti
+   - Verificare lista vuota con empty state
+   - Cliccare "Nuovo Cliente"
+   - Compilare form e creare cliente
+   - Verificare cliente nella lista
+
+3. **Admin Azienda - Flusso Ordini Completo**
+   - Creare un nuovo ordine selezionando il cliente creato
+   - Visualizzare il dettaglio ordine
+   - Modificare l'ordine (testare pulsante Modifica)
+   - Cambiare stato tramite progress tracker
+   - Verificare storico stati aggiornato
+
+---
+
+## Dettagli Tecnici
+
+### Impersonation - Sicurezza
+L'impersonation e un meccanismo lato UI che:
+- Funziona solo per utenti con ruolo `super_admin` (verificato dal contesto)
+- Non modifica le credenziali di autenticazione
+- Utilizza le RLS policies esistenti per super_admin che hanno accesso a tutti i dati
+- Il super admin mantiene i propri privilegi, visualizzando solo i dati filtrati per l'azienda selezionata
+
+### Edge Function create-customer
+```text
+Input: first_name, last_name, email, phone?, address?, company_id
+Output: { success: true, customer: {...}, password: "..." }
+
+Passaggi:
+1. Genera password casuale sicura
+2. Crea utente in auth.users
+3. Crea profilo in profiles
+4. Assegna ruolo customer in user_roles
+5. Ritorna dati cliente + password
+```
+
+### Query Clienti Filtrata
+I clienti sono profili con ruolo "customer" e company_id dell'azienda corrente:
+```sql
+SELECT p.* FROM profiles p
+JOIN user_roles ur ON p.id = ur.user_id
+WHERE ur.role = 'customer'
+AND p.company_id = [company_id]
+```
 
