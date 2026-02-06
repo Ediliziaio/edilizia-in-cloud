@@ -20,6 +20,11 @@ import NotFound from "@/pages/NotFound";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import CompaniesList from "@/pages/admin/CompaniesList";
 import CreateCompany from "@/pages/admin/CreateCompany";
+import CompanyDetail from "@/pages/admin/CompanyDetail";
+import EditCompany from "@/pages/admin/EditCompany";
+import GlobalOrders from "@/pages/admin/GlobalOrders";
+import GlobalTickets from "@/pages/admin/GlobalTickets";
+import AdminSettings from "@/pages/admin/AdminSettings";
 
 // Company Pages  
 import CompanyDashboard from "@/pages/azienda/CompanyDashboard";
@@ -71,6 +76,11 @@ const App = () => (
               <Route index element={<AdminDashboard />} />
               <Route path="aziende" element={<CompaniesList />} />
               <Route path="aziende/nuova" element={<CreateCompany />} />
+              <Route path="aziende/:id" element={<CompanyDetail />} />
+              <Route path="aziende/:id/modifica" element={<EditCompany />} />
+              <Route path="ordini" element={<GlobalOrders />} />
+              <Route path="ticket" element={<GlobalTickets />} />
+              <Route path="impostazioni" element={<AdminSettings />} />
             </Route>
 
             {/* Company Admin Routes */}
