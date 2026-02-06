@@ -1,144 +1,148 @@
 
+# Piano: Fix Fornitore, UX Stati Articoli e Caricamento Dati
 
-# Piano: Miglioramento Lista Ordini con Nuove Colonne e Filtri
+## Problemi Identificati
 
-## Panoramica
+### 1. Creazione Fornitore Fallisce
+Il componente `SupplierSelect.tsx` (linee 48-61) usa una query per ottenere `company_id` dal profilo utente, ma per il super_admin che sta impersonando un'azienda, `profile.company_id` e `null`. Il network request conferma: `{"company_id":null,"name":"mario"}`.
 
-Miglioreremo la tabella degli ordini aggiungendo colonne informative e un filtro per i pagamenti in sospeso.
-
----
-
-## Modifiche Database
-
-Aggiungere un campo `order_code` per il Codice Ordine:
-
-```sql
-ALTER TABLE orders
-ADD COLUMN order_code TEXT;
-```
-
-Il codice ordine sara un campo testuale libero che l'utente puo impostare manualmente durante la creazione/modifica dell'ordine.
+**Soluzione**: Stessa fix gia applicata a `ArticleCombobox` - usare `effectiveCompany` da `useAuth()` invece della query sul profilo.
 
 ---
 
-## Nuove Colonne nella Tabella
+### 2. Dati Non Visibili in Modifica Ordine
+Il problema e che gli articoli dell'ordine (`order_items`) vengono ricaricati correttamente dal database, ma quando si apre la pagina di modifica, gli articoli salvati dovrebbero apparire. Verifico che la logica di popolamento in `EditOrder.tsx` (linee 213-226) sia corretta.
 
-| Colonna | Campo Database | Descrizione |
-|---------|---------------|-------------|
-| Codice | `order_code` | Codice identificativo ordine (es. "ORD-2026-001") |
-| Data Contratto | `created_at` | Data di creazione dell'ordine |
-| Arrivo Merce | `warehouse_arrival_date` | Data prevista arrivo merce in magazzino |
-| Data Posa | `expected_date` | Data potenziale posa/consegna |
-| Pagamenti | (calcolato) | Stato pagamenti in sospeso |
-| Stato | `current_status_id` | Stato attuale dell'ordine |
+**Possibile causa**: Se gli articoli non sono mai stati salvati inizialmente (a causa del bug precedente del form submit), il database e vuoto.
 
-### Layout Nuova Tabella
+---
 
-```
-+--------+-------------+---------+--------+--------------+------------+------------+-------+--------+
-| Codice | Descrizione | Cliente | Totale | Data Contrat.| Arrivo     | Data Posa  | Pagam.| Stato  |
-+--------+-------------+---------+--------+--------------+------------+------------+-------+--------+
-| ORD-01 | Finestre... | Mario R | €5.000 | 05 Feb 2026  | 15 Feb     | 01 Mar     | ✓ OK  | Conf.  |
-| ORD-02 | Porte...    | Luigi B | €3.000 | 04 Feb 2026  | 20 Feb     | --         | Saldo | In att.|
-+--------+-------------+---------+--------+--------------+------------+------------+-------+--------+
+### 3. UX Stati Articoli - Miglioramento Visivo
+I colori attuali sono troppo sottili. L'utente ha bisogno di:
+- **Colori piu vividi e distinti** per ogni stato
+- **Riepilogo visivo immediato** che mostri quanti articoli sono in ogni stato
+- **Evidenziazione problemi** - se alcuni articoli sono "Da Ordinare" mentre altri sono "In Magazzino"
+
+---
+
+## Modifiche da Effettuare
+
+### File 1: `src/components/orders/SupplierSelect.tsx`
+
+#### Rimuovere query profilo, usare effectiveCompany
+
+```typescript
+// PRIMA (linee 44-61)
+const { user } = useAuth();
+const { data: profile } = useQuery({...});
+
+// DOPO
+const { effectiveCompany } = useAuth();
+const companyId = effectiveCompany?.id;
+
+// Usare companyId invece di profile.company_id ovunque
 ```
 
 ---
 
-## Nuovo Filtro Pagamenti
+### File 2: `src/components/orders/OrderItemsList.tsx`
 
-Aggiungere un terzo filtro a tendina per i pagamenti:
+#### A. Nuovi colori piu vividi per gli stati
+
+```typescript
+const STATUS_CONFIG: Record<OrderItemStatus, { label: string; color: string; bgColor: string }> = {
+  da_ordinare: { 
+    label: "Da Ordinare", 
+    color: "bg-amber-500 text-white",  // Arancione vivace per attenzione
+    bgColor: "border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20"
+  },
+  ordinato: { 
+    label: "Ordinato", 
+    color: "bg-blue-500 text-white",   // Blu per "in processo"
+    bgColor: "border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20"
+  },
+  in_magazzino: { 
+    label: "In Magazzino", 
+    color: "bg-emerald-500 text-white", // Verde per "pronto"
+    bgColor: "border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20"
+  },
+  installato: { 
+    label: "Installato", 
+    color: "bg-purple-500 text-white",  // Viola per "completato"
+    bgColor: "border-l-4 border-l-purple-500 bg-purple-50 dark:bg-purple-950/20"
+  },
+};
+```
+
+#### B. Riepilogo visivo nell'header della card
+
+Aggiungere un riepilogo che mostra immediatamente lo stato degli articoli:
 
 ```
-+------------------------------------------+
-| Filtri                                   |
-| [Cerca...]  [Stato ▼]  [Pagamenti ▼]     |
-|                        - Tutti           |
-|                        - In Sospeso      |
-|                        - Tutto Pagato    |
-+------------------------------------------+
++--------------------------------------------------+
+| Articoli dell'Ordine                   [Aggiungi]|
+| ○ 2 Da Ordinare  ● 3 Ordinato  ● 1 In Magazzino  |
++--------------------------------------------------+
+| [ARANCIO] Finestre PVC          x3   Da Ordinare |
+| [BLU]     Porte interne         x2   Ordinato    |
+| [VERDE]   Maniglie              x6   In Magazzino|
++--------------------------------------------------+
 ```
 
-### Opzioni Filtro Pagamenti
+#### C. Evidenziazione articoli con bordo colorato
 
-- **Tutti** - Mostra tutti gli ordini
-- **In Sospeso** - Mostra solo ordini con almeno un pagamento da incassare
-- **Tutto Pagato** - Mostra solo ordini completamente saldati
+Ogni articolo avra un bordo sinistro colorato in base allo stato, rendendo immediata l'identificazione visiva.
 
 ---
 
-## File da Modificare
+## Layout Nuovo Riepilogo Stati
+
+Il riepilogo mostra dei "chip" colorati con il conteggio per ogni stato:
+
+```typescript
+// Calcolare conteggio per stato
+const statusCounts = items.reduce((acc, item) => {
+  acc[item.status] = (acc[item.status] || 0) + 1;
+  return acc;
+}, {} as Record<OrderItemStatus, number>);
+
+// Mostrare solo stati con articoli > 0
+{Object.entries(statusCounts).map(([status, count]) => (
+  <span 
+    key={status} 
+    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CONFIG[status].color}`}
+  >
+    {count} {STATUS_CONFIG[status].label}
+  </span>
+))}
+```
+
+---
+
+## Riepilogo Modifiche
 
 | File | Modifica |
 |------|----------|
-| Migrazione SQL | Aggiungere campo `order_code` |
-| `OrdersList.tsx` | Nuove colonne, nuovo filtro pagamenti |
-| `CreateOrder.tsx` | Campo input per codice ordine |
-| `EditOrder.tsx` | Campo input per codice ordine |
-| `OrderDetail.tsx` | Visualizzare codice ordine |
+| `SupplierSelect.tsx` | Usare `effectiveCompany` invece della query profilo |
+| `OrderItemsList.tsx` | Colori vividi, bordi colorati, riepilogo stati nell'header |
 
 ---
 
-## Dettagli Tecnici
+## Colori Proposti
 
-### Aggiornamento Interface OrderWithDetails
-
-```typescript
-interface OrderWithDetails {
-  id: string;
-  order_code: string | null;  // NUOVO
-  description: string;
-  total_amount: number;
-  deposit_amount: number;
-  deposit_paid: boolean | null;
-  deposit_2_amount: number | null;
-  deposit_2_paid: boolean | null;
-  balance_amount: number;
-  balance_paid: boolean | null;
-  expected_date: string | null;
-  warehouse_arrival_date: string | null;  // NUOVO nella UI
-  created_at: string;
-  current_status_id: string | null;
-  customer: {...} | null;
-  status: {...} | null;
-}
-```
-
-### Nuovo Stato per Filtro Pagamenti
-
-```typescript
-const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "paid">("all");
-
-// Logica filtro
-const filteredOrders = orders.filter((order) => {
-  // ... filtri esistenti ...
-  
-  const pendingPayments = getPendingPayments(order);
-  const matchesPayment = 
-    paymentFilter === "all" ||
-    (paymentFilter === "pending" && pendingPayments.length > 0) ||
-    (paymentFilter === "paid" && pendingPayments.length === 0);
-  
-  return matchesSearch && matchesStatus && matchesPayment;
-});
-```
-
-### Colonne Responsive
-
-Per evitare che la tabella diventi troppo larga, su mobile nasconderemo alcune colonne meno critiche usando classi CSS:
-
-```typescript
-<TableHead className="hidden lg:table-cell">Arrivo Merce</TableHead>
-<TableHead className="hidden md:table-cell">Data Posa</TableHead>
-```
+| Stato | Colore Badge | Bordo Sinistro | Significato |
+|-------|--------------|----------------|-------------|
+| Da Ordinare | Arancione (`amber-500`) | Arancione | Attenzione richiesta |
+| Ordinato | Blu (`blue-500`) | Blu | In lavorazione |
+| In Magazzino | Verde (`emerald-500`) | Verde | Pronto per la posa |
+| Installato | Viola (`purple-500`) | Viola | Completato |
 
 ---
 
 ## Risultato Atteso
 
-1. **Codice Ordine** - Colonna con codice identificativo personalizzabile
-2. **Date Chiave Visibili** - Data contratto, arrivo merce, data posa
-3. **Filtro Pagamenti** - Facile trovare ordini con pagamenti in sospeso
-4. **Tabella Responsive** - Si adatta bene a schermi di diverse dimensioni
-5. **Colonna Pagamenti Funzionante** - Badge colorato che mostra lo stato
-
+1. **Creazione fornitore funzionante** - Il componente usa `effectiveCompany` per ottenere il `company_id` corretto
+2. **Identificazione immediata** - Ogni articolo ha un bordo colorato che indica lo stato
+3. **Riepilogo nell'header** - Vedi subito quanti articoli sono in ogni stato (es. "2 Da Ordinare, 3 Ordinato")
+4. **Colori vividi** - Badge con colori pieni (non sbiaditi) per massima leggibilita
+5. **Attenzione visiva** - Gli articoli "Da Ordinare" hanno colore arancione che attira l'attenzione
