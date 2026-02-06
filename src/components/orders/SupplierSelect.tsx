@@ -41,47 +41,35 @@ export function SupplierSelect({
 }: SupplierSelectProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newSupplierName, setNewSupplierName] = useState("");
-  const { user } = useAuth();
+  const { effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch company ID
-  const { data: profile } = useQuery({
-    queryKey: ["profile", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("id", user!.id)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
+  const companyId = effectiveCompany?.id;
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers", profile?.company_id],
+    queryKey: ["suppliers", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
         .select("id, name")
-        .eq("company_id", profile!.company_id)
+        .eq("company_id", companyId!)
         .order("name");
       if (error) throw error;
       return data as Supplier[];
     },
-    enabled: !!profile?.company_id,
+    enabled: !!companyId,
   });
 
   // Create supplier mutation
   const createSupplierMutation = useMutation({
     mutationFn: async (name: string) => {
+      if (!companyId) throw new Error("Company ID non disponibile");
       const { data, error } = await supabase
         .from("suppliers")
         .insert({
-          company_id: profile!.company_id,
+          company_id: companyId,
           name: name.trim(),
         })
         .select()
