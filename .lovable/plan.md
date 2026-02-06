@@ -1,149 +1,133 @@
 
-# Piano: Miglioramento Pagina di Login
+# Piano: Nuova Pagina di Login con Due Aree Separate
 
-## Stato Attuale
-La pagina di login attuale e funzionale ma minimale:
-- Card centrata su sfondo grigio chiaro
-- Logo EdiliziaInCloud
-- Form con email e password
-- Pulsante di accesso
+## Problemi Attuali
+1. Layout troppo compatto - poca spaziatura
+2. Un solo form di login generico - non distingue tra cliente e azienda/admin
 
-## Miglioramenti Proposti
+## Nuova Proposta
 
-### 1. Layout Split-Screen (Desktop)
-Creare un layout a due colonne:
-- **Colonna sinistra (60%)**: Area branding con gradiente, illustrazione/pattern e messaggio di benvenuto
-- **Colonna destra (40%)**: Form di login pulito
+### Layout Generale
+Pagina a **schermo intero** con due grandi sezioni cliccabili affiancate (su desktop) o impilate (su mobile):
 
-Su mobile, mostrare solo il form con header contenente il logo.
-
-### 2. Area Branding (Colonna Sinistra)
 ```
-+------------------------------------------+
-|                                          |
-|     [Logo EdiliziaInCloud grande]        |
-|                                          |
-|     "Gestisci i tuoi cantieri           |
-|      in modo semplice e veloce"          |
-|                                          |
-|     [Pattern geometrico / Illustrazione] |
-|                                          |
-|     • Ordini sempre sotto controllo      |
-|     • Clienti connessi in tempo reale    |
-|     • Assistenza integrata               |
-|                                          |
-+------------------------------------------+
++------------------------------------------+------------------------------------------+
+|                                          |                                          |
+|           AREA CLIENTI                   |          AREA AZIENDA                    |
+|                                          |                                          |
+|    [Icona grande User/Home]              |    [Icona grande Building/Briefcase]     |
+|                                          |                                          |
+|    "Sei un Cliente?"                     |    "Sei un'Azienda?"                     |
+|                                          |                                          |
+|    Accedi al portale per                 |    Accedi per gestire ordini,            |
+|    visualizzare i tuoi ordini            |    clienti e assistenza                  |
+|    e richiedere assistenza               |                                          |
+|                                          |                                          |
+|    [ACCEDI COME CLIENTE]                 |    [ACCEDI COME AZIENDA]                 |
+|                                          |                                          |
+|    Sfondo: gradiente chiaro/soft         |    Sfondo: gradiente primary/blu         |
+|                                          |                                          |
++------------------------------------------+------------------------------------------+
 ```
 
-- Sfondo con gradiente blu (primary color)
-- Pattern geometrico sottile o forme astratte
-- Testo bianco con messaggi chiave del prodotto
-- Lista di feature/benefit
+### Flusso Utente
+1. L'utente arriva sulla pagina e vede le due opzioni ben distinte
+2. Cliccando su una delle due aree, si apre un **modal/dialog** o una **transizione** al form di login specifico
+3. Il form contiene:
+   - Logo EdiliziaInCloud
+   - Titolo contestuale ("Accesso Clienti" o "Accesso Azienda")
+   - Form email + password
+   - Pulsante per tornare alla selezione
 
-### 3. Form di Login Migliorato (Colonna Destra)
-```
-+----------------------------------+
-|                                  |
-|     Bentornato!                  |
-|     Accedi al tuo account        |
-|                                  |
-|     [Email input con icona]      |
-|                                  |
-|     [Password input con icona]   |
-|     [Toggle mostra/nascondi]     |
-|                                  |
-|     [Accedi - button primario]   |
-|                                  |
-|     ----------------------------  |
-|     Hai problemi di accesso?     |
-|     Contatta il tuo              |
-|     amministratore               |
-|                                  |
-+----------------------------------+
-```
+### Opzione A: Due Card Grandi con Modal
+- Due grandi card affiancate occupano tutto lo schermo
+- Cliccando si apre un Dialog con il form di login
+- Sfondo rimane visibile, focus sul form
 
-Miglioramenti al form:
-- Icone nei campi input (Mail, Lock)
-- Toggle per mostrare/nascondere password (Eye/EyeOff)
-- Testo di aiuto per problemi di accesso
-- Animazioni subtle su focus
+### Opzione B: Transizione a Schermo Intero
+- Due grandi aree affiancate
+- Cliccando, l'area selezionata si espande e mostra il form
+- Animazione fluida
 
-### 4. Responsive Design
-- **Desktop (>1024px)**: Layout split-screen
-- **Tablet (768-1024px)**: Branding ridotto, form piu largo
-- **Mobile (<768px)**: Solo form con logo in header compatto
-
-### 5. Micro-interazioni
-- Transizione smooth sul pulsante hover
-- Focus ring colorato sugli input
-- Loading spinner durante l'accesso (gia presente)
-- Shake animation su errore (opzionale)
+**Proposta consigliata: Opzione A** - piu pulita e mantiene il contesto visivo
 
 ---
 
-## Dettagli Tecnici
+## Struttura UI Dettagliata
 
-### Struttura Componente
-```tsx
-<div className="min-h-screen flex">
-  {/* Branding Panel - hidden on mobile */}
-  <div className="hidden lg:flex lg:w-3/5 bg-gradient-to-br from-primary to-primary/80 ...">
-    <div className="flex flex-col justify-center p-12">
-      <img src={ediliziaLogo} className="h-16 mb-8" />
-      <h1 className="text-4xl font-bold text-white mb-4">
-        Gestisci i tuoi cantieri in modo semplice
-      </h1>
-      <ul className="space-y-3 text-white/90">
-        <li>✓ Ordini sempre sotto controllo</li>
-        <li>✓ Clienti connessi in tempo reale</li>
-        <li>✓ Assistenza integrata</li>
-      </ul>
-    </div>
-  </div>
-  
-  {/* Login Form Panel */}
-  <div className="flex-1 flex items-center justify-center p-8">
-    <div className="w-full max-w-md">
-      {/* Mobile logo */}
-      <div className="lg:hidden mb-8 text-center">
-        <img src={ediliziaLogo} className="h-12 mx-auto" />
-      </div>
-      
-      <h2 className="text-2xl font-bold mb-2">Bentornato!</h2>
-      <p className="text-muted-foreground mb-8">
-        Accedi al tuo account per continuare
-      </p>
-      
-      <form>
-        {/* Input con icone */}
-        <div className="relative">
-          <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-          <Input className="pl-10" ... />
-        </div>
-        
-        <div className="relative">
-          <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-          <Input className="pl-10 pr-10" type={showPassword ? "text" : "password"} />
-          <button onClick={togglePassword}>
-            {showPassword ? <EyeOff /> : <Eye />}
-          </button>
-        </div>
-        
-        <Button className="w-full">Accedi</Button>
-      </form>
-      
-      <p className="text-center text-sm text-muted-foreground mt-6">
-        Problemi di accesso? Contatta il tuo amministratore
-      </p>
-    </div>
-  </div>
-</div>
+### Pagina Iniziale (Selezione Tipo Utente)
+
+```
++--------------------------------------------------------------------------------+
+|                                                                                |
+|                         [Logo EdiliziaInCloud - centrato in alto]              |
+|                                                                                |
++--------------------------------------------------------------------------------+
+|                                    |                                           |
+|                                    |                                           |
+|        +-----------------------+   |   +---------------------------+           |
+|        |                       |   |   |                           |           |
+|        |    [Icona User]       |   |   |    [Icona Building]       |           |
+|        |                       |   |   |                           |           |
+|        |   Accesso Clienti     |   |   |   Accesso Azienda         |           |
+|        |                       |   |   |                           |           |
+|        |   Visualizza ordini   |   |   |   Gestisci ordini,        |           |
+|        |   e richiedi          |   |   |   clienti e assistenza    |           |
+|        |   assistenza          |   |   |                           |           |
+|        |                       |   |   |                           |           |
+|        |   [ACCEDI]            |   |   |   [ACCEDI]                |           |
+|        |                       |   |   |                           |           |
+|        +-----------------------+   |   +---------------------------+           |
+|                                    |                                           |
+|                                    |                                           |
++--------------------------------------------------------------------------------+
 ```
 
-### Colori Gradiente
-Utilizzo dei colori primary gia definiti nel design system:
-- `from-primary` (blu 217 91% 60%)
-- `to-primary/80` (blu con opacita)
+### Modal Login (Esempio Cliente)
+
+```
++----------------------------------+
+|          [X]                     |
+|                                  |
+|    [Logo EdiliziaInCloud]        |
+|                                  |
+|    Accesso Area Clienti          |
+|    Inserisci le tue credenziali  |
+|                                  |
+|    Email                         |
+|    [______________________]      |
+|                                  |
+|    Password                      |
+|    [______________________] [👁]  |
+|                                  |
+|    [        ACCEDI        ]      |
+|                                  |
+|    -------------------------     |
+|    Problemi? Contatta la tua     |
+|    azienda di riferimento        |
+|                                  |
++----------------------------------+
+```
+
+---
+
+## Design Visivo
+
+### Card Clienti
+- Sfondo: Gradiente leggero (grigio/azzurro chiaro)
+- Icona: `UserCircle` o `Home` in colore primary
+- Hover: Leggera elevazione con ombra
+
+### Card Azienda
+- Sfondo: Gradiente primary (blu)
+- Icona: `Building2` o `Briefcase` in bianco
+- Testo: Bianco
+- Hover: Leggera luminosita
+
+### Spaziatura
+- Padding generoso (p-8 o p-12)
+- Gap tra elementi aumentato
+- Card con altezza minima per non sembrare compatte
 
 ---
 
@@ -151,13 +135,80 @@ Utilizzo dei colori primary gia definiti nel design system:
 
 | File | Azione |
 |------|--------|
-| `src/components/auth/LoginForm.tsx` | Riscrivere con nuovo layout |
+| `src/components/auth/LoginForm.tsx` | Riscrivere completamente con nuovo layout |
+
+---
+
+## Dettagli Tecnici
+
+### Stato Componente
+```tsx
+const [selectedType, setSelectedType] = useState<'cliente' | 'azienda' | null>(null);
+const [isDialogOpen, setIsDialogOpen] = useState(false);
+```
+
+### Struttura Componente
+```tsx
+<div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+  {/* Header con Logo */}
+  <div className="py-8 text-center">
+    <img src={ediliziaLogo} className="h-12 mx-auto" />
+  </div>
+  
+  {/* Griglia Selezione */}
+  <div className="container max-w-5xl mx-auto px-6 py-12">
+    <div className="grid md:grid-cols-2 gap-8">
+      
+      {/* Card Clienti */}
+      <Card className="p-8 cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-slate-50 to-blue-50 border-2 hover:border-primary">
+        <UserCircle className="h-16 w-16 text-primary mx-auto mb-6" />
+        <h2 className="text-2xl font-bold text-center mb-3">Sei un Cliente?</h2>
+        <p className="text-muted-foreground text-center mb-8">
+          Accedi per visualizzare lo stato dei tuoi ordini e richiedere assistenza
+        </p>
+        <Button className="w-full" size="lg" onClick={() => openLoginDialog('cliente')}>
+          Accedi come Cliente
+        </Button>
+      </Card>
+      
+      {/* Card Azienda */}
+      <Card className="p-8 cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-primary to-primary/80 text-white border-0">
+        <Building2 className="h-16 w-16 mx-auto mb-6" />
+        <h2 className="text-2xl font-bold text-center mb-3">Sei un'Azienda?</h2>
+        <p className="text-white/80 text-center mb-8">
+          Gestisci ordini, clienti e richieste di assistenza
+        </p>
+        <Button variant="secondary" className="w-full" size="lg" onClick={() => openLoginDialog('azienda')}>
+          Accedi come Azienda
+        </Button>
+      </Card>
+      
+    </div>
+  </div>
+  
+  {/* Dialog Login */}
+  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+    <DialogContent className="sm:max-w-md">
+      {/* Form di login con contesto specifico */}
+    </DialogContent>
+  </Dialog>
+</div>
+```
+
+---
+
+## Responsive
+
+- **Desktop**: Due card affiancate, grande impatto visivo
+- **Tablet**: Due card affiancate piu strette
+- **Mobile**: Card impilate verticalmente, full-width
 
 ---
 
 ## Risultato Atteso
-- Pagina di login professionale e moderna
-- Branding forte del prodotto EdiliziaInCloud
-- Esperienza utente migliorata con feedback visivo
-- Completamente responsive
-- Mantiene il design minimal e pulito richiesto
+
+1. Pagina di login spaziosa e ariosa
+2. Chiara distinzione tra area clienti e area azienda
+3. Esperienza utente guidata - l'utente capisce subito dove cliccare
+4. Form di login in modal per mantenere il contesto
+5. Design professionale e moderno
