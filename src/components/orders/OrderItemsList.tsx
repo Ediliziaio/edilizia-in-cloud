@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { Plus, Trash2, Pencil, Package } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,8 +24,11 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OrderItemAttachments, OrderItemAttachment } from "./OrderItemAttachments";
+import { ArticleCombobox } from "./ArticleCombobox";
+import { SupplierSelect } from "./SupplierSelect";
+import { formatCurrency } from "@/lib/formatters";
 
-export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_produzione' | 'consegnato' | 'installato';
+export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino';
 
 export interface OrderItem {
   id?: string;
@@ -31,6 +37,9 @@ export interface OrderItem {
   quantity: number;
   status: OrderItemStatus;
   position: number;
+  supplier_id?: string;
+  supplier_name?: string;
+  purchase_price?: number;
   attachments?: OrderItemAttachment[];
 }
 
@@ -45,10 +54,13 @@ interface OrderItemsListProps {
 const STATUS_CONFIG: Record<OrderItemStatus, { label: string; color: string }> = {
   da_ordinare: { label: "Da Ordinare", color: "bg-muted text-muted-foreground" },
   ordinato: { label: "Ordinato", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
-  in_produzione: { label: "In Produzione", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
-  consegnato: { label: "Consegnato", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
-  installato: { label: "Installato", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" },
+  in_magazzino: { label: "In Magazzino", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
 };
+
+interface Supplier {
+  id: string;
+  name: string;
+}
 
 export function OrderItemsList({
   items,
@@ -62,11 +74,51 @@ export function OrderItemsList({
   const [itemName, setItemName] = useState("");
   const [itemDescription, setItemDescription] = useState("");
   const [itemQuantity, setItemQuantity] = useState("1");
+  const [itemSupplierId, setItemSupplierId] = useState<string | undefined>();
+  const [itemPurchasePrice, setItemPurchasePrice] = useState("");
+
+  const { user } = useAuth();
+
+  // Fetch company ID
+  const { data: profile } = useQuery({
+    queryKey: ["profile", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("company_id")
+        .eq("id", user!.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Fetch suppliers to display names
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ["suppliers", profile?.company_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("id, name")
+        .eq("company_id", profile!.company_id);
+      if (error) throw error;
+      return data as Supplier[];
+    },
+    enabled: !!profile?.company_id,
+  });
+
+  const getSupplierName = (supplierId?: string) => {
+    if (!supplierId) return null;
+    return suppliers.find(s => s.id === supplierId)?.name || null;
+  };
 
   const resetForm = () => {
     setItemName("");
     setItemDescription("");
     setItemQuantity("1");
+    setItemSupplierId(undefined);
+    setItemPurchasePrice("");
     setEditingIndex(null);
   };
 
@@ -80,6 +132,8 @@ export function OrderItemsList({
     setItemName(item.name);
     setItemDescription(item.description || "");
     setItemQuantity(item.quantity.toString());
+    setItemSupplierId(item.supplier_id);
+    setItemPurchasePrice(item.purchase_price?.toString() || "");
     setEditingIndex(index);
     setDialogOpen(true);
   };
@@ -88,6 +142,7 @@ export function OrderItemsList({
     if (!itemName.trim()) return;
 
     const quantity = parseInt(itemQuantity) || 1;
+    const purchasePrice = parseFloat(itemPurchasePrice) || 0;
     
     if (editingIndex !== null) {
       // Edit existing item
@@ -97,6 +152,8 @@ export function OrderItemsList({
         name: itemName.trim(),
         description: itemDescription.trim() || undefined,
         quantity,
+        supplier_id: itemSupplierId,
+        purchase_price: purchasePrice,
       };
       onItemsChange(newItems);
     } else {
@@ -107,6 +164,8 @@ export function OrderItemsList({
         quantity,
         status: 'da_ordinare',
         position: items.length,
+        supplier_id: itemSupplierId,
+        purchase_price: purchasePrice,
       };
       onItemsChange([...items, newItem]);
     }
@@ -158,14 +217,22 @@ export function OrderItemsList({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{item.name}</span>
                       {item.quantity > 1 && (
                         <span className="text-sm text-muted-foreground">(x{item.quantity})</span>
                       )}
                     </div>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
+                      {(item.supplier_id || item.supplier_name) && (
+                        <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "—"}</span>
+                      )}
+                      {item.purchase_price && item.purchase_price > 0 && (
+                        <span>Costo: {formatCurrency(item.purchase_price * item.quantity)}</span>
+                      )}
+                    </div>
                     {item.description && (
-                      <p className="text-sm text-muted-foreground truncate">{item.description}</p>
+                      <p className="text-sm text-muted-foreground truncate mt-1">{item.description}</p>
                     )}
                   </div>
 
@@ -175,7 +242,7 @@ export function OrderItemsList({
                         value={item.status}
                         onValueChange={(value: OrderItemStatus) => handleStatusChange(index, value)}
                       >
-                        <SelectTrigger className="w-40">
+                        <SelectTrigger className="w-36">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -187,8 +254,8 @@ export function OrderItemsList({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Badge className={STATUS_CONFIG[item.status].color}>
-                        {STATUS_CONFIG[item.status].label}
+                      <Badge className={STATUS_CONFIG[item.status]?.color || STATUS_CONFIG.da_ordinare.color}>
+                        {STATUS_CONFIG[item.status]?.label || "Da Ordinare"}
                       </Badge>
                     )}
 
@@ -240,18 +307,17 @@ export function OrderItemsList({
               <DialogDescription>
                 {editingIndex !== null
                   ? "Modifica i dettagli dell'articolo"
-                  : "Aggiungi un articolo all'ordine (es: infissi, tapparelle, porte)"}
+                  : "Aggiungi un articolo all'ordine"}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="item-name">Nome Articolo *</Label>
-                <Input
-                  id="item-name"
+                <ArticleCombobox
                   value={itemName}
-                  onChange={(e) => setItemName(e.target.value)}
-                  placeholder="Es: Finestre soggiorno"
+                  onValueChange={setItemName}
+                  placeholder="Seleziona o digita nome articolo..."
                 />
               </div>
 
@@ -265,14 +331,40 @@ export function OrderItemsList({
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="item-quantity">Quantità</Label>
+                  <Input
+                    id="item-quantity"
+                    type="number"
+                    min="1"
+                    value={itemQuantity}
+                    onChange={(e) => setItemQuantity(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="item-price">Costo Acquisto</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+                    <Input
+                      id="item-price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={itemPurchasePrice}
+                      onChange={(e) => setItemPurchasePrice(e.target.value)}
+                      className="pl-8"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="item-quantity">Quantità</Label>
-                <Input
-                  id="item-quantity"
-                  type="number"
-                  min="1"
-                  value={itemQuantity}
-                  onChange={(e) => setItemQuantity(e.target.value)}
+                <Label>Fornitore</Label>
+                <SupplierSelect
+                  value={itemSupplierId}
+                  onValueChange={setItemSupplierId}
                 />
               </div>
             </div>

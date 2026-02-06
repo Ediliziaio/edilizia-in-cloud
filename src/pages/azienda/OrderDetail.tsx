@@ -31,6 +31,7 @@ import {
 import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/FinancialSummary";
+import { OrderEconomics } from "@/components/orders/OrderEconomics";
 import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 
 interface OrderDetail {
@@ -47,6 +48,10 @@ interface OrderDetail {
   updated_at: string;
   current_status_id: string | null;
   internal_notes: string | null;
+  vat_rate: number;
+  warehouse_arrival_date: string | null;
+  work_start_date: string | null;
+  work_end_date: string | null;
   customer: {
     id: string;
     first_name: string;
@@ -75,6 +80,8 @@ interface OrderItemData {
   quantity: number;
   status: string;
   position: number;
+  supplier_id: string | null;
+  purchase_price: number | null;
 }
 
 interface OrderItemAttachmentData {
@@ -373,6 +380,8 @@ export default function OrderDetail() {
     quantity: item.quantity,
     status: item.status as OrderItem['status'],
     position: item.position,
+    supplier_id: item.supplier_id || undefined,
+    purchase_price: item.purchase_price || undefined,
     attachments: attachments
       .filter(att => att.order_item_id === item.id)
       .map(att => ({
@@ -382,6 +391,13 @@ export default function OrderDetail() {
         file_type: att.file_type,
         file_size: att.file_size,
       })),
+  }));
+
+  // Calculate items for economics
+  const economicsItems = displayItems.map(item => ({
+    name: item.name,
+    quantity: item.quantity,
+    purchase_price: item.purchase_price,
   }));
 
   const handleAttachmentsRefresh = () => {
@@ -576,6 +592,14 @@ export default function OrderDetail() {
             financingAmount={order.financing_amount || 0}
             paymentType={(order.payment_type as PaymentType) || 'standard'}
             balanceAmount={order.balance_amount}
+            vatRate={order.vat_rate || 22}
+          />
+
+          {/* Order Economics */}
+          <OrderEconomics
+            totalAmount={order.total_amount}
+            vatRate={order.vat_rate || 22}
+            items={economicsItems}
           />
 
           {/* Expected Date */}

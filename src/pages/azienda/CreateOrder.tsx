@@ -54,12 +54,18 @@ export default function CreateOrder() {
   const [internalNotes, setInternalNotes] = useState("");
   const [statusId, setStatusId] = useState("");
 
+  // Date per il cliente
+  const [warehouseArrivalDate, setWarehouseArrivalDate] = useState<Date | undefined>();
+  const [workStartDate, setWorkStartDate] = useState<Date | undefined>();
+  const [workEndDate, setWorkEndDate] = useState<Date | undefined>();
+
   // Financial state
   const [paymentType, setPaymentType] = useState<PaymentType>('standard');
   const [totalAmount, setTotalAmount] = useState("");
   const [depositAmount, setDepositAmount] = useState("");
   const [deposit2Amount, setDeposit2Amount] = useState("");
   const [financingAmount, setFinancingAmount] = useState("");
+  const [vatRate, setVatRate] = useState("22");
 
   // Order items state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -133,6 +139,7 @@ export default function CreateOrder() {
       if (!profile?.company_id) throw new Error("Company not found");
 
       const financing = parseFloat(financingAmount) || 0;
+      const vat = parseFloat(vatRate) || 22;
 
       // Create the order
       const { data: order, error: orderError } = await supabase
@@ -150,6 +157,10 @@ export default function CreateOrder() {
           expected_date: expectedDate?.toISOString().split("T")[0] || null,
           internal_notes: internalNotes || null,
           current_status_id: statusId,
+          vat_rate: vat,
+          warehouse_arrival_date: warehouseArrivalDate?.toISOString().split("T")[0] || null,
+          work_start_date: workStartDate?.toISOString().split("T")[0] || null,
+          work_end_date: workEndDate?.toISOString().split("T")[0] || null,
         })
         .select()
         .single();
@@ -176,6 +187,8 @@ export default function CreateOrder() {
           quantity: item.quantity,
           status: item.status,
           position: index,
+          supplier_id: item.supplier_id || null,
+          purchase_price: item.purchase_price || 0,
         }));
 
         const { error: itemsError } = await supabase
@@ -305,38 +318,6 @@ export default function CreateOrder() {
                 />
               </div>
 
-              {/* Expected Date */}
-              <div className="space-y-2">
-                <Label>Data Prevista Consegna</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !expectedDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {expectedDate ? (
-                        format(expectedDate, "d MMMM yyyy", { locale: it })
-                      ) : (
-                        <span>Seleziona data</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={expectedDate}
-                      onSelect={setExpectedDate}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
               {/* Status */}
               <div className="space-y-2">
                 <Label>Stato Iniziale</Label>
@@ -375,14 +356,122 @@ export default function CreateOrder() {
             deposit2Amount={deposit2Amount}
             financingAmount={financingAmount}
             paymentType={paymentType}
+            vatRate={vatRate}
             onTotalAmountChange={setTotalAmount}
             onDepositAmountChange={setDepositAmount}
             onDeposit2AmountChange={setDeposit2Amount}
             onFinancingAmountChange={setFinancingAmount}
             onPaymentTypeChange={setPaymentType}
+            onVatRateChange={setVatRate}
             balance={balance}
           />
         </div>
+
+        {/* Customer Dates Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tempistiche per il Cliente</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              {/* Warehouse Arrival Date */}
+              <div className="space-y-2">
+                <Label>Arrivo Merce in Magazzino</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !warehouseArrivalDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {warehouseArrivalDate ? (
+                        format(warehouseArrivalDate, "d MMMM yyyy", { locale: it })
+                      ) : (
+                        <span>Seleziona data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={warehouseArrivalDate}
+                      onSelect={setWarehouseArrivalDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Work Start Date */}
+              <div className="space-y-2">
+                <Label>Inizio Lavori</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !workStartDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {workStartDate ? (
+                        format(workStartDate, "d MMMM yyyy", { locale: it })
+                      ) : (
+                        <span>Seleziona data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={workStartDate}
+                      onSelect={setWorkStartDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Work End Date */}
+              <div className="space-y-2">
+                <Label>Fine Lavori</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !workEndDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {workEndDate ? (
+                        format(workEndDate, "d MMMM yyyy", { locale: it })
+                      ) : (
+                        <span>Seleziona data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={workEndDate}
+                      onSelect={setWorkEndDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Order Items */}
         <OrderItemsList

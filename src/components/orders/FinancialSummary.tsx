@@ -19,11 +19,13 @@ interface FinancialSummaryProps {
   deposit2Amount: string;
   financingAmount: string;
   paymentType: PaymentType;
+  vatRate: string;
   onTotalAmountChange: (value: string) => void;
   onDepositAmountChange: (value: string) => void;
   onDeposit2AmountChange: (value: string) => void;
   onFinancingAmountChange: (value: string) => void;
   onPaymentTypeChange: (value: PaymentType) => void;
+  onVatRateChange: (value: string) => void;
   balance: number;
   readOnly?: boolean;
 }
@@ -34,14 +36,21 @@ export function FinancialSummary({
   deposit2Amount,
   financingAmount,
   paymentType,
+  vatRate,
   onTotalAmountChange,
   onDepositAmountChange,
   onDeposit2AmountChange,
   onFinancingAmountChange,
   onPaymentTypeChange,
+  onVatRateChange,
   balance,
   readOnly = false,
 }: FinancialSummaryProps) {
+  const total = parseFloat(totalAmount) || 0;
+  const vat = parseFloat(vatRate) || 22;
+  const vatAmount = total * (vat / 100);
+  const totalWithVat = total + vatAmount;
+
   return (
     <Card>
       <CardHeader>
@@ -71,7 +80,7 @@ export function FinancialSummary({
 
         {/* Total Amount */}
         <div className="space-y-2">
-          <Label htmlFor="total">Importo Totale *</Label>
+          <Label htmlFor="total">Importo Totale (Imponibile) *</Label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
               €
@@ -87,6 +96,41 @@ export function FinancialSummary({
               placeholder="0.00"
               disabled={readOnly}
             />
+          </div>
+        </div>
+
+        {/* VAT Rate */}
+        <div className="space-y-2">
+          <Label>Aliquota IVA</Label>
+          <Select
+            value={vatRate}
+            onValueChange={onVatRateChange}
+            disabled={readOnly}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="4">4%</SelectItem>
+              <SelectItem value="10">10%</SelectItem>
+              <SelectItem value="22">22%</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* VAT Summary */}
+        <div className="p-3 rounded-lg bg-muted/50 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span>Imponibile</span>
+            <span>{formatCurrency(total)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span>IVA ({vat}%)</span>
+            <span>{formatCurrency(vatAmount)}</span>
+          </div>
+          <div className="flex justify-between font-medium border-t pt-2">
+            <span>Totale con IVA</span>
+            <span>{formatCurrency(totalWithVat)}</span>
           </div>
         </div>
 
@@ -190,6 +234,7 @@ interface FinancialSummaryReadOnlyProps {
   financingAmount: number;
   paymentType: PaymentType;
   balanceAmount: number;
+  vatRate?: number;
 }
 
 export function FinancialSummaryReadOnly({
@@ -199,7 +244,11 @@ export function FinancialSummaryReadOnly({
   financingAmount,
   paymentType,
   balanceAmount,
+  vatRate = 22,
 }: FinancialSummaryReadOnlyProps) {
+  const vatAmount = totalAmount * (vatRate / 100);
+  const totalWithVat = totalAmount + vatAmount;
+
   return (
     <Card>
       <CardHeader>
@@ -210,39 +259,49 @@ export function FinancialSummaryReadOnly({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Totale</span>
+          <span className="text-muted-foreground">Imponibile</span>
           <span className="font-medium">{formatCurrency(totalAmount)}</span>
         </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">IVA ({vatRate}%)</span>
+          <span>{formatCurrency(vatAmount)}</span>
+        </div>
+        <div className="flex justify-between text-primary font-medium">
+          <span>Totale con IVA</span>
+          <span>{formatCurrency(totalWithVat)}</span>
+        </div>
 
-        {paymentType === 'standard' ? (
-          <>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Acconto 1</span>
-              <span className="text-primary">{formatCurrency(depositAmount)}</span>
-            </div>
-            {deposit2Amount > 0 && (
+        <div className="pt-3 border-t">
+          {paymentType === 'standard' ? (
+            <>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Acconto 2</span>
-                <span className="text-primary">{formatCurrency(deposit2Amount)}</span>
+                <span className="text-muted-foreground">Acconto 1</span>
+                <span className="text-primary">{formatCurrency(depositAmount)}</span>
               </div>
-            )}
-            <div className="flex justify-between pt-2 border-t">
-              <span className="font-medium">Saldo</span>
-              <span className="font-bold text-lg">{formatCurrency(balanceAmount)}</span>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Finanziamento</span>
-              <span className="text-accent-foreground">{formatCurrency(financingAmount)}</span>
-            </div>
-            <div className="flex justify-between pt-2 border-t">
-              <span className="font-medium">Saldo</span>
-              <span className="font-bold text-lg text-muted-foreground">€ 0,00</span>
-            </div>
-          </>
-        )}
+              {deposit2Amount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Acconto 2</span>
+                  <span className="text-primary">{formatCurrency(deposit2Amount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-2 border-t mt-2">
+                <span className="font-medium">Saldo</span>
+                <span className="font-bold text-lg">{formatCurrency(balanceAmount)}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Finanziamento</span>
+                <span className="text-accent-foreground">{formatCurrency(financingAmount)}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t mt-2">
+                <span className="font-medium">Saldo</span>
+                <span className="font-bold text-lg text-muted-foreground">€ 0,00</span>
+              </div>
+            </>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
