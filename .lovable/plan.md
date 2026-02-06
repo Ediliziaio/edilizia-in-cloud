@@ -1,172 +1,299 @@
 
-# Piano: Documenti Ordine in Creazione e Modifica
+# Piano: Doppia Visualizzazione Ordini (Tabella + Pipeline) con Filtri Data
 
 ## Panoramica
 
-Aggiungere la possibilita di caricare documenti quando si crea un nuovo ordine o si modifica uno esistente.
+Trasformare la pagina Ordini in una vista flessibile con:
+1. **Toggle Tabella/Pipeline** - Switch per passare tra le due modalita
+2. **Vista Pipeline (Kanban)** - Ordini organizzati in colonne per stato
+3. **Filtri Data Avanzati** - Filtro per Data Contratto, Data Posa e Arrivo Merce
 
 ---
 
-## Strategia per i Due Casi
+## Design Visivo
 
-### 1. Modifica Ordine (EditOrder.tsx)
-L'ordine esiste gia con un ID, quindi posso aggiungere direttamente il componente `OrderAttachments` nel form.
+### Header con Toggle Visualizzazione
 
-### 2. Creazione Ordine (CreateOrder.tsx)
-L'ordine non esiste ancora fino al submit del form. Due opzioni:
+```
++---------------------------------------------------------------------+
+| Ordini                                                               |
+| Gestisci gli ordini...                      [📊 Tabella] [🗂 Pipeline]  [+ Nuovo Ordine] |
++---------------------------------------------------------------------+
+```
 
-**Opzione A - Salva prima, poi carica documenti:**
-- Dopo il submit, invece di tornare alla lista, si va al dettaglio ordine dove si possono caricare i documenti
-- Oppure si mostra una sezione documenti che diventa attiva solo dopo il salvataggio
+### Sezione Filtri Ampliata
 
-**Opzione B - Upload differito (consigliata):**
-- Mostrare una sezione documenti con un messaggio "I documenti potranno essere caricati dopo aver salvato l'ordine"
-- Dopo il submit, se l'utente ha provato a caricare file, redirect al dettaglio ordine
+```
++---------------------------------------------------------------------+
+| 🔍 [Cerca per codice, descrizione...]                                |
+| [Stato ▼] [Pagamenti ▼] [Data Contratto ▼] [Arrivo Merce ▼] [Data Posa ▼] |
++---------------------------------------------------------------------+
+```
 
-Implemento l'**Opzione B** che e piu user-friendly: l'utente vede la sezione documenti ma con un messaggio che indica che il caricamento sara disponibile dopo il salvataggio. Cosi l'esperienza e coerente tra creazione e modifica.
+Ogni filtro data sara un Popover con un mini-form:
+- Range "Da - A" oppure
+- Opzioni rapide: "Oggi", "Questa settimana", "Questo mese", "Prossimi 7 giorni"
+
+### Vista Pipeline (Nuova)
+
+```
++---------------------------------------------------------------------+
+|  Contratto     |  In Produzione |  In Magazzino  |  Posa Completata |
+|  Firmato (3)   |  (5)           |  (2)           |  (8)             |
++---------------+----------------+----------------+------------------+
+|  ┌──────────┐ |  ┌──────────┐  |  ┌──────────┐  |  ┌──────────┐    |
+|  │ ORD-001  │ |  │ ORD-005  │  |  │ ORD-012  │  |  │ ORD-003  │    |
+|  │ Mario R. │ |  │ Luigi V. │  |  │ Anna B.  │  |  │ Marco P. │    |
+|  │ €5.400   │ |  │ €12.000  │  |  │ €8.200   │  |  │ €15.000  │    |
+|  │ 📅 15 Feb│ |  │ 🔔 Acc.1 │  |  │ ✅ OK    │  |  │ ✅ OK    │    |
+|  └──────────┘ |  └──────────┘  |  └──────────┘  |  └──────────┘    |
+|  ┌──────────┐ |  ┌──────────┐  |                |  ┌──────────┐    |
+|  │ ORD-002  │ |  │ ORD-008  │  |                |  │ ORD-007  │    |
+|  │ ...      │ |  │ ...      │  |                |  │ ...      │    |
+|  └──────────┘ |  └──────────┘  |                |  └──────────┘    |
++---------------+----------------+----------------+------------------+
+```
 
 ---
 
-## Modifiche Tecniche
+## Struttura Componenti
 
-### File 1: `src/pages/azienda/EditOrder.tsx`
+### Nuovi Componenti da Creare
 
-**Aggiungere import:**
-```typescript
-import { OrderAttachments } from "@/components/orders/OrderAttachments";
-```
-
-**Aggiungere sezione dopo Order Items (linea 620):**
-```tsx
-{/* Order Items */}
-<OrderItemsList ... />
-
-{/* Order Attachments */}
-<OrderAttachments orderId={id!} editable={true} />
-
-{/* Actions */}
-```
+| Componente | Descrizione |
+|------------|-------------|
+| `OrdersViewToggle.tsx` | Toggle Tabella/Pipeline con icone |
+| `OrdersTableView.tsx` | Vista tabella estratta dal file attuale |
+| `OrdersPipelineView.tsx` | Vista pipeline/kanban per stato |
+| `OrdersPipelineColumn.tsx` | Singola colonna della pipeline |
+| `OrdersPipelineCard.tsx` | Card ordine nella pipeline |
+| `DateRangeFilter.tsx` | Filtro data con range picker |
 
 ---
 
-### File 2: `src/pages/azienda/CreateOrder.tsx`
+## Dettagli Tecnici
 
-**Aggiungere import:**
+### 1. Stato per Toggle Visualizzazione
+
 ```typescript
-import { OrderAttachments } from "@/components/orders/OrderAttachments";
+// In OrdersList.tsx
+const [viewMode, setViewMode] = useState<"table" | "pipeline">("table");
 ```
 
-**Aggiungere nuovo state per tracciare l'ordine creato:**
+### 2. Nuovi Stati per Filtri Data
+
 ```typescript
-const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+// Filtri data con range
+const [contractDateRange, setContractDateRange] = useState<{
+  from: Date | undefined;
+  to: Date | undefined;
+}>({ from: undefined, to: undefined });
+
+const [warehouseDateRange, setWarehouseDateRange] = useState<{
+  from: Date | undefined;
+  to: Date | undefined;
+}>({ from: undefined, to: undefined });
+
+const [expectedDateRange, setExpectedDateRange] = useState<{
+  from: Date | undefined;
+  to: Date | undefined;
+}>({ from: undefined, to: undefined });
 ```
 
-**Modificare onSuccess per salvare l'ID e restare sulla pagina:**
+### 3. Logica Filtro Date
+
 ```typescript
-onSuccess: (order) => {
-  queryClient.invalidateQueries({ queryKey: ["orders"] });
-  toast({
-    title: "Ordine creato",
-    description: "L'ordine è stato creato. Ora puoi caricare i documenti.",
-  });
-  setCreatedOrderId(order.id);
-  // Non navigare subito - permetti all'utente di caricare documenti
+const filteredOrders = orders.filter((order) => {
+  // ... filtri esistenti ...
+
+  // Filtro Data Contratto (created_at)
+  const matchesContractDate = 
+    (!contractDateRange.from || new Date(order.created_at) >= contractDateRange.from) &&
+    (!contractDateRange.to || new Date(order.created_at) <= contractDateRange.to);
+
+  // Filtro Arrivo Merce
+  const matchesWarehouseDate = 
+    !order.warehouse_arrival_date ||
+    ((!warehouseDateRange.from || new Date(order.warehouse_arrival_date) >= warehouseDateRange.from) &&
+     (!warehouseDateRange.to || new Date(order.warehouse_arrival_date) <= warehouseDateRange.to));
+
+  // Filtro Data Posa
+  const matchesExpectedDate = 
+    !order.expected_date ||
+    ((!expectedDateRange.from || new Date(order.expected_date) >= expectedDateRange.from) &&
+     (!expectedDateRange.to || new Date(order.expected_date) <= expectedDateRange.to));
+
+  return matchesSearch && matchesStatus && matchesPayment && 
+         matchesContractDate && matchesWarehouseDate && matchesExpectedDate;
+});
+```
+
+### 4. Componente DateRangeFilter
+
+```typescript
+interface DateRangeFilterProps {
+  label: string;
+  range: { from: Date | undefined; to: Date | undefined };
+  onRangeChange: (range: { from: Date | undefined; to: Date | undefined }) => void;
+}
+
+function DateRangeFilter({ label, range, onRangeChange }: DateRangeFilterProps) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="w-[180px]">
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          {range.from || range.to ? (
+            // Mostra range selezionato
+            formatDateShort(range.from) + " - " + formatDateShort(range.to)
+          ) : (
+            label
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-4" align="start">
+        {/* Quick filters */}
+        <div className="space-y-2 mb-4">
+          <Button size="sm" variant="ghost" onClick={() => setToday()}>Oggi</Button>
+          <Button size="sm" variant="ghost" onClick={() => setThisWeek()}>Questa settimana</Button>
+          <Button size="sm" variant="ghost" onClick={() => setThisMonth()}>Questo mese</Button>
+        </div>
+        <Separator />
+        {/* Date pickers Da - A */}
+        <div className="grid grid-cols-2 gap-2">
+          <Calendar mode="single" selected={range.from} onSelect={...} />
+          <Calendar mode="single" selected={range.to} onSelect={...} />
+        </div>
+        <Button onClick={() => onRangeChange({ from: undefined, to: undefined })}>
+          Cancella
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
 }
 ```
 
-**Aggiungere sezione documenti dopo Order Items:**
-```tsx
-{/* Order Items */}
-<OrderItemsList ... />
+### 5. Vista Pipeline
 
-{/* Order Attachments */}
-{createdOrderId ? (
-  <OrderAttachments orderId={createdOrderId} editable={true} />
-) : (
-  <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center gap-2">
-        <Paperclip className="h-5 w-5" />
-        Documenti Ordine
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="text-center py-4 text-muted-foreground">
-        <p>I documenti potranno essere caricati dopo aver salvato l'ordine.</p>
-      </div>
-    </CardContent>
-  </Card>
-)}
+```typescript
+function OrdersPipelineView({ orders, statuses }: Props) {
+  // Raggruppa ordini per stato
+  const ordersByStatus = useMemo(() => {
+    const grouped: Record<string, OrderWithDetails[]> = {};
+    
+    // Inizializza tutte le colonne (anche vuote)
+    statuses.forEach(status => {
+      grouped[status.id] = [];
+    });
+    
+    // Popola con ordini
+    orders.forEach(order => {
+      if (order.current_status_id && grouped[order.current_status_id]) {
+        grouped[order.current_status_id].push(order);
+      }
+    });
+    
+    return grouped;
+  }, [orders, statuses]);
 
-{/* Actions - modificare per mostrare pulsante "Vai all'ordine" se creato */}
-<div className="flex justify-end gap-4">
-  {createdOrderId ? (
-    <Button onClick={() => navigate(`/azienda/ordini/${createdOrderId}`)}>
-      Vai all'Ordine
-    </Button>
-  ) : (
-    <>
-      <Button type="button" variant="outline" onClick={...}>
-        Annulla
-      </Button>
-      <Button type="submit" disabled={...}>
-        Crea Ordine
-      </Button>
-    </>
-  )}
-</div>
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-4">
+      {statuses
+        .sort((a, b) => a.position - b.position)
+        .map(status => (
+          <OrdersPipelineColumn 
+            key={status.id}
+            status={status}
+            orders={ordersByStatus[status.id]}
+          />
+        ))}
+    </div>
+  );
+}
+```
+
+### 6. Card Pipeline
+
+```typescript
+function OrdersPipelineCard({ order }: { order: OrderWithDetails }) {
+  const pendingPayments = getPendingPayments(order);
+  
+  return (
+    <Link to={`/azienda/ordini/${order.id}`}>
+      <Card className="p-3 hover:shadow-md transition-shadow cursor-pointer">
+        <div className="space-y-2">
+          {/* Codice */}
+          <p className="font-medium text-sm">{order.order_code || "—"}</p>
+          
+          {/* Cliente */}
+          <p className="text-sm text-muted-foreground">
+            {order.customer?.first_name} {order.customer?.last_name}
+          </p>
+          
+          {/* Totale */}
+          <p className="font-semibold">{formatCurrency(order.total_amount)}</p>
+          
+          {/* Footer: Data Posa + Badge Pagamenti */}
+          <div className="flex items-center justify-between">
+            {order.expected_date && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <CalendarIcon className="h-3 w-3" />
+                {formatDateShort(order.expected_date)}
+              </span>
+            )}
+            
+            {pendingPayments.length > 0 ? (
+              <Badge variant="outline" className="text-orange-600 border-orange-300">
+                {pendingPayments.join(", ")}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-green-600 border-green-300">
+                OK
+              </Badge>
+            )}
+          </div>
+        </div>
+      </Card>
+    </Link>
+  );
+}
 ```
 
 ---
 
-## Layout Visivo
+## Layout Filtri (Responsive)
 
-### Durante la Creazione (prima del salvataggio)
+### Desktop
 ```
-+-------------------------------------------------------------+
-| ← Nuovo Ordine                                               |
-+-------------------------------------------------------------+
-| [Dettagli Ordine]     [Riepilogo Finanziario]               |
-| [Tempistiche Cliente]                                        |
-| [Articoli dell'Ordine]                                       |
-+-------------------------------------------------------------+
-| 📎 Documenti Ordine                                          |
-|   I documenti potranno essere caricati dopo aver salvato     |
-|   l'ordine.                                                  |
-+-------------------------------------------------------------+
-|                              [Annulla]  [Crea Ordine]        |
-+-------------------------------------------------------------+
+[🔍 Cerca...                    ] [Stato ▼] [Pagamenti ▼]
+[Data Contratto ▼] [Arrivo Merce ▼] [Data Posa ▼]        [Pulisci Filtri]
 ```
 
-### Dopo il Salvataggio (ordine creato)
-```
-+-------------------------------------------------------------+
-| ← Nuovo Ordine                                               |
-+-------------------------------------------------------------+
-| [Dettagli Ordine - disabilitato]                            |
-| [Articoli dell'Ordine - disabilitato]                       |
-+-------------------------------------------------------------+
-| 📎 Documenti Ordine                         [+ Carica File]  |
-|   Nessun documento caricato                                  |
-+-------------------------------------------------------------+
-|                                        [Vai all'Ordine]     |
-+-------------------------------------------------------------+
-```
+### Mobile
+Tutti i filtri in colonna verticale, collassabili in un accordion "Filtri Avanzati".
 
 ---
 
-## Riepilogo Modifiche
+## File da Modificare/Creare
 
-| File | Modifica |
-|------|----------|
-| `EditOrder.tsx` | Aggiungere `<OrderAttachments orderId={id} />` dopo OrderItemsList |
-| `CreateOrder.tsx` | Aggiungere state `createdOrderId`, mostrare placeholder o componente, modificare azioni post-salvataggio |
+| File | Azione |
+|------|--------|
+| `src/pages/azienda/OrdersList.tsx` | Refactor principale con toggle e filtri |
+| `src/components/orders/OrdersTableView.tsx` | **Nuovo** - Estrazione vista tabella |
+| `src/components/orders/OrdersPipelineView.tsx` | **Nuovo** - Vista pipeline |
+| `src/components/orders/OrdersPipelineCard.tsx` | **Nuovo** - Card per pipeline |
+| `src/components/orders/DateRangeFilter.tsx` | **Nuovo** - Filtro data range |
 
 ---
 
-## Risultato Atteso
+## Riepilogo Funzionalita
 
-1. **Modifica Ordine**: Sezione documenti sempre visibile e funzionante
-2. **Creazione Ordine**: Sezione documenti con placeholder informativo, diventa attiva dopo il salvataggio
-3. **UX coerente**: L'utente vede sempre la sezione documenti in entrambi i contesti
-4. **Flusso fluido**: Dopo la creazione, l'utente puo caricare documenti prima di tornare alla lista
+1. **Toggle Visualizzazione**: Switch tra Tabella e Pipeline con icone (LayoutList, Columns3)
+2. **Vista Pipeline**: Colonne per ogni stato ordine, card draggable (opzionale in futuro)
+3. **Filtro Data Contratto**: Range picker sulla data creazione ordine
+4. **Filtro Arrivo Merce**: Range picker sulla data warehouse_arrival_date
+5. **Filtro Data Posa**: Range picker sulla data expected_date
+6. **Quick Filters**: Oggi, Questa settimana, Questo mese, Prossimi 7 giorni
+7. **Reset Filtri**: Pulsante per pulire tutti i filtri attivi
+8. **Responsive**: Filtri collassabili su mobile, pipeline scrollabile orizzontalmente
+
