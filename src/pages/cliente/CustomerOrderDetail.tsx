@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
 import { CustomerFinancialSummary } from "@/components/orders/CustomerFinancialSummary";
 import { CustomerDatesCard } from "@/components/orders/CustomerDatesCard";
+import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
 import { ArrowLeft, Clock, CheckCircle2, MessageSquare, FileText } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 
@@ -170,6 +171,9 @@ export default function CustomerOrderDetail() {
         workStartDate={order.work_start_date}
         workEndDate={order.work_end_date}
       />
+
+      {/* Order Documents (visible to customer) */}
+      <CustomerOrderAttachments orderId={order.id} />
 
       {/* Financial Summary with VAT */}
       <CustomerFinancialSummary

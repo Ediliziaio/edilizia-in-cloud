@@ -35,6 +35,7 @@ import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderEconomics } from "@/components/orders/OrderEconomics";
+import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 
 // Order Alert Interface
@@ -619,7 +620,8 @@ export default function OrderDetail() {
             />
           )}
 
-          {/* Progress Tracker */}
+          {/* Order Documents */}
+          <OrderAttachments orderId={id!} editable={true} />
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
