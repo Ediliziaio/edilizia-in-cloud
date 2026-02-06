@@ -18,9 +18,12 @@ import NotFound from "@/pages/NotFound";
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
+import CompaniesList from "@/pages/admin/CompaniesList";
+import CreateCompany from "@/pages/admin/CreateCompany";
 
 // Company Pages  
 import CompanyDashboard from "@/pages/azienda/CompanyDashboard";
+import Settings from "@/pages/azienda/Settings";
 
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
@@ -51,8 +54,8 @@ const App = () => (
               }
             >
               <Route index element={<AdminDashboard />} />
-              <Route path="aziende" element={<div className="text-muted-foreground">Lista Aziende - Coming soon</div>} />
-              <Route path="aziende/nuova" element={<div className="text-muted-foreground">Nuova Azienda - Coming soon</div>} />
+              <Route path="aziende" element={<CompaniesList />} />
+              <Route path="aziende/nuova" element={<CreateCompany />} />
             </Route>
 
             {/* Company Admin Routes */}
@@ -71,7 +74,7 @@ const App = () => (
               <Route path="clienti/nuovo" element={<div className="text-muted-foreground">Nuovo Cliente - Coming soon</div>} />
               <Route path="assistenza" element={<div className="text-muted-foreground">Assistenza - Coming soon</div>} />
               <Route path="previsionale" element={<div className="text-muted-foreground">Previsionale Cassa - Coming soon</div>} />
-              <Route path="impostazioni" element={<div className="text-muted-foreground">Impostazioni - Coming soon</div>} />
+              <Route path="impostazioni" element={<Settings />} />
             </Route>
 
             {/* Customer Routes */}
