@@ -1,208 +1,95 @@
 
-# Piano Completo di Analisi, Pulizia e Miglioramento del Software
+# Piano: Integrazione Logo EdiliziaInCloud
 
-## Riepilogo Stato Attuale
+## Obiettivo
+Sostituire l'icona generica `Building2` con il logo ufficiale di EdiliziaInCloud in tutti i punti dell'applicazione dove appare il branding.
 
-### Punti di Forza Verificati
-- Autenticazione funzionante (verificato con login super admin)
-- Sistema di ruoli correttamente implementato in tabella separata
-- RLS policies presenti su tutte le tabelle con target `authenticated`
-- Sistema impersonation super admin funzionante
-- Edge functions deploy automatico e CORS headers corretti
-- Codice duplicato gia pulito nell'ultimo intervento (formatters centralizzati)
+## File Immagine
+Il logo verra copiato nella cartella `src/assets/` per beneficiare dell'ottimizzazione del bundler e dell'import come modulo ES6.
 
-### Problemi Identificati
+## File da Modificare
 
----
+### 1. Copia del Logo
+Copiare il file `user-uploads://Edilizia_in_Cloud_Logo.png` in `src/assets/edilizia-in-cloud-logo.png`
 
-## FASE 1: Correzioni Database e Sicurezza (Priorita Alta)
+### 2. LoginForm.tsx
+- Rimuovere import di `Building2`
+- Aggiungere import del logo: `import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png"`
+- Sostituire l'icona con il logo (ridimensionato a ~h-12 per adattarsi al contesto)
+- Rimuovere il testo "EdiliziaInCloud" separato poiche il logo lo include gia
 
-### 1.1 Falsi Positivi Security Scanner
-L'analisi di sicurezza ha rilevato 8 vulnerabilita che sono in realta falsi positivi. Le RLS policies esistono e sono correttamente configurate per richiedere autenticazione (`roles: {authenticated}`). Tuttavia, i warning derivano dal fatto che lo scanner non riconosce le policy esistenti.
-
-**Azione:** Ignoro questi findings nel sistema di sicurezza indicando che le RLS policies sono gia implementate correttamente.
-
-### 1.2 Protezione Eliminazione Stati Ordine
-Attualmente e possibile eliminare stati ordine gia usati in ordini esistenti, causando potenziali problemi di integrita referenziale.
-
-**Soluzione:**
-Creare un trigger di validazione che impedisca l'eliminazione di stati ordine se:
-- Sono usati come `current_status_id` in qualche ordine
-- Sono presenti in `order_status_history`
-
-```sql
-CREATE OR REPLACE FUNCTION prevent_status_deletion_if_used()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM orders WHERE current_status_id = OLD.id) THEN
-    RAISE EXCEPTION 'Impossibile eliminare: stato usato in ordini attivi';
-  END IF;
-  IF EXISTS (SELECT 1 FROM order_status_history WHERE status_id = OLD.id) THEN
-    RAISE EXCEPTION 'Impossibile eliminare: stato presente nello storico ordini';
-  END IF;
-  RETURN OLD;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER check_status_before_delete
-BEFORE DELETE ON order_statuses
-FOR EACH ROW EXECUTE FUNCTION prevent_status_deletion_if_used();
+**Prima:**
+```tsx
+<div className="flex items-center gap-2 text-primary">
+  <Building2 className="h-10 w-10" />
+  <span className="text-2xl font-bold">EdiliziaInCloud</span>
+</div>
 ```
 
-### 1.3 Abilitare Leaked Password Protection
-Il sistema segnala che la protezione password compromesse e disabilitata.
-
-**Azione:** Configurare auth per abilitare questa funzionalita.
-
----
-
-## FASE 2: Protezione Edge Function Super Admin
-
-### 2.1 Bootstrap Protetto per create-super-admin
-La funzione attuale contiene credenziali hardcoded ed e richiamabile da chiunque.
-
-**Modifiche a `supabase/functions/create-super-admin/index.ts`:**
-1. Rimuovere credenziali hardcoded
-2. Accettare parametri dal body (email, password)
-3. Richiedere una chiave segreta di bootstrap (`SUPER_ADMIN_BOOTSTRAP_KEY`)
-4. Verificare che non esistano gia super admin (primo setup only)
-
-**Struttura:**
-```typescript
-// Verifica chiave bootstrap
-const bootstrapKey = req.headers.get("X-Bootstrap-Key");
-if (bootstrapKey !== Deno.env.get("SUPER_ADMIN_BOOTSTRAP_KEY")) {
-  throw new Error("Unauthorized");
-}
-
-// Verifica che non esista gia un super_admin
-const { count } = await supabaseAdmin
-  .from("user_roles")
-  .select("*", { count: "exact" })
-  .eq("role", "super_admin");
-
-if (count && count > 0) {
-  throw new Error("Super admin already exists");
-}
-
-// Accetta parametri dal body
-const { email, password } = await req.json();
+**Dopo:**
+```tsx
+<img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-12" />
 ```
 
-**Azione aggiuntiva:** Richiedere all'utente di configurare il secret `SUPER_ADMIN_BOOTSTRAP_KEY`.
+### 3. AdminLayout.tsx
+- Rimuovere import di `Building2`
+- Aggiungere import del logo
+- Sostituire nella sidebar (logo piu piccolo per adattarsi all'header h-14)
 
-### 2.2 Aggiornare config.toml
-Aggiungere configurazione per le funzioni mancanti:
-
-```toml
-[functions.create-company]
-verify_jwt = false
-
-[functions.create-super-admin]
-verify_jwt = false
+**Prima:**
+```tsx
+<Building2 className="h-6 w-6" />
+<span>EdiliziaInCloud</span>
 ```
 
----
-
-## FASE 3: Correzioni UI e UX
-
-### 3.1 Settings.tsx usa `company` invece di `effectiveCompany`
-Nel file `src/pages/azienda/Settings.tsx`, linea 9, si usa `company` invece di `effectiveCompany`. Questo impedisce al super admin di vedere/modificare le impostazioni quando impersona un'azienda.
-
-**Modifica:**
-```typescript
-// Prima
-const { company } = useAuth();
-
-// Dopo
-const { effectiveCompany } = useAuth();
-const company = effectiveCompany;
+**Dopo:**
+```tsx
+<img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
 ```
 
-### 3.2 OrderStatusConfig.tsx stesso problema
-Nel file `src/components/settings/OrderStatusConfig.tsx`, linea 28, si usa `company` invece di `effectiveCompany`.
+### 4. CompanyLayout.tsx
+- Aggiungere import del logo
+- Usare il logo come fallback quando `effectiveCompany?.logo_url` non esiste
+- Mantenere la logica esistente che mostra il logo dell'azienda se disponibile
 
-**Modifica:**
-```typescript
-// Prima
-const { company } = useAuth();
-
-// Dopo
-const { effectiveCompany } = useAuth();
-const company = effectiveCompany;
+**Prima:**
+```tsx
+<Building2 className="h-6 w-6 text-primary" />
 ```
 
-### 3.3 Gestione Errore Eliminazione Stati in UI
-Quando il trigger blocca l'eliminazione di uno stato, l'errore deve essere mostrato all'utente in modo chiaro.
-
-**Modifica in OrderStatusConfig.tsx:**
-Gestire l'errore dal database durante il salvataggio e mostrare un messaggio specifico se contiene "stato usato".
-
----
-
-## FASE 4: Miglioramenti Minori
-
-### 4.1 CustomerLayout usa `company` invece di `effectiveCompany`
-In `src/components/layouts/CustomerLayout.tsx`, il cliente vede sempre la sua company reale, quindi questo e corretto. Non richiede modifiche.
-
-### 4.2 Validazione Form Login
-Aggiungere attributo `autocomplete` ai campi password come suggerito dai log browser.
-
-**Modifica in `src/components/auth/LoginForm.tsx`:**
-```typescript
-<Input
-  id="password"
-  type="password"
-  autoComplete="current-password"
-  ...
-/>
+**Dopo:**
+```tsx
+<img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
 ```
 
----
+### 5. CustomerLayout.tsx
+- Aggiungere import del logo
+- Usare il logo come fallback quando `company?.logo_url` non esiste
 
-## Riepilogo File da Modificare
+**Prima:**
+```tsx
+<Building2 className="h-6 w-6 text-primary" />
+```
 
-| File | Azione | Priorita |
-|------|--------|----------|
-| Database (migration) | Trigger protezione eliminazione stati | Alta |
-| `supabase/functions/create-super-admin/index.ts` | Bootstrap protetto | Alta |
-| `supabase/config.toml` | Aggiungere config create-company/create-super-admin | Alta |
-| `src/pages/azienda/Settings.tsx` | Usare effectiveCompany | Media |
-| `src/components/settings/OrderStatusConfig.tsx` | Usare effectiveCompany + gestione errore | Media |
-| `src/components/auth/LoginForm.tsx` | Aggiungere autocomplete | Bassa |
-
----
-
-## Nessuna Modifica Richiesta
-
-I seguenti elementi sono gia corretti e funzionanti:
-- RLS policies su tutte le tabelle
-- AuthContext e gestione sessione
-- Sistema ticket cliente/admin
-- Reset password clienti
-- Formatters centralizzati
-- CORS headers edge functions
-- Sistema impersonation
-- Progress tracker ordini
-- Profilo cliente
-
----
-
-## Test da Eseguire Post-Implementazione
-
-1. **Login Super Admin** - Verificare accesso con `flo.andriciuc@gmail.com` / `Tekno2026!` (gia verificato funzionante)
-2. **Impersonation** - Entrare come azienda DomusGroup e verificare che Settings mostri i dati corretti
-3. **Blocco eliminazione stati** - Creare un ordine con uno stato, poi provare a eliminare quello stato
-4. **Creazione cliente** - Creare nuovo cliente e copiare password
-5. **Login cliente** - Accedere con le credenziali generate
-6. **Reset password** - Resettare password cliente e verificare nuova password
-
----
+**Dopo:**
+```tsx
+<img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
+```
 
 ## Note Tecniche
 
-### Perche le RLS non sembrano "pubbliche"
-Le policy hanno tutte `roles: {authenticated}` che significa che richiedono autenticazione. Lo scanner potrebbe rilevare falsi positivi quando analizza la struttura senza simulare richieste autenticate vs non autenticate.
+### Perche src/assets invece di public/
+- Importando come modulo ES6, il bundler ottimizza l'immagine
+- TypeScript fornisce type safety sugli import
+- Il path e risolto automaticamente in build
 
-### Edge Functions JWT
-Tutte le edge functions hanno `verify_jwt = false` perche gestiscono l'autenticazione internamente con `getUser()` o usano il service role key per operazioni privilegiate.
+### Dimensioni Logo
+- Login: `h-12` (piu grande, e il focus principale)
+- Sidebar/Header: `h-8` (piu compatto per integrarsi nell'header)
+
+## Risultato Atteso
+Il logo ufficiale di EdiliziaInCloud apparira:
+- Nella pagina di login (centrato, ben visibile)
+- Nella sidebar del pannello Super Admin
+- Nella sidebar del pannello Azienda (come fallback)
+- Nell'header del portale Cliente (come fallback)
