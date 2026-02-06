@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarIcon, Plus } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Plus, Paperclip } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
+import { OrderAttachments } from "@/components/orders/OrderAttachments";
 
 interface Customer {
   id: string;
@@ -55,6 +56,7 @@ export default function CreateOrder() {
   const [expectedDate, setExpectedDate] = useState<Date | undefined>();
   const [internalNotes, setInternalNotes] = useState("");
   const [statusId, setStatusId] = useState("");
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
 
   // Date per il cliente
   const [warehouseArrivalDate, setWarehouseArrivalDate] = useState<Date | undefined>();
@@ -209,13 +211,13 @@ export default function CreateOrder() {
 
       return order;
     },
-    onSuccess: () => {
+    onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
         title: "Ordine creato",
-        description: "L'ordine è stato creato con successo.",
+        description: "L'ordine è stato creato. Ora puoi caricare i documenti.",
       });
-      navigate("/azienda/ordini");
+      setCreatedOrderId(order.id);
     },
     onError: (error) => {
       toast({
@@ -514,22 +516,49 @@ export default function CreateOrder() {
         <OrderItemsList
           items={orderItems}
           onItemsChange={setOrderItems}
-          editable={true}
+          editable={!createdOrderId}
           showStatusControls={false}
         />
 
+        {/* Order Attachments */}
+        {createdOrderId ? (
+          <OrderAttachments orderId={createdOrderId} editable={true} />
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Paperclip className="h-5 w-5" />
+                Documenti Ordine
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-4 text-muted-foreground">
+                <p>I documenti potranno essere caricati dopo aver salvato l'ordine.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Actions */}
         <div className="flex justify-end gap-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate("/azienda/ordini")}
-          >
-            Annulla
-          </Button>
-          <Button type="submit" disabled={createOrderMutation.isPending}>
-            {createOrderMutation.isPending ? "Creazione..." : "Crea Ordine"}
-          </Button>
+          {createdOrderId ? (
+            <Button onClick={() => navigate(`/azienda/ordini/${createdOrderId}`)}>
+              Vai all'Ordine
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate("/azienda/ordini")}
+              >
+                Annulla
+              </Button>
+              <Button type="submit" disabled={createOrderMutation.isPending}>
+                {createOrderMutation.isPending ? "Creazione..." : "Crea Ordine"}
+              </Button>
+            </>
+          )}
         </div>
       </form>
 
