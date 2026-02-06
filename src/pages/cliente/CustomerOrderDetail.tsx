@@ -21,6 +21,15 @@ interface OrderItemData {
   position: number;
 }
 
+interface OrderItemAttachmentData {
+  id: string;
+  order_item_id: string;
+  file_name: string;
+  file_url: string;
+  file_type: string;
+  file_size: number;
+}
+
 export default function CustomerOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -61,6 +70,25 @@ export default function CustomerOrderDetail() {
       return data as OrderItemData[];
     },
     enabled: !!id && !!user,
+  });
+
+  // Fetch attachments for all order items
+  const { data: attachments = [] } = useQuery({
+    queryKey: ["order-item-attachments", id],
+    queryFn: async () => {
+      const itemIds = orderItems.map(item => item.id);
+      if (itemIds.length === 0) return [];
+
+      const { data, error } = await supabase
+        .from("order_item_attachments")
+        .select("*")
+        .in("order_item_id", itemIds)
+        .order("created_at");
+
+      if (error) throw error;
+      return data as OrderItemAttachmentData[];
+    },
+    enabled: orderItems.length > 0,
   });
 
   // Fetch all order statuses for this company
@@ -124,7 +152,7 @@ export default function CustomerOrderDetail() {
     changed_at: h.changed_at,
   }));
 
-  // Convert order items for the list
+  // Convert order items for the list with attachments
   const displayItems: OrderItem[] = orderItems.map(item => ({
     id: item.id,
     name: item.name,
@@ -132,6 +160,15 @@ export default function CustomerOrderDetail() {
     quantity: item.quantity,
     status: item.status as OrderItem['status'],
     position: item.position,
+    attachments: attachments
+      .filter(att => att.order_item_id === item.id)
+      .map(att => ({
+        id: att.id,
+        file_name: att.file_name,
+        file_url: att.file_url,
+        file_type: att.file_type,
+        file_size: att.file_size,
+      })),
   }));
 
   return (
