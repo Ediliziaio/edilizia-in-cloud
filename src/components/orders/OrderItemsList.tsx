@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { OrderItemAttachments, OrderItemAttachment } from "./OrderItemAttachments";
 
 export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_produzione' | 'consegnato' | 'installato';
 
@@ -30,6 +31,7 @@ export interface OrderItem {
   quantity: number;
   status: OrderItemStatus;
   position: number;
+  attachments?: OrderItemAttachment[];
 }
 
 interface OrderItemsListProps {
@@ -37,6 +39,7 @@ interface OrderItemsListProps {
   onItemsChange: (items: OrderItem[]) => void;
   editable?: boolean;
   showStatusControls?: boolean;
+  onAttachmentsRefresh?: () => void;
 }
 
 const STATUS_CONFIG: Record<OrderItemStatus, { label: string; color: string }> = {
@@ -52,6 +55,7 @@ export function OrderItemsList({
   onItemsChange,
   editable = true,
   showStatusControls = false,
+  onAttachmentsRefresh,
 }: OrderItemsListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -150,62 +154,77 @@ export function OrderItemsList({
             {items.map((item, index) => (
               <div
                 key={item.id || index}
-                className="flex items-center justify-between p-3 border rounded-lg bg-card"
+                className="p-3 border rounded-lg bg-card space-y-2"
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{item.name}</span>
-                    {item.quantity > 1 && (
-                      <span className="text-sm text-muted-foreground">(x{item.quantity})</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{item.name}</span>
+                      {item.quantity > 1 && (
+                        <span className="text-sm text-muted-foreground">(x{item.quantity})</span>
+                      )}
+                    </div>
+                    {item.description && (
+                      <p className="text-sm text-muted-foreground truncate">{item.description}</p>
                     )}
                   </div>
-                  {item.description && (
-                    <p className="text-sm text-muted-foreground truncate">{item.description}</p>
-                  )}
+
+                  <div className="flex items-center gap-2">
+                    {showStatusControls ? (
+                      <Select
+                        value={item.status}
+                        onValueChange={(value: OrderItemStatus) => handleStatusChange(index, value)}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                            <SelectItem key={status} value={status}>
+                              {config.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge className={STATUS_CONFIG[item.status].color}>
+                        {STATUS_CONFIG[item.status].label}
+                      </Badge>
+                    )}
+
+                    {editable && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(index)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteItem(index)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {showStatusControls ? (
-                    <Select
-                      value={item.status}
-                      onValueChange={(value: OrderItemStatus) => handleStatusChange(index, value)}
-                    >
-                      <SelectTrigger className="w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                          <SelectItem key={status} value={status}>
-                            {config.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className={STATUS_CONFIG[item.status].color}>
-                      {STATUS_CONFIG[item.status].label}
-                    </Badge>
-                  )}
-
-                  {editable && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEditDialog(index)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteItem(index)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </>
-                  )}
-                </div>
+                {/* Attachments section - only show if item has an id (saved to DB) */}
+                {item.id && (
+                  <div className="pt-2 border-t">
+                    <OrderItemAttachments
+                      itemId={item.id}
+                      itemName={item.name}
+                      attachments={item.attachments || []}
+                      editable={editable || showStatusControls}
+                      onAttachmentsChange={() => onAttachmentsRefresh?.()}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
