@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/formatters";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -26,19 +25,24 @@ import { it } from "date-fns/locale";
 
 export type PaymentType = 'standard' | 'financing';
 export type AmountInputMode = 'net' | 'gross';
+type PaymentStatus = 'non_pagato' | 'pagato';
 
 interface PaymentStatusProps {
   depositPaid?: boolean;
   depositPaidDate?: Date;
+  depositExpectedDate?: Date;
   deposit2Paid?: boolean;
   deposit2PaidDate?: Date;
+  deposit2ExpectedDate?: Date;
   balancePaid?: boolean;
   balancePaidDate?: Date;
   balanceExpectedDate?: Date;
   onDepositPaidChange?: (paid: boolean) => void;
   onDepositPaidDateChange?: (date?: Date) => void;
+  onDepositExpectedDateChange?: (date?: Date) => void;
   onDeposit2PaidChange?: (paid: boolean) => void;
   onDeposit2PaidDateChange?: (date?: Date) => void;
+  onDeposit2ExpectedDateChange?: (date?: Date) => void;
   onBalancePaidChange?: (paid: boolean) => void;
   onBalancePaidDateChange?: (date?: Date) => void;
   onBalanceExpectedDateChange?: (date?: Date) => void;
@@ -76,6 +80,7 @@ function DatePickerField({
     <Popover>
       <PopoverTrigger asChild>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           className={cn(
@@ -111,7 +116,6 @@ function PaymentStatusRow({
   onPaidDateChange,
   onExpectedDateChange,
   readOnly = false,
-  showExpected = false,
 }: {
   label: string;
   amount: number;
@@ -122,9 +126,20 @@ function PaymentStatusRow({
   onPaidDateChange?: (date?: Date) => void;
   onExpectedDateChange?: (date?: Date) => void;
   readOnly?: boolean;
-  showExpected?: boolean;
 }) {
   if (amount <= 0) return null;
+
+  const status: PaymentStatus = paid ? 'pagato' : 'non_pagato';
+
+  const handleStatusChange = (newStatus: PaymentStatus) => {
+    onPaidChange?.(newStatus === 'pagato');
+    // Clear dates when status changes
+    if (newStatus === 'pagato') {
+      onExpectedDateChange?.(undefined);
+    } else {
+      onPaidDateChange?.(undefined);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-2 p-3 rounded-lg bg-muted/30 border">
@@ -133,34 +148,41 @@ function PaymentStatusRow({
         <span className="font-semibold">{formatCurrency(amount)}</span>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={`${label}-paid`}
-            checked={paid || false}
-            onCheckedChange={(checked) => onPaidChange?.(!!checked)}
+        <div className="flex items-center gap-2 flex-1 min-w-[140px]">
+          <Label className="text-xs text-muted-foreground whitespace-nowrap">Stato:</Label>
+          <Select
+            value={status}
+            onValueChange={handleStatusChange}
             disabled={readOnly}
-          />
-          <label
-            htmlFor={`${label}-paid`}
-            className={cn(
-              "text-sm cursor-pointer",
-              paid ? "text-green-600 font-medium" : "text-muted-foreground"
-            )}
           >
-            {paid ? "Pagato" : "Non pagato"}
-          </label>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="non_pagato">
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3 text-amber-500" />
+                  Non Pagato
+                </span>
+              </SelectItem>
+              <SelectItem value="pagato">
+                <span className="flex items-center gap-1">
+                  <Check className="h-3 w-3 text-green-500" />
+                  Pagato
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         
-        {paid && (
+        {paid ? (
           <DatePickerField
-            label="Data pagamento"
+            label="Data incasso"
             date={paidDate}
             onDateChange={onPaidDateChange || (() => {})}
             disabled={readOnly}
           />
-        )}
-        
-        {showExpected && !paid && (
+        ) : (
           <DatePickerField
             label="Data prevista"
             date={expectedDate}
@@ -191,41 +213,106 @@ export function FinancialSummary({
   // Payment status props
   depositPaid,
   depositPaidDate,
+  depositExpectedDate,
   deposit2Paid,
   deposit2PaidDate,
+  deposit2ExpectedDate,
   balancePaid,
   balancePaidDate,
   balanceExpectedDate,
   onDepositPaidChange,
   onDepositPaidDateChange,
+  onDepositExpectedDateChange,
   onDeposit2PaidChange,
   onDeposit2PaidDateChange,
+  onDeposit2ExpectedDateChange,
   onBalancePaidChange,
   onBalancePaidDateChange,
   onBalanceExpectedDateChange,
 }: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
   
-  const vat = parseFloat(vatRate) || 22;
+  // Local state for raw input - this allows user to type freely
+  const [rawTotalInput, setRawTotalInput] = useState(totalAmount);
+  const [rawDepositInput, setRawDepositInput] = useState(depositAmount);
+  const [rawDeposit2Input, setRawDeposit2Input] = useState(deposit2Amount);
+  const [rawFinancingInput, setRawFinancingInput] = useState(financingAmount);
   
-  // Calcola importi in base alla modalità input
-  const handleAmountChange = (value: string) => {
+  const vat = parseFloat(vatRate) || 22;
+  const total = parseFloat(totalAmount) || 0;
+  const vatAmount = total * (vat / 100);
+  const totalWithVat = total + vatAmount;
+
+  // Sync local state when prop changes externally (e.g., initial load)
+  useEffect(() => {
     if (inputMode === 'gross') {
-      // L'utente inserisce l'importo IVA inclusa, calcoliamo l'imponibile
+      setRawTotalInput(totalWithVat > 0 ? totalWithVat.toFixed(2) : "");
+    } else {
+      setRawTotalInput(totalAmount);
+    }
+  }, [totalAmount, inputMode, totalWithVat]);
+
+  useEffect(() => {
+    setRawDepositInput(depositAmount);
+  }, [depositAmount]);
+
+  useEffect(() => {
+    setRawDeposit2Input(deposit2Amount);
+  }, [deposit2Amount]);
+
+  useEffect(() => {
+    setRawFinancingInput(financingAmount);
+  }, [financingAmount]);
+
+  // Handle input mode change
+  const handleInputModeChange = (mode: AmountInputMode) => {
+    setInputMode(mode);
+    if (mode === 'gross') {
+      // Convert current net to gross for display
+      setRawTotalInput(totalWithVat > 0 ? totalWithVat.toFixed(2) : "");
+    } else {
+      // Show net amount
+      setRawTotalInput(totalAmount);
+    }
+  };
+
+  // Handle total amount blur - sync with parent
+  const handleTotalBlur = () => {
+    const value = rawTotalInput;
+    if (inputMode === 'gross') {
       const grossAmount = parseFloat(value) || 0;
       const netAmount = grossAmount / (1 + vat / 100);
-      onTotalAmountChange(netAmount.toFixed(2));
+      onTotalAmountChange(netAmount > 0 ? netAmount.toFixed(2) : "");
     } else {
       onTotalAmountChange(value);
     }
   };
-  
-  const total = parseFloat(totalAmount) || 0;
-  const vatAmount = total * (vat / 100);
-  const totalWithVat = total + vatAmount;
-  
-  // Valore visualizzato nel campo input
-  const displayAmount = inputMode === 'gross' ? totalWithVat.toFixed(2) : totalAmount;
+
+  // Handle VAT rate change - recalculate display if in gross mode
+  const handleVatRateChange = (newRate: string) => {
+    onVatRateChange(newRate);
+    if (inputMode === 'gross' && rawTotalInput) {
+      // Recalculate: the net stays the same, update the gross display
+      const newVat = parseFloat(newRate) || 22;
+      const newGross = total * (1 + newVat / 100);
+      setRawTotalInput(newGross > 0 ? newGross.toFixed(2) : "");
+    }
+  };
+
+  // Handle deposit blur
+  const handleDepositBlur = () => {
+    onDepositAmountChange(rawDepositInput);
+  };
+
+  // Handle deposit 2 blur
+  const handleDeposit2Blur = () => {
+    onDeposit2AmountChange(rawDeposit2Input);
+  };
+
+  // Handle financing blur
+  const handleFinancingBlur = () => {
+    onFinancingAmountChange(rawFinancingInput);
+  };
 
   return (
     <Card>
@@ -256,7 +343,7 @@ export function FinancialSummary({
 
         {/* Amount Input Mode Toggle */}
         {!readOnly && (
-          <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as AmountInputMode)}>
+          <Tabs value={inputMode} onValueChange={(v) => handleInputModeChange(v as AmountInputMode)}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="net">Imponibile</TabsTrigger>
               <TabsTrigger value="gross">IVA Inclusa</TabsTrigger>
@@ -278,8 +365,9 @@ export function FinancialSummary({
               type="number"
               min="0"
               step="0.01"
-              value={displayAmount}
-              onChange={(e) => handleAmountChange(e.target.value)}
+              value={rawTotalInput}
+              onChange={(e) => setRawTotalInput(e.target.value)}
+              onBlur={handleTotalBlur}
               className="pl-8"
               placeholder="0.00"
               disabled={readOnly}
@@ -292,7 +380,7 @@ export function FinancialSummary({
           <Label>Aliquota IVA</Label>
           <Select
             value={vatRate}
-            onValueChange={onVatRateChange}
+            onValueChange={handleVatRateChange}
             disabled={readOnly}
           >
             <SelectTrigger>
@@ -336,8 +424,9 @@ export function FinancialSummary({
                   type="number"
                   min="0"
                   step="0.01"
-                  value={depositAmount}
-                  onChange={(e) => onDepositAmountChange(e.target.value)}
+                  value={rawDepositInput}
+                  onChange={(e) => setRawDepositInput(e.target.value)}
+                  onBlur={handleDepositBlur}
                   className="pl-8"
                   placeholder="0.00"
                   disabled={readOnly}
@@ -349,8 +438,10 @@ export function FinancialSummary({
                   amount={parseFloat(depositAmount) || 0}
                   paid={depositPaid}
                   paidDate={depositPaidDate}
+                  expectedDate={depositExpectedDate}
                   onPaidChange={onDepositPaidChange}
                   onPaidDateChange={onDepositPaidDateChange}
+                  onExpectedDateChange={onDepositExpectedDateChange}
                   readOnly={readOnly}
                 />
               )}
@@ -368,8 +459,9 @@ export function FinancialSummary({
                   type="number"
                   min="0"
                   step="0.01"
-                  value={deposit2Amount}
-                  onChange={(e) => onDeposit2AmountChange(e.target.value)}
+                  value={rawDeposit2Input}
+                  onChange={(e) => setRawDeposit2Input(e.target.value)}
+                  onBlur={handleDeposit2Blur}
                   className="pl-8"
                   placeholder="0.00"
                   disabled={readOnly}
@@ -381,8 +473,10 @@ export function FinancialSummary({
                   amount={parseFloat(deposit2Amount) || 0}
                   paid={deposit2Paid}
                   paidDate={deposit2PaidDate}
+                  expectedDate={deposit2ExpectedDate}
                   onPaidChange={onDeposit2PaidChange}
                   onPaidDateChange={onDeposit2PaidDateChange}
+                  onExpectedDateChange={onDeposit2ExpectedDateChange}
                   readOnly={readOnly}
                 />
               )}
@@ -405,7 +499,6 @@ export function FinancialSummary({
                   onPaidDateChange={onBalancePaidDateChange}
                   onExpectedDateChange={onBalanceExpectedDateChange}
                   readOnly={readOnly}
-                  showExpected={true}
                 />
               )}
             </div>
@@ -424,8 +517,9 @@ export function FinancialSummary({
                   type="number"
                   min="0"
                   step="0.01"
-                  value={depositAmount}
-                  onChange={(e) => onDepositAmountChange(e.target.value)}
+                  value={rawDepositInput}
+                  onChange={(e) => setRawDepositInput(e.target.value)}
+                  onBlur={handleDepositBlur}
                   className="pl-8"
                   placeholder="0.00"
                   disabled={readOnly}
@@ -437,8 +531,10 @@ export function FinancialSummary({
                   amount={parseFloat(depositAmount) || 0}
                   paid={depositPaid}
                   paidDate={depositPaidDate}
+                  expectedDate={depositExpectedDate}
                   onPaidChange={onDepositPaidChange}
                   onPaidDateChange={onDepositPaidDateChange}
+                  onExpectedDateChange={onDepositExpectedDateChange}
                   readOnly={readOnly}
                 />
               )}
@@ -456,8 +552,9 @@ export function FinancialSummary({
                   type="number"
                   min="0"
                   step="0.01"
-                  value={financingAmount}
-                  onChange={(e) => onFinancingAmountChange(e.target.value)}
+                  value={rawFinancingInput}
+                  onChange={(e) => setRawFinancingInput(e.target.value)}
+                  onBlur={handleFinancingBlur}
                   className="pl-8"
                   placeholder="0.00"
                   disabled={readOnly}
@@ -494,8 +591,10 @@ interface FinancialSummaryReadOnlyProps {
   // Payment status
   depositPaid?: boolean;
   depositPaidDate?: string | null;
+  depositExpectedDate?: string | null;
   deposit2Paid?: boolean;
   deposit2PaidDate?: string | null;
+  deposit2ExpectedDate?: string | null;
   balancePaid?: boolean;
   balancePaidDate?: string | null;
   balanceExpectedDate?: string | null;
@@ -511,8 +610,10 @@ export function FinancialSummaryReadOnly({
   vatRate = 22,
   depositPaid,
   depositPaidDate,
+  depositExpectedDate,
   deposit2Paid,
   deposit2PaidDate,
+  deposit2ExpectedDate,
   balancePaid,
   balancePaidDate,
   balanceExpectedDate,
@@ -566,7 +667,7 @@ export function FinancialSummaryReadOnly({
                     ) : (
                       <span className="flex items-center gap-1 text-amber-600">
                         <Clock className="h-3 w-3" />
-                        In attesa
+                        In attesa {depositExpectedDate && `- Previsto ${formatPaymentDate(depositExpectedDate)}`}
                       </span>
                     )}
                   </div>
@@ -589,7 +690,7 @@ export function FinancialSummaryReadOnly({
                     ) : (
                       <span className="flex items-center gap-1 text-amber-600">
                         <Clock className="h-3 w-3" />
-                        In attesa
+                        In attesa {deposit2ExpectedDate && `- Previsto ${formatPaymentDate(deposit2ExpectedDate)}`}
                       </span>
                     )}
                   </div>
@@ -636,7 +737,7 @@ export function FinancialSummaryReadOnly({
                     ) : (
                       <span className="flex items-center gap-1 text-amber-600">
                         <Clock className="h-3 w-3" />
-                        In attesa
+                        In attesa {depositExpectedDate && `- Previsto ${formatPaymentDate(depositExpectedDate)}`}
                       </span>
                     )}
                   </div>

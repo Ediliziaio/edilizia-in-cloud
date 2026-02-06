@@ -70,8 +70,10 @@ export default function CreateOrder() {
   // Payment status state
   const [depositPaid, setDepositPaid] = useState(false);
   const [depositPaidDate, setDepositPaidDate] = useState<Date | undefined>();
+  const [depositExpectedDate, setDepositExpectedDate] = useState<Date | undefined>();
   const [deposit2Paid, setDeposit2Paid] = useState(false);
   const [deposit2PaidDate, setDeposit2PaidDate] = useState<Date | undefined>();
+  const [deposit2ExpectedDate, setDeposit2ExpectedDate] = useState<Date | undefined>();
   const [balancePaid, setBalancePaid] = useState(false);
   const [balancePaidDate, setBalancePaidDate] = useState<Date | undefined>();
   const [balanceExpectedDate, setBalanceExpectedDate] = useState<Date | undefined>();
@@ -163,6 +165,8 @@ export default function CreateOrder() {
           balance_paid: balancePaid,
           balance_paid_date: balancePaidDate?.toISOString().split("T")[0] || null,
           balance_expected_date: balanceExpectedDate?.toISOString().split("T")[0] || null,
+          deposit_expected_date: depositExpectedDate?.toISOString().split("T")[0] || null,
+          deposit_2_expected_date: deposit2ExpectedDate?.toISOString().split("T")[0] || null,
         })
         .select()
         .single();
@@ -367,15 +371,19 @@ export default function CreateOrder() {
             balance={balance}
             depositPaid={depositPaid}
             depositPaidDate={depositPaidDate}
+            depositExpectedDate={depositExpectedDate}
             deposit2Paid={deposit2Paid}
             deposit2PaidDate={deposit2PaidDate}
+            deposit2ExpectedDate={deposit2ExpectedDate}
             balancePaid={balancePaid}
             balancePaidDate={balancePaidDate}
             balanceExpectedDate={balanceExpectedDate}
             onDepositPaidChange={setDepositPaid}
             onDepositPaidDateChange={setDepositPaidDate}
+            onDepositExpectedDateChange={setDepositExpectedDate}
             onDeposit2PaidChange={setDeposit2Paid}
             onDeposit2PaidDateChange={setDeposit2PaidDate}
+            onDeposit2ExpectedDateChange={setDeposit2ExpectedDate}
             onBalancePaidChange={setBalancePaid}
             onBalancePaidDateChange={setBalancePaidDate}
             onBalanceExpectedDateChange={setBalanceExpectedDate}

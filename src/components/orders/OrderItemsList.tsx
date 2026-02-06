@@ -197,7 +197,7 @@ export function OrderItemsList({
           Articoli dell'Ordine
         </CardTitle>
         {editable && (
-          <Button size="sm" onClick={openAddDialog}>
+          <Button type="button" size="sm" onClick={openAddDialog}>
             <Plus className="h-4 w-4 mr-2" />
             Aggiungi
           </Button>
