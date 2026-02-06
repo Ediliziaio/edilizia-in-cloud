@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { Building2, Settings as SettingsIcon, ListOrdered } from "lucide-react";
+import { Building2, ListOrdered } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { OrderStatusConfig } from "@/components/settings/OrderStatusConfig";
+import { LogoUploader } from "@/components/settings/LogoUploader";
 
 export default function Settings() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, refreshAuth } = useAuth();
   const company = effectiveCompany;
   const [activeTab, setActiveTab] = useState("stati-ordine");
 
@@ -39,32 +41,36 @@ export default function Settings() {
                 Profilo Azienda
               </CardTitle>
               <CardDescription>
-                Modifica le informazioni della tua azienda
+                Gestisci le informazioni della tua azienda
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  {company?.logo_url ? (
-                    <img
-                      src={company.logo_url}
-                      alt={company.name}
-                      className="h-16 w-16 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="h-16 w-16 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Building2 className="h-8 w-8 text-primary" />
-                    </div>
-                  )}
-                  <div>
-                    <h3 className="font-semibold text-lg">{company?.name}</h3>
-                    <p className="text-muted-foreground">{company?.email}</p>
+            <CardContent className="space-y-6">
+              {/* Company Info */}
+              <div className="flex items-center gap-4">
+                {company?.logo_url ? (
+                  <img
+                    src={company.logo_url}
+                    alt={company.name}
+                    className="h-16 w-16 rounded-lg object-contain border"
+                  />
+                ) : (
+                  <div className="h-16 w-16 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Building2 className="h-8 w-8 text-primary" />
                   </div>
+                )}
+                <div>
+                  <h3 className="font-semibold text-lg">{company?.name}</h3>
+                  <p className="text-muted-foreground">{company?.email}</p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  La modifica del profilo azienda sarà disponibile a breve
-                </p>
               </div>
+
+              <Separator />
+
+              {/* Logo Uploader */}
+              <LogoUploader 
+                company={company} 
+                onLogoUpdated={refreshAuth} 
+              />
             </CardContent>
           </Card>
         </TabsContent>
