@@ -1,7 +1,6 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
-  Building2, 
   LayoutDashboard, 
   ClipboardList, 
   Users, 
@@ -12,6 +11,7 @@ import {
   AlertTriangle,
   ArrowLeft
 } from "lucide-react";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -93,7 +93,7 @@ function CompanySidebar() {
               </AvatarFallback>
             </Avatar>
           ) : (
-            <Building2 className="h-6 w-6 text-primary" />
+            <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
           )}
           <span className="font-semibold text-foreground truncate max-w-[160px]">
             {effectiveCompany?.name || "La tua azienda"}
