@@ -1,0 +1,100 @@
+import { Link, useLocation, Outlet } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { 
+  Building2, 
+  LayoutDashboard, 
+  Building, 
+  LogOut,
+  Menu
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { NavLink } from "@/components/NavLink";
+import { cn } from "@/lib/utils";
+
+const navItems = [
+  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
+  { title: "Aziende", url: "/admin/aziende", icon: Building },
+];
+
+function AdminSidebar() {
+  const location = useLocation();
+  const { signOut } = useAuth();
+  
+  return (
+    <Sidebar className="border-r">
+      <div className="flex h-14 items-center border-b px-4">
+        <Link to="/admin" className="flex items-center gap-2 text-primary font-semibold">
+          <Building2 className="h-6 w-6" />
+          <span>EdiliziaInCloud</span>
+        </Link>
+      </div>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Navigazione</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink 
+                      to={item.url} 
+                      end={item.url === "/admin"}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      activeClassName="bg-muted text-foreground font-medium"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        
+        <div className="mt-auto p-4">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+            onClick={() => signOut()}
+          >
+            <LogOut className="h-4 w-4" />
+            Esci
+          </Button>
+        </div>
+      </SidebarContent>
+    </Sidebar>
+  );
+}
+
+export function AdminLayout() {
+  return (
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full">
+        <AdminSidebar />
+        <div className="flex-1 flex flex-col">
+          <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
+            <SidebarTrigger />
+            <span className="text-sm text-muted-foreground">Super Admin</span>
+          </header>
+          <main className="flex-1 p-6 bg-muted/30">
+            <Outlet />
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+}
