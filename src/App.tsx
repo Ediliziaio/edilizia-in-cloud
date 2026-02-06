@@ -37,6 +37,7 @@ import CustomerOrderDetail from "@/pages/cliente/CustomerOrderDetail";
 import CustomerSupport from "@/pages/cliente/CustomerSupport";
 import CreateTicket from "@/pages/cliente/CreateTicket";
 import CustomerTicketDetail from "@/pages/cliente/CustomerTicketDetail";
+import CustomerProfile from "@/pages/cliente/CustomerProfile";
 
 // Company Ticket Pages
 import TicketsList from "@/pages/azienda/TicketsList";
@@ -108,7 +109,7 @@ const App = () => (
               <Route path="assistenza" element={<CustomerSupport />} />
               <Route path="assistenza/nuovo" element={<CreateTicket />} />
               <Route path="assistenza/:id" element={<CustomerTicketDetail />} />
-              <Route path="profilo" element={<div className="text-muted-foreground">Profilo - Coming soon</div>} />
+              <Route path="profilo" element={<CustomerProfile />} />
             </Route>
 
             {/* Catch-all */}
