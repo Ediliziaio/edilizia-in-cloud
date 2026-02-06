@@ -262,9 +262,11 @@ export type Database = {
           current_status_id: string | null
           customer_id: string
           deposit_2_amount: number | null
+          deposit_2_expected_date: string | null
           deposit_2_paid: boolean | null
           deposit_2_paid_date: string | null
           deposit_amount: number
+          deposit_expected_date: string | null
           deposit_paid: boolean | null
           deposit_paid_date: string | null
           description: string
@@ -290,9 +292,11 @@ export type Database = {
           current_status_id?: string | null
           customer_id: string
           deposit_2_amount?: number | null
+          deposit_2_expected_date?: string | null
           deposit_2_paid?: boolean | null
           deposit_2_paid_date?: string | null
           deposit_amount?: number
+          deposit_expected_date?: string | null
           deposit_paid?: boolean | null
           deposit_paid_date?: string | null
           description: string
@@ -318,9 +322,11 @@ export type Database = {
           current_status_id?: string | null
           customer_id?: string
           deposit_2_amount?: number | null
+          deposit_2_expected_date?: string | null
           deposit_2_paid?: boolean | null
           deposit_2_paid_date?: string | null
           deposit_amount?: number
+          deposit_expected_date?: string | null
           deposit_paid?: boolean | null
           deposit_paid_date?: string | null
           description?: string

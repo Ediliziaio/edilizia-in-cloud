@@ -54,8 +54,10 @@ interface OrderData {
   work_end_date: string | null;
   deposit_paid: boolean;
   deposit_paid_date: string | null;
+  deposit_expected_date: string | null;
   deposit_2_paid: boolean;
   deposit_2_paid_date: string | null;
+  deposit_2_expected_date: string | null;
   balance_paid: boolean;
   balance_paid_date: string | null;
   balance_expected_date: string | null;
@@ -100,8 +102,10 @@ export default function EditOrder() {
   // Payment status state
   const [depositPaid, setDepositPaid] = useState(false);
   const [depositPaidDate, setDepositPaidDate] = useState<Date | undefined>();
+  const [depositExpectedDate, setDepositExpectedDate] = useState<Date | undefined>();
   const [deposit2Paid, setDeposit2Paid] = useState(false);
   const [deposit2PaidDate, setDeposit2PaidDate] = useState<Date | undefined>();
+  const [deposit2ExpectedDate, setDeposit2ExpectedDate] = useState<Date | undefined>();
   const [balancePaid, setBalancePaid] = useState(false);
   const [balancePaidDate, setBalancePaidDate] = useState<Date | undefined>();
   const [balanceExpectedDate, setBalanceExpectedDate] = useState<Date | undefined>();
@@ -164,15 +168,20 @@ export default function EditOrder() {
       setPaymentType((order.payment_type as PaymentType) || 'standard');
       setInternalNotes(order.internal_notes || "");
       setVatRate((order.vat_rate || 22).toString());
-      // Payment status
       setDepositPaid(order.deposit_paid || false);
       setDeposit2Paid(order.deposit_2_paid || false);
       setBalancePaid(order.balance_paid || false);
       if (order.deposit_paid_date) {
         setDepositPaidDate(new Date(order.deposit_paid_date));
       }
+      if (order.deposit_expected_date) {
+        setDepositExpectedDate(new Date(order.deposit_expected_date));
+      }
       if (order.deposit_2_paid_date) {
         setDeposit2PaidDate(new Date(order.deposit_2_paid_date));
+      }
+      if (order.deposit_2_expected_date) {
+        setDeposit2ExpectedDate(new Date(order.deposit_2_expected_date));
       }
       if (order.balance_paid_date) {
         setBalancePaidDate(new Date(order.balance_paid_date));
@@ -258,6 +267,8 @@ export default function EditOrder() {
           balance_paid: balancePaid,
           balance_paid_date: balancePaidDate?.toISOString().split("T")[0] || null,
           balance_expected_date: balanceExpectedDate?.toISOString().split("T")[0] || null,
+          deposit_expected_date: depositExpectedDate?.toISOString().split("T")[0] || null,
+          deposit_2_expected_date: deposit2ExpectedDate?.toISOString().split("T")[0] || null,
         })
         .eq("id", id!);
 
@@ -459,15 +470,19 @@ export default function EditOrder() {
             balance={balance}
             depositPaid={depositPaid}
             depositPaidDate={depositPaidDate}
+            depositExpectedDate={depositExpectedDate}
             deposit2Paid={deposit2Paid}
             deposit2PaidDate={deposit2PaidDate}
+            deposit2ExpectedDate={deposit2ExpectedDate}
             balancePaid={balancePaid}
             balancePaidDate={balancePaidDate}
             balanceExpectedDate={balanceExpectedDate}
             onDepositPaidChange={setDepositPaid}
             onDepositPaidDateChange={setDepositPaidDate}
+            onDepositExpectedDateChange={setDepositExpectedDate}
             onDeposit2PaidChange={setDeposit2Paid}
             onDeposit2PaidDateChange={setDeposit2PaidDate}
+            onDeposit2ExpectedDateChange={setDeposit2ExpectedDate}
             onBalancePaidChange={setBalancePaid}
             onBalancePaidDateChange={setBalancePaidDate}
             onBalanceExpectedDateChange={setBalanceExpectedDate}
