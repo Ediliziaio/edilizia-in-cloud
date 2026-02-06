@@ -1,210 +1,182 @@
 
-# Piano di Implementazione - Sistema Ticket Assistenza e Ottimizzazione UX
+# Piano di Implementazione - Pagina Profilo Cliente e Test Sistema Ticket
 
 ## Panoramica
 
-Questo piano copre tre aree principali:
-1. Test portale cliente (login e visualizzazione ordini)
-2. Sistema ticket assistenza per clienti
-3. Pulizia e ottimizzazione codice/UX
+Questo piano copre due aree:
+1. Implementazione della pagina Profilo Cliente con modifica dati personali
+2. Test end-to-end del sistema ticket (creazione come cliente, risposta come admin)
 
 ---
 
-## 1. Stato Attuale Analizzato
+## 1. Pagina Profilo Cliente
 
-### Database
-- Le tabelle `tickets` e `ticket_messages` esistono gia con RLS policies corrette
-- Enum `ticket_status`: `aperto`, `in_lavorazione`, `risolto`
-- Campo `order_id` nullable per collegare ticket a ordini specifici
+### File: `src/pages/cliente/CustomerProfile.tsx`
 
-### Routing Esistente
-- `/cliente/assistenza` mostra solo placeholder "Coming soon"
-- `/azienda/assistenza` mostra solo placeholder "Coming soon"
-- Il portale cliente ha gia `CustomerOrders.tsx` e `CustomerOrderDetail.tsx` funzionanti
+Creeremo una pagina dedicata alla gestione del profilo personale del cliente con:
 
-### Problemi Identificati
-1. **Codice duplicato**: `formatCurrency()` e `formatDate()` sono ripetuti in molti file
-2. **Query inefficienti**: In `CustomersList.tsx` ci sono 3 query separate che potrebbero essere ottimizzate
-3. **Import inutilizzati**: `CardDescription` importato ma non usato in `CustomerOrders.tsx`
-4. **Placeholder routes**: Pagine "Coming soon" per assistenza e profilo
-5. **UX inconsistente**: Lo stile delle date varia tra componenti
+**Layout:**
+- Header con titolo "Il Mio Profilo"
+- Card con form di modifica dati
+- Indicatore di caricamento/salvataggio
+- Feedback toast per conferma modifiche
 
----
+**Campi Modificabili:**
+- Nome (obbligatorio)
+- Cognome (obbligatorio)  
+- Telefono (opzionale)
+- Indirizzo (opzionale)
 
-## 2. Struttura File da Creare
+**Campi in Sola Lettura:**
+- Email (visualizzata ma non modificabile, legata all'autenticazione)
 
-### Pagine Cliente
-```
-src/pages/cliente/CustomerSupport.tsx          - Lista ticket del cliente
-src/pages/cliente/CustomerTicketDetail.tsx     - Dettaglio singolo ticket con chat
-src/pages/cliente/CreateTicket.tsx             - Form creazione nuovo ticket
-```
+### Struttura UI
 
-### Pagine Azienda
-```
-src/pages/azienda/TicketsList.tsx              - Lista tutti i ticket per admin
-src/pages/azienda/TicketDetail.tsx             - Gestione ticket con risposta
-```
-
-### Utility condivise
-```
-src/lib/formatters.ts                          - Funzioni di formattazione riutilizzabili
-```
-
----
-
-## 3. Sistema Ticket Cliente
-
-### CustomerSupport.tsx
-Lista ticket del cliente con:
-- Titolo sezione e pulsante "Nuovo Ticket"
-- Card per ogni ticket con: oggetto, stato (badge colorato), ordine collegato, data
-- Empty state quando non ci sono ticket
-- Filtro per stato (tutti, aperti, risolti)
-
-### CreateTicket.tsx
-Form creazione ticket:
-- Dropdown ordine (opzionale, per collegare ad ordine esistente)
-- Campo oggetto (obbligatorio)
-- Campo messaggio iniziale (textarea)
-- Invio crea ticket + primo messaggio
-
-### CustomerTicketDetail.tsx
-Visualizzazione dettaglio con:
-- Header con oggetto e stato
-- Link all'ordine collegato (se presente)
-- Timeline messaggi stile chat
-- Form per rispondere (textarea + invio)
-
----
-
-## 4. Sistema Ticket Admin Azienda
-
-### TicketsList.tsx
-Lista ticket per admin:
-- Tabella con colonne: Cliente, Oggetto, Ordine, Stato, Data
-- Filtri per stato e ricerca
-- Badge colorati per stato
-- Click per aprire dettaglio
-
-### TicketDetail.tsx
-Gestione ticket:
-- Header con info cliente e ordine collegato
-- Dropdown per cambiare stato
-- Timeline messaggi
-- Form risposta
-
----
-
-## 5. Ottimizzazioni Codice
-
-### Nuovo file: src/lib/formatters.ts
-Centralizza funzioni ripetute:
-- `formatCurrency(amount: number)`: Formatta importo in EUR
-- `formatDate(date: string)`: Formato breve (d MMM yyyy)
-- `formatDateTime(date: string)`: Con ora (d MMM yyyy, HH:mm)
-
-### File da aggiornare per usare formatters:
-- `src/pages/azienda/OrdersList.tsx`
-- `src/pages/azienda/OrderDetail.tsx`
-- `src/pages/azienda/CreateOrder.tsx`
-- `src/pages/azienda/EditOrder.tsx`
-- `src/pages/cliente/CustomerOrders.tsx`
-- `src/pages/cliente/CustomerOrderDetail.tsx`
-
-### Cleanup CustomerOrders.tsx
-- Rimuovere import inutilizzato `CardDescription`
-
-### Ottimizzazione CustomersList.tsx
-- Unificare query con una singola chiamata che fa il join appropriato
-
----
-
-## 6. Miglioramenti UX
-
-### Customer Portal
-- Aggiungere icona badge su ordine se ha ticket aperti
-- Pulsante "Richiedi Assistenza" nel dettaglio ordine
-- Notifica visiva per nuovi messaggi
-
-### Ticket UI
-- Stati con colori semantici:
-  - `aperto`: Blu (primary)
-  - `in_lavorazione`: Giallo (warning)
-  - `risolto`: Verde (success)
-- Messaggi con bubble chat differenziate per mittente
-- Timestamp relativi ("2 ore fa") per messaggi recenti
-
-### Responsive Design
-- Layout mobile-first per pagine cliente
-- Sidebar collassabile su mobile per admin
-
----
-
-## 7. File da Modificare
-
-### Routing (src/App.tsx)
-Sostituire placeholder con nuove pagine:
-- `/cliente/assistenza` -> CustomerSupport
-- `/cliente/assistenza/nuovo` -> CreateTicket
-- `/cliente/assistenza/:id` -> CustomerTicketDetail
-- `/azienda/assistenza` -> TicketsList
-- `/azienda/assistenza/:id` -> TicketDetail
-
-### CustomerOrderDetail.tsx
-Aggiungere pulsante "Richiedi Assistenza" che naviga a CreateTicket preselezionando l'ordine
-
----
-
-## 8. Query Database per Ticket
-
-### Lista ticket cliente
-```sql
-SELECT t.*, 
-       o.description as order_description
-FROM tickets t
-LEFT JOIN orders o ON t.order_id = o.id
-WHERE t.customer_id = auth.uid()
-ORDER BY t.updated_at DESC
-```
-
-### Messaggi ticket
-```sql
-SELECT tm.*, 
-       p.first_name, p.last_name
-FROM ticket_messages tm
-LEFT JOIN profiles p ON tm.sender_id = p.id
-WHERE tm.ticket_id = [ticket_id]
-ORDER BY tm.created_at ASC
+```text
++----------------------------------+
+| Il Mio Profilo                   |
++----------------------------------+
+| Informazioni Personali           |
+|                                  |
+| Email (solo lettura)             |
+| [mario.rossi@example.com]        |
+|                                  |
+| Nome *          | Cognome *      |
+| [Mario       ]  | [Rossi      ] |
+|                                  |
+| Telefono                         |
+| [333-1234567               ]     |
+|                                  |
+| Indirizzo                        |
+| [Via Roma 123, Milano      ]     |
+|                                  |
+|           [Salva Modifiche]      |
++----------------------------------+
 ```
 
 ---
 
-## 9. Componenti Riutilizzati
+## 2. Funzionalita Tecnica
 
-- `Card`, `Badge`, `Button`, `Input`, `Textarea` (shadcn)
-- `OrderProgressTracker` (esistente, read-only per cliente)
-- `CustomerLayout` / `CompanyLayout` (esistenti)
+### Sicurezza
+La RLS policy esistente permette agli utenti di:
+- Leggere il proprio profilo: `(id = auth.uid())`
+- Aggiornare il proprio profilo: `(id = auth.uid())`
+
+Quindi il cliente puo modificare solo i propri dati.
+
+### Validazione Form
+- Nome e Cognome sono obbligatori
+- Telefono e Indirizzo sono opzionali
+- Lunghezza massima per evitare abusi
+
+### Integrazione con AuthContext
+Dopo il salvataggio, verra chiamato `refreshAuth()` per aggiornare i dati del profilo nel contesto, in modo che il nome visualizzato nell'header sia sempre sincronizzato.
 
 ---
 
-## 10. Sicurezza
+## 3. File da Creare
 
-Le RLS policies esistenti sono gia corrette:
-- Clienti possono creare/vedere solo i propri ticket
-- Admin azienda possono gestire tutti i ticket della loro azienda
-- Super admin accede a tutto
+```text
+src/pages/cliente/CustomerProfile.tsx  - Pagina profilo cliente
+```
 
 ---
 
-## Flusso di Test Previsto
+## 4. File da Modificare
 
-1. Login come cliente
-2. Visualizzare lista ordini (vuota o con ordini)
-3. Andare a /cliente/assistenza
-4. Creare nuovo ticket (collegato o meno a ordine)
-5. Inviare messaggi nel ticket
-6. Login come admin azienda
-7. Visualizzare ticket nella lista
-8. Rispondere al ticket e cambiare stato
-9. Verificare che il cliente veda la risposta
+```text
+src/App.tsx - Sostituire il placeholder alla linea 111 con CustomerProfile
+```
+
+La route `/cliente/profilo` attualmente mostra un placeholder e verra collegata alla nuova pagina.
+
+---
+
+## 5. Componenti Utilizzati
+
+- `Card`, `CardHeader`, `CardTitle`, `CardContent` (shadcn)
+- `Input`, `Label`, `Button` (shadcn)
+- `useAuth` per accedere al profilo e refreshAuth
+- `useMutation` per gestire l'aggiornamento
+- `useToast` per feedback utente
+
+---
+
+## 6. Query Database
+
+### Aggiornamento Profilo
+```typescript
+const { error } = await supabase
+  .from("profiles")
+  .update({
+    first_name: firstName.trim(),
+    last_name: lastName.trim(),
+    phone: phone.trim() || null,
+    address: address.trim() || null,
+    updated_at: new Date().toISOString(),
+  })
+  .eq("id", user.id);
+```
+
+---
+
+## 7. Flusso di Test Previsto
+
+Dopo l'implementazione, eseguiro i seguenti test:
+
+### Test 1: Login Cliente e Verifica Profilo
+1. Effettuare login come mario.rossi@example.com
+2. Navigare a /cliente/profilo
+3. Verificare che i dati siano precompilati
+4. Modificare il telefono
+5. Salvare e verificare toast di conferma
+
+### Test 2: Creazione Ticket Cliente
+1. Navigare a /cliente/assistenza
+2. Cliccare "Nuovo Ticket"
+3. Compilare oggetto e messaggio
+4. Inviare il ticket
+5. Verificare che appaia nella lista
+
+### Test 3: Risposta Admin al Ticket
+1. Logout dal cliente
+2. Login come admin azienda
+3. Navigare a /azienda/assistenza
+4. Aprire il ticket creato
+5. Inviare una risposta
+6. Cambiare stato a "In Lavorazione"
+
+### Test 4: Verifica Risposta lato Cliente
+1. Logout dall'admin
+2. Login come cliente
+3. Verificare che il ticket mostri la risposta
+4. Verificare che lo stato sia aggiornato
+
+---
+
+## 8. Responsive Design
+
+La pagina sara ottimizzata per mobile:
+- Layout a singola colonna
+- Campi a larghezza piena su schermi piccoli
+- Pulsante salva prominente e touch-friendly
+
+---
+
+## Dettagli Tecnici
+
+### Gestione Stato Form
+Utilizzeremo `useState` per ogni campo con valori iniziali dal profilo:
+```typescript
+const { profile, refreshAuth } = useAuth();
+const [firstName, setFirstName] = useState(profile?.first_name || "");
+const [lastName, setLastName] = useState(profile?.last_name || "");
+const [phone, setPhone] = useState(profile?.phone || "");
+const [address, setAddress] = useState(profile?.address || "");
+```
+
+### Gestione Errori
+- Validazione client-side prima dell'invio
+- Toast di errore in caso di fallimento
+- Disabilitazione pulsante durante il salvataggio
