@@ -24,6 +24,9 @@ import CreateCompany from "@/pages/admin/CreateCompany";
 // Company Pages  
 import CompanyDashboard from "@/pages/azienda/CompanyDashboard";
 import Settings from "@/pages/azienda/Settings";
+import OrdersList from "@/pages/azienda/OrdersList";
+import CreateOrder from "@/pages/azienda/CreateOrder";
+import OrderDetail from "@/pages/azienda/OrderDetail";
 
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
@@ -68,8 +71,9 @@ const App = () => (
               }
             >
               <Route index element={<CompanyDashboard />} />
-              <Route path="ordini" element={<div className="text-muted-foreground">Lista Ordini - Coming soon</div>} />
-              <Route path="ordini/nuovo" element={<div className="text-muted-foreground">Nuovo Ordine - Coming soon</div>} />
+              <Route path="ordini" element={<OrdersList />} />
+              <Route path="ordini/nuovo" element={<CreateOrder />} />
+              <Route path="ordini/:id" element={<OrderDetail />} />
               <Route path="clienti" element={<div className="text-muted-foreground">Lista Clienti - Coming soon</div>} />
               <Route path="clienti/nuovo" element={<div className="text-muted-foreground">Nuovo Cliente - Coming soon</div>} />
               <Route path="assistenza" element={<div className="text-muted-foreground">Assistenza - Coming soon</div>} />

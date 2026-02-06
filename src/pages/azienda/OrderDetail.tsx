@@ -1,0 +1,565 @@
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, User, Calendar, Euro, FileText, Clock, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
+import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
+
+interface OrderDetail {
+  id: string;
+  description: string;
+  total_amount: number;
+  deposit_amount: number;
+  balance_amount: number;
+  expected_date: string | null;
+  created_at: string;
+  updated_at: string;
+  current_status_id: string | null;
+  internal_notes: string | null;
+  customer: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string | null;
+    address: string | null;
+  } | null;
+}
+
+interface StatusHistoryEntry {
+  id: string;
+  status_id: string;
+  changed_at: string;
+  changed_by: string;
+  status: {
+    name: string;
+    color: string;
+  };
+}
+
+export default function OrderDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [editedNotes, setEditedNotes] = useState("");
+  const [statusChangeDialog, setStatusChangeDialog] = useState<{
+    open: boolean;
+    targetStatusId: string | null;
+    targetStatusName: string;
+  }>({ open: false, targetStatusId: null, targetStatusName: "" });
+
+  // Fetch order details
+  const { data: order, isLoading: orderLoading } = useQuery({
+    queryKey: ["order", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          *,
+          customer:profiles!orders_customer_id_fkey(id, first_name, last_name, email, phone, address)
+        `)
+        .eq("id", id!)
+        .single();
+
+      if (error) throw error;
+      return data as OrderDetail;
+    },
+    enabled: !!id && !!user,
+  });
+
+  // Fetch order statuses
+  const { data: statuses = [] } = useQuery({
+    queryKey: ["order-statuses", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_statuses")
+        .select("id, name, icon, color, position")
+        .order("position");
+
+      if (error) throw error;
+      return data as OrderStatus[];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch status history
+  const { data: statusHistory = [] } = useQuery({
+    queryKey: ["order-status-history", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_status_history")
+        .select(`
+          id,
+          status_id,
+          changed_at,
+          changed_by,
+          status:order_statuses(name, color)
+        `)
+        .eq("order_id", id!)
+        .order("changed_at", { ascending: false });
+
+      if (error) throw error;
+      return data as StatusHistoryEntry[];
+    },
+    enabled: !!id && !!user,
+  });
+
+  // Update status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async (newStatusId: string) => {
+      // Update order status
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({ current_status_id: newStatusId })
+        .eq("id", id!);
+
+      if (updateError) throw updateError;
+
+      // Add history entry
+      const { error: historyError } = await supabase
+        .from("order_status_history")
+        .insert({
+          order_id: id!,
+          status_id: newStatusId,
+          changed_by: user!.id,
+        });
+
+      if (historyError) throw historyError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order", id] });
+      queryClient.invalidateQueries({ queryKey: ["order-status-history", id] });
+      toast({
+        title: "Stato aggiornato",
+        description: "Lo stato dell'ordine è stato aggiornato.",
+      });
+      setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Errore",
+        description: "Si è verificato un errore durante l'aggiornamento dello stato.",
+        variant: "destructive",
+      });
+      console.error("Update status error:", error);
+    },
+  });
+
+  // Update notes mutation
+  const updateNotesMutation = useMutation({
+    mutationFn: async (notes: string) => {
+      const { error } = await supabase
+        .from("orders")
+        .update({ internal_notes: notes || null })
+        .eq("id", id!);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order", id] });
+      toast({
+        title: "Note salvate",
+        description: "Le note interne sono state aggiornate.",
+      });
+      setIsEditingNotes(false);
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Si è verificato un errore durante il salvataggio delle note.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete order mutation
+  const deleteOrderMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", id!);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast({
+        title: "Ordine eliminato",
+        description: "L'ordine è stato eliminato con successo.",
+      });
+      navigate("/azienda/ordini");
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Si è verificato un errore durante l'eliminazione dell'ordine.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStatusChange = (statusId: string) => {
+    if (statusId === order?.current_status_id) return;
+    
+    const targetStatus = statuses.find((s) => s.id === statusId);
+    setStatusChangeDialog({
+      open: true,
+      targetStatusId: statusId,
+      targetStatusName: targetStatus?.name || "",
+    });
+  };
+
+  const confirmStatusChange = () => {
+    if (statusChangeDialog.targetStatusId) {
+      updateStatusMutation.mutate(statusChangeDialog.targetStatusId);
+    }
+  };
+
+  const handleEditNotes = () => {
+    setEditedNotes(order?.internal_notes || "");
+    setIsEditingNotes(true);
+  };
+
+  const handleSaveNotes = () => {
+    updateNotesMutation.mutate(editedNotes);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return format(new Date(dateString), "d MMMM yyyy", { locale: it });
+  };
+
+  const formatDateTime = (dateString: string) => {
+    return format(new Date(dateString), "d MMM yyyy, HH:mm", { locale: it });
+  };
+
+  // Convert status history for progress tracker
+  const progressHistory: StatusHistoryItem[] = statusHistory.map((h) => ({
+    status_id: h.status_id,
+    changed_at: h.changed_at,
+  }));
+
+  if (orderLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Caricamento ordine...</p>
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Ordine non trovato</p>
+        <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>
+          Torna agli ordini
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Dettaglio Ordine</h1>
+            <p className="text-muted-foreground">
+              Creato il {formatDate(order.created_at)}
+            </p>
+          </div>
+        </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Elimina
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminare l'ordine?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Questa azione è irreversibile. L'ordine e tutto lo storico stati
+                verranno eliminati permanentemente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteOrderMutation.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Elimina
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Left Column - Main Content */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Order Description */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Descrizione Lavoro
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="whitespace-pre-wrap">{order.description}</p>
+            </CardContent>
+          </Card>
+
+          {/* Progress Tracker */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Stato Ordine
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <OrderProgressTracker
+                statuses={statuses}
+                currentStatusId={order.current_status_id}
+                statusHistory={progressHistory}
+                onStatusChange={handleStatusChange}
+                interactive={true}
+                size="md"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Status History */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Storico Stati</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {statusHistory.length === 0 ? (
+                <p className="text-muted-foreground">Nessuno storico disponibile</p>
+              ) : (
+                <div className="space-y-4">
+                  {statusHistory.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: entry.status.color }}
+                        />
+                        <span className="font-medium">{entry.status.name}</span>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {formatDateTime(entry.changed_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column - Sidebar */}
+        <div className="space-y-6">
+          {/* Customer Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {order.customer ? (
+                <>
+                  <p className="font-medium">
+                    {order.customer.first_name} {order.customer.last_name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{order.customer.email}</p>
+                  {order.customer.phone && (
+                    <p className="text-sm text-muted-foreground">{order.customer.phone}</p>
+                  )}
+                  {order.customer.address && (
+                    <p className="text-sm text-muted-foreground">{order.customer.address}</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-muted-foreground">Cliente non disponibile</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Financial Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Euro className="h-5 w-5" />
+                Riepilogo
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Totale</span>
+                <span className="font-medium">{formatCurrency(order.total_amount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Acconto</span>
+                <span className="text-success">{formatCurrency(order.deposit_amount)}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t">
+                <span className="font-medium">Saldo</span>
+                <span className="font-bold text-lg">{formatCurrency(order.balance_amount)}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Expected Date */}
+          {order.expected_date && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Consegna Prevista
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-medium">{formatDate(order.expected_date)}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Internal Notes */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Note Interne</CardTitle>
+              {!isEditingNotes && (
+                <Button variant="ghost" size="sm" onClick={handleEditNotes}>
+                  Modifica
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent>
+              {isEditingNotes ? (
+                <div className="space-y-3">
+                  <Textarea
+                    value={editedNotes}
+                    onChange={(e) => setEditedNotes(e.target.value)}
+                    rows={4}
+                    placeholder="Aggiungi note interne..."
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleSaveNotes}
+                      disabled={updateNotesMutation.isPending}
+                    >
+                      Salva
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsEditingNotes(false)}
+                    >
+                      Annulla
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {order.internal_notes || "Nessuna nota interna"}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Status Change Confirmation Dialog */}
+      <Dialog
+        open={statusChangeDialog.open}
+        onOpenChange={(open) =>
+          setStatusChangeDialog({ ...statusChangeDialog, open })
+        }
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Conferma cambio stato</DialogTitle>
+            <DialogDescription>
+              Vuoi cambiare lo stato dell'ordine a "{statusChangeDialog.targetStatusName}"?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setStatusChangeDialog({
+                  open: false,
+                  targetStatusId: null,
+                  targetStatusName: "",
+                })
+              }
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={confirmStatusChange}
+              disabled={updateStatusMutation.isPending}
+            >
+              {updateStatusMutation.isPending ? "Aggiornamento..." : "Conferma"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
