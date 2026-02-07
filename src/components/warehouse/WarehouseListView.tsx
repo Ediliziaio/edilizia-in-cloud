@@ -24,45 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
-
-const STATUS_CONFIG: Record<OrderItemStatus, { label: string }> = {
-  da_ordinare: { label: "Da Ordinare" },
-  ordinato: { label: "Ordinato" },
-  in_magazzino: { label: "In Magazzino" },
-  installato: { label: "Installato" },
-};
-
-interface WarehouseItem {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity: number | null;
-  status: OrderItemStatus;
-  supplier_id: string | null;
-  purchase_price: number | null;
-  updated_at?: string | null;
-  order: {
-    id: string;
-    order_code: string | null;
-    expected_date: string | null;
-    work_start_date: string | null;
-    company_id: string;
-    customer: {
-      first_name: string;
-      last_name: string;
-    };
-  };
-}
-
-interface OrderWithItems {
-  orderId: string;
-  orderCode: string | null;
-  customerName: string;
-  expectedDate: string | null;
-  items: WarehouseItem[];
-}
+import { STATUS_CONFIG } from "@/types/warehouse";
+import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
 interface WarehouseListViewProps {
   orderGroups: OrderWithItems[];
@@ -121,8 +84,6 @@ export default function WarehouseListView({
     onBatchStatusChange(Array.from(selectedItems), status);
     setSelectedItems(new Set());
   };
-
-  const allItems = orderGroups.flatMap((g) => g.items);
 
   // Check if order is urgent (posa <= 7 days and has items not ready)
   const isOrderUrgent = (group: OrderWithItems) => {
