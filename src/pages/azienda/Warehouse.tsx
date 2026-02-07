@@ -96,6 +96,7 @@ export default function Warehouse() {
       return (data || []) as unknown as WarehouseItem[];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000, // 5 minuti
   });
 
   // Fetch suppliers for filter
@@ -112,6 +113,7 @@ export default function Warehouse() {
       return data || [];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000, // 10 minuti - fornitori cambiano raramente
   });
 
   // Get unique orders for filter dropdown

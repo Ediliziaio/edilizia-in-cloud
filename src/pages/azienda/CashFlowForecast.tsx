@@ -104,6 +104,7 @@ export default function CashFlowForecast() {
       return data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000, // 5 minuti
   });
 
   // Query squadre esterne non pagate
@@ -126,6 +127,7 @@ export default function CashFlowForecast() {
       return data.filter((item: any) => item.order?.company_id === companyId);
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000, // 5 minuti
   });
 
   const isLoading = loadingOrders || loadingTeams;

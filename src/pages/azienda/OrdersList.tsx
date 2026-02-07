@@ -121,6 +121,7 @@ export default function OrdersList() {
       return data as OrderWithDetails[];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000, // 5 minuti
   });
 
   // Fetch statuses for filter dropdown
@@ -136,6 +137,7 @@ export default function OrdersList() {
       return data;
     },
     enabled: !!user,
+    staleTime: 10 * 60 * 1000, // 10 minuti - statuses cambiano raramente
   });
 
   // Mutation for updating order status
