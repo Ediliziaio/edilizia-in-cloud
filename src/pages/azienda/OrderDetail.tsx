@@ -36,6 +36,7 @@ import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderEconomics } from "@/components/orders/OrderEconomics";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
+import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 
 // Order Alert Interface
@@ -724,10 +725,14 @@ export default function OrderDetail() {
 
           {/* Order Economics */}
           <OrderEconomics
+            orderId={id!}
             totalAmount={order.total_amount}
             vatRate={order.vat_rate || 22}
             items={economicsItems}
           />
+
+          {/* Labor Costs */}
+          <OrderLaborCosts orderId={id!} editable={true} />
 
           {/* Expected Date */}
           {order.expected_date && (

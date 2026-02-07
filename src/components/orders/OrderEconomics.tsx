@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OrderItem {
   name: string;
@@ -10,16 +12,48 @@ interface OrderItem {
 }
 
 interface OrderEconomicsProps {
+  orderId: string;
   totalAmount: number;
   vatRate: number;
   items: OrderItem[];
 }
 
 export function OrderEconomics({
+  orderId,
   totalAmount,
   vatRate,
   items,
 }: OrderEconomicsProps) {
+  // Fetch order employees costs
+  const { data: orderEmployees = [] } = useQuery({
+    queryKey: ["order-employees", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_employees")
+        .select("total_cost, employee:employees(first_name, last_name)")
+        .eq("order_id", orderId);
+
+      if (error) throw error;
+      return data as { total_cost: number; employee: { first_name: string; last_name: string } }[];
+    },
+    enabled: !!orderId,
+  });
+
+  // Fetch order external teams costs
+  const { data: orderExternalTeams = [] } = useQuery({
+    queryKey: ["order-external-teams", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_external_teams")
+        .select("total_cost, external_team:external_teams(name)")
+        .eq("order_id", orderId);
+
+      if (error) throw error;
+      return data as { total_cost: number; external_team: { name: string } }[];
+    },
+    enabled: !!orderId,
+  });
+
   // Calculate totals
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
@@ -32,7 +66,15 @@ export function OrderEconomics({
       cost: (item.purchase_price || 0) * item.quantity,
     }));
 
-  const totalCosts = itemCosts.reduce((sum, item) => sum + item.cost, 0);
+  const totalArticleCosts = itemCosts.reduce((sum, item) => sum + item.cost, 0);
+
+  // Calculate labor costs
+  const totalEmployeeCosts = orderEmployees.reduce((sum, e) => sum + e.total_cost, 0);
+  const totalExternalTeamCosts = orderExternalTeams.reduce((sum, t) => sum + t.total_cost, 0);
+  const totalLaborCosts = totalEmployeeCosts + totalExternalTeamCosts;
+
+  // Calculate margin with labor costs included
+  const totalCosts = totalArticleCosts + totalLaborCosts;
   const grossMargin = totalAmount - totalCosts;
   const marginPercentage = totalAmount > 0 ? (grossMargin / totalAmount) * 100 : 0;
 
@@ -66,7 +108,7 @@ export function OrderEconomics({
 
         <Separator />
 
-        {/* Costs Section */}
+        {/* Article Costs Section */}
         <div>
           <h4 className="text-sm font-medium text-muted-foreground mb-2">COSTI ARTICOLI</h4>
           {itemCosts.length > 0 ? (
@@ -78,13 +120,44 @@ export function OrderEconomics({
                 </div>
               ))}
               <div className="flex justify-between font-medium pt-2 border-t">
-                <span>Totale Costi</span>
-                <span className="text-destructive">{formatCurrency(totalCosts)}</span>
+                <span>Totale Articoli</span>
+                <span className="text-destructive">{formatCurrency(totalArticleCosts)}</span>
               </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
               Nessun costo articolo registrato
+            </p>
+          )}
+        </div>
+
+        <Separator />
+
+        {/* Labor Costs Section */}
+        <div>
+          <h4 className="text-sm font-medium text-muted-foreground mb-2">COSTI MANODOPERA</h4>
+          {totalLaborCosts > 0 ? (
+            <div className="space-y-2">
+              {totalEmployeeCosts > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Dipendenti Interni</span>
+                  <span>{formatCurrency(totalEmployeeCosts)}</span>
+                </div>
+              )}
+              {totalExternalTeamCosts > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Squadre Esterne</span>
+                  <span>{formatCurrency(totalExternalTeamCosts)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-medium pt-2 border-t">
+                <span>Totale Manodopera</span>
+                <span className="text-destructive">{formatCurrency(totalLaborCosts)}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Nessun costo manodopera registrato
             </p>
           )}
         </div>

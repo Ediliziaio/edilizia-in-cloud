@@ -73,6 +73,103 @@ export type Database = {
         }
         Relationships: []
       }
+      employees: {
+        Row: {
+          company_id: string
+          created_at: string
+          email: string | null
+          first_name: string
+          gross_salary: number
+          id: string
+          is_active: boolean
+          last_name: string
+          monthly_hours: number
+          net_salary: number
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          email?: string | null
+          first_name: string
+          gross_salary?: number
+          id?: string
+          is_active?: boolean
+          last_name: string
+          monthly_hours?: number
+          net_salary?: number
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          email?: string | null
+          first_name?: string
+          gross_salary?: number
+          id?: string
+          is_active?: boolean
+          last_name?: string
+          monthly_hours?: number
+          net_salary?: number
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_teams: {
+        Row: {
+          company_id: string
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+        }
+        Insert: {
+          company_id: string
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Update: {
+          company_id?: string
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_teams_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_attachments: {
         Row: {
           created_at: string
@@ -110,6 +207,105 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "order_attachments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_employees: {
+        Row: {
+          created_at: string
+          employee_id: string
+          hourly_rate: number
+          hours_worked: number
+          id: string
+          notes: string | null
+          order_id: string
+          total_cost: number
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          hourly_rate?: number
+          hours_worked?: number
+          id?: string
+          notes?: string | null
+          order_id: string
+          total_cost?: number
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          hourly_rate?: number
+          hours_worked?: number
+          id?: string
+          notes?: string | null
+          order_id?: string
+          total_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_employees_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_employees_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_external_teams: {
+        Row: {
+          created_at: string
+          external_team_id: string
+          id: string
+          is_paid: boolean
+          notes: string | null
+          order_id: string
+          paid_date: string | null
+          payment_date: string | null
+          total_cost: number
+        }
+        Insert: {
+          created_at?: string
+          external_team_id: string
+          id?: string
+          is_paid?: boolean
+          notes?: string | null
+          order_id: string
+          paid_date?: string | null
+          payment_date?: string | null
+          total_cost?: number
+        }
+        Update: {
+          created_at?: string
+          external_team_id?: string
+          id?: string
+          is_paid?: boolean
+          notes?: string | null
+          order_id?: string
+          paid_date?: string | null
+          payment_date?: string | null
+          total_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_external_teams_external_team_id_fkey"
+            columns: ["external_team_id"]
+            isOneToOne: false
+            referencedRelation: "external_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_external_teams_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"

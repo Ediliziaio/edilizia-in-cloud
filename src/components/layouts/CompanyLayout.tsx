@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Warehouse,
   CalendarDays,
+  HardHat,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ const navItems = [
   { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse },
   { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays },
   { title: "Clienti", url: "/azienda/clienti", icon: Users },
+  { title: "Dipendenti", url: "/azienda/dipendenti", icon: HardHat },
   { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon },
   { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp },
   { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings },
