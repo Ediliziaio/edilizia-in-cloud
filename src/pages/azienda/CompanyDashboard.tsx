@@ -4,8 +4,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, Users, HeadphonesIcon, Plus, Loader2, Euro } from "lucide-react";
+import { ClipboardList, Users, HeadphonesIcon, Plus, Loader2, Euro, Package, TrendingUp, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
+import { formatCurrency } from "@/lib/formatters";
 
 interface DashboardStats {
   totalOrders: number;
@@ -29,6 +30,19 @@ interface RecentOrder {
   } | null;
 }
 
+interface CashFlowPreview {
+  thisMonth: number;
+  nextMonth: number;
+}
+
+interface UrgentItem {
+  id: string;
+  name: string;
+  orderCode: string | null;
+  customerName: string;
+  daysLeft: number;
+}
+
 export default function CompanyDashboard() {
   const { effectiveCompany } = useAuth();
   const company = effectiveCompany;
@@ -39,6 +53,8 @@ export default function CompanyDashboard() {
     pendingRevenue: 0,
   });
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
+  const [cashFlow, setCashFlow] = useState<CashFlowPreview>({ thisMonth: 0, nextMonth: 0 });
+  const [urgentItems, setUrgentItems] = useState<UrgentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -46,17 +62,25 @@ export default function CompanyDashboard() {
 
     async function fetchData() {
       try {
-        const [ordersRes, customersRes, ticketsRes, ordersDataRes] = await Promise.all([
+        const now = new Date();
+        const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+        const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        const [ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes, cashFlowRes, urgentItemsRes] = await Promise.all([
+          // Count total orders
           supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", company.id),
+          // Count total customers
           supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", company.id),
+          // Count open tickets
           supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", company.id).eq("status", "aperto"),
+          // Recent orders with details
           supabase
             .from("orders")
             .select(`
               id,
               description,
               total_amount,
-              balance_amount,
               created_at,
               customer:profiles!orders_customer_id_fkey(first_name, last_name),
               status:order_statuses(name, color)
@@ -64,15 +88,110 @@ export default function CompanyDashboard() {
             .eq("company_id", company.id)
             .order("created_at", { ascending: false })
             .limit(5),
+          // Pending revenue (all unpaid balances)
+          supabase
+            .from("orders")
+            .select("balance_amount, balance_paid")
+            .eq("company_id", company.id)
+            .or("balance_paid.is.null,balance_paid.eq.false"),
+          // Cash flow preview (deposits + balances with expected dates)
+          supabase
+            .from("orders")
+            .select(`
+              deposit_amount,
+              deposit_expected_date,
+              deposit_paid,
+              deposit_2_amount,
+              deposit_2_expected_date,
+              deposit_2_paid,
+              balance_amount,
+              balance_expected_date,
+              balance_paid
+            `)
+            .eq("company_id", company.id),
+          // Urgent warehouse items (installation within 7 days, not installed)
+          supabase
+            .from("order_items")
+            .select(`
+              id,
+              name,
+              status,
+              order:orders!inner(
+                id,
+                order_code,
+                work_start_date,
+                company_id,
+                customer:profiles!orders_customer_id_fkey(first_name, last_name)
+              )
+            `)
+            .eq("order.company_id", company.id)
+            .neq("status", "installato")
+            .neq("status", "in_magazzino")
+            .lte("order.work_start_date", sevenDaysFromNow.toISOString().split("T")[0])
+            .gte("order.work_start_date", now.toISOString().split("T")[0])
         ]);
 
-        // Calculate pending revenue (sum of balance_amount)
-        const { data: revenueData } = await supabase
-          .from("orders")
-          .select("balance_amount")
-          .eq("company_id", company.id);
+        // Calculate pending revenue
+        const pendingRevenue = pendingRevenueRes.data?.reduce((sum, order) => sum + (Number(order.balance_amount) || 0), 0) || 0;
 
-        const pendingRevenue = revenueData?.reduce((sum, order) => sum + (Number(order.balance_amount) || 0), 0) || 0;
+        // Calculate cash flow preview
+        let thisMonthTotal = 0;
+        let nextMonthTotal = 0;
+
+        cashFlowRes.data?.forEach((order) => {
+          // Check deposit
+          if (!order.deposit_paid && order.deposit_expected_date) {
+            const depositDate = new Date(order.deposit_expected_date);
+            if (depositDate <= thisMonthEnd) {
+              thisMonthTotal += Number(order.deposit_amount) || 0;
+            } else if (depositDate <= nextMonthEnd) {
+              nextMonthTotal += Number(order.deposit_amount) || 0;
+            }
+          }
+          // Check deposit 2
+          if (!order.deposit_2_paid && order.deposit_2_expected_date) {
+            const deposit2Date = new Date(order.deposit_2_expected_date);
+            if (deposit2Date <= thisMonthEnd) {
+              thisMonthTotal += Number(order.deposit_2_amount) || 0;
+            } else if (deposit2Date <= nextMonthEnd) {
+              nextMonthTotal += Number(order.deposit_2_amount) || 0;
+            }
+          }
+          // Check balance
+          if (!order.balance_paid && order.balance_expected_date) {
+            const balanceDate = new Date(order.balance_expected_date);
+            if (balanceDate <= thisMonthEnd) {
+              thisMonthTotal += Number(order.balance_amount) || 0;
+            } else if (balanceDate <= nextMonthEnd) {
+              nextMonthTotal += Number(order.balance_amount) || 0;
+            }
+          }
+        });
+
+        // Process urgent items
+        const processedUrgentItems: UrgentItem[] = [];
+        urgentItemsRes.data?.forEach((item: unknown) => {
+          const typedItem = item as {
+            id: string;
+            name: string;
+            order: {
+              order_code: string | null;
+              work_start_date: string | null;
+              customer: { first_name: string; last_name: string };
+            };
+          };
+          if (typedItem.order?.work_start_date) {
+            const workDate = new Date(typedItem.order.work_start_date);
+            const daysLeft = Math.ceil((workDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            processedUrgentItems.push({
+              id: typedItem.id,
+              name: typedItem.name,
+              orderCode: typedItem.order.order_code,
+              customerName: `${typedItem.order.customer.first_name} ${typedItem.order.customer.last_name}`,
+              daysLeft,
+            });
+          }
+        });
 
         setStats({
           totalOrders: ordersRes.count || 0,
@@ -82,6 +201,8 @@ export default function CompanyDashboard() {
         });
 
         setRecentOrders(ordersDataRes.data as unknown as RecentOrder[] || []);
+        setCashFlow({ thisMonth: thisMonthTotal, nextMonth: nextMonthTotal });
+        setUrgentItems(processedUrgentItems.slice(0, 5));
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -109,11 +230,11 @@ export default function CompanyDashboard() {
       title: "Ticket Aperti",
       value: stats.openTickets,
       icon: HeadphonesIcon,
-      color: stats.openTickets > 0 ? "text-warning" : "text-success",
+      color: stats.openTickets > 0 ? "text-orange-500" : "text-green-500",
     },
     {
       title: "Saldi da Incassare",
-      value: `€${stats.pendingRevenue.toLocaleString("it-IT")}`,
+      value: formatCurrency(stats.pendingRevenue),
       icon: Euro,
       color: "text-primary",
     },
@@ -200,7 +321,7 @@ export default function CompanyDashboard() {
                       </p>
                     </div>
                     <div className="text-right space-y-1">
-                      <p className="font-medium text-sm">€{Number(order.total_amount).toLocaleString("it-IT")}</p>
+                      <p className="font-medium text-sm">{formatCurrency(Number(order.total_amount))}</p>
                       {order.status && (
                         <Badge 
                           variant="secondary" 
@@ -211,6 +332,86 @@ export default function CompanyDashboard() {
                         </Badge>
                       )}
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Cash Flow Preview */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  Previsionale Incassi
+                </CardTitle>
+                <CardDescription>Prossimi incassi attesi</CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/azienda/previsionale">Dettaglio</Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-primary/5 border border-primary/10">
+              <div>
+                <p className="text-sm text-muted-foreground">Questo mese</p>
+                <p className="text-2xl font-bold text-primary">{formatCurrency(cashFlow.thisMonth)}</p>
+              </div>
+              <Euro className="h-8 w-8 text-primary/50" />
+            </div>
+            <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+              <div>
+                <p className="text-sm text-muted-foreground">Prossimo mese</p>
+                <p className="text-xl font-semibold">{formatCurrency(cashFlow.nextMonth)}</p>
+              </div>
+              <Euro className="h-6 w-6 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Warehouse Alerts */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  {urgentItems.length > 0 && <AlertTriangle className="h-5 w-5 text-destructive" />}
+                  <Package className="h-5 w-5 text-primary" />
+                  Alert Magazzino
+                </CardTitle>
+                <CardDescription>Articoli con posa imminente</CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/azienda/magazzino">Vai al magazzino</Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {urgentItems.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Nessun articolo urgente</p>
+                <p className="text-xs mt-1">Tutti gli articoli sono pronti per le prossime installazioni</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {urgentItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <div className="space-y-1">
+                      <p className="font-medium text-sm">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.orderCode ? `#${item.orderCode} - ` : ""}{item.customerName}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-destructive border-destructive/30">
+                      {item.daysLeft === 0 ? "Oggi" : item.daysLeft === 1 ? "Domani" : `${item.daysLeft} giorni`}
+                    </Badge>
                   </div>
                 ))}
               </div>
@@ -244,11 +445,20 @@ export default function CompanyDashboard() {
               </Link>
             </Button>
             <Button variant="outline" className="justify-start h-auto py-3" asChild>
-              <Link to="/azienda/impostazioni">
-                <ClipboardList className="h-5 w-5 mr-3" />
+              <Link to="/azienda/magazzino">
+                <Package className="h-5 w-5 mr-3" />
                 <div className="text-left">
-                  <p className="font-medium">Configura Stati Ordine</p>
-                  <p className="text-xs text-muted-foreground">Personalizza il progress tracker</p>
+                  <p className="font-medium">Magazzino</p>
+                  <p className="text-xs text-muted-foreground">Gestisci articoli e materiali</p>
+                </div>
+              </Link>
+            </Button>
+            <Button variant="outline" className="justify-start h-auto py-3" asChild>
+              <Link to="/azienda/previsionale">
+                <TrendingUp className="h-5 w-5 mr-3" />
+                <div className="text-left">
+                  <p className="font-medium">Previsionale Cassa</p>
+                  <p className="text-xs text-muted-foreground">Analizza i prossimi incassi</p>
                 </div>
               </Link>
             </Button>
