@@ -27,6 +27,7 @@ import { OrderItemAttachments, OrderItemAttachment } from "./OrderItemAttachment
 import { ArticleCombobox } from "./ArticleCombobox";
 import { SupplierSelect } from "./SupplierSelect";
 import { formatCurrency } from "@/lib/formatters";
+import { VAT_RATES, calculateNetFromGross } from "@/lib/vatUtils";
 
 export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino' | 'installato';
 
@@ -40,6 +41,7 @@ export interface OrderItem {
   supplier_id?: string;
   supplier_name?: string;
   purchase_price?: number;
+  vat_rate?: number;
   attachments?: OrderItemAttachment[];
 }
 
@@ -77,6 +79,7 @@ const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string
 interface Supplier {
   id: string;
   name: string;
+  vat_rate: number;
 }
 
 export function OrderItemsList({
@@ -93,18 +96,19 @@ export function OrderItemsList({
   const [itemQuantity, setItemQuantity] = useState("1");
   const [itemSupplierId, setItemSupplierId] = useState<string | undefined>();
   const [itemPurchasePrice, setItemPurchasePrice] = useState("");
+  const [itemVatRate, setItemVatRate] = useState<number>(22);
   const [itemStatus, setItemStatus] = useState<OrderItemStatus>("da_ordinare");
 
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  // Fetch suppliers to display names
+  // Fetch suppliers to display names and get VAT rates
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
-        .select("id, name")
+        .select("id, name, vat_rate")
         .eq("company_id", companyId!);
       if (error) throw error;
       return data as Supplier[];
@@ -123,6 +127,7 @@ export function OrderItemsList({
     setItemQuantity("1");
     setItemSupplierId(undefined);
     setItemPurchasePrice("");
+    setItemVatRate(22);
     setItemStatus("da_ordinare");
     setEditingIndex(null);
   };
@@ -139,6 +144,7 @@ export function OrderItemsList({
     setItemQuantity(item.quantity.toString());
     setItemSupplierId(item.supplier_id);
     setItemPurchasePrice(item.purchase_price?.toString() || "");
+    setItemVatRate(item.vat_rate ?? 22);
     setItemStatus(item.status);
     setEditingIndex(index);
     setDialogOpen(true);
@@ -160,6 +166,7 @@ export function OrderItemsList({
         quantity,
         supplier_id: itemSupplierId,
         purchase_price: purchasePrice,
+        vat_rate: itemVatRate,
         status: itemStatus,
       };
       onItemsChange(newItems);
@@ -173,12 +180,21 @@ export function OrderItemsList({
         position: items.length,
         supplier_id: itemSupplierId,
         purchase_price: purchasePrice,
+        vat_rate: itemVatRate,
       };
       onItemsChange([...items, newItem]);
     }
 
     setDialogOpen(false);
     resetForm();
+  };
+
+  const handleSupplierChange = (supplierId: string | undefined, supplierVatRate?: number) => {
+    setItemSupplierId(supplierId);
+    // Inherit VAT rate from supplier if available
+    if (supplierVatRate !== undefined) {
+      setItemVatRate(supplierVatRate);
+    }
   };
 
   const handleDeleteItem = (index: number) => {
@@ -255,7 +271,10 @@ export function OrderItemsList({
                         <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "—"}</span>
                       )}
                       {item.purchase_price && item.purchase_price > 0 && (
-                        <span>Costo: {formatCurrency(item.purchase_price * item.quantity)}</span>
+                        <>
+                          <span>Costo: {formatCurrency(item.purchase_price * item.quantity)}</span>
+                          <span className="text-xs">({item.vat_rate ?? 22}% IVA)</span>
+                        </>
                       )}
                     </div>
                     {item.description && (
@@ -388,6 +407,30 @@ export function OrderItemsList({
               </div>
 
               <div className="space-y-2">
+                <Label>IVA Acquisto</Label>
+                <Select
+                  value={itemVatRate.toString()}
+                  onValueChange={(v) => setItemVatRate(parseInt(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VAT_RATES.map((rate) => (
+                      <SelectItem key={rate.value} value={rate.value.toString()}>
+                        {rate.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {itemSupplierId && (
+                  <p className="text-xs text-muted-foreground">
+                    Ereditato dal fornitore (modificabile)
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
                 <Label>Stato Articolo</Label>
                 <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
                   <SelectTrigger>
@@ -407,7 +450,7 @@ export function OrderItemsList({
                 <Label>Fornitore</Label>
                 <SupplierSelect
                   value={itemSupplierId}
-                  onValueChange={setItemSupplierId}
+                  onValueChange={handleSupplierChange}
                 />
               </div>
             </div>
