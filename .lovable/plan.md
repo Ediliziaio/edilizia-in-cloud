@@ -1,341 +1,366 @@
 
-# Piano: Gestione IVA Acquisti su Articoli e Squadre Esterne
+# Piano: Report IVA Mensile, Gestione Fornitori e Test Squadre Esterne
 
 ## Panoramica
 
-Implementazione della gestione dell'IVA lato acquisti per calcolare correttamente il costo netto e l'IVA detraibile. Attualmente i costi vengono inseriti come valore lordo (IVA inclusa), ma il sistema non distingue l'aliquota IVA applicata.
+Implementazione di tre funzionalità:
+1. **Report IVA mensile** per la liquidazione periodica
+2. **Gestione fornitori** con possibilita di modificare l'IVA esistente
+3. **Istruzioni per testare** le squadre esterne con diverse aliquote IVA
 
 ---
 
-## 1. Scenario Attuale vs Nuovo
+## 1. Report IVA Mensile
 
-| Scenario | Attuale | Nuovo |
-|----------|---------|-------|
-| Articolo da fornitore IT | Costo 1220€ → margine su 1220€ | Costo 1220€ con IVA 22% → netto 1000€, IVA detraibile 220€ |
-| Articolo da fornitore estero | Costo 1000€ → margine su 1000€ | Costo 1000€ con IVA 0% → netto 1000€, IVA 0€ |
-| Squadra forfettaria | Costo 2500€ → margine su 2500€ | Costo 2500€ con IVA 0% → netto 2500€, IVA 0€ |
-| Squadra ordinaria | Costo 3050€ → margine su 3050€ | Costo 3050€ con IVA 22% → netto 2500€, IVA 550€ |
+### Descrizione
+
+Una nuova pagina dedicata che mostra il riepilogo IVA mensile aggregando tutti gli ordini, permettendo di visualizzare:
+- IVA a debito totale (vendite)
+- IVA a credito totale (acquisti articoli + squadre esterne)
+- Saldo IVA da versare/recuperare
+
+### Layout Proposto
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Report IVA                                                      │
+│ Riepilogo IVA per la liquidazione periodica                     │
+├─────────────────────────────────────────────────────────────────┤
+│ [← Febbraio 2026 →]   [📥 Esporta CSV]                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │ IVA Debito   │  │ IVA Credito  │  │ Saldo IVA    │          │
+│  │ € 12.500,00  │  │ € 4.200,00   │  │ € 8.300,00   │          │
+│  │ Da 15 ordini │  │ Detraibile   │  │ Da versare   │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│ DETTAGLIO IVA A DEBITO (Vendite)                               │
+├────────────┬───────────────┬────────────┬──────────┬───────────┤
+│ Ordine     │ Cliente       │ Imponibile │ IVA %    │ IVA       │
+├────────────┼───────────────┼────────────┼──────────┼───────────┤
+│ ORD-001    │ Mario Rossi   │ € 10.000   │ 22%      │ € 2.200   │
+│ ORD-002    │ Luigi Bianchi │ €  5.000   │ 10%      │ €   500   │
+│ ...        │               │            │          │           │
+├────────────┴───────────────┴────────────┴──────────┼───────────┤
+│                                          TOTALE    │ € 12.500  │
+├─────────────────────────────────────────────────────────────────┤
+│ DETTAGLIO IVA A CREDITO (Acquisti Articoli)                    │
+├────────────┬───────────────┬────────────┬──────────┬───────────┤
+│ Ordine     │ Articolo      │ Lordo      │ IVA %    │ IVA       │
+├────────────┼───────────────┼────────────┼──────────┼───────────┤
+│ ORD-001    │ Finestra A    │ € 1.220    │ 22%      │ €   220   │
+│ ORD-001    │ Vetro B       │ €   800    │ 0%       │ €     0   │
+│ ...        │               │            │          │           │
+├────────────┴───────────────┴────────────┴──────────┼───────────┤
+│                                          TOTALE    │ €  2.500  │
+├─────────────────────────────────────────────────────────────────┤
+│ DETTAGLIO IVA A CREDITO (Squadre Esterne)                      │
+├────────────┬───────────────┬────────────┬──────────┬───────────┤
+│ Ordine     │ Squadra       │ Lordo      │ IVA %    │ IVA       │
+├────────────┼───────────────┼────────────┼──────────┼───────────┤
+│ ORD-001    │ Installaz. A  │ € 3.050    │ 22%      │ €   550   │
+│ ORD-002    │ Montatori B   │ € 2.500    │ 0%       │ €     0   │
+├────────────┴───────────────┴────────────┴──────────┼───────────┤
+│                                          TOTALE    │ €  1.700  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Navigazione
+
+Aggiungere voce nel menu laterale:
+- Posizione: sotto "Previsionale"
+- Icona: `Receipt` (lucide-react)
+- Label: "Report IVA"
+- URL: `/azienda/report-iva`
 
 ---
 
-## 2. Modifiche Database
+## 2. Gestione Fornitori
 
-### 2.1 Tabella `suppliers`
+### Descrizione
 
-Aggiungere aliquota IVA predefinita per il fornitore:
+Aggiungere una nuova tab nella pagina Impostazioni per gestire i fornitori, permettendo di:
+- Visualizzare tutti i fornitori esistenti
+- Modificare nome e aliquota IVA predefinita
+- Eliminare fornitori non utilizzati
 
-```sql
-ALTER TABLE suppliers ADD COLUMN vat_rate numeric DEFAULT 22;
-```
-
-Esempi di utilizzo:
-- Fornitore Italia: 22%
-- Fornitore UE/Estero (reverse charge): 0%
-- Fornitore con aliquota ridotta: 10% o 4%
-
-### 2.2 Tabella `order_items`
-
-Aggiungere aliquota IVA specifica per l'articolo (eredita dal fornitore ma modificabile):
-
-```sql
-ALTER TABLE order_items ADD COLUMN vat_rate numeric DEFAULT 22;
-```
-
-### 2.3 Tabella `external_teams`
-
-Aggiungere aliquota IVA predefinita per la squadra:
-
-```sql
-ALTER TABLE external_teams ADD COLUMN vat_rate numeric DEFAULT 22;
-```
-
-Esempi:
-- Ditta ordinaria: 22%
-- Forfettario (no IVA): 0%
-- Reverse charge: 0%
-
-### 2.4 Tabella `order_external_teams`
-
-Aggiungere aliquota IVA specifica per l'assegnazione:
-
-```sql
-ALTER TABLE order_external_teams ADD COLUMN vat_rate numeric DEFAULT 22;
-```
-
----
-
-## 3. Logica di Calcolo
-
-### 3.1 Scorporo IVA dal Lordo
-
-Poiché il costo viene inserito già ivato (lordo), lo scorporo funziona così:
+### Layout Proposto
 
 ```
-Imponibile = Lordo / (1 + aliquota/100)
-IVA = Lordo - Imponibile
+Impostazioni
+├── Profilo Azienda
+├── Stati Ordine
+└── Fornitori (NUOVA)
 ```
 
-Esempio con lordo 1220€ e IVA 22%:
-- Imponibile = 1220 / 1.22 = 1000€
-- IVA = 1220 - 1000 = 220€
-
-### 3.2 Conto Economico Aggiornato
-
 ```
-VENDITA
-├─ Imponibile vendita:       10.000€
-├─ IVA vendita (22%):         2.200€
-└─ Totale lordo:             12.200€
-
-COSTI ARTICOLI
-├─ Finestra Alluminio (IT 22%):  1.220€ lordo → 1.000€ netto + 220€ IVA
-├─ Vetro (Estero 0%):              800€ lordo →   800€ netto +   0€ IVA
-└─ Totale netto articoli:        1.800€
-   IVA detraibile articoli:        220€
-
-COSTI MANODOPERA  
-├─ Squadra A (Forfettario 0%):  2.500€ lordo → 2.500€ netto +   0€ IVA
-├─ Squadra B (Ordinario 22%):   1.830€ lordo → 1.500€ netto + 330€ IVA
-└─ Totale netto manodopera:     4.000€
-   IVA detraibile manodopera:     330€
-
-RIEPILOGO IVA
-├─ IVA a debito (vendita):      2.200€
-├─ IVA a credito (acquisti):      550€
-└─ IVA netta da versare:        1.650€
-
-MARGINE
-├─ Imponibile vendita:         10.000€
-├─ Costi netti totali:          5.800€
-└─ Margine lordo:               4.200€ (42%)
+┌─────────────────────────────────────────────────────────────────┐
+│ 🏭 Fornitori                                                    │
+│ Gestisci i tuoi fornitori e le relative aliquote IVA           │
+├─────────────────────────────────────────────────────────────────┤
+│                                              [+ Nuovo Fornitore]│
+├────────────────────────────────┬──────────────┬─────────────────┤
+│ Nome Fornitore                 │ Aliquota IVA │ Azioni          │
+├────────────────────────────────┼──────────────┼─────────────────┤
+│ ABC Serramenti Srl             │ 22%          │ [✏️] [🗑️]       │
+│ XYZ Import (Germania)          │ 0%           │ [✏️] [🗑️]       │
+│ Vetreria Rossi                 │ 10%          │ [✏️] [🗑️]       │
+└────────────────────────────────┴──────────────┴─────────────────┘
 ```
 
----
-
-## 4. Modifiche UI
-
-### 4.1 Dialog Nuovo Fornitore (`SupplierSelect.tsx`)
-
-Aggiungere campo IVA predefinita:
+### Dialog Modifica Fornitore
 
 ```
 ┌────────────────────────────────────┐
-│        Nuovo Fornitore             │
+│       Modifica Fornitore           │
 ├────────────────────────────────────┤
 │ Nome Fornitore *                   │
-│ [ABC Serramenti________________]   │
+│ [ABC Serramenti Srl____________]   │
 │                                    │
 │ Aliquota IVA Predefinita           │
-│ [▼ 22% - Italia ordinaria     ]    │
-│    ├─ 22% - Italia ordinaria       │
-│    ├─ 10% - Aliquota ridotta       │
-│    ├─  4% - Aliquota minima        │
-│    └─  0% - Estero/Reverse charge  │
+│ [▼ 22% - Ordinaria            ]    │
 │                                    │
-│            [Annulla] [Crea]        │
+│            [Annulla] [Salva]       │
 └────────────────────────────────────┘
-```
-
-### 4.2 Dialog Articolo (`OrderItemsList.tsx`)
-
-Aggiungere campo IVA (ereditato dal fornitore ma modificabile):
-
-```
-┌────────────────────────────────────┐
-│        Nuovo Articolo              │
-├────────────────────────────────────┤
-│ Nome Articolo *                    │
-│ [Finestra 120x140______________]   │
-│                                    │
-│ Quantità          Costo Acquisto   │
-│ [2___]            [€ 1220.00____]  │
-│                                    │
-│ IVA Acquisto                       │
-│ [▼ 22%                        ]    │
-│ ⓘ Ereditato da fornitore           │
-│                                    │
-│ Fornitore                          │
-│ [▼ ABC Serramenti        ] [+]     │
-│                                    │
-│            [Annulla] [Aggiungi]    │
-└────────────────────────────────────┘
-```
-
-### 4.3 Dialog Squadra Esterna (`ExternalTeamDialog.tsx`)
-
-Aggiungere regime IVA:
-
-```
-┌────────────────────────────────────┐
-│     Nuova Squadra Esterna          │
-├────────────────────────────────────┤
-│ Nome Ditta/Squadra *               │
-│ [Installazioni Rossi Srl_______]   │
-│                                    │
-│ Regime IVA                         │
-│ [▼ 22% - Regime ordinario     ]    │
-│    ├─ 22% - Regime ordinario       │
-│    └─  0% - Forfettario/Esente     │
-│                                    │
-│ Nome Referente                     │
-│ [Mario Rossi___________________]   │
-│ ...                                │
-└────────────────────────────────────┘
-```
-
-### 4.4 Dialog Assegna Squadra (`AssignExternalTeamDialog.tsx`)
-
-Aggiungere IVA specifica per l'assegnazione:
-
-```
-┌────────────────────────────────────┐
-│     Aggiungi Squadra Esterna       │
-├────────────────────────────────────┤
-│ Squadra *                          │
-│ [▼ Installazioni Rossi        ]    │
-│                                    │
-│ Costo Totale (€) *   IVA           │
-│ [3050__________]     [▼ 22%   ]    │
-│ ⓘ Inserisci il totale fattura      │
-│   (netto 2500€ + IVA 550€)         │
-│                                    │
-│ Data Pagamento Prevista            │
-│ [📅 Seleziona data_____________]   │
-│                                    │
-│            [Annulla] [Aggiungi]    │
-└────────────────────────────────────┘
-```
-
-### 4.5 Conto Economico Aggiornato (`OrderEconomics.tsx`)
-
-Nuova visualizzazione con dettaglio IVA:
-
-```
-┌────────────────────────────────────────────┐
-│ 💰 Conto Economico                         │
-├────────────────────────────────────────────┤
-│ VENDITA                                    │
-│ Imponibile                     € 10.000,00 │
-│ IVA (22%)                       € 2.200,00 │
-│ Totale con IVA                 € 12.200,00 │
-├────────────────────────────────────────────┤
-│ COSTI ARTICOLI                             │
-│ Finestra (22%)    € 1.220 → € 1.000 netto  │
-│ Vetro (0%)          € 800 →   € 800 netto  │
-│ ─────────────────────────────────────────  │
-│ Totale netto articoli          € 1.800,00  │
-│ IVA detraibile articoli          € 220,00  │
-├────────────────────────────────────────────┤
-│ COSTI MANODOPERA                           │
-│ Squadra A (0%)    € 2.500 → € 2.500 netto  │
-│ Squadra B (22%)   € 1.830 → € 1.500 netto  │
-│ ─────────────────────────────────────────  │
-│ Totale netto manodopera        € 4.000,00  │
-│ IVA detraibile manodopera        € 330,00  │
-├────────────────────────────────────────────┤
-│ RIEPILOGO IVA                              │
-│ IVA a debito (vendita)         € 2.200,00  │
-│ IVA a credito (acquisti)         € 550,00  │
-│ IVA netta da versare           € 1.650,00  │
-├────────────────────────────────────────────┤
-│ MARGINE                                    │
-│ ↗ Margine Lordo                € 4.200,00  │
-│ Margine %                           42,0%  │
-└────────────────────────────────────────────┘
 ```
 
 ---
 
-## 5. File da Modificare
+## 3. Test Squadre Esterne
 
-| File | Modifiche |
-|------|-----------|
-| `supabase/migrations/` | Nuova migrazione per aggiungere campi `vat_rate` |
-| `src/components/orders/SupplierSelect.tsx` | Aggiungere campo IVA nel dialog creazione fornitore |
-| `src/components/orders/OrderItemsList.tsx` | Aggiungere campo IVA articolo con ereditarietà da fornitore |
-| `src/components/employees/ExternalTeamDialog.tsx` | Aggiungere campo regime IVA |
-| `src/components/employees/AssignExternalTeamDialog.tsx` | Aggiungere campo IVA con ereditarietà da squadra |
-| `src/components/orders/OrderEconomics.tsx` | Refactor completo per calcoli IVA acquisti |
+Questo non richiede modifiche al codice. Le istruzioni per testare sono:
+
+1. Vai su `/azienda/dipendenti`
+2. Clicca su "Nuova Squadra"
+3. Crea squadra forfettaria:
+   - Nome: "Installatori Verdi (Forfettario)"
+   - Regime IVA: 0% - Forfettario/Esente
+4. Crea squadra ordinaria:
+   - Nome: "Montatori Rossi Srl"
+   - Regime IVA: 22% - Regime ordinario
+5. Vai su un ordine `/azienda/ordini/:id/modifica`
+6. Nella tab "Manodopera", assegna entrambe le squadre con costi diversi
+7. Verifica nel Conto Economico che:
+   - La squadra forfettaria mostra costo netto = costo lordo (IVA 0)
+   - La squadra ordinaria mostra costo netto scorporato + IVA detraibile
 
 ---
 
-## 6. Comportamento Ereditarietà IVA
+## File da Creare/Modificare
 
-### Articoli
-
-1. Utente seleziona fornitore → campo IVA viene precompilato con valore del fornitore
-2. Utente può modificare manualmente se necessario
-3. Al salvataggio, il valore IVA viene salvato su `order_items.vat_rate`
-
-### Squadre Esterne
-
-1. Utente seleziona squadra → campo IVA viene precompilato con valore della squadra
-2. Utente può modificare se questa fattura specifica ha regime diverso
-3. Al salvataggio, il valore IVA viene salvato su `order_external_teams.vat_rate`
+| File | Operazione | Descrizione |
+|------|------------|-------------|
+| `src/pages/azienda/VatReport.tsx` | Creare | Nuova pagina report IVA mensile |
+| `src/components/settings/SuppliersConfig.tsx` | Creare | Componente gestione fornitori |
+| `src/pages/azienda/Settings.tsx` | Modificare | Aggiungere tab Fornitori |
+| `src/components/layouts/CompanyLayout.tsx` | Modificare | Aggiungere voce menu Report IVA |
+| `src/App.tsx` | Modificare | Aggiungere route /azienda/report-iva |
 
 ---
 
 ## Sezione Tecnica
 
-### Formula Scorporo IVA
+### Query Report IVA
 
 ```typescript
-function calculateNetFromGross(grossAmount: number, vatRate: number) {
-  const netAmount = grossAmount / (1 + vatRate / 100);
-  const vatAmount = grossAmount - netAmount;
-  return { netAmount, vatAmount };
-}
+// Fetch ordini del mese selezionato
+const { data: orders } = useQuery({
+  queryKey: ["vat-report-orders", companyId, selectedMonth],
+  queryFn: async () => {
+    const startDate = startOfMonth(selectedMonth);
+    const endDate = endOfMonth(selectedMonth);
+    
+    const { data, error } = await supabase
+      .from("orders")
+      .select(`
+        id,
+        order_code,
+        total_amount,
+        vat_rate,
+        created_at,
+        customer:profiles!orders_customer_id_fkey(first_name, last_name)
+      `)
+      .eq("company_id", companyId)
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString());
+    
+    if (error) throw error;
+    return data;
+  },
+});
 
-// Esempio
-calculateNetFromGross(1220, 22);
-// { netAmount: 1000, vatAmount: 220 }
+// Fetch order_items con IVA per il mese
+const { data: orderItems } = useQuery({
+  queryKey: ["vat-report-items", companyId, selectedMonth],
+  queryFn: async () => {
+    // Fetch items degli ordini del mese con relativi order details
+    const { data, error } = await supabase
+      .from("order_items")
+      .select(`
+        id,
+        name,
+        purchase_price,
+        quantity,
+        vat_rate,
+        order:orders!inner(id, order_code, company_id, created_at)
+      `);
+    
+    if (error) throw error;
+    // Filtra per company e mese
+    return data.filter(item => 
+      item.order.company_id === companyId &&
+      isWithinInterval(new Date(item.order.created_at), { start: startDate, end: endDate })
+    );
+  },
+});
+
+// Fetch external teams con IVA per il mese
+const { data: externalTeams } = useQuery({
+  queryKey: ["vat-report-teams", companyId, selectedMonth],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("order_external_teams")
+      .select(`
+        id,
+        total_cost,
+        vat_rate,
+        order:orders!inner(id, order_code, company_id, created_at),
+        external_team:external_teams(name)
+      `);
+    
+    if (error) throw error;
+    // Filtra per company e mese
+    return data.filter(team => 
+      team.order.company_id === companyId &&
+      isWithinInterval(new Date(team.order.created_at), { start: startDate, end: endDate })
+    );
+  },
+});
 ```
 
-### Struttura Dati OrderEconomics
+### Calcolo IVA Aggregato
 
 ```typescript
-interface CostBreakdown {
+interface VatSummary {
+  vatDebit: number;        // IVA vendite
+  vatCreditItems: number;  // IVA acquisti articoli
+  vatCreditTeams: number;  // IVA squadre esterne
+  vatBalance: number;      // Saldo
+}
+
+const calculateVatSummary = (orders, items, teams): VatSummary => {
+  // IVA a debito (vendite)
+  const vatDebit = orders.reduce((sum, order) => {
+    const vatAmount = order.total_amount * (order.vat_rate / 100);
+    return sum + vatAmount;
+  }, 0);
+  
+  // IVA a credito articoli
+  const vatCreditItems = items.reduce((sum, item) => {
+    const grossCost = (item.purchase_price || 0) * item.quantity;
+    const { vatAmount } = calculateNetFromGross(grossCost, item.vat_rate || 22);
+    return sum + vatAmount;
+  }, 0);
+  
+  // IVA a credito squadre
+  const vatCreditTeams = teams.reduce((sum, team) => {
+    const { vatAmount } = calculateNetFromGross(team.total_cost, team.vat_rate || 22);
+    return sum + vatAmount;
+  }, 0);
+  
+  return {
+    vatDebit,
+    vatCreditItems,
+    vatCreditTeams,
+    vatBalance: vatDebit - vatCreditItems - vatCreditTeams,
+  };
+};
+```
+
+### Componente SuppliersConfig
+
+```typescript
+interface Supplier {
+  id: string;
   name: string;
-  grossCost: number;      // Costo lordo inserito
-  vatRate: number;        // Aliquota IVA (0, 4, 10, 22)
-  netCost: number;        // Costo netto (scorporato)
-  vatAmount: number;      // IVA detraibile
+  vat_rate: number;
+  created_at: string;
 }
 
-interface EconomicsData {
-  // Vendita
-  saleNet: number;
-  saleVat: number;
-  saleGross: number;
-  
-  // Costi articoli
-  itemCosts: CostBreakdown[];
-  totalItemsNet: number;
-  totalItemsVat: number;
-  
-  // Costi manodopera
-  laborCosts: CostBreakdown[];
-  totalLaborNet: number;
-  totalLaborVat: number;
-  
-  // Riepilogo IVA
-  vatDebit: number;       // IVA vendita (a debito)
-  vatCredit: number;      // IVA acquisti (a credito)
-  vatBalance: number;     // Differenza da versare/recuperare
-  
-  // Margine
-  grossMargin: number;
-  marginPercentage: number;
-}
+// Fetch suppliers
+const { data: suppliers } = useQuery({
+  queryKey: ["suppliers", companyId],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("suppliers")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("name");
+    if (error) throw error;
+    return data;
+  },
+});
+
+// Update supplier mutation
+const updateMutation = useMutation({
+  mutationFn: async ({ id, name, vat_rate }) => {
+    const { error } = await supabase
+      .from("suppliers")
+      .update({ name, vat_rate })
+      .eq("id", id);
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+  },
+});
+
+// Delete supplier mutation
+const deleteMutation = useMutation({
+  mutationFn: async (id: string) => {
+    const { error } = await supabase
+      .from("suppliers")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  },
+});
 ```
 
-### Aliquote IVA Predefinite
+### Aggiornamento Menu
 
 ```typescript
-const VAT_RATES = [
-  { value: 22, label: "22% - Ordinaria" },
-  { value: 10, label: "10% - Ridotta" },
-  { value: 4, label: "4% - Minima" },
-  { value: 0, label: "0% - Esente/Estero" },
+// CompanyLayout.tsx - navItems
+const navItems = [
+  { title: "Dashboard", url: "/azienda", icon: LayoutDashboard },
+  { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList },
+  { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse },
+  { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays },
+  { title: "Clienti", url: "/azienda/clienti", icon: Users },
+  { title: "Dipendenti", url: "/azienda/dipendenti", icon: HardHat },
+  { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon },
+  { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp },
+  { title: "Report IVA", url: "/azienda/report-iva", icon: Receipt }, // NUOVO
+  { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings },
 ];
+```
+
+### Esportazione CSV
+
+```typescript
+const exportToCsv = () => {
+  const rows = [
+    ["Tipo", "Ordine", "Descrizione", "Imponibile/Lordo", "Aliquota IVA", "IVA"],
+    ...salesDetails.map(s => ["Vendita", s.orderCode, s.customerName, s.netAmount, s.vatRate, s.vatAmount]),
+    ...itemDetails.map(i => ["Acquisto Articolo", i.orderCode, i.itemName, i.grossCost, i.vatRate, i.vatAmount]),
+    ...teamDetails.map(t => ["Squadra Esterna", t.orderCode, t.teamName, t.grossCost, t.vatRate, t.vatAmount]),
+  ];
+  
+  const csv = rows.map(r => r.join(";")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  // Download...
+};
 ```
