@@ -1,10 +1,16 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { differenceInDays } from "date-fns";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { AlertTriangle, Truck, ExternalLink } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
 type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
 
@@ -32,15 +38,14 @@ interface WarehouseItem {
 }
 
 interface WarehouseAlert {
-  type: "critical" | "warning" | "info";
+  type: "critical" | "warning";
   title: string;
-  description: string;
-  items: WarehouseItem[];
   orderId: string;
   orderCode: string | null;
   customerName: string;
-  daysUntilPosa?: number;
-  expectedDate?: string;
+  daysUntilPosa: number;
+  expectedDate: string;
+  itemsCount: number;
 }
 
 interface WarehouseAlertsProps {
@@ -87,84 +92,107 @@ function calculateAlerts(items: WarehouseItem[]): WarehouseAlert[] {
         alerts.push({
           type: daysUntil <= 3 ? "critical" : "warning",
           title: daysUntil === 0 
-            ? "Posa OGGI!" 
+            ? "OGGI" 
             : daysUntil === 1 
-              ? "Posa domani" 
-              : `Posa tra ${daysUntil} giorni`,
-          description: `${notReadyItems.length} articoli non ancora pronti`,
-          items: notReadyItems,
+              ? "Domani" 
+              : `${daysUntil}g`,
           orderId: group.orderId,
           orderCode: group.orderCode,
           customerName: group.customerName,
           daysUntilPosa: daysUntil,
           expectedDate: group.expectedDate,
+          itemsCount: notReadyItems.length,
         });
       }
     }
   });
 
-  return alerts.sort((a, b) => (a.daysUntilPosa ?? 999) - (b.daysUntilPosa ?? 999));
+  return alerts.sort((a, b) => a.daysUntilPosa - b.daysUntilPosa);
 }
 
 export default function WarehouseAlerts({ items }: WarehouseAlertsProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const alerts = calculateAlerts(items);
 
   if (alerts.length === 0) return null;
+
+  const criticalCount = alerts.filter(a => a.type === "critical").length;
+  const warningCount = alerts.filter(a => a.type === "warning").length;
 
   const formatDate = (dateStr: string) => {
     return format(new Date(dateStr), "dd MMM", { locale: it });
   };
 
   return (
-    <div className="space-y-3">
-      {alerts.map((alert, index) => (
-        <Alert
-          key={`${alert.orderId}-${index}`}
-          variant={alert.type === "critical" ? "destructive" : "default"}
-          className={
-            alert.type === "critical"
-              ? "border-destructive/50 bg-destructive/10"
-              : alert.type === "warning"
-              ? "border-amber-500/50 bg-amber-50 dark:bg-amber-950/20"
-              : ""
-          }
-        >
-          {alert.type === "critical" ? (
-            <AlertTriangle className="h-4 w-4" />
-          ) : (
-            <Truck className="h-4 w-4" />
-          )}
-          <AlertTitle className="flex items-center justify-between">
-            <span>
-              {alert.type === "critical" ? "⚠️ URGENTE: " : "⏰ ATTENZIONE: "}
-              {alert.title}
-            </span>
-          </AlertTitle>
-          <AlertDescription className="mt-2">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span>
-                  <strong>{alert.orderCode || "Ordine"}</strong> ({alert.customerName})
-                  {alert.expectedDate && (
-                    <span className="ml-2 text-muted-foreground">
-                      - Posa il {formatDate(alert.expectedDate)}
-                    </span>
-                  )}
-                </span>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to={`/azienda/ordini/${alert.orderId}`}>
-                    <ExternalLink className="h-3 w-3 mr-1" />
-                    Vai all'ordine
-                  </Link>
-                </Button>
-              </div>
-              <div className="text-sm">
-                Articoli: {alert.items.map((i) => i.name).join(", ")}
-              </div>
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div 
+        className={cn(
+          "flex items-center justify-between p-3 rounded-lg border transition-colors",
+          criticalCount > 0 
+            ? "bg-destructive/10 border-destructive/30" 
+            : "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <AlertTriangle className={cn(
+            "h-4 w-4",
+            criticalCount > 0 ? "text-destructive" : "text-amber-600"
+          )} />
+          <span className="text-sm font-medium">
+            {alerts.length} {alerts.length === 1 ? "avviso" : "avvisi"}
+            {criticalCount > 0 && (
+              <span className="text-destructive ml-1">
+                ({criticalCount} {criticalCount === 1 ? "urgente" : "urgenti"})
+              </span>
+            )}
+          </span>
+        </div>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="gap-1">
+            {isOpen ? "Nascondi" : "Mostra"}
+            <ChevronDown className={cn(
+              "h-4 w-4 transition-transform",
+              isOpen && "rotate-180"
+            )} />
+          </Button>
+        </CollapsibleTrigger>
+      </div>
+      
+      <CollapsibleContent className="mt-2 space-y-2">
+        {alerts.map((alert) => (
+          <div
+            key={alert.orderId}
+            className={cn(
+              "flex items-center justify-between p-3 rounded-lg border text-sm",
+              alert.type === "critical"
+                ? "bg-destructive/5 border-destructive/20"
+                : "bg-amber-50/50 border-amber-200/50 dark:bg-amber-950/10"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <span className={cn(
+                "font-bold text-xs px-2 py-0.5 rounded",
+                alert.type === "critical" 
+                  ? "bg-destructive text-destructive-foreground" 
+                  : "bg-amber-500 text-white"
+              )}>
+                {alert.title}
+              </span>
+              <span className="font-medium">
+                {alert.orderCode || "Ordine"} - {alert.customerName}
+              </span>
+              <span className="text-muted-foreground">
+                {alert.itemsCount} articoli • {formatDate(alert.expectedDate)}
+              </span>
             </div>
-          </AlertDescription>
-        </Alert>
-      ))}
-    </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to={`/azienda/ordini/${alert.orderId}`}>
+                <ExternalLink className="h-3 w-3" />
+              </Link>
+            </Button>
+          </div>
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
