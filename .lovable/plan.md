@@ -1,255 +1,117 @@
 
 
-# Piano: Miglioramento Sezione Magazzino
+# Piano: Analisi e Miglioramento Sezione Magazzino + Dati di Esempio
 
-## Panoramica
+## Analisi della Sezione Attuale
 
-Trasformare la sezione Magazzino da una semplice lista di articoli a un vero e proprio centro di gestione materiali con viste multiple, timeline visiva, indicatori di urgenza e funzionalita avanzate.
+La sezione Magazzino e gia molto completa con:
+- 3 viste: Lista, Kanban (drag-and-drop) e Calendario
+- Alert di urgenza per articoli con posa imminente
+- Statistiche con progress ring e valori economici
+- Filtri avanzati (ricerca, stato, ordine, fornitore)
+- Selezione multipla e azioni batch
+- Esportazione CSV e stampa
 
 ---
 
 ## Miglioramenti Proposti
 
-### 1. Vista Kanban per Stato Articoli
+### 1. Quick Filter per Urgenza
+Aggiungere pulsanti rapidi per filtrare articoli urgenti:
+- "Mostra urgenti" - Solo articoli con posa < 7 giorni non pronti
+- "Da gestire oggi" - Articoli che richiedono azione immediata
 
-Aggiungere una vista Kanban (simile alla Pipeline ordini) con 4 colonne drag-and-drop:
+### 2. Indicatore Visivo Priorita nella Lista
+Evidenziare gli articoli che necessitano attenzione con badge colorati in base alla priorita.
 
-```text
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│  DA ORDINARE    │ │    ORDINATO     │ │  IN MAGAZZINO   │ │   INSTALLATO    │
-│     (5)         │ │      (8)        │ │      (12)       │ │      (3)        │
-├─────────────────┤ ├─────────────────┤ ├─────────────────┤ ├─────────────────┤
-│ ┌─────────────┐ │ │ ┌─────────────┐ │ │ ┌─────────────┐ │ │ ┌─────────────┐ │
-│ │ Finestra    │ │ │ │ Porta       │ │ │ │ Persiane    │ │ │ │ Maniglia    │ │
-│ │ ORD-001     │ │ │ │ ORD-002     │ │ │ │ ORD-001     │ │ │ │ ORD-003     │ │
-│ │ Mario R.    │ │ │ │ Luigi V.    │ │ │ │ Mario R.    │ │ │ │ Anna B.     │ │
-│ └─────────────┘ │ │ └─────────────┘ │ │ └─────────────┘ │ │ └─────────────┘ │
-└─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘
-```
+### 3. Miglioramento Empty State
+Messaggio piu descrittivo quando non ci sono articoli, con suggerimenti su come aggiungere ordini.
 
-**Funzionalita:**
-- Drag-and-drop tra colonne per cambiare stato
-- Card con nome articolo, ordine e cliente
-- Indicatore visivo urgenza (bordo rosso se posa imminente)
+### 4. Filtro Rapido per Settimana Corrente/Prossima
+Bottoni per visualizzare rapidamente gli articoli con posa nella settimana corrente o prossima.
 
 ---
 
-### 2. Indicatori di Urgenza e Alert
+## Dati di Esempio
 
-Aggiungere alert visivi in cima alla pagina per situazioni critiche:
+Creare 3 clienti e 3 ordini con articoli tipici del settore serramenti.
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ ⚠️ ATTENZIONE: 3 articoli con posa entro 7 giorni non sono ancora pronti    │
-│    ORD-001 (Mario Rossi) - Posa il 14/02: Finestra Sala, Porta Ingresso     │
-│    [Vai all'ordine]                                                          │
-└──────────────────────────────────────────────────────────────────────────────┘
+### Clienti da Creare
 
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ 🚚 MERCE IN RITARDO: 2 articoli dovevano arrivare entro il 05/02            │
-│    ORD-002 (Luigi Verdi): Persiane Camera (ordinato il 20/01)               │
-│    [Contatta fornitore]                                                      │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
+| Nome | Cognome | Email | Telefono |
+|------|---------|-------|----------|
+| Giuseppe | Bianchi | giuseppe.bianchi@email.it | 333-1234567 |
+| Maria | Verdi | maria.verdi@email.it | 340-9876543 |
+| Luca | Ferrari | luca.ferrari@email.it | 347-5551234 |
 
----
+### Ordini da Creare
 
-### 3. Vista Timeline/Calendario
+**Ordine 1 - Giuseppe Bianchi** (Posa tra 5 giorni)
+| Articolo | Quantita | Stato | Prezzo Acquisto |
+|----------|----------|-------|-----------------|
+| Tapparelle PVC Bianco 120x160 | 4 | in_magazzino | 85 |
+| Zanzariere a rullo 120x160 | 4 | ordinato | 45 |
+| Motore tubolare 20Nm | 4 | da_ordinare | 120 |
 
-Nuova vista che mostra gli articoli organizzati per data di posa prevista:
+**Ordine 2 - Maria Verdi** (Posa tra 12 giorni)
+| Articolo | Quantita | Stato | Prezzo Acquisto |
+|----------|----------|-------|-----------------|
+| Tapparelle Alluminio Coibentato 100x140 | 6 | ordinato | 110 |
+| Zanzariere plissettate 100x140 | 6 | in_magazzino | 65 |
+| Motore tubolare 30Nm con telecomando | 6 | in_magazzino | 180 |
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  FEBBRAIO 2026                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Lun 10   Mar 11   Mer 12   Gio 13   Ven 14   Sab 15   Dom 16              │
-│                                                                              │
-│                              ┌─────────────────────┐                        │
-│                              │ ORD-001 Mario R.    │                        │
-│                              │ 🟢 3 pronti         │                        │
-│                              │ 🟠 1 da ordinare    │                        │
-│                              └─────────────────────┘                        │
-│                                                                              │
-│  ┌─────────────────────┐                                                    │
-│  │ ORD-003 Anna B.     │                                                    │
-│  │ 🔵 2 ordinati       │                                                    │
-│  └─────────────────────┘                                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 4. Statistiche Migliorate con Progress Ring
-
-Sostituire le card numeriche con progress ring visuali:
-
-```text
-┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
-│     Completamento  │  │     In Magazzino   │  │     In Transito    │  │     Da Ordinare    │
-│                    │  │                    │  │                    │  │                    │
-│      ╭─────╮       │  │        12          │  │         8          │  │         5          │
-│     │  68% │       │  │      articoli      │  │      articoli      │  │      articoli      │
-│      ╰─────╯       │  │      4 ordini      │  │      3 ordini      │  │      2 ordini      │
-│                    │  │                    │  │                    │  │                    │
-│  17/25 installati  │  │  €12.450 valore    │  │  €8.200 in arrivo  │  │  €3.100 da spendere│
-└────────────────────┘  └────────────────────┘  └────────────────────┘  └────────────────────┘
-```
-
----
-
-### 5. Toggle Vista Lista/Kanban/Calendario
-
-Aggiungere switch per passare tra le viste:
-
-```text
-Vista: [Lista ✓] [Kanban] [Calendario]
-```
-
----
-
-### 6. Ordinamento e Raggruppamento Avanzato
-
-Nuove opzioni di raggruppamento:
-- Per ordine (attuale)
-- Per fornitore (raggruppa tutti gli articoli dello stesso fornitore)
-- Per data posa (ordini con posa piu imminente in cima)
-- Per stato (tutti i "da ordinare" prima, poi "ordinati", ecc.)
-
----
-
-### 7. Azioni di Massa Migliorate
-
-Aggiungere checkbox per selezione multipla e azioni batch:
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ [✓] Seleziona tutto    5 articoli selezionati                              │
-│                                                                              │
-│ Azioni: [Segna come Ordinato] [Segna In Magazzino] [Segna Installato]      │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 8. Indicatore Tempo in Stato
-
-Mostrare da quanto tempo un articolo e in un certo stato:
-
-```text
-┌────────────────────────────────────────────────────────────────────────────┐
-│ 🟠 Finestra Sala (x2)                                                      │
-│ Fornitore: ABC Serramenti                                                  │
-│ Ordinato il: 20/01/2026 (18 giorni fa) ⚠️ Attesa prolungata               │
-└────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 9. Quick Actions su Hover
-
-Azioni rapide quando si passa sopra un articolo:
-- Cambia stato veloce (icone per ogni stato)
-- Vai all'ordine
-- Contatta fornitore (se presente email/telefono)
-
----
-
-### 10. Esportazione e Stampa
-
-Bottoni per:
-- Esporta CSV della lista filtrata
-- Stampa lista materiali da ordinare
-- Genera report per fornitore (tutti gli articoli di un fornitore)
+**Ordine 3 - Luca Ferrari** (Posa tra 3 giorni - URGENTE)
+| Articolo | Quantita | Stato | Prezzo Acquisto |
+|----------|----------|-------|-----------------|
+| Tapparelle PVC Grigio 140x180 | 3 | in_magazzino | 95 |
+| Zanzariere magnetiche 140x180 | 3 | da_ordinare | 35 |
+| Motore tubolare 40Nm | 3 | ordinato | 150 |
+| Centralina domotica 4 canali | 1 | in_magazzino | 250 |
 
 ---
 
 ## Struttura Tecnica
 
-### Nuovi Componenti
+### Creazione Dati di Esempio
 
-| File | Descrizione |
-|------|-------------|
-| `src/components/warehouse/WarehouseKanbanView.tsx` | Vista Kanban con DnD |
-| `src/components/warehouse/WarehouseKanbanColumn.tsx` | Colonna Kanban singola |
-| `src/components/warehouse/WarehouseKanbanCard.tsx` | Card articolo draggable |
-| `src/components/warehouse/WarehouseCalendarView.tsx` | Vista calendario |
-| `src/components/warehouse/WarehouseAlerts.tsx` | Componente alert urgenze |
-| `src/components/warehouse/WarehouseStats.tsx` | Statistiche con progress ring |
+L'inserimento dei dati avviene in 4 fasi:
 
-### Modifiche a File Esistenti
+1. **Creazione Utenti Auth** (via Edge Function)
+   - Crea utenti in auth.users con ruolo customer
+
+2. **Creazione Profili**
+   - Inserisce record in `profiles` con i dati anagrafici
+
+3. **Creazione Ordini**
+   - Inserisce 3 ordini in `orders` con date di posa differenziate
+
+4. **Creazione Articoli**
+   - Inserisce articoli in `order_items` con stati misti
+
+### Fornitori Suggeriti
+
+Per rendere i dati piu realistici, creeremo anche fornitori esempio:
+- "ABC Serramenti" - per tapparelle
+- "ZanzarTech" - per zanzariere  
+- "MotorDom" - per motori e domotica
+
+---
+
+## File da Modificare
 
 | File | Modifica |
 |------|----------|
-| `src/pages/azienda/Warehouse.tsx` | Aggiunta toggle viste, alert, nuove stats |
+| `src/pages/azienda/Warehouse.tsx` | Quick filter urgenza + settimana corrente |
+| `src/components/warehouse/WarehouseListView.tsx` | Badge priorita + empty state migliorato |
+| `src/components/warehouse/WarehouseStats.tsx` | Aggiunta contatore articoli urgenti |
 
 ---
 
-## Logica Alert Urgenza
+## Riepilogo
 
-```typescript
-interface WarehouseAlert {
-  type: 'critical' | 'warning' | 'info';
-  title: string;
-  description: string;
-  items: WarehouseItem[];
-  orderId: string;
-  daysUntilPosa?: number;
-}
-
-function calculateAlerts(items: WarehouseItem[]): WarehouseAlert[] {
-  const alerts: WarehouseAlert[] = [];
-  const today = new Date();
-  
-  // Raggruppa per ordine
-  const orderGroups = groupByOrder(items);
-  
-  orderGroups.forEach(group => {
-    const notReadyItems = group.items.filter(i => 
-      i.status === 'da_ordinare' || i.status === 'ordinato'
-    );
-    
-    if (group.expectedDate && notReadyItems.length > 0) {
-      const daysUntil = differenceInDays(group.expectedDate, today);
-      
-      if (daysUntil <= 7) {
-        alerts.push({
-          type: daysUntil <= 3 ? 'critical' : 'warning',
-          title: `Posa tra ${daysUntil} giorni`,
-          description: `${notReadyItems.length} articoli non pronti`,
-          items: notReadyItems,
-          orderId: group.orderId,
-          daysUntilPosa: daysUntil,
-        });
-      }
-    }
-  });
-  
-  return alerts.sort((a, b) => (a.daysUntilPosa || 999) - (b.daysUntilPosa || 999));
-}
-```
-
----
-
-## Ordine di Implementazione
-
-1. **Fase 1**: Alert urgenze + statistiche migliorate
-2. **Fase 2**: Toggle viste + vista Kanban con DnD
-3. **Fase 3**: Vista Calendario
-4. **Fase 4**: Selezione multipla e azioni batch
-5. **Fase 5**: Esportazione CSV/stampa
-
----
-
-## Riepilogo Funzionalita
-
-1. **Vista Kanban**: Drag-and-drop tra stati con visual card
-2. **Alert Urgenze**: Notifiche per articoli critici (posa imminente, merce in ritardo)
-3. **Vista Calendario**: Timeline articoli per data posa
-4. **Statistiche Avanzate**: Progress ring completamento + valori economici
-5. **Toggle Viste**: Lista/Kanban/Calendario
-6. **Raggruppamento Flessibile**: Per ordine/fornitore/data/stato
-7. **Selezione Multipla**: Checkbox + azioni batch
-8. **Indicatore Tempo**: "Ordinato da X giorni"
-9. **Quick Actions**: Azioni rapide su hover
-10. **Esportazione**: CSV, stampa, report fornitore
+1. **Quick Filters**: Pulsanti rapidi per filtrare urgenze e settimana corrente
+2. **Badge Priorita**: Indicatori visivi per articoli che necessitano attenzione
+3. **Empty State Migliorato**: Messaggio descrittivo con call-to-action
+4. **Contatore Urgenze**: Nelle statistiche, mostrare quanti articoli sono critici
+5. **Dati di Esempio**: 3 clienti + 3 ordini con 13 articoli totali (tapparelle, zanzariere, motori)
 
