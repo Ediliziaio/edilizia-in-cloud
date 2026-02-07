@@ -4,17 +4,18 @@ import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Calendar,
-  CheckCircle2,
-  Package,
-  ShoppingCart,
-  Truck,
+  ChevronDown,
   ExternalLink,
-  Clock,
+  Package,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -22,51 +23,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
 
-const STATUS_CONFIG: Record<OrderItemStatus, { 
-  label: string; 
-  color: string; 
-  bgColor: string; 
-  borderColor: string; 
-  icon: typeof Package;
-}> = {
-  da_ordinare: {
-    label: "Da Ordinare",
-    color: "text-amber-700",
-    bgColor: "bg-amber-50",
-    borderColor: "border-l-4 border-amber-500",
-    icon: ShoppingCart,
-  },
-  ordinato: {
-    label: "Ordinato",
-    color: "text-blue-700",
-    bgColor: "bg-blue-50",
-    borderColor: "border-l-4 border-blue-500",
-    icon: Truck,
-  },
-  in_magazzino: {
-    label: "In Magazzino",
-    color: "text-green-700",
-    bgColor: "bg-green-50",
-    borderColor: "border-l-4 border-green-500",
-    icon: Package,
-  },
-  installato: {
-    label: "Installato",
-    color: "text-slate-700",
-    bgColor: "bg-slate-50",
-    borderColor: "border-l-4 border-slate-500",
-    icon: CheckCircle2,
-  },
+const STATUS_CONFIG: Record<OrderItemStatus, { label: string }> = {
+  da_ordinare: { label: "Da Ordinare" },
+  ordinato: { label: "Ordinato" },
+  in_magazzino: { label: "In Magazzino" },
+  installato: { label: "Installato" },
 };
 
 interface WarehouseItem {
@@ -108,6 +73,14 @@ interface WarehouseListViewProps {
   isUpdating: boolean;
 }
 
+function getStatusIndicators(items: WarehouseItem[]) {
+  return {
+    ready: items.filter(i => i.status === "in_magazzino" || i.status === "installato").length,
+    ordered: items.filter(i => i.status === "ordinato").length,
+    toOrder: items.filter(i => i.status === "da_ordinare").length,
+  };
+}
+
 export default function WarehouseListView({
   orderGroups,
   onStatusChange,
@@ -116,16 +89,21 @@ export default function WarehouseListView({
   getSupplierName,
   isUpdating,
 }: WarehouseListViewProps) {
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
   const formatDate = (dateStr: string) => {
-    return format(new Date(dateStr), "dd MMM yyyy", { locale: it });
+    return format(new Date(dateStr), "dd MMM", { locale: it });
   };
 
-  const getDaysInStatus = (updatedAt: string | null | undefined) => {
-    if (!updatedAt) return null;
-    const days = differenceInDays(new Date(), new Date(updatedAt));
-    return days;
+  const toggleOrder = (orderId: string) => {
+    const newExpanded = new Set(expandedOrders);
+    if (newExpanded.has(orderId)) {
+      newExpanded.delete(orderId);
+    } else {
+      newExpanded.add(orderId);
+    }
+    setExpandedOrders(newExpanded);
   };
 
   const toggleItemSelection = (itemId: string) => {
@@ -138,19 +116,6 @@ export default function WarehouseListView({
     setSelectedItems(newSelected);
   };
 
-  const toggleAllItems = (items: WarehouseItem[]) => {
-    const itemIds = items.map((i) => i.id);
-    const allSelected = itemIds.every((id) => selectedItems.has(id));
-
-    const newSelected = new Set(selectedItems);
-    if (allSelected) {
-      itemIds.forEach((id) => newSelected.delete(id));
-    } else {
-      itemIds.forEach((id) => newSelected.add(id));
-    }
-    setSelectedItems(newSelected);
-  };
-
   const handleBatchAction = (status: OrderItemStatus) => {
     if (selectedItems.size === 0) return;
     onBatchStatusChange(Array.from(selectedItems), status);
@@ -159,196 +124,239 @@ export default function WarehouseListView({
 
   const allItems = orderGroups.flatMap((g) => g.items);
 
+  // Check if order is urgent (posa <= 7 days and has items not ready)
+  const isOrderUrgent = (group: OrderWithItems) => {
+    if (!group.expectedDate) return false;
+    const daysUntil = differenceInDays(new Date(group.expectedDate), new Date());
+    const hasNotReady = group.items.some(i => i.status === "da_ordinare" || i.status === "ordinato");
+    return daysUntil <= 7 && daysUntil >= 0 && hasNotReady;
+  };
+
+  const isOrderCritical = (group: OrderWithItems) => {
+    if (!group.expectedDate) return false;
+    const daysUntil = differenceInDays(new Date(group.expectedDate), new Date());
+    const hasNotReady = group.items.some(i => i.status === "da_ordinare" || i.status === "ordinato");
+    return daysUntil <= 3 && daysUntil >= 0 && hasNotReady;
+  };
+
+  if (orderGroups.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+        <p className="text-muted-foreground">Nessun articolo trovato</p>
+        <p className="text-sm text-muted-foreground/70 mt-1">
+          Aggiungi articoli agli ordini per vederli qui
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Batch actions bar */}
       {selectedItems.size > 0 && (
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="py-3">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-3">
-                <Checkbox
-                  checked={
-                    allItems.length > 0 &&
-                    allItems.every((i) => selectedItems.has(i.id))
-                  }
-                  onCheckedChange={() => toggleAllItems(allItems)}
-                />
-                <span className="text-sm font-medium">
-                  {selectedItems.size} articoli selezionati
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Azioni:</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleBatchAction("ordinato")}
-                  disabled={isUpdating}
-                >
-                  <Truck className="h-4 w-4 mr-1" />
-                  Ordinato
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleBatchAction("in_magazzino")}
-                  disabled={isUpdating}
-                >
-                  <Package className="h-4 w-4 mr-1" />
-                  In Magazzino
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleBatchAction("installato")}
-                  disabled={isUpdating}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                  Installato
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-between p-3 bg-primary/5 border rounded-lg">
+          <span className="text-sm font-medium">
+            {selectedItems.size} selezionati
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBatchAction("ordinato")}
+              disabled={isUpdating}
+            >
+              Ordinato
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBatchAction("in_magazzino")}
+              disabled={isUpdating}
+            >
+              In Magazzino
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBatchAction("installato")}
+              disabled={isUpdating}
+            >
+              Installato
+            </Button>
+          </div>
+        </div>
       )}
 
-      {orderGroups.map((orderGroup) => {
-        const groupItemIds = orderGroup.items.map((i) => i.id);
-        const allGroupSelected = groupItemIds.every((id) =>
-          selectedItems.has(id)
-        );
-        const someGroupSelected =
-          groupItemIds.some((id) => selectedItems.has(id)) && !allGroupSelected;
+      {/* Order accordion list */}
+      {orderGroups.map((group) => {
+        const indicators = getStatusIndicators(group.items);
+        const isExpanded = expandedOrders.has(group.orderId);
+        const urgent = isOrderUrgent(group);
+        const critical = isOrderCritical(group);
+        const daysUntil = group.expectedDate 
+          ? differenceInDays(new Date(group.expectedDate), new Date())
+          : null;
 
         return (
-          <Card key={orderGroup.orderId}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={allGroupSelected}
-                    ref={(el) => {
-                      if (el) {
-                        (el as HTMLButtonElement & { indeterminate: boolean }).indeterminate = someGroupSelected;
-                      }
-                    }}
-                    onCheckedChange={() => toggleAllItems(orderGroup.items)}
-                  />
-                  <div>
-                    <Link to={`/azienda/ordini/${orderGroup.orderId}`}>
-                      <CardTitle className="text-lg hover:underline cursor-pointer flex items-center gap-2">
-                        {orderGroup.orderCode || "Ordine"} - {orderGroup.customerName}
-                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                      </CardTitle>
-                    </Link>
-                    {orderGroup.expectedDate && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                        <Calendar className="h-3 w-3" />
-                        Posa prevista: {formatDate(orderGroup.expectedDate)}
-                      </p>
-                    )}
+          <Collapsible 
+            key={group.orderId} 
+            open={isExpanded}
+            onOpenChange={() => toggleOrder(group.orderId)}
+          >
+            <div 
+              className={cn(
+                "border rounded-lg transition-colors",
+                critical && "border-destructive",
+                urgent && !critical && "border-amber-500"
+              )}
+            >
+              {/* Order header row */}
+              <CollapsibleTrigger asChild>
+                <div 
+                  className={cn(
+                    "flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 transition-colors",
+                    isExpanded && "border-b"
+                  )}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Order code & customer */}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium truncate">
+                          {group.orderCode || "Ordine"} - {group.customerName}
+                        </span>
+                        {(urgent || critical) && daysUntil !== null && (
+                          <Badge 
+                            variant="destructive" 
+                            className={cn(
+                              "text-xs shrink-0",
+                              !critical && "bg-amber-500 hover:bg-amber-600"
+                            )}
+                          >
+                            {daysUntil === 0 ? "OGGI" : daysUntil === 1 ? "Domani" : `${daysUntil}g`}
+                          </Badge>
+                        )}
+                      </div>
+                      {group.expectedDate && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <Calendar className="h-3 w-3" />
+                          Posa: {formatDate(group.expectedDate)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {/* Status indicators */}
+                    <div className="flex items-center gap-1">
+                      {indicators.ready > 0 && (
+                        <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs">
+                          {indicators.ready}
+                        </Badge>
+                      )}
+                      {indicators.ordered > 0 && (
+                        <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs">
+                          {indicators.ordered}
+                        </Badge>
+                      )}
+                      {indicators.toOrder > 0 && (
+                        <Badge variant="outline" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
+                          {indicators.toOrder}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Items count */}
+                    <span className="text-xs text-muted-foreground">
+                      {group.items.length} art.
+                    </span>
+
+                    {/* Expand icon */}
+                    <ChevronDown className={cn(
+                      "h-4 w-4 text-muted-foreground transition-transform",
+                      isExpanded && "rotate-180"
+                    )} />
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onMarkAllInstalled(orderGroup.items)}
-                  disabled={isUpdating}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                  Segna tutti Installati
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {orderGroup.items.map((item) => {
-                  const statusConfig = STATUS_CONFIG[item.status];
-                  const supplierName = getSupplierName(item.supplier_id);
-                  const daysInStatus = getDaysInStatus(item.updated_at);
-                  const isLongWait =
-                    item.status === "ordinato" && daysInStatus !== null && daysInStatus > 14;
+              </CollapsibleTrigger>
 
-                  return (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        "p-3 rounded-lg flex items-center justify-between group",
-                        statusConfig.bgColor,
-                        statusConfig.borderColor,
-                        selectedItems.has(item.id) && "ring-2 ring-primary"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          checked={selectedItems.has(item.id)}
-                          onCheckedChange={() => toggleItemSelection(item.id)}
-                        />
-                        <Badge
-                          variant="secondary"
-                          className={cn("font-mono", statusConfig.color)}
-                        >
-                          {item.quantity || 1}x
-                        </Badge>
-                        <div>
-                          <p className="font-medium">{item.name}</p>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {/* Expanded items */}
+              <CollapsibleContent>
+                <div className="p-2 space-y-1 bg-muted/20">
+                  {group.items.map((item) => {
+                    const supplierName = getSupplierName(item.supplier_id);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={cn(
+                          "flex items-center justify-between p-2 rounded bg-background border",
+                          selectedItems.has(item.id) && "ring-1 ring-primary"
+                        )}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Checkbox
+                            checked={selectedItems.has(item.id)}
+                            onCheckedChange={() => toggleItemSelection(item.id)}
+                          />
+                          <Badge variant="secondary" className="font-mono text-xs shrink-0">
+                            {item.quantity || 1}x
+                          </Badge>
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate">{item.name}</p>
                             {supplierName && (
-                              <span>Fornitore: {supplierName}</span>
-                            )}
-                            {daysInStatus !== null && daysInStatus > 0 && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span
-                                      className={cn(
-                                        "flex items-center gap-1",
-                                        isLongWait && "text-amber-600 font-medium"
-                                      )}
-                                    >
-                                      <Clock className="h-3 w-3" />
-                                      {daysInStatus}g
-                                      {isLongWait && " ⚠️"}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>
-                                      In questo stato da {daysInStatus} giorni
-                                      {isLongWait && " - Attesa prolungata"}
-                                    </p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {supplierName}
+                              </p>
                             )}
                           </div>
                         </div>
-                      </div>
 
-                      <Select
-                        value={item.status}
-                        onValueChange={(value) =>
-                          onStatusChange(item.id, value as OrderItemStatus)
-                        }
-                        disabled={isUpdating}
-                      >
-                        <SelectTrigger className="w-36">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                            <SelectItem key={status} value={status}>
-                              {config.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                        <Select
+                          value={item.status}
+                          onValueChange={(value) =>
+                            onStatusChange(item.id, value as OrderItemStatus)
+                          }
+                          disabled={isUpdating}
+                        >
+                          <SelectTrigger className="w-32 h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                              <SelectItem key={status} value={status}>
+                                {config.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })}
+
+                  {/* Order actions */}
+                  <div className="flex items-center justify-between pt-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => onMarkAllInstalled(group.items)}
+                      disabled={isUpdating}
+                    >
+                      Segna tutti installati
+                    </Button>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to={`/azienda/ordini/${group.orderId}`} className="text-xs">
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        Vai all'ordine
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         );
       })}
     </div>

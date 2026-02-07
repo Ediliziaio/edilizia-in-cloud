@@ -1,7 +1,6 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -40,35 +39,30 @@ const STATUS_CONFIG: Record<OrderItemStatus, {
   label: string; 
   color: string; 
   bgColor: string;
-  headerColor: string;
   icon: typeof Package;
 }> = {
   da_ordinare: {
     label: "Da Ordinare",
-    color: "text-amber-700",
-    bgColor: "bg-amber-50/50",
-    headerColor: "bg-amber-100 border-amber-200",
+    color: "text-amber-600",
+    bgColor: "bg-amber-50/50 dark:bg-amber-950/20",
     icon: ShoppingCart,
   },
   ordinato: {
     label: "Ordinato",
-    color: "text-blue-700",
-    bgColor: "bg-blue-50/50",
-    headerColor: "bg-blue-100 border-blue-200",
+    color: "text-blue-600",
+    bgColor: "bg-blue-50/50 dark:bg-blue-950/20",
     icon: Truck,
   },
   in_magazzino: {
     label: "In Magazzino",
-    color: "text-green-700",
-    bgColor: "bg-green-50/50",
-    headerColor: "bg-green-100 border-green-200",
+    color: "text-green-600",
+    bgColor: "bg-green-50/50 dark:bg-green-950/20",
     icon: Package,
   },
   installato: {
     label: "Installato",
-    color: "text-slate-700",
-    bgColor: "bg-slate-50/50",
-    headerColor: "bg-slate-100 border-slate-200",
+    color: "text-muted-foreground",
+    bgColor: "bg-muted/30",
     icon: CheckCircle2,
   },
 };
@@ -86,35 +80,37 @@ export default function WarehouseKanbanColumn({
   const Icon = config.icon;
 
   return (
-    <Card 
+    <div 
       className={cn(
-        "flex flex-col h-[calc(100vh-400px)] min-h-[400px]",
-        isOver && "ring-2 ring-primary"
+        "flex flex-col h-[calc(100vh-400px)] min-h-[400px] rounded-lg border",
+        isOver && "ring-2 ring-primary",
+        config.bgColor
       )}
     >
-      <CardHeader className={cn("pb-3 border-b", config.headerColor)}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Icon className={cn("h-4 w-4", config.color)} />
-            <CardTitle className="text-sm font-medium">{config.label}</CardTitle>
-          </div>
-          <Badge variant="secondary" className={config.color}>
-            {items.length}
-          </Badge>
+      {/* Minimal header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b bg-background/50">
+        <div className="flex items-center gap-2">
+          <Icon className={cn("h-4 w-4", config.color)} />
+          <span className="text-sm font-medium">{config.label}</span>
         </div>
-      </CardHeader>
-      <CardContent 
+        <Badge variant="secondary" className="text-xs">
+          {items.length}
+        </Badge>
+      </div>
+      
+      {/* Content */}
+      <div 
         ref={setNodeRef}
-        className={cn("flex-1 p-2 overflow-hidden", config.bgColor)}
+        className="flex-1 p-2 overflow-hidden"
       >
-        <ScrollArea className="h-full pr-2">
+        <ScrollArea className="h-full">
           <SortableContext 
             items={items.map(i => i.id)} 
             strategy={verticalListSortingStrategy}
           >
-            <div className="space-y-2">
+            <div className="space-y-1.5 pr-2">
               {items.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">
+                <div className="text-center py-8 text-muted-foreground text-xs">
                   Nessun articolo
                 </div>
               ) : (
@@ -129,7 +125,7 @@ export default function WarehouseKanbanColumn({
             </div>
           </SortableContext>
         </ScrollArea>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

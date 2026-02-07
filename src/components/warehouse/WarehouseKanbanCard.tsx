@@ -1,19 +1,9 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Link } from "react-router-dom";
 import { differenceInDays } from "date-fns";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
-import { GripVertical, Calendar, ExternalLink } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
@@ -44,7 +34,7 @@ interface WarehouseKanbanCardProps {
   supplierName?: string | null;
 }
 
-export default function WarehouseKanbanCard({ item, supplierName }: WarehouseKanbanCardProps) {
+export default function WarehouseKanbanCard({ item }: WarehouseKanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -70,85 +60,49 @@ export default function WarehouseKanbanCard({ item, supplierName }: WarehouseKan
   const isCritical = daysUntil !== null && daysUntil <= 3 && daysUntil >= 0 &&
     (item.status === "da_ordinare" || item.status === "ordinato");
 
-  const formatDate = (dateStr: string) => {
-    return format(new Date(dateStr), "dd MMM", { locale: it });
-  };
-
   return (
     <Card
       ref={setNodeRef}
       style={style}
       className={cn(
         "cursor-grab active:cursor-grabbing transition-all",
-        isDragging && "opacity-50 shadow-lg rotate-2",
-        isCritical && "border-destructive border-2",
-        isUrgent && !isCritical && "border-amber-500 border-2"
+        isDragging && "opacity-50 shadow-lg rotate-1",
+        isCritical && "border-destructive",
+        isUrgent && !isCritical && "border-amber-500"
       )}
     >
-      <CardContent className="p-3">
-        <div className="flex items-start gap-2">
+      <CardContent className="p-2">
+        <div className="flex items-start gap-1.5">
           <div
             {...attributes}
             {...listeners}
-            className="mt-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+            className="mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground"
           >
-            <GripVertical className="h-4 w-4" />
+            <GripVertical className="h-3.5 w-3.5" />
           </div>
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <Badge variant="secondary" className="font-mono text-xs">
-                {item.quantity || 1}x
-              </Badge>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-xs font-mono text-muted-foreground">
+                  {item.quantity || 1}x
+                </span>
+                <span className="font-medium text-sm truncate">{item.name}</span>
+              </div>
               {(isUrgent || isCritical) && (
                 <Badge 
                   variant="destructive" 
                   className={cn(
-                    "text-xs",
+                    "text-[10px] px-1.5 py-0 h-4 shrink-0",
                     !isCritical && "bg-amber-500 hover:bg-amber-600"
                   )}
                 >
-                  {daysUntil === 0 ? "OGGI" : `${daysUntil}g`}
+                  {daysUntil === 0 ? "!" : `${daysUntil}g`}
                 </Badge>
               )}
             </div>
-
-            <p className="font-medium text-sm truncate">{item.name}</p>
-            
-            <div className="mt-2 space-y-1">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link 
-                      to={`/azienda/ordini/${item.order.id}`}
-                      className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 truncate"
-                    >
-                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                      {item.order.order_code || "Ordine"}
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Vai all'ordine</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <p className="text-xs text-muted-foreground truncate">
-                {item.order.customer.first_name} {item.order.customer.last_name}
-              </p>
-
-              {supplierName && (
-                <p className="text-xs text-muted-foreground truncate">
-                  📦 {supplierName}
-                </p>
-              )}
-
-              {expectedDate && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  {formatDate(expectedDate)}
-                </p>
-              )}
+            <div className="text-xs text-muted-foreground mt-0.5 truncate">
+              {item.order.order_code} • {item.order.customer.first_name.charAt(0)}. {item.order.customer.last_name}
             </div>
           </div>
         </div>
