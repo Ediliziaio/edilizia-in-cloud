@@ -1,242 +1,152 @@
 
 
-# Piano: Calendario Mensile con Date Posa/Merce + Modifica Date nel Gantt
+# Piano: Miglioramenti Calendario
 
-## Riepilogo Modifiche
+## Panoramica
 
-### 1. Calendario Mensile - Nuova Visualizzazione
+Ottimizzare l'usabilità del calendario con miglioramenti visivi, nuovi filtri e funzionalità extra.
 
-**Situazione attuale**: Mostra barre multi-giorno basate su `work_start_date` → `work_end_date`
+---
 
-**Nuova logica**: Mostrare due tipi di eventi distinti per giorno:
+## 1. Miglioramenti Vista Mensile
 
-| Tipo | Campo | Colore | Icona |
-|------|-------|--------|-------|
-| Data Posa | `expected_date` | Blu | 🔨 Hammer |
-| Arrivo Merce | `warehouse_arrival_date` | Arancione | 📦 Package |
+### 1.1 Mostrare nome cliente negli eventi
 
-**Layout cella calendario**:
+Aggiungere il cognome del cliente accanto al codice ordine per riconoscere subito di chi si tratta:
+
 ```text
 +------------------------+
 |  15                    |
-|  📦 ORD-001 (Merce)    |  <- Arrivo merce
-|  🔨 ORD-002 (Posa)     |  <- Data posa
+|  📦 ORD-001 - Bianchi  |  <- Codice + Cognome
+|  🔨 ORD-002 - Rossi    |
 +------------------------+
 ```
 
-**Legenda aggiornata**:
+### 1.2 Correggere coerenza colori legenda
+
+Usare le stesse classi CSS sia negli eventi che nella legenda (`bg-blue-500` e `bg-amber-500`).
+
+### 1.3 Tooltip dettagliato
+
+Aggiungere tooltip hover sugli eventi che mostri:
+- Codice ordine completo
+- Nome cliente completo
+- Descrizione ordine
+- Stato attuale
+
+---
+
+## 2. Miglioramenti Filtri
+
+### 2.1 Contatore ordini
+
+Mostrare quanti ordini sono visualizzati dopo il filtraggio:
+
 ```text
-[📦 Arancione] Arrivo Merce
-[🔨 Blu] Data Posa Prevista
+[Tutti gli stati v] [Tutti i clienti v]  |  Visualizzati: 12 ordini
 ```
 
----
+### 2.2 Pulsante Reset Filtri
 
-### 2. Gantt - Dialog Modifica Date
+Aggiungere pulsante per azzerare tutti i filtri in un click:
 
-**Situazione attuale**: Drag & drop per spostare le barre (funziona ma poco preciso)
-
-**Nuova funzionalità**: Click su barra → Apre dialog con:
-- Data Inizio Lavori (`work_start_date`)
-- Data Fine Lavori (`work_end_date`)
-- Data Posa Prevista (`expected_date`)
-- Data Arrivo Merce (`warehouse_arrival_date`)
-
-**UI Dialog**:
 ```text
-+----------------------------------------+
-| Modifica Date - ORD-2026-001           |
-| Giuseppe Bianchi                        |
-+----------------------------------------+
-|                                         |
-| Data Inizio Lavori    [📅 17 Feb 2026] |
-| Data Fine Lavori      [📅 24 Feb 2026] |
-|                                         |
-| Data Posa Prevista    [📅 25 Feb 2026] |
-| Arrivo Merce          [📅 13 Feb 2026] |
-|                                         |
-|            [Annulla]    [Salva]        |
-+----------------------------------------+
+[Tutti gli stati v] [Tutti i clienti v] [Resetta Filtri]
 ```
+
+### 2.3 Filtro Date Range
+
+Aggiungere possibilità di filtrare per intervallo date (prossima settimana, prossimo mese, personalizzato).
 
 ---
 
-## Dettagli Tecnici
+## 3. Miglioramenti Vista Gantt
 
-### Modifiche ai Tipi
+### 3.1 Correggere legenda
 
-Aggiungere `warehouse_arrival_date` a `CalendarOrder`:
+La legenda attuale dice "Completato/In corso/Futuro" ma i colori derivano dallo status ordine. Due opzioni:
 
-```typescript
-export interface CalendarOrder {
-  // ... campi esistenti
-  warehouse_arrival_date: string | null;  // NUOVO
-}
-```
+**Opzione A**: Rimuovere legenda generica e mostrare mini-legenda degli stati aziendali
+**Opzione B**: Colorare le barre in base alla logica temporale invece che allo status
 
-### Query Calendario
+Consiglio Opzione A per coerenza con il sistema.
 
-Aggiornare la query per includere `warehouse_arrival_date`:
+### 3.2 Indicatore ordini senza date
 
-```typescript
-.select(`
-  id,
-  order_code,
-  description,
-  expected_date,
-  warehouse_arrival_date,  // NUOVO
-  work_start_date,
-  work_end_date,
-  ...
-`)
-```
+Aggiungere sezione "Ordini non pianificati" con lista degli ordini che non hanno date lavoro.
 
-### CalendarMonthView - Nuova Logica
+### 3.3 Quick Actions
 
-```typescript
-// Per ogni giorno, trova ordini con posa O merce in quel giorno
-const getEventsForDay = (day: Date) => {
-  const events: CalendarEvent[] = [];
-  
-  orders.forEach(order => {
-    // Evento Posa
-    if (order.expected_date && isSameDay(parseISO(order.expected_date), day)) {
-      events.push({
-        type: 'posa',
-        order,
-        color: '#3B82F6', // blu
-        icon: 'hammer',
-      });
-    }
-    
-    // Evento Arrivo Merce
-    if (order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day)) {
-      events.push({
-        type: 'merce',
-        order,
-        color: '#F59E0B', // arancione
-        icon: 'package',
-      });
-    }
-  });
-  
-  return events;
-};
-```
-
-### Dialog Modifica Date - Nuovo Componente
-
-Creare `EditOrderDatesDialog.tsx`:
-
-```typescript
-interface EditOrderDatesDialogProps {
-  order: CalendarOrder;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: () => void;
-}
-
-export function EditOrderDatesDialog({ order, open, onOpenChange, onSave }) {
-  const [workStartDate, setWorkStartDate] = useState(order.work_start_date);
-  const [workEndDate, setWorkEndDate] = useState(order.work_end_date);
-  const [expectedDate, setExpectedDate] = useState(order.expected_date);
-  const [warehouseArrivalDate, setWarehouseArrivalDate] = useState(order.warehouse_arrival_date);
-
-  const handleSave = async () => {
-    await supabase.from('orders').update({
-      work_start_date: workStartDate,
-      work_end_date: workEndDate,
-      expected_date: expectedDate,
-      warehouse_arrival_date: warehouseArrivalDate,
-    }).eq('id', order.id);
-    
-    queryClient.invalidateQueries(['calendar-orders']);
-    onSave();
-    onOpenChange(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Modifica Date - {order.order_code}</DialogTitle>
-          <DialogDescription>
-            {order.customer.first_name} {order.customer.last_name}
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="grid gap-4 py-4">
-          {/* Date Picker per ogni campo */}
-          <DateField label="Data Inizio Lavori" value={workStartDate} onChange={setWorkStartDate} />
-          <DateField label="Data Fine Lavori" value={workEndDate} onChange={setWorkEndDate} />
-          <Separator />
-          <DateField label="Data Posa Prevista" value={expectedDate} onChange={setExpectedDate} />
-          <DateField label="Arrivo Merce" value={warehouseArrivalDate} onChange={setWarehouseArrivalDate} />
-        </div>
-        
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          <Button onClick={handleSave}>Salva</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-```
-
-### Integrazione nel Gantt
-
-In `DraggableOrderBar.tsx`, aggiungere click handler:
-
-```typescript
-// Stato per dialog
-const [editDialogOpen, setEditDialogOpen] = useState(false);
-
-const handleBarClick = (e: React.MouseEvent) => {
-  // Se non stava trascinando, apri dialog
-  if (!isDragging && !transform?.x) {
-    setEditDialogOpen(true);
-  }
-};
-
-return (
-  <>
-    <button onClick={handleBarClick} ...>
-      {/* Barra ordine */}
-    </button>
-    
-    <EditOrderDatesDialog 
-      order={order}
-      open={editDialogOpen}
-      onOpenChange={setEditDialogOpen}
-    />
-  </>
-);
-```
+Doppio click su area vuota del timeline per creare rapidamente un ordine con quella data preimpostata.
 
 ---
 
-## File da Modificare/Creare
+## 4. Miglioramenti UX Generali
 
-| N. | File | Azione | Descrizione |
-|----|------|--------|-------------|
-| 1 | `src/types/calendar.ts` | Modifica | Aggiungere `warehouse_arrival_date` |
-| 2 | `src/pages/azienda/Calendar.tsx` | Modifica | Includere `warehouse_arrival_date` nella query |
-| 3 | `src/components/calendar/CalendarMonthView.tsx` | Modifica | Nuova logica per eventi posa/merce |
-| 4 | `src/components/calendar/EditOrderDatesDialog.tsx` | Creare | Dialog modifica date |
-| 5 | `src/components/calendar/DraggableOrderBar.tsx` | Modifica | Integrare dialog al click |
+### 4.1 Notifica ordini incompleti
+
+Mostrare badge/avviso se ci sono ordini senza date importanti:
+
+```text
+⚠️ 5 ordini senza data posa programmata
+```
+
+### 4.2 Keyboard shortcuts
+
+- `T`: Vai a oggi
+- `←/→`: Naviga periodo precedente/successivo
+- `1/2/3/4`: Cambia zoom (week/month/quarter/year)
+
+### 4.3 Salvataggio preferenze
+
+Ricordare ultima vista (Mese/Gantt) e ultimo zoom usato dall'utente usando localStorage.
 
 ---
 
-## Comportamento Finale
+## 5. Ottimizzazioni Performance
 
-### Calendario Mensile
-- Mostra **pallini colorati** per data posa (blu) e arrivo merce (arancione)
-- Ogni ordine può avere entrambi gli eventi in giorni diversi
-- Click su evento → vai al dettaglio ordine
+### 5.1 Virtualizzazione righe Gantt
 
-### Gantt
-- Barre trascinabili per spostare date lavoro (drag & drop esistente)
-- **Click su barra** → apre dialog per modificare tutte le date
-- Dopo modifica → refresh automatico del calendario
+Per progetti con 50+ ordini, implementare virtualizzazione delle righe per mantenere fluidità.
+
+### 5.2 Caching intelligente
+
+Usare `staleTime` nella query per evitare refetch continui.
+
+---
+
+## File da Modificare
+
+| File | Modifiche |
+|------|-----------|
+| `src/pages/azienda/Calendar.tsx` | Aggiungere contatore, reset filtri, filtro date |
+| `src/components/calendar/CalendarMonthView.tsx` | Tooltip eventi, mostrare cognome cliente, fix colori legenda |
+| `src/components/calendar/CalendarGanttView.tsx` | Fix legenda, sezione ordini non pianificati |
+| `src/types/calendar.ts` | Eventuali nuovi tipi per filtri date |
+
+---
+
+## Priorità Implementazione
+
+| Priorità | Miglioramento | Impatto |
+|----------|---------------|---------|
+| **Alta** | Contatore ordini + Reset filtri | Usabilità immediata |
+| **Alta** | Fix legenda Gantt | Chiarezza visiva |
+| **Media** | Tooltip eventi calendario mese | Info rapide |
+| **Media** | Cognome cliente negli eventi | Riconoscimento |
+| **Media** | Ordini non pianificati | Visibilità problemi |
+| **Bassa** | Keyboard shortcuts | Power users |
+| **Bassa** | Virtualizzazione | Solo se molti ordini |
+
+---
+
+## Riepilogo
+
+Le modifiche proposte migliorano:
+1. **Chiarezza** - Informazioni più leggibili e coerenti
+2. **Efficienza** - Filtri più potenti e reset rapido
+3. **Completezza** - Visibilità su ordini non pianificati
+4. **Performance** - Ottimizzazioni per grandi dataset
+
+Vuoi procedere con l'implementazione di tutti i miglioramenti o preferisci selezionarne alcuni?
 
