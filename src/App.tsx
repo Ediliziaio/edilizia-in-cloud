@@ -39,7 +39,7 @@ import CashFlowForecast from "@/pages/azienda/CashFlowForecast";
 import Warehouse from "@/pages/azienda/Warehouse";
 import Calendar from "@/pages/azienda/Calendar";
 import Employees from "@/pages/azienda/Employees";
-import VatReport from "@/pages/azienda/VatReport";
+
 
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
@@ -110,7 +110,7 @@ const App = () => (
               <Route path="assistenza" element={<TicketsList />} />
               <Route path="assistenza/:id" element={<TicketDetail />} />
               <Route path="previsionale" element={<CashFlowForecast />} />
-              <Route path="report-iva" element={<VatReport />} />
+              
               <Route path="impostazioni" element={<Settings />} />
             </Route>
 

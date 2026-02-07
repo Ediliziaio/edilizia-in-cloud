@@ -13,7 +13,7 @@ import {
   Warehouse,
   CalendarDays,
   HardHat,
-  Receipt,
+  
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,7 @@ const navItems = [
   { title: "Dipendenti", url: "/azienda/dipendenti", icon: HardHat },
   { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon },
   { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp },
-  { title: "Report IVA", url: "/azienda/report-iva", icon: Receipt },
+  
   { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings },
 ];
 
