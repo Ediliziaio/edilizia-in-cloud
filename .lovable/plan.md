@@ -1,253 +1,385 @@
 
 
-# Piano: Nuova Sezione Calendario con Vista Gantt
+# Piano: Drag & Drop Gantt, Filtri e Vista Giornaliera con Lead Time
 
-## Panoramica
+## Panoramica Funzionalita
 
-Aggiungere una nuova sezione "Calendario" nel menu laterale aziendale che permette di:
+Implementare 4 miglioramenti principali per la sezione Calendario:
 
-1. **Visualizzare il lavoro programmato** - Ordini con date di posa (`work_start_date` / `work_end_date`)
-2. **Lavori multi-giorno** - Supporto per ordini che durano diversi giorni
-3. **Vista Calendario mensile** - Vista tradizionale a griglia mensile
-4. **Vista Gantt annuale** - Timeline orizzontale 365 giorni con righe per cliente/ordine
-
----
-
-## Dati Disponibili nel Database
-
-Gli ordini hanno questi campi data utilizzabili:
-
-| Campo | Descrizione |
-|-------|-------------|
-| `work_start_date` | Data inizio lavori |
-| `work_end_date` | Data fine lavori |
-| `expected_date` | Data posa prevista (singolo giorno) |
-| `warehouse_arrival_date` | Data arrivo merce |
-
-Per i lavori multi-giorno useremo `work_start_date` e `work_end_date`.
+1. **Drag & Drop** - Trascinare le barre nel Gantt per spostare le date degli ordini
+2. **Filtri** - Filtrare per stato ordine e cliente
+3. **Vista Giornaliera** - Aggiungere livello zoom "Settimana" con dettaglio giorni
+4. **Lead Time** - Calcolo automatico tempo da contratto firmato a chiusura lavori
 
 ---
 
-## Struttura dei File
+## 1. Drag & Drop nel Gantt
 
-### Nuovi File
+### Architettura
 
-| File | Descrizione |
-|------|-------------|
-| `src/pages/azienda/Calendar.tsx` | Pagina principale Calendario |
-| `src/components/calendar/CalendarMonthView.tsx` | Vista calendario mensile |
-| `src/components/calendar/CalendarGanttView.tsx` | Vista Gantt annuale |
+Utilizzare `@dnd-kit` gia presente nel progetto (usato in Pipeline e Warehouse).
 
-### File da Modificare
+| Componente | Ruolo |
+|------------|-------|
+| `DndContext` | Wrapper per gestire drag events |
+| `useDraggable` | Hook per rendere le barre trascinabili |
+| `DragOverlay` | Preview durante il trascinamento |
 
-| File | Modifica |
-|------|----------|
-| `src/App.tsx` | Aggiungere route `/azienda/calendario` |
-| `src/components/layouts/CompanyLayout.tsx` | Aggiungere link "Calendario" nel menu |
+### Logica di Spostamento
 
----
+Quando l'utente rilascia la barra:
+1. Calcolare la nuova posizione X in pixel
+2. Convertire in numero di giorni dall'inizio del periodo visibile
+3. Calcolare la nuova `work_start_date`
+4. Mantenere la durata originale (differenza tra start e end)
+5. Aggiornare `work_start_date` e `work_end_date` nel database
 
-## Dettagli Implementazione
+### Vincoli
 
-### 1. Route e Menu
+- Minimo spostamento: 1 giorno
+- La barra non puo uscire dal periodo visibile durante il drag
+- Feedback visivo durante il trascinamento (ombra/opacita)
 
-Aggiungere nel menu laterale:
-- Icona: `CalendarDays` da Lucide
-- Posizione: Dopo "Magazzino", prima di "Clienti"
+### Database Update
 
 ```typescript
-// CompanyLayout.tsx - navItems
-{ title: "Calendario", url: "/azienda/calendario", icon: CalendarDays },
+const handleDragEnd = async (orderId: string, newStartDate: Date, duration: number) => {
+  const newEndDate = addDays(newStartDate, duration);
+  
+  await supabase
+    .from("orders")
+    .update({
+      work_start_date: format(newStartDate, "yyyy-MM-dd"),
+      work_end_date: format(newEndDate, "yyyy-MM-dd"),
+    })
+    .eq("id", orderId);
+    
+  // Invalidate query per refresh
+  queryClient.invalidateQueries(["calendar-orders"]);
+};
 ```
 
 ---
 
-### 2. Pagina Calendario (`Calendar.tsx`)
+## 2. Filtri per Stato e Cliente
 
-Struttura principale con toggle tra le due viste:
+### UI Filtri
+
+Posizionati sopra il toggle Vista Mese/Gantt:
 
 ```text
-+--------------------------------------------+
-| Calendario Lavori                          |
-| Pianifica e visualizza i lavori programmati|
-+--------------------------------------------+
-| [Vista Mese] [Vista Gantt]    [Oggi]       |
-+--------------------------------------------+
-|                                            |
-|  [Vista attiva - Mese o Gantt]             |
-|                                            |
-+--------------------------------------------+
++------------------------------------------------------------------+
+| Calendario Lavori                                                 |
++------------------------------------------------------------------+
+| [Tutti gli stati v]  [Tutti i clienti v]  | [Mese] [Gantt] [Oggi]|
++------------------------------------------------------------------+
 ```
 
-**Query dati**:
+### Componenti Select
+
+Utilizzo dei componenti `Select` gia presenti:
+
 ```typescript
-const { data: orders } = useQuery({
-  queryKey: ["calendar-orders"],
+// Filtro Stati
+<Select value={statusFilter} onValueChange={setStatusFilter}>
+  <SelectTrigger className="w-[180px]">
+    <SelectValue placeholder="Tutti gli stati" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all">Tutti gli stati</SelectItem>
+    {statuses.map(s => (
+      <SelectItem key={s.id} value={s.id}>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: s.color }} />
+          {s.name}
+        </div>
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+
+// Filtro Clienti
+<Select value={customerFilter} onValueChange={setCustomerFilter}>
+  <SelectTrigger className="w-[200px]">
+    <SelectValue placeholder="Tutti i clienti" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all">Tutti i clienti</SelectItem>
+    {uniqueCustomers.map(c => (
+      <SelectItem key={c.id} value={c.id}>
+        {c.first_name} {c.last_name}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+```
+
+### Query Aggiuntiva
+
+Fetch degli stati aziendali per popolare il filtro:
+
+```typescript
+const { data: statuses } = useQuery({
+  queryKey: ["order-statuses", effectiveCompany?.id],
   queryFn: async () => {
     const { data } = await supabase
-      .from("orders")
-      .select(`
-        id,
-        order_code,
-        description,
-        expected_date,
-        work_start_date,
-        work_end_date,
-        current_status_id,
-        customer:profiles!orders_customer_id_fkey(first_name, last_name),
-        status:order_statuses!orders_current_status_id_fkey(name, color)
-      `)
-      .order("work_start_date", { ascending: true });
+      .from("order_statuses")
+      .select("id, name, color")
+      .eq("company_id", effectiveCompany.id)
+      .order("position");
     return data;
   },
 });
 ```
 
----
-
-### 3. Vista Calendario Mensile (`CalendarMonthView.tsx`)
-
-Basata sul pattern di `WarehouseCalendarView.tsx`:
-
-**Caratteristiche**:
-- Griglia 7 colonne (Lun-Dom)
-- Navigazione mese precedente/successivo
-- Ogni giorno mostra gli ordini con lavoro programmato
-- Lavori multi-giorno: barra colorata che si estende su piu giorni
-- Click su ordine apre dettaglio
-
-**Layout cella**:
-```text
-+------------------+
-| 15               |
-| [ORD-001 ▓▓▓▓]   | <- Inizio lavoro
-| [ORD-002 ░░░░]   | <- Lavoro in corso
-+------------------+
-```
-
-**Colori**:
-- Verde: lavoro completato (status "installato")
-- Blu: lavoro in corso
-- Arancione: lavoro futuro
-
----
-
-### 4. Vista Gantt Annuale (`CalendarGanttView.tsx`)
-
-Vista orizzontale con 365 giorni:
-
-```text
-+-----------+--------------------------------------------------+
-| Cliente   | Gen  Feb  Mar  Apr  Mag  Giu  Lug  Ago ...       |
-+-----------+--------------------------------------------------+
-| G. Bianchi| [ORD-001 ▓▓▓▓]                                   |
-| ORD-001   |                                                   |
-+-----------+--------------------------------------------------+
-| M. Verdi  |      [ORD-002 ▓▓▓▓▓▓]                            |
-| ORD-002   |                                                   |
-+-----------+--------------------------------------------------+
-| L. Ferrari|           [ORD-003 ▓▓]                           |
-| ORD-003   |                                                   |
-+-----------+--------------------------------------------------+
-```
-
-**Caratteristiche**:
-- Colonna fissa sinistra: Nome Cliente + Codice Ordine
-- Scroll orizzontale: Timeline 365 giorni
-- Barre colorate che mostrano la durata del lavoro
-- Oggi evidenziato con linea verticale rossa
-- Zoom: toggle tra vista annuale / trimestrale / mensile
-- Tooltip al hover: dettagli ordine
-
-**Dimensioni**:
-- Larghezza colonna giorno: 3px (annuale) / 8px (trimestrale) / 25px (mensile)
-- Altezza riga: 50px
-
-**Scroll sincronizzato**:
-- Header mesi fisso in alto
-- Colonna clienti fissa a sinistra
-- Area centrale scrollabile
-
----
-
-### 5. Tipi TypeScript
+### Logica Filtraggio
 
 ```typescript
-// types/calendar.ts
+const filteredOrders = useMemo(() => {
+  return scheduledOrders.filter(order => {
+    // Filtro stato
+    if (statusFilter !== "all" && order.current_status_id !== statusFilter) {
+      return false;
+    }
+    // Filtro cliente
+    if (customerFilter !== "all" && order.customer_id !== customerFilter) {
+      return false;
+    }
+    return true;
+  });
+}, [scheduledOrders, statusFilter, customerFilter]);
+```
+
+---
+
+## 3. Vista Giornaliera (Settimana)
+
+### Nuovo Livello Zoom
+
+Aggiungere "week" ai livelli zoom esistenti:
+
+```typescript
+export type GanttZoom = "year" | "quarter" | "month" | "week";
+
+const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; label: string }> = {
+  year: { dayWidth: 3, label: "Anno" },
+  quarter: { dayWidth: 8, label: "Trimestre" },
+  month: { dayWidth: 25, label: "Mese" },
+  week: { dayWidth: 80, label: "Settimana" },  // NUOVO
+};
+```
+
+### Layout Settimana
+
+```text
++----------+----+----+----+----+----+----+----+
+| Cliente  | Lu | Ma | Me | Gi | Ve | Sa | Do |
++----------+----+----+----+----+----+----+----+
+| G.Bianchi| 10 | 11 | 12 | 13 | 14 | 15 | 16 |
+|          |[▓▓▓▓▓▓▓▓▓▓▓▓]|    |    |    |    |
++----------+----+----+----+----+----+----+----+
+```
+
+### Caratteristiche Vista Settimana
+
+- Header con giorno della settimana + numero giorno
+- Larghezza colonna: 80px per giorno
+- Barre piu dettagliate con orari (se implementato in futuro)
+- Navigazione: settimana precedente/successiva
+
+### Navigazione Settimana
+
+```typescript
+case "week":
+  start = startOfWeek(currentDate, { weekStartsOn: 1 });
+  end = endOfWeek(currentDate, { weekStartsOn: 1 });
+  break;
+
+// handlePrev/handleNext
+case "week":
+  onDateChange(subWeeks(currentDate, 1));
+  break;
+```
+
+---
+
+## 4. Calcolo Lead Time
+
+### Definizione
+
+**Lead Time** = Tempo tra `created_at` (data creazione ordine/contratto) e `work_end_date` (chiusura lavori).
+
+### Dati Necessari
+
+```typescript
+// Estendere CalendarOrder
 export interface CalendarOrder {
-  id: string;
-  order_code: string | null;
-  description: string;
-  expected_date: string | null;
-  work_start_date: string | null;
-  work_end_date: string | null;
-  customer: {
-    first_name: string;
-    last_name: string;
-  };
-  status: {
-    name: string;
-    color: string;
-  } | null;
+  // ... campi esistenti
+  created_at: string;  // AGGIUNGERE per lead time
+  customer_id: string; // AGGIUNGERE per filtro
+  current_status_id: string | null; // AGGIUNGERE per filtro
 }
-
-export type GanttZoom = "year" | "quarter" | "month";
 ```
 
----
+### Calcolo e Visualizzazione
 
-## Layout Vista Gantt (dettaglio)
+**Nel Tooltip della barra Gantt:**
 
-### Header Mesi
+```typescript
+// Calcolo lead time
+const calculateLeadTime = (order: CalendarOrder) => {
+  if (!order.work_end_date) return null;
+  
+  const contractDate = new Date(order.created_at);
+  const endDate = new Date(order.work_end_date);
+  const days = differenceInDays(endDate, contractDate);
+  
+  return days;
+};
+
+// Nel tooltip
+<p className="text-xs text-muted-foreground">
+  Lead Time: {leadTime} giorni
+</p>
+```
+
+**Nella colonna sinistra del Gantt:**
 
 ```text
-| Gen          | Feb          | Mar          | ...
-| 1  5  10  15 | 1  5  10  15 | 1  5  10  15 | ...
+| Cliente / Ordine    | Lead Time |
+|---------------------|-----------|
+| Giuseppe Bianchi    | 45 giorni |
+| ORD-2026-001        |           |
 ```
 
-### Barra Lavoro
+**Indicatore visivo:**
 
-La barra si estende da `work_start_date` a `work_end_date`:
-- Se `work_end_date` e NULL, usa `expected_date` come singolo giorno
-- Se anche `expected_date` e NULL, ordine non mostrato nel Gantt
+- Verde: < 30 giorni
+- Giallo: 30-60 giorni
+- Rosso: > 60 giorni
 
-### Legenda
+### Statistiche Lead Time
+
+Aggiungere un riepilogo in fondo al Gantt:
 
 ```text
-[▓▓] Completato (installato)
-[▒▒] In corso (altri stati)  
-[░░] Futuro (work_start > oggi)
+Lead Time Medio: 42 giorni | Min: 15g | Max: 78g
 ```
 
 ---
 
-## Tecnologie Utilizzate
+## Modifiche ai File
 
-- **date-fns**: Per calcoli date e formattazione
-- **ScrollArea**: Per scroll orizzontale Gantt
-- **Tooltip**: Per dettagli ordine al hover
-- **ToggleGroup**: Per switch vista Mese/Gantt
-- **Button**: Navigazione e zoom
-
----
-
-## Riepilogo Modifiche
-
-| N. | File | Azione |
-|----|------|--------|
-| 1 | `src/types/calendar.ts` | Creare tipi condivisi |
-| 2 | `src/pages/azienda/Calendar.tsx` | Pagina principale |
-| 3 | `src/components/calendar/CalendarMonthView.tsx` | Vista mensile |
-| 4 | `src/components/calendar/CalendarGanttView.tsx` | Vista Gantt |
-| 5 | `src/App.tsx` | Aggiungere route |
-| 6 | `src/components/layouts/CompanyLayout.tsx` | Aggiungere menu |
+| File | Tipo | Modifiche |
+|------|------|-----------|
+| `src/types/calendar.ts` | Modifica | Aggiungere campi `created_at`, `customer_id`, `current_status_id`; aggiungere zoom "week" |
+| `src/pages/azienda/Calendar.tsx` | Modifica | Aggiungere filtri, query statuses, props extra ai componenti |
+| `src/components/calendar/CalendarGanttView.tsx` | Modifica | Implementare drag&drop, zoom week, lead time, colonna lead time |
+| `src/components/calendar/CalendarMonthView.tsx` | Modifica | Supportare filtri (passa ordini gia filtrati) |
 
 ---
 
-## UX/UI
+## Dettagli Tecnici
 
-- **Responsive**: Vista Gantt solo desktop (min 1024px), su mobile solo vista Mese
-- **Performance**: Virtualizzazione righe se ordini > 50
-- **Accessibilita**: Keyboard navigation, ARIA labels
-- **Link rapidi**: Click su ordine apre `/azienda/ordini/:id`
+### Drag & Drop - Struttura Codice
+
+```typescript
+// CalendarGanttView.tsx
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+
+// Componente barra draggable
+function DraggableOrderBar({ order, bar, dayWidth, color, onNavigate }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: order.id,
+    data: { order, bar },
+  });
+
+  const style = {
+    left: bar.left + (transform?.x || 0),
+    width: Math.max(bar.width, dayWidth),
+    backgroundColor: color,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <button
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className="absolute top-2 bottom-2 rounded shadow-sm cursor-grab active:cursor-grabbing"
+      style={style}
+    >
+      {/* contenuto barra */}
+    </button>
+  );
+}
+```
+
+### Calcolo Nuova Data
+
+```typescript
+const handleDragEnd = async (event: DragEndEvent) => {
+  const { active, delta } = event;
+  if (!delta?.x) return;
+
+  const orderData = active.data.current as { order: CalendarOrder; bar: BarInfo };
+  const daysMoved = Math.round(delta.x / dayWidth);
+  
+  if (daysMoved === 0) return;
+
+  const currentStart = parseISO(orderData.order.work_start_date || orderData.order.expected_date!);
+  const currentEnd = orderData.order.work_end_date 
+    ? parseISO(orderData.order.work_end_date) 
+    : currentStart;
+  
+  const newStart = addDays(currentStart, daysMoved);
+  const newEnd = addDays(currentEnd, daysMoved);
+
+  await onDateChange(orderData.order.id, newStart, newEnd);
+};
+```
+
+---
+
+## UI Completa Finale
+
+```text
++--------------------------------------------------------------------------+
+| Calendario Lavori                                                         |
+| Pianifica e visualizza i lavori programmati                               |
++--------------------------------------------------------------------------+
+| [Tutti gli stati v] [Tutti i clienti v] | [Mese] [Gantt] | [Oggi]        |
++--------------------------------------------------------------------------+
+|                                                                           |
+|  <- Febbraio 2026 ->    [Settimana] [Mese] [Trimestre] [Anno]            |
+|                                                                           |
++-----------------+----+----+----+----+----+----+----+----------------------+
+| Cliente/Ordine  | LT | Lu | Ma | Me | Gi | Ve | Sa | Do |                |
++-----------------+----+----+----+----+----+----+----+----+                |
+| G. Bianchi      | 45g| [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓]         |  <- Trascinabile |
+| ORD-2026-003    |    |                                |                  |
++-----------------+----+----+----+----+----+----+----+----+                |
+| M. Verdi        | 38g|              [▓▓▓▓▓▓▓▓]        |                  |
+| ORD-2026-001    |    |                                |                  |
++-----------------+----+----+----+----+----+----+----+----+----------------+
+|                                                                           |
+| Lead Time Medio: 42g | Min: 15g | Max: 78g                               |
++--------------------------------------------------------------------------+
+```
+
+---
+
+## Riepilogo Implementazione
+
+1. **Drag & Drop**: Utilizzo dnd-kit per trascinare barre, calcolo delta in giorni, update database
+2. **Filtri**: Select per stato e cliente, logica filtraggio in useMemo
+3. **Vista Settimana**: Nuovo zoom level con dayWidth=80px, header giorni settimana
+4. **Lead Time**: Calcolo differenceInDays, visualizzazione in colonna + tooltip + statistiche
 
