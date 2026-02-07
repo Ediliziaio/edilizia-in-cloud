@@ -81,6 +81,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
       return data as OrderEmployee[];
     },
     enabled: !!orderId,
+    staleTime: 2 * 60 * 1000, // 2 minuti
   });
 
   // Fetch order external teams
@@ -99,6 +100,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
       return data as OrderExternalTeam[];
     },
     enabled: !!orderId,
+    staleTime: 2 * 60 * 1000, // 2 minuti
   });
 
   // Delete order employee mutation

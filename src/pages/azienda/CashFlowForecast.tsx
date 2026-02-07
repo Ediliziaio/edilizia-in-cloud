@@ -73,6 +73,21 @@ interface DateRange {
   to: Date | undefined;
 }
 
+interface ExternalTeamPayment {
+  id: string;
+  total_cost: number;
+  payment_date: string | null;
+  is_paid: boolean;
+  order: {
+    id: string;
+    order_code: string | null;
+    company_id: string;
+  };
+  external_team: {
+    name: string;
+  } | null;
+}
+
 export default function CashFlowForecast() {
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -124,7 +139,7 @@ export default function CashFlowForecast() {
         .eq("is_paid", false);
 
       if (error) throw error;
-      return data.filter((item: any) => item.order?.company_id === companyId);
+      return (data as ExternalTeamPayment[]).filter((item) => item.order?.company_id === companyId);
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000, // 5 minuti
@@ -200,7 +215,7 @@ export default function CashFlowForecast() {
   const expectedExpenses = useMemo(() => {
     const expenses: ExpectedExpense[] = [];
 
-    externalTeamPayments.forEach((payment: any) => {
+    externalTeamPayments.forEach((payment) => {
       expenses.push({
         orderId: payment.order.id,
         orderCode: payment.order.order_code,
