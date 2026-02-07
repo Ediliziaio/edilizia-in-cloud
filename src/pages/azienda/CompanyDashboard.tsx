@@ -226,6 +226,15 @@ export default function CompanyDashboard() {
     },
   ];
 
+  if (!companyId) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+        <p>Seleziona un'azienda per visualizzare la dashboard</p>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">

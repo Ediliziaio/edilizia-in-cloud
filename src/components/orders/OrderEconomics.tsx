@@ -37,6 +37,7 @@ export function OrderEconomics({
       return data as { total_cost: number; employee: { first_name: string; last_name: string } }[];
     },
     enabled: !!orderId,
+    staleTime: 2 * 60 * 1000, // 2 minuti
   });
 
   // Fetch order external teams costs
@@ -52,6 +53,7 @@ export function OrderEconomics({
       return data as { total_cost: number; external_team: { name: string } }[];
     },
     enabled: !!orderId,
+    staleTime: 2 * 60 * 1000, // 2 minuti
   });
 
   // Calculate totals
