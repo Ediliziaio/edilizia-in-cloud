@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { VAT_RATES, calculateNetFromGross } from "@/lib/vatUtils";
+import { formatCurrency } from "@/lib/formatters";
 
 import {
   Dialog,
@@ -36,6 +38,7 @@ import { Label } from "@/components/ui/label";
 interface ExternalTeam {
   id: string;
   name: string;
+  vat_rate: number;
 }
 
 interface AssignExternalTeamDialogProps {
@@ -58,6 +61,7 @@ export function AssignExternalTeamDialog({
 
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [totalCost, setTotalCost] = useState("");
+  const [vatRate, setVatRate] = useState<number>(22);
   const [paymentDate, setPaymentDate] = useState<Date | undefined>();
   const [notes, setNotes] = useState("");
 
@@ -67,7 +71,7 @@ export function AssignExternalTeamDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("external_teams")
-        .select("id, name")
+        .select("id, name, vat_rate")
         .eq("company_id", effectiveCompanyId!)
         .eq("is_active", true)
         .order("name");
@@ -86,10 +90,20 @@ export function AssignExternalTeamDialog({
     if (open) {
       setSelectedTeamId("");
       setTotalCost("");
+      setVatRate(22);
       setPaymentDate(undefined);
       setNotes("");
     }
   }, [open]);
+
+  // Handle team selection - inherit VAT rate
+  const handleTeamChange = (teamId: string) => {
+    setSelectedTeamId(teamId);
+    const team = teams.find(t => t.id === teamId);
+    if (team) {
+      setVatRate(team.vat_rate ?? 22);
+    }
+  };
 
   const assignMutation = useMutation({
     mutationFn: async () => {
@@ -97,6 +111,7 @@ export function AssignExternalTeamDialog({
         order_id: orderId,
         external_team_id: selectedTeamId,
         total_cost: parseFloat(totalCost),
+        vat_rate: vatRate,
         payment_date: paymentDate ? format(paymentDate, "yyyy-MM-dd") : null,
         is_paid: false,
         notes: notes || null,
@@ -142,7 +157,7 @@ export function AssignExternalTeamDialog({
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Squadra *</Label>
-            <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+            <Select value={selectedTeamId} onValueChange={handleTeamChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Seleziona squadra" />
               </SelectTrigger>
@@ -154,7 +169,7 @@ export function AssignExternalTeamDialog({
                 ) : (
                   availableTeams.map((team) => (
                     <SelectItem key={team.id} value={team.id}>
-                      {team.name}
+                      {team.name} ({team.vat_rate}%)
                     </SelectItem>
                   ))
                 )}
@@ -162,17 +177,42 @@ export function AssignExternalTeamDialog({
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Costo Totale (€) *</Label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="2500"
-              value={totalCost}
-              onChange={(e) => setTotalCost(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Costo Totale (€) *</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="2500"
+                value={totalCost}
+                onChange={(e) => setTotalCost(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>IVA</Label>
+              <Select
+                value={vatRate.toString()}
+                onValueChange={(v) => setVatRate(parseInt(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {VAT_RATES.map((rate) => (
+                    <SelectItem key={rate.value} value={rate.value.toString()}>
+                      {rate.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          {totalCost && parseFloat(totalCost) > 0 && (
+            <p className="text-xs text-muted-foreground -mt-2">
+              Netto: {formatCurrency(calculateNetFromGross(parseFloat(totalCost), vatRate).netAmount)} + IVA {formatCurrency(calculateNetFromGross(parseFloat(totalCost), vatRate).vatAmount)}
+            </p>
+          )}
 
           <div className="space-y-2">
             <Label>Data Pagamento Prevista</Label>

@@ -137,6 +137,7 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
+          vat_rate: number | null
         }
         Insert: {
           company_id: string
@@ -148,6 +149,7 @@ export type Database = {
           name: string
           notes?: string | null
           phone?: string | null
+          vat_rate?: number | null
         }
         Update: {
           company_id?: string
@@ -159,6 +161,7 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string | null
+          vat_rate?: number | null
         }
         Relationships: [
           {
@@ -273,6 +276,7 @@ export type Database = {
           paid_date: string | null
           payment_date: string | null
           total_cost: number
+          vat_rate: number | null
         }
         Insert: {
           created_at?: string
@@ -284,6 +288,7 @@ export type Database = {
           paid_date?: string | null
           payment_date?: string | null
           total_cost?: number
+          vat_rate?: number | null
         }
         Update: {
           created_at?: string
@@ -295,6 +300,7 @@ export type Database = {
           paid_date?: string | null
           payment_date?: string | null
           total_cost?: number
+          vat_rate?: number | null
         }
         Relationships: [
           {
@@ -367,6 +373,7 @@ export type Database = {
           status: string | null
           supplier_id: string | null
           updated_at: string | null
+          vat_rate: number | null
         }
         Insert: {
           created_at?: string | null
@@ -380,6 +387,7 @@ export type Database = {
           status?: string | null
           supplier_id?: string | null
           updated_at?: string | null
+          vat_rate?: number | null
         }
         Update: {
           created_at?: string | null
@@ -393,6 +401,7 @@ export type Database = {
           status?: string | null
           supplier_id?: string | null
           updated_at?: string | null
+          vat_rate?: number | null
         }
         Relationships: [
           {
@@ -659,18 +668,21 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          vat_rate: number | null
         }
         Insert: {
           company_id: string
           created_at?: string
           id?: string
           name: string
+          vat_rate?: number | null
         }
         Update: {
           company_id?: string
           created_at?: string
           id?: string
           name?: string
+          vat_rate?: number | null
         }
         Relationships: [
           {

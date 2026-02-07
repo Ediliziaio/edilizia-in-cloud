@@ -52,6 +52,7 @@ interface ExternalTeam {
   email: string | null;
   notes: string | null;
   is_active: boolean;
+  vat_rate: number;
 }
 
 export default function Employees() {

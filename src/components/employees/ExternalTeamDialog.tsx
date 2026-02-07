@@ -20,10 +20,18 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { VAT_RATES } from "@/lib/vatUtils";
 
 const teamSchema = z.object({
   name: z.string().min(1, "Nome ditta obbligatorio"),
@@ -32,6 +40,7 @@ const teamSchema = z.object({
   email: z.string().email("Email non valida").optional().or(z.literal("")),
   notes: z.string().optional(),
   is_active: z.boolean(),
+  vat_rate: z.number(),
 });
 
 export type ExternalTeamFormData = z.infer<typeof teamSchema>;
@@ -47,6 +56,7 @@ interface ExternalTeamDialogProps {
     email: string | null;
     notes: string | null;
     is_active: boolean;
+    vat_rate: number;
   } | null;
   onSave: (data: ExternalTeamFormData) => void;
   isSaving: boolean;
@@ -68,6 +78,7 @@ export function ExternalTeamDialog({
       email: "",
       notes: "",
       is_active: true,
+      vat_rate: 22,
     },
   });
 
@@ -80,6 +91,7 @@ export function ExternalTeamDialog({
         email: team.email || "",
         notes: team.notes || "",
         is_active: team.is_active,
+        vat_rate: team.vat_rate ?? 22,
       });
     } else {
       form.reset({
@@ -89,6 +101,7 @@ export function ExternalTeamDialog({
         email: "",
         notes: "",
         is_active: true,
+        vat_rate: 22,
       });
     }
   }, [team, form]);
@@ -122,6 +135,37 @@ export function ExternalTeamDialog({
                   <FormControl>
                     <Input placeholder="ABC Installazioni Srl" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="vat_rate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Regime IVA</FormLabel>
+                  <Select
+                    value={field.value.toString()}
+                    onValueChange={(v) => field.onChange(parseInt(v))}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {VAT_RATES.map((rate) => (
+                        <SelectItem key={rate.value} value={rate.value.toString()}>
+                          {rate.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    0% per forfettari o reverse charge
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
