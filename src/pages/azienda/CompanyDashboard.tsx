@@ -110,6 +110,7 @@ export default function CompanyDashboard() {
             `)
             .eq("company_id", company.id),
           // Urgent warehouse items (installation within 7 days, not installed)
+          // Fetch all non-ready items, filter by date in JS to handle both expected_date and work_start_date
           supabase
             .from("order_items")
             .select(`
@@ -120,6 +121,7 @@ export default function CompanyDashboard() {
                 id,
                 order_code,
                 work_start_date,
+                expected_date,
                 company_id,
                 customer:profiles!orders_customer_id_fkey(first_name, last_name)
               )
@@ -127,8 +129,6 @@ export default function CompanyDashboard() {
             .eq("order.company_id", company.id)
             .neq("status", "installato")
             .neq("status", "in_magazzino")
-            .lte("order.work_start_date", sevenDaysFromNow.toISOString().split("T")[0])
-            .gte("order.work_start_date", now.toISOString().split("T")[0])
         ]);
 
         // Calculate pending revenue
@@ -168,7 +168,7 @@ export default function CompanyDashboard() {
           }
         });
 
-        // Process urgent items
+        // Process urgent items - use expected_date OR work_start_date (same logic as WarehouseAlerts)
         const processedUrgentItems: UrgentItem[] = [];
         urgentItemsRes.data?.forEach((item: unknown) => {
           const typedItem = item as {
@@ -177,19 +177,28 @@ export default function CompanyDashboard() {
             order: {
               order_code: string | null;
               work_start_date: string | null;
+              expected_date: string | null;
               customer: { first_name: string; last_name: string };
             };
           };
-          if (typedItem.order?.work_start_date) {
-            const workDate = new Date(typedItem.order.work_start_date);
-            const daysLeft = Math.ceil((workDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            processedUrgentItems.push({
-              id: typedItem.id,
-              name: typedItem.name,
-              orderCode: typedItem.order.order_code,
-              customerName: `${typedItem.order.customer.first_name} ${typedItem.order.customer.last_name}`,
-              daysLeft,
-            });
+          
+          // Use expected_date OR work_start_date (consistent with WarehouseAlerts)
+          const expectedDate = typedItem.order?.expected_date || typedItem.order?.work_start_date;
+          
+          if (expectedDate) {
+            const date = new Date(expectedDate);
+            const daysLeft = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            
+            // Filter only urgent items (within 7 days and >= today)
+            if (daysLeft >= 0 && daysLeft <= 7) {
+              processedUrgentItems.push({
+                id: typedItem.id,
+                name: typedItem.name,
+                orderCode: typedItem.order.order_code,
+                customerName: `${typedItem.order.customer.first_name} ${typedItem.order.customer.last_name}`,
+                daysLeft,
+              });
+            }
           }
         });
 

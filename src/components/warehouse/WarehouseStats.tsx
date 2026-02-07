@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
 import type { WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseStatsProps {
@@ -96,14 +97,7 @@ export default function WarehouseStats({ items }: WarehouseStatsProps) {
     };
   }, [items]);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  
 
   return (
     <div className="grid gap-4 md:grid-cols-4">
