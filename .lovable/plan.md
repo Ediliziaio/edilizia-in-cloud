@@ -1,235 +1,341 @@
 
-# Piano: Miglioramento Visivo Dashboard e Pulizia Codice
+# Piano: Gestione IVA Acquisti su Articoli e Squadre Esterne
 
-## 1. Analisi Attuale
+## Panoramica
 
-La dashboard funziona correttamente ma ha alcune aree di miglioramento visivo e codice obsoleto da rimuovere.
-
-### Problemi Identificati
-
-| Tipo | Problema | File |
-|------|----------|------|
-| Codice inutile | `useMemo` importato ma mai usato | `CompanyDashboard.tsx` |
-| Codice ridondante | `company = effectiveCompany` + `companyId = company?.id` | `CompanyDashboard.tsx` |
-| Layout non bilanciato | Grid 2 colonne + 3 colonne creano sezioni asimmetriche | `CompanyDashboard.tsx` |
-| Stat Cards | Manca sfondo colorato per le icone (presente in AdminDashboard) | `CompanyDashboard.tsx` |
-| AdminDashboard | Usa pattern `useEffect`/`useState` obsoleto | `AdminDashboard.tsx` |
+Implementazione della gestione dell'IVA lato acquisti per calcolare correttamente il costo netto e l'IVA detraibile. Attualmente i costi vengono inseriti come valore lordo (IVA inclusa), ma il sistema non distingue l'aliquota IVA applicata.
 
 ---
 
-## 2. Miglioramenti Visivi Proposti
+## 1. Scenario Attuale vs Nuovo
 
-### 2.1 Stat Cards con Icone Colorate
-
-Attualmente le stat cards hanno solo icone colorate. Aggiungeremo un background colorato come in AdminDashboard per maggiore impatto visivo:
-
-**Prima:**
-```
-[Ordini Totali]     [Clienti]           [Ticket]           [Saldi]
-      12                 8                  2              € 15.000
-```
-
-**Dopo:**
-```
-+------------------+  +------------------+  +------------------+  +------------------+
-| Ordini Totali [bg]| | Clienti      [bg] | | Ticket      [bg] | | Saldi       [bg] |
-| 12                | | 8                 | | 2                | | € 15.000        |
-| +5% vs mese scorso| | 3 nuovi oggi      | | In attesa        | | da 5 ordini     |
-+------------------+  +------------------+  +------------------+  +------------------+
-```
-
-### 2.2 Layout Grid Riorganizzato
-
-Attuale struttura (confusa):
-- Riga 1: 4 stat cards
-- Riga 2: 2 colonne (Ordini Recenti, Cash Flow) + 1 colonna (Labor Costs)
-- Riga 3: 3 colonne (Alert, Azioni Rapide, vuoto)
-
-Nuova struttura (bilanciata):
-- Riga 1: 4 stat cards (invariato)
-- Riga 2: 3 colonne uguali (Ordini Recenti, Cash Flow, Costi Manodopera)
-- Riga 3: 2 colonne (Alert Magazzino, Azioni Rapide)
-
-### 2.3 Ordini Recenti con Link Cliccabili
-
-Rendere ogni ordine cliccabile per andare direttamente al dettaglio, con hover effect.
-
-### 2.4 Cash Flow Migliorato
-
-Aggiungere indicatori di trend (freccia su/giu) e barra di progresso visiva.
+| Scenario | Attuale | Nuovo |
+|----------|---------|-------|
+| Articolo da fornitore IT | Costo 1220€ → margine su 1220€ | Costo 1220€ con IVA 22% → netto 1000€, IVA detraibile 220€ |
+| Articolo da fornitore estero | Costo 1000€ → margine su 1000€ | Costo 1000€ con IVA 0% → netto 1000€, IVA 0€ |
+| Squadra forfettaria | Costo 2500€ → margine su 2500€ | Costo 2500€ con IVA 0% → netto 2500€, IVA 0€ |
+| Squadra ordinaria | Costo 3050€ → margine su 3050€ | Costo 3050€ con IVA 22% → netto 2500€, IVA 550€ |
 
 ---
 
-## 3. Pulizia Codice
+## 2. Modifiche Database
 
-### 3.1 File `CompanyDashboard.tsx`
+### 2.1 Tabella `suppliers`
 
-| Linea | Prima | Dopo |
-|-------|-------|------|
-| 1 | `import { useMemo } from "react"` | Rimuovere import inutilizzato |
-| 37-39 | `company = effectiveCompany; companyId = company?.id` | `companyId = effectiveCompany?.id` |
+Aggiungere aliquota IVA predefinita per il fornitore:
 
-### 3.2 File `AdminDashboard.tsx`
+```sql
+ALTER TABLE suppliers ADD COLUMN vat_rate numeric DEFAULT 22;
+```
 
-- Migrare da `useEffect` + `useState` a `useQuery` (coerente con CompanyDashboard)
-- Aggiungere `staleTime: 5 * 60 * 1000`
+Esempi di utilizzo:
+- Fornitore Italia: 22%
+- Fornitore UE/Estero (reverse charge): 0%
+- Fornitore con aliquota ridotta: 10% o 4%
+
+### 2.2 Tabella `order_items`
+
+Aggiungere aliquota IVA specifica per l'articolo (eredita dal fornitore ma modificabile):
+
+```sql
+ALTER TABLE order_items ADD COLUMN vat_rate numeric DEFAULT 22;
+```
+
+### 2.3 Tabella `external_teams`
+
+Aggiungere aliquota IVA predefinita per la squadra:
+
+```sql
+ALTER TABLE external_teams ADD COLUMN vat_rate numeric DEFAULT 22;
+```
+
+Esempi:
+- Ditta ordinaria: 22%
+- Forfettario (no IVA): 0%
+- Reverse charge: 0%
+
+### 2.4 Tabella `order_external_teams`
+
+Aggiungere aliquota IVA specifica per l'assegnazione:
+
+```sql
+ALTER TABLE order_external_teams ADD COLUMN vat_rate numeric DEFAULT 22;
+```
 
 ---
 
-## 4. Modifiche Dettagliate
+## 3. Logica di Calcolo
 
-### 4.1 Stat Cards Migliorate
+### 3.1 Scorporo IVA dal Lordo
 
-```typescript
-const statCards = [
-  {
-    title: "Ordini Totali",
-    value: stats.totalOrders,
-    icon: ClipboardList,
-    color: "text-blue-600",
-    bgColor: "bg-blue-100",
-    description: "Gestiti quest'anno",
-  },
-  {
-    title: "Clienti",
-    value: stats.totalCustomers,
-    icon: Users,
-    color: "text-purple-600",
-    bgColor: "bg-purple-100",
-    description: "Registrati in piattaforma",
-  },
-  {
-    title: "Ticket Aperti",
-    value: stats.openTickets,
-    icon: HeadphonesIcon,
-    color: stats.openTickets > 0 ? "text-orange-600" : "text-green-600",
-    bgColor: stats.openTickets > 0 ? "bg-orange-100" : "bg-green-100",
-    description: stats.openTickets > 0 ? "In attesa di risposta" : "Tutto risolto!",
-  },
-  {
-    title: "Saldi da Incassare",
-    value: formatCurrency(stats.pendingRevenue),
-    icon: Euro,
-    color: "text-emerald-600",
-    bgColor: "bg-emerald-100",
-    description: `Da ${pendingOrdersCount} ordini`,
-  },
-];
+Poiché il costo viene inserito già ivato (lordo), lo scorporo funziona così:
+
+```
+Imponibile = Lordo / (1 + aliquota/100)
+IVA = Lordo - Imponibile
 ```
 
-### 4.2 Rendering Card con Background Icona
+Esempio con lordo 1220€ e IVA 22%:
+- Imponibile = 1220 / 1.22 = 1000€
+- IVA = 1220 - 1000 = 220€
 
-```tsx
-<Card key={stat.title} className="relative overflow-hidden">
-  <CardHeader className="flex flex-row items-center justify-between pb-2">
-    <CardTitle className="text-sm font-medium text-muted-foreground">
-      {stat.title}
-    </CardTitle>
-    <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-      <stat.icon className={`h-4 w-4 ${stat.color}`} />
-    </div>
-  </CardHeader>
-  <CardContent>
-    <div className="text-2xl font-bold">{stat.value}</div>
-    <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
-  </CardContent>
-</Card>
+### 3.2 Conto Economico Aggiornato
+
+```
+VENDITA
+├─ Imponibile vendita:       10.000€
+├─ IVA vendita (22%):         2.200€
+└─ Totale lordo:             12.200€
+
+COSTI ARTICOLI
+├─ Finestra Alluminio (IT 22%):  1.220€ lordo → 1.000€ netto + 220€ IVA
+├─ Vetro (Estero 0%):              800€ lordo →   800€ netto +   0€ IVA
+└─ Totale netto articoli:        1.800€
+   IVA detraibile articoli:        220€
+
+COSTI MANODOPERA  
+├─ Squadra A (Forfettario 0%):  2.500€ lordo → 2.500€ netto +   0€ IVA
+├─ Squadra B (Ordinario 22%):   1.830€ lordo → 1.500€ netto + 330€ IVA
+└─ Totale netto manodopera:     4.000€
+   IVA detraibile manodopera:     330€
+
+RIEPILOGO IVA
+├─ IVA a debito (vendita):      2.200€
+├─ IVA a credito (acquisti):      550€
+└─ IVA netta da versare:        1.650€
+
+MARGINE
+├─ Imponibile vendita:         10.000€
+├─ Costi netti totali:          5.800€
+└─ Margine lordo:               4.200€ (42%)
 ```
 
-### 4.3 Grid Layout Bilanciato
+---
 
-```tsx
-{/* Riga principale: 3 colonne uguali */}
-<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-  {/* Ordini Recenti */}
-  <Card>...</Card>
-  
-  {/* Cash Flow Preview */}
-  <Card>...</Card>
-  
-  {/* Labor Costs Stats */}
-  <LaborCostsStats />
-</div>
+## 4. Modifiche UI
 
-{/* Riga secondaria: 2 colonne */}
-<div className="grid gap-6 md:grid-cols-2">
-  {/* Alert Magazzino */}
-  <Card>...</Card>
-  
-  {/* Azioni Rapide */}
-  <Card>...</Card>
-</div>
+### 4.1 Dialog Nuovo Fornitore (`SupplierSelect.tsx`)
+
+Aggiungere campo IVA predefinita:
+
+```
+┌────────────────────────────────────┐
+│        Nuovo Fornitore             │
+├────────────────────────────────────┤
+│ Nome Fornitore *                   │
+│ [ABC Serramenti________________]   │
+│                                    │
+│ Aliquota IVA Predefinita           │
+│ [▼ 22% - Italia ordinaria     ]    │
+│    ├─ 22% - Italia ordinaria       │
+│    ├─ 10% - Aliquota ridotta       │
+│    ├─  4% - Aliquota minima        │
+│    └─  0% - Estero/Reverse charge  │
+│                                    │
+│            [Annulla] [Crea]        │
+└────────────────────────────────────┘
 ```
 
-### 4.4 Ordini Recenti Cliccabili
+### 4.2 Dialog Articolo (`OrderItemsList.tsx`)
 
-```tsx
-{recentOrders.map((order) => (
-  <Link
-    key={order.id}
-    to={`/azienda/ordini/${order.id}`}
-    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-  >
-    ...
-  </Link>
-))}
+Aggiungere campo IVA (ereditato dal fornitore ma modificabile):
+
+```
+┌────────────────────────────────────┐
+│        Nuovo Articolo              │
+├────────────────────────────────────┤
+│ Nome Articolo *                    │
+│ [Finestra 120x140______________]   │
+│                                    │
+│ Quantità          Costo Acquisto   │
+│ [2___]            [€ 1220.00____]  │
+│                                    │
+│ IVA Acquisto                       │
+│ [▼ 22%                        ]    │
+│ ⓘ Ereditato da fornitore           │
+│                                    │
+│ Fornitore                          │
+│ [▼ ABC Serramenti        ] [+]     │
+│                                    │
+│            [Annulla] [Aggiungi]    │
+└────────────────────────────────────┘
+```
+
+### 4.3 Dialog Squadra Esterna (`ExternalTeamDialog.tsx`)
+
+Aggiungere regime IVA:
+
+```
+┌────────────────────────────────────┐
+│     Nuova Squadra Esterna          │
+├────────────────────────────────────┤
+│ Nome Ditta/Squadra *               │
+│ [Installazioni Rossi Srl_______]   │
+│                                    │
+│ Regime IVA                         │
+│ [▼ 22% - Regime ordinario     ]    │
+│    ├─ 22% - Regime ordinario       │
+│    └─  0% - Forfettario/Esente     │
+│                                    │
+│ Nome Referente                     │
+│ [Mario Rossi___________________]   │
+│ ...                                │
+└────────────────────────────────────┘
+```
+
+### 4.4 Dialog Assegna Squadra (`AssignExternalTeamDialog.tsx`)
+
+Aggiungere IVA specifica per l'assegnazione:
+
+```
+┌────────────────────────────────────┐
+│     Aggiungi Squadra Esterna       │
+├────────────────────────────────────┤
+│ Squadra *                          │
+│ [▼ Installazioni Rossi        ]    │
+│                                    │
+│ Costo Totale (€) *   IVA           │
+│ [3050__________]     [▼ 22%   ]    │
+│ ⓘ Inserisci il totale fattura      │
+│   (netto 2500€ + IVA 550€)         │
+│                                    │
+│ Data Pagamento Prevista            │
+│ [📅 Seleziona data_____________]   │
+│                                    │
+│            [Annulla] [Aggiungi]    │
+└────────────────────────────────────┘
+```
+
+### 4.5 Conto Economico Aggiornato (`OrderEconomics.tsx`)
+
+Nuova visualizzazione con dettaglio IVA:
+
+```
+┌────────────────────────────────────────────┐
+│ 💰 Conto Economico                         │
+├────────────────────────────────────────────┤
+│ VENDITA                                    │
+│ Imponibile                     € 10.000,00 │
+│ IVA (22%)                       € 2.200,00 │
+│ Totale con IVA                 € 12.200,00 │
+├────────────────────────────────────────────┤
+│ COSTI ARTICOLI                             │
+│ Finestra (22%)    € 1.220 → € 1.000 netto  │
+│ Vetro (0%)          € 800 →   € 800 netto  │
+│ ─────────────────────────────────────────  │
+│ Totale netto articoli          € 1.800,00  │
+│ IVA detraibile articoli          € 220,00  │
+├────────────────────────────────────────────┤
+│ COSTI MANODOPERA                           │
+│ Squadra A (0%)    € 2.500 → € 2.500 netto  │
+│ Squadra B (22%)   € 1.830 → € 1.500 netto  │
+│ ─────────────────────────────────────────  │
+│ Totale netto manodopera        € 4.000,00  │
+│ IVA detraibile manodopera        € 330,00  │
+├────────────────────────────────────────────┤
+│ RIEPILOGO IVA                              │
+│ IVA a debito (vendita)         € 2.200,00  │
+│ IVA a credito (acquisti)         € 550,00  │
+│ IVA netta da versare           € 1.650,00  │
+├────────────────────────────────────────────┤
+│ MARGINE                                    │
+│ ↗ Margine Lordo                € 4.200,00  │
+│ Margine %                           42,0%  │
+└────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 5. File da Modificare
 
-| File | Modifica |
-|------|----------|
-| `src/pages/azienda/CompanyDashboard.tsx` | Rimozione import inutilizzato, semplificazione variabili, miglioramenti visivi |
-| `src/pages/admin/AdminDashboard.tsx` | Migrazione a useQuery con staleTime |
+| File | Modifiche |
+|------|-----------|
+| `supabase/migrations/` | Nuova migrazione per aggiungere campi `vat_rate` |
+| `src/components/orders/SupplierSelect.tsx` | Aggiungere campo IVA nel dialog creazione fornitore |
+| `src/components/orders/OrderItemsList.tsx` | Aggiungere campo IVA articolo con ereditarietà da fornitore |
+| `src/components/employees/ExternalTeamDialog.tsx` | Aggiungere campo regime IVA |
+| `src/components/employees/AssignExternalTeamDialog.tsx` | Aggiungere campo IVA con ereditarietà da squadra |
+| `src/components/orders/OrderEconomics.tsx` | Refactor completo per calcoli IVA acquisti |
 
 ---
 
-## 6. Benefici
+## 6. Comportamento Ereditarietà IVA
 
-| Miglioramento | Impatto |
-|---------------|---------|
-| Icone con background | Design piu moderno e coerente con AdminDashboard |
-| Layout bilanciato | Migliore utilizzo dello spazio, nessuna colonna vuota |
-| Ordini cliccabili | UX migliorata, accesso rapido ai dettagli |
-| Codice pulito | Meno codice ridondante, import corretti |
-| AdminDashboard con useQuery | Performance migliorate, caching abilitato |
+### Articoli
+
+1. Utente seleziona fornitore → campo IVA viene precompilato con valore del fornitore
+2. Utente può modificare manualmente se necessario
+3. Al salvataggio, il valore IVA viene salvato su `order_items.vat_rate`
+
+### Squadre Esterne
+
+1. Utente seleziona squadra → campo IVA viene precompilato con valore della squadra
+2. Utente può modificare se questa fattura specifica ha regime diverso
+3. Al salvataggio, il valore IVA viene salvato su `order_external_teams.vat_rate`
 
 ---
 
 ## Sezione Tecnica
 
-### Import Finale CompanyDashboard
+### Formula Scorporo IVA
 
 ```typescript
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  ClipboardList, 
-  Users, 
-  HeadphonesIcon, 
-  Plus, 
-  Loader2, 
-  Euro, 
-  Package, 
-  TrendingUp, 
-  AlertTriangle 
-} from "lucide-react";
-import { Link } from "react-router-dom";
-import { formatCurrency } from "@/lib/formatters";
-import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
+function calculateNetFromGross(grossAmount: number, vatRate: number) {
+  const netAmount = grossAmount / (1 + vatRate / 100);
+  const vatAmount = grossAmount - netAmount;
+  return { netAmount, vatAmount };
+}
+
+// Esempio
+calculateNetFromGross(1220, 22);
+// { netAmount: 1000, vatAmount: 220 }
 ```
 
-### Variabili Semplificate
+### Struttura Dati OrderEconomics
 
 ```typescript
-export default function CompanyDashboard() {
-  const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
-  // Rimosso: const company = effectiveCompany;
+interface CostBreakdown {
+  name: string;
+  grossCost: number;      // Costo lordo inserito
+  vatRate: number;        // Aliquota IVA (0, 4, 10, 22)
+  netCost: number;        // Costo netto (scorporato)
+  vatAmount: number;      // IVA detraibile
+}
+
+interface EconomicsData {
+  // Vendita
+  saleNet: number;
+  saleVat: number;
+  saleGross: number;
+  
+  // Costi articoli
+  itemCosts: CostBreakdown[];
+  totalItemsNet: number;
+  totalItemsVat: number;
+  
+  // Costi manodopera
+  laborCosts: CostBreakdown[];
+  totalLaborNet: number;
+  totalLaborVat: number;
+  
+  // Riepilogo IVA
+  vatDebit: number;       // IVA vendita (a debito)
+  vatCredit: number;      // IVA acquisti (a credito)
+  vatBalance: number;     // Differenza da versare/recuperare
+  
+  // Margine
+  grossMargin: number;
+  marginPercentage: number;
+}
+```
+
+### Aliquote IVA Predefinite
+
+```typescript
+const VAT_RATES = [
+  { value: 22, label: "22% - Ordinaria" },
+  { value: 10, label: "10% - Ridotta" },
+  { value: 4, label: "4% - Minima" },
+  { value: 0, label: "0% - Esente/Estero" },
+];
 ```
