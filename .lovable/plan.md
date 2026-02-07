@@ -1,222 +1,194 @@
 
-
-# Piano: Pulizia Codice e Miglioramento Dashboard
-
-## Analisi Completata
-
-Ho analizzato l'intero codebase e identificato i seguenti problemi:
-
----
+# Piano: Pulizia Codice e Correzione Dashboard
 
 ## Problemi Identificati
 
-### 1. Warning Console: Badge senza forwardRef (CRITICO)
-
-```
-Warning: Function components cannot be given refs.
-Check the render method of `CashFlowForecast`.
-at Badge
-```
-
-**Causa**: Il componente `Badge` in `src/components/ui/badge.tsx` non usa `React.forwardRef`, ma in alcuni casi React tenta di passare un ref (es. dentro tabelle o tooltip).
-
-**File**: `src/components/ui/badge.tsx`
-
-**Soluzione**: Aggiungere `forwardRef` al componente Badge.
-
----
-
-### 2. Warning Console: CartesianGrid (Recharts)
-
-```
-Warning: Function components cannot be given refs.
-at CartesianGrid
-```
-
-**Causa**: Questo e un warning interno di Recharts che non possiamo risolvere direttamente. E un problema noto della libreria.
-
-**Azione**: Nessuna - e un warning della libreria esterna.
-
----
-
-### 3. Dashboard Aziendale: Miglioramenti UX
+### 1. Query Urgent Items - BUG CRITICO
 
 **File**: `src/pages/azienda/CompanyDashboard.tsx`
 
-**Problemi attuali**:
-- Manca un indicatore di trend/variazione rispetto al periodo precedente
-- Le "Azioni Rapide" sono generiche e non contestuali
-- Manca collegamento al Magazzino (sezione importante)
-- Manca un widget per il previsionale cassa (collegamento con CashFlowForecast)
-- Non ci sono alert per articoli urgenti dal magazzino
+La query per gli articoli urgenti nella Dashboard cerca solo `work_start_date`:
 
-**Miglioramenti proposti**:
-1. Aggiungere link rapido al Magazzino
-2. Aggiungere preview del previsionale cassa (prossimi incassi)
-3. Aggiungere alert per articoli urgenti (installazioni prossime)
-4. Rimuovere azione duplicata "Configura Stati Ordine" (poco usata)
-5. Usare `formatCurrency` da lib/formatters per consistenza
+```typescript
+.lte("order.work_start_date", sevenDaysFromNow.toISOString().split("T")[0])
+.gte("order.work_start_date", now.toISOString().split("T")[0])
+```
+
+Ma nel database molti ordini hanno solo `expected_date` (come ORD-2026-001, ORD-2026-002, ORD-2026-003). Questo significa che la Dashboard NON mostra gli articoli urgenti di questi ordini.
+
+**Soluzione**: Modificare la query per considerare anche `expected_date`, oppure usare una logica post-fetch simile a WarehouseAlerts.
 
 ---
 
-### 4. Codice Duplicato: Interfacce Stats
+### 2. formatCurrency Duplicato
 
-Le interfacce per le statistiche sono definite localmente in ogni file:
-- `DashboardStats` in `CompanyDashboard.tsx`
-- `Stats` in `AdminDashboard.tsx`
-- `CompanyStats` in `CompanyDetail.tsx`
+**File**: `src/components/warehouse/WarehouseStats.tsx`
 
-**Azione**: Mantenere locale per ora (pattern comune in React per componenti indipendenti).
+Ha una funzione locale `formatCurrency` (linee 99-106) invece di importare quella centralizzata.
 
----
-
-### 5. Query Duplicata per Pending Revenue
-
-In `CompanyDashboard.tsx`, la query per il `pendingRevenue` viene fatta separatamente dopo le altre query parallele, causando un round-trip extra al database.
-
-**Soluzione**: Includere `balance_amount` nella query `ordersDataRes` esistente e calcolare il totale dai dati gia disponibili.
+**Soluzione**: Rimuovere la funzione locale e importare da `@/lib/formatters`.
 
 ---
 
-## Piano di Implementazione
+### 3. Calcolo Cash Flow - Potenziale Problema
+
+**File**: `src/pages/azienda/CompanyDashboard.tsx`
+
+Il calcolo include pagamenti dal primo del mese, non solo dal giorno corrente. Questo significa che mostra anche pagamenti con date nel passato (es. se oggi e il 7 febbraio, mostra anche quelli del 1-6 febbraio).
+
+**Coerenza con CashFlowForecast**: 
+- CashFlowForecast usa `isWithinInterval` con `startOfMonth` - quindi include tutto il mese
+- Dashboard fa lo stesso con `depositDate <= thisMonthEnd`
+
+Questo e coerente quindi **non e un bug**, ma la logica e corretta.
+
+---
+
+### 4. Calcolo daysLeft - Bug Minore
+
+Nel processing degli urgent items, `daysLeft` usa `Math.ceil` ma non gestisce il caso di date passate (che darebbero numeri negativi). Tuttavia la query filtra gia date >= now, quindi non dovrebbe accadere.
+
+---
+
+## Modifiche Proposte
 
 ### File da Modificare
 
 | File | Modifica |
 |------|----------|
-| `src/components/ui/badge.tsx` | Aggiungere forwardRef per risolvere warning |
-| `src/pages/azienda/CompanyDashboard.tsx` | Ottimizzare query + migliorare UI |
+| `CompanyDashboard.tsx` | Correggere query urgent items per includere `expected_date` |
+| `WarehouseStats.tsx` | Usare `formatCurrency` centralizzato |
 
 ---
 
 ## Dettagli Tecnici
 
-### 1. Fix Badge con forwardRef
+### 1. Fix Query Urgent Items
+
+**Problema**: La query Supabase non puo fare OR su relazioni in modo semplice. 
+
+**Soluzione**: Rimuovere i filtri su `work_start_date` dalla query e fare il filtraggio in JavaScript:
 
 ```typescript
-// PRIMA
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
-}
+// PRIMA (ignora expected_date)
+supabase
+  .from("order_items")
+  .select(`...`)
+  .eq("order.company_id", company.id)
+  .neq("status", "installato")
+  .neq("status", "in_magazzino")
+  .lte("order.work_start_date", sevenDaysFromNow.toISOString().split("T")[0])
+  .gte("order.work_start_date", now.toISOString().split("T")[0])
 
-// DOPO
-const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
-  ({ className, variant, ...props }, ref) => {
-    return (
-      <div 
-        ref={ref}
-        className={cn(badgeVariants({ variant }), className)} 
-        {...props} 
-      />
-    );
-  }
-);
-Badge.displayName = "Badge";
-```
-
----
-
-### 2. Dashboard Migliorata
-
-#### Nuove Stat Cards
-
-| Card | Descrizione |
-|------|-------------|
-| Ordini Totali | Numero totale ordini |
-| Clienti | Numero clienti registrati |
-| Ticket Aperti | Con colore warning se > 0 |
-| Saldi da Incassare | Totale balance_amount non pagato |
-
-#### Nuovi Widget
-
-1. **Preview Previsionale**: Mostra incassi previsti questo mese con link a `/azienda/previsionale`
-2. **Alert Magazzino**: Mostra articoli urgenti (installazione entro 7 giorni) con link a `/azienda/magazzino`
-
-#### Azioni Rapide Aggiornate
-
-- Nuovo Ordine
-- Nuovo Cliente
-- Vai al Magazzino (NUOVO)
-- Vedi Previsionale (NUOVO)
-
----
-
-### 3. Ottimizzazione Query
-
-```typescript
-// PRIMA: 5 query separate
-const [ordersRes, customersRes, ticketsRes, ordersDataRes] = await Promise.all([...]);
-const { data: revenueData } = await supabase...  // Query extra!
-
-// DOPO: 4 query parallele, calcolo locale
-const [ordersRes, customersRes, ticketsRes, ordersDataRes] = await Promise.all([
-  supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", company.id),
-  supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", company.id),
-  supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", company.id).eq("status", "aperto"),
-  supabase
-    .from("orders")
-    .select(`
+// DOPO (fetch tutti, filtra in JS)
+supabase
+  .from("order_items")
+  .select(`
+    id,
+    name,
+    status,
+    order:orders!inner(
       id,
-      description,
-      total_amount,
-      balance_amount,
-      balance_paid,
-      created_at,
-      customer:profiles!orders_customer_id_fkey(first_name, last_name),
-      status:order_statuses(name, color)
-    `)
-    .eq("company_id", company.id)
-    .order("created_at", { ascending: false })
-    .limit(5),
-]);
+      order_code,
+      work_start_date,
+      expected_date,
+      company_id,
+      customer:profiles!orders_customer_id_fkey(first_name, last_name)
+    )
+  `)
+  .eq("order.company_id", company.id)
+  .neq("status", "installato")
+  .neq("status", "in_magazzino")
+```
 
-// Calcola pending revenue dai dati esistenti + query separata per tutti gli ordini
+Poi nel processing:
+
+```typescript
+urgentItemsRes.data?.forEach((item: unknown) => {
+  const typedItem = item as {
+    id: string;
+    name: string;
+    order: {
+      order_code: string | null;
+      work_start_date: string | null;
+      expected_date: string | null;
+      customer: { first_name: string; last_name: string };
+    };
+  };
+  
+  // Usa expected_date O work_start_date (come WarehouseAlerts)
+  const expectedDate = typedItem.order.expected_date || typedItem.order.work_start_date;
+  
+  if (expectedDate) {
+    const date = new Date(expectedDate);
+    const daysLeft = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Filtra solo urgenti (entro 7 giorni e >= oggi)
+    if (daysLeft >= 0 && daysLeft <= 7) {
+      processedUrgentItems.push({
+        id: typedItem.id,
+        name: typedItem.name,
+        orderCode: typedItem.order.order_code,
+        customerName: `${typedItem.order.customer.first_name} ${typedItem.order.customer.last_name}`,
+        daysLeft,
+      });
+    }
+  }
+});
 ```
 
 ---
 
-### 4. Nuovo Layout Dashboard
+### 2. Fix WarehouseStats.tsx
 
-```text
-+----------------------------------+
-| Dashboard                    [+] |
-+--------+--------+--------+-------+
-| Ordini | Clienti| Ticket | Saldi |
-|   12   |   8    |   2    | €15k  |
-+--------+--------+--------+-------+
+```typescript
+// PRIMA (locale)
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+};
 
-+--------------------+-------------------+
-| Ordini Recenti     | Previsionale      |
-| - Ord1 €5k         | Questo mese: €8k  |
-| - Ord2 €3k         | Prossimo: €12k    |
-| [Vedi tutti]       | [Vedi dettaglio]  |
-+--------------------+-------------------+
-
-+--------------------+-------------------+
-| Alert Magazzino    | Azioni Rapide     |
-| 3 articoli urgenti | - Nuovo Ordine    |
-| [Vai al magazzino] | - Nuovo Cliente   |
-|                    | - Magazzino       |
-+--------------------+-------------------+
+// DOPO (centralizzato)
+import { formatCurrency } from "@/lib/formatters";
+// Rimuovere la funzione locale
 ```
 
 ---
 
-## Riepilogo Cambiamenti
+## Verifica Funzionamento
 
-1. **Fix Badge forwardRef**: Risolve warning console in CashFlowForecast e altre pagine
-2. **Ottimizza query Dashboard**: Rimuove round-trip extra al database
-3. **Widget Previsionale**: Preview degli incassi previsti
-4. **Alert Magazzino**: Articoli con installazione urgente
-5. **Azioni Rapide aggiornate**: Link a Magazzino e Previsionale
-6. **Formattazione consistente**: Usa `formatCurrency` ovunque
+### Dati attuali nel DB
+
+Ho verificato che ci sono ordini con articoli urgenti:
+- ORD-2026-003: `expected_date = 2026-02-10` (tra 3 giorni) con 3 articoli non pronti
+- ORD-2026-001: `expected_date = 2026-02-12` (tra 5 giorni) con 2 articoli non pronti
+
+Questi NON appaiono nella Dashboard attuale perche la query cerca solo `work_start_date` che e NULL per questi ordini.
+
+### Dopo la Correzione
+
+Gli articoli urgenti appariranno correttamente nella Dashboard:
+- 3 articoli per ORD-2026-003 (urgente - 3g)
+- 2 articoli per ORD-2026-001 (5g)
 
 ---
 
 ## Impatto
 
-- Console pulita (risolto warning Badge)
-- Dashboard piu informativa e utile
-- Performance migliorata (meno query)
-- Navigazione piu fluida verso sezioni importanti
+1. **Dashboard mostra articoli urgenti corretti**: Non piu mancanti
+2. **Coerenza con Magazzino**: Stessa logica di WarehouseAlerts
+3. **Codice piu pulito**: formatCurrency centralizzato
+4. **Zero breaking changes**: Solo bug fix
 
+---
+
+## Riepilogo Modifiche
+
+| File | Tipo | Descrizione |
+|------|------|-------------|
+| `CompanyDashboard.tsx` | Bug Fix | Query urgent items include expected_date |
+| `WarehouseStats.tsx` | Cleanup | Usa formatCurrency centralizzato |
