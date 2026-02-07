@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,14 +7,23 @@ import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CalendarDays, GanttChart, Calendar as CalendarIcon } from "lucide-react";
-import type { CalendarOrder, CalendarViewType } from "@/types/calendar";
+import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter } from "@/types/calendar";
 
 export default function Calendar() {
   const { effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
   const [view, setView] = useState<CalendarViewType>(isMobile ? "month" : "gantt");
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [customerFilter, setCustomerFilter] = useState<string>("all");
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],
@@ -30,6 +39,8 @@ export default function Calendar() {
           expected_date,
           work_start_date,
           work_end_date,
+          created_at,
+          customer_id,
           current_status_id,
           customer:profiles!orders_customer_id_fkey(first_name, last_name),
           status:order_statuses!orders_current_status_id_fkey(name, color)
@@ -43,14 +54,57 @@ export default function Calendar() {
     enabled: !!effectiveCompany?.id,
   });
 
+  const { data: statuses = [] } = useQuery({
+    queryKey: ["order-statuses", effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      
+      const { data, error } = await supabase
+        .from("order_statuses")
+        .select("id, name, color")
+        .eq("company_id", effectiveCompany.id)
+        .order("position");
+      
+      if (error) throw error;
+      return (data || []) as OrderStatus[];
+    },
+    enabled: !!effectiveCompany?.id,
+  });
+
+  const uniqueCustomers = useMemo(() => {
+    const customersMap = new Map<string, CustomerFilter>();
+    orders.forEach(order => {
+      if (!customersMap.has(order.customer_id)) {
+        customersMap.set(order.customer_id, {
+          id: order.customer_id,
+          first_name: order.customer.first_name,
+          last_name: order.customer.last_name,
+        });
+      }
+    });
+    return Array.from(customersMap.values()).sort((a, b) => 
+      `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
+    );
+  }, [orders]);
+
   const goToToday = () => {
     setCurrentDate(new Date());
   };
 
   // Filter orders that have at least one date
-  const scheduledOrders = orders.filter(
-    (order) => order.work_start_date || order.expected_date
-  );
+  const scheduledOrders = useMemo(() => {
+    return orders
+      .filter(order => order.work_start_date || order.expected_date)
+      .filter(order => {
+        if (statusFilter !== "all" && order.current_status_id !== statusFilter) {
+          return false;
+        }
+        if (customerFilter !== "all" && order.customer_id !== customerFilter) {
+          return false;
+        }
+        return true;
+      });
+  }, [orders, statusFilter, customerFilter]);
 
   return (
     <div className="space-y-6">
@@ -59,6 +113,43 @@ export default function Calendar() {
         <p className="text-muted-foreground">
           Pianifica e visualizza i lavori programmati
         </p>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-4">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Tutti gli stati" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti gli stati</SelectItem>
+            {statuses.map((status) => (
+              <SelectItem key={status.id} value={status.id}>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded"
+                    style={{ backgroundColor: status.color }}
+                  />
+                  {status.name}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={customerFilter} onValueChange={setCustomerFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Tutti i clienti" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti i clienti</SelectItem>
+            {uniqueCustomers.map((customer) => (
+              <SelectItem key={customer.id} value={customer.id}>
+                {customer.last_name} {customer.first_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-4">

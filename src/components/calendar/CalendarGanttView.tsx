@@ -1,5 +1,14 @@
 import { useMemo, useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import {
   format,
   startOfYear,
@@ -13,21 +22,24 @@ import {
   endOfQuarter,
   startOfMonth,
   endOfMonth,
+  startOfWeek,
+  endOfWeek,
   addYears,
   subYears,
+  addDays,
+  addWeeks,
+  subWeeks,
 } from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 import type { CalendarOrder, GanttZoom } from "@/types/calendar";
+import { DraggableOrderBar } from "./DraggableOrderBar";
+import { LeadTimeStats, calculateLeadTime, getLeadTimeColor } from "./LeadTimeStats";
 
 interface CalendarGanttViewProps {
   orders: CalendarOrder[];
@@ -39,6 +51,7 @@ const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; label: string }> = {
   year: { dayWidth: 3, label: "Anno" },
   quarter: { dayWidth: 8, label: "Trimestre" },
   month: { dayWidth: 25, label: "Mese" },
+  week: { dayWidth: 80, label: "Settimana" },
 };
 
 const ROW_HEIGHT = 50;
@@ -49,10 +62,19 @@ export function CalendarGanttView({
   onDateChange,
 }: CalendarGanttViewProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState<GanttZoom>("quarter");
 
   const { dayWidth } = ZOOM_CONFIG[zoom];
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   const { startDate, endDate, days, months } = useMemo(() => {
     let start: Date;
@@ -70,6 +92,10 @@ export function CalendarGanttView({
       case "month":
         start = startOfMonth(currentDate);
         end = endOfMonth(currentDate);
+        break;
+      case "week":
+        start = startOfWeek(currentDate, { weekStartsOn: 1 });
+        end = endOfWeek(currentDate, { weekStartsOn: 1 });
         break;
     }
 
@@ -133,6 +159,41 @@ export function CalendarGanttView({
     return orderStart > today ? "#F59E0B" : "#3B82F6";
   };
 
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, delta } = event;
+    if (!delta?.x || Math.abs(delta.x) < dayWidth / 2) return;
+
+    const orderData = active.data.current as { order: CalendarOrder; bar: { orderStart: Date; orderEnd: Date } };
+    const daysMoved = Math.round(delta.x / dayWidth);
+
+    if (daysMoved === 0) return;
+
+    const order = orderData.order;
+    const currentStart = orderData.bar.orderStart;
+    const currentEnd = orderData.bar.orderEnd;
+
+    const newStart = addDays(currentStart, daysMoved);
+    const newEnd = addDays(currentEnd, daysMoved);
+
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          work_start_date: format(newStart, "yyyy-MM-dd"),
+          work_end_date: format(newEnd, "yyyy-MM-dd"),
+        })
+        .eq("id", order.id);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+      toast.success("Date lavoro aggiornate");
+    } catch (error) {
+      console.error("Error updating order dates:", error);
+      toast.error("Errore nell'aggiornamento delle date");
+    }
+  };
+
   const handlePrev = () => {
     switch (zoom) {
       case "year":
@@ -143,6 +204,9 @@ export function CalendarGanttView({
         break;
       case "month":
         onDateChange(new Date(currentDate.getTime() - 30 * 24 * 60 * 60 * 1000));
+        break;
+      case "week":
+        onDateChange(subWeeks(currentDate, 1));
         break;
     }
   };
@@ -158,6 +222,9 @@ export function CalendarGanttView({
       case "month":
         onDateChange(new Date(currentDate.getTime() + 30 * 24 * 60 * 60 * 1000));
         break;
+      case "week":
+        onDateChange(addWeeks(currentDate, 1));
+        break;
     }
   };
 
@@ -170,6 +237,8 @@ export function CalendarGanttView({
         return `Q${q} ${format(currentDate, "yyyy")}`;
       case "month":
         return format(currentDate, "MMMM yyyy", { locale: it });
+      case "week":
+        return `${format(startDate, "d MMM", { locale: it })} - ${format(endDate, "d MMM yyyy", { locale: it })}`;
     }
   };
 
@@ -180,7 +249,7 @@ export function CalendarGanttView({
           <Button variant="ghost" size="icon" onClick={handlePrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h2 className="text-lg font-semibold min-w-[120px] text-center capitalize">
+          <h2 className="text-lg font-semibold min-w-[180px] text-center capitalize">
             {getPeriodLabel()}
           </h2>
           <Button variant="ghost" size="icon" onClick={handleNext}>
@@ -194,6 +263,10 @@ export function CalendarGanttView({
           onValueChange={(value) => value && setZoom(value as GanttZoom)}
           className="bg-muted rounded-lg p-1"
         >
+          <ToggleGroupItem value="week" className="text-xs px-2">
+            <Calendar className="h-3 w-3 mr-1" />
+            Settimana
+          </ToggleGroupItem>
           <ToggleGroupItem value="month" className="text-xs px-2">
             <ZoomIn className="h-3 w-3 mr-1" />
             Mese
@@ -213,141 +286,151 @@ export function CalendarGanttView({
           Nessun lavoro programmato
         </div>
       ) : (
-        <div className="flex border rounded-lg overflow-hidden">
-          {/* Fixed left column - Client names */}
-          <div className="flex-shrink-0 bg-muted/30 border-r min-w-[180px]">
-            <div className="h-12 border-b bg-muted/50 flex items-center px-3">
-              <span className="text-sm font-medium text-muted-foreground">
-                Cliente / Ordine
-              </span>
-            </div>
-            {orders.map((order) => (
-              <div
-                key={order.id}
-                className="border-b flex flex-col justify-center px-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                style={{ height: ROW_HEIGHT }}
-                onClick={() => navigate(`/azienda/ordini/${order.id}`)}
-              >
-                <span className="text-sm font-medium truncate">
-                  {order.customer.first_name} {order.customer.last_name}
-                </span>
-                <span className="text-xs text-muted-foreground truncate">
-                  {order.order_code || "N/A"}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Scrollable timeline */}
-          <div
-            ref={scrollContainerRef}
-            className="flex-1 overflow-x-auto relative"
-          >
-            {/* Month headers */}
-            <div
-              className="h-12 border-b bg-muted/50 flex sticky top-0 z-10"
-              style={{ width: days.length * dayWidth }}
-            >
-              {months.map((month, idx) => {
-                const monthDays = days.filter(
-                  (d) => d.getMonth() === month.getMonth()
-                );
-                const monthWidth = monthDays.length * dayWidth;
-                
-                return (
-                  <div
-                    key={idx}
-                    className="border-r flex items-center justify-center text-sm font-medium text-muted-foreground"
-                    style={{ width: monthWidth }}
-                  >
-                    {format(month, zoom === "year" ? "MMM" : "MMMM", { locale: it })}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Rows with bars */}
-            <div className="relative" style={{ width: days.length * dayWidth }}>
-              {/* Today indicator */}
-              {todayOffset !== null && (
-                <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20"
-                  style={{ left: todayOffset + dayWidth / 2 }}
-                />
-              )}
-
-              {/* Day grid lines (only show for month zoom) */}
-              {zoom === "month" && (
-                <div className="absolute inset-0 flex">
-                  {days.map((day, idx) => (
-                    <div
-                      key={idx}
-                      className={cn(
-                        "border-r border-muted/50 flex-shrink-0",
-                        isSameDay(day, new Date()) && "bg-primary/5"
-                      )}
-                      style={{ width: dayWidth, height: orders.length * ROW_HEIGHT }}
-                    />
-                  ))}
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div className="flex border rounded-lg overflow-hidden">
+            {/* Fixed left column - Client names + Lead Time */}
+            <div className="flex-shrink-0 bg-muted/30 border-r min-w-[220px]">
+              <div className="h-12 border-b bg-muted/50 flex">
+                <div className="flex-1 flex items-center px-3">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Cliente / Ordine
+                  </span>
                 </div>
-              )}
-
+                <div className="w-16 flex items-center justify-center border-l">
+                  <span className="text-xs font-medium text-muted-foreground">LT</span>
+                </div>
+              </div>
               {orders.map((order) => {
-                const bar = getOrderBar(order);
-                
+                const leadTime = calculateLeadTime(order);
                 return (
                   <div
                     key={order.id}
-                    className="border-b relative"
+                    className="border-b flex cursor-pointer hover:bg-muted/50 transition-colors"
                     style={{ height: ROW_HEIGHT }}
+                    onClick={() => navigate(`/azienda/ordini/${order.id}`)}
                   >
-                    {bar && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            className="absolute top-2 bottom-2 rounded shadow-sm hover:shadow-md transition-shadow flex items-center px-2 overflow-hidden"
-                            style={{
-                              left: bar.left,
-                              width: Math.max(bar.width, dayWidth),
-                              backgroundColor: getOrderColor(order),
-                            }}
-                            onClick={() => navigate(`/azienda/ordini/${order.id}`)}
-                          >
-                            {bar.width > 60 && (
-                              <span className="text-xs text-white font-medium truncate">
-                                {order.order_code || order.description.slice(0, 20)}
-                              </span>
-                            )}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[250px]">
-                          <div className="space-y-1">
-                            <p className="font-medium">{order.order_code || "Ordine"}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {order.customer.first_name} {order.customer.last_name}
-                            </p>
-                            <p className="text-sm truncate">{order.description}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {format(bar.orderStart, "d MMM", { locale: it })}
-                              {!isSameDay(bar.orderStart, bar.orderEnd) && (
-                                <> - {format(bar.orderEnd, "d MMM", { locale: it })}</>
-                              )}
-                            </p>
-                            {order.status && (
-                              <p className="text-xs">
-                                Stato: <span style={{ color: order.status.color }}>{order.status.name}</span>
-                              </p>
-                            )}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
+                    <div className="flex-1 flex flex-col justify-center px-3">
+                      <span className="text-sm font-medium truncate">
+                        {order.customer.first_name} {order.customer.last_name}
+                      </span>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {order.order_code || "N/A"}
+                      </span>
+                    </div>
+                    <div className="w-16 flex items-center justify-center border-l">
+                      {leadTime !== null ? (
+                        <span className={cn("text-xs font-medium", getLeadTimeColor(leadTime))}>
+                          {leadTime}g
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
+
+            {/* Scrollable timeline */}
+            <div
+              ref={scrollContainerRef}
+              className="flex-1 overflow-x-auto relative"
+            >
+              {/* Header */}
+              <div
+                className="h-12 border-b bg-muted/50 flex sticky top-0 z-10"
+                style={{ width: days.length * dayWidth }}
+              >
+                {zoom === "week" ? (
+                  // Week view: show day names + numbers
+                  days.map((day, idx) => (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "border-r flex flex-col items-center justify-center",
+                        isSameDay(day, new Date()) && "bg-primary/10"
+                      )}
+                      style={{ width: dayWidth }}
+                    >
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {format(day, "EEE", { locale: it })}
+                      </span>
+                      <span className="text-sm font-semibold">
+                        {format(day, "d")}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  // Other views: show months
+                  months.map((month, idx) => {
+                    const monthDays = days.filter(
+                      (d) => d.getMonth() === month.getMonth()
+                    );
+                    const monthWidth = monthDays.length * dayWidth;
+
+                    return (
+                      <div
+                        key={idx}
+                        className="border-r flex items-center justify-center text-sm font-medium text-muted-foreground"
+                        style={{ width: monthWidth }}
+                      >
+                        {format(month, zoom === "year" ? "MMM" : "MMMM", { locale: it })}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Rows with bars */}
+              <div className="relative" style={{ width: days.length * dayWidth }}>
+                {/* Today indicator */}
+                {todayOffset !== null && (
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 bg-destructive z-20"
+                    style={{ left: todayOffset + dayWidth / 2 }}
+                  />
+                )}
+
+                {/* Day grid lines (show for month and week zoom) */}
+                {(zoom === "month" || zoom === "week") && (
+                  <div className="absolute inset-0 flex">
+                    {days.map((day, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "border-r border-muted/50 flex-shrink-0",
+                          isSameDay(day, new Date()) && "bg-primary/5"
+                        )}
+                        style={{ width: dayWidth, height: orders.length * ROW_HEIGHT }}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {orders.map((order) => {
+                  const bar = getOrderBar(order);
+
+                  return (
+                    <div
+                      key={order.id}
+                      className="border-b relative"
+                      style={{ height: ROW_HEIGHT }}
+                    >
+                      {bar && (
+                        <DraggableOrderBar
+                          order={order}
+                          bar={bar}
+                          dayWidth={dayWidth}
+                          color={getOrderColor(order)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
+        </DndContext>
       )}
 
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
@@ -364,10 +447,12 @@ export function CalendarGanttView({
           <span className="text-muted-foreground">Futuro</span>
         </div>
         <div className="flex items-center gap-2 ml-auto">
-          <div className="w-0.5 h-4 bg-red-500" />
+          <div className="w-0.5 h-4 bg-destructive" />
           <span className="text-muted-foreground">Oggi</span>
         </div>
       </div>
+
+      <LeadTimeStats orders={orders} />
     </Card>
   );
 }
