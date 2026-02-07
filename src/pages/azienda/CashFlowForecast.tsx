@@ -15,9 +15,11 @@ import { it } from "date-fns/locale";
 import { 
   CalendarClock, 
   TrendingUp, 
+  TrendingDown,
   Wallet, 
   PiggyBank,
-  Calendar
+  Calendar,
+  Building2
 } from "lucide-react";
 import {
   BarChart,
@@ -34,6 +36,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -52,6 +55,17 @@ interface ExpectedPayment {
   type: "Acconto 1" | "Acconto 2" | "Saldo";
   amount: number;
   expectedDate: Date | null;
+  direction: "in"; // income
+}
+
+interface ExpectedExpense {
+  orderId: string;
+  orderCode: string | null;
+  teamName: string;
+  amount: number;
+  expectedDate: Date | null;
+  isPaid: boolean;
+  direction: "out"; // expense
 }
 
 interface DateRange {
@@ -60,11 +74,13 @@ interface DateRange {
 }
 
 export default function CashFlowForecast() {
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [activeTab, setActiveTab] = useState<"all" | "income" | "expenses">("all");
 
   // Query ordini con pagamenti non incassati
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ["forecast-orders", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -90,7 +106,31 @@ export default function CashFlowForecast() {
     enabled: !!user,
   });
 
-  // Elabora pagamenti attesi
+  // Query squadre esterne non pagate
+  const { data: externalTeamPayments = [], isLoading: loadingTeams } = useQuery({
+    queryKey: ["forecast-external-teams", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_external_teams")
+        .select(`
+          id,
+          total_cost,
+          payment_date,
+          is_paid,
+          order:orders!inner(id, order_code, company_id),
+          external_team:external_teams(name)
+        `)
+        .eq("is_paid", false);
+
+      if (error) throw error;
+      return data.filter((item: any) => item.order?.company_id === companyId);
+    },
+    enabled: !!companyId,
+  });
+
+  const isLoading = loadingOrders || loadingTeams;
+
+  // Elabora entrate attese (pagamenti clienti)
   const expectedPayments = useMemo(() => {
     const payments: ExpectedPayment[] = [];
 
@@ -110,6 +150,7 @@ export default function CashFlowForecast() {
           expectedDate: order.deposit_expected_date 
             ? new Date(order.deposit_expected_date) 
             : null,
+          direction: "in",
         });
       }
 
@@ -124,6 +165,7 @@ export default function CashFlowForecast() {
           expectedDate: order.deposit_2_expected_date 
             ? new Date(order.deposit_2_expected_date) 
             : null,
+          direction: "in",
         });
       }
 
@@ -138,6 +180,7 @@ export default function CashFlowForecast() {
           expectedDate: order.balance_expected_date 
             ? new Date(order.balance_expected_date) 
             : null,
+          direction: "in",
         });
       }
     });
@@ -150,6 +193,30 @@ export default function CashFlowForecast() {
       return a.expectedDate.getTime() - b.expectedDate.getTime();
     });
   }, [orders]);
+
+  // Elabora uscite attese (pagamenti squadre esterne)
+  const expectedExpenses = useMemo(() => {
+    const expenses: ExpectedExpense[] = [];
+
+    externalTeamPayments.forEach((payment: any) => {
+      expenses.push({
+        orderId: payment.order.id,
+        orderCode: payment.order.order_code,
+        teamName: payment.external_team?.name || "Squadra sconosciuta",
+        amount: Number(payment.total_cost),
+        expectedDate: payment.payment_date ? new Date(payment.payment_date) : null,
+        isPaid: payment.is_paid,
+        direction: "out",
+      });
+    });
+
+    return expenses.sort((a, b) => {
+      if (!a.expectedDate && !b.expectedDate) return 0;
+      if (!a.expectedDate) return 1;
+      if (!b.expectedDate) return -1;
+      return a.expectedDate.getTime() - b.expectedDate.getTime();
+    });
+  }, [externalTeamPayments]);
 
   // Calcola statistiche
   const stats = useMemo(() => {
@@ -164,80 +231,127 @@ export default function CashFlowForecast() {
       end: endOfMonth(addMonths(now, 2)) 
     };
 
-    const thisMonthPayments = expectedPayments.filter(
-      (p) => p.expectedDate && isWithinInterval(p.expectedDate, thisMonth)
-    );
-    const nextMonthPayments = expectedPayments.filter(
-      (p) => p.expectedDate && isWithinInterval(p.expectedDate, nextMonth)
-    );
-    const next3MonthsPayments = expectedPayments.filter(
-      (p) => p.expectedDate && isWithinInterval(p.expectedDate, next3Months)
-    );
+    // Incassi
+    const thisMonthIncome = expectedPayments
+      .filter((p) => p.expectedDate && isWithinInterval(p.expectedDate, thisMonth))
+      .reduce((sum, p) => sum + p.amount, 0);
+    const nextMonthIncome = expectedPayments
+      .filter((p) => p.expectedDate && isWithinInterval(p.expectedDate, nextMonth))
+      .reduce((sum, p) => sum + p.amount, 0);
+    const next3MonthsIncome = expectedPayments
+      .filter((p) => p.expectedDate && isWithinInterval(p.expectedDate, next3Months))
+      .reduce((sum, p) => sum + p.amount, 0);
+    const totalIncome = expectedPayments.reduce((sum, p) => sum + p.amount, 0);
+
+    // Uscite (squadre esterne)
+    const thisMonthExpenses = expectedExpenses
+      .filter((e) => e.expectedDate && isWithinInterval(e.expectedDate, thisMonth))
+      .reduce((sum, e) => sum + e.amount, 0);
+    const nextMonthExpenses = expectedExpenses
+      .filter((e) => e.expectedDate && isWithinInterval(e.expectedDate, nextMonth))
+      .reduce((sum, e) => sum + e.amount, 0);
+    const next3MonthsExpenses = expectedExpenses
+      .filter((e) => e.expectedDate && isWithinInterval(e.expectedDate, next3Months))
+      .reduce((sum, e) => sum + e.amount, 0);
+    const totalExpenses = expectedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
     return {
       thisMonth: {
-        total: thisMonthPayments.reduce((sum, p) => sum + p.amount, 0),
-        count: thisMonthPayments.length,
+        income: thisMonthIncome,
+        expenses: thisMonthExpenses,
+        net: thisMonthIncome - thisMonthExpenses,
+        incomeCount: expectedPayments.filter((p) => p.expectedDate && isWithinInterval(p.expectedDate, thisMonth)).length,
+        expensesCount: expectedExpenses.filter((e) => e.expectedDate && isWithinInterval(e.expectedDate, thisMonth)).length,
       },
       nextMonth: {
-        total: nextMonthPayments.reduce((sum, p) => sum + p.amount, 0),
-        count: nextMonthPayments.length,
+        income: nextMonthIncome,
+        expenses: nextMonthExpenses,
+        net: nextMonthIncome - nextMonthExpenses,
       },
       next3Months: {
-        total: next3MonthsPayments.reduce((sum, p) => sum + p.amount, 0),
-        count: next3MonthsPayments.length,
+        income: next3MonthsIncome,
+        expenses: next3MonthsExpenses,
+        net: next3MonthsIncome - next3MonthsExpenses,
       },
       total: {
-        total: expectedPayments.reduce((sum, p) => sum + p.amount, 0),
-        count: expectedPayments.length,
+        income: totalIncome,
+        expenses: totalExpenses,
+        net: totalIncome - totalExpenses,
+        incomeCount: expectedPayments.length,
+        expensesCount: expectedExpenses.length,
       },
     };
-  }, [expectedPayments]);
+  }, [expectedPayments, expectedExpenses]);
 
-  // Prepara dati per grafico (prossimi 6 mesi)
+  // Prepara dati per grafico (prossimi 6 mesi) con entrate e uscite
   const chartData = useMemo(() => {
-    const months: { month: string; "Acconto 1": number; "Acconto 2": number; Saldo: number }[] = [];
+    const months: { month: string; Entrate: number; Uscite: number; Netto: number }[] = [];
     const now = new Date();
 
     for (let i = 0; i < 6; i++) {
       const monthDate = addMonths(now, i);
-      const monthPayments = expectedPayments.filter(
-        (p) => p.expectedDate && isSameMonth(p.expectedDate, monthDate)
-      );
+      
+      const monthIncome = expectedPayments
+        .filter((p) => p.expectedDate && isSameMonth(p.expectedDate, monthDate))
+        .reduce((sum, p) => sum + p.amount, 0);
+
+      const monthExpenses = expectedExpenses
+        .filter((e) => e.expectedDate && isSameMonth(e.expectedDate, monthDate))
+        .reduce((sum, e) => sum + e.amount, 0);
 
       months.push({
         month: format(monthDate, "MMM yyyy", { locale: it }),
-        "Acconto 1": monthPayments
-          .filter((p) => p.type === "Acconto 1")
-          .reduce((sum, p) => sum + p.amount, 0),
-        "Acconto 2": monthPayments
-          .filter((p) => p.type === "Acconto 2")
-          .reduce((sum, p) => sum + p.amount, 0),
-        Saldo: monthPayments
-          .filter((p) => p.type === "Saldo")
-          .reduce((sum, p) => sum + p.amount, 0),
+        Entrate: monthIncome,
+        Uscite: monthExpenses,
+        Netto: monthIncome - monthExpenses,
       });
     }
 
     return months;
-  }, [expectedPayments]);
+  }, [expectedPayments, expectedExpenses]);
 
-  // Filtra pagamenti per tabella
-  const filteredPayments = useMemo(() => {
-    if (!dateRange.from && !dateRange.to) return expectedPayments;
+  // Combina e filtra pagamenti per tabella
+  const allTransactions = useMemo(() => {
+    const combined = [
+      ...expectedPayments.map((p) => ({ ...p, direction: "in" as const })),
+      ...expectedExpenses.map((e) => ({ ...e, type: "Squadra Esterna" as const, direction: "out" as const })),
+    ];
 
-    return expectedPayments.filter((payment) => {
-      if (!payment.expectedDate) return false;
-      
-      const matchesFrom = !dateRange.from || !isBefore(payment.expectedDate, dateRange.from);
-      const matchesTo = !dateRange.to || !isAfter(payment.expectedDate, dateRange.to);
-      
-      return matchesFrom && matchesTo;
+    // Ordina per data
+    return combined.sort((a, b) => {
+      if (!a.expectedDate && !b.expectedDate) return 0;
+      if (!a.expectedDate) return 1;
+      if (!b.expectedDate) return -1;
+      return a.expectedDate.getTime() - b.expectedDate.getTime();
     });
-  }, [expectedPayments, dateRange]);
+  }, [expectedPayments, expectedExpenses]);
 
-  // Pagamenti senza data
-  const paymentsWithoutDate = expectedPayments.filter((p) => !p.expectedDate);
+  // Filtra per tab e date
+  const filteredTransactions = useMemo(() => {
+    let filtered = allTransactions;
+
+    // Filtra per tab
+    if (activeTab === "income") {
+      filtered = filtered.filter((t) => t.direction === "in");
+    } else if (activeTab === "expenses") {
+      filtered = filtered.filter((t) => t.direction === "out");
+    }
+
+    // Filtra per date range
+    if (dateRange.from || dateRange.to) {
+      filtered = filtered.filter((t) => {
+        if (!t.expectedDate) return false;
+        const matchesFrom = !dateRange.from || !isBefore(t.expectedDate, dateRange.from);
+        const matchesTo = !dateRange.to || !isAfter(t.expectedDate, dateRange.to);
+        return matchesFrom && matchesTo;
+      });
+    }
+
+    return filtered;
+  }, [allTransactions, activeTab, dateRange]);
+
+  // Transazioni senza data
+  const transactionsWithoutDate = allTransactions.filter((t) => !t.expectedDate);
 
   if (isLoading) {
     return (
@@ -264,7 +378,7 @@ export default function CashFlowForecast() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Previsionale Cassa</h1>
         <p className="text-muted-foreground">
-          Analizza le entrate previste in base alle date di incasso
+          Analizza entrate e uscite previste
         </p>
       </div>
 
@@ -276,9 +390,11 @@ export default function CashFlowForecast() {
             <CalendarClock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.thisMonth.total)}</div>
+            <div className={`text-2xl font-bold ${stats.thisMonth.net >= 0 ? "text-green-600" : "text-destructive"}`}>
+              {stats.thisMonth.net >= 0 ? "+" : ""}{formatCurrency(stats.thisMonth.net)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {stats.thisMonth.count} {stats.thisMonth.count === 1 ? "pagamento" : "pagamenti"}
+              {stats.thisMonth.incomeCount} entrate, {stats.thisMonth.expensesCount} uscite
             </p>
           </CardContent>
         </Card>
@@ -286,12 +402,18 @@ export default function CashFlowForecast() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Prossimo Mese</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            {stats.nextMonth.net >= 0 ? (
+              <TrendingUp className="h-4 w-4 text-green-600" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-destructive" />
+            )}
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.nextMonth.total)}</div>
+            <div className={`text-2xl font-bold ${stats.nextMonth.net >= 0 ? "text-green-600" : "text-destructive"}`}>
+              {stats.nextMonth.net >= 0 ? "+" : ""}{formatCurrency(stats.nextMonth.net)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {stats.nextMonth.count} {stats.nextMonth.count === 1 ? "pagamento" : "pagamenti"}
+              Entrate {formatCurrency(stats.nextMonth.income)}
             </p>
           </CardContent>
         </Card>
@@ -302,22 +424,26 @@ export default function CashFlowForecast() {
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.next3Months.total)}</div>
+            <div className={`text-2xl font-bold ${stats.next3Months.net >= 0 ? "text-green-600" : "text-destructive"}`}>
+              {stats.next3Months.net >= 0 ? "+" : ""}{formatCurrency(stats.next3Months.net)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {stats.next3Months.count} {stats.next3Months.count === 1 ? "pagamento" : "pagamenti"}
+              Uscite previste {formatCurrency(stats.next3Months.expenses)}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Totale Non Incassato</CardTitle>
+            <CardTitle className="text-sm font-medium">Totale in Sospeso</CardTitle>
             <PiggyBank className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.total.total)}</div>
+            <div className={`text-2xl font-bold ${stats.total.net >= 0 ? "text-green-600" : "text-destructive"}`}>
+              {stats.total.net >= 0 ? "+" : ""}{formatCurrency(stats.total.net)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {stats.total.count} {stats.total.count === 1 ? "pagamento" : "pagamenti"}
+              {stats.total.incomeCount} entrate, {stats.total.expensesCount} uscite
             </p>
           </CardContent>
         </Card>
@@ -326,8 +452,8 @@ export default function CashFlowForecast() {
       {/* Grafico Timeline */}
       <Card>
         <CardHeader>
-          <CardTitle>Timeline Incassi Previsti</CardTitle>
-          <CardDescription>Previsione entrate per i prossimi 6 mesi</CardDescription>
+          <CardTitle>Timeline Flusso di Cassa</CardTitle>
+          <CardDescription>Previsione entrate e uscite per i prossimi 6 mesi</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
@@ -354,9 +480,8 @@ export default function CashFlowForecast() {
                   labelStyle={{ color: 'hsl(var(--foreground))' }}
                 />
                 <Legend />
-                <Bar dataKey="Acconto 1" stackId="a" fill="hsl(var(--primary))" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="Acconto 2" stackId="a" fill="hsl(var(--primary) / 0.7)" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="Saldo" stackId="a" fill="hsl(var(--primary) / 0.4)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Entrate" fill="hsl(142.1 76.2% 36.3%)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Uscite" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -368,21 +493,30 @@ export default function CashFlowForecast() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>Dettaglio Pagamenti Attesi</CardTitle>
-              <CardDescription>Elenco di tutti i pagamenti non ancora incassati</CardDescription>
+              <CardTitle>Dettaglio Movimenti</CardTitle>
+              <CardDescription>Entrate e uscite non ancora registrate</CardDescription>
             </div>
-            <DateRangeFilter
-              label="Filtra per data"
-              range={dateRange}
-              onRangeChange={setDateRange}
-            />
+            <div className="flex items-center gap-2">
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+                <TabsList>
+                  <TabsTrigger value="all">Tutti</TabsTrigger>
+                  <TabsTrigger value="income">Entrate</TabsTrigger>
+                  <TabsTrigger value="expenses">Uscite</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <DateRangeFilter
+                label="Filtra per data"
+                range={dateRange}
+                onRangeChange={setDateRange}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          {filteredPayments.length === 0 ? (
+          {filteredTransactions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Nessun pagamento previsto nel periodo selezionato</p>
+              <p>Nessun movimento nel periodo selezionato</p>
             </div>
           ) : (
             <div className="rounded-md border">
@@ -391,45 +525,60 @@ export default function CashFlowForecast() {
                   <TableRow>
                     <TableHead>Data Prevista</TableHead>
                     <TableHead>Ordine</TableHead>
-                    <TableHead>Cliente</TableHead>
+                    <TableHead>Descrizione</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead className="text-right">Importo</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPayments.map((payment, index) => (
-                    <TableRow key={`${payment.orderId}-${payment.type}-${index}`}>
+                  {filteredTransactions.map((transaction, index) => (
+                    <TableRow key={`${transaction.orderId}-${transaction.direction}-${index}`}>
                       <TableCell>
-                        {payment.expectedDate 
-                          ? format(payment.expectedDate, "dd/MM/yyyy", { locale: it })
+                        {transaction.expectedDate 
+                          ? format(transaction.expectedDate, "dd/MM/yyyy", { locale: it })
                           : <span className="text-muted-foreground italic">Non definita</span>
                         }
                       </TableCell>
                       <TableCell>
                         <Link 
-                          to={`/azienda/ordini/${payment.orderId}`}
+                          to={`/azienda/ordini/${transaction.orderId}`}
                           className="text-primary hover:underline font-medium"
                         >
-                          {payment.orderCode || "—"}
+                          {transaction.orderCode || "—"}
                         </Link>
                       </TableCell>
-                      <TableCell>{payment.customerName}</TableCell>
                       <TableCell>
-                        <Badge 
-                          variant="outline"
-                          className={
-                            payment.type === "Saldo" 
-                              ? "border-green-500 text-green-700" 
-                              : payment.type === "Acconto 2"
-                              ? "border-blue-500 text-blue-700"
-                              : "border-orange-500 text-orange-700"
-                          }
-                        >
-                          {payment.type}
-                        </Badge>
+                        {transaction.direction === "in" 
+                          ? (transaction as ExpectedPayment).customerName
+                          : (transaction as ExpectedExpense).teamName
+                        }
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(payment.amount)}
+                      <TableCell>
+                        {transaction.direction === "in" ? (
+                          <Badge 
+                            variant="outline"
+                            className={
+                              transaction.type === "Saldo" 
+                                ? "border-green-500 text-green-700" 
+                                : transaction.type === "Acconto 2"
+                                ? "border-blue-500 text-blue-700"
+                                : "border-orange-500 text-orange-700"
+                            }
+                          >
+                            {transaction.type}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-destructive text-destructive gap-1">
+                            <Building2 className="h-3 w-3" />
+                            Squadra Esterna
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className={`text-right font-medium ${
+                        transaction.direction === "in" ? "text-green-600" : "text-destructive"
+                      }`}>
+                        {transaction.direction === "in" ? "+" : "-"}
+                        {formatCurrency(transaction.amount)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -440,16 +589,16 @@ export default function CashFlowForecast() {
         </CardContent>
       </Card>
 
-      {/* Sezione Pagamenti Senza Data */}
-      {paymentsWithoutDate.length > 0 && (
+      {/* Sezione Movimenti Senza Data */}
+      {transactionsWithoutDate.length > 0 && (
         <Card className="border-dashed">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Calendar className="h-5 w-5 text-muted-foreground" />
-              Pagamenti senza data prevista
+              Movimenti senza data prevista
             </CardTitle>
             <CardDescription>
-              Questi pagamenti non hanno una data di incasso prevista
+              Questi movimenti non hanno una data prevista
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -458,30 +607,38 @@ export default function CashFlowForecast() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Ordine</TableHead>
-                    <TableHead>Cliente</TableHead>
+                    <TableHead>Descrizione</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead className="text-right">Importo</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentsWithoutDate.map((payment, index) => (
-                    <TableRow key={`no-date-${payment.orderId}-${payment.type}-${index}`}>
+                  {transactionsWithoutDate.map((transaction, index) => (
+                    <TableRow key={`no-date-${transaction.orderId}-${transaction.direction}-${index}`}>
                       <TableCell>
                         <Link 
-                          to={`/azienda/ordini/${payment.orderId}`}
+                          to={`/azienda/ordini/${transaction.orderId}`}
                           className="text-primary hover:underline font-medium"
                         >
-                          {payment.orderCode || "—"}
+                          {transaction.orderCode || "—"}
                         </Link>
                       </TableCell>
-                      <TableCell>{payment.customerName}</TableCell>
+                      <TableCell>
+                        {transaction.direction === "in" 
+                          ? (transaction as ExpectedPayment).customerName
+                          : (transaction as ExpectedExpense).teamName
+                        }
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {payment.type}
+                          {transaction.direction === "in" ? transaction.type : "Squadra Esterna"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(payment.amount)}
+                      <TableCell className={`text-right font-medium ${
+                        transaction.direction === "in" ? "text-green-600" : "text-destructive"
+                      }`}>
+                        {transaction.direction === "in" ? "+" : "-"}
+                        {formatCurrency(transaction.amount)}
                       </TableCell>
                     </TableRow>
                   ))}

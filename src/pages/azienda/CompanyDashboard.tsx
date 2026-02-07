@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardList, Users, HeadphonesIcon, Plus, Loader2, Euro, Package, TrendingUp, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@/lib/formatters";
+import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
 
 interface DashboardStats {
   totalOrders: number;
@@ -381,9 +382,12 @@ export default function CompanyDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Labor Costs Stats */}
+        <LaborCostsStats />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         {/* Warehouse Alerts */}
         <Card>
           <CardHeader>
