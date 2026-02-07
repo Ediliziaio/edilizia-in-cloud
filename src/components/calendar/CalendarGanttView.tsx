@@ -37,12 +37,15 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import type { CalendarOrder, GanttZoom } from "@/types/calendar";
+import type { CalendarOrder, GanttZoom, OrderStatus } from "@/types/calendar";
 import { DraggableOrderBar } from "./DraggableOrderBar";
 import { LeadTimeStats, calculateLeadTime, getLeadTimeColor } from "./LeadTimeStats";
+import { AlertTriangle } from "lucide-react";
 
 interface CalendarGanttViewProps {
   orders: CalendarOrder[];
+  allOrders: CalendarOrder[];
+  statuses: OrderStatus[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
 }
@@ -58,6 +61,8 @@ const ROW_HEIGHT = 50;
 
 export function CalendarGanttView({
   orders,
+  allOrders,
+  statuses,
   currentDate,
   onDateChange,
 }: CalendarGanttViewProps) {
@@ -433,19 +438,17 @@ export function CalendarGanttView({
         </DndContext>
       )}
 
+      {/* Legend with actual order statuses */}
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-green-500" />
-          <span className="text-muted-foreground">Completato</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-blue-500" />
-          <span className="text-muted-foreground">In corso</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-orange-500" />
-          <span className="text-muted-foreground">Futuro</span>
-        </div>
+        {statuses.slice(0, 5).map((status) => (
+          <div key={status.id} className="flex items-center gap-2">
+            <div 
+              className="w-3 h-3 rounded" 
+              style={{ backgroundColor: status.color }}
+            />
+            <span className="text-muted-foreground">{status.name}</span>
+          </div>
+        ))}
         <div className="flex items-center gap-2 ml-auto">
           <div className="w-0.5 h-4 bg-destructive" />
           <span className="text-muted-foreground">Oggi</span>
@@ -453,6 +456,50 @@ export function CalendarGanttView({
       </div>
 
       <LeadTimeStats orders={orders} />
+
+      {/* Unplanned orders section */}
+      {(() => {
+        const unplannedOrders = allOrders.filter(
+          (order) => !order.work_start_date && !order.expected_date
+        );
+        if (unplannedOrders.length === 0) return null;
+
+        return (
+          <div className="mt-6 p-4 bg-muted/50 rounded-lg border border-dashed">
+            <div className="flex items-center gap-2 text-muted-foreground mb-3">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <span className="font-medium">Ordini non pianificati ({unplannedOrders.length})</span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {unplannedOrders.slice(0, 6).map((order) => (
+                <button
+                  key={order.id}
+                  onClick={() => navigate(`/azienda/ordini/${order.id}`)}
+                  className="flex items-center gap-2 p-2 bg-background rounded border hover:border-primary transition-colors text-left"
+                >
+                  <div 
+                    className="w-2 h-2 rounded-full flex-shrink-0" 
+                    style={{ backgroundColor: order.status?.color || "#6B7280" }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">
+                      {order.order_code || "N/A"} - {order.customer.last_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {order.description}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {unplannedOrders.length > 6 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                +{unplannedOrders.length - 6} altri ordini non pianificati
+              </p>
+            )}
+          </div>
+        );
+      })()}
     </Card>
   );
 }

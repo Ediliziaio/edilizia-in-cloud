@@ -6,6 +6,7 @@ import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Select,
@@ -14,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon } from "lucide-react";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle } from "lucide-react";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter } from "@/types/calendar";
 
 export default function Calendar() {
@@ -53,6 +54,7 @@ export default function Calendar() {
       return (data || []) as CalendarOrder[];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000, // 5 minuti di cache
   });
 
   const { data: statuses = [] } = useQuery({
@@ -92,10 +94,17 @@ export default function Calendar() {
     setCurrentDate(new Date());
   };
 
+  const resetFilters = () => {
+    setStatusFilter("all");
+    setCustomerFilter("all");
+  };
+
+  const hasActiveFilters = statusFilter !== "all" || customerFilter !== "all";
+
   // Filter orders that have at least one date
   const scheduledOrders = useMemo(() => {
     return orders
-      .filter(order => order.work_start_date || order.expected_date)
+      .filter(order => order.work_start_date || order.expected_date || order.warehouse_arrival_date)
       .filter(order => {
         if (statusFilter !== "all" && order.current_status_id !== statusFilter) {
           return false;
@@ -106,6 +115,11 @@ export default function Calendar() {
         return true;
       });
   }, [orders, statusFilter, customerFilter]);
+
+  // Count orders without important dates
+  const unplannedOrdersCount = useMemo(() => {
+    return orders.filter(order => !order.expected_date && !order.work_start_date).length;
+  }, [orders]);
 
   return (
     <div className="space-y-6">
@@ -151,6 +165,25 @@ export default function Calendar() {
             ))}
           </SelectContent>
         </Select>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-2">
+            <RotateCcw className="h-4 w-4" />
+            Resetta Filtri
+          </Button>
+        )}
+
+        <div className="flex items-center gap-2 ml-auto">
+          <Badge variant="secondary" className="font-normal">
+            {scheduledOrders.length} {scheduledOrders.length === 1 ? "ordine" : "ordini"}
+          </Badge>
+          {unplannedOrdersCount > 0 && (
+            <Badge variant="destructive" className="gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              {unplannedOrdersCount} non pianificati
+            </Badge>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -191,6 +224,8 @@ export default function Calendar() {
       ) : (
         <CalendarGanttView
           orders={scheduledOrders}
+          allOrders={orders}
+          statuses={statuses}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
         />
