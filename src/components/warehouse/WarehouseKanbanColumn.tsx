@@ -98,19 +98,19 @@ export default function WarehouseKanbanColumn({
         </Badge>
       </div>
       
-      {/* Content */}
+      {/* Content con più spazio */}
       <div 
         ref={setNodeRef}
-        className="flex-1 p-2 overflow-hidden"
+        className="flex-1 p-3 overflow-hidden"
       >
         <ScrollArea className="h-full">
           <SortableContext 
             items={items.map(i => i.id)} 
             strategy={verticalListSortingStrategy}
           >
-            <div className="space-y-1.5 pr-2">
+            <div className="space-y-3 pr-2">
               {items.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-xs">
+                <div className="text-center py-8 text-muted-foreground text-sm">
                   Nessun articolo
                 </div>
               ) : (
