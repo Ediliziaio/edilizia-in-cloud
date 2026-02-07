@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,17 +8,17 @@ import { it } from "date-fns/locale";
 import {
   Warehouse as WarehouseIcon,
   Search,
-  Calendar,
-  Package,
-  ShoppingCart,
-  Truck,
-  CheckCircle2,
   X,
+  List,
+  LayoutGrid,
+  Calendar as CalendarIcon,
+  Download,
+  Printer,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -27,39 +26,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+// Import warehouse components
+import WarehouseAlerts from "@/components/warehouse/WarehouseAlerts";
+import WarehouseStats from "@/components/warehouse/WarehouseStats";
+import WarehouseKanbanView from "@/components/warehouse/WarehouseKanbanView";
+import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView";
+import WarehouseListView from "@/components/warehouse/WarehouseListView";
 
 type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
+type ViewMode = "list" | "kanban" | "calendar";
+type GroupBy = "order" | "supplier" | "date" | "status";
 
-const STATUS_CONFIG: Record<OrderItemStatus, { label: string; color: string; bgColor: string; borderColor: string; icon: typeof Package }> = {
-  da_ordinare: {
-    label: "Da Ordinare",
-    color: "text-amber-700",
-    bgColor: "bg-amber-50",
-    borderColor: "border-l-4 border-amber-500",
-    icon: ShoppingCart,
-  },
-  ordinato: {
-    label: "Ordinato",
-    color: "text-blue-700",
-    bgColor: "bg-blue-50",
-    borderColor: "border-l-4 border-blue-500",
-    icon: Truck,
-  },
-  in_magazzino: {
-    label: "In Magazzino",
-    color: "text-green-700",
-    bgColor: "bg-green-50",
-    borderColor: "border-l-4 border-green-500",
-    icon: Package,
-  },
-  installato: {
-    label: "Installato",
-    color: "text-slate-700",
-    bgColor: "bg-slate-50",
-    borderColor: "border-l-4 border-slate-500",
-    icon: CheckCircle2,
-  },
+const STATUS_CONFIG: Record<OrderItemStatus, { label: string }> = {
+  da_ordinare: { label: "Da Ordinare" },
+  ordinato: { label: "Ordinato" },
+  in_magazzino: { label: "In Magazzino" },
+  installato: { label: "Installato" },
 };
 
 interface WarehouseItem {
@@ -70,11 +59,13 @@ interface WarehouseItem {
   status: OrderItemStatus;
   supplier_id: string | null;
   purchase_price: number | null;
+  updated_at?: string | null;
   order: {
     id: string;
     order_code: string | null;
     expected_date: string | null;
     work_start_date: string | null;
+    warehouse_arrival_date?: string | null;
     company_id: string;
     customer: {
       first_name: string;
@@ -96,11 +87,13 @@ export default function Warehouse() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Filter states
+  // View and filter states
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [orderFilter, setOrderFilter] = useState<string>("all");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
+  const [groupBy, setGroupBy] = useState<GroupBy>("order");
 
   // Fetch all order items with order details
   const { data: items = [], isLoading } = useQuery({
@@ -118,11 +111,13 @@ export default function Warehouse() {
           status,
           supplier_id,
           purchase_price,
+          updated_at,
           order:orders!inner(
             id,
             order_code,
             expected_date,
             work_start_date,
+            warehouse_arrival_date,
             company_id,
             customer:profiles!orders_customer_id_fkey(first_name, last_name)
           )
@@ -152,22 +147,6 @@ export default function Warehouse() {
     enabled: !!effectiveCompany?.id,
   });
 
-  // Calculate statistics
-  const stats = useMemo(() => {
-    const inMagazzino = items.filter((i) => i.status === "in_magazzino");
-    const daOrdinare = items.filter((i) => i.status === "da_ordinare");
-    const ordinati = items.filter((i) => i.status === "ordinato");
-
-    const uniqueOrders = (arr: WarehouseItem[]) =>
-      new Set(arr.map((i) => i.order.id)).size;
-
-    return {
-      inMagazzino: { count: inMagazzino.length, orders: uniqueOrders(inMagazzino) },
-      daOrdinare: { count: daOrdinare.length, orders: uniqueOrders(daOrdinare) },
-      ordinati: { count: ordinati.length, orders: uniqueOrders(ordinati) },
-    };
-  }, [items]);
-
   // Get unique orders for filter dropdown
   const uniqueOrders = useMemo(() => {
     const ordersMap = new Map<string, { id: string; code: string; customer: string }>();
@@ -183,11 +162,10 @@ export default function Warehouse() {
     return Array.from(ordersMap.values());
   }, [items]);
 
-  // Filter and group items
-  const filteredGroups = useMemo(() => {
+  // Filter items
+  const filteredItems = useMemo(() => {
     let filtered = [...items];
 
-    // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -197,24 +175,40 @@ export default function Warehouse() {
       );
     }
 
-    // Apply status filter
     if (statusFilter !== "all") {
       filtered = filtered.filter((item) => item.status === statusFilter);
     }
 
-    // Apply order filter
     if (orderFilter !== "all") {
       filtered = filtered.filter((item) => item.order.id === orderFilter);
     }
 
-    // Apply supplier filter
     if (supplierFilter !== "all") {
       filtered = filtered.filter((item) => item.supplier_id === supplierFilter);
     }
 
-    // Group by order
+    return filtered;
+  }, [items, searchQuery, statusFilter, orderFilter, supplierFilter]);
+
+  // Group items by order (for list view)
+  const filteredGroups = useMemo(() => {
     const grouped = new Map<string, OrderWithItems>();
-    filtered.forEach((item) => {
+    
+    // Sort items based on groupBy
+    let sortedItems = [...filteredItems];
+    
+    if (groupBy === "date") {
+      sortedItems.sort((a, b) => {
+        const dateA = a.order.expected_date || a.order.work_start_date || "";
+        const dateB = b.order.expected_date || b.order.work_start_date || "";
+        return dateA.localeCompare(dateB);
+      });
+    } else if (groupBy === "status") {
+      const statusOrder: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_magazzino", "installato"];
+      sortedItems.sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
+    }
+
+    sortedItems.forEach((item) => {
       const orderId = item.order.id;
       if (!grouped.has(orderId)) {
         grouped.set(orderId, {
@@ -228,15 +222,25 @@ export default function Warehouse() {
       grouped.get(orderId)!.items.push(item);
     });
 
-    return Array.from(grouped.values());
-  }, [items, searchQuery, statusFilter, orderFilter, supplierFilter]);
+    // Sort groups if grouping by date
+    let result = Array.from(grouped.values());
+    if (groupBy === "date") {
+      result.sort((a, b) => {
+        const dateA = a.expectedDate || "";
+        const dateB = b.expectedDate || "";
+        return dateA.localeCompare(dateB);
+      });
+    }
+
+    return result;
+  }, [filteredItems, groupBy]);
 
   // Update item status mutation
   const updateItemStatusMutation = useMutation({
     mutationFn: async ({ itemId, status }: { itemId: string; status: OrderItemStatus }) => {
       const { error } = await supabase
         .from("order_items")
-        .update({ status })
+        .update({ status, updated_at: new Date().toISOString() })
         .eq("id", itemId);
       if (error) throw error;
     },
@@ -256,20 +260,20 @@ export default function Warehouse() {
     },
   });
 
-  // Mark all items as installed mutation
-  const markAllInstalledMutation = useMutation({
-    mutationFn: async (itemIds: string[]) => {
+  // Batch update mutation
+  const batchUpdateMutation = useMutation({
+    mutationFn: async ({ itemIds, status }: { itemIds: string[]; status: OrderItemStatus }) => {
       const { error } = await supabase
         .from("order_items")
-        .update({ status: "installato" })
+        .update({ status, updated_at: new Date().toISOString() })
         .in("id", itemIds);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
       toast({
         title: "Articoli aggiornati",
-        description: "Tutti gli articoli sono stati segnati come installati.",
+        description: `${variables.itemIds.length} articoli sono stati aggiornati.`,
       });
     },
     onError: () => {
@@ -287,7 +291,17 @@ export default function Warehouse() {
 
   const handleMarkAllInstalled = (orderItems: WarehouseItem[]) => {
     const itemIds = orderItems.map((item) => item.id);
-    markAllInstalledMutation.mutate(itemIds);
+    batchUpdateMutation.mutate({ itemIds, status: "installato" });
+  };
+
+  const handleBatchStatusChange = (itemIds: string[], status: OrderItemStatus) => {
+    batchUpdateMutation.mutate({ itemIds, status });
+  };
+
+  const getSupplierName = (supplierId: string | null) => {
+    if (!supplierId) return null;
+    const supplier = suppliers.find((s) => s.id === supplierId);
+    return supplier?.name || null;
   };
 
   const clearFilters = () => {
@@ -300,15 +314,42 @@ export default function Warehouse() {
   const hasActiveFilters =
     searchQuery || statusFilter !== "all" || orderFilter !== "all" || supplierFilter !== "all";
 
-  const formatDate = (dateStr: string) => {
-    return format(new Date(dateStr), "dd MMM yyyy", { locale: it });
+  // Export to CSV
+  const exportToCSV = () => {
+    const headers = ["Articolo", "Quantità", "Stato", "Fornitore", "Ordine", "Cliente", "Data Posa"];
+    const rows = filteredItems.map((item) => [
+      item.name,
+      item.quantity || 1,
+      STATUS_CONFIG[item.status].label,
+      getSupplierName(item.supplier_id) || "",
+      item.order.order_code || "",
+      `${item.order.customer.first_name} ${item.order.customer.last_name}`,
+      item.order.expected_date || item.order.work_start_date || "",
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `magazzino_${format(new Date(), "yyyy-MM-dd")}.csv`;
+    link.click();
+
+    toast({
+      title: "Esportazione completata",
+      description: `${filteredItems.length} articoli esportati.`,
+    });
   };
 
-  const getSupplierName = (supplierId: string | null) => {
-    if (!supplierId) return null;
-    const supplier = suppliers.find((s) => s.id === supplierId);
-    return supplier?.name || null;
+  // Print list
+  const printList = () => {
+    window.print();
   };
+
+  const isUpdating = updateItemStatusMutation.isPending || batchUpdateMutation.isPending;
 
   if (!effectiveCompany) {
     return (
@@ -319,140 +360,167 @@ export default function Warehouse() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-4">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <WarehouseIcon className="h-8 w-8" />
-          Magazzino
-        </h1>
-        <p className="text-muted-foreground">
-          Panoramica articoli e gestione stato materiali
+      <div className="flex items-center justify-between print:hidden">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <WarehouseIcon className="h-8 w-8" />
+            Magazzino
+          </h1>
+          <p className="text-muted-foreground">
+            Gestione materiali e tracking articoli
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Esporta
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={exportToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Esporta CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={printList}>
+                <Printer className="h-4 w-4 mr-2" />
+                Stampa lista
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Print header */}
+      <div className="hidden print:block">
+        <h1 className="text-2xl font-bold">Magazzino - {effectiveCompany.name}</h1>
+        <p className="text-sm text-muted-foreground">
+          Generato il {format(new Date(), "dd MMMM yyyy", { locale: it })}
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">In Magazzino</CardTitle>
-            <Package className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {stats.inMagazzino.count}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              in {stats.inMagazzino.orders} ordini
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Da Ordinare</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-amber-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-600">
-              {stats.daOrdinare.count}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              in {stats.daOrdinare.orders} ordini
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Ordinati</CardTitle>
-            <Truck className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {stats.ordinati.count}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              in {stats.ordinati.orders} ordini
-            </p>
-          </CardContent>
-        </Card>
+      {/* Alerts */}
+      <div className="print:hidden">
+        <WarehouseAlerts items={items} />
       </div>
 
-      {/* Filters */}
-      <Card>
+      {/* Stats */}
+      <WarehouseStats items={items} />
+
+      {/* View Toggle & Filters */}
+      <Card className="print:hidden">
         <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Cerca articolo..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+          <div className="flex flex-col gap-4">
+            {/* View mode tabs */}
+            <div className="flex items-center justify-between">
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+                <TabsList>
+                  <TabsTrigger value="list" className="gap-2">
+                    <List className="h-4 w-4" />
+                    Lista
+                  </TabsTrigger>
+                  <TabsTrigger value="kanban" className="gap-2">
+                    <LayoutGrid className="h-4 w-4" />
+                    Kanban
+                  </TabsTrigger>
+                  <TabsTrigger value="calendar" className="gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    Calendario
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {viewMode === "list" && (
+                <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Raggruppa per" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="order">Per ordine</SelectItem>
+                    <SelectItem value="date">Per data posa</SelectItem>
+                    <SelectItem value="status">Per stato</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Stato" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti gli stati</SelectItem>
-                {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                  <SelectItem key={status} value={status}>
-                    {config.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Filters */}
+            <div className="flex flex-wrap gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Cerca articolo..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
 
-            <Select value={orderFilter} onValueChange={setOrderFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Ordine" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti gli ordini</SelectItem>
-                {uniqueOrders.map((order) => (
-                  <SelectItem key={order.id} value={order.id}>
-                    {order.code} - {order.customer}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Stato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                    <SelectItem key={status} value={status}>
+                      {config.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Fornitore" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti i fornitori</SelectItem>
-                {suppliers.map((supplier) => (
-                  <SelectItem key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={orderFilter} onValueChange={setOrderFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Ordine" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli ordini</SelectItem>
+                  {uniqueOrders.map((order) => (
+                    <SelectItem key={order.id} value={order.id}>
+                      {order.code} - {order.customer}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="h-4 w-4 mr-1" />
-                Pulisci filtri
-              </Button>
-            )}
+              <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Fornitore" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i fornitori</SelectItem>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  <X className="h-4 w-4 mr-1" />
+                  Pulisci filtri
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Results */}
+      {/* Content based on view mode */}
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">
           Caricamento articoli...
         </div>
-      ) : filteredGroups.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             {hasActiveFilters
@@ -461,93 +529,30 @@ export default function Warehouse() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {filteredGroups.map((orderGroup) => (
-            <Card key={orderGroup.orderId}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Link to={`/azienda/ordini/${orderGroup.orderId}`}>
-                      <CardTitle className="text-lg hover:underline cursor-pointer">
-                        {orderGroup.orderCode || "Ordine"} - {orderGroup.customerName}
-                      </CardTitle>
-                    </Link>
-                    {orderGroup.expectedDate && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                        <Calendar className="h-3 w-3" />
-                        Posa prevista: {formatDate(orderGroup.expectedDate)}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleMarkAllInstalled(orderGroup.items)}
-                    disabled={markAllInstalledMutation.isPending}
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-1" />
-                    Segna tutti Installati
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {orderGroup.items.map((item) => {
-                    const statusConfig = STATUS_CONFIG[item.status];
-                    const supplierName = getSupplierName(item.supplier_id);
+        <>
+          {viewMode === "list" && (
+            <WarehouseListView
+              orderGroups={filteredGroups}
+              onStatusChange={handleStatusChange}
+              onMarkAllInstalled={handleMarkAllInstalled}
+              onBatchStatusChange={handleBatchStatusChange}
+              getSupplierName={getSupplierName}
+              isUpdating={isUpdating}
+            />
+          )}
 
-                    return (
-                      <div
-                        key={item.id}
-                        className={cn(
-                          "p-3 rounded-lg flex items-center justify-between",
-                          statusConfig.bgColor,
-                          statusConfig.borderColor
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Badge
-                            variant="secondary"
-                            className={cn("font-mono", statusConfig.color)}
-                          >
-                            {item.quantity || 1}x
-                          </Badge>
-                          <div>
-                            <p className="font-medium">{item.name}</p>
-                            {supplierName && (
-                              <p className="text-sm text-muted-foreground">
-                                Fornitore: {supplierName}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+          {viewMode === "kanban" && (
+            <WarehouseKanbanView
+              items={filteredItems}
+              onStatusChange={handleStatusChange}
+              getSupplierName={getSupplierName}
+            />
+          )}
 
-                        <Select
-                          value={item.status}
-                          onValueChange={(value) =>
-                            handleStatusChange(item.id, value as OrderItemStatus)
-                          }
-                          disabled={updateItemStatusMutation.isPending}
-                        >
-                          <SelectTrigger className="w-36">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                              <SelectItem key={status} value={status}>
-                                {config.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+          {viewMode === "calendar" && (
+            <WarehouseCalendarView items={filteredItems} />
+          )}
+        </>
       )}
     </div>
   );
