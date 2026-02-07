@@ -1,385 +1,242 @@
 
 
-# Piano: Drag & Drop Gantt, Filtri e Vista Giornaliera con Lead Time
+# Piano: Calendario Mensile con Date Posa/Merce + Modifica Date nel Gantt
 
-## Panoramica Funzionalita
+## Riepilogo Modifiche
 
-Implementare 4 miglioramenti principali per la sezione Calendario:
+### 1. Calendario Mensile - Nuova Visualizzazione
 
-1. **Drag & Drop** - Trascinare le barre nel Gantt per spostare le date degli ordini
-2. **Filtri** - Filtrare per stato ordine e cliente
-3. **Vista Giornaliera** - Aggiungere livello zoom "Settimana" con dettaglio giorni
-4. **Lead Time** - Calcolo automatico tempo da contratto firmato a chiusura lavori
+**Situazione attuale**: Mostra barre multi-giorno basate su `work_start_date` → `work_end_date`
 
----
+**Nuova logica**: Mostrare due tipi di eventi distinti per giorno:
 
-## 1. Drag & Drop nel Gantt
+| Tipo | Campo | Colore | Icona |
+|------|-------|--------|-------|
+| Data Posa | `expected_date` | Blu | 🔨 Hammer |
+| Arrivo Merce | `warehouse_arrival_date` | Arancione | 📦 Package |
 
-### Architettura
-
-Utilizzare `@dnd-kit` gia presente nel progetto (usato in Pipeline e Warehouse).
-
-| Componente | Ruolo |
-|------------|-------|
-| `DndContext` | Wrapper per gestire drag events |
-| `useDraggable` | Hook per rendere le barre trascinabili |
-| `DragOverlay` | Preview durante il trascinamento |
-
-### Logica di Spostamento
-
-Quando l'utente rilascia la barra:
-1. Calcolare la nuova posizione X in pixel
-2. Convertire in numero di giorni dall'inizio del periodo visibile
-3. Calcolare la nuova `work_start_date`
-4. Mantenere la durata originale (differenza tra start e end)
-5. Aggiornare `work_start_date` e `work_end_date` nel database
-
-### Vincoli
-
-- Minimo spostamento: 1 giorno
-- La barra non puo uscire dal periodo visibile durante il drag
-- Feedback visivo durante il trascinamento (ombra/opacita)
-
-### Database Update
-
-```typescript
-const handleDragEnd = async (orderId: string, newStartDate: Date, duration: number) => {
-  const newEndDate = addDays(newStartDate, duration);
-  
-  await supabase
-    .from("orders")
-    .update({
-      work_start_date: format(newStartDate, "yyyy-MM-dd"),
-      work_end_date: format(newEndDate, "yyyy-MM-dd"),
-    })
-    .eq("id", orderId);
-    
-  // Invalidate query per refresh
-  queryClient.invalidateQueries(["calendar-orders"]);
-};
-```
-
----
-
-## 2. Filtri per Stato e Cliente
-
-### UI Filtri
-
-Posizionati sopra il toggle Vista Mese/Gantt:
-
+**Layout cella calendario**:
 ```text
-+------------------------------------------------------------------+
-| Calendario Lavori                                                 |
-+------------------------------------------------------------------+
-| [Tutti gli stati v]  [Tutti i clienti v]  | [Mese] [Gantt] [Oggi]|
-+------------------------------------------------------------------+
++------------------------+
+|  15                    |
+|  📦 ORD-001 (Merce)    |  <- Arrivo merce
+|  🔨 ORD-002 (Posa)     |  <- Data posa
++------------------------+
 ```
 
-### Componenti Select
-
-Utilizzo dei componenti `Select` gia presenti:
-
-```typescript
-// Filtro Stati
-<Select value={statusFilter} onValueChange={setStatusFilter}>
-  <SelectTrigger className="w-[180px]">
-    <SelectValue placeholder="Tutti gli stati" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="all">Tutti gli stati</SelectItem>
-    {statuses.map(s => (
-      <SelectItem key={s.id} value={s.id}>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: s.color }} />
-          {s.name}
-        </div>
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
-
-// Filtro Clienti
-<Select value={customerFilter} onValueChange={setCustomerFilter}>
-  <SelectTrigger className="w-[200px]">
-    <SelectValue placeholder="Tutti i clienti" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="all">Tutti i clienti</SelectItem>
-    {uniqueCustomers.map(c => (
-      <SelectItem key={c.id} value={c.id}>
-        {c.first_name} {c.last_name}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
-```
-
-### Query Aggiuntiva
-
-Fetch degli stati aziendali per popolare il filtro:
-
-```typescript
-const { data: statuses } = useQuery({
-  queryKey: ["order-statuses", effectiveCompany?.id],
-  queryFn: async () => {
-    const { data } = await supabase
-      .from("order_statuses")
-      .select("id, name, color")
-      .eq("company_id", effectiveCompany.id)
-      .order("position");
-    return data;
-  },
-});
-```
-
-### Logica Filtraggio
-
-```typescript
-const filteredOrders = useMemo(() => {
-  return scheduledOrders.filter(order => {
-    // Filtro stato
-    if (statusFilter !== "all" && order.current_status_id !== statusFilter) {
-      return false;
-    }
-    // Filtro cliente
-    if (customerFilter !== "all" && order.customer_id !== customerFilter) {
-      return false;
-    }
-    return true;
-  });
-}, [scheduledOrders, statusFilter, customerFilter]);
+**Legenda aggiornata**:
+```text
+[📦 Arancione] Arrivo Merce
+[🔨 Blu] Data Posa Prevista
 ```
 
 ---
 
-## 3. Vista Giornaliera (Settimana)
+### 2. Gantt - Dialog Modifica Date
 
-### Nuovo Livello Zoom
+**Situazione attuale**: Drag & drop per spostare le barre (funziona ma poco preciso)
 
-Aggiungere "week" ai livelli zoom esistenti:
+**Nuova funzionalità**: Click su barra → Apre dialog con:
+- Data Inizio Lavori (`work_start_date`)
+- Data Fine Lavori (`work_end_date`)
+- Data Posa Prevista (`expected_date`)
+- Data Arrivo Merce (`warehouse_arrival_date`)
 
-```typescript
-export type GanttZoom = "year" | "quarter" | "month" | "week";
-
-const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; label: string }> = {
-  year: { dayWidth: 3, label: "Anno" },
-  quarter: { dayWidth: 8, label: "Trimestre" },
-  month: { dayWidth: 25, label: "Mese" },
-  week: { dayWidth: 80, label: "Settimana" },  // NUOVO
-};
-```
-
-### Layout Settimana
-
+**UI Dialog**:
 ```text
-+----------+----+----+----+----+----+----+----+
-| Cliente  | Lu | Ma | Me | Gi | Ve | Sa | Do |
-+----------+----+----+----+----+----+----+----+
-| G.Bianchi| 10 | 11 | 12 | 13 | 14 | 15 | 16 |
-|          |[▓▓▓▓▓▓▓▓▓▓▓▓]|    |    |    |    |
-+----------+----+----+----+----+----+----+----+
++----------------------------------------+
+| Modifica Date - ORD-2026-001           |
+| Giuseppe Bianchi                        |
++----------------------------------------+
+|                                         |
+| Data Inizio Lavori    [📅 17 Feb 2026] |
+| Data Fine Lavori      [📅 24 Feb 2026] |
+|                                         |
+| Data Posa Prevista    [📅 25 Feb 2026] |
+| Arrivo Merce          [📅 13 Feb 2026] |
+|                                         |
+|            [Annulla]    [Salva]        |
++----------------------------------------+
 ```
-
-### Caratteristiche Vista Settimana
-
-- Header con giorno della settimana + numero giorno
-- Larghezza colonna: 80px per giorno
-- Barre piu dettagliate con orari (se implementato in futuro)
-- Navigazione: settimana precedente/successiva
-
-### Navigazione Settimana
-
-```typescript
-case "week":
-  start = startOfWeek(currentDate, { weekStartsOn: 1 });
-  end = endOfWeek(currentDate, { weekStartsOn: 1 });
-  break;
-
-// handlePrev/handleNext
-case "week":
-  onDateChange(subWeeks(currentDate, 1));
-  break;
-```
-
----
-
-## 4. Calcolo Lead Time
-
-### Definizione
-
-**Lead Time** = Tempo tra `created_at` (data creazione ordine/contratto) e `work_end_date` (chiusura lavori).
-
-### Dati Necessari
-
-```typescript
-// Estendere CalendarOrder
-export interface CalendarOrder {
-  // ... campi esistenti
-  created_at: string;  // AGGIUNGERE per lead time
-  customer_id: string; // AGGIUNGERE per filtro
-  current_status_id: string | null; // AGGIUNGERE per filtro
-}
-```
-
-### Calcolo e Visualizzazione
-
-**Nel Tooltip della barra Gantt:**
-
-```typescript
-// Calcolo lead time
-const calculateLeadTime = (order: CalendarOrder) => {
-  if (!order.work_end_date) return null;
-  
-  const contractDate = new Date(order.created_at);
-  const endDate = new Date(order.work_end_date);
-  const days = differenceInDays(endDate, contractDate);
-  
-  return days;
-};
-
-// Nel tooltip
-<p className="text-xs text-muted-foreground">
-  Lead Time: {leadTime} giorni
-</p>
-```
-
-**Nella colonna sinistra del Gantt:**
-
-```text
-| Cliente / Ordine    | Lead Time |
-|---------------------|-----------|
-| Giuseppe Bianchi    | 45 giorni |
-| ORD-2026-001        |           |
-```
-
-**Indicatore visivo:**
-
-- Verde: < 30 giorni
-- Giallo: 30-60 giorni
-- Rosso: > 60 giorni
-
-### Statistiche Lead Time
-
-Aggiungere un riepilogo in fondo al Gantt:
-
-```text
-Lead Time Medio: 42 giorni | Min: 15g | Max: 78g
-```
-
----
-
-## Modifiche ai File
-
-| File | Tipo | Modifiche |
-|------|------|-----------|
-| `src/types/calendar.ts` | Modifica | Aggiungere campi `created_at`, `customer_id`, `current_status_id`; aggiungere zoom "week" |
-| `src/pages/azienda/Calendar.tsx` | Modifica | Aggiungere filtri, query statuses, props extra ai componenti |
-| `src/components/calendar/CalendarGanttView.tsx` | Modifica | Implementare drag&drop, zoom week, lead time, colonna lead time |
-| `src/components/calendar/CalendarMonthView.tsx` | Modifica | Supportare filtri (passa ordini gia filtrati) |
 
 ---
 
 ## Dettagli Tecnici
 
-### Drag & Drop - Struttura Codice
+### Modifiche ai Tipi
+
+Aggiungere `warehouse_arrival_date` a `CalendarOrder`:
 
 ```typescript
-// CalendarGanttView.tsx
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
+export interface CalendarOrder {
+  // ... campi esistenti
+  warehouse_arrival_date: string | null;  // NUOVO
+}
+```
 
-// Componente barra draggable
-function DraggableOrderBar({ order, bar, dayWidth, color, onNavigate }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: order.id,
-    data: { order, bar },
+### Query Calendario
+
+Aggiornare la query per includere `warehouse_arrival_date`:
+
+```typescript
+.select(`
+  id,
+  order_code,
+  description,
+  expected_date,
+  warehouse_arrival_date,  // NUOVO
+  work_start_date,
+  work_end_date,
+  ...
+`)
+```
+
+### CalendarMonthView - Nuova Logica
+
+```typescript
+// Per ogni giorno, trova ordini con posa O merce in quel giorno
+const getEventsForDay = (day: Date) => {
+  const events: CalendarEvent[] = [];
+  
+  orders.forEach(order => {
+    // Evento Posa
+    if (order.expected_date && isSameDay(parseISO(order.expected_date), day)) {
+      events.push({
+        type: 'posa',
+        order,
+        color: '#3B82F6', // blu
+        icon: 'hammer',
+      });
+    }
+    
+    // Evento Arrivo Merce
+    if (order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day)) {
+      events.push({
+        type: 'merce',
+        order,
+        color: '#F59E0B', // arancione
+        icon: 'package',
+      });
+    }
   });
+  
+  return events;
+};
+```
 
-  const style = {
-    left: bar.left + (transform?.x || 0),
-    width: Math.max(bar.width, dayWidth),
-    backgroundColor: color,
-    opacity: isDragging ? 0.5 : 1,
+### Dialog Modifica Date - Nuovo Componente
+
+Creare `EditOrderDatesDialog.tsx`:
+
+```typescript
+interface EditOrderDatesDialogProps {
+  order: CalendarOrder;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: () => void;
+}
+
+export function EditOrderDatesDialog({ order, open, onOpenChange, onSave }) {
+  const [workStartDate, setWorkStartDate] = useState(order.work_start_date);
+  const [workEndDate, setWorkEndDate] = useState(order.work_end_date);
+  const [expectedDate, setExpectedDate] = useState(order.expected_date);
+  const [warehouseArrivalDate, setWarehouseArrivalDate] = useState(order.warehouse_arrival_date);
+
+  const handleSave = async () => {
+    await supabase.from('orders').update({
+      work_start_date: workStartDate,
+      work_end_date: workEndDate,
+      expected_date: expectedDate,
+      warehouse_arrival_date: warehouseArrivalDate,
+    }).eq('id', order.id);
+    
+    queryClient.invalidateQueries(['calendar-orders']);
+    onSave();
+    onOpenChange(false);
   };
 
   return (
-    <button
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      className="absolute top-2 bottom-2 rounded shadow-sm cursor-grab active:cursor-grabbing"
-      style={style}
-    >
-      {/* contenuto barra */}
-    </button>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Modifica Date - {order.order_code}</DialogTitle>
+          <DialogDescription>
+            {order.customer.first_name} {order.customer.last_name}
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="grid gap-4 py-4">
+          {/* Date Picker per ogni campo */}
+          <DateField label="Data Inizio Lavori" value={workStartDate} onChange={setWorkStartDate} />
+          <DateField label="Data Fine Lavori" value={workEndDate} onChange={setWorkEndDate} />
+          <Separator />
+          <DateField label="Data Posa Prevista" value={expectedDate} onChange={setExpectedDate} />
+          <DateField label="Arrivo Merce" value={warehouseArrivalDate} onChange={setWarehouseArrivalDate} />
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button onClick={handleSave}>Salva</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 ```
 
-### Calcolo Nuova Data
+### Integrazione nel Gantt
+
+In `DraggableOrderBar.tsx`, aggiungere click handler:
 
 ```typescript
-const handleDragEnd = async (event: DragEndEvent) => {
-  const { active, delta } = event;
-  if (!delta?.x) return;
+// Stato per dialog
+const [editDialogOpen, setEditDialogOpen] = useState(false);
 
-  const orderData = active.data.current as { order: CalendarOrder; bar: BarInfo };
-  const daysMoved = Math.round(delta.x / dayWidth);
-  
-  if (daysMoved === 0) return;
-
-  const currentStart = parseISO(orderData.order.work_start_date || orderData.order.expected_date!);
-  const currentEnd = orderData.order.work_end_date 
-    ? parseISO(orderData.order.work_end_date) 
-    : currentStart;
-  
-  const newStart = addDays(currentStart, daysMoved);
-  const newEnd = addDays(currentEnd, daysMoved);
-
-  await onDateChange(orderData.order.id, newStart, newEnd);
+const handleBarClick = (e: React.MouseEvent) => {
+  // Se non stava trascinando, apri dialog
+  if (!isDragging && !transform?.x) {
+    setEditDialogOpen(true);
+  }
 };
+
+return (
+  <>
+    <button onClick={handleBarClick} ...>
+      {/* Barra ordine */}
+    </button>
+    
+    <EditOrderDatesDialog 
+      order={order}
+      open={editDialogOpen}
+      onOpenChange={setEditDialogOpen}
+    />
+  </>
+);
 ```
 
 ---
 
-## UI Completa Finale
+## File da Modificare/Creare
 
-```text
-+--------------------------------------------------------------------------+
-| Calendario Lavori                                                         |
-| Pianifica e visualizza i lavori programmati                               |
-+--------------------------------------------------------------------------+
-| [Tutti gli stati v] [Tutti i clienti v] | [Mese] [Gantt] | [Oggi]        |
-+--------------------------------------------------------------------------+
-|                                                                           |
-|  <- Febbraio 2026 ->    [Settimana] [Mese] [Trimestre] [Anno]            |
-|                                                                           |
-+-----------------+----+----+----+----+----+----+----+----------------------+
-| Cliente/Ordine  | LT | Lu | Ma | Me | Gi | Ve | Sa | Do |                |
-+-----------------+----+----+----+----+----+----+----+----+                |
-| G. Bianchi      | 45g| [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓]         |  <- Trascinabile |
-| ORD-2026-003    |    |                                |                  |
-+-----------------+----+----+----+----+----+----+----+----+                |
-| M. Verdi        | 38g|              [▓▓▓▓▓▓▓▓]        |                  |
-| ORD-2026-001    |    |                                |                  |
-+-----------------+----+----+----+----+----+----+----+----+----------------+
-|                                                                           |
-| Lead Time Medio: 42g | Min: 15g | Max: 78g                               |
-+--------------------------------------------------------------------------+
-```
+| N. | File | Azione | Descrizione |
+|----|------|--------|-------------|
+| 1 | `src/types/calendar.ts` | Modifica | Aggiungere `warehouse_arrival_date` |
+| 2 | `src/pages/azienda/Calendar.tsx` | Modifica | Includere `warehouse_arrival_date` nella query |
+| 3 | `src/components/calendar/CalendarMonthView.tsx` | Modifica | Nuova logica per eventi posa/merce |
+| 4 | `src/components/calendar/EditOrderDatesDialog.tsx` | Creare | Dialog modifica date |
+| 5 | `src/components/calendar/DraggableOrderBar.tsx` | Modifica | Integrare dialog al click |
 
 ---
 
-## Riepilogo Implementazione
+## Comportamento Finale
 
-1. **Drag & Drop**: Utilizzo dnd-kit per trascinare barre, calcolo delta in giorni, update database
-2. **Filtri**: Select per stato e cliente, logica filtraggio in useMemo
-3. **Vista Settimana**: Nuovo zoom level con dayWidth=80px, header giorni settimana
-4. **Lead Time**: Calcolo differenceInDays, visualizzazione in colonna + tooltip + statistiche
+### Calendario Mensile
+- Mostra **pallini colorati** per data posa (blu) e arrivo merce (arancione)
+- Ogni ordine può avere entrambi gli eventi in giorni diversi
+- Click su evento → vai al dettaglio ordine
+
+### Gantt
+- Barre trascinabili per spostare date lavoro (drag & drop esistente)
+- **Click su barra** → apre dialog per modificare tutte le date
+- Dopo modifica → refresh automatico del calendario
 
