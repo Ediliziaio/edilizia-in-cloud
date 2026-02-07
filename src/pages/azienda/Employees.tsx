@@ -79,6 +79,7 @@ export default function Employees() {
       return data as Employee[];
     },
     enabled: !!effectiveCompanyId,
+    staleTime: 5 * 60 * 1000, // 5 minuti
   });
 
   // Fetch external teams
@@ -95,6 +96,7 @@ export default function Employees() {
       return data as ExternalTeam[];
     },
     enabled: !!effectiveCompanyId,
+    staleTime: 5 * 60 * 1000, // 5 minuti
   });
 
   // Create/update employee mutation

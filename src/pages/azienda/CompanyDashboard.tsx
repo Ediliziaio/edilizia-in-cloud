@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,13 +9,6 @@ import { ClipboardList, Users, HeadphonesIcon, Plus, Loader2, Euro, Package, Tre
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@/lib/formatters";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
-
-interface DashboardStats {
-  totalOrders: number;
-  totalCustomers: number;
-  openTickets: number;
-  pendingRevenue: number;
-}
 
 interface RecentOrder {
   id: string;
@@ -31,11 +25,6 @@ interface RecentOrder {
   } | null;
 }
 
-interface CashFlowPreview {
-  thisMonth: number;
-  nextMonth: number;
-}
-
 interface UrgentItem {
   id: string;
   name: string;
@@ -47,181 +36,168 @@ interface UrgentItem {
 export default function CompanyDashboard() {
   const { effectiveCompany } = useAuth();
   const company = effectiveCompany;
-  const [stats, setStats] = useState<DashboardStats>({
-    totalOrders: 0,
-    totalCustomers: 0,
-    openTickets: 0,
-    pendingRevenue: 0,
-  });
-  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
-  const [cashFlow, setCashFlow] = useState<CashFlowPreview>({ thisMonth: 0, nextMonth: 0 });
-  const [urgentItems, setUrgentItems] = useState<UrgentItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const companyId = company?.id;
 
-  useEffect(() => {
-    if (!company) return;
+  // Main dashboard data query with caching
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ["dashboard-data", companyId],
+    queryFn: async () => {
+      const now = new Date();
+      const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
-    async function fetchData() {
-      try {
-        const now = new Date();
-        const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-        const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-        const [ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes, cashFlowRes, urgentItemsRes] = await Promise.all([
-          // Count total orders
-          supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", company.id),
-          // Count total customers
-          supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", company.id),
-          // Count open tickets
-          supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", company.id).eq("status", "aperto"),
-          // Recent orders with details
-          supabase
-            .from("orders")
-            .select(`
+      const [ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes, cashFlowRes, urgentItemsRes] = await Promise.all([
+        // Count total orders
+        supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
+        // Count total customers
+        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
+        // Count open tickets
+        supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", companyId!).eq("status", "aperto"),
+        // Recent orders with details
+        supabase
+          .from("orders")
+          .select(`
+            id,
+            description,
+            total_amount,
+            created_at,
+            customer:profiles!orders_customer_id_fkey(first_name, last_name),
+            status:order_statuses(name, color)
+          `)
+          .eq("company_id", companyId!)
+          .order("created_at", { ascending: false })
+          .limit(5),
+        // Pending revenue (all unpaid balances)
+        supabase
+          .from("orders")
+          .select("balance_amount, balance_paid")
+          .eq("company_id", companyId!)
+          .or("balance_paid.is.null,balance_paid.eq.false"),
+        // Cash flow preview (deposits + balances with expected dates)
+        supabase
+          .from("orders")
+          .select(`
+            deposit_amount,
+            deposit_expected_date,
+            deposit_paid,
+            deposit_2_amount,
+            deposit_2_expected_date,
+            deposit_2_paid,
+            balance_amount,
+            balance_expected_date,
+            balance_paid
+          `)
+          .eq("company_id", companyId!),
+        // Urgent warehouse items
+        supabase
+          .from("order_items")
+          .select(`
+            id,
+            name,
+            status,
+            order:orders!inner(
               id,
-              description,
-              total_amount,
-              created_at,
-              customer:profiles!orders_customer_id_fkey(first_name, last_name),
-              status:order_statuses(name, color)
-            `)
-            .eq("company_id", company.id)
-            .order("created_at", { ascending: false })
-            .limit(5),
-          // Pending revenue (all unpaid balances)
-          supabase
-            .from("orders")
-            .select("balance_amount, balance_paid")
-            .eq("company_id", company.id)
-            .or("balance_paid.is.null,balance_paid.eq.false"),
-          // Cash flow preview (deposits + balances with expected dates)
-          supabase
-            .from("orders")
-            .select(`
-              deposit_amount,
-              deposit_expected_date,
-              deposit_paid,
-              deposit_2_amount,
-              deposit_2_expected_date,
-              deposit_2_paid,
-              balance_amount,
-              balance_expected_date,
-              balance_paid
-            `)
-            .eq("company_id", company.id),
-          // Urgent warehouse items (installation within 7 days, not installed)
-          // Fetch all non-ready items, filter by date in JS to handle both expected_date and work_start_date
-          supabase
-            .from("order_items")
-            .select(`
-              id,
-              name,
-              status,
-              order:orders!inner(
-                id,
-                order_code,
-                work_start_date,
-                expected_date,
-                company_id,
-                customer:profiles!orders_customer_id_fkey(first_name, last_name)
-              )
-            `)
-            .eq("order.company_id", company.id)
-            .neq("status", "installato")
-            .neq("status", "in_magazzino")
-        ]);
+              order_code,
+              work_start_date,
+              expected_date,
+              company_id,
+              customer:profiles!orders_customer_id_fkey(first_name, last_name)
+            )
+          `)
+          .eq("order.company_id", companyId!)
+          .neq("status", "installato")
+          .neq("status", "in_magazzino")
+      ]);
 
-        // Calculate pending revenue
-        const pendingRevenue = pendingRevenueRes.data?.reduce((sum, order) => sum + (Number(order.balance_amount) || 0), 0) || 0;
+      // Calculate pending revenue
+      const pendingRevenue = pendingRevenueRes.data?.reduce((sum, order) => sum + (Number(order.balance_amount) || 0), 0) || 0;
 
-        // Calculate cash flow preview
-        let thisMonthTotal = 0;
-        let nextMonthTotal = 0;
+      // Calculate cash flow preview
+      let thisMonthTotal = 0;
+      let nextMonthTotal = 0;
 
-        cashFlowRes.data?.forEach((order) => {
-          // Check deposit
-          if (!order.deposit_paid && order.deposit_expected_date) {
-            const depositDate = new Date(order.deposit_expected_date);
-            if (depositDate <= thisMonthEnd) {
-              thisMonthTotal += Number(order.deposit_amount) || 0;
-            } else if (depositDate <= nextMonthEnd) {
-              nextMonthTotal += Number(order.deposit_amount) || 0;
-            }
+      cashFlowRes.data?.forEach((order) => {
+        // Check deposit
+        if (!order.deposit_paid && order.deposit_expected_date) {
+          const depositDate = new Date(order.deposit_expected_date);
+          if (depositDate <= thisMonthEnd) {
+            thisMonthTotal += Number(order.deposit_amount) || 0;
+          } else if (depositDate <= nextMonthEnd) {
+            nextMonthTotal += Number(order.deposit_amount) || 0;
           }
-          // Check deposit 2
-          if (!order.deposit_2_paid && order.deposit_2_expected_date) {
-            const deposit2Date = new Date(order.deposit_2_expected_date);
-            if (deposit2Date <= thisMonthEnd) {
-              thisMonthTotal += Number(order.deposit_2_amount) || 0;
-            } else if (deposit2Date <= nextMonthEnd) {
-              nextMonthTotal += Number(order.deposit_2_amount) || 0;
-            }
+        }
+        // Check deposit 2
+        if (!order.deposit_2_paid && order.deposit_2_expected_date) {
+          const deposit2Date = new Date(order.deposit_2_expected_date);
+          if (deposit2Date <= thisMonthEnd) {
+            thisMonthTotal += Number(order.deposit_2_amount) || 0;
+          } else if (deposit2Date <= nextMonthEnd) {
+            nextMonthTotal += Number(order.deposit_2_amount) || 0;
           }
-          // Check balance
-          if (!order.balance_paid && order.balance_expected_date) {
-            const balanceDate = new Date(order.balance_expected_date);
-            if (balanceDate <= thisMonthEnd) {
-              thisMonthTotal += Number(order.balance_amount) || 0;
-            } else if (balanceDate <= nextMonthEnd) {
-              nextMonthTotal += Number(order.balance_amount) || 0;
-            }
+        }
+        // Check balance
+        if (!order.balance_paid && order.balance_expected_date) {
+          const balanceDate = new Date(order.balance_expected_date);
+          if (balanceDate <= thisMonthEnd) {
+            thisMonthTotal += Number(order.balance_amount) || 0;
+          } else if (balanceDate <= nextMonthEnd) {
+            nextMonthTotal += Number(order.balance_amount) || 0;
           }
-        });
+        }
+      });
 
-        // Process urgent items - use expected_date OR work_start_date (same logic as WarehouseAlerts)
-        const processedUrgentItems: UrgentItem[] = [];
-        urgentItemsRes.data?.forEach((item: unknown) => {
-          const typedItem = item as {
-            id: string;
-            name: string;
-            order: {
-              order_code: string | null;
-              work_start_date: string | null;
-              expected_date: string | null;
-              customer: { first_name: string; last_name: string };
-            };
+      // Process urgent items
+      const processedUrgentItems: UrgentItem[] = [];
+      urgentItemsRes.data?.forEach((item: unknown) => {
+        const typedItem = item as {
+          id: string;
+          name: string;
+          order: {
+            order_code: string | null;
+            work_start_date: string | null;
+            expected_date: string | null;
+            customer: { first_name: string; last_name: string };
           };
+        };
+        
+        const expectedDate = typedItem.order?.expected_date || typedItem.order?.work_start_date;
+        
+        if (expectedDate) {
+          const date = new Date(expectedDate);
+          const daysLeft = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
           
-          // Use expected_date OR work_start_date (consistent with WarehouseAlerts)
-          const expectedDate = typedItem.order?.expected_date || typedItem.order?.work_start_date;
-          
-          if (expectedDate) {
-            const date = new Date(expectedDate);
-            const daysLeft = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            
-            // Filter only urgent items (within 7 days and >= today)
-            if (daysLeft >= 0 && daysLeft <= 7) {
-              processedUrgentItems.push({
-                id: typedItem.id,
-                name: typedItem.name,
-                orderCode: typedItem.order.order_code,
-                customerName: `${typedItem.order.customer.first_name} ${typedItem.order.customer.last_name}`,
-                daysLeft,
-              });
-            }
+          if (daysLeft >= 0 && daysLeft <= 7) {
+            processedUrgentItems.push({
+              id: typedItem.id,
+              name: typedItem.name,
+              orderCode: typedItem.order.order_code,
+              customerName: `${typedItem.order.customer.first_name} ${typedItem.order.customer.last_name}`,
+              daysLeft,
+            });
           }
-        });
+        }
+      });
 
-        setStats({
+      return {
+        stats: {
           totalOrders: ordersRes.count || 0,
           totalCustomers: customersRes.count || 0,
           openTickets: ticketsRes.count || 0,
           pendingRevenue,
-        });
+        },
+        recentOrders: (ordersDataRes.data as unknown as RecentOrder[]) || [],
+        cashFlow: { thisMonth: thisMonthTotal, nextMonth: nextMonthTotal },
+        urgentItems: processedUrgentItems.slice(0, 5),
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000, // 2 minuti
+  });
 
-        setRecentOrders(ordersDataRes.data as unknown as RecentOrder[] || []);
-        setCashFlow({ thisMonth: thisMonthTotal, nextMonth: nextMonthTotal });
-        setUrgentItems(processedUrgentItems.slice(0, 5));
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [company]);
+  const stats = dashboardData?.stats ?? { totalOrders: 0, totalCustomers: 0, openTickets: 0, pendingRevenue: 0 };
+  const recentOrders = dashboardData?.recentOrders ?? [];
+  const cashFlow = dashboardData?.cashFlow ?? { thisMonth: 0, nextMonth: 0 };
+  const urgentItems = dashboardData?.urgentItems ?? [];
 
   const statCards = [
     {

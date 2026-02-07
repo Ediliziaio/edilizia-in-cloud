@@ -21,89 +21,82 @@ export function LaborCostsStats() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, isError } = useQuery({
     queryKey: ["labor-stats", companyId],
     queryFn: async () => {
-      // Fetch employees count
-      const { count: employeesCount } = await supabase
-        .from("employees")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!)
-        .eq("is_active", true);
-
-      // Fetch external teams count
-      const { count: teamsCount } = await supabase
-        .from("external_teams")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!)
-        .eq("is_active", true);
-
-      // Get current month date range
+      // Parallel queries for better performance
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
 
-      // Fetch this month's internal labor costs (from order_employees via orders)
-      const { data: orderEmployeesData } = await supabase
-        .from("order_employees")
-        .select(`
-          total_cost,
-          created_at,
-          order:orders!inner(company_id)
-        `)
-        .gte("created_at", monthStart)
-        .lte("created_at", monthEnd);
+      const [employeesRes, teamsRes, ordersWithLaborRes] = await Promise.all([
+        // Count active employees
+        supabase
+          .from("employees")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .eq("is_active", true),
+        // Count active external teams
+        supabase
+          .from("external_teams")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .eq("is_active", true),
+        // Get all orders with labor data for this company
+        supabase
+          .from("orders")
+          .select(`
+            id,
+            total_amount,
+            order_items(purchase_price, quantity),
+            order_employees(total_cost, created_at),
+            order_external_teams(total_cost, created_at)
+          `)
+          .eq("company_id", companyId!),
+      ]);
 
-      const monthlyInternalCost = orderEmployeesData
-        ?.filter((item: any) => item.order?.company_id === companyId)
-        .reduce((sum: number, item: any) => sum + Number(item.total_cost || 0), 0) || 0;
-
-      // Fetch this month's external team costs
-      const { data: orderTeamsData } = await supabase
-        .from("order_external_teams")
-        .select(`
-          total_cost,
-          created_at,
-          order:orders!inner(company_id)
-        `)
-        .gte("created_at", monthStart)
-        .lte("created_at", monthEnd);
-
-      const monthlyExternalCost = orderTeamsData
-        ?.filter((item: any) => item.order?.company_id === companyId)
-        .reduce((sum: number, item: any) => sum + Number(item.total_cost || 0), 0) || 0;
-
-      // Calculate average margin for orders with labor costs
-      const { data: ordersWithLaborData } = await supabase
-        .from("orders")
-        .select(`
-          id,
-          total_amount,
-          order_items(purchase_price, quantity),
-          order_employees(total_cost),
-          order_external_teams(total_cost)
-        `)
-        .eq("company_id", companyId!);
-
+      // Calculate monthly costs from orders data
+      let monthlyInternalCost = 0;
+      let monthlyExternalCost = 0;
       let totalMarginPercent = 0;
       let ordersWithLaborCount = 0;
 
-      ordersWithLaborData?.forEach((order: any) => {
+      ordersWithLaborRes.data?.forEach((order) => {
+        // Monthly internal costs
+        order.order_employees?.forEach((emp: { total_cost: number; created_at: string }) => {
+          const createdAt = new Date(emp.created_at);
+          if (createdAt >= new Date(monthStart) && createdAt <= new Date(monthEnd)) {
+            monthlyInternalCost += Number(emp.total_cost || 0);
+          }
+        });
+
+        // Monthly external costs
+        order.order_external_teams?.forEach((team: { total_cost: number; created_at: string }) => {
+          const createdAt = new Date(team.created_at);
+          if (createdAt >= new Date(monthStart) && createdAt <= new Date(monthEnd)) {
+            monthlyExternalCost += Number(team.total_cost || 0);
+          }
+        });
+
+        // Calculate margin for orders with labor
         const laborCost = 
-          (order.order_employees?.reduce((s: number, e: any) => s + Number(e.total_cost || 0), 0) || 0) +
-          (order.order_external_teams?.reduce((s: number, t: any) => s + Number(t.total_cost || 0), 0) || 0);
+          (order.order_employees?.reduce((s: number, e: { total_cost: number }) => s + Number(e.total_cost || 0), 0) || 0) +
+          (order.order_external_teams?.reduce((s: number, t: { total_cost: number }) => s + Number(t.total_cost || 0), 0) || 0);
 
         if (laborCost > 0) {
           const articleCost = order.order_items?.reduce(
-            (s: number, i: any) => s + (Number(i.purchase_price || 0) * Number(i.quantity || 1)), 
+            (s: number, i: { purchase_price: number | null; quantity: number | null }) => 
+              s + (Number(i.purchase_price || 0) * Number(i.quantity || 1)), 
             0
           ) || 0;
 
           const totalCost = laborCost + articleCost;
-          const margin = ((Number(order.total_amount) - totalCost) / Number(order.total_amount)) * 100;
-          
-          totalMarginPercent += margin;
-          ordersWithLaborCount++;
+          const orderTotal = Number(order.total_amount);
+          if (orderTotal > 0) {
+            const margin = ((orderTotal - totalCost) / orderTotal) * 100;
+            totalMarginPercent += margin;
+            ordersWithLaborCount++;
+          }
         }
       });
 
@@ -112,8 +105,8 @@ export function LaborCostsStats() {
         : 0;
 
       return {
-        totalEmployees: employeesCount || 0,
-        totalExternalTeams: teamsCount || 0,
+        totalEmployees: employeesRes.count || 0,
+        totalExternalTeams: teamsRes.count || 0,
         monthlyInternalCost,
         monthlyExternalCost,
         averageMargin,
@@ -121,8 +114,26 @@ export function LaborCostsStats() {
       } as LaborStats;
     },
     enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minuti
   });
+
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HardHat className="h-5 w-5 text-primary" />
+            Costi Manodopera
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-sm text-destructive">
+            Errore nel caricamento dei dati
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoading || !stats) {
     return (

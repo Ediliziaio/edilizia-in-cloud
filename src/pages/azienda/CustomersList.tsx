@@ -122,6 +122,7 @@ export default function CustomersList() {
       })) as CustomerWithOrders[];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000, // 5 minuti
   });
 
   // Reset password mutation
