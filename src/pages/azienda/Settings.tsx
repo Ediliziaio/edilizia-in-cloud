@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Building2, ListOrdered } from "lucide-react";
+import { Building2, ListOrdered, Truck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { OrderStatusConfig } from "@/components/settings/OrderStatusConfig";
 import { LogoUploader } from "@/components/settings/LogoUploader";
+import { SuppliersConfig } from "@/components/settings/SuppliersConfig";
 
 export default function Settings() {
   const { effectiveCompany, refreshAuth } = useAuth();
@@ -22,7 +23,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-3 lg:w-[500px]">
           <TabsTrigger value="profilo" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Profilo Azienda
@@ -30,6 +31,10 @@ export default function Settings() {
           <TabsTrigger value="stati-ordine" className="flex items-center gap-2">
             <ListOrdered className="h-4 w-4" />
             Stati Ordine
+          </TabsTrigger>
+          <TabsTrigger value="fornitori" className="flex items-center gap-2">
+            <Truck className="h-4 w-4" />
+            Fornitori
           </TabsTrigger>
         </TabsList>
 
@@ -78,7 +83,12 @@ export default function Settings() {
         <TabsContent value="stati-ordine" className="mt-6">
           <OrderStatusConfig />
         </TabsContent>
+
+        <TabsContent value="fornitori" className="mt-6">
+          <SuppliersConfig />
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
+
