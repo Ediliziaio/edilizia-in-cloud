@@ -1,206 +1,180 @@
 
-
-# Piano: Miglioramento Vista Kanban - Maggiore Leggibilità
+# Piano: Card Kanban Ultra-Minimal con Menu a Tendina
 
 ## Problema Attuale
 
-Le card Kanban sono troppo compatte e difficili da leggere:
-- Testo troppo piccolo
-- Padding insufficiente
-- Informazioni troncate
-- Spaziatura minima tra gli elementi
+Le card mostrano troppi dettagli sempre visibili:
+- Fornitore, ordine, cliente, data - tutto esposto
+- Troppe righe per ogni card
+- Vista troppo "affollata"
 
 ---
 
-## Miglioramenti Proposti
+## Soluzione Proposta
 
-### 1. Card più Leggibili
+Card compatte con solo l'essenziale visibile e un **DropdownMenu** per i dettagli.
 
-**Attuale (troppo compatto)**:
-```text
-┌────────────────────────────┐
-│⋮ 4x Tapparelle PVC    [5g]│
-│ORD-001 • G. Bianchi       │
-└────────────────────────────┘
-```
+### Design Nuovo
 
-**Nuovo (più leggibile)**:
-```text
-┌─────────────────────────────────┐
-│ ⋮⋮  Tapparelle PVC Bianco      │
-│     120x160                     │
-│                                 │
-│     🛒 ABC Serramenti           │
-│     📦 ORD-001 · Giuseppe B.    │
-│     📅 12 Feb                [5g]│
-└─────────────────────────────────┘
-```
-
-### 2. Modifiche Specifiche alle Card
-
-| Elemento | Attuale | Nuovo |
-|----------|---------|-------|
-| Padding | `p-2` | `p-3` |
-| Nome articolo | `text-sm truncate` | `text-base font-medium` (su più righe se necessario) |
-| Quantità | Inline con nome | Badge separato in alto |
-| Fornitore | Non visibile | Mostrato con icona |
-| Cliente | Abbreviato (G. B.) | Nome completo troncato |
-| Data posa | Non visibile | Sempre visibile |
-| Grip icon | `h-3.5` | `h-4` |
-| Spaziatura | `space-y-1.5` | `space-y-2` |
-
-### 3. Layout Card Ripensato
-
+**Card Chiusa (default)**:
 ```text
 ┌─────────────────────────────────────┐
-│ ⋮⋮  [4x]                      [5g] │  <- Grip + Quantità badge + Urgenza
-│                                     │
-│ Tapparelle PVC Bianco 120x160       │  <- Nome articolo (wrap se lungo)
-│                                     │
-│ 🏭 ABC Serramenti                   │  <- Fornitore (se presente)
-│ 📋 ORD-001                          │  <- Codice ordine
-│ 👤 Giuseppe Bianchi                 │  <- Cliente
-│ 📅 12 Feb 2026                      │  <- Data posa prevista
+│ ⋮⋮  4x Tapparelle PVC Bianco  [5g] │
 └─────────────────────────────────────┘
 ```
 
-### 4. Colonne Più Spaziose
+**Dropdown Aperto (click sui tre puntini)**:
+```text
+┌─────────────────────────────────────┐
+│ ⋮⋮  4x Tapparelle PVC Bianco  [⋮]  │
+│ ┌─────────────────────────────────┐ │
+│ │ 🏭 ABC Serramenti              │ │
+│ │ 📋 ORD-001                     │ │
+│ │ 👤 Giuseppe Bianchi            │ │
+│ │ 📅 12 Feb 2026                 │ │
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
+```
 
-- Aumentare gap tra le card da `space-y-1.5` a `space-y-3`
-- Aumentare padding colonna da `p-2` a `p-3`
-- Header colonna leggermente più grande
+---
+
+## Layout Card Minimal
+
+```text
+┌───────────────────────────────────────┐
+│ ⋮⋮  4x  Nome Articolo       [5g] [⋮] │
+└───────────────────────────────────────┘
+
+Dove:
+- ⋮⋮ = Grip per drag & drop
+- 4x = Quantità (badge compatto)
+- Nome Articolo = Titolo principale
+- [5g] = Badge urgenza (solo se urgente)
+- [⋮] = Pulsante menu dettagli
+```
 
 ---
 
 ## Dettagli Tecnici
 
-### File da Modificare
+### Componenti Utilizzati
 
-| File | Modifica |
-|------|----------|
-| `WarehouseKanbanCard.tsx` | Layout espanso con più info visibili |
-| `WarehouseKanbanColumn.tsx` | Maggiore spaziatura |
+- `DropdownMenu` da Radix UI (già presente nel progetto)
+- Icona `MoreVertical` per il pulsante menu
 
-### WarehouseKanbanCard.tsx - Nuovo Layout
+### Struttura del Dropdown
 
 ```typescript
-<Card className={cn(
-  "cursor-grab active:cursor-grabbing transition-all",
-  isDragging && "opacity-50 shadow-lg rotate-1",
-  isCritical && "border-destructive border-2",
-  isUrgent && !isCritical && "border-amber-500 border-2"
-)}>
-  <CardContent className="p-3">
-    {/* Header: Grip + Quantità + Urgenza */}
-    <div className="flex items-center justify-between mb-2">
-      <div className="flex items-center gap-2">
-        <div {...attributes} {...listeners}>
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
-        <Badge variant="secondary" className="text-xs">
-          {item.quantity || 1}x
-        </Badge>
-      </div>
-      {(isUrgent || isCritical) && (
-        <Badge variant={isCritical ? "destructive" : "default"} 
-               className={cn(!isCritical && "bg-amber-500")}>
-          {daysUntil === 0 ? "OGGI" : daysUntil === 1 ? "Domani" : `${daysUntil}g`}
-        </Badge>
-      )}
-    </div>
-    
-    {/* Nome Articolo - più prominente */}
-    <h4 className="font-medium text-sm leading-snug mb-2">
-      {item.name}
-    </h4>
-    
-    {/* Dettagli - icone + testo */}
-    <div className="space-y-1 text-xs text-muted-foreground">
-      {supplierName && (
-        <div className="flex items-center gap-1.5">
-          <Building2 className="h-3 w-3" />
-          <span className="truncate">{supplierName}</span>
-        </div>
-      )}
-      <div className="flex items-center gap-1.5">
-        <FileText className="h-3 w-3" />
-        <span>{item.order.order_code}</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <User className="h-3 w-3" />
-        <span className="truncate">
-          {item.order.customer.first_name} {item.order.customer.last_name}
-        </span>
-      </div>
-      {expectedDate && (
-        <div className="flex items-center gap-1.5">
-          <Calendar className="h-3 w-3" />
-          <span>{format(new Date(expectedDate), "d MMM yyyy", { locale: it })}</span>
-        </div>
-      )}
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant="ghost" size="icon" className="h-6 w-6">
+      <MoreVertical className="h-3.5 w-3.5" />
+    </Button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent align="end" className="w-56">
+    <DropdownMenuLabel>Dettagli Articolo</DropdownMenuLabel>
+    <DropdownMenuSeparator />
+    {supplierName && (
+      <DropdownMenuItem>
+        <Building2 className="h-4 w-4 mr-2" />
+        {supplierName}
+      </DropdownMenuItem>
+    )}
+    <DropdownMenuItem>
+      <FileText className="h-4 w-4 mr-2" />
+      {item.order.order_code}
+    </DropdownMenuItem>
+    <DropdownMenuItem>
+      <User className="h-4 w-4 mr-2" />
+      {customerName}
+    </DropdownMenuItem>
+    <DropdownMenuItem>
+      <Calendar className="h-4 w-4 mr-2" />
+      {formattedDate}
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+### Card Semplificata
+
+```typescript
+<Card className={cn("cursor-grab", urgencyClasses)}>
+  <CardContent className="p-2">
+    <div className="flex items-center gap-2">
+      {/* Grip per drag */}
+      <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+      
+      {/* Quantità */}
+      <span className="text-xs text-muted-foreground font-mono">
+        {item.quantity || 1}x
+      </span>
+      
+      {/* Nome articolo - occupa tutto lo spazio */}
+      <span className="flex-1 font-medium text-sm truncate">
+        {item.name}
+      </span>
+      
+      {/* Badge urgenza (solo se urgente) */}
+      {isUrgent && <Badge>{urgencyLabel}</Badge>}
+      
+      {/* Menu dettagli */}
+      <DropdownMenu>...</DropdownMenu>
     </div>
   </CardContent>
 </Card>
 ```
 
-### WarehouseKanbanColumn.tsx - Maggiore Spaziatura
+---
 
-```typescript
-{/* Content con più spazio */}
-<div ref={setNodeRef} className="flex-1 p-3 overflow-hidden">
-  <ScrollArea className="h-full">
-    <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
-      <div className="space-y-3 pr-2">  {/* Da 1.5 a 3 */}
-        {items.map((item) => (
-          <WarehouseKanbanCard key={item.id} item={item} ... />
-        ))}
-      </div>
-    </SortableContext>
-  </ScrollArea>
-</div>
-```
+## File da Modificare
+
+| File | Modifica |
+|------|----------|
+| `WarehouseKanbanCard.tsx` | Sostituire layout espanso con riga singola + dropdown |
 
 ---
 
 ## Confronto Visivo
 
-### Prima (compatto, difficile da leggere)
+### Prima (troppo verboso)
 ```text
-┌──────────────────┐ ┌──────────────────┐
-│⋮ 4x Tapp...  [5g]│ │⋮ 6x Zanz...      │
-│ORD-001 • G.B.    │ │ORD-002 • M.V.    │
-├──────────────────┤ ├──────────────────┤
-│⋮ 2x Moto...      │ │⋮ 3x Tapp...  [3g]│
-│ORD-001 • G.B.    │ │ORD-003 • L.F.    │
-└──────────────────┘ └──────────────────┘
+┌──────────────────────────┐
+│ ⋮⋮  [4x]            [5g] │
+│                          │
+│ Tapparelle PVC Bianco    │
+│                          │
+│ 🏭 ABC Serramenti        │
+│ 📋 ORD-001               │
+│ 👤 Giuseppe Bianchi      │
+│ 📅 12 Feb 2026           │
+└──────────────────────────┘
 ```
 
-### Dopo (leggibile, informativo)
+### Dopo (minimal)
 ```text
-┌──────────────────────┐ ┌──────────────────────┐
-│ ⋮⋮ [4x]         [5g] │ │ ⋮⋮ [6x]              │
-│                      │ │                      │
-│ Tapparelle PVC       │ │ Zanzariere plissé    │
-│ Bianco 120x160       │ │ 100x140              │
-│                      │ │                      │
-│ 🏭 ABC Serramenti    │ │ 🏭 ZanzarTech        │
-│ 📋 ORD-001           │ │ 📋 ORD-002           │
-│ 👤 Giuseppe Bianchi  │ │ 👤 Maria Verdi       │
-│ 📅 12 Feb 2026       │ │ 📅 19 Feb 2026       │
-└──────────────────────┘ └──────────────────────┘
+┌──────────────────────────────────────────┐
+│ ⋮⋮  4x  Tapparelle PVC Bianco  [5g] [⋮] │
+└──────────────────────────────────────────┘
 ```
+
+---
+
+## Vantaggi
+
+1. **Card su una riga sola**: Massima compattezza
+2. **Più articoli visibili**: Meno scroll necessario
+3. **Info a richiesta**: Dettagli visibili solo quando servono
+4. **Meno rumore visivo**: Focus sul nome articolo
+5. **Urgenza sempre visibile**: Badge colorato se critico
+6. **Interazione intuitiva**: Click sui tre puntini per espandere
 
 ---
 
 ## Riepilogo Modifiche
 
-1. **Padding aumentato**: Da `p-2` a `p-3` nelle card
-2. **Nome articolo più grande**: `text-sm` con `font-medium`, senza troncamento forzato
-3. **Quantità in badge separato**: Più visibile in alto
-4. **Fornitore visibile**: Mostrato con icona se presente
-5. **Cliente nome completo**: Non più abbreviato
-6. **Data posa sempre visibile**: Formattata chiaramente
-7. **Spaziatura tra card**: Da `space-y-1.5` a `space-y-3`
-8. **Icone per ogni info**: Migliore scansione visiva
-9. **Urgenza più evidente**: Badge più grande con testo descrittivo ("OGGI", "Domani")
-
+1. **Layout su singola riga**: Grip + Quantità + Nome + Urgenza + Menu
+2. **Padding ridotto**: Da `p-3` a `p-2`
+3. **Dettagli in DropdownMenu**: Fornitore, ordine, cliente, data
+4. **Nome articolo troncato**: Con `truncate` per nomi lunghi
+5. **Bordo colorato mantenuto**: Per urgenza visiva immediata
