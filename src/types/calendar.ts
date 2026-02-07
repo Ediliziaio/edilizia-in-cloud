@@ -5,6 +5,7 @@ export interface CalendarOrder {
   expected_date: string | null;
   work_start_date: string | null;
   work_end_date: string | null;
+  warehouse_arrival_date: string | null;
   created_at: string;
   customer_id: string;
   current_status_id: string | null;

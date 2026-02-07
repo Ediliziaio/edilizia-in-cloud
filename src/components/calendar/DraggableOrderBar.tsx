@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
 import { format, isSameDay, differenceInDays, parseISO } from "date-fns";
@@ -7,6 +8,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder } from "@/types/calendar";
 
 interface BarInfo {
@@ -30,6 +32,7 @@ export function DraggableOrderBar({
   color,
 }: DraggableOrderBarProps) {
   const navigate = useNavigate();
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: order.id,
     data: { order, bar },
@@ -53,55 +56,66 @@ export function DraggableOrderBar({
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    // Only navigate if not dragging
+    // Only open dialog if not dragging
     if (!isDragging && !transform?.x) {
-      navigate(`/azienda/ordini/${order.id}`);
+      e.preventDefault();
+      e.stopPropagation();
+      setEditDialogOpen(true);
     }
   };
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          ref={setNodeRef}
-          {...attributes}
-          {...listeners}
-          className="absolute top-2 bottom-2 rounded shadow-sm hover:shadow-md transition-shadow flex items-center px-2 overflow-hidden touch-none"
-          style={style}
-          onClick={handleClick}
-        >
-          {bar.width > 60 && (
-            <span className="text-xs text-white font-medium truncate">
-              {order.order_code || order.description.slice(0, 20)}
-            </span>
-          )}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[250px]">
-        <div className="space-y-1">
-          <p className="font-medium">{order.order_code || "Ordine"}</p>
-          <p className="text-sm text-muted-foreground">
-            {order.customer.first_name} {order.customer.last_name}
-          </p>
-          <p className="text-sm truncate">{order.description}</p>
-          <p className="text-xs text-muted-foreground">
-            {format(bar.orderStart, "d MMM", { locale: it })}
-            {!isSameDay(bar.orderStart, bar.orderEnd) && (
-              <> - {format(bar.orderEnd, "d MMM", { locale: it })}</>
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            ref={setNodeRef}
+            {...attributes}
+            {...listeners}
+            className="absolute top-2 bottom-2 rounded shadow-sm hover:shadow-md transition-shadow flex items-center px-2 overflow-hidden touch-none"
+            style={style}
+            onClick={handleClick}
+          >
+            {bar.width > 60 && (
+              <span className="text-xs text-white font-medium truncate">
+                {order.order_code || order.description.slice(0, 20)}
+              </span>
             )}
-          </p>
-          {order.status && (
-            <p className="text-xs">
-              Stato: <span style={{ color: order.status.color }}>{order.status.name}</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[250px]">
+          <div className="space-y-1">
+            <p className="font-medium">{order.order_code || "Ordine"}</p>
+            <p className="text-sm text-muted-foreground">
+              {order.customer.first_name} {order.customer.last_name}
             </p>
-          )}
-          {leadTime !== null && (
-            <p className="text-xs font-medium">
-              Lead Time: {leadTime} giorni
+            <p className="text-sm truncate">{order.description}</p>
+            <p className="text-xs text-muted-foreground">
+              {format(bar.orderStart, "d MMM", { locale: it })}
+              {!isSameDay(bar.orderStart, bar.orderEnd) && (
+                <> - {format(bar.orderEnd, "d MMM", { locale: it })}</>
+              )}
             </p>
-          )}
-        </div>
-      </TooltipContent>
-    </Tooltip>
+            {order.status && (
+              <p className="text-xs">
+                Stato: <span style={{ color: order.status.color }}>{order.status.name}</span>
+              </p>
+            )}
+            {leadTime !== null && (
+              <p className="text-xs font-medium">
+                Lead Time: {leadTime} giorni
+              </p>
+            )}
+            <p className="text-xs text-primary mt-1">Clicca per modificare le date</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+
+      <EditOrderDatesDialog
+        order={order}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+      />
+    </>
   );
 }

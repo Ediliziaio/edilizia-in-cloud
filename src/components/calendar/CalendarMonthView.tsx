@@ -9,7 +9,6 @@ import {
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
-  isWithinInterval,
   parseISO,
   addMonths,
   subMonths,
@@ -17,9 +16,15 @@ import {
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder } from "@/types/calendar";
+
+interface CalendarEvent {
+  type: "posa" | "merce";
+  order: CalendarOrder;
+  color: string;
+}
 
 interface CalendarMonthViewProps {
   orders: CalendarOrder[];
@@ -43,49 +48,33 @@ export function CalendarMonthView({
     return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
   }, [currentDate]);
 
-  const getOrdersForDay = (day: Date) => {
-    return orders.filter((order) => {
-      const startDate = order.work_start_date
-        ? parseISO(order.work_start_date)
-        : order.expected_date
-        ? parseISO(order.expected_date)
-        : null;
-      
-      if (!startDate) return false;
+  const getEventsForDay = (day: Date): CalendarEvent[] => {
+    const events: CalendarEvent[] = [];
 
-      const endDate = order.work_end_date
-        ? parseISO(order.work_end_date)
-        : startDate;
+    orders.forEach((order) => {
+      // Evento Posa (expected_date)
+      if (order.expected_date && isSameDay(parseISO(order.expected_date), day)) {
+        events.push({
+          type: "posa",
+          order,
+          color: "#3B82F6", // blu
+        });
+      }
 
-      return isWithinInterval(day, { start: startDate, end: endDate });
+      // Evento Arrivo Merce (warehouse_arrival_date)
+      if (
+        order.warehouse_arrival_date &&
+        isSameDay(parseISO(order.warehouse_arrival_date), day)
+      ) {
+        events.push({
+          type: "merce",
+          order,
+          color: "#F59E0B", // arancione
+        });
+      }
     });
-  };
 
-  const getOrderColor = (order: CalendarOrder) => {
-    if (order.status?.color) {
-      return order.status.color;
-    }
-    return "#3B82F6"; // default blue
-  };
-
-  const isOrderStart = (order: CalendarOrder, day: Date) => {
-    const startDate = order.work_start_date
-      ? parseISO(order.work_start_date)
-      : order.expected_date
-      ? parseISO(order.expected_date)
-      : null;
-    return startDate && isSameDay(startDate, day);
-  };
-
-  const isOrderEnd = (order: CalendarOrder, day: Date) => {
-    const endDate = order.work_end_date
-      ? parseISO(order.work_end_date)
-      : order.work_start_date
-      ? parseISO(order.work_start_date)
-      : order.expected_date
-      ? parseISO(order.expected_date)
-      : null;
-    return endDate && isSameDay(endDate, day);
+    return events;
   };
 
   const weekDays = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
@@ -123,7 +112,7 @@ export function CalendarMonthView({
         ))}
 
         {days.map((day, dayIdx) => {
-          const dayOrders = getOrdersForDay(day);
+          const dayEvents = getEventsForDay(day);
           const isToday = isSameDay(day, new Date());
           const isCurrentMonth = isSameMonth(day, currentDate);
 
@@ -146,36 +135,27 @@ export function CalendarMonthView({
               </div>
 
               <div className="space-y-1">
-                {dayOrders.slice(0, 3).map((order) => {
-                  const isStart = isOrderStart(order, day);
-                  const isEnd = isOrderEnd(order, day);
-                  const color = getOrderColor(order);
-
-                  return (
-                    <button
-                      key={order.id}
-                      onClick={() => navigate(`/azienda/ordini/${order.id}`)}
-                      className={cn(
-                        "w-full text-left text-xs px-1.5 py-0.5 truncate text-white transition-opacity hover:opacity-80",
-                        isStart && isEnd && "rounded",
-                        isStart && !isEnd && "rounded-l",
-                        !isStart && isEnd && "rounded-r",
-                        !isStart && !isEnd && "rounded-none"
-                      )}
-                      style={{ backgroundColor: color }}
-                      title={`${order.order_code || "N/A"} - ${order.customer.first_name} ${order.customer.last_name}`}
-                    >
-                      {isStart ? (
-                        <span className="font-medium">{order.order_code || "Ordine"}</span>
-                      ) : (
-                        <span className="opacity-75">&nbsp;</span>
-                      )}
-                    </button>
-                  );
-                })}
-                {dayOrders.length > 3 && (
+                {dayEvents.slice(0, 4).map((event, eventIdx) => (
+                  <button
+                    key={`${event.order.id}-${event.type}-${eventIdx}`}
+                    onClick={() => navigate(`/azienda/ordini/${event.order.id}`)}
+                    className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate"
+                    style={{ backgroundColor: event.color }}
+                    title={`${event.order.order_code || "N/A"} - ${event.order.customer.first_name} ${event.order.customer.last_name} (${event.type === "posa" ? "Posa" : "Merce"})`}
+                  >
+                    {event.type === "posa" ? (
+                      <Hammer className="h-3 w-3 flex-shrink-0" />
+                    ) : (
+                      <Package className="h-3 w-3 flex-shrink-0" />
+                    )}
+                    <span className="truncate font-medium">
+                      {event.order.order_code || "Ordine"}
+                    </span>
+                  </button>
+                ))}
+                {dayEvents.length > 4 && (
                   <div className="text-xs text-muted-foreground text-center">
-                    +{dayOrders.length - 3} altri
+                    +{dayEvents.length - 4} altri
                   </div>
                 )}
               </div>
@@ -186,16 +166,16 @@ export function CalendarMonthView({
 
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-green-500" />
-          <span className="text-muted-foreground">Completato</span>
+          <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
+            <Hammer className="h-2.5 w-2.5 text-primary-foreground" />
+          </div>
+          <span className="text-muted-foreground">Data Posa Prevista</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-blue-500" />
-          <span className="text-muted-foreground">In corso</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-orange-500" />
-          <span className="text-muted-foreground">Futuro</span>
+          <div className="w-4 h-4 rounded bg-warning flex items-center justify-center">
+            <Package className="h-2.5 w-2.5 text-warning-foreground" />
+          </div>
+          <span className="text-muted-foreground">Arrivo Merce</span>
         </div>
       </div>
     </Card>
