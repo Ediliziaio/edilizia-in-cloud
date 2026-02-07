@@ -1,5 +1,4 @@
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useDraggable } from "@dnd-kit/core";
 import { differenceInDays, format } from "date-fns";
 import { it } from "date-fns/locale";
 import { GripVertical, FileText, User, Calendar, Building2, MoreVertical } from "lucide-react";
@@ -15,29 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-
-type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
-
-interface WarehouseItem {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity: number | null;
-  status: OrderItemStatus;
-  supplier_id: string | null;
-  purchase_price: number | null;
-  order: {
-    id: string;
-    order_code: string | null;
-    expected_date: string | null;
-    work_start_date: string | null;
-    company_id: string;
-    customer: {
-      first_name: string;
-      last_name: string;
-    };
-  };
-}
+import type { WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseKanbanCardProps {
   item: WarehouseItem;
@@ -49,15 +26,8 @@ export default function WarehouseKanbanCard({ item, supplierName }: WarehouseKan
     attributes,
     listeners,
     setNodeRef,
-    transform,
-    transition,
     isDragging,
-  } = useSortable({ id: item.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  } = useDraggable({ id: item.id });
 
   const expectedDate = item.order.expected_date || item.order.work_start_date;
   const today = new Date();
@@ -84,7 +54,6 @@ export default function WarehouseKanbanCard({ item, supplierName }: WarehouseKan
   return (
     <Card
       ref={setNodeRef}
-      style={style}
       className={cn(
         "cursor-grab active:cursor-grabbing transition-all",
         isDragging && "opacity-50 shadow-lg rotate-1",
@@ -126,43 +95,47 @@ export default function WarehouseKanbanCard({ item, supplierName }: WarehouseKan
             </Badge>
           )}
           
-          {/* Menu dettagli */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-6 w-6 shrink-0"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreVertical className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Dettagli Articolo</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {supplierName && (
+          {/* Menu dettagli - isolato dal drag context */}
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 shrink-0"
+                >
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Dettagli Articolo</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {supplierName && (
+                  <DropdownMenuItem className="cursor-default">
+                    <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
+                    {supplierName}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem className="cursor-default">
-                  <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
-                  {supplierName}
+                  <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                  {item.order.order_code || "N/A"}
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem className="cursor-default">
-                <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
-                {item.order.order_code || "N/A"}
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-default">
-                <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                {customerName}
-              </DropdownMenuItem>
-              {formattedDate && (
                 <DropdownMenuItem className="cursor-default">
-                  <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                  {formattedDate}
+                  <User className="h-4 w-4 mr-2 text-muted-foreground" />
+                  {customerName}
                 </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {formattedDate && (
+                  <DropdownMenuItem className="cursor-default">
+                    <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                    {formattedDate}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </CardContent>
     </Card>

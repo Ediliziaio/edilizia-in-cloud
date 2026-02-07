@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { differenceInDays } from "date-fns";
-import { format } from "date-fns";
+import { differenceInDays, format } from "date-fns";
 import { it } from "date-fns/locale";
 import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,31 +10,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-
-type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
-
-interface WarehouseItem {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity: number | null;
-  status: OrderItemStatus;
-  supplier_id: string | null;
-  purchase_price: number | null;
-  updated_at?: string | null;
-  order: {
-    id: string;
-    order_code: string | null;
-    expected_date: string | null;
-    work_start_date: string | null;
-    warehouse_arrival_date?: string | null;
-    company_id: string;
-    customer: {
-      first_name: string;
-      last_name: string;
-    };
-  };
-}
+import type { WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseAlert {
   type: "critical" | "warning";
@@ -117,7 +92,6 @@ export default function WarehouseAlerts({ items }: WarehouseAlertsProps) {
   if (alerts.length === 0) return null;
 
   const criticalCount = alerts.filter(a => a.type === "critical").length;
-  const warningCount = alerts.filter(a => a.type === "warning").length;
 
   const formatDate = (dateStr: string) => {
     return format(new Date(dateStr), "dd MMM", { locale: it });

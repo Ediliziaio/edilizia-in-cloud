@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -9,32 +9,9 @@ import {
   useSensors,
   closestCenter,
 } from "@dnd-kit/core";
-import { useState } from "react";
 import WarehouseKanbanColumn from "./WarehouseKanbanColumn";
 import WarehouseKanbanCard from "./WarehouseKanbanCard";
-
-type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
-
-interface WarehouseItem {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity: number | null;
-  status: OrderItemStatus;
-  supplier_id: string | null;
-  purchase_price: number | null;
-  order: {
-    id: string;
-    order_code: string | null;
-    expected_date: string | null;
-    work_start_date: string | null;
-    company_id: string;
-    customer: {
-      first_name: string;
-      last_name: string;
-    };
-  };
-}
+import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseKanbanViewProps {
   items: WarehouseItem[];

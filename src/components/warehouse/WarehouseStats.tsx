@@ -2,19 +2,7 @@ import { useMemo } from "react";
 import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
-
-interface WarehouseItem {
-  id: string;
-  name: string;
-  status: OrderItemStatus;
-  purchase_price: number | null;
-  quantity: number | null;
-  order: {
-    id: string;
-  };
-}
+import type { WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseStatsProps {
   items: WarehouseItem[];

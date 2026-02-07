@@ -6,7 +6,6 @@ import {
   endOfMonth,
   eachDayOfInterval,
   isSameMonth,
-  isSameDay,
   addMonths,
   subMonths,
   isToday,
@@ -14,10 +13,9 @@ import {
   endOfWeek,
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -25,24 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
-
-interface WarehouseItem {
-  id: string;
-  name: string;
-  status: OrderItemStatus;
-  order: {
-    id: string;
-    order_code: string | null;
-    expected_date: string | null;
-    work_start_date: string | null;
-    customer: {
-      first_name: string;
-      last_name: string;
-    };
-  };
-}
+import type { WarehouseItem } from "@/types/warehouse";
 
 interface OrderGroup {
   orderId: string;

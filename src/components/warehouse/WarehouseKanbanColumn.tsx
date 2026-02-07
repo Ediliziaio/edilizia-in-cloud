@@ -1,33 +1,10 @@
 import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import WarehouseKanbanCard from "./WarehouseKanbanCard";
-
-type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
-
-interface WarehouseItem {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity: number | null;
-  status: OrderItemStatus;
-  supplier_id: string | null;
-  purchase_price: number | null;
-  order: {
-    id: string;
-    order_code: string | null;
-    expected_date: string | null;
-    work_start_date: string | null;
-    company_id: string;
-    customer: {
-      first_name: string;
-      last_name: string;
-    };
-  };
-}
+import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseKanbanColumnProps {
   status: OrderItemStatus;
@@ -98,32 +75,27 @@ export default function WarehouseKanbanColumn({
         </Badge>
       </div>
       
-      {/* Content con più spazio */}
+      {/* Content */}
       <div 
         ref={setNodeRef}
         className="flex-1 p-3 overflow-hidden"
       >
         <ScrollArea className="h-full">
-          <SortableContext 
-            items={items.map(i => i.id)} 
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-3 pr-2">
-              {items.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  Nessun articolo
-                </div>
-              ) : (
-                items.map((item) => (
-                  <WarehouseKanbanCard
-                    key={item.id}
-                    item={item}
-                    supplierName={getSupplierName(item.supplier_id)}
-                  />
-                ))
-              )}
-            </div>
-          </SortableContext>
+          <div className="space-y-3 pr-2">
+            {items.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                Nessun articolo
+              </div>
+            ) : (
+              items.map((item) => (
+                <WarehouseKanbanCard
+                  key={item.id}
+                  item={item}
+                  supplierName={getSupplierName(item.supplier_id)}
+                />
+              ))
+            )}
+          </div>
         </ScrollArea>
       </div>
     </div>
