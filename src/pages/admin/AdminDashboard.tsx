@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,23 +10,13 @@ import {
   ClipboardList, 
   Plus, 
   Loader2, 
-  Euro,
   AlertCircle,
-  TrendingUp,
   Clock,
   MessageSquare
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
-
-interface Stats {
-  totalCompanies: number;
-  totalOrders: number;
-  totalOrdersValue: number;
-  totalCustomers: number;
-  openTickets: number;
-}
 
 interface RecentCompany {
   id: string;
@@ -39,7 +29,7 @@ interface RecentCompany {
 
 interface RecentActivity {
   id: string;
-  type: "order" | "ticket" | "company";
+  type: "order" | "ticket";
   title: string;
   subtitle: string;
   created_at: string;
@@ -57,100 +47,93 @@ const sectorLabels: Record<string, string> = {
 };
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats>({ 
-    totalCompanies: 0, 
-    totalOrders: 0, 
-    totalOrdersValue: 0,
-    totalCustomers: 0,
-    openTickets: 0,
-  });
-  const [recentCompanies, setRecentCompanies] = useState<RecentCompany[]>([]);
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Main dashboard data query with caching
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ["admin-dashboard-data"],
+    queryFn: async () => {
+      const [
+        companiesRes,
+        ordersRes,
+        customersRes,
+        ticketsRes,
+        ordersValueRes,
+        recentCompaniesRes,
+        recentOrdersRes,
+        recentTicketsRes,
+      ] = await Promise.all([
+        supabase.from("companies").select("id", { count: "exact", head: true }),
+        supabase.from("orders").select("id", { count: "exact", head: true }),
+        supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "customer"),
+        supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "risolto"),
+        supabase.from("orders").select("total_amount"),
+        supabase.from("companies").select("*").order("created_at", { ascending: false }).limit(5),
+        supabase.from("orders").select(`
+          id,
+          description,
+          created_at,
+          company:companies(name)
+        `).order("created_at", { ascending: false }).limit(5),
+        supabase.from("tickets").select(`
+          id,
+          subject,
+          created_at,
+          company:companies(name)
+        `).order("created_at", { ascending: false }).limit(5),
+      ]);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        // Fetch all stats in parallel
-        const [
-          companiesRes,
-          ordersRes,
-          customersRes,
-          ticketsRes,
-          ordersValueRes,
-          recentCompaniesRes,
-          recentOrdersRes,
-          recentTicketsRes,
-        ] = await Promise.all([
-          supabase.from("companies").select("id", { count: "exact", head: true }),
-          supabase.from("orders").select("id", { count: "exact", head: true }),
-          supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "customer"),
-          supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "risolto"),
-          supabase.from("orders").select("total_amount"),
-          supabase.from("companies").select("*").order("created_at", { ascending: false }).limit(5),
-          supabase.from("orders").select(`
-            id,
-            description,
-            created_at,
-            company:companies(name)
-          `).order("created_at", { ascending: false }).limit(5),
-          supabase.from("tickets").select(`
-            id,
-            subject,
-            created_at,
-            company:companies(name)
-          `).order("created_at", { ascending: false }).limit(5),
-        ]);
+      // Calculate total orders value
+      const totalValue = ordersValueRes.data?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
-        // Calculate total orders value
-        const totalValue = ordersValueRes.data?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+      // Combine and sort recent activity
+      const activities: RecentActivity[] = [];
+      
+      recentOrdersRes.data?.forEach((order: { id: string; description: string | null; created_at: string; company: { name: string } | null }) => {
+        activities.push({
+          id: order.id,
+          type: "order",
+          title: order.description?.substring(0, 50) || "Nuovo ordine",
+          subtitle: order.company?.name || "Azienda",
+          created_at: order.created_at,
+        });
+      });
 
-        setStats({
+      recentTicketsRes.data?.forEach((ticket: { id: string; subject: string; created_at: string; company: { name: string } | null }) => {
+        activities.push({
+          id: ticket.id,
+          type: "ticket",
+          title: ticket.subject,
+          subtitle: ticket.company?.name || "Azienda",
+          created_at: ticket.created_at,
+        });
+      });
+
+      // Sort by date and take top 8
+      activities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return {
+        stats: {
           totalCompanies: companiesRes.count || 0,
           totalOrders: ordersRes.count || 0,
           totalOrdersValue: totalValue,
           totalCustomers: customersRes.count || 0,
           openTickets: ticketsRes.count || 0,
-        });
+        },
+        recentCompanies: (recentCompaniesRes.data as RecentCompany[]) || [],
+        recentActivity: activities.slice(0, 8),
+      };
+    },
+    staleTime: 5 * 60 * 1000, // 5 minuti
+  });
 
-        setRecentCompanies(recentCompaniesRes.data as RecentCompany[] || []);
-
-        // Combine and sort recent activity
-        const activities: RecentActivity[] = [];
-        
-        recentOrdersRes.data?.forEach((order: any) => {
-          activities.push({
-            id: order.id,
-            type: "order",
-            title: order.description?.substring(0, 50) || "Nuovo ordine",
-            subtitle: order.company?.name || "Azienda",
-            created_at: order.created_at,
-          });
-        });
-
-        recentTicketsRes.data?.forEach((ticket: any) => {
-          activities.push({
-            id: ticket.id,
-            type: "ticket",
-            title: ticket.subject,
-            subtitle: ticket.company?.name || "Azienda",
-            created_at: ticket.created_at,
-          });
-        });
-
-        // Sort by date and take top 8
-        activities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setRecentActivity(activities.slice(0, 8));
-
-      } catch (error) {
-        console.error("Error fetching stats:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchData();
-  }, []);
+  const stats = dashboardData?.stats ?? { 
+    totalCompanies: 0, 
+    totalOrders: 0, 
+    totalOrdersValue: 0,
+    totalCustomers: 0,
+    openTickets: 0,
+  };
+  const recentCompanies = dashboardData?.recentCompanies ?? [];
+  const recentActivity = dashboardData?.recentActivity ?? [];
 
   const statCards = [
     {

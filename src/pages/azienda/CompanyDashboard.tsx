@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,8 +34,7 @@ interface UrgentItem {
 
 export default function CompanyDashboard() {
   const { effectiveCompany } = useAuth();
-  const company = effectiveCompany;
-  const companyId = company?.id;
+  const companyId = effectiveCompany?.id;
 
   // Main dashboard data query with caching
   const { data: dashboardData, isLoading } = useQuery({
@@ -111,6 +109,7 @@ export default function CompanyDashboard() {
 
       // Calculate pending revenue
       const pendingRevenue = pendingRevenueRes.data?.reduce((sum, order) => sum + (Number(order.balance_amount) || 0), 0) || 0;
+      const pendingOrdersCount = pendingRevenueRes.data?.filter(o => (Number(o.balance_amount) || 0) > 0).length || 0;
 
       // Calculate cash flow preview
       let thisMonthTotal = 0;
@@ -184,6 +183,7 @@ export default function CompanyDashboard() {
           totalCustomers: customersRes.count || 0,
           openTickets: ticketsRes.count || 0,
           pendingRevenue,
+          pendingOrdersCount,
         },
         recentOrders: (ordersDataRes.data as unknown as RecentOrder[]) || [],
         cashFlow: { thisMonth: thisMonthTotal, nextMonth: nextMonthTotal },
@@ -194,7 +194,7 @@ export default function CompanyDashboard() {
     staleTime: 2 * 60 * 1000, // 2 minuti
   });
 
-  const stats = dashboardData?.stats ?? { totalOrders: 0, totalCustomers: 0, openTickets: 0, pendingRevenue: 0 };
+  const stats = dashboardData?.stats ?? { totalOrders: 0, totalCustomers: 0, openTickets: 0, pendingRevenue: 0, pendingOrdersCount: 0 };
   const recentOrders = dashboardData?.recentOrders ?? [];
   const cashFlow = dashboardData?.cashFlow ?? { thisMonth: 0, nextMonth: 0 };
   const urgentItems = dashboardData?.urgentItems ?? [];
@@ -204,25 +204,33 @@ export default function CompanyDashboard() {
       title: "Ordini Totali",
       value: stats.totalOrders,
       icon: ClipboardList,
-      color: "text-primary",
+      color: "text-blue-600",
+      bgColor: "bg-blue-100",
+      description: "Gestiti dalla tua azienda",
     },
     {
       title: "Clienti",
       value: stats.totalCustomers,
       icon: Users,
-      color: "text-primary",
+      color: "text-purple-600",
+      bgColor: "bg-purple-100",
+      description: "Registrati in piattaforma",
     },
     {
       title: "Ticket Aperti",
       value: stats.openTickets,
       icon: HeadphonesIcon,
-      color: stats.openTickets > 0 ? "text-orange-500" : "text-green-500",
+      color: stats.openTickets > 0 ? "text-orange-600" : "text-green-600",
+      bgColor: stats.openTickets > 0 ? "bg-orange-100" : "bg-green-100",
+      description: stats.openTickets > 0 ? "In attesa di risposta" : "Tutto risolto!",
     },
     {
       title: "Saldi da Incassare",
       value: formatCurrency(stats.pendingRevenue),
       icon: Euro,
-      color: "text-primary",
+      color: "text-emerald-600",
+      bgColor: "bg-emerald-100",
+      description: `Da ${stats.pendingOrdersCount} ordini`,
     },
   ];
 
@@ -245,6 +253,7 @@ export default function CompanyDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
@@ -266,24 +275,29 @@ export default function CompanyDashboard() {
         </div>
       </div>
 
+      {/* Stats Grid - 4 colonne con icone colorate */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title}>
+          <Card key={stat.title} className="relative overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {stat.title}
               </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              </div>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
+              <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Recent Orders */}
+      {/* Main Content Grid - 3 colonne bilanciate */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Recent Orders - Cliccabili */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -306,16 +320,20 @@ export default function CompanyDashboard() {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {recentOrders.map((order) => (
-                  <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <div className="space-y-1">
+                  <Link
+                    key={order.id}
+                    to={`/azienda/ordini/${order.id}`}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                  >
+                    <div className="space-y-1 min-w-0 flex-1">
                       <p className="font-medium text-sm line-clamp-1">{order.description}</p>
                       <p className="text-xs text-muted-foreground">
                         {order.customer?.first_name} {order.customer?.last_name}
                       </p>
                     </div>
-                    <div className="text-right space-y-1">
+                    <div className="text-right space-y-1 ml-3 shrink-0">
                       <p className="font-medium text-sm">{formatCurrency(Number(order.total_amount))}</p>
                       {order.status && (
                         <Badge 
@@ -327,7 +345,7 @@ export default function CompanyDashboard() {
                         </Badge>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -356,14 +374,16 @@ export default function CompanyDashboard() {
                 <p className="text-sm text-muted-foreground">Questo mese</p>
                 <p className="text-2xl font-bold text-primary">{formatCurrency(cashFlow.thisMonth)}</p>
               </div>
-              <Euro className="h-8 w-8 text-primary/50" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Euro className="h-6 w-6 text-primary" />
+              </div>
             </div>
             <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
               <div>
                 <p className="text-sm text-muted-foreground">Prossimo mese</p>
                 <p className="text-xl font-semibold">{formatCurrency(cashFlow.nextMonth)}</p>
               </div>
-              <Euro className="h-6 w-6 text-muted-foreground" />
+              <Euro className="h-5 w-5 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
@@ -372,7 +392,8 @@ export default function CompanyDashboard() {
         <LaborCostsStats />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      {/* Bottom Row - 2 colonne */}
+      <div className="grid gap-6 md:grid-cols-2">
         {/* Warehouse Alerts */}
         <Card>
           <CardHeader>
@@ -426,7 +447,9 @@ export default function CompanyDashboard() {
           <CardContent className="grid gap-3">
             <Button variant="outline" className="justify-start h-auto py-3" asChild>
               <Link to="/azienda/ordini/nuovo">
-                <ClipboardList className="h-5 w-5 mr-3" />
+                <div className="p-2 rounded-lg bg-blue-100 mr-3">
+                  <ClipboardList className="h-4 w-4 text-blue-600" />
+                </div>
                 <div className="text-left">
                   <p className="font-medium">Nuovo Ordine</p>
                   <p className="text-xs text-muted-foreground">Crea un ordine per un cliente</p>
@@ -435,7 +458,9 @@ export default function CompanyDashboard() {
             </Button>
             <Button variant="outline" className="justify-start h-auto py-3" asChild>
               <Link to="/azienda/clienti/nuovo">
-                <Users className="h-5 w-5 mr-3" />
+                <div className="p-2 rounded-lg bg-purple-100 mr-3">
+                  <Users className="h-4 w-4 text-purple-600" />
+                </div>
                 <div className="text-left">
                   <p className="font-medium">Nuovo Cliente</p>
                   <p className="text-xs text-muted-foreground">Registra un nuovo cliente</p>
@@ -444,7 +469,9 @@ export default function CompanyDashboard() {
             </Button>
             <Button variant="outline" className="justify-start h-auto py-3" asChild>
               <Link to="/azienda/magazzino">
-                <Package className="h-5 w-5 mr-3" />
+                <div className="p-2 rounded-lg bg-amber-100 mr-3">
+                  <Package className="h-4 w-4 text-amber-600" />
+                </div>
                 <div className="text-left">
                   <p className="font-medium">Magazzino</p>
                   <p className="text-xs text-muted-foreground">Gestisci articoli e materiali</p>
@@ -453,10 +480,12 @@ export default function CompanyDashboard() {
             </Button>
             <Button variant="outline" className="justify-start h-auto py-3" asChild>
               <Link to="/azienda/previsionale">
-                <TrendingUp className="h-5 w-5 mr-3" />
+                <div className="p-2 rounded-lg bg-emerald-100 mr-3">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                </div>
                 <div className="text-left">
-                  <p className="font-medium">Previsionale Cassa</p>
-                  <p className="text-xs text-muted-foreground">Analizza i prossimi incassi</p>
+                  <p className="font-medium">Previsionale</p>
+                  <p className="text-xs text-muted-foreground">Visualizza il cash flow</p>
                 </div>
               </Link>
             </Button>
