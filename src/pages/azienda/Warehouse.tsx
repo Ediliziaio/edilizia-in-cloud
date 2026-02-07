@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, differenceInDays, startOfWeek, endOfWeek, addWeeks } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Warehouse as WarehouseIcon,
@@ -14,6 +14,8 @@ import {
   Calendar as CalendarIcon,
   Download,
   Printer,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -94,6 +96,7 @@ export default function Warehouse() {
   const [orderFilter, setOrderFilter] = useState<string>("all");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("order");
+  const [quickFilter, setQuickFilter] = useState<"all" | "urgent" | "thisWeek" | "nextWeek">("all");
 
   // Fetch all order items with order details
   const { data: items = [], isLoading } = useQuery({
@@ -165,6 +168,36 @@ export default function Warehouse() {
   // Filter items
   const filteredItems = useMemo(() => {
     let filtered = [...items];
+    const today = new Date();
+
+    // Quick filter
+    if (quickFilter === "urgent") {
+      filtered = filtered.filter((item) => {
+        if (item.status === "in_magazzino" || item.status === "installato") return false;
+        const expectedDate = item.order.expected_date || item.order.work_start_date;
+        if (!expectedDate) return false;
+        const daysUntil = differenceInDays(new Date(expectedDate), today);
+        return daysUntil <= 7 && daysUntil >= 0;
+      });
+    } else if (quickFilter === "thisWeek") {
+      const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+      filtered = filtered.filter((item) => {
+        const expectedDate = item.order.expected_date || item.order.work_start_date;
+        if (!expectedDate) return false;
+        const date = new Date(expectedDate);
+        return date >= weekStart && date <= weekEnd;
+      });
+    } else if (quickFilter === "nextWeek") {
+      const nextWeekStart = startOfWeek(addWeeks(today, 1), { weekStartsOn: 1 });
+      const nextWeekEnd = endOfWeek(addWeeks(today, 1), { weekStartsOn: 1 });
+      filtered = filtered.filter((item) => {
+        const expectedDate = item.order.expected_date || item.order.work_start_date;
+        if (!expectedDate) return false;
+        const date = new Date(expectedDate);
+        return date >= nextWeekStart && date <= nextWeekEnd;
+      });
+    }
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -188,7 +221,7 @@ export default function Warehouse() {
     }
 
     return filtered;
-  }, [items, searchQuery, statusFilter, orderFilter, supplierFilter]);
+  }, [items, searchQuery, statusFilter, orderFilter, supplierFilter, quickFilter]);
 
   // Group items by order (for list view)
   const filteredGroups = useMemo(() => {
@@ -309,10 +342,23 @@ export default function Warehouse() {
     setStatusFilter("all");
     setOrderFilter("all");
     setSupplierFilter("all");
+    setQuickFilter("all");
   };
 
   const hasActiveFilters =
-    searchQuery || statusFilter !== "all" || orderFilter !== "all" || supplierFilter !== "all";
+    searchQuery || statusFilter !== "all" || orderFilter !== "all" || supplierFilter !== "all" || quickFilter !== "all";
+
+  // Count urgent items
+  const urgentItemsCount = useMemo(() => {
+    const today = new Date();
+    return items.filter((item) => {
+      if (item.status === "in_magazzino" || item.status === "installato") return false;
+      const expectedDate = item.order.expected_date || item.order.work_start_date;
+      if (!expectedDate) return false;
+      const daysUntil = differenceInDays(new Date(expectedDate), today);
+      return daysUntil <= 7 && daysUntil >= 0;
+    }).length;
+  }, [items]);
 
   // Export to CSV
   const exportToCSV = () => {
@@ -446,6 +492,47 @@ export default function Warehouse() {
                   </SelectContent>
                 </Select>
               )}
+            </div>
+
+            {/* Quick filters */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={quickFilter === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setQuickFilter("all")}
+              >
+                Tutti
+              </Button>
+              <Button
+                variant={quickFilter === "urgent" ? "destructive" : "outline"}
+                size="sm"
+                onClick={() => setQuickFilter("urgent")}
+                className="gap-1"
+              >
+                <AlertTriangle className="h-4 w-4" />
+                Urgenti
+                {urgentItemsCount > 0 && (
+                  <span className="ml-1 bg-destructive-foreground text-destructive rounded-full px-1.5 py-0.5 text-xs font-bold">
+                    {urgentItemsCount}
+                  </span>
+                )}
+              </Button>
+              <Button
+                variant={quickFilter === "thisWeek" ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setQuickFilter("thisWeek")}
+                className="gap-1"
+              >
+                <Clock className="h-4 w-4" />
+                Questa settimana
+              </Button>
+              <Button
+                variant={quickFilter === "nextWeek" ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setQuickFilter("nextWeek")}
+              >
+                Prossima settimana
+              </Button>
             </div>
 
             {/* Filters */}
