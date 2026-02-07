@@ -17,6 +17,12 @@ import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Hammer, Package } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder } from "@/types/calendar";
 
@@ -101,79 +107,107 @@ export function CalendarMonthView({
         </Button>
       </div>
 
-      <div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden">
-        {weekDays.map((day) => (
-          <div
-            key={day}
-            className="bg-muted-foreground/5 p-2 text-center text-sm font-medium text-muted-foreground"
-          >
-            {day}
-          </div>
-        ))}
-
-        {days.map((day, dayIdx) => {
-          const dayEvents = getEventsForDay(day);
-          const isToday = isSameDay(day, new Date());
-          const isCurrentMonth = isSameMonth(day, currentDate);
-
-          return (
+      <TooltipProvider delayDuration={200}>
+        <div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden">
+          {weekDays.map((day) => (
             <div
-              key={dayIdx}
-              className={cn(
-                "min-h-[100px] bg-background p-1 transition-colors",
-                !isCurrentMonth && "bg-muted/50"
-              )}
+              key={day}
+              className="bg-muted-foreground/5 p-2 text-center text-sm font-medium text-muted-foreground"
             >
+              {day}
+            </div>
+          ))}
+
+          {days.map((day, dayIdx) => {
+            const dayEvents = getEventsForDay(day);
+            const isToday = isSameDay(day, new Date());
+            const isCurrentMonth = isSameMonth(day, currentDate);
+
+            return (
               <div
+                key={dayIdx}
                 className={cn(
-                  "text-sm font-medium mb-1 w-7 h-7 flex items-center justify-center rounded-full",
-                  isToday && "bg-primary text-primary-foreground",
-                  !isCurrentMonth && "text-muted-foreground"
+                  "min-h-[100px] bg-background p-1 transition-colors",
+                  !isCurrentMonth && "bg-muted/50"
                 )}
               >
-                {format(day, "d")}
-              </div>
+                <div
+                  className={cn(
+                    "text-sm font-medium mb-1 w-7 h-7 flex items-center justify-center rounded-full",
+                    isToday && "bg-primary text-primary-foreground",
+                    !isCurrentMonth && "text-muted-foreground"
+                  )}
+                >
+                  {format(day, "d")}
+                </div>
 
-              <div className="space-y-1">
-                {dayEvents.slice(0, 4).map((event, eventIdx) => (
-                  <button
-                    key={`${event.order.id}-${event.type}-${eventIdx}`}
-                    onClick={() => navigate(`/azienda/ordini/${event.order.id}`)}
-                    className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate"
-                    style={{ backgroundColor: event.color }}
-                    title={`${event.order.order_code || "N/A"} - ${event.order.customer.first_name} ${event.order.customer.last_name} (${event.type === "posa" ? "Posa" : "Merce"})`}
-                  >
-                    {event.type === "posa" ? (
-                      <Hammer className="h-3 w-3 flex-shrink-0" />
-                    ) : (
-                      <Package className="h-3 w-3 flex-shrink-0" />
-                    )}
-                    <span className="truncate font-medium">
-                      {event.order.order_code || "Ordine"}
-                    </span>
-                  </button>
-                ))}
-                {dayEvents.length > 4 && (
-                  <div className="text-xs text-muted-foreground text-center">
-                    +{dayEvents.length - 4} altri
-                  </div>
-                )}
+                <div className="space-y-1">
+                  {dayEvents.slice(0, 4).map((event, eventIdx) => (
+                    <Tooltip key={`${event.order.id}-${event.type}-${eventIdx}`}>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => navigate(`/azienda/ordini/${event.order.id}`)}
+                          className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate"
+                          style={{ backgroundColor: event.color }}
+                        >
+                          {event.type === "posa" ? (
+                            <Hammer className="h-3 w-3 flex-shrink-0" />
+                          ) : (
+                            <Package className="h-3 w-3 flex-shrink-0" />
+                          )}
+                          <span className="truncate font-medium">
+                            {event.order.order_code || "Ordine"} - {event.order.customer.last_name}
+                          </span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs">
+                        <div className="space-y-1">
+                          <p className="font-semibold">
+                            {event.order.order_code || "N/A"} - {event.type === "posa" ? "Data Posa" : "Arrivo Merce"}
+                          </p>
+                          <p className="text-sm">
+                            {event.order.customer.first_name} {event.order.customer.last_name}
+                          </p>
+                          {event.order.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {event.order.description}
+                            </p>
+                          )}
+                          {event.order.status && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <div 
+                                className="w-2 h-2 rounded-full" 
+                                style={{ backgroundColor: event.order.status.color }}
+                              />
+                              <span className="text-xs">{event.order.status.name}</span>
+                            </div>
+                          )}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                  {dayEvents.length > 4 && (
+                    <div className="text-xs text-muted-foreground text-center">
+                      +{dayEvents.length - 4} altri
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </TooltipProvider>
 
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
-            <Hammer className="h-2.5 w-2.5 text-primary-foreground" />
+          <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center">
+            <Hammer className="h-2.5 w-2.5 text-white" />
           </div>
           <span className="text-muted-foreground">Data Posa Prevista</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-warning flex items-center justify-center">
-            <Package className="h-2.5 w-2.5 text-warning-foreground" />
+          <div className="w-4 h-4 rounded bg-amber-500 flex items-center justify-center">
+            <Package className="h-2.5 w-2.5 text-white" />
           </div>
           <span className="text-muted-foreground">Arrivo Merce</span>
         </div>
