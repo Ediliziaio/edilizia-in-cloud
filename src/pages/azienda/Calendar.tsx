@@ -39,6 +39,7 @@ export default function Calendar() {
           expected_date,
           work_start_date,
           work_end_date,
+          warehouse_arrival_date,
           created_at,
           customer_id,
           current_status_id,
