@@ -47,8 +47,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 import { formatCurrency } from "@/lib/formatters";
+import { ChevronDown } from "lucide-react";
 
 interface ExpectedPayment {
   orderId: string;
@@ -95,6 +108,7 @@ export default function CashFlowForecast() {
   const companyId = effectiveCompany?.id;
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [activeTab, setActiveTab] = useState<"all" | "income" | "expenses">("all");
+  const [supplierFilter, setSupplierFilter] = useState<string>("all");
 
   // Query ordini con pagamenti non incassati
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
@@ -167,22 +181,42 @@ export default function CashFlowForecast() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Calcola costi materiali
+  // Estrai lista fornitori unici
+  const suppliers = useMemo(() => {
+    const supplierMap = new Map<string, string>();
+    pendingItems.forEach((item: any) => {
+      if (item.supplier?.name) {
+        supplierMap.set(item.supplier_id || item.supplier.name, item.supplier.name);
+      }
+    });
+    return Array.from(supplierMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [pendingItems]);
+
+  // Filtra articoli per fornitore
+  const filteredPendingItems = useMemo(() => {
+    if (supplierFilter === "all") return pendingItems;
+    if (supplierFilter === "no-supplier") return pendingItems.filter((i: any) => !i.supplier);
+    return pendingItems.filter((i: any) => i.supplier?.name === supplierFilter);
+  }, [pendingItems, supplierFilter]);
+
+  // Calcola costi materiali (filtrati)
   const materialCosts = useMemo(() => {
-    const daOrdinare = pendingItems.filter((i: any) => i.status === "da_ordinare");
-    const ordinati = pendingItems.filter((i: any) => i.status === "ordinato");
+    const daOrdinare = filteredPendingItems.filter((i: any) => i.status === "da_ordinare");
+    const ordinati = filteredPendingItems.filter((i: any) => i.status === "ordinato");
     
     return {
       toOrder: {
         count: daOrdinare.length,
         total: daOrdinare.reduce((sum: number, i: any) => sum + (i.purchase_price || 0) * (i.quantity || 1), 0),
+        items: daOrdinare,
       },
       ordered: {
         count: ordinati.length,
         total: ordinati.reduce((sum: number, i: any) => sum + (i.purchase_price || 0) * (i.quantity || 1), 0),
+        items: ordinati,
       },
     };
-  }, [pendingItems]);
+  }, [filteredPendingItems]);
 
   const isLoading = loadingOrders || loadingTeams || loadingItems;
 
@@ -506,44 +540,106 @@ export default function CashFlowForecast() {
       </div>
 
       {/* Sezione Costi Materiali */}
-      {(materialCosts.toOrder.count > 0 || materialCosts.ordered.count > 0) && (
+      {(pendingItems.length > 0) && (
         <Card className="border-orange-200 bg-orange-50/50 dark:bg-orange-900/10 dark:border-orange-800">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-orange-600" />
-              Uscite Materiali Previste
-            </CardTitle>
-            <CardDescription>
-              Costi articoli da acquistare o già ordinati
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-orange-600" />
+                  Uscite Materiali Previste
+                </CardTitle>
+                <CardDescription>
+                  Costi articoli da acquistare o già ordinati
+                </CardDescription>
+              </div>
+              <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                <SelectTrigger className="w-[200px] bg-background">
+                  <SelectValue placeholder="Filtra per fornitore" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i fornitori</SelectItem>
+                  <SelectItem value="no-supplier">Senza fornitore</SelectItem>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.name}>
+                      {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="p-4 rounded-lg bg-background border">
-                <div className="flex items-center gap-2 mb-2">
-                  <ShoppingCart className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm font-medium">Da Ordinare</span>
+              <Collapsible>
+                <div className="p-4 rounded-lg bg-background border">
+                  <CollapsibleTrigger className="w-full">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ShoppingCart className="h-4 w-4 text-orange-600" />
+                        <span className="text-sm font-medium">Da Ordinare</span>
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                    </div>
+                  </CollapsibleTrigger>
+                  <p className="text-2xl font-bold text-orange-600 mt-2">
+                    {formatCurrency(materialCosts.toOrder.total)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {materialCosts.toOrder.count} articoli
+                  </p>
+                  <CollapsibleContent className="mt-3 pt-3 border-t space-y-1">
+                    {materialCosts.toOrder.items.slice(0, 5).map((item: any) => (
+                      <div key={item.id} className="flex justify-between text-sm">
+                        <span className="truncate mr-2">{item.name}</span>
+                        <span className="text-muted-foreground whitespace-nowrap">
+                          {formatCurrency((item.purchase_price || 0) * (item.quantity || 1))}
+                        </span>
+                      </div>
+                    ))}
+                    {materialCosts.toOrder.count > 5 && (
+                      <p className="text-xs text-muted-foreground pt-1">
+                        +{materialCosts.toOrder.count - 5} altri articoli
+                      </p>
+                    )}
+                  </CollapsibleContent>
                 </div>
-                <p className="text-2xl font-bold text-orange-600">
-                  {formatCurrency(materialCosts.toOrder.total)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {materialCosts.toOrder.count} articoli
-                </p>
-              </div>
+              </Collapsible>
               
-              <div className="p-4 rounded-lg bg-background border">
-                <div className="flex items-center gap-2 mb-2">
-                  <Package className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium">Ordinati (in arrivo)</span>
+              <Collapsible>
+                <div className="p-4 rounded-lg bg-background border">
+                  <CollapsibleTrigger className="w-full">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Package className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-medium">Ordinati (in arrivo)</span>
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                    </div>
+                  </CollapsibleTrigger>
+                  <p className="text-2xl font-bold text-blue-600 mt-2">
+                    {formatCurrency(materialCosts.ordered.total)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {materialCosts.ordered.count} articoli
+                  </p>
+                  <CollapsibleContent className="mt-3 pt-3 border-t space-y-1">
+                    {materialCosts.ordered.items.slice(0, 5).map((item: any) => (
+                      <div key={item.id} className="flex justify-between text-sm">
+                        <span className="truncate mr-2">{item.name}</span>
+                        <span className="text-muted-foreground whitespace-nowrap">
+                          {formatCurrency((item.purchase_price || 0) * (item.quantity || 1))}
+                        </span>
+                      </div>
+                    ))}
+                    {materialCosts.ordered.count > 5 && (
+                      <p className="text-xs text-muted-foreground pt-1">
+                        +{materialCosts.ordered.count - 5} altri articoli
+                      </p>
+                    )}
+                  </CollapsibleContent>
                 </div>
-                <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(materialCosts.ordered.total)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {materialCosts.ordered.count} articoli
-                </p>
-              </div>
+              </Collapsible>
               
               <div className="p-4 rounded-lg bg-background border-2 border-orange-300 dark:border-orange-700">
                 <div className="flex items-center gap-2 mb-2">
@@ -556,6 +652,11 @@ export default function CashFlowForecast() {
                 <p className="text-xs text-muted-foreground">
                   {materialCosts.toOrder.count + materialCosts.ordered.count} articoli totali
                 </p>
+                {supplierFilter !== "all" && (
+                  <Badge variant="outline" className="mt-2 text-xs">
+                    Filtro: {supplierFilter === "no-supplier" ? "Senza fornitore" : supplierFilter}
+                  </Badge>
+                )}
               </div>
             </div>
           </CardContent>
