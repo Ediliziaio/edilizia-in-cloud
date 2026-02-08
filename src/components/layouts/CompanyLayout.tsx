@@ -14,7 +14,6 @@ import {
   Warehouse,
   CalendarDays,
   HardHat,
-  UserCog,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -48,7 +47,6 @@ const allNavItems: NavItem[] = [
   { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar" },
   { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers" },
   { title: "Dipendenti", url: "/azienda/dipendenti", icon: HardHat, permissionKey: "canViewEmployees" },
-  { title: "Utenti", url: "/azienda/utenti", icon: UserCog, permissionKey: "canViewUsers" },
   { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon, permissionKey: "canViewTickets" },
   { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast" },
   { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings, permissionKey: "canViewSettings" },
