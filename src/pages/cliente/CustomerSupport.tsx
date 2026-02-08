@@ -62,6 +62,7 @@ export default function CustomerSupport() {
       return data as Ticket[];
     },
     enabled: !!user,
+    staleTime: 2 * 60 * 1000, // 2 minuti
   });
 
   const filteredTickets = tickets.filter((ticket) => {
