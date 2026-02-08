@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Building2, Plus, Pencil, Trash2, Phone, Mail } from "lucide-react";
+import { Users, Building2, Plus, Pencil, Trash2, Phone, Mail, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmployeeDialog, EmployeeFormData } from "@/components/employees/EmployeeDialog";
 import { ExternalTeamDialog, ExternalTeamFormData } from "@/components/employees/ExternalTeamDialog";
+import { EmployeeAttachments } from "@/components/employees/EmployeeAttachments";
+import { ExternalTeamAttachments } from "@/components/employees/ExternalTeamAttachments";
 
 interface Employee {
   id: string;
@@ -65,6 +67,8 @@ export default function Employees() {
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [editingTeam, setEditingTeam] = useState<ExternalTeam | null>(null);
+  const [attachmentsEmployee, setAttachmentsEmployee] = useState<Employee | null>(null);
+  const [attachmentsTeam, setAttachmentsTeam] = useState<ExternalTeam | null>(null);
 
   // Fetch employees
   const { data: employees = [], isLoading: loadingEmployees } = useQuery({
@@ -383,13 +387,22 @@ export default function Employees() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={() => setAttachmentsEmployee(employee)}
+                              title="Documenti"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => handleEditEmployee(employee)}
+                              title="Modifica"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon">
+                                <Button variant="ghost" size="icon" title="Elimina">
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                               </AlertDialogTrigger>
@@ -496,13 +509,22 @@ export default function Employees() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={() => setAttachmentsTeam(team)}
+                              title="Documenti"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => handleEditTeam(team)}
+                              title="Modifica"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon">
+                                <Button variant="ghost" size="icon" title="Elimina">
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                               </AlertDialogTrigger>
@@ -560,6 +582,28 @@ export default function Employees() {
         onSave={handleSaveTeam}
         isSaving={saveTeamMutation.isPending}
       />
+
+      {/* Employee Attachments Dialog */}
+      {attachmentsEmployee && (
+        <EmployeeAttachments
+          employee={attachmentsEmployee}
+          open={!!attachmentsEmployee}
+          onOpenChange={(open) => {
+            if (!open) setAttachmentsEmployee(null);
+          }}
+        />
+      )}
+
+      {/* External Team Attachments Dialog */}
+      {attachmentsTeam && (
+        <ExternalTeamAttachments
+          team={attachmentsTeam}
+          open={!!attachmentsTeam}
+          onOpenChange={(open) => {
+            if (!open) setAttachmentsTeam(null);
+          }}
+        />
+      )}
     </div>
   );
 }

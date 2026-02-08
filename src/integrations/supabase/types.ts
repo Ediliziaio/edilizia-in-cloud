@@ -73,6 +73,56 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_attachments: {
+        Row: {
+          created_at: string
+          document_type: string | null
+          employee_id: string
+          expiry_date: string | null
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id: string
+          notes: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          document_type?: string | null
+          employee_id: string
+          expiry_date?: string | null
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id?: string
+          notes?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          document_type?: string | null
+          employee_id?: string
+          expiry_date?: string | null
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          file_url?: string
+          id?: string
+          notes?: string | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_attachments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           company_id: string
@@ -122,6 +172,56 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_team_attachments: {
+        Row: {
+          created_at: string
+          document_type: string | null
+          expiry_date: string | null
+          external_team_id: string
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id: string
+          notes: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          document_type?: string | null
+          expiry_date?: string | null
+          external_team_id: string
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id?: string
+          notes?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          document_type?: string | null
+          expiry_date?: string | null
+          external_team_id?: string
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          file_url?: string
+          id?: string
+          notes?: string | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_team_attachments_external_team_id_fkey"
+            columns: ["external_team_id"]
+            isOneToOne: false
+            referencedRelation: "external_teams"
             referencedColumns: ["id"]
           },
         ]
