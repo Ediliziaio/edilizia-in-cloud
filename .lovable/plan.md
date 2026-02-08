@@ -1,49 +1,80 @@
 
 
-# Piano: Verifica Sistema Venditore e Pulizia Codice
+# Piano: Rimuovere "Utenti" dalla Sidebar
 
-## Stato Attuale (Verificato)
+## Panoramica
 
-La pagina "I Miei Ordini" **è già presente nella navigazione** del venditore:
-
-| Elemento | Stato | Posizione |
-|----------|-------|-----------|
-| Link "I Miei Ordini" | Presente | SalespersonLayout.tsx, linea 9 |
-| Rotta `/venditore/ordini` | Configurata | App.tsx, linea 178 |
-| Pagina MyOrders.tsx | Implementata | Completa con tabella ordini |
-| Redirect venditore | Attivo | RoleBasedRedirect, linea 89-90 |
+Questo piano rimuove la voce "Utenti" dalla sidebar aziendale, consolidando la gestione utenti esclusivamente nella pagina Impostazioni dove è già disponibile come tab dedicato.
 
 ---
 
-## Miglioramenti Proposti
+## Stato Attuale
 
-### 1. Miglioramento Active State Navigation
+| Elemento | Posizione | Stato |
+|----------|-----------|-------|
+| Voce "Utenti" nella sidebar | `CompanyLayout.tsx`, linea 51 | Da rimuovere |
+| Pagina `CompanyUsers.tsx` | `src/pages/azienda/CompanyUsers.tsx` | Può rimanere (backup) |
+| Rotta `/azienda/utenti` | `App.tsx`, linea 128 | Da rimuovere |
+| Tab "Utenti" in Impostazioni | `Settings.tsx`, linea 47-49 | Già presente e funzionante |
+| Componente `UsersConfig` | `src/components/settings/UsersConfig.tsx` | Già in uso |
 
-Attualmente il check di active state è basato su uguaglianza esatta (`location.pathname === item.href`). 
-Migliorare per gestire anche sottopagine future.
+---
 
-```typescript
-// Da:
-const isActive = location.pathname === item.href;
+## Modifiche da Effettuare
 
-// A:
-const isActive = item.href === "/venditore" 
-  ? location.pathname === item.href 
-  : location.pathname.startsWith(item.href);
-```
+### 1. CompanyLayout.tsx
 
-### 2. Aggiunta Hover States su Mobile
-
-Nella navigazione mobile manca l'hover state per feedback visivo.
+Rimuovere la voce "Utenti" dall'array `allNavItems`:
 
 ```typescript
-// Aggiungere:
-"hover:bg-accent hover:text-accent-foreground"
+// RIMUOVERE questa linea:
+{ title: "Utenti", url: "/azienda/utenti", icon: UserCog, permissionKey: "canViewUsers" },
 ```
 
-### 3. Pulizia Import Inutilizzati
+Rimuovere anche l'import `UserCog` da lucide-react se non usato altrove.
 
-Verificare e rimuovere import non utilizzati nei file del venditore.
+### 2. App.tsx
+
+Rimuovere la rotta dedicata agli utenti:
+
+```typescript
+// RIMUOVERE questa linea:
+<Route path="utenti" element={<CompanyUsers />} />
+```
+
+Rimuovere l'import `CompanyUsers` se non usato altrove.
+
+---
+
+## Risultato Atteso
+
+| Prima | Dopo |
+|-------|------|
+| Sidebar ha 10 voci | Sidebar ha 9 voci |
+| Utenti accessibili da sidebar | Utenti accessibili solo da Impostazioni > Utenti |
+| Due modi per accedere alla gestione utenti | Un solo punto di accesso centralizzato |
+
+---
+
+## Flusso Utente Dopo le Modifiche
+
+```text
+1. Admin naviga a Impostazioni
+2. Seleziona tab "Utenti"  
+3. Gestisce utenti staff (crea, modifica permessi, elimina)
+```
+
+---
+
+## Verifica
+
+Test da eseguire:
+
+1. Verificare che "Utenti" non appaia più nella sidebar
+2. Verificare che Impostazioni > Utenti funzioni correttamente
+3. Verificare che si possano creare nuovi utenti staff
+4. Verificare che si possano gestire i permessi
+5. Verificare che la navigazione diretta a `/azienda/utenti` mostri 404
 
 ---
 
@@ -51,31 +82,12 @@ Verificare e rimuovere import non utilizzati nei file del venditore.
 
 | File | Modifica |
 |------|----------|
-| `src/components/layouts/SalespersonLayout.tsx` | Migliorare active state e hover mobile |
+| `src/components/layouts/CompanyLayout.tsx` | Rimuovere voce "Utenti" e import `UserCog` |
+| `src/App.tsx` | Rimuovere rotta `/azienda/utenti` e import `CompanyUsers` |
 
 ---
 
-## Verifica Funzionale
+## Nota sulla Pulizia
 
-Test da eseguire:
-
-1. Login come venditore -> Verifica redirect a `/venditore`
-2. Click su "I Miei Ordini" -> Verifica caricamento pagina
-3. Verifica highlight corretto nella navbar
-4. Test su mobile per scrollabilita navigazione
-
----
-
-## Output Atteso
-
-- Active state piu robusto per navigazione
-- Feedback hover consistente tra desktop e mobile
-- Console pulita senza errori
-
----
-
-## Nota
-
-La funzionalita richiesta (pagina "I Miei Ordini" nella sidebar venditore) **e gia implementata e funzionante**. 
-Questo piano si concentra solo su piccoli miglioramenti UX per rendere l'esperienza piu fluida.
+Il file `CompanyUsers.tsx` può essere mantenuto nel codebase come backup, oppure rimosso se preferisci una pulizia completa. La funzionalità è completamente replicata in `UsersConfig.tsx` che è già usato nelle Impostazioni.
 
