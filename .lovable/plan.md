@@ -1,381 +1,451 @@
 
-# Piano: Gestione Documenti per Dipendenti e Squadre Esterne
+# Piano: Gestione Utenti Aziendali con Permessi Granulari
 
 ## Panoramica
 
-Implementazione della possibilita di caricare e gestire documenti sia per i dipendenti interni che per le squadre esterne. Questo permette di archiviare documenti come:
-- Contratti di lavoro
-- Documenti di identita
-- Certificazioni
-- Patenti
-- Visure camerali (per squadre esterne)
-- Polizze assicurative
-- Altri documenti aziendali
+Implementazione di un sistema che permette all'Admin aziendale di creare utenti interni all'azienda (es. magazziniere, commerciale, operaio) con accessi specifici alle diverse sezioni del gestionale.
 
 ---
 
-## 1. Modifiche Database
+## 1. Nuovo Ruolo: `company_staff`
 
-### 1.1 Nuova Tabella `employee_attachments`
-
-Archivia i documenti dei dipendenti interni:
+Aggiungere un nuovo ruolo all'enum `app_role` per gli utenti staff dell'azienda:
 
 ```sql
-CREATE TABLE employee_attachments (
+ALTER TYPE app_role ADD VALUE 'company_staff';
+```
+
+Gerarchia ruoli:
+- `super_admin` - Accesso totale a tutte le aziende
+- `company_admin` - Accesso totale alla propria azienda
+- `company_staff` - Accesso limitato alle sezioni autorizzate (NUOVO)
+- `customer` - Solo area cliente
+
+---
+
+## 2. Nuova Tabella: `staff_permissions`
+
+Tabella per gestire i permessi granulari per ogni utente staff:
+
+```sql
+CREATE TABLE staff_permissions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  employee_id uuid NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-  file_name text NOT NULL,
-  file_url text NOT NULL,
-  file_type text NOT NULL,
-  file_size integer NOT NULL,
-  document_type text,  -- es. "contratto", "documento_identita", "certificazione"
-  expiry_date date,    -- per documenti con scadenza
-  notes text,
-  uploaded_by uuid NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  
+  -- Permessi per sezione (true = accesso consentito)
+  can_view_dashboard boolean DEFAULT false,
+  can_view_orders boolean DEFAULT false,
+  can_edit_orders boolean DEFAULT false,
+  can_view_warehouse boolean DEFAULT false,
+  can_edit_warehouse boolean DEFAULT false,
+  can_view_calendar boolean DEFAULT false,
+  can_view_customers boolean DEFAULT false,
+  can_edit_customers boolean DEFAULT false,
+  can_view_employees boolean DEFAULT false,
+  can_view_tickets boolean DEFAULT false,
+  can_edit_tickets boolean DEFAULT false,
+  can_view_forecast boolean DEFAULT false,
+  can_view_settings boolean DEFAULT false,
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  
+  UNIQUE(user_id, company_id)
 );
 ```
 
-### 1.2 Nuova Tabella `external_team_attachments`
+---
 
-Archivia i documenti delle squadre esterne:
+## 3. Sezioni e Permessi Disponibili
 
-```sql
-CREATE TABLE external_team_attachments (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  external_team_id uuid NOT NULL REFERENCES external_teams(id) ON DELETE CASCADE,
-  file_name text NOT NULL,
-  file_url text NOT NULL,
-  file_type text NOT NULL,
-  file_size integer NOT NULL,
-  document_type text,  -- es. "visura_camerale", "polizza", "durc"
-  expiry_date date,    -- per documenti con scadenza
-  notes text,
-  uploaded_by uuid NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+| Sezione | Permesso View | Permesso Edit | Descrizione |
+|---------|---------------|---------------|-------------|
+| Dashboard | `can_view_dashboard` | - | Visualizza statistiche |
+| Ordini | `can_view_orders` | `can_edit_orders` | Lista/dettaglio ordini |
+| Magazzino | `can_view_warehouse` | `can_edit_warehouse` | Gestione articoli |
+| Calendario | `can_view_calendar` | - | Visualizza programmazione |
+| Clienti | `can_view_customers` | `can_edit_customers` | Anagrafica clienti |
+| Dipendenti | `can_view_employees` | - | Solo visualizzazione |
+| Assistenza | `can_view_tickets` | `can_edit_tickets` | Ticket supporto |
+| Previsionale | `can_view_forecast` | - | Cash flow |
+| Impostazioni | `can_view_settings` | - | Solo admin |
+
+---
+
+## 4. Interfaccia Utente
+
+### 4.1 Nuova Pagina: Gestione Utenti
+
+URL: `/azienda/utenti`
+
+```
+Utenti Aziendali
+Gestisci gli accessi del tuo team
+                                              [+ Nuovo Utente]
++------------+---------------+----------------+--------+--------+
+| Nome       | Email         | Permessi       | Stato  | Azioni |
++------------+---------------+----------------+--------+--------+
+| Mario      | mario@...     | Magazzino,     | Attivo | [Perm] |
+| Rossi      |               | Ordini         |        | [Mod]  |
+|            |               |                |        | [Elim] |
++------------+---------------+----------------+--------+--------+
+| Luca       | luca@...      | Solo Calendario| Attivo | [Perm] |
+| Bianchi    |               |                |        | [Mod]  |
+|            |               |                |        | [Elim] |
++------------+---------------+----------------+--------+--------+
 ```
 
-### 1.3 Politiche RLS
+### 4.2 Dialog Creazione Utente
 
-```sql
--- Employee Attachments
-CREATE POLICY "Company admins can manage their employee attachments"
-  ON employee_attachments FOR ALL
-  USING (
-    has_role(auth.uid(), 'company_admin') AND
-    EXISTS (
-      SELECT 1 FROM employees e 
-      WHERE e.id = employee_attachments.employee_id 
-      AND e.company_id = get_user_company_id(auth.uid())
-    )
-  );
+```
++--------------------------------------------+
+|          Nuovo Utente Aziendale            |
++--------------------------------------------+
+| Nome *                                     |
+| [_____________________________________]    |
+|                                            |
+| Cognome *                                  |
+| [_____________________________________]    |
+|                                            |
+| Email *                                    |
+| [_____________________________________]    |
+|                                            |
+|                    [Annulla] [Crea Utente] |
++--------------------------------------------+
+```
 
--- External Team Attachments
-CREATE POLICY "Company admins can manage their external team attachments"
-  ON external_team_attachments FOR ALL
-  USING (
-    has_role(auth.uid(), 'company_admin') AND
-    EXISTS (
-      SELECT 1 FROM external_teams t 
-      WHERE t.id = external_team_attachments.external_team_id 
-      AND t.company_id = get_user_company_id(auth.uid())
-    )
-  );
+### 4.3 Dialog Permessi
+
+```
++--------------------------------------------+
+|    Permessi - Mario Rossi                  |
++--------------------------------------------+
+| Seleziona le sezioni a cui puo accedere:   |
+|                                            |
+|  [ ] Dashboard                             |
+|  [x] Ordini                                |
+|      [x] Puo modificare                    |
+|  [x] Magazzino                             |
+|      [x] Puo modificare                    |
+|  [ ] Calendario                            |
+|  [ ] Clienti                               |
+|  [ ] Dipendenti                            |
+|  [ ] Assistenza                            |
+|  [ ] Previsionale                          |
+|                                            |
+|                    [Annulla] [Salva]       |
++--------------------------------------------+
 ```
 
 ---
 
-## 2. Storage
+## 5. Logica Frontend
 
-Utilizzo del bucket esistente `order-attachments` (che e gia pubblico) oppure creazione di un nuovo bucket dedicato `personnel-attachments`.
-
-Struttura dei file:
-```
-personnel-attachments/
-├── employees/
-│   └── {employee_id}/
-│       └── {timestamp}-{filename}
-└── external-teams/
-    └── {team_id}/
-        └── {timestamp}-{filename}
-```
-
----
-
-## 3. Interfaccia Utente
-
-### 3.1 Nuovo Approccio: Pagina Dettaglio Dipendente/Squadra
-
-Invece di mostrare i documenti nella tabella principale, aggiungo un pulsante "Documenti" che apre una sezione dedicata o un dialog espandibile.
-
-### Layout Proposto - Tab Dipendenti
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Dipendenti Interni (5)                            [+ Nuovo]    │
-├───────────┬───────────┬──────────┬──────────┬─────────┬────────┤
-│ Nome      │ Contatti  │ Stipendio│ Costo/h  │ Stato   │ Azioni │
-├───────────┼───────────┼──────────┼──────────┼─────────┼────────┤
-│ Mario     │ mario@... │ € 2.500  │ € 15,62/h│ Attivo  │ [📄][✏️][🗑️]
-│ Rossi     │           │          │          │         │         │
-├───────────┼───────────┼──────────┼──────────┼─────────┼────────┤
-│ Luigi     │ luigi@... │ € 2.200  │ € 13,75/h│ Attivo  │ [📄][✏️][🗑️]
-│ Bianchi   │           │          │          │         │         │
-└───────────┴───────────┴──────────┴──────────┴─────────┴────────┘
-
-[📄] = Pulsante per aprire i documenti
-```
-
-### 3.2 Dialog Documenti
-
-Cliccando su [📄] si apre un dialog simile a quello degli allegati ordine:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ 📄 Documenti - Mario Rossi                                      │
-│ Gestisci i documenti del dipendente                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                              [+ Carica File]    │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│ ┌───────────────────────────────────────────────────────────┐  │
-│ │ 📄 Contratto_lavoro.pdf                        1.2 MB     │  │
-│ │    Tipo: Contratto  |  Scadenza: --                       │  │
-│ │                                           [📥] [🗑️]       │  │
-│ └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│ ┌───────────────────────────────────────────────────────────┐  │
-│ │ 🖼️ Documento_identita.jpg                     450 KB      │  │
-│ │    Tipo: Documento Identita  |  Scadenza: 15/03/2028      │  │
-│ │                                           [📥] [🗑️]       │  │
-│ └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│ ┌───────────────────────────────────────────────────────────┐  │
-│ │ 📄 Patente_guida.pdf                          300 KB      │  │
-│ │    Tipo: Patente  |  Scadenza: 20/06/2030                 │  │
-│ │                                           [📥] [🗑️]       │  │
-│ └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### 3.3 Form Upload
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Carica Documento                                                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│ Tipo Documento                                                  │
-│ [▼ Contratto                                               ]    │
-│     ├─ Contratto                                                │
-│     ├─ Documento Identita                                       │
-│     ├─ Patente                                                  │
-│     ├─ Certificazione                                           │
-│     └─ Altro                                                    │
-│                                                                 │
-│ Data Scadenza (opzionale)                                       │
-│ [📅 Seleziona data________________________]                     │
-│                                                                 │
-│ Note (opzionale)                                                │
-│ [________________________________]                              │
-│                                                                 │
-│ ┌───────────────────────────────────────────────────────────┐  │
-│ │                                                           │  │
-│ │        [📎 Clicca per selezionare un file]               │  │
-│ │           o trascinalo qui                                │  │
-│ │                                                           │  │
-│ │        PDF, Word, Excel, immagini. Max 10MB              │  │
-│ └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│                              [Annulla] [Carica]                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 4. Tipi di Documento Predefiniti
-
-### Dipendenti
-
-| Valore | Label |
-|--------|-------|
-| `contratto` | Contratto di Lavoro |
-| `documento_identita` | Documento di Identita |
-| `patente` | Patente di Guida |
-| `certificazione` | Certificazione |
-| `attestato` | Attestato Formazione |
-| `altro` | Altro |
-
-### Squadre Esterne
-
-| Valore | Label |
-|--------|-------|
-| `visura_camerale` | Visura Camerale |
-| `durc` | DURC |
-| `polizza` | Polizza Assicurativa |
-| `contratto` | Contratto |
-| `fattura` | Fattura |
-| `altro` | Altro |
-
----
-
-## 5. File da Creare/Modificare
-
-| File | Operazione | Descrizione |
-|------|------------|-------------|
-| `supabase/migrations/xxx.sql` | Creare | Nuove tabelle + bucket storage |
-| `src/components/employees/EmployeeAttachments.tsx` | Creare | Componente gestione documenti dipendente |
-| `src/components/employees/ExternalTeamAttachments.tsx` | Creare | Componente gestione documenti squadra |
-| `src/pages/azienda/Employees.tsx` | Modificare | Aggiungere pulsante documenti nella tabella |
-| `src/lib/documentTypes.ts` | Creare | Costanti per tipi documento |
-
----
-
-## Sezione Tecnica
-
-### Struttura Componente EmployeeAttachments
+### 5.1 Hook `usePermissions`
 
 ```typescript
-interface EmployeeAttachment {
-  id: string;
-  employee_id: string;
-  file_name: string;
-  file_url: string;
-  file_type: string;
-  file_size: number;
-  document_type: string | null;
-  expiry_date: string | null;
-  notes: string | null;
-  created_at: string;
+// src/hooks/usePermissions.ts
+
+interface Permissions {
+  canViewDashboard: boolean;
+  canViewOrders: boolean;
+  canEditOrders: boolean;
+  canViewWarehouse: boolean;
+  canEditWarehouse: boolean;
+  canViewCalendar: boolean;
+  canViewCustomers: boolean;
+  canEditCustomers: boolean;
+  canViewEmployees: boolean;
+  canViewTickets: boolean;
+  canEditTickets: boolean;
+  canViewForecast: boolean;
+  canViewSettings: boolean;
+  isAdmin: boolean; // company_admin o super_admin = tutto
 }
 
-interface EmployeeAttachmentsProps {
-  employee: {
-    id: string;
-    first_name: string;
-    last_name: string;
-  };
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+export function usePermissions(): Permissions {
+  const { role, user } = useAuth();
+  
+  // Admin ha tutti i permessi
+  if (role === "super_admin" || role === "company_admin") {
+    return {
+      canViewDashboard: true,
+      canViewOrders: true,
+      // ... tutti true
+      isAdmin: true,
+    };
+  }
+  
+  // Staff: carica permessi dal database
+  // ...
 }
 ```
 
-### Query per Fetch Documenti
+### 5.2 Menu Dinamico
+
+Il menu laterale mostrera solo le voci a cui l'utente ha accesso:
 
 ```typescript
-const { data: attachments } = useQuery({
-  queryKey: ["employee-attachments", employeeId],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("employee_attachments")
-      .select("*")
-      .eq("employee_id", employeeId)
-      .order("created_at", { ascending: false });
-    
-    if (error) throw error;
-    return data;
-  },
+// CompanyLayout.tsx
+const { permissions } = usePermissions();
+
+const visibleNavItems = navItems.filter(item => {
+  if (item.url === "/azienda") return permissions.canViewDashboard;
+  if (item.url === "/azienda/ordini") return permissions.canViewOrders;
+  if (item.url === "/azienda/magazzino") return permissions.canViewWarehouse;
+  // ...
+  return false;
 });
 ```
 
-### Upload File
+### 5.3 Protezione Route
 
 ```typescript
-const handleUpload = async (file: File, documentType: string, expiryDate?: Date) => {
-  const timestamp = Date.now();
-  const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-  const filePath = `employees/${employeeId}/${timestamp}-${sanitizedName}`;
-
-  // Upload to storage
-  await supabase.storage
-    .from("personnel-attachments")
-    .upload(filePath, file);
-
-  // Get public URL
-  const { data: { publicUrl } } = supabase.storage
-    .from("personnel-attachments")
-    .getPublicUrl(filePath);
-
-  // Save to database
-  await supabase.from("employee_attachments").insert({
-    employee_id: employeeId,
-    file_name: file.name,
-    file_url: publicUrl,
-    file_type: file.type,
-    file_size: file.size,
-    document_type: documentType,
-    expiry_date: expiryDate?.toISOString().split("T")[0],
-    uploaded_by: user.id,
-  });
-};
-```
-
-### Costanti Tipi Documento
-
-```typescript
-// src/lib/documentTypes.ts
-
-export const EMPLOYEE_DOCUMENT_TYPES = [
-  { value: "contratto", label: "Contratto di Lavoro" },
-  { value: "documento_identita", label: "Documento di Identità" },
-  { value: "patente", label: "Patente di Guida" },
-  { value: "certificazione", label: "Certificazione" },
-  { value: "attestato", label: "Attestato Formazione" },
-  { value: "altro", label: "Altro" },
-] as const;
-
-export const EXTERNAL_TEAM_DOCUMENT_TYPES = [
-  { value: "visura_camerale", label: "Visura Camerale" },
-  { value: "durc", label: "DURC" },
-  { value: "polizza", label: "Polizza Assicurativa" },
-  { value: "contratto", label: "Contratto" },
-  { value: "fattura", label: "Fattura" },
-  { value: "altro", label: "Altro" },
-] as const;
-
-export const getDocumentTypeLabel = (
-  value: string, 
-  types: typeof EMPLOYEE_DOCUMENT_TYPES | typeof EXTERNAL_TEAM_DOCUMENT_TYPES
-) => {
-  return types.find(t => t.value === value)?.label || value;
-};
-```
-
-### Creazione Bucket Storage
-
-```sql
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('personnel-attachments', 'personnel-attachments', true);
-
--- Policies per upload
-CREATE POLICY "Company admins can upload personnel attachments"
-ON storage.objects FOR INSERT
-WITH CHECK (
-  bucket_id = 'personnel-attachments' AND
-  has_role(auth.uid(), 'company_admin')
-);
-
--- Policies per lettura
-CREATE POLICY "Company admins can read personnel attachments"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'personnel-attachments');
-
--- Policies per eliminazione
-CREATE POLICY "Company admins can delete personnel attachments"
-ON storage.objects FOR DELETE
-USING (
-  bucket_id = 'personnel-attachments' AND
-  has_role(auth.uid(), 'company_admin')
-);
+// Nuova route protetta con permessi
+<Route 
+  path="magazzino" 
+  element={
+    <PermissionGuard permission="canViewWarehouse">
+      <Warehouse />
+    </PermissionGuard>
+  } 
+/>
 ```
 
 ---
 
-## 6. Alert Scadenze (Opzionale Futuro)
+## 6. Edge Function: `create-company-staff`
 
-Una volta implementata la gestione documenti con date di scadenza, sara possibile in futuro aggiungere:
-- Alert sulla dashboard per documenti in scadenza
-- Notifiche email prima della scadenza
-- Badge colorati per indicare lo stato (verde = valido, giallo = in scadenza, rosso = scaduto)
+Nuova edge function per creare utenti staff:
+
+```typescript
+// Input
+{
+  first_name: string;
+  last_name: string;
+  email: string;
+  company_id: string;
+  permissions: {
+    can_view_dashboard: boolean;
+    can_view_orders: boolean;
+    can_edit_orders: boolean;
+    // ...
+  };
+}
+
+// Output
+{
+  success: true;
+  user_id: string;
+  temporary_password: string; // Generata automaticamente
+}
+```
+
+---
+
+## 7. File da Creare/Modificare
+
+| File | Operazione | Descrizione |
+|------|------------|-------------|
+| `supabase/migrations/xxx.sql` | Creare | Nuova tabella staff_permissions + update enum |
+| `supabase/functions/create-company-staff/index.ts` | Creare | Edge function per creare utenti staff |
+| `src/hooks/usePermissions.ts` | Creare | Hook per gestione permessi |
+| `src/pages/azienda/CompanyUsers.tsx` | Creare | Pagina gestione utenti |
+| `src/components/users/UserDialog.tsx` | Creare | Dialog creazione utente |
+| `src/components/users/PermissionsDialog.tsx` | Creare | Dialog modifica permessi |
+| `src/components/auth/PermissionGuard.tsx` | Creare | Componente protezione route |
+| `src/types/auth.ts` | Modificare | Aggiungere tipo company_staff |
+| `src/contexts/AuthContext.tsx` | Modificare | Caricare permessi per staff |
+| `src/components/layouts/CompanyLayout.tsx` | Modificare | Menu dinamico |
+| `src/App.tsx` | Modificare | Nuove route con permessi |
+
+---
+
+## 8. Sezione Tecnica
+
+### Database Migration
+
+```sql
+-- Aggiunge nuovo valore all'enum
+ALTER TYPE app_role ADD VALUE 'company_staff';
+
+-- Tabella permessi
+CREATE TABLE staff_permissions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  
+  can_view_dashboard boolean DEFAULT false,
+  can_view_orders boolean DEFAULT false,
+  can_edit_orders boolean DEFAULT false,
+  can_view_warehouse boolean DEFAULT false,
+  can_edit_warehouse boolean DEFAULT false,
+  can_view_calendar boolean DEFAULT false,
+  can_view_customers boolean DEFAULT false,
+  can_edit_customers boolean DEFAULT false,
+  can_view_employees boolean DEFAULT false,
+  can_view_tickets boolean DEFAULT false,
+  can_edit_tickets boolean DEFAULT false,
+  can_view_forecast boolean DEFAULT false,
+  can_view_settings boolean DEFAULT false,
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  
+  UNIQUE(user_id, company_id)
+);
+
+ALTER TABLE staff_permissions ENABLE ROW LEVEL SECURITY;
+
+-- RLS: Solo admin puo gestire i permessi
+CREATE POLICY "Company admins can manage staff permissions"
+  ON staff_permissions FOR ALL
+  USING (
+    has_role(auth.uid(), 'company_admin') AND
+    company_id = get_user_company_id(auth.uid())
+  );
+
+-- RLS: Staff puo vedere i propri permessi
+CREATE POLICY "Staff can view their own permissions"
+  ON staff_permissions FOR SELECT
+  USING (user_id = auth.uid());
+
+-- Super admin
+CREATE POLICY "Super admins can manage all staff permissions"
+  ON staff_permissions FOR ALL
+  USING (has_role(auth.uid(), 'super_admin'));
+```
+
+### Funzione helper per verificare permessi
+
+```sql
+CREATE OR REPLACE FUNCTION public.has_permission(_user_id uuid, _permission text)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT 
+    CASE 
+      WHEN has_role(_user_id, 'super_admin') THEN true
+      WHEN has_role(_user_id, 'company_admin') THEN true
+      WHEN has_role(_user_id, 'company_staff') THEN
+        CASE _permission
+          WHEN 'can_view_dashboard' THEN (SELECT can_view_dashboard FROM staff_permissions WHERE user_id = _user_id)
+          WHEN 'can_view_orders' THEN (SELECT can_view_orders FROM staff_permissions WHERE user_id = _user_id)
+          WHEN 'can_edit_orders' THEN (SELECT can_edit_orders FROM staff_permissions WHERE user_id = _user_id)
+          -- ... altri permessi
+          ELSE false
+        END
+      ELSE false
+    END
+$$;
+```
+
+### Hook usePermissions
+
+```typescript
+export function usePermissions() {
+  const { role, user, effectiveCompany } = useAuth();
+  
+  const { data: permissions } = useQuery({
+    queryKey: ["staff-permissions", user?.id],
+    queryFn: async () => {
+      if (role !== "company_staff") return null;
+      
+      const { data, error } = await supabase
+        .from("staff_permissions")
+        .select("*")
+        .eq("user_id", user!.id)
+        .single();
+      
+      if (error) return null;
+      return data;
+    },
+    enabled: role === "company_staff",
+  });
+  
+  // Admin = tutti i permessi
+  if (role === "super_admin" || role === "company_admin") {
+    return {
+      canViewDashboard: true,
+      canViewOrders: true,
+      canEditOrders: true,
+      canViewWarehouse: true,
+      canEditWarehouse: true,
+      canViewCalendar: true,
+      canViewCustomers: true,
+      canEditCustomers: true,
+      canViewEmployees: true,
+      canViewTickets: true,
+      canEditTickets: true,
+      canViewForecast: true,
+      canViewSettings: true,
+      isAdmin: true,
+      isLoading: false,
+    };
+  }
+  
+  // Staff = permessi dal database
+  return {
+    canViewDashboard: permissions?.can_view_dashboard ?? false,
+    canViewOrders: permissions?.can_view_orders ?? false,
+    canEditOrders: permissions?.can_edit_orders ?? false,
+    canViewWarehouse: permissions?.can_view_warehouse ?? false,
+    canEditWarehouse: permissions?.can_edit_warehouse ?? false,
+    canViewCalendar: permissions?.can_view_calendar ?? false,
+    canViewCustomers: permissions?.can_view_customers ?? false,
+    canEditCustomers: permissions?.can_edit_customers ?? false,
+    canViewEmployees: permissions?.can_view_employees ?? false,
+    canViewTickets: permissions?.can_view_tickets ?? false,
+    canEditTickets: permissions?.can_edit_tickets ?? false,
+    canViewForecast: permissions?.can_view_forecast ?? false,
+    canViewSettings: permissions?.can_view_settings ?? false,
+    isAdmin: false,
+    isLoading: !permissions && role === "company_staff",
+  };
+}
+```
+
+### Componente PermissionGuard
+
+```typescript
+interface PermissionGuardProps {
+  permission: keyof ReturnType<typeof usePermissions>;
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
+export function PermissionGuard({ 
+  permission, 
+  children, 
+  fallback 
+}: PermissionGuardProps) {
+  const permissions = usePermissions();
+  
+  if (permissions.isLoading) {
+    return <LoadingSpinner />;
+  }
+  
+  if (!permissions[permission]) {
+    return fallback || <AccessDenied />;
+  }
+  
+  return <>{children}</>;
+}
+```
+
+---
+
+## 9. Flusso Utente
+
+1. L'Admin aziendale va su "Utenti" nel menu
+2. Clicca "Nuovo Utente"
+3. Inserisce nome, cognome, email
+4. Il sistema crea l'utente con password temporanea
+5. Mostra la password temporanea da comunicare all'utente
+6. L'admin clicca sull'icona permessi per configurare gli accessi
+7. Seleziona le sezioni a cui l'utente puo accedere
+8. L'utente staff fa login e vede solo le sezioni autorizzate
