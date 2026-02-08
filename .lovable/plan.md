@@ -1,175 +1,112 @@
 
-# Piano: Completamento Sistema Venditori + Pulizia Codice
+# Piano: Completamento Sistema Venditori + Test End-to-End
 
 ## Panoramica
 
-Questo piano completa l'implementazione del sistema venditori aggiungendo:
-1. **Campo Venditore nei form ordini** - CreateOrder e EditOrder con SalespersonSelect
-2. **Sezione Provvigioni da Pagare** nel Previsionale Cassa
-3. **Pagine area venditore** - I Miei Ordini e Guadagni
-4. **Pulizia e stabilizzazione** del codice esistente
+Questo piano completa il sistema venditori con le seguenti implementazioni:
+
+1. **Edge Function per creazione account venditore** - Permette di creare account con ruolo `salesperson`
+2. **Pulsante "Crea Account" nel SalespeopleConfig** - Per abilitare l'accesso al sistema ai venditori
+3. **Verifica e test end-to-end** - Flusso completo ordine -> previsionale -> dashboard venditore
+4. **Pulizia codice e stabilizzazione**
 
 ---
 
-## 1. Integrazione Venditore nei Form Ordine
+## 1. Stato Attuale (Gia Implementato)
 
-### CreateOrder.tsx - Modifiche
+### Funzionalita Esistenti
 
-Aggiunta del componente `SalespersonSelect` nel form di creazione ordine:
-
-| Modifica | Dettaglio |
-|----------|-----------|
-| Import | `SalespersonSelect` da `@/components/salespeople/SalespersonSelect` |
-| State | `salespersonId`, `salespersonData` per tracciare venditore selezionato |
-| UI | Campo venditore dopo la descrizione ordine (card "Dettagli Ordine") |
-| Mutation | Creare record in `order_salespeople` dopo creazione ordine |
-
-Posizione nel form: dopo il campo "Note Interne" nel card "Dettagli Ordine".
-
-### EditOrder.tsx - Modifiche
-
-Stesse modifiche di CreateOrder con in piu:
-- Fetch del venditore esistente quando si carica l'ordine
-- Possibilita di cambiare o rimuovere il venditore
-- Aggiornamento del record `order_salespeople` esistente
+| Componente | Stato | Note |
+|------------|-------|------|
+| `OrderCommissions.tsx` | Completo | Switch per segnare provvigione come pagata (gia presente) |
+| `CashFlowForecast.tsx` | Completo | Sezione "Provvigioni da Pagare" gia implementata |
+| `MyOrders.tsx` | Completo | Lista ordini del venditore |
+| `MyEarnings.tsx` | Completo | Dashboard guadagni con KPI e grafici |
+| `SalespersonProfile.tsx` | Completo | Profilo con cambio password |
+| `SalespeopleConfig.tsx` | Parziale | Manca pulsante per creare account |
 
 ---
 
-## 2. Sezione Provvigioni da Pagare nel CashFlowForecast
+## 2. Edge Function: create-salesperson-user
 
-### Nuova Query
+### File da Creare
 
-Aggiungere query per recuperare provvigioni non pagate:
+`supabase/functions/create-salesperson-user/index.ts`
 
-```typescript
-// Query provvigioni non pagate
-const { data: unpaidCommissions = [] } = useQuery({
-  queryKey: ["forecast-unpaid-commissions", companyId],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("order_salespeople")
-      .select(`
-        id, commission_amount, payment_expected_date, is_paid,
-        salesperson:salespeople!inner(first_name, last_name, company_id),
-        order:orders!inner(id, order_code, company_id)
-      `)
-      .eq("is_paid", false);
-    
-    return data.filter(item => item.order?.company_id === companyId);
-  },
-  enabled: !!companyId,
-});
+### Logica
+
+La funzione sara simile a `create-employee-user`:
+1. Verifica che il chiamante sia `company_admin` o `super_admin`
+2. Recupera i dati del venditore dalla tabella `salespeople`
+3. Verifica che il venditore non abbia gia un account (`user_id` null)
+4. Crea l'utente in `auth.users` con password temporanea
+5. Crea il profilo in `profiles` con `company_id`
+6. Assegna il ruolo `salesperson` in `user_roles`
+7. Collega l'utente al venditore aggiornando `salespeople.user_id`
+8. Restituisce la password temporanea per comunicarla al venditore
+
+### Endpoint
+
+```
+POST /functions/v1/create-salesperson-user
+Body: { salesperson_id: string, email: string }
+Response: { success: true, temp_password: string, user_id: string }
 ```
 
-### Nuova Sezione UI
+---
 
-Aggiungere card "Provvigioni da Pagare" dopo la sezione "Uscite Materiali Previste":
+## 3. Modifiche a SalespeopleConfig.tsx
+
+### Aggiunte
 
 | Elemento | Descrizione |
 |----------|-------------|
-| Icona | UserCheck |
-| Titolo | "Provvigioni da Pagare" |
-| Contenuto | Lista venditori con importo e data prevista |
-| Totale | Somma di tutte le provvigioni non pagate |
+| Pulsante "Crea Account" | Visibile solo se `user_id` e null |
+| Dialog conferma | Per inserire/confermare email e creare account |
+| Mutation | Chiamata alla edge function |
+| Mostra password | Dialog con password temporanea da comunicare |
 
-Integrazione nel calcolo statistiche:
-- Aggiungere `totalCommissions` alle uscite totali
-- Aggiornare il calcolo del saldo netto
+### Flusso UX
 
----
-
-## 3. Pagine Area Venditore
-
-### MyOrders.tsx (I Miei Ordini)
-
-Nuova pagina `/venditore/ordini` che mostra:
-
-| Sezione | Contenuto |
-|---------|-----------|
-| Header | Titolo + conteggio ordini |
-| Filtri | Periodo, stato pagamento provvigione |
-| Tabella | Cliente, Ordine, Importo vendita, Provvigione, Stato incasso, Data |
-
-Query principale:
-```typescript
-const { data: orders = [] } = useQuery({
-  queryKey: ["salesperson-orders", salesperson?.id],
-  queryFn: async () => {
-    return await supabase
-      .from("order_salespeople")
-      .select(`
-        *,
-        order:orders(
-          id, order_code, description, total_amount, created_at,
-          deposit_paid, deposit_2_paid, balance_paid,
-          customer:profiles!orders_customer_id_fkey(first_name, last_name)
-        )
-      `)
-      .eq("salesperson_id", salesperson.id)
-      .order("created_at", { ascending: false });
-  },
-});
-```
-
-### MyEarnings.tsx (Guadagni)
-
-Nuova pagina `/venditore/guadagni` che mostra:
-
-| Sezione | Contenuto |
-|---------|-----------|
-| KPI Cards | Maturate, Pagate, Da ricevere, % pagato |
-| Grafico | Trend mensile provvigioni (ultimi 6 mesi) |
-| Tabella dettaglio | Lista provvigioni con stato pagamento |
-
-Funzionalita:
-- Filtro per periodo
-- Raggruppamento per mese
-- Totali cumulativi
-
-### SalespersonProfile.tsx (Profilo)
-
-Pagina semplice con:
-- Dati anagrafici del venditore (sola lettura)
-- Tipo e valore provvigione default
-- Form cambio password
-
----
-
-## 4. Aggiornamento Rotte App.tsx
-
-Aggiungere le nuove rotte nell'area venditore:
-
-```typescript
-{/* Salesperson Routes */}
-<Route path="/venditore" element={<ProtectedRoute allowedRoles={["salesperson"]}><SalespersonLayout /></ProtectedRoute>}>
-  <Route index element={<SalespersonDashboard />} />
-  <Route path="ordini" element={<MyOrders />} />
-  <Route path="guadagni" element={<MyEarnings />} />
-  <Route path="profilo" element={<SalespersonProfile />} />
-</Route>
+```text
+1. Admin clicca "Crea Account" nella riga del venditore
+2. Appare dialog con email precompilata (se presente)
+3. Admin conferma email
+4. Sistema crea account e mostra password temporanea
+5. Admin comunica password al venditore
+6. Venditore effettua login su /venditore
 ```
 
 ---
 
-## 5. Pulizia e Stabilizzazione Codice
+## 4. Miglioramenti UX
 
-### Verifiche da Effettuare
-
-| Area | Controllo |
-|------|-----------|
-| Import | Rimuovere import inutilizzati |
-| Query | Verificare `enabled` conditions per evitare errori |
-| Types | Assicurare coerenza tipi TypeScript |
-| RLS | Verificare che le policy permettano accesso corretto |
-
-### Miglioramenti UX
+### Feedback Visivi
 
 | Componente | Miglioramento |
 |------------|---------------|
-| SalespersonSelect | Loading state mentre carica venditori |
-| Tabelle | Empty state con messaggio chiaro |
-| Form | Feedback visivo su salvataggio |
-| Navigazione | Highlight pagina attiva in SalespersonLayout |
+| SalespeopleConfig | Badge "Account attivo" se ha user_id |
+| OrderCommissions | Animazione su toggle pagamento |
+| Toast | Messaggi chiari di successo/errore |
+
+### Loading States
+
+- Loading durante creazione account
+- Skeleton loader nelle tabelle
+- Disabled button durante operazioni
+
+---
+
+## 5. Pulizia Codice
+
+### Verifiche da Effettuare
+
+| Area | Azione |
+|------|--------|
+| Import inutilizzati | Rimozione da tutti i file modificati |
+| Console.log | Rimozione di log di debug |
+| TypeScript | Verifica tipi corretti |
+| Null checks | Gestione sicura di valori nullable |
 
 ---
 
@@ -177,9 +114,7 @@ Aggiungere le nuove rotte nell'area venditore:
 
 | File | Descrizione |
 |------|-------------|
-| `src/pages/venditore/MyOrders.tsx` | Pagina lista ordini venditore |
-| `src/pages/venditore/MyEarnings.tsx` | Pagina guadagni venditore |
-| `src/pages/venditore/SalespersonProfile.tsx` | Pagina profilo venditore |
+| `supabase/functions/create-salesperson-user/index.ts` | Edge function per creare account venditore |
 
 ---
 
@@ -187,137 +122,153 @@ Aggiungere le nuove rotte nell'area venditore:
 
 | File | Modifica |
 |------|----------|
-| `src/pages/azienda/CreateOrder.tsx` | Aggiungere SalespersonSelect + mutation order_salespeople |
-| `src/pages/azienda/EditOrder.tsx` | Aggiungere SalespersonSelect + gestione update |
-| `src/pages/azienda/CashFlowForecast.tsx` | Query e sezione provvigioni da pagare |
-| `src/App.tsx` | Aggiungere rotte area venditore |
+| `src/components/settings/SalespeopleConfig.tsx` | Aggiungere pulsante "Crea Account" e mutation |
 
 ---
 
-## 8. Dettaglio Tecnico: CreateOrder con Venditore
-
-### State da Aggiungere
+## 8. Dettaglio Tecnico: Edge Function
 
 ```typescript
-const [salespersonId, setSalespersonId] = useState("");
-const [salespersonData, setSalespersonData] = useState<{
-  commission_type: string;
-  commission_value: number;
-} | null>(null);
+// Struttura base
+interface CreateSalespersonUserRequest {
+  salesperson_id: string;
+  email: string;
+}
+
+// Flusso:
+// 1. Verifica autorizzazione (company_admin o super_admin)
+// 2. Recupera venditore da salespeople
+// 3. Verifica che user_id sia null
+// 4. Crea auth user con password temporanea
+// 5. Crea profilo con company_id del venditore
+// 6. Assegna ruolo "salesperson"
+// 7. Aggiorna salespeople.user_id
+// 8. Restituisce password temporanea
 ```
 
-### UI da Aggiungere
+---
 
-Dopo il campo "Note Interne" nel CardContent:
+## 9. Dettaglio Tecnico: SalespeopleConfig
+
+### Nuova Colonna Tabella
 
 ```tsx
-<SalespersonSelect
-  value={salespersonId}
-  onChange={(id, salesperson) => {
-    setSalespersonId(id);
-    setSalespersonData(salesperson ? {
-      commission_type: salesperson.commission_type,
-      commission_value: salesperson.commission_value,
-    } : null);
-  }}
-/>
+<TableHead>Account</TableHead>
+...
+<TableCell>
+  {sp.user_id ? (
+    <Badge variant="secondary" className="gap-1">
+      <Check className="h-3 w-3" />
+      Attivo
+    </Badge>
+  ) : (
+    <Button size="sm" variant="outline" onClick={() => handleCreateAccount(sp)}>
+      <UserPlus className="h-3 w-3 mr-1" />
+      Crea Account
+    </Button>
+  )}
+</TableCell>
 ```
 
-### Mutation da Modificare
+### Dialog Creazione Account
 
-Dopo la creazione dell'ordine, se c'e un venditore:
+```tsx
+<Dialog open={createAccountDialog.open}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Crea Account Venditore</DialogTitle>
+      <DialogDescription>
+        Verra creato un account per {salesperson.first_name} {salesperson.last_name}
+      </DialogDescription>
+    </DialogHeader>
+    <Input 
+      label="Email" 
+      value={email} 
+      onChange={setEmail}
+    />
+    <DialogFooter>
+      <Button onClick={createAccount}>Crea Account</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
 
-```typescript
-if (salespersonId && salespersonData) {
-  const commissionAmount = calculateCommission(
-    salespersonData.commission_type,
-    salespersonData.commission_value,
-    total
-  );
-  
-  await supabase.from("order_salespeople").insert({
-    order_id: order.id,
-    salesperson_id: salespersonId,
-    commission_type: salespersonData.commission_type,
-    commission_value: salespersonData.commission_value,
-    commission_amount: commissionAmount,
-  });
-}
+### Dialog Password Temporanea
+
+```tsx
+<Dialog open={showPassword}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Account Creato!</DialogTitle>
+    </DialogHeader>
+    <Alert>
+      <p>Password temporanea:</p>
+      <code className="font-mono text-lg">{tempPassword}</code>
+      <p className="text-sm text-muted-foreground">
+        Comunica questa password al venditore. 
+        Dovra cambiarla al primo accesso.
+      </p>
+    </Alert>
+  </DialogContent>
+</Dialog>
 ```
 
 ---
 
-## 9. Dettaglio Tecnico: CashFlowForecast Provvigioni
+## 10. Test End-to-End
 
-### Interface da Aggiungere
+### Scenario di Test
 
-```typescript
-interface ExpectedCommission {
-  orderId: string;
-  orderCode: string | null;
-  salespersonName: string;
-  amount: number;
-  expectedDate: Date | null;
-  direction: "out";
-}
-```
+1. **Crea Venditore**
+   - Vai in Impostazioni > Venditori
+   - Crea nuovo venditore "Test Venditore" con 5% sul venduto
 
-### Calcolo Statistiche Aggiornato
+2. **Crea Account Venditore**
+   - Clicca "Crea Account" nella riga del venditore
+   - Inserisci email test@example.com
+   - Annota password temporanea
 
-```typescript
-// Aggiungere al calcolo stats
-const totalCommissionsExpenses = unpaidCommissions.reduce(
-  (sum, c) => sum + c.commission_amount, 0
-);
+3. **Crea Ordine con Venditore**
+   - Vai in Ordini > Nuovo Ordine
+   - Compila ordine con importo es. €10.000
+   - Seleziona venditore creato
+   - Salva ordine
 
-// Aggiornare stats.total.expenses
-expenses: totalExpenses + totalCommissionsExpenses,
-```
+4. **Verifica Previsionale**
+   - Vai in Previsionale Cassa
+   - Verifica che appaia nella sezione "Provvigioni da Pagare"
+   - Importo atteso: €500 (5% di €10.000)
 
-### UI Nuova Sezione
+5. **Segna Provvigione come Pagata**
+   - Vai in dettaglio ordine
+   - Nella sezione "Provvigioni Venditori" attiva lo switch "Pagata"
+   - Verifica che scompaia dal Previsionale
 
-Card con stile simile a "Uscite Materiali Previste":
-- Bordo viola/indigo per differenziare
-- Tabella con: Venditore, Ordine, Importo, Data prevista
-- Totale provvigioni da pagare
-
----
-
-## 10. Fasi di Implementazione
-
-### Fase 1: Form Ordini (Priorita Alta)
-1. Aggiungere SalespersonSelect a CreateOrder
-2. Modificare mutation per creare record order_salespeople
-3. Replicare in EditOrder con gestione update
-
-### Fase 2: CashFlowForecast (Priorita Alta)
-1. Aggiungere query unpaidCommissions
-2. Creare nuova sezione UI
-3. Integrare nel calcolo statistiche
-
-### Fase 3: Pagine Venditore (Priorita Media)
-1. Creare MyOrders.tsx
-2. Creare MyEarnings.tsx
-3. Creare SalespersonProfile.tsx
-4. Aggiornare rotte in App.tsx
-
-### Fase 4: Pulizia e Test (Priorita Media)
-1. Verificare tutti i path funzionanti
-2. Testare flusso completo
-3. Rimuovere codice non utilizzato
+6. **Login come Venditore**
+   - Logout
+   - Login con credenziali venditore
+   - Verifica redirect a /venditore
+   - Verifica dashboard con ordine e provvigione
+   - Verifica pagina "I Miei Ordini"
+   - Verifica pagina "Guadagni"
 
 ---
 
-## 11. Test Funzionali da Eseguire
+## 11. Fasi di Implementazione
 
-| Test | Scenario |
-|------|----------|
-| Crea ordine con venditore | Verificare creazione record order_salespeople |
-| Crea ordine senza venditore | Verificare che funzioni senza errori |
-| Modifica ordine | Cambiare venditore e verificare aggiornamento |
-| Previsionale | Verificare sezione provvigioni con dati |
-| Area venditore | Navigazione e visualizzazione dati corretti |
-| Dashboard venditore | KPI calcolati correttamente |
+### Fase 1 - Edge Function
+1. Creare `create-salesperson-user/index.ts`
+2. Deploy automatico
+
+### Fase 2 - UI SalespeopleConfig
+1. Aggiungere pulsante "Crea Account"
+2. Implementare dialog creazione
+3. Implementare dialog password
+
+### Fase 3 - Test e Pulizia
+1. Test flusso completo
+2. Rimozione codice inutilizzato
+3. Verifica console pulita
 
 ---
 
@@ -325,8 +276,29 @@ Card con stile simile a "Uscite Materiali Previste":
 
 Al termine dell'implementazione:
 
-- Campo venditore funzionante in creazione/modifica ordine
-- Sezione "Provvigioni da Pagare" visibile nel Previsionale
-- Area venditore completa con 4 pagine navigate
-- Codice pulito senza warning o errori console
-- UX fluida con loading states e feedback appropriati
+- Edge function `create-salesperson-user` funzionante
+- Pulsante "Crea Account" in SalespeopleConfig
+- Badge "Account Attivo" per venditori con account
+- Flusso end-to-end testato e funzionante
+- Console senza errori
+
+---
+
+## Sezione Tecnica
+
+### RLS Policies (gia configurate)
+
+Le policy RLS per `order_salespeople` sono gia configurate:
+- Company admins possono gestire tutto
+- Salespeople possono vedere le proprie provvigioni (SELECT)
+- Super admins hanno accesso completo
+
+### Dipendenze
+
+Nessuna nuova dipendenza richiesta.
+
+### Secrets
+
+L'edge function usera i secrets gia configurati:
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
