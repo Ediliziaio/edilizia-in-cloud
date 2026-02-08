@@ -86,7 +86,7 @@ function ImpersonationBanner() {
 }
 
 function CompanySidebar() {
-  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
+  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation } = useAuth();
   const permissions = usePermissions();
   const navigate = useNavigate();
   
