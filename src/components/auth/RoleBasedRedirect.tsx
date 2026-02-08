@@ -4,6 +4,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 
+function LoadingSpinner({ text }: { text: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">{text}</p>
+      </div>
+    </div>
+  );
+}
+
 export function RoleBasedRedirect() {
   const { user, role, isLoading } = useAuth();
   const [mustChangePassword, setMustChangePassword] = useState<boolean | null>(null);
@@ -13,38 +24,55 @@ export function RoleBasedRedirect() {
     async function checkPasswordChange() {
       if (role === "company_staff" && user) {
         setCheckingPassword(true);
-        const { data } = await supabase
-          .from("staff_permissions")
-          .select("must_change_password")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        setMustChangePassword(data?.must_change_password ?? false);
-        setCheckingPassword(false);
+        try {
+          const { data, error } = await supabase
+            .from("staff_permissions")
+            .select("must_change_password")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          
+          if (error) {
+            console.error("Error checking password flag:", error);
+            setMustChangePassword(false);
+          } else {
+            setMustChangePassword(data?.must_change_password ?? false);
+          }
+        } catch (err) {
+          console.error("Error in checkPasswordChange:", err);
+          setMustChangePassword(false);
+        } finally {
+          setCheckingPassword(false);
+        }
+      } else if (role && role !== "company_staff") {
+        // Non-staff users don't need password check
+        setMustChangePassword(false);
       }
     }
     
-    checkPasswordChange();
+    if (user && role) {
+      checkPasswordChange();
+    }
   }, [role, user]);
 
-  if (isLoading || checkingPassword) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Caricamento...</p>
-        </div>
-      </div>
-    );
+  // Show loading while auth is loading
+  if (isLoading) {
+    return <LoadingSpinner text="Caricamento..." />;
   }
 
+  // Redirect to login if no user
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Staff must change password on first login
-  if (role === "company_staff" && mustChangePassword === true) {
-    return <Navigate to="/cambia-password" replace />;
+  // For staff users, wait for password check to complete
+  if (role === "company_staff") {
+    if (checkingPassword || mustChangePassword === null) {
+      return <LoadingSpinner text="Verifica in corso..." />;
+    }
+    
+    if (mustChangePassword === true) {
+      return <Navigate to="/cambia-password" replace />;
+    }
   }
 
   // Redirect based on role
