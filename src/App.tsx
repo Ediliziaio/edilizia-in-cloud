@@ -11,6 +11,7 @@ import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
 import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
 import { CustomerLayout } from "@/components/layouts/CustomerLayout";
+import { EmployeeLayout } from "@/components/layouts/EmployeeLayout";
 
 // Pages
 import Login from "@/pages/Login";
@@ -48,6 +49,12 @@ import CustomerSupport from "@/pages/cliente/CustomerSupport";
 import CreateTicket from "@/pages/cliente/CreateTicket";
 import CustomerTicketDetail from "@/pages/cliente/CustomerTicketDetail";
 import CustomerProfile from "@/pages/cliente/CustomerProfile";
+
+// Employee Pages
+import EmployeeDashboard from "@/pages/dipendente/EmployeeDashboard";
+import TimeEntry from "@/pages/dipendente/TimeEntry";
+import MyWorkLogs from "@/pages/dipendente/MyWorkLogs";
+import EmployeeProfile from "@/pages/dipendente/EmployeeProfile";
 
 // Company Ticket Pages
 import TicketsList from "@/pages/azienda/TicketsList";
@@ -134,6 +141,21 @@ const App = () => (
               <Route path="assistenza/nuovo" element={<CreateTicket />} />
               <Route path="assistenza/:id" element={<CustomerTicketDetail />} />
               <Route path="profilo" element={<CustomerProfile />} />
+            </Route>
+
+            {/* Employee Routes */}
+            <Route
+              path="/dipendente"
+              element={
+                <ProtectedRoute allowedRoles={["employee"]}>
+                  <EmployeeLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<EmployeeDashboard />} />
+              <Route path="ore" element={<TimeEntry />} />
+              <Route path="rapportini" element={<MyWorkLogs />} />
+              <Route path="profilo" element={<EmployeeProfile />} />
             </Route>
 
             {/* Catch-all */}

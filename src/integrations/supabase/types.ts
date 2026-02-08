@@ -137,6 +137,7 @@ export type Database = {
           net_salary: number
           phone: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           company_id: string
@@ -151,6 +152,7 @@ export type Database = {
           net_salary?: number
           phone?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           company_id?: string
@@ -165,6 +167,7 @@ export type Database = {
           net_salary?: number
           phone?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -976,6 +979,66 @@ export type Database = {
         }
         Relationships: []
       }
+      work_logs: {
+        Row: {
+          activity_type: string | null
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          description: string | null
+          employee_id: string
+          hours_worked: number
+          id: string
+          is_approved: boolean | null
+          order_id: string | null
+          updated_at: string | null
+          work_date: string
+        }
+        Insert: {
+          activity_type?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          description?: string | null
+          employee_id: string
+          hours_worked?: number
+          id?: string
+          is_approved?: boolean | null
+          order_id?: string | null
+          updated_at?: string | null
+          work_date: string
+        }
+        Update: {
+          activity_type?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          description?: string | null
+          employee_id?: string
+          hours_worked?: number
+          id?: string
+          is_approved?: boolean | null
+          order_id?: string | null
+          updated_at?: string | null
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_logs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -995,7 +1058,12 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "super_admin" | "company_admin" | "customer" | "company_staff"
+      app_role:
+        | "super_admin"
+        | "company_admin"
+        | "customer"
+        | "company_staff"
+        | "employee"
       company_sector:
         | "serramenti"
         | "infissi"
@@ -1133,7 +1201,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["super_admin", "company_admin", "customer", "company_staff"],
+      app_role: [
+        "super_admin",
+        "company_admin",
+        "customer",
+        "company_staff",
+        "employee",
+      ],
       company_sector: [
         "serramenti",
         "infissi",

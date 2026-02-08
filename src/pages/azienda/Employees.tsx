@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Building2, Plus, Pencil, Trash2, Phone, Mail, FileText } from "lucide-react";
+import { Users, Building2, Plus, Pencil, Trash2, Phone, Mail, FileText, Clock, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -29,10 +29,21 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { EmployeeDialog, EmployeeFormData } from "@/components/employees/EmployeeDialog";
 import { ExternalTeamDialog, ExternalTeamFormData } from "@/components/employees/ExternalTeamDialog";
 import { EmployeeAttachments } from "@/components/employees/EmployeeAttachments";
 import { ExternalTeamAttachments } from "@/components/employees/ExternalTeamAttachments";
+import { WorkLogsAdminTab } from "@/components/employees/WorkLogsAdminTab";
 
 interface Employee {
   id: string;
@@ -44,6 +55,7 @@ interface Employee {
   net_salary: number;
   monthly_hours: number;
   is_active: boolean;
+  user_id: string | null;
 }
 
 interface ExternalTeam {
@@ -69,6 +81,10 @@ export default function Employees() {
   const [editingTeam, setEditingTeam] = useState<ExternalTeam | null>(null);
   const [attachmentsEmployee, setAttachmentsEmployee] = useState<Employee | null>(null);
   const [attachmentsTeam, setAttachmentsTeam] = useState<ExternalTeam | null>(null);
+  const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
+  const [createUserEmployee, setCreateUserEmployee] = useState<Employee | null>(null);
+  const [createUserEmail, setCreateUserEmail] = useState("");
+  const [createdPassword, setCreatedPassword] = useState<string | null>(null);
 
   // Fetch employees
   const { data: employees = [], isLoading: loadingEmployees } = useQuery({
@@ -274,6 +290,40 @@ export default function Employees() {
     return monthlyHours > 0 ? grossSalary / monthlyHours : 0;
   };
 
+  // Create employee user mutation
+  const createUserMutation = useMutation({
+    mutationFn: async ({ employeeId, email }: { employeeId: string; email: string }) => {
+      const { data, error } = await supabase.functions.invoke("create-employee-user", {
+        body: { employee_id: employeeId, email },
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      setCreatedPassword(data.temp_password);
+      toast({
+        title: "Account creato",
+        description: data.message,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Impossibile creare l'account.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateUser = (employee: Employee) => {
+    setCreateUserEmployee(employee);
+    setCreateUserEmail(employee.email || "");
+    setCreatedPassword(null);
+    setCreateUserDialogOpen(true);
+  };
+
   const activeEmployees = employees.filter((e) => e.is_active);
   const inactiveEmployees = employees.filter((e) => !e.is_active);
   const activeTeams = externalTeams.filter((t) => t.is_active);
@@ -292,11 +342,15 @@ export default function Employees() {
         <TabsList>
           <TabsTrigger value="employees" className="gap-2">
             <Users className="h-4 w-4" />
-            Dipendenti Interni ({employees.length})
+            Dipendenti ({employees.length})
           </TabsTrigger>
           <TabsTrigger value="teams" className="gap-2">
             <Building2 className="h-4 w-4" />
-            Squadre Esterne ({externalTeams.length})
+            Squadre ({externalTeams.length})
+          </TabsTrigger>
+          <TabsTrigger value="worklogs" className="gap-2">
+            <Clock className="h-4 w-4" />
+            Rapportini
           </TabsTrigger>
         </TabsList>
 
@@ -384,6 +438,16 @@ export default function Employees() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-1 justify-end">
+                            {!employee.user_id && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleCreateUser(employee)}
+                                title="Crea account"
+                              >
+                                <UserPlus className="h-4 w-4 text-primary" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -557,6 +621,11 @@ export default function Employees() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Work Logs Tab */}
+        <TabsContent value="worklogs">
+          <WorkLogsAdminTab />
+        </TabsContent>
       </Tabs>
 
       {/* Employee Dialog */}
@@ -604,6 +673,65 @@ export default function Employees() {
           }}
         />
       )}
+
+      {/* Create User Dialog */}
+      <Dialog open={createUserDialogOpen} onOpenChange={setCreateUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crea Account Dipendente</DialogTitle>
+            <DialogDescription>
+              {createUserEmployee && `Crea un account per ${createUserEmployee.first_name} ${createUserEmployee.last_name} per permettergli di registrare le ore lavorate.`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {createdPassword ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800">
+                <p className="font-medium text-green-800 dark:text-green-200">Account creato con successo!</p>
+                <p className="text-sm text-green-700 dark:text-green-300 mt-2">
+                  Password temporanea: <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded font-mono">{createdPassword}</code>
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                  Comunica questa password al dipendente. Dovrà cambiarla al primo accesso.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => setCreateUserDialogOpen(false)}>Chiudi</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (createUserEmployee && createUserEmail) {
+                createUserMutation.mutate({ 
+                  employeeId: createUserEmployee.id, 
+                  email: createUserEmail 
+                });
+              }
+            }} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="user-email">Email per l'account</Label>
+                <Input
+                  id="user-email"
+                  type="email"
+                  value={createUserEmail}
+                  onChange={(e) => setCreateUserEmail(e.target.value)}
+                  placeholder="email@esempio.com"
+                  required
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setCreateUserDialogOpen(false)}>
+                  Annulla
+                </Button>
+                <Button type="submit" disabled={createUserMutation.isPending}>
+                  {createUserMutation.isPending ? "Creazione..." : "Crea Account"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
