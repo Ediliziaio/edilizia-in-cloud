@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
+import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle } from "lucide-react";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange } from "lucide-react";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter } from "@/types/calendar";
 
 export default function Calendar() {
@@ -197,6 +198,10 @@ export default function Calendar() {
             <CalendarIcon className="h-4 w-4" />
             <span className="hidden sm:inline">Mese</span>
           </ToggleGroupItem>
+          <ToggleGroupItem value="week" aria-label="Vista Settimana" className="gap-2">
+            <CalendarRange className="h-4 w-4" />
+            <span className="hidden sm:inline">Settimana</span>
+          </ToggleGroupItem>
           {!isMobile && (
             <ToggleGroupItem value="gantt" aria-label="Vista Gantt" className="gap-2">
               <GanttChart className="h-4 w-4" />
@@ -217,6 +222,12 @@ export default function Calendar() {
         </div>
       ) : view === "month" ? (
         <CalendarMonthView
+          orders={scheduledOrders}
+          currentDate={currentDate}
+          onDateChange={setCurrentDate}
+        />
+      ) : view === "week" ? (
+        <CalendarWeekView
           orders={scheduledOrders}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
