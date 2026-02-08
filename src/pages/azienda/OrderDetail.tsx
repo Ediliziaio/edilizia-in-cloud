@@ -37,6 +37,7 @@ import { FinancialSummaryReadOnly, PaymentType } from "@/components/orders/Finan
 import { OrderEconomics } from "@/components/orders/OrderEconomics";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
+import { OrderCommissions } from "@/components/orders/OrderCommissions";
 import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 
 // Order Alert Interface
@@ -733,6 +734,18 @@ export default function OrderDetail() {
 
           {/* Labor Costs */}
           <OrderLaborCosts orderId={id!} editable={true} />
+
+          {/* Commissions */}
+          <OrderCommissions
+            orderId={id!}
+            totalAmount={order.total_amount}
+            collectedAmount={
+              (order.deposit_paid ? order.deposit_amount : 0) +
+              (order.deposit_2_paid ? (order.deposit_2_amount || 0) : 0) +
+              (order.balance_paid ? order.balance_amount : 0)
+            }
+            vatRate={order.vat_rate || 22}
+          />
 
           {/* Expected Date */}
           {order.expected_date && (

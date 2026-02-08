@@ -523,6 +523,63 @@ export type Database = {
           },
         ]
       }
+      order_salespeople: {
+        Row: {
+          commission_amount: number
+          commission_type: string
+          commission_value: number
+          created_at: string
+          id: string
+          is_paid: boolean
+          notes: string | null
+          order_id: string
+          paid_date: string | null
+          payment_expected_date: string | null
+          salesperson_id: string
+        }
+        Insert: {
+          commission_amount?: number
+          commission_type: string
+          commission_value?: number
+          created_at?: string
+          id?: string
+          is_paid?: boolean
+          notes?: string | null
+          order_id: string
+          paid_date?: string | null
+          payment_expected_date?: string | null
+          salesperson_id: string
+        }
+        Update: {
+          commission_amount?: number
+          commission_type?: string
+          commission_value?: number
+          created_at?: string
+          id?: string
+          is_paid?: boolean
+          notes?: string | null
+          order_id?: string
+          paid_date?: string | null
+          payment_expected_date?: string | null
+          salesperson_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_salespeople_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_salespeople_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_status_history: {
         Row: {
           changed_at: string
@@ -758,6 +815,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      salespeople: {
+        Row: {
+          commission_type: string
+          commission_value: number
+          company_id: string
+          created_at: string
+          email: string | null
+          first_name: string
+          id: string
+          is_active: boolean
+          last_name: string
+          phone: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          commission_type?: string
+          commission_value?: number
+          company_id: string
+          created_at?: string
+          email?: string | null
+          first_name: string
+          id?: string
+          is_active?: boolean
+          last_name: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          commission_type?: string
+          commission_value?: number
+          company_id?: string
+          created_at?: string
+          email?: string | null
+          first_name?: string
+          id?: string
+          is_active?: boolean
+          last_name?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salespeople_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -1064,6 +1174,7 @@ export type Database = {
         | "customer"
         | "company_staff"
         | "employee"
+        | "salesperson"
       company_sector:
         | "serramenti"
         | "infissi"
@@ -1207,6 +1318,7 @@ export const Constants = {
         "customer",
         "company_staff",
         "employee",
+        "salesperson",
       ],
       company_sector: [
         "serramenti",

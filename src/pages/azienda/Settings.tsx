@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, ListOrdered, Truck, Key } from "lucide-react";
+import { Building2, ListOrdered, Truck, Key, Users, UserCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +8,16 @@ import { OrderStatusConfig } from "@/components/settings/OrderStatusConfig";
 import { LogoUploader } from "@/components/settings/LogoUploader";
 import { SuppliersConfig } from "@/components/settings/SuppliersConfig";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
+import { UsersConfig } from "@/components/settings/UsersConfig";
+import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
 
 export default function Settings() {
-  const { effectiveCompany, refreshAuth } = useAuth();
+  const { effectiveCompany, refreshAuth, role } = useAuth();
   const company = effectiveCompany;
   const [activeTab, setActiveTab] = useState("stati-ordine");
+
+  // Only company_admin can see Users and Salespeople tabs
+  const isAdmin = role === "company_admin" || role === "super_admin";
 
   return (
     <div className="space-y-6">
@@ -24,24 +29,34 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 lg:w-[650px]">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-6' : 'grid-cols-4'} lg:w-[${isAdmin ? '900' : '650'}px]`}>
           <TabsTrigger value="profilo" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Profilo Azienda</span>
-            <span className="sm:hidden">Profilo</span>
+            <span className="hidden sm:inline">Profilo</span>
           </TabsTrigger>
           <TabsTrigger value="stati-ordine" className="flex items-center gap-2">
             <ListOrdered className="h-4 w-4" />
-            <span className="hidden sm:inline">Stati Ordine</span>
-            <span className="sm:hidden">Stati</span>
+            <span className="hidden sm:inline">Stati</span>
           </TabsTrigger>
           <TabsTrigger value="fornitori" className="flex items-center gap-2">
             <Truck className="h-4 w-4" />
-            Fornitori
+            <span className="hidden sm:inline">Fornitori</span>
           </TabsTrigger>
+          {isAdmin && (
+            <>
+              <TabsTrigger value="utenti" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                <span className="hidden sm:inline">Utenti</span>
+              </TabsTrigger>
+              <TabsTrigger value="venditori" className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4" />
+                <span className="hidden sm:inline">Venditori</span>
+              </TabsTrigger>
+            </>
+          )}
           <TabsTrigger value="sicurezza" className="flex items-center gap-2">
             <Key className="h-4 w-4" />
-            Sicurezza
+            <span className="hidden sm:inline">Sicurezza</span>
           </TabsTrigger>
         </TabsList>
 
@@ -94,6 +109,18 @@ export default function Settings() {
         <TabsContent value="fornitori" className="mt-6">
           <SuppliersConfig />
         </TabsContent>
+
+        {isAdmin && (
+          <>
+            <TabsContent value="utenti" className="mt-6">
+              <UsersConfig />
+            </TabsContent>
+
+            <TabsContent value="venditori" className="mt-6">
+              <SalespeopleConfig />
+            </TabsContent>
+          </>
+        )}
 
         <TabsContent value="sicurezza" className="mt-6">
           <ChangePasswordForm />

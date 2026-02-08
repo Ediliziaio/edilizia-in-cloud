@@ -3,7 +3,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { TrendingUp, TrendingDown, DollarSign, Receipt } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Receipt, UserCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface OrderItem {
@@ -18,6 +18,7 @@ interface OrderEconomicsProps {
   totalAmount: number;
   vatRate: number;
   items: OrderItem[];
+  collectedAmount?: number; // Imponibile incassato
 }
 
 interface CostBreakdown {
@@ -28,11 +29,22 @@ interface CostBreakdown {
   vatAmount: number;
 }
 
+interface OrderSalesperson {
+  id: string;
+  commission_type: string;
+  commission_value: number;
+  salesperson: {
+    first_name: string;
+    last_name: string;
+  };
+}
+
 export function OrderEconomics({
   orderId,
   totalAmount,
   vatRate,
   items,
+  collectedAmount = 0,
 }: OrderEconomicsProps) {
   // Fetch order employees costs
   const { data: orderEmployees = [] } = useQuery({
@@ -66,6 +78,27 @@ export function OrderEconomics({
     staleTime: 2 * 60 * 1000,
   });
 
+  // Fetch order salespeople for commissions
+  const { data: orderSalespeople = [] } = useQuery({
+    queryKey: ["order-salespeople", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_salespeople")
+        .select(`
+          id,
+          commission_type,
+          commission_value,
+          salesperson:salespeople(first_name, last_name)
+        `)
+        .eq("order_id", orderId);
+
+      if (error) throw error;
+      return data as OrderSalesperson[];
+    },
+    enabled: !!orderId,
+    staleTime: 2 * 60 * 1000,
+  });
+
   // Calculate sale totals
   const saleVatAmount = totalAmount * (vatRate / 100);
   const saleGross = totalAmount + saleVatAmount;
@@ -86,7 +119,6 @@ export function OrderEconomics({
       };
     });
 
-  const totalItemsGross = itemCostBreakdowns.reduce((sum, item) => sum + item.grossCost, 0);
   const totalItemsNet = itemCostBreakdowns.reduce((sum, item) => sum + item.netCost, 0);
   const totalItemsVat = itemCostBreakdowns.reduce((sum, item) => sum + item.vatAmount, 0);
 
@@ -107,7 +139,6 @@ export function OrderEconomics({
     };
   });
 
-  const totalTeamsGross = teamCostBreakdowns.reduce((sum, t) => sum + t.grossCost, 0);
   const totalTeamsNet = teamCostBreakdowns.reduce((sum, t) => sum + t.netCost, 0);
   const totalTeamsVat = teamCostBreakdowns.reduce((sum, t) => sum + t.vatAmount, 0);
 
@@ -115,13 +146,36 @@ export function OrderEconomics({
   const totalLaborNet = totalEmployeeCosts + totalTeamsNet;
   const totalLaborVat = totalTeamsVat;
 
+  // Calculate commissions
+  const calculateCommission = (type: string, value: number) => {
+    switch (type) {
+      case "fixed":
+        return value;
+      case "percentage_sold":
+        return totalAmount * (value / 100);
+      case "percentage_collected":
+        return collectedAmount * (value / 100);
+      default:
+        return 0;
+    }
+  };
+
+  const commissionDetails = orderSalespeople.map((sp) => ({
+    name: `${sp.salesperson.first_name} ${sp.salesperson.last_name}`,
+    type: sp.commission_type,
+    value: sp.commission_value,
+    amount: calculateCommission(sp.commission_type, sp.commission_value),
+  }));
+
+  const totalCommissions = commissionDetails.reduce((sum, c) => sum + c.amount, 0);
+
   // VAT summary
   const vatDebit = saleVatAmount; // IVA a debito (vendita)
   const vatCredit = totalItemsVat + totalTeamsVat; // IVA a credito (acquisti)
   const vatBalance = vatDebit - vatCredit; // IVA netta da versare
 
-  // Calculate margin based on net costs
-  const totalCostsNet = totalItemsNet + totalLaborNet;
+  // Calculate margin based on net costs INCLUDING commissions
+  const totalCostsNet = totalItemsNet + totalLaborNet + totalCommissions;
   const grossMargin = totalAmount - totalCostsNet;
   const marginPercentage = totalAmount > 0 ? (grossMargin / totalAmount) * 100 : 0;
 
@@ -234,6 +288,38 @@ export function OrderEconomics({
             </p>
           )}
         </div>
+
+        {/* Commissions Section */}
+        {commissionDetails.length > 0 && (
+          <>
+            <Separator />
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <UserCheck className="h-4 w-4" />
+                PROVVIGIONI VENDITORI
+              </h4>
+              <div className="space-y-2">
+                {commissionDetails.map((comm, index) => (
+                  <div key={index} className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {comm.name}{" "}
+                      <span className="text-xs">
+                        ({comm.type === "fixed" 
+                          ? `€${comm.value}` 
+                          : `${comm.value}% ${comm.type === "percentage_sold" ? "venduto" : "incassato"}`})
+                      </span>
+                    </span>
+                    <span>{formatCurrency(comm.amount)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between font-medium pt-2 border-t">
+                  <span>Totale Provvigioni</span>
+                  <span className="text-destructive">{formatCurrency(totalCommissions)}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         <Separator />
 

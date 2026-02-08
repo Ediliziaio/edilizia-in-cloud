@@ -86,6 +86,8 @@ export function RoleBasedRedirect() {
       return <Navigate to="/cliente" replace />;
     case "employee":
       return <Navigate to="/dipendente" replace />;
+    case "salesperson":
+      return <Navigate to="/venditore" replace />;
     default:
       return <Navigate to="/login" replace />;
   }
