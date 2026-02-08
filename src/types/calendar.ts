@@ -33,4 +33,4 @@ export interface CustomerFilter {
 
 export type GanttZoom = "year" | "quarter" | "month" | "week";
 
-export type CalendarViewType = "month" | "gantt";
+export type CalendarViewType = "month" | "week" | "gantt";
