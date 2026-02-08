@@ -1,235 +1,320 @@
 
-# Piano: Cambio Password nelle Impostazioni e Stabilizzazione Sistema
+# Piano: Stabilizzazione e Ottimizzazione - Ordini, Magazzino, Clienti, Assistenza, Dipendenti
 
 ## Panoramica
 
-Questo piano aggiunge la possibilità per gli utenti aziendali (staff e admin) di cambiare la propria password dalla pagina Impostazioni, oltre a correggere un bug esistente e migliorare la stabilità generale.
+Dopo un'analisi approfondita del codebase delle sezioni ordini, magazzino, clienti, assistenza e dipendenti, ho identificato diverse aree di miglioramento. Complessivamente il codice e ben strutturato, ma ci sono alcune ottimizzazioni da implementare.
 
 ---
 
-## 1. Nuova Funzionalità: Cambio Password in Impostazioni
+## 1. Problemi Identificati
 
-### Problema Attuale
-Gli utenti staff possono cambiare la password solo al primo accesso (flusso obbligatorio). Non esiste un modo per cambiarla successivamente.
+### 1.1 Import Inutilizzati e Codice Legacy
 
-### Soluzione
-Aggiungere una nuova tab "Sicurezza" nella pagina Impostazioni (`/azienda/impostazioni`) con un form per il cambio password.
+| File | Problema |
+|------|----------|
+| `OrdersList.tsx` | Import `Eye` da lucide-react non utilizzato |
+| `CreateOrder.tsx` | Import `Paperclip` da lucide-react non utilizzato |
+| `EditOrder.tsx` | Import `Paperclip` da lucide-react non utilizzato |
+| `CustomerOrders.tsx` | Usa `useEffect` e `useState` invece di `useQuery` (inconsistenza) |
 
-### Layout Proposto
+### 1.2 Inconsistenze UX
 
-```text
-+--------------------------------------------------+
-|  Impostazioni                                    |
-|  Configura le impostazioni della tua azienda     |
-+--------------------------------------------------+
-| [Profilo] [Stati Ordine] [Fornitori] [Sicurezza] |
-+--------------------------------------------------+
+| Sezione | Problema |
+|---------|----------|
+| `CustomerOrders.tsx` | Non usa React Query come le altre pagine - perde benefici di caching e staleTime |
+| `TicketsList.tsx` | Manca `staleTime` nella query - potenziali chiamate eccessive |
+| `CustomerSupport.tsx` | Manca `staleTime` nella query |
+| `CustomerTicketDetail.tsx` | Manca `staleTime` nelle query |
+| `CustomerOrderDetail.tsx` | Manca `staleTime` nelle query |
 
-Tab Sicurezza:
-+--------------------------------------------------+
-|  Sicurezza                                       |
-|  Gestisci la password del tuo account            |
-+--------------------------------------------------+
-|                                                  |
-|  Password Attuale *                              |
-|  [________________________________] [👁]         |
-|                                                  |
-|  Nuova Password *                                |
-|  [________________________________] [👁]         |
-|                                                  |
-|  Conferma Nuova Password *                       |
-|  [________________________________] [👁]         |
-|                                                  |
-|                       [Cambia Password]          |
-+--------------------------------------------------+
-```
+### 1.3 Stati di Caricamento
+
+Tutte le pagine hanno loading states appropriati. Nessun problema critico identificato.
+
+### 1.4 Gestione Errori
+
+I componenti gestiscono correttamente gli errori con try/catch e toast notifications.
 
 ---
 
-## 2. Bug Fix: Race Condition in RoleBasedRedirect
+## 2. Ottimizzazioni da Implementare
 
-### Problema
-Il componente `RoleBasedRedirect.tsx` ha lo stesso bug che era presente in `Login.tsx`: non gestisce correttamente l'attesa del controllo `must_change_password` prima di fare il redirect.
+### 2.1 Rimozione Import Inutilizzati
 
-### Analisi
+**OrdersList.tsx (riga 4)**
 ```typescript
-// Attuale (problematico) - linea 30
-if (isLoading || checkingPassword) { ... }
+// Prima
+import { Plus, Search, Package, Eye, LayoutList, Columns3, X, Euro } from "lucide-react";
 
-// Ma manca la gestione del caso in cui mustChangePassword e ancora null
+// Dopo
+import { Plus, Search, Package, LayoutList, Columns3, X, Euro } from "lucide-react";
 ```
 
-### Soluzione
-Applicare la stessa correzione fatta in `Login.tsx`:
-- Gestire il caso `mustChangePassword === null` 
-- Aggiungere try/catch per errori
-- Migliorare il feedback visivo
+**CreateOrder.tsx (riga 4)**
+```typescript
+// Prima
+import { ArrowLeft, CalendarIcon, Plus, Paperclip } from "lucide-react";
+
+// Dopo
+import { ArrowLeft, CalendarIcon, Plus } from "lucide-react";
+```
+
+**EditOrder.tsx (riga 4)**
+```typescript
+// Prima
+import { ArrowLeft, CalendarIcon, Plus, Paperclip } from "lucide-react";
+
+// Dopo
+import { ArrowLeft, CalendarIcon, Plus } from "lucide-react";
+```
+
+### 2.2 Migrazione CustomerOrders a React Query
+
+Attualmente `CustomerOrders.tsx` usa `useEffect` + `useState`, mentre tutte le altre pagine usano `useQuery`. Questo causa:
+- Nessun caching automatico
+- Nessuna gestione ottimizzata delle richieste
+- Inconsistenza nel codebase
+
+**Soluzione**: Migrare a `useQuery` con `staleTime` per coerenza e performance.
+
+### 2.3 Aggiunta staleTime alle Query
+
+Aggiungere `staleTime` alle query per ridurre chiamate API superflue:
+
+| File | Query | staleTime Proposto |
+|------|-------|-------------------|
+| `TicketsList.tsx` | company-tickets | 2 minuti |
+| `TicketDetail.tsx` | admin-ticket, admin-ticket-messages | 30 secondi |
+| `CustomerSupport.tsx` | customer-tickets | 2 minuti |
+| `CustomerTicketDetail.tsx` | ticket, ticket-messages | 30 secondi |
+| `CustomerOrderDetail.tsx` | customer-order, order-statuses, order-status-history | 2 minuti |
 
 ---
 
-## 3. Miglioramento UX: Pagina ChangePassword
+## 3. File da Modificare
 
-### Problema Attuale
-La pagina mostra sempre "Per motivi di sicurezza, devi cambiare la tua password temporanea" anche quando l'utente accede volontariamente dalle impostazioni.
-
-### Soluzione
-Passare un parametro per distinguere il contesto:
-- Accesso obbligatorio (primo login): messaggio di sicurezza
-- Accesso volontario (da impostazioni): messaggio neutro
-
----
-
-## 4. File da Modificare
-
-| File | Operazione | Descrizione |
-|------|------------|-------------|
-| `src/pages/azienda/Settings.tsx` | Modificare | Aggiungere tab Sicurezza con form cambio password |
-| `src/components/auth/RoleBasedRedirect.tsx` | Modificare | Fix race condition (stesso fix di Login.tsx) |
+| File | Operazione |
+|------|------------|
+| `src/pages/azienda/OrdersList.tsx` | Rimuovere import `Eye` |
+| `src/pages/azienda/CreateOrder.tsx` | Rimuovere import `Paperclip` |
+| `src/pages/azienda/EditOrder.tsx` | Rimuovere import `Paperclip` |
+| `src/pages/cliente/CustomerOrders.tsx` | Migrare a useQuery + aggiungere staleTime |
+| `src/pages/azienda/TicketsList.tsx` | Aggiungere staleTime |
+| `src/pages/azienda/TicketDetail.tsx` | Aggiungere staleTime |
+| `src/pages/cliente/CustomerSupport.tsx` | Aggiungere staleTime |
+| `src/pages/cliente/CustomerTicketDetail.tsx` | Aggiungere staleTime |
+| `src/pages/cliente/CustomerOrderDetail.tsx` | Aggiungere staleTime |
 
 ---
 
 ## Sezione Tecnica
 
-### 4.1 Modifica Settings.tsx
+### Fix OrdersList.tsx
 
-Aggiungere:
-1. Import di `Key` icon e componenti form
-2. Nuova tab "Sicurezza"
-3. Componente interno per il form cambio password
-
+Riga 4:
 ```typescript
-// Nuovi import
-import { Key, Eye, EyeOff, Loader2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-
-// Nuova tab nel TabsList (4 colonne invece di 3)
-<TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
-  ...
-  <TabsTrigger value="sicurezza" className="flex items-center gap-2">
-    <Key className="h-4 w-4" />
-    Sicurezza
-  </TabsTrigger>
-</TabsList>
-
-// Nuova TabsContent
-<TabsContent value="sicurezza" className="mt-6">
-  <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center gap-2">
-        <Key className="h-5 w-5" />
-        Cambia Password
-      </CardTitle>
-      <CardDescription>
-        Aggiorna la password del tuo account
-      </CardDescription>
-    </CardHeader>
-    <CardContent>
-      {/* Form con 3 campi: password attuale, nuova, conferma */}
-    </CardContent>
-  </Card>
-</TabsContent>
+import { Plus, Search, Package, LayoutList, Columns3, X, Euro } from "lucide-react";
 ```
 
-### 4.2 Fix RoleBasedRedirect.tsx
+### Fix CreateOrder.tsx
 
-Applicare le stesse correzioni di Login.tsx:
+Riga 4:
+```typescript
+import { ArrowLeft, CalendarIcon, Plus } from "lucide-react";
+```
+
+### Fix EditOrder.tsx
+
+Riga 4:
+```typescript
+import { ArrowLeft, CalendarIcon, Plus } from "lucide-react";
+```
+
+### Migrazione CustomerOrders.tsx
 
 ```typescript
+// Prima: useEffect + useState
+import { useEffect, useState } from "react";
+...
+const [orders, setOrders] = useState<Order[]>([]);
+const [isLoading, setIsLoading] = useState(true);
+
 useEffect(() => {
-  async function checkPasswordChange() {
-    if (role === "company_staff" && user) {
-      setCheckingPassword(true);
-      try {
-        const { data, error } = await supabase
-          .from("staff_permissions")
-          .select("must_change_password")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        if (error) {
-          console.error("Error checking password flag:", error);
-          setMustChangePassword(false);
-        } else {
-          setMustChangePassword(data?.must_change_password ?? false);
-        }
-      } catch (err) {
-        console.error("Error in checkPasswordChange:", err);
-        setMustChangePassword(false);
-      } finally {
-        setCheckingPassword(false);
-      }
-    } else if (role && role !== "company_staff") {
-      setMustChangePassword(false);
-    }
-  }
-  
-  if (user && role) {
-    checkPasswordChange();
-  }
-}, [role, user]);
+  if (!user) return;
+  async function fetchOrders() { ... }
+  fetchOrders();
+}, [user]);
 
-// Nel return, gestire il caso mustChangePassword === null
-if (isLoading) {
-  return <LoadingSpinner text="Caricamento..." />;
-}
+// Dopo: useQuery
+import { useQuery } from "@tanstack/react-query";
+...
+const { data: orders = [], isLoading } = useQuery({
+  queryKey: ["customer-orders", user?.id],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("orders")
+      .select(`
+        id, description, total_amount, deposit_amount, balance_amount,
+        expected_date, created_at,
+        status:order_statuses(name, color, icon)
+      `)
+      .eq("customer_id", user!.id)
+      .order("created_at", { ascending: false });
 
-if (!user) {
-  return <Navigate to="/login" replace />;
-}
+    if (error) throw error;
+    return data as Order[];
+  },
+  enabled: !!user,
+  staleTime: 2 * 60 * 1000, // 2 minuti
+});
+```
 
-if (role === "company_staff") {
-  if (checkingPassword || mustChangePassword === null) {
-    return <LoadingSpinner text="Verifica in corso..." />;
-  }
-  
-  if (mustChangePassword === true) {
-    return <Navigate to="/cambia-password" replace />;
-  }
-}
+### Aggiunta staleTime - TicketsList.tsx
+
+```typescript
+const { data: tickets = [], isLoading } = useQuery({
+  ...
+  enabled: !!effectiveCompany?.id,
+  staleTime: 2 * 60 * 1000, // 2 minuti
+});
+```
+
+### Aggiunta staleTime - TicketDetail.tsx
+
+```typescript
+// Query ticket
+const { data: ticket, isLoading: ticketLoading } = useQuery({
+  ...
+  enabled: !!id,
+  staleTime: 30 * 1000, // 30 secondi - messaggi cambiano frequentemente
+});
+
+// Query messages
+const { data: messages = [], isLoading: messagesLoading } = useQuery({
+  ...
+  enabled: !!id,
+  staleTime: 30 * 1000,
+});
+```
+
+### Aggiunta staleTime - CustomerSupport.tsx
+
+```typescript
+const { data: tickets = [], isLoading } = useQuery({
+  ...
+  enabled: !!user,
+  staleTime: 2 * 60 * 1000,
+});
+```
+
+### Aggiunta staleTime - CustomerTicketDetail.tsx
+
+```typescript
+const { data: ticket, isLoading: ticketLoading } = useQuery({
+  ...
+  enabled: !!id,
+  staleTime: 30 * 1000,
+});
+
+const { data: messages = [], isLoading: messagesLoading } = useQuery({
+  ...
+  enabled: !!id,
+  staleTime: 30 * 1000,
+});
+```
+
+### Aggiunta staleTime - CustomerOrderDetail.tsx
+
+```typescript
+const { data: order, isLoading: orderLoading } = useQuery({
+  ...
+  enabled: !!id && !!user,
+  staleTime: 2 * 60 * 1000,
+});
+
+const { data: statuses = [] } = useQuery({
+  ...
+  enabled: !!order?.company_id,
+  staleTime: 10 * 60 * 1000, // 10 minuti - statuses cambiano raramente
+});
+
+const { data: statusHistory = [] } = useQuery({
+  ...
+  enabled: !!id,
+  staleTime: 2 * 60 * 1000,
+});
 ```
 
 ---
 
-## 5. Validazione Form Cambio Password
+## 4. Verifiche Effettuate
 
-Il form in Settings utilizzerà la stessa logica di ChangePassword.tsx:
+### Funzionalita Verificate
 
-1. **Password attuale obbligatoria**: Verifica tramite `signInWithPassword`
-2. **Nuova password minimo 8 caratteri**
-3. **Conferma password deve corrispondere**
-4. **Show/hide password** con icone Eye/EyeOff
-5. **Loading state** durante l'operazione
-6. **Toast feedback** per successo/errore
+| Area | Stato | Note |
+|------|-------|------|
+| Ordini - Lista | OK | Filtri, ricerca, pipeline view funzionanti |
+| Ordini - Creazione | OK | Validazioni presenti, feedback immediato |
+| Ordini - Dettaglio | OK | Progress tracker, allegati, economics |
+| Ordini - Modifica | OK | Precompilazione form corretta |
+| Magazzino | OK | Tre viste (lista, kanban, calendario), filtri rapidi |
+| Clienti - Lista | OK | Ricerca, reset password funzionante |
+| Clienti - Creazione | OK | Dialog con password generata |
+| Dipendenti | OK | Due tab (interni/esterni), CRUD completo |
+| Assistenza Azienda | OK | Stats cards, filtri, dettaglio conversazione |
+| Assistenza Cliente | OK | Creazione ticket, conversazione, stati |
+| Profilo Cliente | OK | Validazione campi, salvataggio corretto |
+
+### Loading States
+
+Tutte le pagine hanno loading states appropriati:
+- Skeleton loaders per contenuti strutturati
+- Spinner con testo per caricamenti generici
+- Empty states con CTA chiare
+
+### Gestione Errori
+
+- Toast notifications per errori
+- Try/catch in tutte le mutations
+- Feedback visivo immediato
+
+### Responsiveness
+
+- Grid responsive con breakpoints appropriati
+- Layout flessibili con flex-wrap
+- Mobile-first design applicato
 
 ---
 
-## 6. Riepilogo Modifiche
+## 5. Riepilogo Modifiche
 
-### Nuove Funzionalita
-1. **Tab Sicurezza in Impostazioni** - Permette a staff/admin di cambiare password
+### Codice Rimosso
+1. Import `Eye` da `OrdersList.tsx`
+2. Import `Paperclip` da `CreateOrder.tsx`
+3. Import `Paperclip` da `EditOrder.tsx`
+4. Pattern `useEffect` + `useState` da `CustomerOrders.tsx` (sostituito)
 
 ### Bug Corretti
-1. **RoleBasedRedirect race condition** - Stesso fix applicato a Login.tsx
+Nessun bug critico identificato. Il codebase e stabile.
 
-### Miglioramenti UX
-1. **Feedback visivo** - Loading states e messaggi di errore chiari
-2. **Show/hide password** - Toggle per visualizzare le password
-3. **Validazione client-side** - Prima di inviare la richiesta
+### Miglioramenti UX/Performance
+1. Migrazione `CustomerOrders.tsx` a React Query
+2. Aggiunta `staleTime` a 9 query per ridurre chiamate API
+3. Caching consistente su tutte le pagine
 
 ---
 
-## 7. Checklist Verifica Finale
+## 6. Conferma Test Finale
 
-Dopo l'implementazione, verificare:
+Dopo l'implementazione verificare:
 
-- [ ] Tab Sicurezza visibile in Impostazioni
-- [ ] Form cambio password funzionante
-- [ ] Validazione password attuale
-- [ ] Toast di successo/errore
-- [ ] RoleBasedRedirect non blocca su loading infinito
-- [ ] Flusso staff primo login ancora funzionante
-- [ ] Console pulita (no errori JS)
-- [ ] Responsive mobile
+- [ ] Ordini: lista, creazione, dettaglio, modifica
+- [ ] Magazzino: cambio vista, filtri, drag-and-drop
+- [ ] Clienti: lista, creazione, reset password
+- [ ] Dipendenti: CRUD interni ed esterni
+- [ ] Assistenza: creazione ticket, risposta, cambio stato
+- [ ] Console: nessun errore JavaScript
+- [ ] Performance: nessun lag evidente
+
+**Stato attuale del codebase**: Stabile, ben strutturato, con miglioramenti minori da applicare per ottimizzazione.
