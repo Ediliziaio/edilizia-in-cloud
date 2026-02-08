@@ -12,6 +12,7 @@ import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
 import { CustomerLayout } from "@/components/layouts/CustomerLayout";
 import { EmployeeLayout } from "@/components/layouts/EmployeeLayout";
+import { SalespersonLayout } from "@/components/layouts/SalespersonLayout";
 
 // Pages
 import Login from "@/pages/Login";
@@ -55,6 +56,9 @@ import EmployeeDashboard from "@/pages/dipendente/EmployeeDashboard";
 import TimeEntry from "@/pages/dipendente/TimeEntry";
 import MyWorkLogs from "@/pages/dipendente/MyWorkLogs";
 import EmployeeProfile from "@/pages/dipendente/EmployeeProfile";
+
+// Salesperson Pages
+import SalespersonDashboard from "@/pages/venditore/SalespersonDashboard";
 
 // Company Ticket Pages
 import TicketsList from "@/pages/azienda/TicketsList";
@@ -156,6 +160,18 @@ const App = () => (
               <Route path="ore" element={<TimeEntry />} />
               <Route path="rapportini" element={<MyWorkLogs />} />
               <Route path="profilo" element={<EmployeeProfile />} />
+            </Route>
+
+            {/* Salesperson Routes */}
+            <Route
+              path="/venditore"
+              element={
+                <ProtectedRoute allowedRoles={["salesperson"]}>
+                  <SalespersonLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<SalespersonDashboard />} />
             </Route>
 
             {/* Catch-all */}
