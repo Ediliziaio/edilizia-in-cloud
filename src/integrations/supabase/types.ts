@@ -762,6 +762,77 @@ export type Database = {
           },
         ]
       }
+      staff_permissions: {
+        Row: {
+          can_edit_customers: boolean | null
+          can_edit_orders: boolean | null
+          can_edit_tickets: boolean | null
+          can_edit_warehouse: boolean | null
+          can_view_calendar: boolean | null
+          can_view_customers: boolean | null
+          can_view_dashboard: boolean | null
+          can_view_employees: boolean | null
+          can_view_forecast: boolean | null
+          can_view_orders: boolean | null
+          can_view_settings: boolean | null
+          can_view_tickets: boolean | null
+          can_view_warehouse: boolean | null
+          company_id: string
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          can_edit_customers?: boolean | null
+          can_edit_orders?: boolean | null
+          can_edit_tickets?: boolean | null
+          can_edit_warehouse?: boolean | null
+          can_view_calendar?: boolean | null
+          can_view_customers?: boolean | null
+          can_view_dashboard?: boolean | null
+          can_view_employees?: boolean | null
+          can_view_forecast?: boolean | null
+          can_view_orders?: boolean | null
+          can_view_settings?: boolean | null
+          can_view_tickets?: boolean | null
+          can_view_warehouse?: boolean | null
+          company_id: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          can_edit_customers?: boolean | null
+          can_edit_orders?: boolean | null
+          can_edit_tickets?: boolean | null
+          can_edit_warehouse?: boolean | null
+          can_view_calendar?: boolean | null
+          can_view_customers?: boolean | null
+          can_view_dashboard?: boolean | null
+          can_view_employees?: boolean | null
+          can_view_forecast?: boolean | null
+          can_view_orders?: boolean | null
+          can_view_settings?: boolean | null
+          can_view_tickets?: boolean | null
+          can_view_warehouse?: boolean | null
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_permissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           company_id: string
@@ -908,6 +979,10 @@ export type Database = {
     }
     Functions: {
       get_user_company_id: { Args: { _user_id: string }; Returns: string }
+      has_permission: {
+        Args: { _permission: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -917,7 +992,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "super_admin" | "company_admin" | "customer"
+      app_role: "super_admin" | "company_admin" | "customer" | "company_staff"
       company_sector:
         | "serramenti"
         | "infissi"
@@ -1055,7 +1130,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["super_admin", "company_admin", "customer"],
+      app_role: ["super_admin", "company_admin", "customer", "company_staff"],
       company_sector: [
         "serramenti",
         "infissi",

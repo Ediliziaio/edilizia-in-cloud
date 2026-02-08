@@ -25,6 +25,7 @@ export function RoleBasedRedirect() {
     case "super_admin":
       return <Navigate to="/admin" replace />;
     case "company_admin":
+    case "company_staff":
       return <Navigate to="/azienda" replace />;
     case "customer":
       return <Navigate to="/cliente" replace />;

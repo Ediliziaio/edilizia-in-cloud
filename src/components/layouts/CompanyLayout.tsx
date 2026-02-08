@@ -1,5 +1,6 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -13,7 +14,7 @@ import {
   Warehouse,
   CalendarDays,
   HardHat,
-  
+  UserCog,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -31,18 +32,26 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
+import { useMemo } from "react";
 
-const navItems = [
-  { title: "Dashboard", url: "/azienda", icon: LayoutDashboard },
-  { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList },
-  { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse },
-  { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays },
-  { title: "Clienti", url: "/azienda/clienti", icon: Users },
-  { title: "Dipendenti", url: "/azienda/dipendenti", icon: HardHat },
-  { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon },
-  { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp },
-  
-  { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings },
+interface NavItem {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permissionKey?: string;
+}
+
+const allNavItems: NavItem[] = [
+  { title: "Dashboard", url: "/azienda", icon: LayoutDashboard, permissionKey: "canViewDashboard" },
+  { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders" },
+  { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse" },
+  { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar" },
+  { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers" },
+  { title: "Dipendenti", url: "/azienda/dipendenti", icon: HardHat, permissionKey: "canViewEmployees" },
+  { title: "Utenti", url: "/azienda/utenti", icon: UserCog, permissionKey: "canViewUsers" },
+  { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon, permissionKey: "canViewTickets" },
+  { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast" },
+  { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings, permissionKey: "canViewSettings" },
 ];
 
 function ImpersonationBanner() {
@@ -77,7 +86,8 @@ function ImpersonationBanner() {
 }
 
 function CompanySidebar() {
-  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation } = useAuth();
+  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
+  const permissions = usePermissions();
   const navigate = useNavigate();
   
   const handleLogoutOrExit = () => {
@@ -88,6 +98,14 @@ function CompanySidebar() {
       signOut();
     }
   };
+
+  // Filter nav items based on permissions
+  const visibleNavItems = useMemo(() => {
+    return allNavItems.filter((item) => {
+      if (!item.permissionKey) return true;
+      return permissions[item.permissionKey as keyof typeof permissions] === true;
+    });
+  }, [permissions]);
 
   return (
     <Sidebar className="border-r">
@@ -113,7 +131,7 @@ function CompanySidebar() {
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink 

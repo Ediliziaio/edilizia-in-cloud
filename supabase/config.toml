@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.create-super-admin]
 verify_jwt = false
+
+[functions.create-company-staff]
+verify_jwt = false
