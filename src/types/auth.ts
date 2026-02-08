@@ -1,6 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 
-export type AppRole = "super_admin" | "company_admin" | "company_staff" | "customer";
+export type AppRole = "super_admin" | "company_admin" | "company_staff" | "customer" | "employee";
 
 export type CompanySector = 
   | "serramenti"

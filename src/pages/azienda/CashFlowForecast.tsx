@@ -19,7 +19,9 @@ import {
   Wallet, 
   PiggyBank,
   Calendar,
-  Building2
+  Building2,
+  Package,
+  ShoppingCart
 } from "lucide-react";
 import {
   BarChart,
@@ -145,7 +147,44 @@ export default function CashFlowForecast() {
     staleTime: 5 * 60 * 1000, // 5 minuti
   });
 
-  const isLoading = loadingOrders || loadingTeams;
+  // Query articoli da ordinare/ordinati (costi materiali)
+  const { data: pendingItems = [], isLoading: loadingItems } = useQuery({
+    queryKey: ["forecast-pending-items", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_items")
+        .select(`
+          id, name, quantity, purchase_price, status,
+          supplier:suppliers(name),
+          order:orders!inner(id, order_code, company_id)
+        `)
+        .in("status", ["da_ordinare", "ordinato"]);
+      
+      if (error) throw error;
+      return (data || []).filter((item: any) => item.order?.company_id === companyId);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Calcola costi materiali
+  const materialCosts = useMemo(() => {
+    const daOrdinare = pendingItems.filter((i: any) => i.status === "da_ordinare");
+    const ordinati = pendingItems.filter((i: any) => i.status === "ordinato");
+    
+    return {
+      toOrder: {
+        count: daOrdinare.length,
+        total: daOrdinare.reduce((sum: number, i: any) => sum + (i.purchase_price || 0) * (i.quantity || 1), 0),
+      },
+      ordered: {
+        count: ordinati.length,
+        total: ordinati.reduce((sum: number, i: any) => sum + (i.purchase_price || 0) * (i.quantity || 1), 0),
+      },
+    };
+  }, [pendingItems]);
+
+  const isLoading = loadingOrders || loadingTeams || loadingItems;
 
   // Elabora entrate attese (pagamenti clienti)
   const expectedPayments = useMemo(() => {
@@ -465,6 +504,63 @@ export default function CashFlowForecast() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sezione Costi Materiali */}
+      {(materialCosts.toOrder.count > 0 || materialCosts.ordered.count > 0) && (
+        <Card className="border-orange-200 bg-orange-50/50 dark:bg-orange-900/10 dark:border-orange-800">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-orange-600" />
+              Uscite Materiali Previste
+            </CardTitle>
+            <CardDescription>
+              Costi articoli da acquistare o già ordinati
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="p-4 rounded-lg bg-background border">
+                <div className="flex items-center gap-2 mb-2">
+                  <ShoppingCart className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm font-medium">Da Ordinare</span>
+                </div>
+                <p className="text-2xl font-bold text-orange-600">
+                  {formatCurrency(materialCosts.toOrder.total)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {materialCosts.toOrder.count} articoli
+                </p>
+              </div>
+              
+              <div className="p-4 rounded-lg bg-background border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium">Ordinati (in arrivo)</span>
+                </div>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(materialCosts.ordered.total)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {materialCosts.ordered.count} articoli
+                </p>
+              </div>
+              
+              <div className="p-4 rounded-lg bg-background border-2 border-orange-300 dark:border-orange-700">
+                <div className="flex items-center gap-2 mb-2">
+                  <Wallet className="h-4 w-4 text-orange-700" />
+                  <span className="text-sm font-medium">Totale Impegni</span>
+                </div>
+                <p className="text-2xl font-bold text-orange-700">
+                  {formatCurrency(materialCosts.toOrder.total + materialCosts.ordered.total)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {materialCosts.toOrder.count + materialCosts.ordered.count} articoli totali
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Grafico Timeline */}
       <Card>
