@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.create-company-staff]
 verify_jwt = false
+
+[functions.create-salesperson-user]
+verify_jwt = false
+
+[functions.create-employee-user]
+verify_jwt = false
