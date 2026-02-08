@@ -59,6 +59,9 @@ import EmployeeProfile from "@/pages/dipendente/EmployeeProfile";
 
 // Salesperson Pages
 import SalespersonDashboard from "@/pages/venditore/SalespersonDashboard";
+import MyOrders from "@/pages/venditore/MyOrders";
+import MyEarnings from "@/pages/venditore/MyEarnings";
+import SalespersonProfile from "@/pages/venditore/SalespersonProfile";
 
 // Company Ticket Pages
 import TicketsList from "@/pages/azienda/TicketsList";
@@ -172,6 +175,9 @@ const App = () => (
               }
             >
               <Route index element={<SalespersonDashboard />} />
+              <Route path="ordini" element={<MyOrders />} />
+              <Route path="guadagni" element={<MyEarnings />} />
+              <Route path="profilo" element={<SalespersonProfile />} />
             </Route>
 
             {/* Catch-all */}

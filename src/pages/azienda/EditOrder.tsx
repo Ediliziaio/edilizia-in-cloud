@@ -30,6 +30,7 @@ import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
+import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 
 interface Customer {
   id: string;
@@ -120,6 +121,14 @@ export default function EditOrder() {
   // Customer creation dialog
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
 
+  // Salesperson state
+  const [salespersonId, setSalespersonId] = useState("");
+  const [salespersonData, setSalespersonData] = useState<{
+    commission_type: string;
+    commission_value: number;
+  } | null>(null);
+  const [existingSalespersonRecordId, setExistingSalespersonRecordId] = useState<string | null>(null);
+
   // Calculate balance
   const total = parseFloat(totalAmount) || 0;
   const deposit = parseFloat(depositAmount) || 0;
@@ -159,6 +168,37 @@ export default function EditOrder() {
     },
     enabled: !!id && !!user,
   });
+
+  // Fetch existing salesperson for this order
+  const { data: existingSalesperson } = useQuery({
+    queryKey: ["order-salesperson", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_salespeople")
+        .select(`
+          id, salesperson_id, commission_type, commission_value,
+          salesperson:salespeople(first_name, last_name, commission_type, commission_value)
+        `)
+        .eq("order_id", id!)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id && !!user,
+  });
+
+  // Set salesperson when loaded
+  useEffect(() => {
+    if (existingSalesperson) {
+      setSalespersonId(existingSalesperson.salesperson_id);
+      setSalespersonData({
+        commission_type: existingSalesperson.commission_type,
+        commission_value: existingSalesperson.commission_value,
+      });
+      setExistingSalespersonRecordId(existingSalesperson.id);
+    }
+  }, [existingSalesperson]);
 
   // Populate form when order data is loaded
   useEffect(() => {
@@ -305,11 +345,58 @@ export default function EditOrder() {
 
         if (itemsError) throw itemsError;
       }
+
+      // Handle salesperson commission
+      if (salespersonId && salespersonData) {
+        let commissionAmount = 0;
+        if (salespersonData.commission_type === "fixed") {
+          commissionAmount = salespersonData.commission_value;
+        } else {
+          commissionAmount = total * (salespersonData.commission_value / 100);
+        }
+
+        if (existingSalespersonRecordId) {
+          // Update existing record
+          const { error: updateError } = await supabase
+            .from("order_salespeople")
+            .update({
+              salesperson_id: salespersonId,
+              commission_type: salespersonData.commission_type,
+              commission_value: salespersonData.commission_value,
+              commission_amount: commissionAmount,
+            })
+            .eq("id", existingSalespersonRecordId);
+
+          if (updateError) throw updateError;
+        } else {
+          // Create new record
+          const { error: insertError } = await supabase
+            .from("order_salespeople")
+            .insert({
+              order_id: id!,
+              salesperson_id: salespersonId,
+              commission_type: salespersonData.commission_type,
+              commission_value: salespersonData.commission_value,
+              commission_amount: commissionAmount,
+            });
+
+          if (insertError) throw insertError;
+        }
+      } else if (existingSalespersonRecordId && !salespersonId) {
+        // Remove salesperson from order
+        const { error: deleteError } = await supabase
+          .from("order_salespeople")
+          .delete()
+          .eq("id", existingSalespersonRecordId);
+
+        if (deleteError) throw deleteError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["order", id] });
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
+      queryClient.invalidateQueries({ queryKey: ["order-salesperson", id] });
       toast({
         title: "Ordine aggiornato",
         description: "L'ordine è stato aggiornato con successo.",
@@ -467,6 +554,18 @@ export default function EditOrder() {
                   rows={3}
                 />
               </div>
+
+              {/* Salesperson Select */}
+              <SalespersonSelect
+                value={salespersonId}
+                onChange={(id, salesperson) => {
+                  setSalespersonId(id);
+                  setSalespersonData(salesperson ? {
+                    commission_type: salesperson.commission_type,
+                    commission_value: salesperson.commission_value,
+                  } : null);
+                }}
+              />
             </CardContent>
           </Card>
 
