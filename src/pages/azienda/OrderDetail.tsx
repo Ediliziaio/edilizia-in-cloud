@@ -184,7 +184,7 @@ interface OrderItemAttachmentData {
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -250,19 +250,22 @@ export default function OrderDetail() {
     enabled: orderItems.length > 0,
   });
 
-  // Fetch order statuses
+  // Fetch order statuses (filtered by company)
   const { data: statuses = [] } = useQuery({
-    queryKey: ["order-statuses", user?.id],
+    queryKey: ["order-statuses", effectiveCompany?.id],
     queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      
       const { data, error } = await supabase
         .from("order_statuses")
         .select("id, name, icon, color, position")
+        .eq("company_id", effectiveCompany.id)
         .order("position");
 
       if (error) throw error;
       return data as OrderStatus[];
     },
-    enabled: !!user,
+    enabled: !!effectiveCompany?.id,
   });
 
   // Fetch status history

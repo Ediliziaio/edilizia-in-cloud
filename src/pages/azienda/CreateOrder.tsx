@@ -119,19 +119,22 @@ export default function CreateOrder() {
     enabled: !!user,
   });
 
-  // Fetch order statuses for the company
+  // Fetch order statuses for the company (filtered by company_id)
   const { data: statuses = [] } = useQuery({
-    queryKey: ["order-statuses", user?.id],
+    queryKey: ["order-statuses", effectiveCompany?.id],
     queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      
       const { data, error } = await supabase
         .from("order_statuses")
         .select("id, name, position")
+        .eq("company_id", effectiveCompany.id)
         .order("position");
 
       if (error) throw error;
       return data as OrderStatus[];
     },
-    enabled: !!user,
+    enabled: !!effectiveCompany?.id,
   });
 
   // Set default status when statuses are loaded

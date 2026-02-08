@@ -86,7 +86,7 @@ function getPendingPayments(order: OrderWithDetails): string[] {
 }
 
 export default function OrdersList() {
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
@@ -104,10 +104,12 @@ export default function OrdersList() {
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
 
-  // Fetch orders for the company
+  // Fetch orders for the company (filtered by company_id)
   const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["orders", user?.id],
+    queryKey: ["orders", effectiveCompany?.id],
     queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      
       const { data, error } = await supabase
         .from("orders")
         .select(`
@@ -115,28 +117,32 @@ export default function OrdersList() {
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
           status:order_statuses!orders_current_status_id_fkey(name, color)
         `)
+        .eq("company_id", effectiveCompany.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as OrderWithDetails[];
     },
-    enabled: !!user,
+    enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000, // 5 minuti
   });
 
-  // Fetch statuses for filter dropdown
+  // Fetch statuses for filter dropdown (filtered by company_id)
   const { data: statuses = [] } = useQuery({
-    queryKey: ["order-statuses", user?.id],
+    queryKey: ["order-statuses", effectiveCompany?.id],
     queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      
       const { data, error } = await supabase
         .from("order_statuses")
         .select("id, name, color, position")
+        .eq("company_id", effectiveCompany.id)
         .order("position");
 
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!effectiveCompany?.id,
     staleTime: 10 * 60 * 1000, // 10 minuti - statuses cambiano raramente
   });
 
