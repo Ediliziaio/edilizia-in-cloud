@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,40 +24,31 @@ interface Order {
 
 export default function CustomerOrders() {
   const { user, company } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    if (!user) return;
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ["customer-orders", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          id,
+          description,
+          total_amount,
+          deposit_amount,
+          balance_amount,
+          expected_date,
+          created_at,
+          status:order_statuses(name, color, icon)
+        `)
+        .eq("customer_id", user!.id)
+        .order("created_at", { ascending: false });
 
-    async function fetchOrders() {
-      try {
-        const { data, error } = await supabase
-          .from("orders")
-          .select(`
-            id,
-            description,
-            total_amount,
-            deposit_amount,
-            balance_amount,
-            expected_date,
-            created_at,
-            status:order_statuses(name, color, icon)
-          `)
-          .eq("customer_id", user.id)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        setOrders(data as unknown as Order[] || []);
-      } catch (error) {
-        console.error("Error fetching orders:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchOrders();
-  }, [user]);
+      if (error) throw error;
+      return data as unknown as Order[];
+    },
+    enabled: !!user,
+    staleTime: 2 * 60 * 1000, // 2 minuti
+  });
 
   if (isLoading) {
     return (

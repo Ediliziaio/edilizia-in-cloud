@@ -38,6 +38,7 @@ export default function CustomerOrderDetail() {
       return data;
     },
     enabled: !!id && !!user,
+    staleTime: 2 * 60 * 1000, // 2 minuti
   });
 
   // Fetch all order statuses for this company
@@ -54,6 +55,7 @@ export default function CustomerOrderDetail() {
       return data;
     },
     enabled: !!order?.company_id,
+    staleTime: 10 * 60 * 1000, // 10 minuti - statuses cambiano raramente
   });
 
   // Fetch status history
@@ -73,6 +75,7 @@ export default function CustomerOrderDetail() {
       return data;
     },
     enabled: !!id,
+    staleTime: 2 * 60 * 1000, // 2 minuti
   });
 
   if (orderLoading) {

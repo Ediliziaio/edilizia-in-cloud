@@ -97,6 +97,7 @@ export default function TicketDetail() {
       return data as unknown as Ticket;
     },
     enabled: !!id,
+    staleTime: 30 * 1000, // 30 secondi
   });
 
   // Fetch messages
@@ -119,6 +120,7 @@ export default function TicketDetail() {
       return data as unknown as Message[];
     },
     enabled: !!id,
+    staleTime: 30 * 1000, // 30 secondi
   });
 
   // Scroll to bottom when new messages arrive

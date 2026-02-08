@@ -83,6 +83,7 @@ export default function TicketsList() {
       return data as unknown as Ticket[];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 2 * 60 * 1000, // 2 minuti
   });
 
   const filteredTickets = tickets.filter((ticket) => {
