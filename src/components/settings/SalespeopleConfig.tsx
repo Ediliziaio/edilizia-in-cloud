@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { UserCheck, Plus, Pencil, Trash2, Loader2, Percent, DollarSign, Receipt } from "lucide-react";
+import { UserCheck, Plus, Pencil, Trash2, Loader2, Percent, DollarSign, Receipt, UserPlus, Check, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -29,6 +31,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SalespersonDialog } from "@/components/salespeople/SalespersonDialog";
 
 export interface Salesperson {
@@ -57,6 +68,18 @@ export function SalespeopleConfig() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSalesperson, setEditingSalesperson] = useState<Salesperson | null>(null);
+  
+  // Account creation state
+  const [createAccountDialog, setCreateAccountDialog] = useState<{ open: boolean; salesperson: Salesperson | null }>({
+    open: false,
+    salesperson: null,
+  });
+  const [accountEmail, setAccountEmail] = useState("");
+  const [passwordDialog, setPasswordDialog] = useState<{ open: boolean; password: string; name: string }>({
+    open: false,
+    password: "",
+    name: "",
+  });
 
   // Fetch salespeople
   const { data: salespeople = [], isLoading } = useQuery({
@@ -78,7 +101,6 @@ export function SalespeopleConfig() {
   const saveMutation = useMutation({
     mutationFn: async (data: Partial<Salesperson> & { id?: string }) => {
       if (data.id) {
-        // Update
         const { error } = await supabase
           .from("salespeople")
           .update({
@@ -93,7 +115,6 @@ export function SalespeopleConfig() {
           .eq("id", data.id);
         if (error) throw error;
       } else {
-        // Create
         const { error } = await supabase.from("salespeople").insert({
           company_id: companyId!,
           first_name: data.first_name!,
@@ -152,12 +173,56 @@ export function SalespeopleConfig() {
         description: "Il venditore è stato rimosso.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Errore",
         description: error.message?.includes("order_salespeople")
           ? "Impossibile eliminare: il venditore ha ordini associati."
           : "Impossibile eliminare il venditore.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Create account mutation
+  const createAccountMutation = useMutation({
+    mutationFn: async ({ salesperson_id, email }: { salesperson_id: string; email: string }) => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) {
+        throw new Error("Sessione non valida");
+      }
+
+      const response = await supabase.functions.invoke("create-salesperson-user", {
+        body: { salesperson_id, email },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || "Errore nella creazione account");
+      }
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || "Errore sconosciuto");
+      }
+
+      return response.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
+      setCreateAccountDialog({ open: false, salesperson: null });
+      setAccountEmail("");
+      
+      // Show password dialog
+      const sp = createAccountDialog.salesperson;
+      setPasswordDialog({
+        open: true,
+        password: data.temp_password,
+        name: sp ? `${sp.first_name} ${sp.last_name}` : "",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -171,6 +236,28 @@ export function SalespeopleConfig() {
   const handleCreate = () => {
     setEditingSalesperson(null);
     setDialogOpen(true);
+  };
+
+  const handleOpenCreateAccount = (salesperson: Salesperson) => {
+    setAccountEmail(salesperson.email || "");
+    setCreateAccountDialog({ open: true, salesperson });
+  };
+
+  const handleCreateAccount = () => {
+    if (!createAccountDialog.salesperson || !accountEmail) return;
+    
+    createAccountMutation.mutate({
+      salesperson_id: createAccountDialog.salesperson.id,
+      email: accountEmail,
+    });
+  };
+
+  const copyPassword = () => {
+    navigator.clipboard.writeText(passwordDialog.password);
+    toast({
+      title: "Copiato",
+      description: "Password copiata negli appunti",
+    });
   };
 
   const formatCommissionValue = (type: string, value: number) => {
@@ -218,6 +305,7 @@ export function SalespeopleConfig() {
                 <TableHead>Contatto</TableHead>
                 <TableHead>Tipo Provvigione</TableHead>
                 <TableHead>Valore</TableHead>
+                <TableHead>Account</TableHead>
                 <TableHead>Attivo</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
@@ -243,6 +331,24 @@ export function SalespeopleConfig() {
                   </TableCell>
                   <TableCell className="font-medium">
                     {formatCommissionValue(sp.commission_type, sp.commission_value)}
+                  </TableCell>
+                  <TableCell>
+                    {sp.user_id ? (
+                      <Badge variant="secondary" className="gap-1">
+                        <Check className="h-3 w-3" />
+                        Attivo
+                      </Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenCreateAccount(sp)}
+                        disabled={createAccountMutation.isPending}
+                      >
+                        <UserPlus className="h-3 w-3 mr-1" />
+                        Crea Account
+                      </Button>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Switch
@@ -306,6 +412,105 @@ export function SalespeopleConfig() {
         onSave={(data) => saveMutation.mutate(data)}
         isLoading={saveMutation.isPending}
       />
+
+      {/* Create Account Dialog */}
+      <Dialog
+        open={createAccountDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreateAccountDialog({ open: false, salesperson: null });
+            setAccountEmail("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crea Account Venditore</DialogTitle>
+            <DialogDescription>
+              Verrà creato un account per{" "}
+              {createAccountDialog.salesperson?.first_name}{" "}
+              {createAccountDialog.salesperson?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={accountEmail}
+                onChange={(e) => setAccountEmail(e.target.value)}
+                placeholder="email@esempio.com"
+              />
+              <p className="text-sm text-muted-foreground">
+                Questa email sarà usata per il login del venditore.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreateAccountDialog({ open: false, salesperson: null })}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={handleCreateAccount}
+              disabled={!accountEmail || createAccountMutation.isPending}
+            >
+              {createAccountMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creazione...
+                </>
+              ) : (
+                "Crea Account"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password Dialog */}
+      <Dialog
+        open={passwordDialog.open}
+        onOpenChange={(open) => {
+          if (!open) setPasswordDialog({ open: false, password: "", name: "" });
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-primary" />
+              Account Creato!
+            </DialogTitle>
+            <DialogDescription>
+              L'account per {passwordDialog.name} è stato creato con successo.
+            </DialogDescription>
+          </DialogHeader>
+          <Alert>
+            <AlertDescription className="space-y-3">
+              <p className="font-medium">Password temporanea:</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 p-3 bg-muted rounded-md font-mono text-lg">
+                  {passwordDialog.password}
+                </code>
+                <Button variant="outline" size="icon" onClick={copyPassword}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Comunica questa password al venditore. Dovrà cambiarla al primo accesso.
+              </p>
+            </AlertDescription>
+          </Alert>
+          <DialogFooter>
+            <Button onClick={() => setPasswordDialog({ open: false, password: "", name: "" })}>
+              Ho capito
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
