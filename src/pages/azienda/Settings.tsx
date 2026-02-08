@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, ListOrdered, Truck } from "lucide-react";
+import { Building2, ListOrdered, Truck, Key } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { OrderStatusConfig } from "@/components/settings/OrderStatusConfig";
 import { LogoUploader } from "@/components/settings/LogoUploader";
 import { SuppliersConfig } from "@/components/settings/SuppliersConfig";
+import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 
 export default function Settings() {
   const { effectiveCompany, refreshAuth } = useAuth();
@@ -23,18 +24,24 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3 lg:w-[500px]">
+        <TabsList className="grid w-full grid-cols-4 lg:w-[650px]">
           <TabsTrigger value="profilo" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
-            Profilo Azienda
+            <span className="hidden sm:inline">Profilo Azienda</span>
+            <span className="sm:hidden">Profilo</span>
           </TabsTrigger>
           <TabsTrigger value="stati-ordine" className="flex items-center gap-2">
             <ListOrdered className="h-4 w-4" />
-            Stati Ordine
+            <span className="hidden sm:inline">Stati Ordine</span>
+            <span className="sm:hidden">Stati</span>
           </TabsTrigger>
           <TabsTrigger value="fornitori" className="flex items-center gap-2">
             <Truck className="h-4 w-4" />
             Fornitori
+          </TabsTrigger>
+          <TabsTrigger value="sicurezza" className="flex items-center gap-2">
+            <Key className="h-4 w-4" />
+            Sicurezza
           </TabsTrigger>
         </TabsList>
 
@@ -86,6 +93,10 @@ export default function Settings() {
 
         <TabsContent value="fornitori" className="mt-6">
           <SuppliersConfig />
+        </TabsContent>
+
+        <TabsContent value="sicurezza" className="mt-6">
+          <ChangePasswordForm />
         </TabsContent>
       </Tabs>
     </div>
