@@ -12,23 +12,41 @@ export default function Login() {
 
   useEffect(() => {
     async function checkPasswordChange() {
+      // Only check for company_staff users
       if (role === "company_staff" && user) {
         setCheckingPassword(true);
-        const { data } = await supabase
-          .from("staff_permissions")
-          .select("must_change_password")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        setMustChangePassword(data?.must_change_password ?? false);
-        setCheckingPassword(false);
+        try {
+          const { data, error } = await supabase
+            .from("staff_permissions")
+            .select("must_change_password")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          
+          if (error) {
+            console.error("Error checking password flag:", error);
+            setMustChangePassword(false);
+          } else {
+            setMustChangePassword(data?.must_change_password ?? false);
+          }
+        } catch (err) {
+          console.error("Error in checkPasswordChange:", err);
+          setMustChangePassword(false);
+        } finally {
+          setCheckingPassword(false);
+        }
+      } else if (role && role !== "company_staff") {
+        // For other roles, no need to check password
+        setMustChangePassword(false);
       }
     }
     
-    checkPasswordChange();
+    if (user && role) {
+      checkPasswordChange();
+    }
   }, [role, user]);
 
-  if (isLoading || checkingPassword) {
+  // Show loading while auth is loading
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -39,13 +57,28 @@ export default function Login() {
     );
   }
 
-  // If already logged in, redirect to appropriate dashboard
+  // If user is logged in, wait for password check to complete before redirecting
   if (user && role) {
-    // Staff must change password on first login
-    if (role === "company_staff" && mustChangePassword === true) {
-      return <Navigate to="/cambia-password" replace />;
+    // For staff, wait until password check is complete
+    if (role === "company_staff") {
+      if (checkingPassword || mustChangePassword === null) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-background">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground">Verifica in corso...</p>
+            </div>
+          </div>
+        );
+      }
+      
+      // Staff must change password on first login
+      if (mustChangePassword === true) {
+        return <Navigate to="/cambia-password" replace />;
+      }
     }
     
+    // Redirect based on role
     switch (role) {
       case "super_admin":
         return <Navigate to="/admin" replace />;
