@@ -21,7 +21,8 @@ import {
   Calendar,
   Building2,
   Package,
-  ShoppingCart
+  ShoppingCart,
+  UserCheck
 } from "lucide-react";
 import {
   BarChart,
@@ -86,6 +87,15 @@ interface ExpectedExpense {
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
+}
+
+interface ExpectedCommission {
+  orderId: string;
+  orderCode: string | null;
+  salespersonName: string;
+  amount: number;
+  expectedDate: Date | null;
+  direction: "out";
 }
 
 interface ExternalTeamPayment {
@@ -161,6 +171,26 @@ export default function CashFlowForecast() {
     staleTime: 5 * 60 * 1000, // 5 minuti
   });
 
+  // Query provvigioni non pagate
+  const { data: unpaidCommissions = [], isLoading: loadingCommissions } = useQuery({
+    queryKey: ["forecast-unpaid-commissions", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_salespeople")
+        .select(`
+          id, commission_amount, payment_expected_date, is_paid,
+          salesperson:salespeople!inner(first_name, last_name, company_id),
+          order:orders!inner(id, order_code, company_id)
+        `)
+        .eq("is_paid", false);
+
+      if (error) throw error;
+      return (data || []).filter((item: any) => item.order?.company_id === companyId);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Query articoli da ordinare/ordinati (costi materiali)
   const { data: pendingItems = [], isLoading: loadingItems } = useQuery({
     queryKey: ["forecast-pending-items", companyId],
@@ -218,7 +248,7 @@ export default function CashFlowForecast() {
     };
   }, [filteredPendingItems]);
 
-  const isLoading = loadingOrders || loadingTeams || loadingItems;
+  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions;
 
   // Elabora entrate attese (pagamenti clienti)
   const expectedPayments = useMemo(() => {
@@ -308,6 +338,29 @@ export default function CashFlowForecast() {
     });
   }, [externalTeamPayments]);
 
+  // Elabora provvigioni non pagate
+  const expectedCommissions = useMemo(() => {
+    const commissions: ExpectedCommission[] = [];
+
+    unpaidCommissions.forEach((commission: any) => {
+      commissions.push({
+        orderId: commission.order.id,
+        orderCode: commission.order.order_code,
+        salespersonName: `${commission.salesperson?.first_name || ""} ${commission.salesperson?.last_name || ""}`.trim() || "Venditore sconosciuto",
+        amount: Number(commission.commission_amount),
+        expectedDate: commission.payment_expected_date ? new Date(commission.payment_expected_date) : null,
+        direction: "out",
+      });
+    });
+
+    return commissions.sort((a, b) => {
+      if (!a.expectedDate && !b.expectedDate) return 0;
+      if (!a.expectedDate) return 1;
+      if (!b.expectedDate) return -1;
+      return a.expectedDate.getTime() - b.expectedDate.getTime();
+    });
+  }, [unpaidCommissions]);
+
   // Calcola statistiche
   const stats = useMemo(() => {
     const now = new Date();
@@ -345,33 +398,52 @@ export default function CashFlowForecast() {
       .reduce((sum, e) => sum + e.amount, 0);
     const totalExpenses = expectedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
+    // Provvigioni venditori
+    const totalCommissions = expectedCommissions.reduce((sum, c) => sum + c.amount, 0);
+    const thisMonthCommissions = expectedCommissions
+      .filter((c) => c.expectedDate && isWithinInterval(c.expectedDate, thisMonth))
+      .reduce((sum, c) => sum + c.amount, 0);
+    const nextMonthCommissions = expectedCommissions
+      .filter((c) => c.expectedDate && isWithinInterval(c.expectedDate, nextMonth))
+      .reduce((sum, c) => sum + c.amount, 0);
+    const next3MonthsCommissions = expectedCommissions
+      .filter((c) => c.expectedDate && isWithinInterval(c.expectedDate, next3Months))
+      .reduce((sum, c) => sum + c.amount, 0);
+
+    // Totale uscite = squadre esterne + provvigioni
+    const totalAllExpenses = totalExpenses + totalCommissions;
+    const thisMonthAllExpenses = thisMonthExpenses + thisMonthCommissions;
+    const nextMonthAllExpenses = nextMonthExpenses + nextMonthCommissions;
+    const next3MonthsAllExpenses = next3MonthsExpenses + next3MonthsCommissions;
+
     return {
       thisMonth: {
         income: thisMonthIncome,
-        expenses: thisMonthExpenses,
-        net: thisMonthIncome - thisMonthExpenses,
+        expenses: thisMonthAllExpenses,
+        net: thisMonthIncome - thisMonthAllExpenses,
         incomeCount: expectedPayments.filter((p) => p.expectedDate && isWithinInterval(p.expectedDate, thisMonth)).length,
-        expensesCount: expectedExpenses.filter((e) => e.expectedDate && isWithinInterval(e.expectedDate, thisMonth)).length,
+        expensesCount: expectedExpenses.filter((e) => e.expectedDate && isWithinInterval(e.expectedDate, thisMonth)).length + expectedCommissions.filter((c) => c.expectedDate && isWithinInterval(c.expectedDate, thisMonth)).length,
       },
       nextMonth: {
         income: nextMonthIncome,
-        expenses: nextMonthExpenses,
-        net: nextMonthIncome - nextMonthExpenses,
+        expenses: nextMonthAllExpenses,
+        net: nextMonthIncome - nextMonthAllExpenses,
       },
       next3Months: {
         income: next3MonthsIncome,
-        expenses: next3MonthsExpenses,
-        net: next3MonthsIncome - next3MonthsExpenses,
+        expenses: next3MonthsAllExpenses,
+        net: next3MonthsIncome - next3MonthsAllExpenses,
       },
       total: {
         income: totalIncome,
-        expenses: totalExpenses,
-        net: totalIncome - totalExpenses,
+        expenses: totalAllExpenses,
+        net: totalIncome - totalAllExpenses,
         incomeCount: expectedPayments.length,
-        expensesCount: expectedExpenses.length,
+        expensesCount: expectedExpenses.length + expectedCommissions.length,
+        commissionsTotal: totalCommissions,
       },
     };
-  }, [expectedPayments, expectedExpenses]);
+  }, [expectedPayments, expectedExpenses, expectedCommissions]);
 
   // Prepara dati per grafico (prossimi 6 mesi) con entrate e uscite
   const chartData = useMemo(() => {
@@ -658,6 +730,70 @@ export default function CashFlowForecast() {
                   </Badge>
                 )}
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sezione Provvigioni Venditori */}
+      {expectedCommissions.length > 0 && (
+        <Card className="border-violet-200 bg-violet-50/50 dark:bg-violet-900/10 dark:border-violet-800">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-violet-600" />
+              Provvigioni da Pagare
+            </CardTitle>
+            <CardDescription>
+              Provvigioni venditori non ancora pagate
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border bg-background">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Venditore</TableHead>
+                    <TableHead>Ordine</TableHead>
+                    <TableHead>Data Prevista</TableHead>
+                    <TableHead className="text-right">Importo</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {expectedCommissions.slice(0, 5).map((commission, index) => (
+                    <TableRow key={`commission-${commission.orderId}-${index}`}>
+                      <TableCell className="font-medium">{commission.salespersonName}</TableCell>
+                      <TableCell>
+                        <Link 
+                          to={`/azienda/ordini/${commission.orderId}`}
+                          className="text-primary hover:underline"
+                        >
+                          {commission.orderCode || "—"}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        {commission.expectedDate 
+                          ? format(commission.expectedDate, "dd/MM/yyyy", { locale: it })
+                          : <span className="text-muted-foreground italic">Non definita</span>
+                        }
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-violet-600">
+                        {formatCurrency(commission.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {expectedCommissions.length > 5 && (
+              <p className="text-sm text-muted-foreground mt-2">
+                +{expectedCommissions.length - 5} altre provvigioni
+              </p>
+            )}
+            <div className="mt-4 p-3 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-between">
+              <span className="font-medium">Totale Provvigioni</span>
+              <span className="text-xl font-bold text-violet-700 dark:text-violet-400">
+                {formatCurrency((stats.total as any).commissionsTotal || 0)}
+              </span>
             </div>
           </CardContent>
         </Card>

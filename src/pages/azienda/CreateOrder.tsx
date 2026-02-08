@@ -30,6 +30,7 @@ import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
+import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 
 interface Customer {
   id: string;
@@ -87,6 +88,13 @@ export default function CreateOrder() {
 
   // Customer creation dialog
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+
+  // Salesperson state
+  const [salespersonId, setSalespersonId] = useState("");
+  const [salespersonData, setSalespersonData] = useState<{
+    commission_type: string;
+    commission_value: number;
+  } | null>(null);
 
   // Calculate balance
   const total = parseFloat(totalAmount) || 0;
@@ -207,6 +215,29 @@ export default function CreateOrder() {
           .insert(itemsToInsert);
 
         if (itemsError) throw itemsError;
+      }
+
+      // Create salesperson commission if selected
+      if (salespersonId && salespersonData) {
+        let commissionAmount = 0;
+        if (salespersonData.commission_type === "fixed") {
+          commissionAmount = salespersonData.commission_value;
+        } else {
+          // percentage_sold or percentage_collected - calculate on taxable amount
+          commissionAmount = total * (salespersonData.commission_value / 100);
+        }
+
+        const { error: salespersonError } = await supabase
+          .from("order_salespeople")
+          .insert({
+            order_id: order.id,
+            salesperson_id: salespersonId,
+            commission_type: salespersonData.commission_type,
+            commission_value: salespersonData.commission_value,
+            commission_amount: commissionAmount,
+          });
+
+        if (salespersonError) throw salespersonError;
       }
 
       return order;
@@ -368,6 +399,18 @@ export default function CreateOrder() {
                   rows={3}
                 />
               </div>
+
+              {/* Salesperson Select */}
+              <SalespersonSelect
+                value={salespersonId}
+                onChange={(id, salesperson) => {
+                  setSalespersonId(id);
+                  setSalespersonData(salesperson ? {
+                    commission_type: salesperson.commission_type,
+                    commission_value: salesperson.commission_value,
+                  } : null);
+                }}
+              />
             </CardContent>
           </Card>
 
