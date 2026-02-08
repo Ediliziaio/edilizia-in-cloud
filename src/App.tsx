@@ -53,6 +53,9 @@ import CustomerProfile from "@/pages/cliente/CustomerProfile";
 import TicketsList from "@/pages/azienda/TicketsList";
 import TicketDetail from "@/pages/azienda/TicketDetail";
 
+// Auth Pages
+import ChangePassword from "@/pages/auth/ChangePassword";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -65,6 +68,7 @@ const App = () => (
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/cambia-password" element={<ChangePassword />} />
             
             {/* Role-based Redirect */}
             <Route path="/" element={<RoleBasedRedirect />} />
