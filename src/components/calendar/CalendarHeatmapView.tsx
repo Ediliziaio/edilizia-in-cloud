@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   format,
@@ -20,11 +20,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, TrendingUp, CalendarOff, AlertTriangle, BarChart3 } from "lucide-react";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Hammer, Package, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder } from "@/types/calendar";
 
@@ -137,8 +138,7 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
           </Button>
         </div>
 
-        <TooltipProvider delayDuration={200}>
-          <div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden">
+        <div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden">
             {weekDays.map((day) => (
               <div key={day} className="bg-muted-foreground/5 p-2 text-center text-sm font-medium text-muted-foreground">
                 {day}
@@ -152,58 +152,95 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
               const isToday = isSameDay(day, new Date());
               const isCurrentMonth = isSameMonth(day, currentDate);
 
-              return (
-                <Tooltip key={idx}>
-                  <TooltipTrigger asChild>
-                    <div
-                      className={cn(
-                        "min-h-[80px] p-2 transition-colors cursor-default flex flex-col items-center",
-                        isCurrentMonth ? getHeatColor(count) : "bg-muted/30",
-                        !isCurrentMonth && "opacity-40"
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1",
-                          isToday && "bg-primary text-primary-foreground",
-                          !isToday && !isCurrentMonth && "text-muted-foreground"
-                        )}
-                      >
-                        {format(day, "d")}
-                      </div>
-                      {isCurrentMonth && count > 0 && (
-                        <span className={cn("text-xl font-bold", getHeatTextColor(count))}>
-                          {count}
-                        </span>
-                      )}
-                    </div>
-                  </TooltipTrigger>
-                  {isCurrentMonth && (
-                    <TooltipContent side="right" className="max-w-xs">
-                      <div className="space-y-1">
-                        <p className="font-semibold">
-                          {format(day, "EEEE d MMMM", { locale: it })} — {count} {count === 1 ? "lavoro" : "lavori"}
-                        </p>
-                        {dayOrders.slice(0, 3).map((order) => (
-                          <button
-                            key={order.id}
-                            onClick={() => navigate(`/azienda/ordini/${order.id}`)}
-                            className="block w-full text-left text-sm hover:underline truncate"
-                          >
-                            {order.order_code || "N/A"} — {order.customer.last_name} {order.customer.first_name}
-                          </button>
-                        ))}
-                        {count > 3 && (
-                          <p className="text-xs text-muted-foreground">+{count - 3} altri</p>
-                        )}
-                      </div>
-                    </TooltipContent>
+              const cellContent = (
+                <div
+                  className={cn(
+                    "min-h-[80px] p-2 transition-colors flex flex-col items-center",
+                    isCurrentMonth ? getHeatColor(count) : "bg-muted/30",
+                    !isCurrentMonth && "opacity-40",
+                    isCurrentMonth && count > 0 && "cursor-pointer hover:opacity-80"
                   )}
-                </Tooltip>
+                >
+                  <div
+                    className={cn(
+                      "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1",
+                      isToday && "bg-primary text-primary-foreground",
+                      !isToday && !isCurrentMonth && "text-muted-foreground"
+                    )}
+                  >
+                    {format(day, "d")}
+                  </div>
+                  {isCurrentMonth && count > 0 && (
+                    <span className={cn("text-xl font-bold", getHeatTextColor(count))}>
+                      {count}
+                    </span>
+                  )}
+                </div>
+              );
+
+              if (!isCurrentMonth || count === 0) {
+                return <div key={idx}>{cellContent}</div>;
+              }
+
+              return (
+                <Popover key={idx}>
+                  <PopoverTrigger asChild>
+                    {cellContent}
+                  </PopoverTrigger>
+                  <PopoverContent side="right" align="start" className="w-72 p-0">
+                    <div className="px-4 py-3 border-b">
+                      <p className="font-semibold capitalize">
+                        {format(day, "EEEE d MMMM", { locale: it })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {count} {count === 1 ? "lavoro" : "lavori"} attivi
+                      </p>
+                    </div>
+                    <ScrollArea className={count > 5 ? "h-60" : ""}>
+                      <div className="p-2 space-y-1">
+                        {dayOrders.map((order) => {
+                          const isPosa = order.expected_date && isSameDay(parseISO(order.expected_date), day);
+                          const isMerce = order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day);
+
+                          return (
+                            <button
+                              key={order.id}
+                              onClick={() => navigate(`/azienda/ordini/${order.id}`)}
+                              className="w-full flex items-center gap-2 p-2 rounded-md text-left text-sm hover:bg-accent transition-colors"
+                            >
+                              <div className="flex-shrink-0">
+                                {isPosa ? (
+                                  <Hammer className="h-4 w-4 text-blue-500" />
+                                ) : isMerce ? (
+                                  <Package className="h-4 w-4 text-amber-500" />
+                                ) : (
+                                  <Wrench className="h-4 w-4 text-green-500" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium truncate">
+                                  {order.order_code || "N/A"} — {order.customer.last_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {order.description}
+                                </p>
+                              </div>
+                              {order.status && (
+                                <div
+                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: order.status.color }}
+                                />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
               );
             })}
           </div>
-        </TooltipProvider>
 
         {/* Legenda */}
         <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
