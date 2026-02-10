@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
+import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange } from "lucide-react";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3 } from "lucide-react";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter } from "@/types/calendar";
 
 export default function Calendar() {
@@ -202,6 +203,10 @@ export default function Calendar() {
             <CalendarRange className="h-4 w-4" />
             <span className="hidden sm:inline">Settimana</span>
           </ToggleGroupItem>
+          <ToggleGroupItem value="heatmap" aria-label="Vista Carico" className="gap-2">
+            <BarChart3 className="h-4 w-4" />
+            <span className="hidden sm:inline">Carico</span>
+          </ToggleGroupItem>
           {!isMobile && (
             <ToggleGroupItem value="gantt" aria-label="Vista Gantt" className="gap-2">
               <GanttChart className="h-4 w-4" />
@@ -228,6 +233,12 @@ export default function Calendar() {
         />
       ) : view === "week" ? (
         <CalendarWeekView
+          orders={scheduledOrders}
+          currentDate={currentDate}
+          onDateChange={setCurrentDate}
+        />
+      ) : view === "heatmap" ? (
+        <CalendarHeatmapView
           orders={scheduledOrders}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
