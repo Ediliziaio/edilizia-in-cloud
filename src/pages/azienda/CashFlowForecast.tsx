@@ -9,7 +9,8 @@ import {
   isWithinInterval,
   isSameMonth,
   isAfter,
-  isBefore
+  isBefore,
+  addDays
 } from "date-fns";
 import { it } from "date-fns/locale";
 import { 
@@ -22,7 +23,9 @@ import {
   Building2,
   Package,
   ShoppingCart,
-  UserCheck
+  UserCheck,
+  Receipt,
+  AlertCircle,
 } from "lucide-react";
 import {
   BarChart,
@@ -39,6 +42,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -63,6 +67,7 @@ import {
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 import { formatCurrency } from "@/lib/formatters";
 import { ChevronDown } from "lucide-react";
+import CompanyCostsManager from "@/components/forecast/CompanyCostsManager";
 
 interface ExpectedPayment {
   orderId: string;
@@ -71,7 +76,7 @@ interface ExpectedPayment {
   type: "Acconto 1" | "Acconto 2" | "Saldo";
   amount: number;
   expectedDate: Date | null;
-  direction: "in"; // income
+  direction: "in";
 }
 
 interface ExpectedExpense {
@@ -81,7 +86,7 @@ interface ExpectedExpense {
   amount: number;
   expectedDate: Date | null;
   isPaid: boolean;
-  direction: "out"; // expense
+  direction: "out";
 }
 
 interface DateRange {
@@ -96,6 +101,17 @@ interface ExpectedCommission {
   amount: number;
   expectedDate: Date | null;
   direction: "out";
+}
+
+interface CompanyCostEntry {
+  id: string;
+  name: string;
+  amount: number;
+  expectedDate: Date | null;
+  costType: string;
+  category: string | null;
+  direction: "out";
+  type: "Costo Fisso" | "Costo Variabile";
 }
 
 interface ExternalTeamPayment {
@@ -119,6 +135,7 @@ export default function CashFlowForecast() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [activeTab, setActiveTab] = useState<"all" | "income" | "expenses">("all");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
+  const [showCostsManager, setShowCostsManager] = useState(false);
 
   // Query ordini con pagamenti non incassati
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
@@ -145,7 +162,7 @@ export default function CashFlowForecast() {
       return data;
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000, // 5 minuti
+    staleTime: 5 * 60 * 1000,
   });
 
   // Query squadre esterne non pagate
@@ -168,7 +185,7 @@ export default function CashFlowForecast() {
       return (data as ExternalTeamPayment[]).filter((item) => item.order?.company_id === companyId);
     },
     enabled: !!companyId,
-    staleTime: 5 * 60 * 1000, // 5 minuti
+    staleTime: 5 * 60 * 1000,
   });
 
   // Query provvigioni non pagate
@@ -211,6 +228,22 @@ export default function CashFlowForecast() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Query costi aziendali non pagati
+  const { data: companyCosts = [], isLoading: loadingCosts } = useQuery({
+    queryKey: ["forecast-company-costs", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("company_costs")
+        .select("*")
+        .eq("is_paid", false)
+        .order("due_date", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Estrai lista fornitori unici
   const suppliers = useMemo(() => {
     const supplierMap = new Map<string, string>();
@@ -248,7 +281,7 @@ export default function CashFlowForecast() {
     };
   }, [filteredPendingItems]);
 
-  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions;
+  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts;
 
   // Elabora entrate attese (pagamenti clienti)
   const expectedPayments = useMemo(() => {
@@ -259,7 +292,6 @@ export default function CashFlowForecast() {
         ? `${order.customer.first_name} ${order.customer.last_name}`
         : "Cliente sconosciuto";
 
-      // Acconto 1
       if (!order.deposit_paid && order.deposit_amount && order.deposit_amount > 0) {
         payments.push({
           orderId: order.id,
@@ -267,14 +299,11 @@ export default function CashFlowForecast() {
           customerName,
           type: "Acconto 1",
           amount: Number(order.deposit_amount),
-          expectedDate: order.deposit_expected_date 
-            ? new Date(order.deposit_expected_date) 
-            : null,
+          expectedDate: order.deposit_expected_date ? new Date(order.deposit_expected_date) : null,
           direction: "in",
         });
       }
 
-      // Acconto 2
       if (!order.deposit_2_paid && order.deposit_2_amount && order.deposit_2_amount > 0) {
         payments.push({
           orderId: order.id,
@@ -282,14 +311,11 @@ export default function CashFlowForecast() {
           customerName,
           type: "Acconto 2",
           amount: Number(order.deposit_2_amount),
-          expectedDate: order.deposit_2_expected_date 
-            ? new Date(order.deposit_2_expected_date) 
-            : null,
+          expectedDate: order.deposit_2_expected_date ? new Date(order.deposit_2_expected_date) : null,
           direction: "in",
         });
       }
 
-      // Saldo
       if (!order.balance_paid && order.balance_amount && order.balance_amount > 0) {
         payments.push({
           orderId: order.id,
@@ -297,15 +323,12 @@ export default function CashFlowForecast() {
           customerName,
           type: "Saldo",
           amount: Number(order.balance_amount),
-          expectedDate: order.balance_expected_date 
-            ? new Date(order.balance_expected_date) 
-            : null,
+          expectedDate: order.balance_expected_date ? new Date(order.balance_expected_date) : null,
           direction: "in",
         });
       }
     });
 
-    // Ordina per data prevista
     return payments.sort((a, b) => {
       if (!a.expectedDate && !b.expectedDate) return 0;
       if (!a.expectedDate) return 1;
@@ -361,6 +384,38 @@ export default function CashFlowForecast() {
     });
   }, [unpaidCommissions]);
 
+  // Elabora costi aziendali non pagati
+  const expectedCompanyCosts = useMemo(() => {
+    return companyCosts.map((cost: any): CompanyCostEntry => ({
+      id: cost.id,
+      name: cost.name,
+      amount: Number(cost.amount),
+      expectedDate: cost.due_date ? new Date(cost.due_date) : null,
+      costType: cost.cost_type,
+      category: cost.category,
+      direction: "out",
+      type: cost.cost_type === "fixed" ? "Costo Fisso" : "Costo Variabile",
+    }));
+  }, [companyCosts]);
+
+  // Helper: project recurring costs into a future month
+  const projectCostsForMonth = (monthDate: Date) => {
+    let total = 0;
+    companyCosts.forEach((cost: any) => {
+      const dueDate = new Date(cost.due_date);
+      if (cost.recurrence === "monthly") {
+        total += Number(cost.amount);
+      } else if (cost.recurrence === "quarterly" && dueDate.getMonth() % 3 === monthDate.getMonth() % 3) {
+        total += Number(cost.amount);
+      } else if (cost.recurrence === "yearly" && dueDate.getMonth() === monthDate.getMonth()) {
+        total += Number(cost.amount);
+      } else if (cost.recurrence === "once" && isSameMonth(dueDate, monthDate)) {
+        total += Number(cost.amount);
+      }
+    });
+    return total;
+  };
+
   // Calcola statistiche
   const stats = useMemo(() => {
     const now = new Date();
@@ -410,11 +465,19 @@ export default function CashFlowForecast() {
       .filter((c) => c.expectedDate && isWithinInterval(c.expectedDate, next3Months))
       .reduce((sum, c) => sum + c.amount, 0);
 
-    // Totale uscite = squadre esterne + provvigioni
-    const totalAllExpenses = totalExpenses + totalCommissions;
-    const thisMonthAllExpenses = thisMonthExpenses + thisMonthCommissions;
-    const nextMonthAllExpenses = nextMonthExpenses + nextMonthCommissions;
-    const next3MonthsAllExpenses = next3MonthsExpenses + next3MonthsCommissions;
+    // Costi aziendali
+    const thisMonthCosts = expectedCompanyCosts
+      .filter((c) => c.expectedDate && isWithinInterval(c.expectedDate, thisMonth))
+      .reduce((sum, c) => sum + c.amount, 0);
+    const nextMonthCosts = projectCostsForMonth(addMonths(now, 1));
+    const next3MonthsCosts = projectCostsForMonth(now) + projectCostsForMonth(addMonths(now, 1)) + projectCostsForMonth(addMonths(now, 2));
+    const totalCosts = expectedCompanyCosts.reduce((sum, c) => sum + c.amount, 0);
+
+    // Totale uscite = squadre esterne + provvigioni + costi aziendali
+    const totalAllExpenses = totalExpenses + totalCommissions + totalCosts;
+    const thisMonthAllExpenses = thisMonthExpenses + thisMonthCommissions + thisMonthCosts;
+    const nextMonthAllExpenses = nextMonthExpenses + nextMonthCommissions + nextMonthCosts;
+    const next3MonthsAllExpenses = next3MonthsExpenses + next3MonthsCommissions + next3MonthsCosts;
 
     return {
       thisMonth: {
@@ -422,7 +485,9 @@ export default function CashFlowForecast() {
         expenses: thisMonthAllExpenses,
         net: thisMonthIncome - thisMonthAllExpenses,
         incomeCount: expectedPayments.filter((p) => p.expectedDate && isWithinInterval(p.expectedDate, thisMonth)).length,
-        expensesCount: expectedExpenses.filter((e) => e.expectedDate && isWithinInterval(e.expectedDate, thisMonth)).length + expectedCommissions.filter((c) => c.expectedDate && isWithinInterval(c.expectedDate, thisMonth)).length,
+        expensesCount: expectedExpenses.filter((e) => e.expectedDate && isWithinInterval(e.expectedDate, thisMonth)).length 
+          + expectedCommissions.filter((c) => c.expectedDate && isWithinInterval(c.expectedDate, thisMonth)).length
+          + expectedCompanyCosts.filter((c) => c.expectedDate && isWithinInterval(c.expectedDate, thisMonth)).length,
       },
       nextMonth: {
         income: nextMonthIncome,
@@ -439,13 +504,14 @@ export default function CashFlowForecast() {
         expenses: totalAllExpenses,
         net: totalIncome - totalAllExpenses,
         incomeCount: expectedPayments.length,
-        expensesCount: expectedExpenses.length + expectedCommissions.length,
+        expensesCount: expectedExpenses.length + expectedCommissions.length + expectedCompanyCosts.length,
         commissionsTotal: totalCommissions,
+        costsTotal: totalCosts,
       },
     };
-  }, [expectedPayments, expectedExpenses, expectedCommissions]);
+  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedCompanyCosts, companyCosts]);
 
-  // Prepara dati per grafico (prossimi 6 mesi) con entrate e uscite
+  // Prepara dati per grafico (prossimi 6 mesi)
   const chartData = useMemo(() => {
     const months: { month: string; Entrate: number; Uscite: number; Netto: number }[] = [];
     const now = new Date();
@@ -461,45 +527,61 @@ export default function CashFlowForecast() {
         .filter((e) => e.expectedDate && isSameMonth(e.expectedDate, monthDate))
         .reduce((sum, e) => sum + e.amount, 0);
 
+      const monthCommissions = expectedCommissions
+        .filter((c) => c.expectedDate && isSameMonth(c.expectedDate, monthDate))
+        .reduce((sum, c) => sum + c.amount, 0);
+
+      const monthCosts = projectCostsForMonth(monthDate);
+
+      const totalOut = monthExpenses + monthCommissions + monthCosts;
+
       months.push({
         month: format(monthDate, "MMM yyyy", { locale: it }),
         Entrate: monthIncome,
-        Uscite: monthExpenses,
-        Netto: monthIncome - monthExpenses,
+        Uscite: totalOut,
+        Netto: monthIncome - totalOut,
       });
     }
 
     return months;
-  }, [expectedPayments, expectedExpenses]);
+  }, [expectedPayments, expectedExpenses, expectedCommissions, companyCosts]);
 
   // Combina e filtra pagamenti per tabella
   const allTransactions = useMemo(() => {
     const combined = [
       ...expectedPayments.map((p) => ({ ...p, direction: "in" as const })),
       ...expectedExpenses.map((e) => ({ ...e, type: "Squadra Esterna" as const, direction: "out" as const })),
+      ...expectedCompanyCosts.map((c) => ({
+        orderId: c.id,
+        orderCode: null,
+        expectedDate: c.expectedDate,
+        amount: c.amount,
+        direction: "out" as const,
+        type: c.type,
+        teamName: c.name,
+        customerName: c.name,
+        costCategory: c.category,
+      })),
     ];
 
-    // Ordina per data
     return combined.sort((a, b) => {
       if (!a.expectedDate && !b.expectedDate) return 0;
       if (!a.expectedDate) return 1;
       if (!b.expectedDate) return -1;
       return a.expectedDate.getTime() - b.expectedDate.getTime();
     });
-  }, [expectedPayments, expectedExpenses]);
+  }, [expectedPayments, expectedExpenses, expectedCompanyCosts]);
 
   // Filtra per tab e date
   const filteredTransactions = useMemo(() => {
     let filtered = allTransactions;
 
-    // Filtra per tab
     if (activeTab === "income") {
       filtered = filtered.filter((t) => t.direction === "in");
     } else if (activeTab === "expenses") {
       filtered = filtered.filter((t) => t.direction === "out");
     }
 
-    // Filtra per date range
     if (dateRange.from || dateRange.to) {
       filtered = filtered.filter((t) => {
         if (!t.expectedDate) return false;
@@ -512,8 +594,23 @@ export default function CashFlowForecast() {
     return filtered;
   }, [allTransactions, activeTab, dateRange]);
 
-  // Transazioni senza data
   const transactionsWithoutDate = allTransactions.filter((t) => !t.expectedDate);
+
+  // Costs summary for section
+  const costsSummary = useMemo(() => {
+    const now = new Date();
+    const soon = addDays(now, 30);
+    const upcoming = expectedCompanyCosts.filter(
+      (c) => c.expectedDate && c.expectedDate <= soon
+    );
+    const fixedTotal = expectedCompanyCosts
+      .filter((c) => c.costType === "fixed")
+      .reduce((s, c) => s + c.amount, 0);
+    const variableTotal = expectedCompanyCosts
+      .filter((c) => c.costType === "variable")
+      .reduce((s, c) => s + c.amount, 0);
+    return { upcoming, fixedTotal, variableTotal };
+  }, [expectedCompanyCosts]);
 
   if (isLoading) {
     return (
@@ -534,13 +631,26 @@ export default function CashFlowForecast() {
     );
   }
 
+  if (showCostsManager) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" onClick={() => setShowCostsManager(false)}>
+            ← Torna al Previsionale
+          </Button>
+        </div>
+        <CompanyCostsManager />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Previsionale Cassa</h1>
         <p className="text-muted-foreground">
-          Analizza entrate e uscite previste
+          Analizza entrate e uscite previste, inclusi costi aziendali
         </p>
       </div>
 
@@ -799,11 +909,89 @@ export default function CashFlowForecast() {
         </Card>
       )}
 
+      {/* Sezione Costi Aziendali */}
+      <Card className="border-red-200 bg-red-50/50 dark:bg-red-900/10 dark:border-red-800">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-red-600" />
+                Costi Aziendali
+              </CardTitle>
+              <CardDescription>
+                Costi fissi e variabili non ancora pagati
+              </CardDescription>
+            </div>
+            <Button variant="outline" onClick={() => setShowCostsManager(true)} className="gap-1">
+              <Building2 className="h-4 w-4" />
+              Gestisci Costi
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="p-4 rounded-lg bg-background border">
+              <span className="text-sm text-muted-foreground">Costi Fissi da pagare</span>
+              <p className="text-2xl font-bold text-red-600 mt-1">
+                {formatCurrency(costsSummary.fixedTotal)}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-background border">
+              <span className="text-sm text-muted-foreground">Costi Variabili da pagare</span>
+              <p className="text-2xl font-bold text-red-600 mt-1">
+                {formatCurrency(costsSummary.variableTotal)}
+              </p>
+            </div>
+          </div>
+
+          {costsSummary.upcoming.length > 0 && (
+            <div className="rounded-md border bg-background">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Costo</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Scadenza</TableHead>
+                    <TableHead className="text-right">Importo</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {costsSummary.upcoming.slice(0, 5).map((cost) => (
+                    <TableRow key={cost.id}>
+                      <TableCell className="font-medium">{cost.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cost.costType === "fixed" ? "border-red-400 text-red-600" : "border-amber-400 text-amber-600"}>
+                          {cost.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {cost.expectedDate
+                          ? format(cost.expectedDate, "dd/MM/yyyy", { locale: it })
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-red-600">
+                        {formatCurrency(cost.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          {costsSummary.upcoming.length === 0 && (
+            <div className="text-center py-4 text-muted-foreground text-sm">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              Nessun costo in scadenza nei prossimi 30 giorni
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Grafico Timeline */}
       <Card>
         <CardHeader>
           <CardTitle>Timeline Flusso di Cassa</CardTitle>
-          <CardDescription>Previsione entrate e uscite per i prossimi 6 mesi</CardDescription>
+          <CardDescription>Previsione entrate e uscite per i prossimi 6 mesi (inclusi costi aziendali)</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
@@ -890,17 +1078,21 @@ export default function CashFlowForecast() {
                         }
                       </TableCell>
                       <TableCell>
-                        <Link 
-                          to={`/azienda/ordini/${transaction.orderId}`}
-                          className="text-primary hover:underline font-medium"
-                        >
-                          {transaction.orderCode || "—"}
-                        </Link>
+                        {transaction.type === "Costo Fisso" || transaction.type === "Costo Variabile" ? (
+                          "—"
+                        ) : (
+                          <Link 
+                            to={`/azienda/ordini/${transaction.orderId}`}
+                            className="text-primary hover:underline font-medium"
+                          >
+                            {transaction.orderCode || "—"}
+                          </Link>
+                        )}
                       </TableCell>
                       <TableCell>
                         {transaction.direction === "in" 
-                          ? (transaction as ExpectedPayment).customerName
-                          : (transaction as ExpectedExpense).teamName
+                          ? (transaction as any).customerName
+                          : (transaction as any).teamName || (transaction as any).name
                         }
                       </TableCell>
                       <TableCell>
@@ -916,6 +1108,16 @@ export default function CashFlowForecast() {
                             }
                           >
                             {transaction.type}
+                          </Badge>
+                        ) : transaction.type === "Costo Fisso" ? (
+                          <Badge variant="outline" className="border-red-400 text-red-600 gap-1">
+                            <Receipt className="h-3 w-3" />
+                            Costo Fisso
+                          </Badge>
+                        ) : transaction.type === "Costo Variabile" ? (
+                          <Badge variant="outline" className="border-amber-400 text-amber-600 gap-1">
+                            <Receipt className="h-3 w-3" />
+                            Costo Variabile
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="border-destructive text-destructive gap-1">
@@ -966,22 +1168,26 @@ export default function CashFlowForecast() {
                   {transactionsWithoutDate.map((transaction, index) => (
                     <TableRow key={`no-date-${transaction.orderId}-${transaction.direction}-${index}`}>
                       <TableCell>
-                        <Link 
-                          to={`/azienda/ordini/${transaction.orderId}`}
-                          className="text-primary hover:underline font-medium"
-                        >
-                          {transaction.orderCode || "—"}
-                        </Link>
+                        {transaction.type === "Costo Fisso" || transaction.type === "Costo Variabile" ? (
+                          "—"
+                        ) : (
+                          <Link 
+                            to={`/azienda/ordini/${transaction.orderId}`}
+                            className="text-primary hover:underline font-medium"
+                          >
+                            {transaction.orderCode || "—"}
+                          </Link>
+                        )}
                       </TableCell>
                       <TableCell>
                         {transaction.direction === "in" 
-                          ? (transaction as ExpectedPayment).customerName
-                          : (transaction as ExpectedExpense).teamName
+                          ? (transaction as any).customerName
+                          : (transaction as any).teamName || (transaction as any).name
                         }
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {transaction.direction === "in" ? transaction.type : "Squadra Esterna"}
+                          {transaction.direction === "in" ? transaction.type : transaction.type || "Squadra Esterna"}
                         </Badge>
                       </TableCell>
                       <TableCell className={`text-right font-medium ${

@@ -141,6 +141,72 @@ export type Database = {
           },
         ]
       }
+      company_costs: {
+        Row: {
+          amount: number
+          category: string | null
+          company_id: string
+          cost_type: string
+          created_at: string
+          due_date: string
+          id: string
+          is_paid: boolean
+          name: string
+          notes: string | null
+          order_id: string | null
+          paid_date: string | null
+          recurrence: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          category?: string | null
+          company_id: string
+          cost_type?: string
+          created_at?: string
+          due_date: string
+          id?: string
+          is_paid?: boolean
+          name: string
+          notes?: string | null
+          order_id?: string | null
+          paid_date?: string | null
+          recurrence?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          company_id?: string
+          cost_type?: string
+          created_at?: string
+          due_date?: string
+          id?: string
+          is_paid?: boolean
+          name?: string
+          notes?: string | null
+          order_id?: string | null
+          paid_date?: string | null
+          recurrence?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_costs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_subscriptions: {
         Row: {
           billing_period: string
