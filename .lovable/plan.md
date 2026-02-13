@@ -1,99 +1,66 @@
 
-# Piano: Elimina Cliente + Storico Ordini + Anagrafica Azienda
 
-## 1. Eliminazione cliente dalla pagina dettaglio
+# Piano: Dettagli Fornitori + Divisione Italiani/Esteri
 
-Aggiungere un pulsante "Elimina Cliente" con conferma tramite AlertDialog nella pagina `CompanyCustomerDetail.tsx`.
+## 1. Filtri Lista Ordini
 
-**Logica**:
-- Verificare che il cliente non abbia ordini associati prima di eliminare
-- Se ha ordini, mostrare un messaggio di errore e bloccare l'eliminazione
-- Se non ha ordini, eliminare il profilo e l'utente associato (tramite `supabase.from("profiles").delete()`)
-- Dopo l'eliminazione, redirect a `/azienda/clienti`
+La lista ordini (`OrdersList.tsx`) ha gia tutti i filtri richiesti implementati:
+- Ricerca per codice, descrizione o cliente
+- Filtro per stato
+- Filtro per cliente
+- Filtro per data (contratto, arrivo merce, posa)
+- Filtro per importo e pagamento
 
-**File**: `src/pages/azienda/CompanyCustomerDetail.tsx`
-
----
-
-## 2. Storico ordini nella pagina dettaglio cliente
-
-Aggiungere una sezione sotto il form di modifica che mostra la lista degli ordini del cliente con:
-- Codice ordine
-- Descrizione
-- Stato corrente (con pallino colorato)
-- Data creazione
-- Importo totale
-- Link per navigare al dettaglio ordine
-
-**Query**: `supabase.from("orders").select("id, order_code, description, total_amount, created_at, current_status_id, order_statuses:current_status_id(name, color)").eq("customer_id", id)`
-
-**File**: `src/pages/azienda/CompanyCustomerDetail.tsx`
+Non servono modifiche.
 
 ---
 
-## 3. Anagrafica completa nel Profilo Azienda (Impostazioni)
+## 2. Migrazione database - Nuove colonne su `suppliers`
 
-La tabella `companies` ha gia tutti i campi necessari. Serve solo il form di modifica.
+Aggiungere i seguenti campi alla tabella `suppliers`:
 
-### 3a. Nuova RLS policy per UPDATE
-
-Attualmente i company_admin possono solo leggere la propria azienda (SELECT). Serve una policy per UPDATE:
-
-```text
-CREATE POLICY "Company admins can update their own company"
-ON public.companies FOR UPDATE
-USING (id = get_user_company_id(auth.uid()))
-WITH CHECK (id = get_user_company_id(auth.uid()));
-```
-
-### 3b. Nuovo componente `CompanyProfileForm`
-
-Creare `src/components/settings/CompanyProfileForm.tsx` con form editabile per:
-
-**Dati Generali**:
-- Nome azienda (read-only, informativo)
-- Email azienda (read-only)
-- Ragione Sociale (`business_name`)
-- Settore (read-only, informativo)
-
-**Dati Fiscali**:
-- P.IVA (`vat_number`)
-- Codice Fiscale (`fiscal_code`)
-- PEC (`pec`)
-- Codice SDI (`sdi_code`)
-
-**Contatti**:
-- Telefono (`phone`)
-- Sito Web (`website`)
-
-**Sede Legale**:
-- Indirizzo (`legal_address`)
-- Citta (`legal_city`)
-- Provincia (`legal_province`)
-- CAP (`legal_postal_code`)
-
-**Sede Operativa** (con checkbox "Uguale alla sede legale"):
-- Indirizzo (`operational_address`)
-- Citta (`operational_city`)
-- Provincia (`operational_province`)
-- CAP (`operational_postal_code`)
-
-**Note**:
-- Note interne (`notes`)
-
-### 3c. Aggiornamento Settings.tsx
-
-Sostituire il contenuto attuale del tab "Profilo" (che mostra solo logo + nome) con:
-- Il `LogoUploader` esistente
-- Il nuovo `CompanyProfileForm` sotto
+- `is_foreign` (boolean, default false) - per distinguere italiani da esteri
+- `address` (text) - indirizzo
+- `city` (text) - citta
+- `province` (text) - provincia
+- `postal_code` (text) - CAP
+- `country` (text, default 'Italia') - paese
+- `vat_number` (text) - P.IVA
+- `fiscal_code` (text) - codice fiscale
+- `email` (text) - email
+- `phone` (text) - telefono
+- `website` (text) - sito web
+- `product_category` (text) - categoria prodotti
+- `notes` (text) - note
 
 ---
 
-## Riepilogo file da modificare
+## 3. Aggiornamento SuppliersConfig
+
+**File**: `src/components/settings/SuppliersConfig.tsx`
+
+Modifiche:
+- Aggiungere **Tabs** (Italiani / Esteri) per dividere i fornitori in base al campo `is_foreign`
+- Contatore per ogni tab (es. "Italiani (5)" / "Esteri (2)")
+- Espandere il **form di creazione/modifica** con tutti i nuovi campi organizzati in sezioni:
+  - **Dati Generali**: Nome, Categoria Prodotti, Tipo (Italiano/Estero)
+  - **Dati Fiscali**: P.IVA, Codice Fiscale, Aliquota IVA
+  - **Contatti**: Email, Telefono, Sito Web
+  - **Indirizzo**: Via, Citta, Provincia, CAP, Paese
+  - **Note**: campo testo libero
+- Mostrare nella tabella colonne aggiuntive: Categoria, Citta, P.IVA (oltre a Nome e IVA)
+- Il dialog diventa piu largo (`max-w-2xl`) per ospitare i campi aggiuntivi
+
+---
+
+## 4. Riepilogo tecnico
 
 | File | Modifica |
 |------|----------|
-| `src/pages/azienda/CompanyCustomerDetail.tsx` | Pulsante elimina + storico ordini |
-| `src/components/settings/CompanyProfileForm.tsx` | Nuovo componente form anagrafica azienda |
-| `src/pages/azienda/Settings.tsx` | Integrare CompanyProfileForm nel tab Profilo |
-| **Migrazione DB** | Policy UPDATE per company_admins su companies |
+| **Migrazione DB** | 13 nuove colonne su `suppliers` |
+| `src/components/settings/SuppliersConfig.tsx` | Tabs Italiani/Esteri, form espanso, tabella arricchita |
+
+Nessun impatto su RLS: le policy esistenti su `suppliers` coprono gia i nuovi campi.
+
+Il componente `SupplierSelect.tsx` usato negli ordini non necessita modifiche poiche usa solo `id`, `name` e `vat_rate`.
+
