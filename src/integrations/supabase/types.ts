@@ -773,6 +773,7 @@ export type Database = {
           commission_type: string
           commission_value: number
           created_at: string
+          deduction_amount: number
           id: string
           is_paid: boolean
           notes: string | null
@@ -786,6 +787,7 @@ export type Database = {
           commission_type: string
           commission_value?: number
           created_at?: string
+          deduction_amount?: number
           id?: string
           is_paid?: boolean
           notes?: string | null
@@ -799,6 +801,7 @@ export type Database = {
           commission_type?: string
           commission_value?: number
           created_at?: string
+          deduction_amount?: number
           id?: string
           is_paid?: boolean
           notes?: string | null
