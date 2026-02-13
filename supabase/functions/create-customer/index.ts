@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     });
 
     // Parse request body
-    const { first_name, last_name, email, phone, address, company_id } = await req.json();
+    const { first_name, last_name, email, phone, address, company_id, fiscal_code, site_address, notes } = await req.json();
 
     // Validate required fields
     if (!first_name || !last_name || !email || !company_id) {
@@ -101,6 +101,9 @@ Deno.serve(async (req) => {
       phone: phone || null,
       address: address || null,
       company_id,
+      fiscal_code: fiscal_code || null,
+      site_address: site_address || null,
+      notes: notes || null,
     });
 
     if (profileError) {
