@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { StockItemDialog } from "./StockItemDialog";
 import { StockMovementDialog } from "./StockMovementDialog";
+import { StockMovementHistoryDialog } from "./StockMovementHistoryDialog";
 import type { StockItem } from "@/types/warehouse";
 
 export default function WarehouseStockTab() {
@@ -35,6 +36,7 @@ export default function WarehouseStockTab() {
     type: "carico" | "scarico";
     item: StockItem | null;
   }>({ open: false, type: "carico", item: null });
+  const [historyItem, setHistoryItem] = useState<StockItem | null>(null);
 
   // Fetch stock items
   const { data: stockItems = [], isLoading } = useQuery({
@@ -266,6 +268,14 @@ export default function WarehouseStockTab() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            title="Storico"
+                            onClick={() => setHistoryItem(item)}
+                          >
+                            <History className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             title="Carico"
                             onClick={() => setMovementDialog({ open: true, type: "carico", item })}
                           >
@@ -327,6 +337,11 @@ export default function WarehouseStockTab() {
             ...data,
           });
         }}
+      />
+      <StockMovementHistoryDialog
+        open={!!historyItem}
+        onOpenChange={(v) => { if (!v) setHistoryItem(null); }}
+        item={historyItem}
       />
     </div>
   );

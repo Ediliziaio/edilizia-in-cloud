@@ -76,6 +76,8 @@ interface OrderItemData {
   position: number;
   supplier_id: string | null;
   purchase_price: number | null;
+  vat_rate: number | null;
+  stock_item_id: string | null;
 }
 
 export default function EditOrder() {
@@ -262,6 +264,8 @@ export default function EditOrder() {
         position: item.position,
         supplier_id: item.supplier_id || undefined,
         purchase_price: item.purchase_price || undefined,
+        vat_rate: item.vat_rate ?? undefined,
+        stock_item_id: item.stock_item_id || undefined,
       })));
     }
   }, [existingItems]);
@@ -328,6 +332,13 @@ export default function EditOrder() {
 
       // Insert updated items
       if (orderItems.length > 0) {
+        // Track which stock_item_ids existed before (to avoid double decrement)
+        const previousStockItemIds = new Set(
+          existingItems
+            .filter(i => i.stock_item_id)
+            .map(i => `${i.stock_item_id}_${i.quantity}`)
+        );
+
         const itemsToInsert = orderItems.map((item, index) => ({
           order_id: id!,
           name: item.name,
@@ -337,13 +348,51 @@ export default function EditOrder() {
           position: index,
           supplier_id: item.supplier_id || null,
           purchase_price: item.purchase_price || 0,
+          vat_rate: item.vat_rate ?? 22,
+          stock_item_id: item.stock_item_id || null,
         }));
 
-        const { error: itemsError } = await supabase
+        const { data: insertedItems, error: itemsError } = await supabase
           .from("order_items")
-          .insert(itemsToInsert);
+          .insert(itemsToInsert)
+          .select();
 
         if (itemsError) throw itemsError;
+
+        // Auto stock decrement only for NEW stock items (not previously linked)
+        if (insertedItems) {
+          for (const inserted of insertedItems) {
+            if (inserted.stock_item_id) {
+              const key = `${inserted.stock_item_id}_${inserted.quantity}`;
+              if (!previousStockItemIds.has(key)) {
+                const { data: currentStock } = await supabase
+                  .from("warehouse_stock")
+                  .select("quantity")
+                  .eq("id", inserted.stock_item_id)
+                  .single();
+
+                if (currentStock) {
+                  await supabase
+                    .from("warehouse_stock")
+                    .update({ quantity: Math.max(0, currentStock.quantity - (inserted.quantity || 1)) })
+                    .eq("id", inserted.stock_item_id);
+
+                  await supabase.from("warehouse_movements").insert({
+                    stock_item_id: inserted.stock_item_id,
+                    order_item_id: inserted.id,
+                    movement_type: "scarico",
+                    quantity: inserted.quantity || 1,
+                    notes: `Prelievo automatico per ordine ${order?.order_code || id!.slice(0, 8)}`,
+                    performed_by: user!.id,
+                  });
+                }
+              } else {
+                // Remove from set so duplicate entries are handled correctly
+                previousStockItemIds.delete(key);
+              }
+            }
+          }
+        }
       }
 
       // Handle salesperson commission
