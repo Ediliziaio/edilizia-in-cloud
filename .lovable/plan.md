@@ -1,103 +1,187 @@
 
 
-# Piano: Aggiungere Gestione Persone nel Tab Team (Super Admin)
+# Piano: Gestione Giacenze Magazzino
 
 ## Panoramica
 
-Attualmente il tab "Team" nella pagina dettaglio azienda mostra solo i dati in sola lettura. Il Super Admin deve poter aggiungere Staff, Venditori e Dipendenti direttamente da questa vista, senza dover usare l'impersonificazione.
+Aggiungere un sistema di inventario reale al magazzino, con articoli in giacenza, quantita, costi unitari e la possibilita di prelevare articoli dal magazzino quando si crea un ordine. Il flusso economico si calcola automaticamente.
 
 ---
 
-## Cosa cambia
+## Architettura
 
-Per ogni sezione del tab Team (Staff, Venditori, Dipendenti), aggiungere un bottone "Aggiungi" nell'header della Card che apre il dialog di creazione corrispondente. Le edge function e i dialog esistenti verranno riutilizzati.
+Il sistema si compone di due parti:
 
-### Sezione Staff
-- Bottone "Nuovo Staff" nell'header della card Staff
-- Riutilizza `StaffUserDialog` (gia esistente)
-- Chiama la edge function `create-company-staff` passando il `company_id` dell'azienda corrente
-- Mostra la password temporanea dopo la creazione
-- Aggiungere bottone "Permessi" per gestire i permessi dello staff creato (riutilizza `PermissionsDialog`)
-
-### Sezione Venditori
-- Bottone "Nuovo Venditore" nell'header della card Venditori
-- Riutilizza `SalespersonDialog` (gia esistente)
-- Insert diretto nella tabella `salespeople` con il `company_id` dell'azienda
-- Possibilita di creare account (bottone "Crea Account" nella riga, chiama `create-salesperson-user`)
-
-### Sezione Dipendenti
-- Bottone "Nuovo Dipendente" nell'header della card Dipendenti
-- Riutilizza `EmployeeDialog` (gia esistente)
-- Insert diretto nella tabella `employees` con il `company_id` dell'azienda
-- Possibilita di creare account (bottone "Crea Account" nella riga, chiama `create-employee-user`)
+1. **Inventario (warehouse_stock)**: tabella con gli articoli fisicamente in magazzino, le quantita disponibili e il costo unitario
+2. **Prelievo da giacenza**: quando si aggiunge un articolo a un ordine, si puo scegliere se prelevarlo dal magazzino (decrementando la giacenza) oppure ordinarlo da fornitore
 
 ---
 
-## File da Modificare
+## 1. Nuova Tabella `warehouse_stock`
+
+| Colonna | Tipo | Descrizione |
+|---------|------|-------------|
+| id | uuid (PK) | |
+| company_id | uuid (FK) | Azienda |
+| name | text | Nome articolo |
+| description | text | Descrizione (opzionale) |
+| quantity | integer | Quantita disponibile |
+| unit_cost | numeric | Costo unitario di acquisto |
+| vat_rate | numeric | Aliquota IVA (default 22) |
+| supplier_id | uuid (FK) | Fornitore (opzionale) |
+| min_stock_level | integer | Soglia minima per alert (default 0) |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+**RLS**: stesse policy delle altre tabelle aziendali (company_admin + super_admin).
+
+---
+
+## 2. Nuova Tabella `warehouse_movements`
+
+Traccia ogni movimento di magazzino (carico/scarico) per storico e audit.
+
+| Colonna | Tipo | Descrizione |
+|---------|------|-------------|
+| id | uuid (PK) | |
+| stock_item_id | uuid (FK) | Articolo di magazzino |
+| order_item_id | uuid (FK) | Articolo ordine (se scarico per ordine) |
+| movement_type | text | "carico" o "scarico" |
+| quantity | integer | Quantita movimentata |
+| notes | text | Note (opzionale) |
+| performed_by | uuid | Utente che ha eseguito |
+| created_at | timestamptz | |
+
+---
+
+## 3. UI Magazzino - Nuova Sezione "Giacenze"
+
+Aggiungere un tab "Giacenze" nella pagina Magazzino (accanto a Lista/Kanban/Calendario), con:
+
+- **Tabella articoli in giacenza**: nome, quantita disponibile, costo unitario, fornitore, soglia minima
+- **Bottone "Aggiungi Articolo"**: dialog per inserire nuovo articolo in magazzino
+- **Modifica inline**: modifica quantita (carico/scarico manuale)
+- **Alert sotto-scorta**: evidenziazione articoli sotto la soglia minima
+- **Ricerca e filtri**: per nome, fornitore
+
+---
+
+## 4. Prelievo da Giacenza negli Ordini
+
+Nel dialog di aggiunta articolo (`OrderItemsList`), aggiungere un'opzione **"Preleva da Magazzino"**:
+
+- Un toggle/tab "Nuovo" vs "Da Magazzino"
+- Se "Da Magazzino": mostra combobox con articoli disponibili in giacenza, la quantita disponibile e il costo unitario
+- Selezionando un articolo, il costo si compila automaticamente
+- Al salvataggio: la quantita in `warehouse_stock` diminuisce e viene creato un record in `warehouse_movements`
+- L'articolo dell'ordine viene collegato tramite un campo `stock_item_id` su `order_items`
+
+---
+
+## 5. Modifiche alla Tabella `order_items`
+
+Aggiungere una colonna:
+
+| Colonna | Tipo | Descrizione |
+|---------|------|-------------|
+| stock_item_id | uuid (FK, nullable) | Se l'articolo proviene da giacenza |
+
+Quando `stock_item_id` e valorizzato, l'articolo e stato prelevato dal magazzino. Il badge nell'ordine mostrera "Da Magazzino" con icona diversa.
+
+---
+
+## 6. Flusso Economico Automatico
+
+- Il costo dell'articolo prelevato da magazzino viene copiato dal `unit_cost` dello stock
+- Il calcolo del margine nell'ordine (Conto Economico) funziona gia con `purchase_price` su `order_items`, quindi nessuna modifica necessaria a `OrderEconomics`
+- Nel previsionale cassa, gli articoli prelevati da magazzino non generano uscite future (sono gia pagati)
+
+---
+
+## File da Creare/Modificare
 
 | File | Azione | Descrizione |
 |------|--------|-------------|
-| `src/pages/admin/CompanyDetail.tsx` | Modifica | Aggiungere bottoni "Aggiungi", dialog, mutation per Staff/Venditori/Dipendenti + gestione permessi |
-
-Nessun nuovo file, nessuna migrazione DB, nessuna nuova edge function. Tutto il backend necessario esiste gia.
+| Migrazione DB | Crea | Tabelle `warehouse_stock`, `warehouse_movements`, colonna `stock_item_id` su `order_items` |
+| `src/components/warehouse/WarehouseStockTab.tsx` | Crea | UI gestione giacenze (tabella, CRUD, alert sotto-scorta) |
+| `src/components/warehouse/StockItemDialog.tsx` | Crea | Dialog creazione/modifica articolo di magazzino |
+| `src/components/warehouse/StockMovementDialog.tsx` | Crea | Dialog per carico/scarico manuale |
+| `src/pages/azienda/Warehouse.tsx` | Modifica | Aggiungere tab "Giacenze" |
+| `src/components/orders/OrderItemsList.tsx` | Modifica | Aggiungere opzione "Preleva da Magazzino" nel dialog articolo |
+| `src/types/warehouse.ts` | Modifica | Aggiungere tipi per stock e movimenti |
 
 ---
 
 ## Dettagli Tecnici
 
-### Nuovi state nel componente
+### Migrazione SQL
 
 ```text
-- createStaffOpen (boolean) - dialog creazione staff
-- createSalespersonOpen (boolean) - dialog creazione venditore
-- editingSalesperson (Salesperson | null) - per SalespersonDialog
-- createEmployeeOpen (boolean) - dialog creazione dipendente
-- editingEmployee (Employee | null) - per EmployeeDialog
-- permissionsUser (StaffUser | null) - dialog permessi staff
-- accountDialog (open, type, entity) - dialog creazione account
-- passwordDialog (open, password, name) - mostra password temporanea
+-- Tabella giacenze
+CREATE TABLE warehouse_stock (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES companies(id),
+  name text NOT NULL,
+  description text,
+  quantity integer NOT NULL DEFAULT 0,
+  unit_cost numeric NOT NULL DEFAULT 0,
+  vat_rate numeric DEFAULT 22,
+  supplier_id uuid REFERENCES suppliers(id),
+  min_stock_level integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Tabella movimenti
+CREATE TABLE warehouse_movements (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  stock_item_id uuid NOT NULL REFERENCES warehouse_stock(id),
+  order_item_id uuid REFERENCES order_items(id),
+  movement_type text NOT NULL CHECK (movement_type IN ('carico', 'scarico')),
+  quantity integer NOT NULL,
+  notes text,
+  performed_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Colonna su order_items
+ALTER TABLE order_items ADD COLUMN stock_item_id uuid REFERENCES warehouse_stock(id);
+
+-- RLS warehouse_stock
+ALTER TABLE warehouse_stock ENABLE ROW LEVEL SECURITY;
+-- (policy company_admin + super_admin come le altre tabelle)
+
+-- RLS warehouse_movements
+ALTER TABLE warehouse_movements ENABLE ROW LEVEL SECURITY;
+
+-- Trigger updated_at
+CREATE TRIGGER update_warehouse_stock_updated_at
+  BEFORE UPDATE ON warehouse_stock
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ```
 
-### Nuove mutation
+### UI Giacenze - WarehouseStockTab
 
-1. **createStaffMutation**: chiama `create-company-staff` edge function con `company_id` = `id` (dall'URL)
-2. **createSalespersonMutation**: insert in `salespeople` con `company_id` = `id`
-3. **createEmployeeMutation**: insert in `employees` con `company_id` = `id`
-4. **createAccountMutation**: chiama edge function `create-employee-user` o `create-salesperson-user`
-5. **savePermissionsMutation**: update `staff_permissions` per lo staff selezionato
+- Tabella con colonne: Nome, Quantita, Costo Unitario, Fornitore, Soglia, Azioni
+- Righe con quantita sotto soglia evidenziate in rosso/ambra
+- Bottoni: Aggiungi, Modifica, Carico, Scarico
+- Filtri: ricerca per nome, filtro per fornitore
 
-Tutte le mutation invalidano la query `["company-team", id]` al successo.
+### Prelievo da Magazzino nel Dialog Articolo
 
-### UI - Bottoni nell'header di ogni Card
-
-Ogni sezione Team avra un bottone "+" nell'header:
+Nel dialog di `OrderItemsList`, aggiungere sopra il form:
 
 ```text
-<CardHeader>
-  <div className="flex items-center gap-2">
-    <Icon />
-    <CardTitle>Titolo</CardTitle>
-    <Badge className="ml-auto">N</Badge>
-    <Button size="sm" onClick={...}>
-      <Plus /> Aggiungi
-    </Button>
-  </div>
-</CardHeader>
+[Tab: Nuovo Articolo] [Tab: Da Magazzino]
+
+Se "Da Magazzino":
+  - Combobox con articoli in giacenza (nome + quantita disponibile)
+  - Quantita da prelevare (max = disponibile)
+  - Costo auto-compilato dal unit_cost
+  - Al salvataggio: insert order_item + update warehouse_stock.quantity + insert warehouse_movement
 ```
 
-### UI - Colonna Azioni nelle tabelle
+### Integrazione con Previsionale Cassa
 
-Aggiungere una colonna "Azioni" con:
-- Staff: bottone Permessi (icona Shield)
-- Venditori: bottone "Crea Account" se `user_id` e null
-- Dipendenti: bottone "Crea Account" se `user_id` e null
-
-### Import aggiuntivi
-
-```text
-import { StaffUserDialog, StaffUserFormData } from "@/components/users/StaffUserDialog";
-import { PermissionsDialog, StaffPermissions } from "@/components/users/PermissionsDialog";
-import { SalespersonDialog } from "@/components/salespeople/SalespersonDialog";
-import { EmployeeDialog, EmployeeFormData } from "@/components/employees/EmployeeDialog";
-```
+Nessuna modifica necessaria: gli articoli con `stock_item_id` hanno gia il `purchase_price` valorizzato. Il previsionale usa gli articoli con status "da_ordinare"/"ordinato" per le uscite future -- gli articoli prelevati da magazzino avranno status "in_magazzino" e quindi non rientrano nelle uscite previste.
 
