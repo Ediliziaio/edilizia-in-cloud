@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isWithinInterval, startOfMonth, endOfMonth, addDays, addMonths, addQuarters, addYears, subMonths, startOfYear, endOfYear } from "date-fns";
 import { it } from "date-fns/locale";
+import { Link } from "react-router-dom";
 import {
   Building2,
   Plus,
@@ -16,6 +17,8 @@ import {
   Search,
   Download,
   TrendingUp,
+  Package,
+  ExternalLink,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +43,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "@/hooks/use-toast";
 
@@ -55,6 +62,7 @@ const CATEGORIES = [
   "Marketing",
   "Software",
   "Tasse",
+  "Materiali",
   "Altro",
 ];
 
@@ -90,8 +98,27 @@ const defaultFormData: CostFormData = {
 type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all";
 type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
 
+// Unified cost item type used for rendering
+interface UnifiedCost {
+  id: string;
+  name: string;
+  cost_type: string;
+  amount: number;
+  category: string | null;
+  recurrence: string;
+  due_date: string;
+  is_paid: boolean;
+  paid_date: string | null;
+  notes: string | null;
+  order_id: string | null;
+  order?: { id: string; order_code: string | null } | null;
+  isFromOrder?: boolean;
+  orderItemStatus?: string;
+  supplierName?: string | null;
+}
+
 export default function CompanyCostsManager() {
-  const { user, effectiveCompany } = useAuth();
+  const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
@@ -102,7 +129,7 @@ export default function CompanyCostsManager() {
   const [payConfirmId, setPayConfirmId] = useState<string | null>(null);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [duplicatePeriods, setDuplicatePeriods] = useState(1);
-  
+
   // Filters
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -122,6 +149,20 @@ export default function CompanyCostsManager() {
     enabled: !!companyId,
   });
 
+  // Query order items with status da_ordinare or ordinato
+  const { data: orderItemCosts = [], isLoading: isLoadingOrderItems } = useQuery({
+    queryKey: ["order-item-costs", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_items")
+        .select("id, name, quantity, purchase_price, status, supplier:suppliers(name), order:orders!inner(id, order_code, company_id)")
+        .in("status", ["da_ordinare", "ordinato"]);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    enabled: !!companyId,
+  });
+
   // Query orders for linking
   const { data: orders = [] } = useQuery({
     queryKey: ["orders-for-costs", companyId],
@@ -137,10 +178,31 @@ export default function CompanyCostsManager() {
     enabled: !!companyId,
   });
 
+  // Transform order items into unified cost format
+  const orderItemsAsVariableCosts: UnifiedCost[] = useMemo(() => {
+    return orderItemCosts.map((item: any) => ({
+      id: `order-item-${item.id}`,
+      name: item.name,
+      cost_type: "variable",
+      amount: (Number(item.purchase_price) || 0) * (Number(item.quantity) || 1),
+      category: "Materiali",
+      recurrence: "once",
+      due_date: new Date().toISOString().split("T")[0], // current date as reference
+      is_paid: false,
+      paid_date: null,
+      notes: null,
+      order_id: item.order?.id || null,
+      order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
+      isFromOrder: true,
+      orderItemStatus: item.status,
+      supplierName: item.supplier?.name || null,
+    }));
+  }, [orderItemCosts]);
+
   // Filtering logic
   const filteredCosts = useMemo(() => {
     const now = new Date();
-    let filtered = costs;
+    let filtered = costs as any[];
 
     // Period filter
     if (periodFilter !== "all") {
@@ -183,11 +245,28 @@ export default function CompanyCostsManager() {
     return filtered;
   }, [costs, periodFilter, statusFilter, searchQuery]);
 
-  const fixedCosts = filteredCosts.filter((c: any) => c.cost_type === "fixed");
-  const variableCosts = filteredCosts.filter((c: any) => c.cost_type === "variable");
-  const allCostsSorted = [...filteredCosts].sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+  // Filter order item costs by search only (they don't have due_date logic for period/status)
+  const filteredOrderItemCosts = useMemo(() => {
+    let filtered = orderItemsAsVariableCosts;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((c) => c.name.toLowerCase().includes(q));
+    }
+    // Status filter: order items are always "unpaid", so hide them if filtering for "paid"
+    if (statusFilter === "paid") return [];
+    return filtered;
+  }, [orderItemsAsVariableCosts, searchQuery, statusFilter]);
 
-  // Annual estimate
+  const fixedCosts = filteredCosts.filter((c: any) => c.cost_type === "fixed");
+  const manualVariableCosts = filteredCosts.filter((c: any) => c.cost_type === "variable");
+  const variableCostsWithOrders = [...manualVariableCosts, ...filteredOrderItemCosts];
+  const allCostsSorted = [...filteredCosts, ...filteredOrderItemCosts].sort((a: any, b: any) => {
+    const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
+    const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
+    return dateA - dateB;
+  });
+
+  // Annual estimate (exclude order items - they are one-time from orders)
   const annualEstimate = useMemo(() => {
     let total = 0;
     const byCategory: Record<string, number> = {};
@@ -196,7 +275,7 @@ export default function CompanyCostsManager() {
       if (c.recurrence === "monthly") projected = Number(c.amount) * 12;
       else if (c.recurrence === "quarterly") projected = Number(c.amount) * 4;
       else if (c.recurrence === "yearly") projected = Number(c.amount);
-      else projected = Number(c.amount); // once
+      else projected = Number(c.amount);
       total += projected;
       const cat = c.category || "Altro";
       byCategory[cat] = (byCategory[cat] || 0) + projected;
@@ -216,7 +295,7 @@ export default function CompanyCostsManager() {
         recurrence: data.recurrence,
         due_date: data.due_date,
         notes: data.notes || null,
-        order_id: data.order_id || null,
+        order_id: data.order_id && data.order_id !== "none" ? data.order_id : null,
       };
 
       if (editingCost) {
@@ -332,8 +411,9 @@ export default function CompanyCostsManager() {
 
   // Export CSV
   const exportCostsCSV = () => {
-    const rows = [["Nome", "Tipo", "Categoria", "Importo", "Ricorrenza", "Scadenza", "Stato"]];
-    filteredCosts.forEach((c: any) => {
+    const allForExport = [...filteredCosts, ...filteredOrderItemCosts];
+    const rows = [["Nome", "Tipo", "Categoria", "Importo", "Ricorrenza", "Scadenza", "Stato", "Origine"]];
+    allForExport.forEach((c: any) => {
       rows.push([
         c.name,
         c.cost_type === "fixed" ? "Fisso" : "Variabile",
@@ -341,7 +421,8 @@ export default function CompanyCostsManager() {
         String(c.amount),
         RECURRENCE_LABELS[c.recurrence] || c.recurrence,
         c.due_date ? format(new Date(c.due_date), "dd/MM/yyyy") : "",
-        c.is_paid ? "Pagato" : new Date(c.due_date) < new Date() ? "Scaduto" : "Da pagare",
+        c.is_paid ? "Pagato" : c.due_date && new Date(c.due_date) < new Date() ? "Scaduto" : "Da pagare",
+        c.isFromOrder ? "Da Ordine" : "Manuale",
       ]);
     });
     const csv = rows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
@@ -365,7 +446,7 @@ export default function CompanyCostsManager() {
       recurrence: cost.recurrence,
       due_date: cost.due_date,
       notes: cost.notes || "",
-      order_id: cost.order_id || "",
+      order_id: cost.order_id || "none",
     });
     setDialogOpen(true);
   };
@@ -376,7 +457,7 @@ export default function CompanyCostsManager() {
     setDialogOpen(true);
   };
 
-  // Stats
+  // Stats - include order item costs in "da pagare"
   const now = new Date();
   const thisMonthInterval = { start: startOfMonth(now), end: endOfMonth(now) };
   const soon = addDays(now, 7);
@@ -389,11 +470,18 @@ export default function CompanyCostsManager() {
   );
   const overdueCosts = costs.filter((c: any) => !c.is_paid && new Date(c.due_date) < now);
 
-  const totalUnpaidThisMonth = thisMonthUnpaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const orderItemsTotalUnpaid = orderItemsAsVariableCosts.reduce((s, c) => s + c.amount, 0);
+  const totalUnpaidThisMonth = thisMonthUnpaid.reduce((s: number, c: any) => s + Number(c.amount), 0) + orderItemsTotalUnpaid;
   const totalPaidThisMonth = thisMonthPaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
   const totalOverdue = overdueCosts.reduce((s: number, c: any) => s + Number(c.amount), 0);
 
-  const getStatusBadge = (cost: any) => {
+  const getStatusBadge = (cost: UnifiedCost) => {
+    if (cost.isFromOrder) {
+      if (cost.orderItemStatus === "ordinato") {
+        return <Badge className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Ordinato</Badge>;
+      }
+      return <Badge className="bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400">Da pagare</Badge>;
+    }
     if (cost.is_paid) {
       return <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400">Pagato</Badge>;
     }
@@ -407,13 +495,21 @@ export default function CompanyCostsManager() {
     return <Badge className="bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400">Da pagare</Badge>;
   };
 
-  const renderCostsTable = (items: any[], type: string) => (
+  const renderCostsTable = (items: UnifiedCost[], type: string) => (
     <div className="space-y-4">
-      {type !== "all" && (
+      {type !== "all" && !items.some(i => i.isFromOrder && type === "variable") && (
         <div className="flex justify-end">
           <Button size="sm" onClick={() => openCreate(type)} className="gap-1">
             <Plus className="h-4 w-4" />
             Aggiungi {type === "fixed" ? "Costo Fisso" : "Costo Variabile"}
+          </Button>
+        </div>
+      )}
+      {type === "variable" && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => openCreate("variable")} className="gap-1">
+            <Plus className="h-4 w-4" />
+            Aggiungi Costo Variabile
           </Button>
         </div>
       )}
@@ -439,9 +535,33 @@ export default function CompanyCostsManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((cost: any) => (
-                <TableRow key={cost.id}>
-                  <TableCell className="font-medium">{cost.name}</TableCell>
+              {items.map((cost) => (
+                <TableRow key={cost.id} className={cost.isFromOrder ? "bg-orange-50/50 dark:bg-orange-900/5" : ""}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      {cost.name}
+                      {cost.isFromOrder && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 gap-1 text-[10px] px-1.5">
+                                <Package className="h-3 w-3" />
+                                Da Ordine
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Questo costo viene dagli articoli dell'ordine.<br />Gestiscilo dalla pagina ordine.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                    {cost.isFromOrder && cost.supplierName && (
+                      <span className="text-xs text-muted-foreground block mt-0.5">
+                        Fornitore: {cost.supplierName}
+                      </span>
+                    )}
+                  </TableCell>
                   {type === "all" && (
                     <TableCell>
                       <Badge variant="outline" className={cost.cost_type === "fixed" ? "border-red-400 text-red-600" : "border-amber-400 text-amber-600"}>
@@ -458,46 +578,65 @@ export default function CompanyCostsManager() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    {cost.due_date
-                      ? format(new Date(cost.due_date), "dd/MM/yyyy", { locale: it })
-                      : "—"}
+                    {cost.isFromOrder
+                      ? "—"
+                      : cost.due_date
+                        ? format(new Date(cost.due_date), "dd/MM/yyyy", { locale: it })
+                        : "—"}
                   </TableCell>
                   <TableCell>{getStatusBadge(cost)}</TableCell>
                   {(type === "variable" || type === "all") && (
                     <TableCell>
-                      {cost.order?.order_code || "—"}
+                      {cost.order?.order_code ? (
+                        <Link
+                          to={`/azienda/ordini/${cost.order.id}`}
+                          className="text-primary hover:underline flex items-center gap-1 text-sm"
+                        >
+                          {cost.order.order_code}
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      ) : "—"}
                     </TableCell>
                   )}
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      {!cost.is_paid && (
+                    {cost.isFromOrder ? (
+                      <Link to={`/azienda/ordini/${cost.order?.id}`}>
+                        <Button size="sm" variant="ghost" className="gap-1 text-xs">
+                          <ExternalLink className="h-3 w-3" />
+                          Vai all'ordine
+                        </Button>
+                      </Link>
+                    ) : (
+                      <div className="flex justify-end gap-1">
+                        {!cost.is_paid && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-green-600 hover:text-green-700"
+                            onClick={() => setPayConfirmId(cost.id)}
+                            title="Segna come pagato"
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-green-600 hover:text-green-700"
-                          onClick={() => setPayConfirmId(cost.id)}
-                          title="Segna come pagato"
+                          className="h-8 w-8"
+                          onClick={() => openEdit(cost as any)}
                         >
-                          <Check className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" />
                         </Button>
-                      )}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        onClick={() => openEdit(cost)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => setDeleteConfirmId(cost.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => setDeleteConfirmId(cost.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -508,11 +647,18 @@ export default function CompanyCostsManager() {
     </div>
   );
 
-  if (isLoading) {
+  if (isLoading || isLoadingOrderItems) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <div className="h-32 bg-muted animate-pulse rounded" />
+        <CardContent className="p-6 space-y-4">
+          <Skeleton className="h-8 w-64" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-24 rounded-lg" />
+            ))}
+          </div>
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-64 w-full" />
         </CardContent>
       </Card>
     );
@@ -552,10 +698,12 @@ export default function CompanyCostsManager() {
             <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
               <div className="flex items-center gap-2 mb-1">
                 <AlertCircle className="h-4 w-4 text-red-600" />
-                <span className="text-sm font-medium">Da pagare questo mese</span>
+                <span className="text-sm font-medium">Da pagare (incl. ordini)</span>
               </div>
               <p className="text-2xl font-bold text-red-600">{formatCurrency(totalUnpaidThisMonth)}</p>
-              <p className="text-xs text-muted-foreground">{thisMonthUnpaid.length} costi in scadenza</p>
+              <p className="text-xs text-muted-foreground">
+                {thisMonthUnpaid.length} costi manuali + {orderItemsAsVariableCosts.length} da ordini
+              </p>
             </div>
             <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
               <div className="flex items-center gap-2 mb-1">
@@ -649,7 +797,7 @@ export default function CompanyCostsManager() {
                 Costi Fissi ({fixedCosts.length})
               </TabsTrigger>
               <TabsTrigger value="variable">
-                Costi Variabili ({variableCosts.length})
+                Costi Variabili ({variableCostsWithOrders.length})
               </TabsTrigger>
             </TabsList>
             <TabsContent value="all">
@@ -659,7 +807,7 @@ export default function CompanyCostsManager() {
               {renderCostsTable(fixedCosts, "fixed")}
             </TabsContent>
             <TabsContent value="variable">
-              {renderCostsTable(variableCosts, "variable")}
+              {renderCostsTable(variableCostsWithOrders, "variable")}
             </TabsContent>
           </Tabs>
         </CardContent>
@@ -708,7 +856,10 @@ export default function CompanyCostsManager() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Categoria</Label>
-                <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
+                <Select
+                  value={formData.category || undefined}
+                  onValueChange={(v) => setFormData({ ...formData, category: v })}
+                >
                   <SelectTrigger><SelectValue placeholder="Seleziona" /></SelectTrigger>
                   <SelectContent>
                     {CATEGORIES.map((cat) => (
@@ -741,10 +892,13 @@ export default function CompanyCostsManager() {
             {formData.cost_type === "variable" && (
               <div>
                 <Label>Collega a ordine (opzionale)</Label>
-                <Select value={formData.order_id} onValueChange={(v) => setFormData({ ...formData, order_id: v })}>
+                <Select
+                  value={formData.order_id || "none"}
+                  onValueChange={(v) => setFormData({ ...formData, order_id: v === "none" ? "" : v })}
+                >
                   <SelectTrigger><SelectValue placeholder="Nessun ordine" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nessuno</SelectItem>
+                    <SelectItem value="none">Nessuno</SelectItem>
                     {orders.map((order: any) => (
                       <SelectItem key={order.id} value={order.id}>
                         {order.order_code || order.description?.substring(0, 30) || order.id.substring(0, 8)}
