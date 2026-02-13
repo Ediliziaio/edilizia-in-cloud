@@ -11,10 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   ArrowLeft,
   Building2,
@@ -24,7 +26,6 @@ import {
   ClipboardList,
   Users,
   MessageSquare,
-  Calendar,
   CreditCard,
   Clock,
   Pause,
@@ -38,8 +39,16 @@ import {
   TrendingUp,
   CheckCircle,
   XCircle,
+  Shield,
+  UserCheck,
+  Phone,
+  MapPin,
+  CalendarIcon,
+  RefreshCw,
+  Eye,
+  Pencil,
 } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { format, addDays, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
@@ -51,6 +60,7 @@ interface CompanyStats {
   customersCount: number;
   ticketsCount: number;
   openTicketsCount: number;
+  teamCount: number;
 }
 
 const sectorLabels: Record<string, string> = {
@@ -104,6 +114,22 @@ const ALL_MODULES = [
   { key: "forecast", label: "Previsionale", icon: TrendingUp },
 ] as const;
 
+const PERMISSION_LABELS: Record<string, string> = {
+  can_view_dashboard: "Dashboard",
+  can_view_orders: "Ordini",
+  can_edit_orders: "Modifica Ordini",
+  can_view_customers: "Clienti",
+  can_edit_customers: "Modifica Clienti",
+  can_view_warehouse: "Magazzino",
+  can_edit_warehouse: "Modifica Magazzino",
+  can_view_calendar: "Calendario",
+  can_view_employees: "Dipendenti",
+  can_view_tickets: "Ticket",
+  can_edit_tickets: "Modifica Ticket",
+  can_view_forecast: "Previsionale",
+  can_view_settings: "Impostazioni",
+};
+
 const formSchema = z.object({
   name: z.string().min(2, "Il nome deve avere almeno 2 caratteri"),
   email: z.string().email("Email non valida"),
@@ -133,11 +159,12 @@ export default function CompanyDetail() {
   useEffect(() => {
     async function fetchCompanyData() {
       if (!id) return;
-      const [companyRes, ordersRes, customersRes, ticketsRes] = await Promise.all([
+      const [companyRes, ordersRes, customersRes, ticketsRes, profilesRes] = await Promise.all([
         supabase.from("companies").select("*").eq("id", id).single(),
         supabase.from("orders").select("id, total_amount").eq("company_id", id),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", id),
         supabase.from("tickets").select("id, status").eq("company_id", id),
+        supabase.from("profiles").select("id").eq("company_id", id),
       ]);
       if (companyRes.data) {
         const c = companyRes.data as Company;
@@ -152,11 +179,53 @@ export default function CompanyDetail() {
         customersCount: customersRes.count || 0,
         ticketsCount: ticketsRes.data?.length || 0,
         openTicketsCount: openTickets,
+        teamCount: profilesRes.data?.length || 0,
       });
       setIsLoading(false);
     }
     fetchCompanyData();
   }, [id, form]);
+
+  // Team data queries
+  const { data: teamData } = useQuery({
+    queryKey: ["company-team", id],
+    queryFn: async () => {
+      if (!id) return null;
+
+      // Fetch profiles, roles, permissions, salespeople, employees in parallel
+      const [profilesRes, permissionsRes, salespeopleRes, employeesRes] = await Promise.all([
+        supabase.from("profiles").select("*").eq("company_id", id),
+        supabase.from("staff_permissions").select("*").eq("company_id", id),
+        supabase.from("salespeople").select("*").eq("company_id", id),
+        supabase.from("employees").select("*").eq("company_id", id),
+      ]);
+
+      const profiles = profilesRes.data || [];
+      const profileIds = profiles.map((p) => p.id);
+
+      // Fetch roles for all profiles
+      let roles: { user_id: string; role: string }[] = [];
+      if (profileIds.length > 0) {
+        const { data: rolesData } = await supabase.from("user_roles").select("user_id, role").in("user_id", profileIds);
+        roles = rolesData || [];
+      }
+
+      // Categorize profiles by role
+      const admins = profiles.filter((p) => roles.some((r) => r.user_id === p.id && r.role === "company_admin"));
+      const staff = profiles.filter((p) => roles.some((r) => r.user_id === p.id && r.role === "company_staff"));
+
+      // Map permissions to staff
+      const permissionsMap = new Map((permissionsRes.data || []).map((p) => [p.user_id, p]));
+
+      return {
+        admins,
+        staff: staff.map((s) => ({ ...s, permissions: permissionsMap.get(s.id) || null })),
+        salespeople: salespeopleRes.data || [],
+        employees: employeesRes.data || [],
+      };
+    },
+    enabled: !!id,
+  });
 
   const { data: currentPlan } = useQuery({
     queryKey: ["company-plan", company?.subscription_plan_id],
@@ -318,6 +387,21 @@ export default function CompanyDetail() {
   const ordersPercent = maxOrders === -1 ? 0 : Math.min(100, ((stats?.ordersCount || 0) / maxOrders) * 100);
   const usersPercent = maxUsers === -1 ? 0 : Math.min(100, ((stats?.customersCount || 0) / maxUsers) * 100);
 
+  const totalTeam = (teamData?.admins.length || 0) + (teamData?.staff.length || 0) + (teamData?.salespeople.length || 0) + (teamData?.employees.length || 0);
+
+  const getActivePermissions = (permissions: any) => {
+    if (!permissions) return [];
+    return Object.entries(PERMISSION_LABELS)
+      .filter(([key]) => permissions[key] === true)
+      .map(([, label]) => label);
+  };
+
+  const commissionTypeLabels: Record<string, string> = {
+    percentage_sold: "% sul venduto",
+    percentage_margin: "% sul margine",
+    fixed_per_order: "Fisso per ordine",
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -356,6 +440,10 @@ export default function CompanyDetail() {
       <Tabs defaultValue="dettagli">
         <TabsList>
           <TabsTrigger value="dettagli">Dettagli di base</TabsTrigger>
+          <TabsTrigger value="team">
+            <Users className="h-4 w-4 mr-1.5" />
+            Team
+          </TabsTrigger>
           <TabsTrigger value="saas">SaaS</TabsTrigger>
           <TabsTrigger value="abbonamento">Abbonamento</TabsTrigger>
           <TabsTrigger value="attivita">Attività</TabsTrigger>
@@ -364,95 +452,453 @@ export default function CompanyDetail() {
         {/* TAB: Dettagli di base */}
         <TabsContent value="dettagli">
           <div className="grid gap-6 lg:grid-cols-3">
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Informazioni Account</CardTitle>
-                <CardDescription>Modifica i dati dell'azienda</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSaveDetails)} className="space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
+            {/* Form editabile - 2/3 */}
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    Anagrafica Azienda
+                  </CardTitle>
+                  <CardDescription>Modifica i dati identificativi dell'azienda</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSaveDetails)} className="space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Nome Azienda</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email</FormLabel>
+                              <FormControl>
+                                <Input type="email" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                       <FormField
                         control={form.control}
-                        name="name"
+                        name="sector"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Nome Azienda</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
+                            <FormLabel>Settore</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {sectors.map((s) => (
+                                  <SelectItem key={s.value} value={s.value}>
+                                    {s.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Email</FormLabel>
-                            <FormControl>
-                              <Input type="email" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <FormField
-                      control={form.control}
-                      name="sector"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Settore</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {sectors.map((s) => (
-                                <SelectItem key={s.value} value={s.value}>
-                                  {s.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
+
+                      {/* Logo preview */}
+                      {company.logo_url && (
+                        <div>
+                          <p className="text-sm font-medium mb-2">Logo attuale</p>
+                          <img src={company.logo_url} alt="Logo" className="h-16 w-16 rounded-lg object-cover border" />
+                        </div>
                       )}
-                    />
-                    <Button type="submit" disabled={isSaving}>
-                      {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                      Salva Modifiche
-                    </Button>
-                  </form>
-                </Form>
+
+                      <Button type="submit" disabled={isSaving}>
+                        {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                        Salva Modifiche
+                      </Button>
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+
+              {/* Date e Stato - readonly */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CalendarIcon className="h-5 w-5" />
+                    Date e Stato
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                      <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Data creazione</p>
+                        <p className="text-sm font-medium">{format(new Date(company.created_at), "dd MMMM yyyy", { locale: it })}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                      <RefreshCw className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Ultimo aggiornamento</p>
+                        <p className="text-sm font-medium">{formatDistanceToNow(new Date(company.updated_at), { addSuffix: true, locale: it })}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                      <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Stato abbonamento</p>
+                        <Badge variant={statusCfg.variant} className="mt-0.5">{statusCfg.label}</Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                      <Timer className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Scadenza trial</p>
+                        <p className="text-sm font-medium">
+                          {company.trial_ends_at ? format(new Date(company.trial_ends_at), "dd/MM/yyyy", { locale: it }) : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Sidebar Panoramica - 1/3 */}
+            <div className="space-y-6">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    {company.logo_url ? (
+                      <img src={company.logo_url} alt={company.name} className="h-20 w-20 rounded-2xl object-cover shadow-sm" />
+                    ) : (
+                      <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center">
+                        <Building2 className="h-10 w-10 text-primary" />
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-semibold text-lg">{company.name}</h3>
+                      <p className="text-sm text-muted-foreground">{company.email}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
+                      <Badge variant="secondary">{sectorLabels[company.sector] || company.sector}</Badge>
+                    </div>
+                  </div>
+
+                  <Separator className="my-5" />
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Piano</span>
+                      <span className="font-medium">{currentPlan?.name || "Nessuno"}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Creata</span>
+                      <span className="font-medium">{formatDistanceToNow(new Date(company.created_at), { addSuffix: true, locale: it })}</span>
+                    </div>
+                  </div>
+
+                  <Separator className="my-5" />
+
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div>
+                      <p className="text-2xl font-bold">{stats?.ordersCount || 0}</p>
+                      <p className="text-xs text-muted-foreground">Ordini</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stats?.customersCount || 0}</p>
+                      <p className="text-xs text-muted-foreground">Clienti</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{totalTeam}</p>
+                      <p className="text-xs text-muted-foreground">Team</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* TAB: Team */}
+        <TabsContent value="team">
+          <div className="space-y-6">
+            {/* Summary header */}
+            <Card>
+              <CardContent className="py-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-sm font-medium">{totalTeam} membri totali:</span>
+                  <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">{teamData?.admins.length || 0} Admin</Badge>
+                  <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">{teamData?.staff.length || 0} Staff</Badge>
+                  <Badge variant="default" className="bg-violet-600 hover:bg-violet-700">{teamData?.salespeople.length || 0} Venditori</Badge>
+                  <Badge variant="default" className="bg-amber-600 hover:bg-amber-700">{teamData?.employees.length || 0} Dipendenti</Badge>
+                </div>
               </CardContent>
             </Card>
+
+            {/* Admin section */}
             <Card>
-              <CardHeader>
-                <CardTitle>Info Generali</CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-emerald-600" />
+                  <CardTitle className="text-base">Admin Azienda</CardTitle>
+                  <Badge variant="secondary" className="ml-auto">{teamData?.admins.length || 0}</Badge>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between py-2 border-b text-sm">
-                  <span className="text-muted-foreground">Settore</span>
-                  <Badge variant="secondary">{sectorLabels[company.sector] || company.sector}</Badge>
+              <CardContent className="p-0">
+                {teamData?.admins.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">Nessun admin trovato</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Telefono</TableHead>
+                        <TableHead>Creato il</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teamData?.admins.map((admin) => (
+                        <TableRow key={admin.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs font-bold">
+                                {admin.first_name[0]}{admin.last_name[0]}
+                              </div>
+                              {admin.first_name} {admin.last_name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{admin.email}</TableCell>
+                          <TableCell className="text-muted-foreground">{admin.phone || "—"}</TableCell>
+                          <TableCell className="text-muted-foreground">{format(new Date(admin.created_at), "dd/MM/yyyy")}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Staff section */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5 text-blue-600" />
+                  <CardTitle className="text-base">Staff</CardTitle>
+                  <Badge variant="secondary" className="ml-auto">{teamData?.staff.length || 0}</Badge>
                 </div>
-                <div className="flex justify-between py-2 border-b text-sm">
-                  <span className="text-muted-foreground">Creata il</span>
-                  <span className="font-medium">{format(new Date(company.created_at), "dd MMM yyyy", { locale: it })}</span>
+              </CardHeader>
+              <CardContent className="p-0">
+                {teamData?.staff.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">Nessun membro staff trovato</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Permessi</TableHead>
+                        <TableHead>Creato il</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teamData?.staff.map((member) => {
+                        const perms = getActivePermissions(member.permissions);
+                        return (
+                          <TableRow key={member.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
+                                  {member.first_name[0]}{member.last_name[0]}
+                                </div>
+                                {member.first_name} {member.last_name}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{member.email}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1 max-w-xs">
+                                {perms.length === 0 ? (
+                                  <span className="text-sm text-muted-foreground">Nessun permesso</span>
+                                ) : perms.length <= 4 ? (
+                                  perms.map((p) => (
+                                    <Badge key={p} variant="outline" className="text-xs px-1.5 py-0">
+                                      {p}
+                                    </Badge>
+                                  ))
+                                ) : (
+                                  <>
+                                    {perms.slice(0, 3).map((p) => (
+                                      <Badge key={p} variant="outline" className="text-xs px-1.5 py-0">
+                                        {p}
+                                      </Badge>
+                                    ))}
+                                    <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                                      +{perms.length - 3} altri
+                                    </Badge>
+                                  </>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{format(new Date(member.created_at), "dd/MM/yyyy")}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Salespeople section */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-violet-600" />
+                  <CardTitle className="text-base">Venditori</CardTitle>
+                  <Badge variant="secondary" className="ml-auto">{teamData?.salespeople.length || 0}</Badge>
                 </div>
-                <div className="flex justify-between py-2 border-b text-sm">
-                  <span className="text-muted-foreground">Piano</span>
-                  <span className="font-medium">{currentPlan?.name || "Nessuno"}</span>
+              </CardHeader>
+              <CardContent className="p-0">
+                {teamData?.salespeople.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">Nessun venditore trovato</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Telefono</TableHead>
+                        <TableHead>Provvigione</TableHead>
+                        <TableHead>Account</TableHead>
+                        <TableHead>Stato</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teamData?.salespeople.map((sp) => (
+                        <TableRow key={sp.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <div className="h-8 w-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 text-xs font-bold">
+                                {sp.first_name[0]}{sp.last_name[0]}
+                              </div>
+                              <div>
+                                <p>{sp.first_name} {sp.last_name}</p>
+                                {sp.email && <p className="text-xs text-muted-foreground">{sp.email}</p>}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{sp.phone || "—"}</TableCell>
+                          <TableCell>
+                            <span className="font-medium">
+                              {sp.commission_type === "fixed_per_order"
+                                ? formatCurrency(sp.commission_value)
+                                : `${sp.commission_value}%`}
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-1">
+                              {commissionTypeLabels[sp.commission_type] || sp.commission_type}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {sp.user_id ? (
+                              <Badge variant="default" className="bg-emerald-600 text-xs">Attivo</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">No account</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {sp.is_active ? (
+                              <Badge variant="default" className="text-xs">Attivo</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="text-xs">Inattivo</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Employees section */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <HardHat className="h-5 w-5 text-amber-600" />
+                  <CardTitle className="text-base">Dipendenti</CardTitle>
+                  <Badge variant="secondary" className="ml-auto">{teamData?.employees.length || 0}</Badge>
                 </div>
-                <div className="flex justify-between py-2 text-sm">
-                  <span className="text-muted-foreground">Stato</span>
-                  <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {teamData?.employees.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">Nessun dipendente trovato</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Telefono</TableHead>
+                        <TableHead>Ore/mese</TableHead>
+                        <TableHead>Lordo</TableHead>
+                        <TableHead>Netto</TableHead>
+                        <TableHead>Account</TableHead>
+                        <TableHead>Stato</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teamData?.employees.map((emp) => (
+                        <TableRow key={emp.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold">
+                                {emp.first_name[0]}{emp.last_name[0]}
+                              </div>
+                              <div>
+                                <p>{emp.first_name} {emp.last_name}</p>
+                                {emp.email && <p className="text-xs text-muted-foreground">{emp.email}</p>}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{emp.phone || "—"}</TableCell>
+                          <TableCell className="font-medium">{emp.monthly_hours}h</TableCell>
+                          <TableCell className="font-medium">{formatCurrency(emp.gross_salary)}</TableCell>
+                          <TableCell className="font-medium">{formatCurrency(emp.net_salary)}</TableCell>
+                          <TableCell>
+                            {emp.user_id ? (
+                              <Badge variant="default" className="bg-emerald-600 text-xs">Attivo</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">No account</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {emp.is_active ? (
+                              <Badge variant="default" className="text-xs">Attivo</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="text-xs">Inattivo</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </div>
