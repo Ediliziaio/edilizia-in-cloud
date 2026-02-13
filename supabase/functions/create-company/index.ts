@@ -109,6 +109,21 @@ Deno.serve(async (req) => {
       adminLastName,
       sector,
       logoUrl,
+      businessName,
+      vatNumber,
+      fiscalCode,
+      phone,
+      pec,
+      sdiCode,
+      website,
+      legalAddress,
+      legalCity,
+      legalProvince,
+      legalPostalCode,
+      operationalAddress,
+      operationalCity,
+      operationalProvince,
+      operationalPostalCode,
     } = await req.json();
 
     // Validate required fields
@@ -124,6 +139,21 @@ Deno.serve(async (req) => {
         email: companyEmail,
         sector: sector as CompanySector,
         logo_url: logoUrl || null,
+        business_name: businessName || null,
+        vat_number: vatNumber || null,
+        fiscal_code: fiscalCode || null,
+        phone: phone || null,
+        pec: pec || null,
+        sdi_code: sdiCode || null,
+        website: website || null,
+        legal_address: legalAddress || null,
+        legal_city: legalCity || null,
+        legal_province: legalProvince || null,
+        legal_postal_code: legalPostalCode || null,
+        operational_address: operationalAddress || null,
+        operational_city: operationalCity || null,
+        operational_province: operationalProvince || null,
+        operational_postal_code: operationalPostalCode || null,
       })
       .select()
       .single();

@@ -11,25 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { sectorLabels, statusConfig } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
-
-const sectorLabels: Record<string, string> = {
-  serramenti: "Serramenti",
-  infissi: "Infissi",
-  bagni: "Bagni",
-  tetti: "Tetti",
-  fotovoltaico: "Fotovoltaico",
-  pittura: "Pittura",
-  ristrutturazioni: "Ristrutturazioni",
-  altro: "Altro",
-};
-
-const statusConfig: Record<CompanyStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  trial: { label: "Trial", variant: "outline" },
-  active: { label: "Attivo", variant: "default" },
-  suspended: { label: "Sospeso", variant: "secondary" },
-  expired: { label: "Scaduto", variant: "destructive" },
-};
 
 export default function CompaniesList() {
   const [companies, setCompanies] = useState<any[]>([]);
