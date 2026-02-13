@@ -57,6 +57,10 @@ import {
   Package,
   ArrowUpRight,
   Banknote,
+  Plus,
+  Copy,
+  Check,
+  KeyRound,
 } from "lucide-react";
 import { format, addDays, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -64,6 +68,10 @@ import { formatCurrency } from "@/lib/formatters";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
 import { sectorLabels, sectors, statusConfig } from "@/lib/companyUtils";
+import { StaffUserDialog, type StaffUserFormData } from "@/components/users/StaffUserDialog";
+import { PermissionsDialog, type StaffPermissions } from "@/components/users/PermissionsDialog";
+import { SalespersonDialog } from "@/components/salespeople/SalespersonDialog";
+import { EmployeeDialog, type EmployeeFormData } from "@/components/employees/EmployeeDialog";
 
 interface CompanyStats {
   ordersCount: number;
@@ -161,6 +169,19 @@ export default function CompanyDetail() {
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [sameAsLegal, setSameAsLegal] = useState(false);
+
+  // Team management state
+  const [createStaffOpen, setCreateStaffOpen] = useState(false);
+  const [createStaffLoading, setCreateStaffLoading] = useState(false);
+  const [createSalespersonOpen, setCreateSalespersonOpen] = useState(false);
+  const [savingSalesperson, setSavingSalesperson] = useState(false);
+  const [createEmployeeOpen, setCreateEmployeeOpen] = useState(false);
+  const [savingEmployee, setSavingEmployee] = useState(false);
+  const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string; permissions: StaffPermissions } | null>(null);
+  const [savingPermissions, setSavingPermissions] = useState(false);
+  const [passwordDialog, setPasswordDialog] = useState<{ open: boolean; password: string; name: string; email: string } | null>(null);
+  const [copiedPassword, setCopiedPassword] = useState(false);
+  const [creatingAccountFor, setCreatingAccountFor] = useState<string | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -397,6 +418,124 @@ export default function CompanyDetail() {
     if (company) {
       await impersonateCompany(company.id);
       navigate("/azienda");
+    }
+  };
+
+  // ========== TEAM MANAGEMENT MUTATIONS ==========
+
+  const handleCreateStaff = async (data: StaffUserFormData): Promise<{ temporaryPassword?: string }> => {
+    setCreateStaffLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const resp = await supabase.functions.invoke("create-company-staff", {
+        body: { first_name: data.first_name, last_name: data.last_name, email: data.email, company_id: id },
+        headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
+      });
+      if (resp.error || !resp.data?.success) {
+        throw new Error(resp.data?.error || resp.error?.message || "Errore creazione staff");
+      }
+      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      toast({ title: "Staff creato con successo" });
+      return { temporaryPassword: resp.data.temporary_password };
+    } catch (err: any) {
+      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      throw err;
+    } finally {
+      setCreateStaffLoading(false);
+    }
+  };
+
+  const handleSavePermissions = async (permissions: StaffPermissions) => {
+    if (!permissionsUser) return;
+    setSavingPermissions(true);
+    try {
+      const { error } = await supabase.from("staff_permissions").update(permissions).eq("user_id", permissionsUser.id).eq("company_id", id!);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      toast({ title: "Permessi aggiornati" });
+    } catch (err: any) {
+      toast({ title: "Errore", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
+
+  const handleCreateSalesperson = (data: any) => {
+    setSavingSalesperson(true);
+    supabase.from("salespeople").insert({
+      company_id: id!,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      email: data.email || null,
+      phone: data.phone || null,
+      commission_type: data.commission_type,
+      commission_value: data.commission_value,
+      is_active: data.is_active ?? true,
+    }).then(({ error }) => {
+      setSavingSalesperson(false);
+      if (error) {
+        toast({ title: "Errore", description: error.message, variant: "destructive" });
+        return;
+      }
+      setCreateSalespersonOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      toast({ title: "Venditore creato" });
+    });
+  };
+
+  const handleCreateEmployee = (data: EmployeeFormData) => {
+    setSavingEmployee(true);
+    supabase.from("employees").insert({
+      company_id: id!,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      email: data.email || null,
+      phone: data.phone || null,
+      gross_salary: data.gross_salary,
+      net_salary: data.net_salary,
+      monthly_hours: data.monthly_hours,
+      is_active: data.is_active,
+    }).then(({ error }) => {
+      setSavingEmployee(false);
+      if (error) {
+        toast({ title: "Errore", description: error.message, variant: "destructive" });
+        return;
+      }
+      setCreateEmployeeOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      toast({ title: "Dipendente creato" });
+    });
+  };
+
+  const handleCreateAccount = async (type: "salesperson" | "employee", entityId: string, email: string, name: string) => {
+    setCreatingAccountFor(entityId);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const funcName = type === "salesperson" ? "create-salesperson-user" : "create-employee-user";
+      const body = type === "salesperson" ? { salesperson_id: entityId, email } : { employee_id: entityId, email };
+      const resp = await supabase.functions.invoke(funcName, {
+        body,
+        headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
+      });
+      if (resp.error || !resp.data?.success) {
+        throw new Error(resp.data?.error || resp.error?.message || "Errore creazione account");
+      }
+      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      setPasswordDialog({ open: true, password: resp.data.temp_password, name, email });
+      toast({ title: "Account creato" });
+    } catch (err: any) {
+      toast({ title: "Errore", description: err.message, variant: "destructive" });
+    } finally {
+      setCreatingAccountFor(null);
+    }
+  };
+
+  const handleCopyPassword = async () => {
+    if (passwordDialog?.password) {
+      await navigator.clipboard.writeText(passwordDialog.password);
+      setCopiedPassword(true);
+      setTimeout(() => setCopiedPassword(false), 2000);
+      toast({ title: "Copiato!" });
     }
   };
 
@@ -936,7 +1075,10 @@ export default function CompanyDetail() {
                 <div className="flex items-center gap-2">
                   <UserCheck className="h-5 w-5 text-blue-600" />
                   <CardTitle className="text-base">Staff</CardTitle>
-                  <Badge variant="secondary" className="ml-auto">{teamData?.staff.length || 0}</Badge>
+                  <Badge variant="secondary">{teamData?.staff.length || 0}</Badge>
+                  <Button size="sm" variant="outline" className="ml-auto" onClick={() => setCreateStaffOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Aggiungi
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -950,11 +1092,27 @@ export default function CompanyDetail() {
                         <TableHead>Email</TableHead>
                         <TableHead>Permessi</TableHead>
                         <TableHead>Creato il</TableHead>
+                        <TableHead>Azioni</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {teamData?.staff.map((member) => {
                         const perms = getActivePermissions(member.permissions);
+                        const defaultPerms: StaffPermissions = {
+                          can_view_dashboard: member.permissions?.can_view_dashboard ?? false,
+                          can_view_orders: member.permissions?.can_view_orders ?? false,
+                          can_edit_orders: member.permissions?.can_edit_orders ?? false,
+                          can_view_warehouse: member.permissions?.can_view_warehouse ?? false,
+                          can_edit_warehouse: member.permissions?.can_edit_warehouse ?? false,
+                          can_view_calendar: member.permissions?.can_view_calendar ?? false,
+                          can_view_customers: member.permissions?.can_view_customers ?? false,
+                          can_edit_customers: member.permissions?.can_edit_customers ?? false,
+                          can_view_employees: member.permissions?.can_view_employees ?? false,
+                          can_view_tickets: member.permissions?.can_view_tickets ?? false,
+                          can_edit_tickets: member.permissions?.can_edit_tickets ?? false,
+                          can_view_forecast: member.permissions?.can_view_forecast ?? false,
+                          can_view_settings: member.permissions?.can_view_settings ?? false,
+                        };
                         return (
                           <TableRow key={member.id}>
                             <TableCell className="font-medium">
@@ -981,6 +1139,15 @@ export default function CompanyDetail() {
                               </div>
                             </TableCell>
                             <TableCell className="text-muted-foreground">{format(new Date(member.created_at), "dd/MM/yyyy")}</TableCell>
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setPermissionsUser({ id: member.id, name: `${member.first_name} ${member.last_name}`, permissions: defaultPerms })}
+                              >
+                                <Shield className="h-4 w-4 mr-1" /> Permessi
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -996,7 +1163,10 @@ export default function CompanyDetail() {
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-violet-600" />
                   <CardTitle className="text-base">Venditori</CardTitle>
-                  <Badge variant="secondary" className="ml-auto">{teamData?.salespeople.length || 0}</Badge>
+                  <Badge variant="secondary">{teamData?.salespeople.length || 0}</Badge>
+                  <Button size="sm" variant="outline" className="ml-auto" onClick={() => setCreateSalespersonOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Aggiungi
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -1011,6 +1181,7 @@ export default function CompanyDetail() {
                         <TableHead>Provvigione</TableHead>
                         <TableHead>Account</TableHead>
                         <TableHead>Stato</TableHead>
+                        <TableHead>Azioni</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1038,6 +1209,19 @@ export default function CompanyDetail() {
                           <TableCell>
                             {sp.is_active ? <Badge variant="default" className="text-xs">Attivo</Badge> : <Badge variant="destructive" className="text-xs">Inattivo</Badge>}
                           </TableCell>
+                          <TableCell>
+                            {!sp.user_id && sp.email && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={creatingAccountFor === sp.id}
+                                onClick={() => handleCreateAccount("salesperson", sp.id, sp.email!, `${sp.first_name} ${sp.last_name}`)}
+                              >
+                                {creatingAccountFor === sp.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4 mr-1" />}
+                                Crea Account
+                              </Button>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1052,7 +1236,10 @@ export default function CompanyDetail() {
                 <div className="flex items-center gap-2">
                   <HardHat className="h-5 w-5 text-amber-600" />
                   <CardTitle className="text-base">Dipendenti</CardTitle>
-                  <Badge variant="secondary" className="ml-auto">{teamData?.employees.length || 0}</Badge>
+                  <Badge variant="secondary">{teamData?.employees.length || 0}</Badge>
+                  <Button size="sm" variant="outline" className="ml-auto" onClick={() => setCreateEmployeeOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Aggiungi
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -1069,6 +1256,7 @@ export default function CompanyDetail() {
                         <TableHead>Netto</TableHead>
                         <TableHead>Account</TableHead>
                         <TableHead>Stato</TableHead>
+                        <TableHead>Azioni</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1094,6 +1282,19 @@ export default function CompanyDetail() {
                           </TableCell>
                           <TableCell>
                             {emp.is_active ? <Badge variant="default" className="text-xs">Attivo</Badge> : <Badge variant="destructive" className="text-xs">Inattivo</Badge>}
+                          </TableCell>
+                          <TableCell>
+                            {!emp.user_id && emp.email && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={creatingAccountFor === emp.id}
+                                onClick={() => handleCreateAccount("employee", emp.id, emp.email!, `${emp.first_name} ${emp.last_name}`)}
+                              >
+                                {creatingAccountFor === emp.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4 mr-1" />}
+                                Crea Account
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1630,6 +1831,74 @@ export default function CompanyDetail() {
               {changePlanMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Conferma
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Team Management Dialogs */}
+      <StaffUserDialog
+        open={createStaffOpen}
+        onOpenChange={setCreateStaffOpen}
+        onSubmit={handleCreateStaff}
+        isLoading={createStaffLoading}
+      />
+
+      {permissionsUser && (
+        <PermissionsDialog
+          open={!!permissionsUser}
+          onOpenChange={(open) => !open && setPermissionsUser(null)}
+          userName={permissionsUser.name}
+          currentPermissions={permissionsUser.permissions}
+          onSave={handleSavePermissions}
+          isLoading={savingPermissions}
+        />
+      )}
+
+      <SalespersonDialog
+        open={createSalespersonOpen}
+        onOpenChange={setCreateSalespersonOpen}
+        salesperson={null}
+        onSave={handleCreateSalesperson}
+        isLoading={savingSalesperson}
+      />
+
+      <EmployeeDialog
+        open={createEmployeeOpen}
+        onOpenChange={setCreateEmployeeOpen}
+        employee={null}
+        onSave={handleCreateEmployee}
+        isSaving={savingEmployee}
+      />
+
+      {/* Password Dialog */}
+      <Dialog open={passwordDialog?.open ?? false} onOpenChange={() => { setPasswordDialog(null); setCopiedPassword(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Account Creato! 🎉</DialogTitle>
+            <DialogDescription>
+              L'account per {passwordDialog?.name} è stato creato. Comunica la password temporanea.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 bg-muted rounded-lg space-y-2">
+              <p className="text-sm font-medium">Credenziali di accesso:</p>
+              <div className="text-sm">
+                <span className="text-muted-foreground">Email:</span> {passwordDialog?.email}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Password:</span>
+                <code className="px-2 py-1 bg-background rounded text-sm font-mono">{passwordDialog?.password}</code>
+                <Button variant="ghost" size="icon" onClick={handleCopyPassword} className="h-8 w-8">
+                  {copiedPassword ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              ⚠️ Questa password viene mostrata solo una volta. L'utente potrà cambiarla dopo il primo accesso.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { setPasswordDialog(null); setCopiedPassword(false); }}>Chiudi</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
