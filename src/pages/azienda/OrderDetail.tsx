@@ -170,6 +170,10 @@ interface OrderItemData {
   position: number;
   supplier_id: string | null;
   purchase_price: number | null;
+  vat_rate: number | null;
+  stock_item_id: string | null;
+  is_paid: boolean | null;
+  paid_date: string | null;
 }
 
 interface OrderItemAttachmentData {
@@ -348,6 +352,10 @@ export default function OrderDetail() {
           quantity: item.quantity,
           status: item.status,
           position: index,
+          supplier_id: item.supplier_id || null,
+          purchase_price: item.purchase_price || null,
+          vat_rate: item.vat_rate ?? null,
+          stock_item_id: item.stock_item_id || null,
         }));
 
         const { error } = await supabase
@@ -473,6 +481,8 @@ export default function OrderDetail() {
     position: item.position,
     supplier_id: item.supplier_id || undefined,
     purchase_price: item.purchase_price || undefined,
+    vat_rate: item.vat_rate ?? undefined,
+    stock_item_id: item.stock_item_id || undefined,
     attachments: attachments
       .filter(att => att.order_item_id === item.id)
       .map(att => ({
@@ -489,6 +499,7 @@ export default function OrderDetail() {
     name: item.name,
     quantity: item.quantity,
     purchase_price: item.purchase_price,
+    vat_rate: item.vat_rate,
   }));
 
   // Calculate order alerts
