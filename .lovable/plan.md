@@ -1,226 +1,68 @@
 
+# Piano: Progress Bar Mobile + Campi Aggiuntivi Creazione Cliente
 
-# Piano: Filtro Squadra Esterna + Miglioramenti Visivi Calendario
+## 1. Progress Bar nella vista Settimana mobile
 
-## 1. Filtro per Squadra Esterna
+Aggiungere la barra di capacita anche nella sezione mobile (layout collassabile) della vista Settimana.
 
-### Dati e Tipo
+**File**: `src/components/calendar/CalendarWeekView.tsx`
 
-La tabella `order_external_teams` collega ordini a squadre esterne. Bisogna:
-
-- **`types/calendar.ts`**: Aggiungere campo `assigned_external_teams` all'interfaccia `CalendarOrder`
-- **`Calendar.tsx`**: 
-  - Estendere la query ordini con: `order_external_teams(external_team:external_teams(id, name))`
-  - Aggiungere stato `externalTeamFilter`
-  - Aggiungere query per recuperare le squadre esterne attive
-  - Aggiungere un `Select` con label "Tutte le squadre"
-  - Filtrare `scheduledOrders` per squadra esterna selezionata
-  - Aggiornare `hasActiveFilters` e `resetFilters`
-
-```text
-// types/calendar.ts
-assigned_external_teams?: Array<{
-  external_team: {
-    id: string;
-    name: string;
-  };
-}>;
-```
-
-```text
-// Calendar.tsx - query
-order_external_teams(external_team:external_teams(id, name))
-
-// Filter logic
-if (externalTeamFilter !== "all") {
-  const hasTeam = order.assigned_external_teams?.some(
-    aet => aet.external_team.id === externalTeamFilter
-  );
-  if (!hasTeam) return false;
-}
-```
+- Nel blocco mobile `Collapsible`, aggiungere `<Progress>` sotto il badge lavori, nello stesso modo in cui e stato fatto per la versione desktop.
 
 ---
 
-## 2. Miglioramenti Visivi - Gantt
+## 2. Nuovi campi per la creazione cliente
 
-### 2a. Barre piu ricche e leggibili
+I nuovi campi richiesti:
+- **Codice Fiscale / P.IVA** (campo unico con label "CF / P.IVA")
+- **Indirizzo di residenza/sede legale** (gia esiste come `address`, rinominare la label)
+- **Indirizzo cantiere** (nuovo campo)
+- **Note aggiuntive** (nuovo campo)
 
-- Aggiungere bordo arrotondato (`rounded-md`) e ombra leggera alle barre
-- Mostrare icone milestone sulla timeline: un pallino blu per `expected_date` e un pallino ambra per `warehouse_arrival_date` sovrapposti alla riga
-- Aggiungere righe alternate (sfondo grigio chiaro su righe pari) per migliorare la leggibilita
-- Aggiungere hover highlight sulla riga intera
+### 2a. Migrazione database - Nuove colonne su `profiles`
 
-**File**: `CalendarGanttView.tsx`
-
-```text
-// Righe alternate
-className={cn(
-  "border-b relative",
-  idx % 2 === 0 && "bg-muted/20"
-)}
-
-// Milestone markers nella riga
-{order.expected_date && (() => {
-  const pos = differenceInDays(parseISO(order.expected_date), startDate) * dayWidth;
-  if (pos >= 0 && pos <= days.length * dayWidth) {
-    return <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white z-10" style={{ left: pos + dayWidth/2 - 6 }} />;
-  }
-})()}
-```
-
-### 2b. Sidebar migliorata
-
-- Aggiungere un indicatore colorato dello stato (pallino) accanto al nome cliente
-- Mostrare le iniziali degli operai assegnati sotto il codice ordine
-- Mostrare il nome della squadra esterna se presente
-
-**File**: `CalendarGanttView.tsx`
+Aggiungere 3 nuove colonne alla tabella `profiles`:
 
 ```text
-// Status dot + employee initials nella sidebar
-<div className="flex items-center gap-1.5">
-  {order.status && (
-    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: order.status.color }} />
-  )}
-  <span className="text-sm font-medium truncate">
-    {order.customer.last_name}
-  </span>
-</div>
-<div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-  <span>{order.order_code || "N/A"}</span>
-  {initials && <span>| {initials}</span>}
-</div>
+ALTER TABLE public.profiles
+  ADD COLUMN fiscal_code text,
+  ADD COLUMN site_address text,
+  ADD COLUMN notes text;
 ```
 
-### 2c. Barre DraggableOrderBar migliorate
+La colonna `address` esistente verra usata come "Indirizzo residenza/sede legale".
 
-- Aggiungere bordo sinistro colorato piu scuro (3px) come indicatore visivo
-- Mostrare il nome del cliente dentro la barra quando c'e spazio sufficiente (width > 120px)
-- Aggiungere un pattern tratteggiato sulla barra se l'ordine ha rischio logistico
+### 2b. Edge Function `create-customer`
 
-**File**: `DraggableOrderBar.tsx`
+**File**: `supabase/functions/create-customer/index.ts`
 
-```text
-// Bordo sinistro + contenuto esteso
-className="absolute top-2 bottom-2 rounded-md shadow-sm hover:shadow-lg transition-all flex items-center px-2 overflow-hidden touch-none border-l-[3px]"
-style={{
-  ...style,
-  borderLeftColor: darkenColor(color),
-}}
+- Accettare i nuovi campi dal body: `fiscal_code`, `site_address`, `notes`
+- Inserirli nella creazione del profilo
 
-// Contenuto barra
-{bar.width > 120 ? (
-  <div className="flex items-center gap-1 text-xs text-white truncate">
-    <span className="font-semibold">{order.order_code || "N/A"}</span>
-    <span className="opacity-75">- {order.customer.last_name}</span>
-  </div>
-) : bar.width > 60 ? (
-  <span className="text-xs text-white font-medium truncate">
-    {order.order_code || order.description.slice(0, 20)}
-  </span>
-) : null}
-```
+### 2c. Form `CreateCustomer.tsx`
 
----
+**File**: `src/pages/azienda/CreateCustomer.tsx`
 
-## 3. Miglioramenti Visivi - Carico (Heatmap)
+- Aggiungere stati: `fiscalCode`, `siteAddress`, `notes`
+- Aggiungere campi nel form:
+  - **CF / P.IVA**: Input di testo, placeholder "RSSMRA80A01H501U o 01234567890"
+  - **Indirizzo residenza/sede legale**: rinominare la label dell'attuale campo `address`
+  - **Indirizzo cantiere**: Textarea, placeholder "Via del Cantiere 5, 00100 Roma"
+  - **Note aggiuntive**: Textarea, placeholder "Note interne sul cliente..."
+- Inviare i nuovi campi nella chiamata alla edge function
+- Organizzare il form in sezioni logiche con separatori
 
-### 3a. Celle piu informative
+### 2d. Profilo cliente `CustomerProfile.tsx`
 
-- Dentro ogni cella con ordini, mostrare mini-icone dei tipi di evento (Hammer, Package, Wrench) come indicatori sotto il numero
-- Aggiungere un bordo colorato sulla cella nei weekend per distinguerli visivamente
+**File**: `src/pages/cliente/CustomerProfile.tsx`
 
-**File**: `CalendarHeatmapView.tsx`
+- Aggiungere campi per visualizzare/modificare fiscal_code, site_address, notes
 
-```text
-// Mini icone tipo evento
-{isCurrentMonth && count > 0 && (
-  <div className="flex flex-col items-center gap-0.5">
-    <span className={cn("text-xl font-bold", getHeatTextColor(count))}>{count}</span>
-    <div className="flex gap-0.5">
-      {hasPosa && <Hammer className="h-2.5 w-2.5 text-blue-500" />}
-      {hasMerce && <Package className="h-2.5 w-2.5 text-amber-500" />}
-      {hasLavoro && <Wrench className="h-2.5 w-2.5 text-green-500" />}
-    </div>
-  </div>
-)}
+### 2e. Tipo Profile
 
-// Weekend styling
-isWeekend(day) && "opacity-60 bg-muted/50"
-```
+**File**: `src/types/auth.ts`
 
-### 3b. Popover migliorato
-
-- Aggiungere le iniziali degli operai e il nome della squadra esterna nel popover di ogni ordine
-- Aggiungere indicatore di rischio logistico nel popover
-
----
-
-## 4. Miglioramenti Visivi - Settimana
-
-### 4a. Card evento migliorate
-
-- Aggiungere un bordo sinistro colorato con il colore dello stato dell'ordine
-- Mostrare la descrizione troncata sotto il nome cliente
-- Mostrare il badge della squadra esterna se presente
-
-**File**: `CalendarWeekView.tsx`
-
-```text
-// Card con bordo stato
-<button className={cn(
-  "w-full text-left p-2 rounded text-xs transition-colors hover:opacity-80 border-l-[3px]",
-  style.bg, style.text
-)}
-style={{ borderLeftColor: event.order.status?.color || 'transparent' }}
->
-  ...
-  {event.order.description && (
-    <div className="truncate mt-0.5 opacity-60 text-[10px]">{event.order.description}</div>
-  )}
-  {externalTeamName && (
-    <div className="flex items-center gap-0.5 mt-0.5 opacity-70">
-      <UsersRound className="h-2.5 w-2.5" />
-      <span className="text-[10px]">{externalTeamName}</span>
-    </div>
-  )}
-</button>
-```
-
-### 4b. Header giorno migliorato
-
-- Aggiungere una barra di capacita visiva (progress bar sottile) sotto il badge lavori per dare un senso immediato del carico
-
----
-
-## 5. Miglioramenti Visivi - Mese
-
-### 5a. Event pill migliorate
-
-- Aggiungere il pallino dello stato dell'ordine accanto all'icona tipo
-- Mostrare le iniziali della squadra esterna nel tooltip
-- Aggiungere un sottile bordo inferiore colorato per distinguere meglio gli eventi
-
-**File**: `CalendarMonthView.tsx`
-
-```text
-// Status dot nell'event pill
-<button className="..." style={{ backgroundColor: event.color }}>
-  <div className="w-1.5 h-1.5 rounded-full bg-white/50 flex-shrink-0" 
-       style={{ backgroundColor: event.order.status?.color }} />
-  {icon}
-  <span>...</span>
-</button>
-
-// Tooltip: squadra esterna
-{externalTeamNames && (
-  <div className="flex items-center gap-1 text-xs">
-    <UsersRound className="h-3 w-3" />
-    <span>{externalTeamNames}</span>
-  </div>
-)}
-```
+- Aggiungere all'interfaccia `Profile`: `fiscal_code`, `site_address`, `notes`
 
 ---
 
@@ -228,13 +70,11 @@ style={{ borderLeftColor: event.order.status?.color || 'transparent' }}
 
 | File | Modifica |
 |------|----------|
-| `src/types/calendar.ts` | Aggiungere `assigned_external_teams` |
-| `src/pages/azienda/Calendar.tsx` | Filtro squadra esterna + query estesa |
-| `src/components/calendar/CalendarGanttView.tsx` | Righe alternate, milestone markers, sidebar arricchita |
-| `src/components/calendar/DraggableOrderBar.tsx` | Bordo sinistro, contenuto esteso, pattern rischio |
-| `src/components/calendar/CalendarHeatmapView.tsx` | Mini-icone tipo, weekend styling, popover arricchito |
-| `src/components/calendar/CalendarWeekView.tsx` | Bordo stato, descrizione, squadra esterna, progress bar |
-| `src/components/calendar/CalendarMonthView.tsx` | Status dot, squadra esterna nel tooltip |
+| `src/components/calendar/CalendarWeekView.tsx` | Progress bar nella sezione mobile |
+| `src/types/auth.ts` | Nuovi campi nel tipo Profile |
+| `src/pages/azienda/CreateCustomer.tsx` | Nuovi campi nel form (CF/P.IVA, indirizzo cantiere, note) |
+| `src/pages/cliente/CustomerProfile.tsx` | Nuovi campi nel profilo cliente |
+| `supabase/functions/create-customer/index.ts` | Accettare e salvare i nuovi campi |
+| **Migrazione DB** | 3 nuove colonne su `profiles` |
 
-Nessuna migrazione DB necessaria: `order_external_teams` e `external_teams` esistono gia.
-
+Nessun impatto su RLS: le policy esistenti su `profiles` coprono gia i nuovi campi.
