@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -110,8 +110,8 @@ export default function CompaniesList() {
 
       {isLoading ? (
         <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Caricamento...
+          <CardContent className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </CardContent>
         </Card>
       ) : filteredCompanies.length === 0 ? (
