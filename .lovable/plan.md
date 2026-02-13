@@ -1,68 +1,91 @@
 
-# Piano: Progress Bar Mobile + Campi Aggiuntivi Creazione Cliente
+# Piano: Elimina Cliente + Storico Ordini + Anagrafica Azienda
 
-## 1. Progress Bar nella vista Settimana mobile
+## 1. Eliminazione cliente dalla pagina dettaglio
 
-Aggiungere la barra di capacita anche nella sezione mobile (layout collassabile) della vista Settimana.
+Aggiungere un pulsante "Elimina Cliente" con conferma tramite AlertDialog nella pagina `CompanyCustomerDetail.tsx`.
 
-**File**: `src/components/calendar/CalendarWeekView.tsx`
+**Logica**:
+- Verificare che il cliente non abbia ordini associati prima di eliminare
+- Se ha ordini, mostrare un messaggio di errore e bloccare l'eliminazione
+- Se non ha ordini, eliminare il profilo e l'utente associato (tramite `supabase.from("profiles").delete()`)
+- Dopo l'eliminazione, redirect a `/azienda/clienti`
 
-- Nel blocco mobile `Collapsible`, aggiungere `<Progress>` sotto il badge lavori, nello stesso modo in cui e stato fatto per la versione desktop.
+**File**: `src/pages/azienda/CompanyCustomerDetail.tsx`
 
 ---
 
-## 2. Nuovi campi per la creazione cliente
+## 2. Storico ordini nella pagina dettaglio cliente
 
-I nuovi campi richiesti:
-- **Codice Fiscale / P.IVA** (campo unico con label "CF / P.IVA")
-- **Indirizzo di residenza/sede legale** (gia esiste come `address`, rinominare la label)
-- **Indirizzo cantiere** (nuovo campo)
-- **Note aggiuntive** (nuovo campo)
+Aggiungere una sezione sotto il form di modifica che mostra la lista degli ordini del cliente con:
+- Codice ordine
+- Descrizione
+- Stato corrente (con pallino colorato)
+- Data creazione
+- Importo totale
+- Link per navigare al dettaglio ordine
 
-### 2a. Migrazione database - Nuove colonne su `profiles`
+**Query**: `supabase.from("orders").select("id, order_code, description, total_amount, created_at, current_status_id, order_statuses:current_status_id(name, color)").eq("customer_id", id)`
 
-Aggiungere 3 nuove colonne alla tabella `profiles`:
+**File**: `src/pages/azienda/CompanyCustomerDetail.tsx`
+
+---
+
+## 3. Anagrafica completa nel Profilo Azienda (Impostazioni)
+
+La tabella `companies` ha gia tutti i campi necessari. Serve solo il form di modifica.
+
+### 3a. Nuova RLS policy per UPDATE
+
+Attualmente i company_admin possono solo leggere la propria azienda (SELECT). Serve una policy per UPDATE:
 
 ```text
-ALTER TABLE public.profiles
-  ADD COLUMN fiscal_code text,
-  ADD COLUMN site_address text,
-  ADD COLUMN notes text;
+CREATE POLICY "Company admins can update their own company"
+ON public.companies FOR UPDATE
+USING (id = get_user_company_id(auth.uid()))
+WITH CHECK (id = get_user_company_id(auth.uid()));
 ```
 
-La colonna `address` esistente verra usata come "Indirizzo residenza/sede legale".
+### 3b. Nuovo componente `CompanyProfileForm`
 
-### 2b. Edge Function `create-customer`
+Creare `src/components/settings/CompanyProfileForm.tsx` con form editabile per:
 
-**File**: `supabase/functions/create-customer/index.ts`
+**Dati Generali**:
+- Nome azienda (read-only, informativo)
+- Email azienda (read-only)
+- Ragione Sociale (`business_name`)
+- Settore (read-only, informativo)
 
-- Accettare i nuovi campi dal body: `fiscal_code`, `site_address`, `notes`
-- Inserirli nella creazione del profilo
+**Dati Fiscali**:
+- P.IVA (`vat_number`)
+- Codice Fiscale (`fiscal_code`)
+- PEC (`pec`)
+- Codice SDI (`sdi_code`)
 
-### 2c. Form `CreateCustomer.tsx`
+**Contatti**:
+- Telefono (`phone`)
+- Sito Web (`website`)
 
-**File**: `src/pages/azienda/CreateCustomer.tsx`
+**Sede Legale**:
+- Indirizzo (`legal_address`)
+- Citta (`legal_city`)
+- Provincia (`legal_province`)
+- CAP (`legal_postal_code`)
 
-- Aggiungere stati: `fiscalCode`, `siteAddress`, `notes`
-- Aggiungere campi nel form:
-  - **CF / P.IVA**: Input di testo, placeholder "RSSMRA80A01H501U o 01234567890"
-  - **Indirizzo residenza/sede legale**: rinominare la label dell'attuale campo `address`
-  - **Indirizzo cantiere**: Textarea, placeholder "Via del Cantiere 5, 00100 Roma"
-  - **Note aggiuntive**: Textarea, placeholder "Note interne sul cliente..."
-- Inviare i nuovi campi nella chiamata alla edge function
-- Organizzare il form in sezioni logiche con separatori
+**Sede Operativa** (con checkbox "Uguale alla sede legale"):
+- Indirizzo (`operational_address`)
+- Citta (`operational_city`)
+- Provincia (`operational_province`)
+- CAP (`operational_postal_code`)
 
-### 2d. Profilo cliente `CustomerProfile.tsx`
+**Note**:
+- Note interne (`notes`)
 
-**File**: `src/pages/cliente/CustomerProfile.tsx`
+### 3c. Aggiornamento Settings.tsx
 
-- Aggiungere campi per visualizzare/modificare fiscal_code, site_address, notes
-
-### 2e. Tipo Profile
-
-**File**: `src/types/auth.ts`
-
-- Aggiungere all'interfaccia `Profile`: `fiscal_code`, `site_address`, `notes`
+Sostituire il contenuto attuale del tab "Profilo" (che mostra solo logo + nome) con:
+- Il `LogoUploader` esistente
+- Il nuovo `CompanyProfileForm` sotto
 
 ---
 
@@ -70,11 +93,7 @@ La colonna `address` esistente verra usata come "Indirizzo residenza/sede legale
 
 | File | Modifica |
 |------|----------|
-| `src/components/calendar/CalendarWeekView.tsx` | Progress bar nella sezione mobile |
-| `src/types/auth.ts` | Nuovi campi nel tipo Profile |
-| `src/pages/azienda/CreateCustomer.tsx` | Nuovi campi nel form (CF/P.IVA, indirizzo cantiere, note) |
-| `src/pages/cliente/CustomerProfile.tsx` | Nuovi campi nel profilo cliente |
-| `supabase/functions/create-customer/index.ts` | Accettare e salvare i nuovi campi |
-| **Migrazione DB** | 3 nuove colonne su `profiles` |
-
-Nessun impatto su RLS: le policy esistenti su `profiles` coprono gia i nuovi campi.
+| `src/pages/azienda/CompanyCustomerDetail.tsx` | Pulsante elimina + storico ordini |
+| `src/components/settings/CompanyProfileForm.tsx` | Nuovo componente form anagrafica azienda |
+| `src/pages/azienda/Settings.tsx` | Integrare CompanyProfileForm nel tab Profilo |
+| **Migrazione DB** | Policy UPDATE per company_admins su companies |
