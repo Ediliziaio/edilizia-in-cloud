@@ -1,88 +1,86 @@
 
 
-# Piano: Grafico Andamento Mensile Incassi
+# Piano: Rimozione Grafico e Stabilizzazione Progetto
 
 ## Panoramica
 
-Aggiungere un grafico a barre sotto le stats cards nella pagina Ordini che mostra l'andamento mensile di incassi e importi da incassare, calcolato dagli ordini caricati.
+Rimuovere il grafico andamento mensile dalla pagina Ordini, correggere il warning console su `DateRangeFilter`, e pulire import/codice inutilizzato.
 
 ---
 
-## Implementazione
+## 1. Rimozione Grafico Andamento Mensile (OrdersList.tsx)
 
-### Posizione
+- Rimuovere il blocco JSX del grafico (Card con BarChart, righe 448-477)
+- Rimuovere il `useMemo` per `monthlyData` (righe 347-365)
+- Rimuovere gli import di recharts: `BarChart`, `Bar`, `XAxis`, `YAxis`, `CartesianGrid`, `Tooltip`, `Legend`, `ResponsiveContainer`
+- Rimuovere `CardHeader` e `CardTitle` dagli import (non piu usati dopo rimozione grafico)
 
-Il grafico viene inserito tra le stats cards e i filtri, dentro una Card con titolo "Andamento Mensile".
-
-### Dati
-
-Calcolo con `useMemo` sugli ordini (non filtrati per mese, ma rispettando gli altri filtri attivi) raggruppati per mese di `created_at`:
-
-```text
-Per ogni mese (Gen-Dic anno corrente):
-  - Incassato: somma getAmountCollected() degli ordini di quel mese
-  - Da Incassare: somma getAmountDue() degli ordini di quel mese
-```
-
-### Grafico
-
-Utilizzo di `recharts` (gia installato) con `BarChart`:
-- Asse X: mesi (Gen, Feb, Mar, ...)
-- Due barre per mese: verde (Incassato) e arancione (Da Incassare)
-- Tooltip con importi formattati in EUR
-- Legenda in basso
-- Responsive tramite `ResponsiveContainer`
-
-### Layout
-
-```text
-[Stats Cards - 4 colonne]
-[Grafico Andamento Mensile - Card full width, altezza ~300px]
-[Filtri]
-[Tabella / Pipeline]
-```
+Le stats cards, i filtri, la tabella e la pipeline rimangono invariati.
 
 ---
 
-## File da Modificare
+## 2. Fix Warning Console: DateRangeFilter
 
-| File | Descrizione |
-|------|-------------|
-| `src/pages/azienda/OrdersList.tsx` | Aggiungere grafico a barre con recharts tra stats cards e filtri |
+Il warning "Function components cannot be given refs" appare perche `DateRangeFilter` viene usato in un contesto dove React tenta di passare un ref. La soluzione e wrappare il componente con `React.forwardRef`.
 
-Nessuna nuova dipendenza necessaria (recharts gia presente). Nessun nuovo file da creare.
+**File**: `src/components/orders/DateRangeFilter.tsx`
+
+Wrappare l'export con `forwardRef` per eliminare il warning dalla console.
+
+---
+
+## 3. Pulizia Codice e Import
+
+Analisi dei file modificati di recente per import inutili o codice morto:
+
+| Elemento | File | Azione |
+|----------|------|--------|
+| Import recharts (6 simboli) | OrdersList.tsx | Rimuovere |
+| `CardHeader`, `CardTitle` | OrdersList.tsx | Rimuovere dall'import |
+| `monthlyData` useMemo | OrdersList.tsx | Rimuovere |
+| Grafico JSX (30 righe) | OrdersList.tsx | Rimuovere |
+
+Nessun file da eliminare. Nessuna migrazione DB necessaria.
+
+---
+
+## 4. Riepilogo Modifiche
+
+| File | Tipo | Descrizione |
+|------|------|-------------|
+| `src/pages/azienda/OrdersList.tsx` | Modifica | Rimuovere grafico, import recharts, monthlyData |
+| `src/components/orders/DateRangeFilter.tsx` | Modifica | Aggiungere forwardRef per eliminare warning console |
 
 ---
 
 ## Dettagli Tecnici
 
-### Calcolo dati mensili
+### OrdersList.tsx - Elementi rimossi
 
 ```text
-const monthlyData = useMemo(() => {
-  const year = new Date().getFullYear();
-  const months = Array.from({ length: 12 }, (_, i) => ({
-    name: MONTHS[i].substring(0, 3),
-    incassato: 0,
-    daIncassare: 0,
-  }));
-  
-  orders.forEach(order => {
-    const d = new Date(order.created_at);
-    if (d.getFullYear() === year) {
-      months[d.getMonth()].incassato += getAmountCollected(order);
-      months[d.getMonth()].daIncassare += getAmountDue(order);
-    }
-  });
-  
-  return months;
-}, [orders]);
+- import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer }
+- import CardHeader, CardTitle
+- const monthlyData = useMemo(...)
+- <Card> con grafico BarChart </Card>
 ```
 
-Nota: il grafico usa `orders` (non `filteredOrders`) per mostrare sempre la panoramica annuale completa, indipendentemente dai filtri mese attivi.
+### DateRangeFilter.tsx - Fix
 
-### Componente grafico
+Trasformare da:
+```text
+export function DateRangeFilter({ label, range, onRangeChange }: DateRangeFilterProps) { ... }
+```
+A:
+```text
+export const DateRangeFilter = React.forwardRef<HTMLButtonElement, DateRangeFilterProps>(
+  function DateRangeFilter({ label, range, onRangeChange }, ref) { ... }
+);
+```
 
-Import da recharts: `BarChart`, `Bar`, `XAxis`, `YAxis`, `CartesianGrid`, `Tooltip`, `Legend`, `ResponsiveContainer`.
+### Verifiche Post-Modifica
 
-Il grafico viene wrappato in una `Card` con `CardHeader` ("Andamento Mensile") e `CardContent` con `ResponsiveContainer` a 300px di altezza.
+- Console priva di errori e warning relativi a ref
+- Stats cards funzionanti (usano `getAmountCollected` e `getAmountDue` che restano)
+- Filtro mese funzionante (usa `MONTHS` che resta)
+- Pipeline e tabella invariate
+- Nessuna regressione funzionale
