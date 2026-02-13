@@ -3,7 +3,6 @@ import { formatCurrency } from "@/lib/formatters";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, DollarSign, Receipt, UserCheck, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -22,7 +21,6 @@ interface OrderEconomicsProps {
   totalAmount: number;
   vatRate: number;
   items: OrderItem[];
-  collectedAmount?: number;
 }
 
 interface CostBreakdown {
@@ -49,7 +47,6 @@ export function OrderEconomics({
   totalAmount,
   vatRate,
   items,
-  collectedAmount = 0,
 }: OrderEconomicsProps) {
   // Fetch order employees costs
   const { data: orderEmployees = [] } = useQuery({
@@ -166,21 +163,11 @@ export function OrderEconomics({
     }
   };
 
-  const commissionDetails = orderSalespeople.map((sp) => {
-    const grossAmount = calculateCommission(sp.commission_type, sp.commission_value);
+  const totalCommissions = orderSalespeople.reduce((sum, sp) => {
+    const gross = calculateCommission(sp.commission_type, sp.commission_value);
     const deduction = sp.deduction_amount || 0;
-    const netAmount = grossAmount - deduction;
-    return {
-      name: `${sp.salesperson.first_name} ${sp.salesperson.last_name}`,
-      type: sp.commission_type,
-      value: sp.commission_value,
-      grossAmount,
-      deduction,
-      netAmount,
-    };
-  });
-
-  const totalCommissions = commissionDetails.reduce((sum, c) => sum + c.netAmount, 0);
+    return sum + (gross - deduction);
+  }, 0);
 
   // VAT summary
   const vatDebit = saleVatAmount;
