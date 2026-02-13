@@ -1,26 +1,40 @@
 
-# Fix: Provvigioni in OrderEconomics calcolate sull'imponibile
+# Decurtazioni e Provvigioni nel Conto Economico
 
-## Il problema
-Il componente "Conto Economico" (`OrderEconomics`) calcola gia le provvigioni e le include nel margine, ma usa `totalAmount` (lordo IVA) come base per le percentuali, invece dell'imponibile (netto IVA). Questo e lo stesso bug appena corretto in `OrderCommissions`.
+## Cosa cambia
 
-## La soluzione
-Applicare la stessa correzione: scorporare l'IVA da `totalAmount` e `collectedAmount` prima di calcolare le provvigioni percentuali.
+### 1. Campo "Decurtazione" per ogni venditore (OrderCommissions)
+Per ogni provvigione nella card "Provvigioni Venditori", aggiungere un campo numerico opzionale **"Decurtazione"** che rappresenta importi sottratti dalla provvigione del commerciale (sconti extra concessi, errori a suo carico, ecc.). La provvigione netta sara: `provvigione calcolata - decurtazione`.
+
+Serve una nuova colonna nel database: `order_salespeople.deduction_amount` (numeric, default 0).
+
+### 2. OrderEconomics mostra il totale provvigioni corretto
+Il Conto Economico attualmente ricalcola le provvigioni ma non considera le decurtazioni. Verra aggiornato per:
+- Fetchare anche `commission_amount` e il nuovo campo `deduction_amount` dal database
+- Mostrare nella sezione PROVVIGIONI VENDITORI ogni venditore con provvigione calcolata, decurtazione, e netto
+- Il totale provvigioni (al netto delle decurtazioni) viene usato nel calcolo del margine
+
+### 3. Riepilogo nella sezione provvigioni del Conto Economico
+La sezione mostrera:
+- Per ogni venditore: nome, provvigione lorda, decurtazione (se presente), provvigione netta
+- Totale provvigioni (netto decurtazioni)
 
 ## Dettaglio tecnico
 
+### Migrazione database
+Aggiungere colonna `deduction_amount` (numeric, default 0) alla tabella `order_salespeople`.
+
 ### File da modificare
-`src/components/orders/OrderEconomics.tsx`
 
-### Modifiche
+**`src/components/orders/OrderCommissions.tsx`**
+- Aggiungere campo input "Decurtazione" per ogni venditore
+- Calcolare la provvigione netta come `calcolata - deduction_amount`
+- Aggiornare il riepilogo "Decurtazioni dall'ordine" per considerare le decurtazioni
+- Salvare `deduction_amount` nelle mutation
 
-1. **Calcolo importi netti**: Aggiungere il calcolo degli importi netti usando `calculateNetFromGross` (gia importata nel file):
-   - `netTotalAmount` = imponibile di `totalAmount`
-   - `netCollectedAmount` = imponibile di `collectedAmount`
-
-2. **Funzione `calculateCommission`** (riga 154-164): Aggiornare per usare gli importi netti:
-   - `percentage_sold`: usa `netTotalAmount` invece di `totalAmount`
-   - `percentage_collected`: usa `netCollectedAmount` invece di `collectedAmount`
-   - `fixed`: resta invariato
-
-Questo allinea il calcolo del margine nel Conto Economico con quello mostrato nella sezione Provvigioni Venditori.
+**`src/components/orders/OrderEconomics.tsx`**
+- Aggiornare la query per fetchare anche `commission_amount` e `deduction_amount`
+- Aggiornare l'interfaccia `OrderSalesperson` con i nuovi campi
+- Calcolare il totale provvigioni nette (provvigione - decurtazione) per ogni venditore
+- Mostrare il dettaglio decurtazioni nella sezione PROVVIGIONI VENDITORI
+- Usare il totale netto per il calcolo del margine
