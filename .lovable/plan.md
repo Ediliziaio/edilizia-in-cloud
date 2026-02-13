@@ -1,46 +1,117 @@
 
+# Piano: Stabilizzazione e Completamento EdiliziaInCloud
 
-# Piano: Flag Pagato/Non Pagato per Articoli Ordine nei Costi Variabili
+## Premessa
 
-## Problema
+L'applicazione e gia molto avanzata e copre gran parte dei flussi richiesti. Dopo un audit completo del codice, ho identificato bug critici, funzionalita mancanti e miglioramenti necessari. Il piano e organizzato per priorita: prima i bug bloccanti, poi le funzionalita mancanti, infine le ottimizzazioni.
 
-Attualmente gli articoli degli ordini che compaiono nei Costi Variabili (quelli con stato "da_ordinare" o "ordinato") sono solo in lettura: l'unica azione possibile e "Vai all'ordine". Non c'e modo di segnare se il materiale e stato pagato o meno, ne di registrare la data del pagamento.
+---
 
-## Soluzione
+## FASE 1: Bug Critici (Priorita Massima)
 
-### 1. Migrazione Database
+### Bug 1 - Perdita dati articoli in OrderDetail
+**File**: `src/pages/azienda/OrderDetail.tsx` (righe 334-358)
 
-Aggiungere due colonne alla tabella `order_items`:
-- `is_paid` (boolean, default false)
-- `paid_date` (date, nullable)
+La mutation `updateOrderItemsMutation` cancella e ricrea gli articoli ma salva solo `name, description, quantity, status, position`. Vengono persi:
+- `supplier_id` (fornitore)
+- `purchase_price` (costo acquisto)
+- `vat_rate` (aliquota IVA)
+- `stock_item_id` (articolo da magazzino)
 
-Questo permette di tracciare il pagamento di ogni singolo articolo direttamente nella tabella esistente.
+**Impatto**: Ogni modifica di stato articoli dalla pagina dettaglio ordine azzera i costi e i fornitori associati.
 
-### 2. Modifiche al Componente CompanyCostsManager
+**Fix**: Aggiungere i campi mancanti nell'oggetto `itemsToInsert`.
 
-**File**: `src/components/forecast/CompanyCostsManager.tsx`
+### Bug 2 - Warning console forwardRef in CustomersList
+**File**: `src/pages/azienda/CustomersList.tsx`
 
-- Aggiornare la trasformazione degli order items (`orderItemsAsVariableCosts`) per leggere `is_paid` e `paid_date` dall'articolo
-- Nella colonna Azioni delle righe "Da Ordine", aggiungere:
-  - Se NON pagato: icona check verde che apre il dialog con data di pagamento (stesso dialog gia usato per i costi manuali)
-  - Se pagato: icona undo arancione per riportare a "non pagato"
-- Aggiornare il badge di stato: se l'articolo e pagato, mostrare "Pagato il DD/MM/YYYY"
-- Creare due nuove mutation:
-  - `markOrderItemPaidMutation`: aggiorna `order_items` con `is_paid = true, paid_date = data`
-  - `markOrderItemUnpaidMutation`: aggiorna `order_items` con `is_paid = false, paid_date = null`
-- Aggiornare i filtri di stato per gestire correttamente gli articoli pagati/non pagati
-- Aggiornare i totali KPI per escludere gli articoli gia pagati dal "Da pagare"
-- Mantenere il link "Vai all'ordine" accanto alle nuove azioni
+I componenti `Dialog` e `AlertDialog` generano warning React perche ricevono ref senza usare `forwardRef`. Questo e un problema di integrazione con Radix UI.
 
-### 3. Dettagli tecnici
+**Fix**: Verificare che i componenti wrapper siano compatibili con ref forwarding.
 
-| Modifica | Dettaglio |
-|----------|-----------|
-| Migrazione | `ALTER TABLE order_items ADD COLUMN is_paid boolean DEFAULT false, ADD COLUMN paid_date date` |
-| Query order_items | Aggiungere `is_paid, paid_date` al select |
-| `markOrderItemPaidMutation` | UPDATE order_items SET is_paid=true, paid_date=? WHERE id=? |
-| `markOrderItemUnpaidMutation` | UPDATE order_items SET is_paid=false, paid_date=null WHERE id=? |
-| Dialog pagamento | Riutilizzare lo stesso dialog gia presente, distinguendo se si sta pagando un costo manuale o un articolo ordine |
-| Badge stato | Articolo pagato mostra "Pagato il DD/MM/YYYY" invece di "Da pagare"/"Ordinato" |
-| Filtri | Articoli pagati visibili con filtro "Pagati", esclusi da "Da pagare" |
+### Bug 3 - Route Dipendenti mancante dal pannello azienda
+**File**: `src/App.tsx` e `src/components/layouts/CompanyLayout.tsx`
 
+La pagina `src/pages/azienda/Employees.tsx` esiste ma non ha una route in App.tsx ne un link nella sidebar aziendale. I dipendenti sono gestibili solo se si conosce l'URL diretto.
+
+**Fix**: Aggiungere route `/azienda/dipendenti` in App.tsx e link nella sidebar di CompanyLayout.
+
+---
+
+## FASE 2: Flusso Ordine End-to-End (Completamento)
+
+### 2.1 - Pagina Dettaglio Ordine: dati articoli completi
+Assicurarsi che la fetch degli `orderItems` in OrderDetail includa `vat_rate` nel tipo `OrderItemData` e nella mappatura `displayItems`, cosi il Conto Economico calcola correttamente l'IVA per articolo.
+
+### 2.2 - Validazioni ordine robuste
+Aggiungere validazioni mancanti nel flusso di creazione/modifica ordine:
+- Sconto negativo non ammesso
+- Quantita decimali: bloccare o arrotondare
+- Data incasso prima della data ordine: warning visuale
+- Importo totale 0 con articoli presenti: warning
+
+### 2.3 - Margine previsto vs consuntivo
+Nella pagina OrderEconomics, aggiungere una sezione "Margine Previsto" che calcola il margine basandosi sui costi standard degli articoli (prezzo listino), confrontandolo con il "Margine Consuntivo" (costi reali registrati). Questo richiede:
+- Aggiunta colonna `standard_cost` alla tabella `order_items` (opzionale, puo derivare da `purchase_price` al momento della creazione)
+- Visualizzazione side-by-side previsto vs consuntivo con scostamento evidenziato
+
+---
+
+## FASE 3: Flusso Finanziario e Cash Flow (Rafforzamento)
+
+### 3.1 - Collegamento costi a commessa
+Verificare che ogni costo (manuale o automatico) nella sezione Costi mostri il link all'ordine associato. Gia implementato ma da verificare che funzioni correttamente per tutti i tipi.
+
+### 3.2 - Alert squilibri finanziari
+Nella Dashboard e nel Previsionale, aggiungere alert quando:
+- I pagamenti previsti superano gli incassi previsti nel mese
+- Il margine scende sotto una soglia configurabile (es. 10%)
+- Ci sono pagamenti scaduti non incassati
+
+### 3.3 - Stato incassi coerente
+Verificare che il calcolo "Da Incassare" sia coerente tra Dashboard, OrdersList e CashFlowForecast. Dall'analisi il calcolo e gia unificato ma va testato con dati reali.
+
+---
+
+## FASE 4: Pulizia Codice
+
+### 4.1 - Rimuovere import non utilizzati
+Scansione automatica di import inutilizzati in tutti i file principali.
+
+### 4.2 - Standardizzare gestione errori
+Creare un pattern unificato per toast di errore/successo invece di ripetere lo stesso blocco `onError/onSuccess` in ogni mutation.
+
+### 4.3 - Tipi coerenti
+Unificare le interface duplicate (es. `OrderItem` definita in piu file con campi diversi) in un unico file di tipi condiviso.
+
+---
+
+## FASE 5: UX (Miglioramenti)
+
+### 5.1 - Empty state corretto in CustomersList
+Verificare che il messaggio empty state sia corretto ("Nessun cliente" e non "Nessun ticket").
+
+### 5.2 - Loading states uniformi
+Sostituire i testi "Caricamento..." con Skeleton/Spinner coerenti in tutte le pagine.
+
+### 5.3 - Feedback immediato su azioni
+Verificare che ogni azione critica (salva, elimina, cambia stato) abbia feedback toast coerente.
+
+---
+
+## Dettaglio Tecnico dei File Modificati
+
+| File | Modifica |
+|------|----------|
+| `src/pages/azienda/OrderDetail.tsx` | Fix updateOrderItemsMutation per salvare tutti i campi articolo; aggiunta `vat_rate` al tipo OrderItemData |
+| `src/pages/azienda/CustomersList.tsx` | Fix warning forwardRef |
+| `src/App.tsx` | Aggiunta route `/azienda/dipendenti` |
+| `src/components/layouts/CompanyLayout.tsx` | Aggiunta link Dipendenti nella sidebar |
+| `src/components/orders/OrderEconomics.tsx` | Sezione margine previsto vs consuntivo |
+| `src/pages/azienda/CompanyDashboard.tsx` | Alert squilibri finanziari |
+
+---
+
+## Nota importante
+
+Questo piano e ampio e va implementato in fasi. Consiglio di procedere con la **Fase 1 (bug critici)** immediatamente, poi iterare sulle fasi successive. Il bug #1 (perdita dati articoli) e il piu urgente perche causa perdita di dati reali in produzione.
