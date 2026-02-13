@@ -309,15 +309,20 @@ export function OrderItemsList({
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {item.stock_item_id && (
-                        <Warehouse className="h-4 w-4 text-emerald-600" />
-                      )}
                       <span className="font-medium">{item.name}</span>
                       {item.quantity > 1 && (
                         <span className="text-sm text-muted-foreground">(x{item.quantity})</span>
                       )}
-                      {item.stock_item_id && (
-                        <Badge variant="outline" className="text-xs">Da Magazzino</Badge>
+                      {item.stock_item_id ? (
+                        <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
+                          <Warehouse className="h-3 w-3" />
+                          Da Giacenza
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs gap-1">
+                          <Package className="h-3 w-3" />
+                          Da Fornitore
+                        </Badge>
                       )}
                     </div>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
