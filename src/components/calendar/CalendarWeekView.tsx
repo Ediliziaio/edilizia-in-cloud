@@ -15,6 +15,7 @@ import { it } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
@@ -244,6 +245,10 @@ export function CalendarWeekView({
                     <Badge variant="secondary" className={cn("mt-1 text-xs font-medium", getWorkloadColor(workloadCount))}>
                       {workloadCount} {workloadCount === 1 ? "lavoro" : "lavori"}
                     </Badge>
+                    <Progress
+                      value={Math.min(workloadCount / 6 * 100, 100)}
+                      className="h-1 mt-1.5"
+                    />
                   </div>
                   <div className="flex-1 space-y-1 overflow-y-auto">
                     {events.length === 0 ? (
