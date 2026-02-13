@@ -37,3 +37,29 @@ export const STATUS_CONFIG: Record<OrderItemStatus, { label: string }> = {
   in_magazzino: { label: "In Magazzino" },
   installato: { label: "Installato" },
 };
+
+// Stock types
+export interface StockItem {
+  id: string;
+  company_id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  unit_cost: number;
+  vat_rate: number | null;
+  supplier_id: string | null;
+  min_stock_level: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StockMovement {
+  id: string;
+  stock_item_id: string;
+  order_item_id: string | null;
+  movement_type: "carico" | "scarico";
+  quantity: number;
+  notes: string | null;
+  performed_by: string;
+  created_at: string;
+}

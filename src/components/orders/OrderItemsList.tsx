@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Pencil, Package } from "lucide-react";
+import { Plus, Trash2, Pencil, Package, Warehouse } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -28,6 +29,7 @@ import { ArticleCombobox } from "./ArticleCombobox";
 import { SupplierSelect } from "./SupplierSelect";
 import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES, calculateNetFromGross } from "@/lib/vatUtils";
+import type { StockItem } from "@/types/warehouse";
 
 export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino' | 'installato';
 
@@ -42,6 +44,7 @@ export interface OrderItem {
   supplier_name?: string;
   purchase_price?: number;
   vat_rate?: number;
+  stock_item_id?: string;
   attachments?: OrderItemAttachment[];
 }
 
@@ -51,6 +54,7 @@ interface OrderItemsListProps {
   editable?: boolean;
   showStatusControls?: boolean;
   onAttachmentsRefresh?: () => void;
+  onStockPick?: (stockItemId: string, quantity: number) => void;
 }
 
 const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
@@ -88,9 +92,11 @@ export function OrderItemsList({
   editable = true,
   showStatusControls = false,
   onAttachmentsRefresh,
+  onStockPick,
 }: OrderItemsListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [dialogTab, setDialogTab] = useState<"new" | "stock">("new");
   const [itemName, setItemName] = useState("");
   const [itemDescription, setItemDescription] = useState("");
   const [itemQuantity, setItemQuantity] = useState("1");
@@ -98,6 +104,9 @@ export function OrderItemsList({
   const [itemPurchasePrice, setItemPurchasePrice] = useState("");
   const [itemVatRate, setItemVatRate] = useState<number>(22);
   const [itemStatus, setItemStatus] = useState<OrderItemStatus>("da_ordinare");
+  // Stock picking state
+  const [selectedStockItem, setSelectedStockItem] = useState<string>("");
+  const [stockPickQuantity, setStockPickQuantity] = useState("1");
 
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -116,6 +125,22 @@ export function OrderItemsList({
     enabled: !!companyId,
   });
 
+  // Fetch warehouse stock for picking
+  const { data: stockItems = [] } = useQuery({
+    queryKey: ["warehouse-stock", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_stock")
+        .select("*")
+        .eq("company_id", companyId!)
+        .gt("quantity", 0)
+        .order("name");
+      if (error) throw error;
+      return data as StockItem[];
+    },
+    enabled: !!companyId,
+  });
+
   const getSupplierName = (supplierId?: string) => {
     if (!supplierId) return null;
     return suppliers.find(s => s.id === supplierId)?.name || null;
@@ -130,6 +155,9 @@ export function OrderItemsList({
     setItemVatRate(22);
     setItemStatus("da_ordinare");
     setEditingIndex(null);
+    setSelectedStockItem("");
+    setStockPickQuantity("1");
+    setDialogTab("new");
   };
 
   const openAddDialog = () => {
@@ -199,10 +227,7 @@ export function OrderItemsList({
 
   const handleDeleteItem = (index: number) => {
     const newItems = items.filter((_, i) => i !== index);
-    // Update positions
-    newItems.forEach((item, i) => {
-      item.position = i;
-    });
+    newItems.forEach((item, i) => { item.position = i; });
     onItemsChange(newItems);
   };
 
@@ -210,6 +235,29 @@ export function OrderItemsList({
     const newItems = [...items];
     newItems[index] = { ...newItems[index], status };
     onItemsChange(newItems);
+  };
+
+  const handlePickFromStock = () => {
+    const stock = stockItems.find((s) => s.id === selectedStockItem);
+    if (!stock) return;
+    const qty = parseInt(stockPickQuantity) || 1;
+    if (qty <= 0 || qty > stock.quantity) return;
+
+    const newItem: OrderItem = {
+      name: stock.name,
+      description: stock.description || undefined,
+      quantity: qty,
+      status: "in_magazzino",
+      position: items.length,
+      supplier_id: stock.supplier_id || undefined,
+      purchase_price: stock.unit_cost,
+      vat_rate: stock.vat_rate ?? 22,
+      stock_item_id: stock.id,
+    };
+    onItemsChange([...items, newItem]);
+    onStockPick?.(stock.id, qty);
+    setDialogOpen(false);
+    resetForm();
   };
 
   return (
@@ -261,9 +309,15 @@ export function OrderItemsList({
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {item.stock_item_id && (
+                        <Warehouse className="h-4 w-4 text-emerald-600" />
+                      )}
                       <span className="font-medium">{item.name}</span>
                       {item.quantity > 1 && (
                         <span className="text-sm text-muted-foreground">(x{item.quantity})</span>
+                      )}
+                      {item.stock_item_id && (
+                        <Badge variant="outline" className="text-xs">Da Magazzino</Badge>
                       )}
                     </div>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
@@ -357,112 +411,190 @@ export function OrderItemsList({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="item-name">Nome Articolo *</Label>
-                <ArticleCombobox
-                  value={itemName}
-                  onValueChange={setItemName}
-                  placeholder="Seleziona o digita nome articolo..."
-                />
-              </div>
+            {editingIndex === null && stockItems.length > 0 ? (
+              <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as "new" | "stock")}>
+                <TabsList className="w-full">
+                  <TabsTrigger value="new" className="flex-1 gap-1">
+                    <Plus className="h-3 w-3" />
+                    Nuovo Articolo
+                  </TabsTrigger>
+                  <TabsTrigger value="stock" className="flex-1 gap-1">
+                    <Warehouse className="h-3 w-3" />
+                    Da Magazzino
+                  </TabsTrigger>
+                </TabsList>
 
-              <div className="space-y-2">
-                <Label htmlFor="item-description">Descrizione</Label>
-                <Input
-                  id="item-description"
-                  value={itemDescription}
-                  onChange={(e) => setItemDescription(e.target.value)}
-                  placeholder="Dettagli aggiuntivi..."
-                />
-              </div>
+                <TabsContent value="new">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Nome Articolo *</Label>
+                      <ArticleCombobox value={itemName} onValueChange={setItemName} placeholder="Seleziona o digita nome articolo..." />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Descrizione</Label>
+                      <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Quantità</Label>
+                        <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Costo Acquisto</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+                          <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>IVA Acquisto</Label>
+                      <Select value={itemVatRate.toString()} onValueChange={(v) => setItemVatRate(parseInt(v))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {VAT_RATES.map((rate) => (
+                            <SelectItem key={rate.value} value={rate.value.toString()}>{rate.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Stato Articolo</Label>
+                      <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                            <SelectItem key={status} value={status}>{config.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Fornitore</Label>
+                      <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} />
+                    </div>
+                  </div>
+                  <DialogFooter className="mt-4">
+                    <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+                    <Button onClick={handleSaveItem} disabled={!itemName.trim()}>Aggiungi</Button>
+                  </DialogFooter>
+                </TabsContent>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="item-quantity">Quantità</Label>
-                  <Input
-                    id="item-quantity"
-                    type="number"
-                    min="1"
-                    value={itemQuantity}
-                    onChange={(e) => setItemQuantity(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="item-price">Costo Acquisto</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
-                    <Input
-                      id="item-price"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={itemPurchasePrice}
-                      onChange={(e) => setItemPurchasePrice(e.target.value)}
-                      className="pl-8"
-                      placeholder="0.00"
-                    />
+                <TabsContent value="stock">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Articolo da Magazzino *</Label>
+                      <Select value={selectedStockItem} onValueChange={setSelectedStockItem}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleziona articolo..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {stockItems.map((stock) => (
+                            <SelectItem key={stock.id} value={stock.id}>
+                              {stock.name} — Disp: {stock.quantity} — {formatCurrency(stock.unit_cost)}/pz
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {selectedStockItem && (() => {
+                      const stock = stockItems.find((s) => s.id === selectedStockItem);
+                      if (!stock) return null;
+                      return (
+                        <div className="space-y-3">
+                          <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
+                            <div className="flex justify-between"><span>Costo unitario:</span><span className="font-medium">{formatCurrency(stock.unit_cost)}</span></div>
+                            <div className="flex justify-between"><span>Disponibili:</span><span className="font-medium">{stock.quantity}</span></div>
+                            {stock.description && <p className="text-muted-foreground">{stock.description}</p>}
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Quantità da prelevare</Label>
+                            <Input type="number" min="1" max={stock.quantity} value={stockPickQuantity} onChange={(e) => setStockPickQuantity(e.target.value)} />
+                            {parseInt(stockPickQuantity) > stock.quantity && (
+                              <p className="text-xs text-destructive">Quantità superiore alla disponibilità</p>
+                            )}
+                          </div>
+                          <div className="p-3 rounded-lg bg-muted/50 text-sm">
+                            <div className="flex justify-between font-medium">
+                              <span>Costo totale:</span>
+                              <span>{formatCurrency(stock.unit_cost * (parseInt(stockPickQuantity) || 0))}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <DialogFooter className="mt-4">
+                    <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+                    <Button
+                      onClick={handlePickFromStock}
+                      disabled={!selectedStockItem || !parseInt(stockPickQuantity) || parseInt(stockPickQuantity) > (stockItems.find((s) => s.id === selectedStockItem)?.quantity || 0)}
+                    >
+                      <Warehouse className="h-4 w-4 mr-2" />
+                      Preleva
+                    </Button>
+                  </DialogFooter>
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Nome Articolo *</Label>
+                    <ArticleCombobox value={itemName} onValueChange={setItemName} placeholder="Seleziona o digita nome articolo..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Descrizione</Label>
+                    <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Quantità</Label>
+                      <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Costo Acquisto</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+                        <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>IVA Acquisto</Label>
+                    <Select value={itemVatRate.toString()} onValueChange={(v) => setItemVatRate(parseInt(v))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {VAT_RATES.map((rate) => (
+                          <SelectItem key={rate.value} value={rate.value.toString()}>{rate.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Stato Articolo</Label>
+                    <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                          <SelectItem key={status} value={status}>{config.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fornitore</Label>
+                    <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} />
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>IVA Acquisto</Label>
-                <Select
-                  value={itemVatRate.toString()}
-                  onValueChange={(v) => setItemVatRate(parseInt(v))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VAT_RATES.map((rate) => (
-                      <SelectItem key={rate.value} value={rate.value.toString()}>
-                        {rate.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {itemSupplierId && (
-                  <p className="text-xs text-muted-foreground">
-                    Ereditato dal fornitore (modificabile)
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Stato Articolo</Label>
-                <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                      <SelectItem key={status} value={status}>
-                        {config.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Fornitore</Label>
-                <SupplierSelect
-                  value={itemSupplierId}
-                  onValueChange={handleSupplierChange}
-                />
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Annulla
-              </Button>
-              <Button onClick={handleSaveItem} disabled={!itemName.trim()}>
-                {editingIndex !== null ? "Salva" : "Aggiungi"}
-              </Button>
-            </DialogFooter>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+                  <Button onClick={handleSaveItem} disabled={!itemName.trim()}>
+                    {editingIndex !== null ? "Salva" : "Aggiungi"}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </DialogContent>
         </Dialog>
       </CardContent>

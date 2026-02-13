@@ -16,6 +16,7 @@ import {
   Printer,
   AlertTriangle,
   Clock,
+  PackageOpen,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,11 +42,12 @@ import WarehouseStats from "@/components/warehouse/WarehouseStats";
 import WarehouseKanbanView from "@/components/warehouse/WarehouseKanbanView";
 import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView";
 import WarehouseListView from "@/components/warehouse/WarehouseListView";
+import WarehouseStockTab from "@/components/warehouse/WarehouseStockTab";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
-type ViewMode = "list" | "kanban" | "calendar";
+type ViewMode = "list" | "kanban" | "calendar" | "stock";
 type GroupBy = "order" | "supplier" | "date" | "status";
 
 export default function Warehouse() {
@@ -443,6 +445,10 @@ export default function Warehouse() {
                     <CalendarIcon className="h-4 w-4" />
                     Calendario
                   </TabsTrigger>
+                  <TabsTrigger value="stock" className="gap-2">
+                    <PackageOpen className="h-4 w-4" />
+                    Giacenze
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
 
@@ -569,7 +575,9 @@ export default function Warehouse() {
       </Card>
 
       {/* Content based on view mode */}
-      {isLoading ? (
+      {viewMode === "stock" ? (
+        <WarehouseStockTab />
+      ) : isLoading ? (
         <div className="text-center py-12 text-muted-foreground">
           Caricamento articoli...
         </div>
