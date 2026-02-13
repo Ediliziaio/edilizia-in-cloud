@@ -278,15 +278,24 @@ export default function EditOrder() {
     queryKey: ["customers", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
+      
+      const { data: customerRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "customer");
+
+      const customerIds = (customerRoles || []).map(r => r.user_id);
+      if (customerIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, user_roles!inner(role)")
-        .eq("user_roles.role", "customer")
+        .select("id, first_name, last_name, email")
         .eq("company_id", effectiveCompany.id)
+        .in("id", customerIds)
         .order("last_name");
 
       if (error) throw error;
-      return (data || []).map(({ user_roles, ...rest }) => rest) as Customer[];
+      return (data || []) as Customer[];
     },
     enabled: !!effectiveCompany?.id,
   });
