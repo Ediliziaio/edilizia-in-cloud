@@ -97,8 +97,6 @@ export default function WarehouseStats({ items }: WarehouseStatsProps) {
     };
   }, [items]);
 
-  
-
   return (
     <div className="grid gap-4 md:grid-cols-4">
       {/* Completion Progress */}

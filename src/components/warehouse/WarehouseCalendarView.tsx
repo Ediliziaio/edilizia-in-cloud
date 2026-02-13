@@ -168,8 +168,8 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
                               className={cn(
                                 "text-xs p-1 rounded truncate cursor-pointer hover:opacity-80",
                                 order.pendingCount > 0
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-green-100 text-green-800"
+                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                                  : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
                               )}
                             >
                               <div className="font-medium truncate">
@@ -236,11 +236,11 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
         {/* Legend */}
         <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground justify-center">
           <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded bg-green-100"></span>
+            <span className="w-3 h-3 rounded bg-green-100 dark:bg-green-900/30"></span>
             <span>Tutti pronti</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded bg-amber-100"></span>
+            <span className="w-3 h-3 rounded bg-amber-100 dark:bg-amber-900/30"></span>
             <span>Articoli in attesa</span>
           </div>
           <div className="flex items-center gap-1">

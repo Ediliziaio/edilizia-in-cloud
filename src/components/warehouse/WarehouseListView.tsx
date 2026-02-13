@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { Link } from "react-router-dom";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -44,14 +44,14 @@ function getStatusIndicators(items: WarehouseItem[]) {
   };
 }
 
-export default function WarehouseListView({
+const WarehouseListView = forwardRef<HTMLDivElement, WarehouseListViewProps>(function WarehouseListView({
   orderGroups,
   onStatusChange,
   onMarkAllInstalled,
   onBatchStatusChange,
   getSupplierName,
   isUpdating,
-}: WarehouseListViewProps) {
+}, ref) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
@@ -113,7 +113,7 @@ export default function WarehouseListView({
   }
 
   return (
-    <div className="space-y-2">
+    <div ref={ref} className="space-y-2">
       {/* Batch actions bar */}
       {selectedItems.size > 0 && (
         <div className="flex items-center justify-between p-3 bg-primary/5 border rounded-lg">
@@ -322,4 +322,6 @@ export default function WarehouseListView({
       })}
     </div>
   );
-}
+});
+
+export default WarehouseListView;
