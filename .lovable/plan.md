@@ -1,10 +1,90 @@
 
 
-# Piano: UI Super Admin Monetizzazione (senza Stripe)
+# Piano: Hook useSubscriptionLimits, Banner di Stato e Gestione Funzionalita per Piano
 
 ## Panoramica
 
-Costruire le pagine Super Admin per gestire piani tariffari e abbonamenti, aggiornare la dashboard con metriche MRR, e aggiungere la sezione abbonamento nel dettaglio azienda. Tutto funziona con operazioni CRUD dirette sul database, senza integrazione Stripe per ora.
+Creare un sistema che:
+1. Permetta al Super Admin di decidere quali moduli/funzionalita sono inclusi in ogni piano
+2. Fornisca un hook `useSubscriptionLimits` che controlla limiti numerici e moduli disponibili
+3. Mostri banner di avviso nell'area azienda per trial in scadenza, expired e suspended
+4. Filtri la sidebar dell'azienda nascondendo i moduli non inclusi nel piano
+
+---
+
+## Step 1: Schema Database
+
+Aggiungere una colonna `included_modules` (jsonb) alla tabella `subscription_plans` per definire quali sezioni dell'app sono accessibili per ogni piano.
+
+Moduli gestibili:
+- `orders` (Ordini)
+- `warehouse` (Magazzino)
+- `calendar` (Calendario)
+- `customers` (Clienti)
+- `employees` (Dipendenti)
+- `tickets` (Assistenza)
+- `forecast` (Previsionale)
+
+Di default tutti i moduli sono inclusi nei piani esistenti.
+
+---
+
+## Step 2: UI Admin - Gestione Moduli per Piano
+
+Aggiornare `SubscriptionPlans.tsx`:
+- Aggiungere nel dialog di creazione/modifica una sezione "Moduli inclusi" con una griglia di Switch per ogni modulo
+- Ogni switch attiva/disattiva un modulo specifico per quel piano
+- I moduli vengono salvati come array jsonb (es. `["orders", "warehouse", "calendar"]`)
+- Nella card del piano mostrare i moduli inclusi con icone
+
+---
+
+## Step 3: Hook `useSubscriptionLimits`
+
+Nuovo file `src/hooks/useSubscriptionLimits.ts`:
+
+Espone:
+- `companyStatus`: stato corrente dell'azienda (trial/active/suspended/expired)
+- `trialDaysLeft`: giorni rimanenti di trial (null se non in trial)
+- `currentPlan`: dati del piano attivo
+- `canCreateOrder`: boolean (controlla max_orders)
+- `canAddUser`: boolean (controlla max_users)
+- `isModuleEnabled(moduleKey)`: controlla se un modulo e nel piano
+- `remainingOrders`: ordini rimanenti (-1 se illimitati)
+- `remainingUsers`: utenti rimanenti
+- `isFullyOperational`: true solo se status = 'active' o 'trial' non scaduto
+- `isLoading`: stato caricamento
+
+Logica: query sul piano dell'azienda (via `effectiveCompany.subscription_plan_id`), count ordini e utenti attuali, confronto con limiti.
+
+Il Super Admin in impersonation bypassa tutti i limiti.
+
+---
+
+## Step 4: Banner di Stato in CompanyLayout
+
+Aggiungere un componente `SubscriptionBanner` sopra il contenuto in `CompanyLayout.tsx`:
+
+| Stato | Colore | Messaggio |
+|-------|--------|-----------|
+| trial (>3 giorni) | Blu | "Stai usando il piano di prova. Rimangono X giorni." + bottone Upgrade |
+| trial (<=3 giorni) | Arancione | "Il tuo periodo di prova scade tra X giorni! Attiva un piano." |
+| trial (scaduto) | Rosso | "Il periodo di prova e scaduto. Attiva un piano per continuare." |
+| suspended | Arancione | "Il tuo abbonamento e sospeso. Contatta il supporto." |
+| expired | Rosso | "Il tuo abbonamento e scaduto. Rinnova per continuare a usare la piattaforma." |
+| active | Nessun banner | - |
+
+Il banner non appare quando il Super Admin sta impersonando.
+
+---
+
+## Step 5: Filtro Sidebar per Moduli
+
+Aggiornare `CompanyLayout.tsx` per filtrare le voci di navigazione in base ai moduli inclusi nel piano:
+
+- Mappare ogni nav item a un `moduleKey` (es. "Magazzino" -> `warehouse`)
+- Se il modulo non e nel piano, la voce non appare nella sidebar
+- Dashboard e Impostazioni sono sempre visibili (non dipendono dal piano)
 
 ---
 
@@ -12,117 +92,36 @@ Costruire le pagine Super Admin per gestire piani tariffari e abbonamenti, aggio
 
 | File | Azione | Descrizione |
 |------|--------|-------------|
-| `src/pages/admin/SubscriptionPlans.tsx` | Crea | CRUD piani tariffari |
-| `src/pages/admin/Subscriptions.tsx` | Crea | Lista abbonamenti aziende |
-| `src/components/layouts/AdminLayout.tsx` | Modifica | Aggiungere "Piani" e "Abbonamenti" alla sidebar |
-| `src/App.tsx` | Modifica | Aggiungere route `/admin/piani` e `/admin/abbonamenti` |
-| `src/pages/admin/AdminDashboard.tsx` | Modifica | Aggiungere riga statistiche MRR, churn, trial in scadenza |
-| `src/pages/admin/CompanyDetail.tsx` | Modifica | Aggiungere card "Abbonamento" con stato, piano, storico e azioni manuali |
-| `src/types/auth.ts` | Modifica | Aggiungere tipo `CompanyStatus` |
+| Migrazione SQL | Crea | Aggiungere `included_modules` a `subscription_plans` |
+| `src/hooks/useSubscriptionLimits.ts` | Crea | Hook per limiti e stato abbonamento |
+| `src/components/layouts/CompanyLayout.tsx` | Modifica | Aggiungere banner + filtro sidebar per moduli |
+| `src/pages/admin/SubscriptionPlans.tsx` | Modifica | Aggiungere sezione moduli nel dialog |
 
 ---
 
-## Dettagli Implementazione
+## Dettagli Tecnici
 
-### 1. Tipo `CompanyStatus` (`src/types/auth.ts`)
-
-Aggiungere:
+### Migrazione SQL
 ```text
-type CompanyStatus = "trial" | "active" | "suspended" | "expired"
+ALTER TABLE subscription_plans 
+ADD COLUMN included_modules jsonb DEFAULT '["orders","warehouse","calendar","customers","employees","tickets","forecast"]'::jsonb;
+
+UPDATE subscription_plans SET included_modules = '["orders","warehouse","calendar","customers","employees","tickets","forecast"]';
 ```
 
-Aggiornare l'interfaccia `Company` con i nuovi campi `status`, `trial_ends_at`, `subscription_plan_id`, `stripe_customer_id`.
-
-### 2. Sidebar Admin (`AdminLayout.tsx`)
-
-Aggiungere due voci nella sezione Navigazione:
-- "Piani" con icona `CreditCard` -> `/admin/piani`
-- "Abbonamenti" con icona `Receipt` -> `/admin/abbonamenti`
-
-### 3. Pagina Piani (`SubscriptionPlans.tsx`)
-
-**Layout**: Griglia di Card, una per piano, con dialog per creazione/modifica.
-
-**Contenuto card piano**:
-- Nome, slug, descrizione
-- Prezzi (mensile/annuale)
-- Limiti: max ordini, max utenti, max storage
-- Features (lista jsonb)
-- Badge attivo/disattivo
-- Bottoni modifica e disattiva/attiva
-
-**Dialog creazione/modifica piano**:
-- Form con tutti i campi
-- Campi Stripe ID (product, price monthly, price yearly) lasciati vuoti per ora, editabili quando si collegherà Stripe
-- Validazione con zod
-
-**Query**: `useQuery` su `subscription_plans` ordinati per `position`.
-
-### 4. Pagina Abbonamenti (`Subscriptions.tsx`)
-
-**Layout**: Tabella con tutte le aziende e il loro stato abbonamento.
-
-**Colonne tabella**:
-- Azienda (nome + logo)
-- Piano attuale (join con `subscription_plans`)
-- Stato (badge colorato: trial=blue, active=green, suspended=orange, expired=red)
-- Scadenza trial / fine periodo
-- MRR contribuito (prezzo mensile del piano)
-
-**Filtri**: Select per stato (tutti/trial/active/suspended/expired)
-
-**Azioni per riga** (dropdown menu):
-- Cambia piano (dialog con select piano)
-- Sospendi / Riattiva
-- Estendi trial (+7 giorni, +14 giorni, +30 giorni)
-- Ogni azione scrive un log in `subscription_logs`
-
-### 5. Dashboard MRR (`AdminDashboard.tsx`)
-
-Aggiungere una seconda riga di statistiche sotto quella esistente con 4 card:
-
-| Card | Calcolo |
-|------|---------|
-| MRR | Somma `price_monthly` dei piani delle aziende con status = 'active' |
-| Aziende in Trial | Count companies con status = 'trial' |
-| Trial in Scadenza | Count companies con trial_ends_at entro 3 giorni |
-| Tasso Churn | (aziende expired ultimo mese / totale attive) * 100 |
-
-### 6. CompanyDetail - Sezione Abbonamento
-
-Aggiungere una card "Abbonamento" nel grid delle informazioni:
-
-**Contenuto**:
-- Stato con badge colorato
-- Piano attuale (o "Nessun piano")
-- Scadenza trial (se in trial)
-- Periodo corrente (da `company_subscriptions`)
-
-**Azioni rapide**:
-- Cambia piano (dialog)
-- Sospendi / Riattiva (con conferma)
-- Estendi trial (se in trial)
-
-**Storico** (sotto le azioni):
-- Lista ultimi eventi da `subscription_logs` con data, tipo evento, note
-- Formato timeline verticale compatta
-
-### 7. Route (`App.tsx`)
-
-Aggiungere dentro il blocco `/admin`:
+### Mapping Moduli -> Nav Items
 ```text
-<Route path="piani" element={<SubscriptionPlans />} />
-<Route path="abbonamenti" element={<Subscriptions />} />
+orders     -> Ordini
+warehouse  -> Magazzino
+calendar   -> Calendario
+customers  -> Clienti
+employees  -> Dipendenti
+tickets    -> Assistenza
+forecast   -> Previsionale
 ```
 
----
-
-## Sequenza di Implementazione
-
-1. Tipo `CompanyStatus` in `auth.ts`
-2. Sidebar + Route
-3. Pagina Piani (CRUD)
-4. Pagina Abbonamenti (tabella + azioni)
-5. Dashboard MRR (statistiche aggiuntive)
-6. CompanyDetail (sezione abbonamento + storico)
+### Hook: conteggio ordini e utenti
+- Ordini: `SELECT count(*) FROM orders WHERE company_id = X`
+- Utenti: `SELECT count(*) FROM profiles WHERE company_id = X`
+- Confronto con `max_orders` e `max_users` del piano (-1 = illimitato)
 
