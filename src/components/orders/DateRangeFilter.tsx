@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { CalendarIcon, X } from "lucide-react";
@@ -23,7 +23,7 @@ interface DateRangeFilterProps {
   onRangeChange: (range: DateRange) => void;
 }
 
-export function DateRangeFilter({ label, range, onRangeChange }: DateRangeFilterProps) {
+export const DateRangeFilter = React.forwardRef<HTMLButtonElement, DateRangeFilterProps>(function DateRangeFilter({ label, range, onRangeChange }, ref) {
   const [isOpen, setIsOpen] = useState(false);
 
   const hasValue = range.from || range.to;
@@ -71,7 +71,7 @@ export function DateRangeFilter({ label, range, onRangeChange }: DateRangeFilter
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
+      <PopoverTrigger asChild ref={ref}>
         <Button
           variant="outline"
           className={cn(
@@ -143,4 +143,4 @@ export function DateRangeFilter({ label, range, onRangeChange }: DateRangeFilter
       </PopoverContent>
     </Popover>
   );
-}
+});
