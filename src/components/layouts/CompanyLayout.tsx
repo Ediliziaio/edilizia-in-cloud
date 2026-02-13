@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   TrendingUp,
+  Receipt,
   AlertTriangle,
   ArrowLeft,
   Warehouse,
@@ -51,6 +52,7 @@ const allNavItems: NavItem[] = [
   
   { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon, permissionKey: "canViewTickets", moduleKey: "tickets" },
   { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
+  { title: "Costi", url: "/azienda/costi", icon: Receipt, permissionKey: "canViewForecast", moduleKey: "forecast" },
   { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings, permissionKey: "canViewSettings" },
 ];
 

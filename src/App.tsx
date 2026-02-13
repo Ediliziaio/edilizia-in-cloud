@@ -42,6 +42,7 @@ import CreateCustomer from "@/pages/azienda/CreateCustomer";
 import CompanyCustomerDetail from "@/pages/azienda/CompanyCustomerDetail";
 import CashFlowForecast from "@/pages/azienda/CashFlowForecast";
 import Warehouse from "@/pages/azienda/Warehouse";
+import CompanyCosts from "@/pages/azienda/CompanyCosts";
 import Calendar from "@/pages/azienda/Calendar";
 
 
@@ -132,6 +133,7 @@ const App = () => (
               <Route path="assistenza" element={<TicketsList />} />
               <Route path="assistenza/:id" element={<TicketDetail />} />
               <Route path="previsionale" element={<CashFlowForecast />} />
+              <Route path="costi" element={<CompanyCosts />} />
               
               <Route path="impostazioni" element={<Settings />} />
             </Route>
