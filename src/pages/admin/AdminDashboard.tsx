@@ -12,9 +12,13 @@ import {
   Loader2, 
   AlertCircle,
   Clock,
-  MessageSquare
+  MessageSquare,
+  TrendingUp,
+  Timer,
+  AlertTriangle,
+  BarChart3
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, subMonths, addDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -60,6 +64,7 @@ export default function AdminDashboard() {
         recentCompaniesRes,
         recentOrdersRes,
         recentTicketsRes,
+        allCompaniesRes,
       ] = await Promise.all([
         supabase.from("companies").select("id", { count: "exact", head: true }),
         supabase.from("orders").select("id", { count: "exact", head: true }),
@@ -79,10 +84,35 @@ export default function AdminDashboard() {
           created_at,
           company:companies(name)
         `).order("created_at", { ascending: false }).limit(5),
+        supabase.from("companies").select("id, status, trial_ends_at, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly)"),
       ]);
 
       // Calculate total orders value
       const totalValue = ordersValueRes.data?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+
+      // MRR stats
+      const allCompanies = allCompaniesRes.data || [];
+      const activeCompanies = allCompanies.filter((c) => c.status === "active");
+      const trialCompanies = allCompanies.filter((c) => c.status === "trial");
+      const expiredCompanies = allCompanies.filter((c) => c.status === "expired");
+      
+      const mrr = activeCompanies.reduce((sum, c) => {
+        const plan = c.subscription_plans as { price_monthly: number } | null;
+        return sum + (plan?.price_monthly || 0);
+      }, 0);
+
+      const now = new Date();
+      const threeDaysFromNow = addDays(now, 3);
+      const trialExpiringSoon = trialCompanies.filter((c) => {
+        if (!c.trial_ends_at) return false;
+        const end = new Date(c.trial_ends_at);
+        return end <= threeDaysFromNow && end >= now;
+      }).length;
+
+      const oneMonthAgo = subMonths(now, 1);
+      // Simple churn approximation
+      const totalActive = activeCompanies.length;
+      const churnRate = totalActive > 0 ? ((expiredCompanies.length / (totalActive + expiredCompanies.length)) * 100) : 0;
 
       // Combine and sort recent activity
       const activities: RecentActivity[] = [];
@@ -118,6 +148,12 @@ export default function AdminDashboard() {
           totalCustomers: customersRes.count || 0,
           openTickets: ticketsRes.count || 0,
         },
+        mrrStats: {
+          mrr,
+          trialCount: trialCompanies.length,
+          trialExpiringSoon,
+          churnRate: Math.round(churnRate * 10) / 10,
+        },
         recentCompanies: (recentCompaniesRes.data as RecentCompany[]) || [],
         recentActivity: activities.slice(0, 8),
       };
@@ -134,6 +170,7 @@ export default function AdminDashboard() {
   };
   const recentCompanies = dashboardData?.recentCompanies ?? [];
   const recentActivity = dashboardData?.recentActivity ?? [];
+  const mrrStats = dashboardData?.mrrStats ?? { mrr: 0, trialCount: 0, trialExpiringSoon: 0, churnRate: 0 };
 
   const statCards = [
     {
@@ -212,6 +249,60 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* MRR Stats Row */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">MRR</CardTitle>
+            <div className="p-2 rounded-lg bg-emerald-100">
+              <TrendingUp className="h-4 w-4 text-emerald-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{formatCurrency(mrrStats.mrr)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Ricavo mensile ricorrente</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Aziende in Trial</CardTitle>
+            <div className="p-2 rounded-lg bg-blue-100">
+              <Timer className="h-4 w-4 text-blue-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{mrrStats.trialCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">In periodo di prova</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Trial in Scadenza</CardTitle>
+            <div className={`p-2 rounded-lg ${mrrStats.trialExpiringSoon > 0 ? "bg-amber-100" : "bg-muted"}`}>
+              <AlertTriangle className={`h-4 w-4 ${mrrStats.trialExpiringSoon > 0 ? "text-amber-600" : "text-muted-foreground"}`} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-3xl font-bold ${mrrStats.trialExpiringSoon > 0 ? "text-amber-600" : ""}`}>
+              {mrrStats.trialExpiringSoon}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Scadono entro 3 giorni</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tasso Churn</CardTitle>
+            <div className="p-2 rounded-lg bg-muted">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{mrrStats.churnRate}%</div>
+            <p className="text-xs text-muted-foreground mt-1">Tasso di abbandono</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Content Grid */}

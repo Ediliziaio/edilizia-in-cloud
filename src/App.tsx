@@ -27,6 +27,8 @@ import EditCompany from "@/pages/admin/EditCompany";
 import GlobalOrders from "@/pages/admin/GlobalOrders";
 import GlobalTickets from "@/pages/admin/GlobalTickets";
 import AdminSettings from "@/pages/admin/AdminSettings";
+import SubscriptionPlans from "@/pages/admin/SubscriptionPlans";
+import Subscriptions from "@/pages/admin/Subscriptions";
 
 // Company Pages  
 import CompanyDashboard from "@/pages/azienda/CompanyDashboard";
@@ -103,6 +105,8 @@ const App = () => (
               <Route path="ordini" element={<GlobalOrders />} />
               <Route path="ticket" element={<GlobalTickets />} />
               <Route path="impostazioni" element={<AdminSettings />} />
+              <Route path="piani" element={<SubscriptionPlans />} />
+              <Route path="abbonamenti" element={<Subscriptions />} />
             </Route>
 
             {/* Company Admin and Staff Routes */}
