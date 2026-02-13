@@ -68,9 +68,8 @@ export default function CompanyDashboard() {
         // Pending revenue (all unpaid balances)
         supabase
           .from("orders")
-          .select("balance_amount, balance_paid")
-          .eq("company_id", companyId!)
-          .or("balance_paid.is.null,balance_paid.eq.false"),
+          .select("deposit_amount, deposit_paid, deposit_2_amount, deposit_2_paid, balance_amount, balance_paid")
+          .eq("company_id", companyId!),
         // Cash flow preview (deposits + balances with expected dates)
         supabase
           .from("orders")
@@ -107,9 +106,23 @@ export default function CompanyDashboard() {
           .neq("status", "in_magazzino")
       ]);
 
-      // Calculate pending revenue
-      const pendingRevenue = pendingRevenueRes.data?.reduce((sum, order) => sum + (Number(order.balance_amount) || 0), 0) || 0;
-      const pendingOrdersCount = pendingRevenueRes.data?.filter(o => (Number(o.balance_amount) || 0) > 0).length || 0;
+      // Calculate pending revenue (deposits + balance)
+      let pendingRevenue = 0;
+      let pendingOrdersCount = 0;
+
+      pendingRevenueRes.data?.forEach(order => {
+        let orderPending = 0;
+        if (!order.deposit_paid && Number(order.deposit_amount) > 0)
+          orderPending += Number(order.deposit_amount);
+        if (!order.deposit_2_paid && Number(order.deposit_2_amount) > 0)
+          orderPending += Number(order.deposit_2_amount);
+        if (!order.balance_paid && Number(order.balance_amount) > 0)
+          orderPending += Number(order.balance_amount);
+        if (orderPending > 0) {
+          pendingRevenue += orderPending;
+          pendingOrdersCount++;
+        }
+      });
 
       // Calculate cash flow preview
       let thisMonthTotal = 0;
@@ -225,7 +238,7 @@ export default function CompanyDashboard() {
       description: stats.openTickets > 0 ? "In attesa di risposta" : "Tutto risolto!",
     },
     {
-      title: "Saldi da Incassare",
+      title: "Da Incassare",
       value: formatCurrency(stats.pendingRevenue),
       icon: Euro,
       color: "text-emerald-600",
