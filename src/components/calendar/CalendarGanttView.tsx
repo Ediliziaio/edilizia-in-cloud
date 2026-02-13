@@ -305,28 +305,37 @@ export function CalendarGanttView({
                   <span className="text-xs font-medium text-muted-foreground">LT</span>
                 </div>
               </div>
-              {orders.map((order) => {
+              {orders.map((order, idx) => {
                 const leadTime = calculateLeadTime(order);
+                const initials = order.assigned_employees
+                  ?.map((ae) => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`)
+                  .join(", ");
+                const extTeam = order.assigned_external_teams
+                  ?.map((aet) => aet.external_team.name)
+                  .join(", ");
                 return (
                   <div
                     key={order.id}
-                    className="border-b flex cursor-pointer hover:bg-muted/50 transition-colors"
+                    className={cn(
+                      "border-b flex cursor-pointer hover:bg-muted/50 transition-colors",
+                      idx % 2 === 0 && "bg-muted/20"
+                    )}
                     style={{ height: ROW_HEIGHT }}
                     onClick={() => navigate(`/azienda/ordini/${order.id}`)}
                   >
                     <div className="flex-1 flex flex-col justify-center px-3 min-w-0">
-                      <span className="text-sm font-medium truncate">
-                        {order.customer.first_name} {order.customer.last_name}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground truncate">
-                          {order.order_code || "N/A"}
-                        </span>
-                        {(!order.assigned_employees || order.assigned_employees.length === 0) && (
-                          <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1 rounded">
-                            No squadra
-                          </span>
+                      <div className="flex items-center gap-1.5">
+                        {order.status && (
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: order.status.color }} />
                         )}
+                        <span className="text-sm font-medium truncate">
+                          {order.customer.last_name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <span>{order.order_code || "N/A"}</span>
+                        {initials && <span>| {initials}</span>}
+                        {extTeam && <span>| {extTeam}</span>}
                       </div>
                     </div>
                     <div className="w-16 flex items-center justify-center border-l">
@@ -419,13 +428,25 @@ export function CalendarGanttView({
                   </div>
                 )}
 
-                {orders.map((order) => {
+                {orders.map((order, idx) => {
                   const bar = getOrderBar(order);
+
+                  // Milestone positions
+                  const expectedPos = order.expected_date
+                    ? differenceInDays(parseISO(order.expected_date), startDate) * dayWidth
+                    : null;
+                  const warehousePos = order.warehouse_arrival_date
+                    ? differenceInDays(parseISO(order.warehouse_arrival_date), startDate) * dayWidth
+                    : null;
+                  const totalWidth = days.length * dayWidth;
 
                   return (
                     <div
                       key={order.id}
-                      className="border-b relative"
+                      className={cn(
+                        "border-b relative hover:bg-muted/30 transition-colors",
+                        idx % 2 === 0 && "bg-muted/20"
+                      )}
                       style={{ height: ROW_HEIGHT }}
                     >
                       {bar && (
@@ -434,6 +455,22 @@ export function CalendarGanttView({
                           bar={bar}
                           dayWidth={dayWidth}
                           color={getOrderColor(order)}
+                        />
+                      )}
+                      {/* Milestone: expected_date (blue dot) */}
+                      {expectedPos !== null && expectedPos >= 0 && expectedPos <= totalWidth && (
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white z-10 pointer-events-none"
+                          style={{ left: expectedPos + dayWidth / 2 - 6 }}
+                          title="Data posa prevista"
+                        />
+                      )}
+                      {/* Milestone: warehouse_arrival_date (amber dot) */}
+                      {warehousePos !== null && warehousePos >= 0 && warehousePos <= totalWidth && (
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-500 border-2 border-white z-10 pointer-events-none"
+                          style={{ left: warehousePos + dayWidth / 2 - 6 }}
+                          title="Arrivo merce"
                         />
                       )}
                     </div>
