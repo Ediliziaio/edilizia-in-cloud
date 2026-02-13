@@ -47,7 +47,8 @@ export default function Calendar() {
           customer_id,
           current_status_id,
           customer:profiles!orders_customer_id_fkey(first_name, last_name),
-          status:order_statuses!orders_current_status_id_fkey(name, color)
+          status:order_statuses!orders_current_status_id_fkey(name, color),
+          order_employees(employee:employees(first_name, last_name))
         `)
         .eq("company_id", effectiveCompany.id)
         .order("work_start_date", { ascending: true });

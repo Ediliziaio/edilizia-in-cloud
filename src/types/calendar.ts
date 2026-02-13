@@ -17,6 +17,12 @@ export interface CalendarOrder {
     name: string;
     color: string;
   } | null;
+  assigned_employees?: Array<{
+    employee: {
+      first_name: string;
+      last_name: string;
+    };
+  }>;
 }
 
 export interface OrderStatus {

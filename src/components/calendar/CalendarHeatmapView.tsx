@@ -171,9 +171,14 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
                     {format(day, "d")}
                   </div>
                   {isCurrentMonth && count > 0 && (
-                    <span className={cn("text-xl font-bold", getHeatTextColor(count))}>
-                      {count}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className={cn("text-xl font-bold", getHeatTextColor(count))}>
+                        {count}
+                      </span>
+                      {count >= 5 && (
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -288,7 +293,7 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
           <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
           <div>
             <p className="text-xs text-muted-foreground">Giorni critici (5+)</p>
-            <p className="text-lg font-bold">{stats.criticalDays}</p>
+            <p className={cn("text-lg font-bold", stats.criticalDays > 0 && "text-destructive")}>{stats.criticalDays}</p>
           </div>
         </Card>
       </div>
