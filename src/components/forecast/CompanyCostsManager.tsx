@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Package,
   ExternalLink,
+  Undo2,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -126,7 +127,9 @@ export default function CompanyCostsManager() {
   const [editingCost, setEditingCost] = useState<any>(null);
   const [formData, setFormData] = useState<CostFormData>(defaultFormData);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [payConfirmId, setPayConfirmId] = useState<string | null>(null);
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
+  const [payingCostId, setPayingCostId] = useState<string | null>(null);
+  const [paymentDate, setPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [duplicatePeriods, setDuplicatePeriods] = useState(1);
 
@@ -337,17 +340,34 @@ export default function CompanyCostsManager() {
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, date }: { id: string; date: string }) => {
       const { error } = await supabase
         .from("company_costs")
-        .update({ is_paid: true, paid_date: new Date().toISOString().split("T")[0] })
+        .update({ is_paid: true, paid_date: date })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company-costs"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      setPayDialogOpen(false);
+      setPayingCostId(null);
       toast({ title: "Costo segnato come pagato" });
+    },
+  });
+
+  const markUnpaidMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("company_costs")
+        .update({ is_paid: false, paid_date: null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      toast({ title: "Costo riportato a non pagato" });
     },
   });
 
@@ -483,7 +503,10 @@ export default function CompanyCostsManager() {
       return <Badge className="bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400">Da pagare</Badge>;
     }
     if (cost.is_paid) {
-      return <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400">Pagato</Badge>;
+      const paidLabel = cost.paid_date
+        ? `Pagato il ${format(new Date(cost.paid_date), "dd/MM/yyyy", { locale: it })}`
+        : "Pagato";
+      return <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400">{paidLabel}</Badge>;
     }
     const dueDate = new Date(cost.due_date);
     if (dueDate <= soon && dueDate >= now) {
@@ -608,15 +631,29 @@ export default function CompanyCostsManager() {
                       </Link>
                     ) : (
                       <div className="flex justify-end gap-1">
-                        {!cost.is_paid && (
+                        {!cost.is_paid ? (
                           <Button
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8 text-green-600 hover:text-green-700"
-                            onClick={() => setPayConfirmId(cost.id)}
+                            onClick={() => {
+                              setPayingCostId(cost.id);
+                              setPaymentDate(format(new Date(), "yyyy-MM-dd"));
+                              setPayDialogOpen(true);
+                            }}
                             title="Segna come pagato"
                           >
                             <Check className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-orange-600 hover:text-orange-700"
+                            onClick={() => markUnpaidMutation.mutate(cost.id)}
+                            title="Riporta a non pagato"
+                          >
+                            <Undo2 className="h-4 w-4" />
                           </Button>
                         )}
                         <Button
@@ -946,21 +983,37 @@ export default function CompanyCostsManager() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Pay Confirm */}
-      <AlertDialog open={!!payConfirmId} onOpenChange={() => setPayConfirmId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Segnare come pagato?</AlertDialogTitle>
-            <AlertDialogDescription>Il costo verrà contrassegnato come pagato con la data odierna.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (payConfirmId) markPaidMutation.mutate(payConfirmId); setPayConfirmId(null); }}>
-              Conferma Pagamento
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Payment Dialog with Date */}
+      <Dialog open={payDialogOpen} onOpenChange={(open) => { if (!open) { setPayDialogOpen(false); setPayingCostId(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Registra Pagamento</DialogTitle>
+            <DialogDescription>Seleziona la data in cui è stato effettuato il pagamento.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label>Data pagamento</Label>
+            <Input
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPayDialogOpen(false); setPayingCostId(null); }}>Annulla</Button>
+            <Button
+              onClick={() => {
+                if (payingCostId && paymentDate) {
+                  markPaidMutation.mutate({ id: payingCostId, date: paymentDate });
+                }
+              }}
+              disabled={!paymentDate || markPaidMutation.isPending}
+            >
+              {markPaidMutation.isPending ? "Salvataggio..." : "Conferma Pagamento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Duplicate Recurring Confirm */}
       <AlertDialog open={showDuplicateConfirm} onOpenChange={setShowDuplicateConfirm}>
