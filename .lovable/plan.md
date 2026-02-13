@@ -1,49 +1,46 @@
 
-# Piano: Miglioramento Flag Pagamento con Data e Duplicazione Costi
 
-## Situazione attuale
+# Piano: Flag Pagato/Non Pagato per Articoli Ordine nei Costi Variabili
 
-La funzionalita di duplicazione costi ricorrenti esiste gia con selezione multi-periodo. Il problema principale e nel flusso di pagamento: quando si clicca "Segna come pagato", il sistema imposta automaticamente la data odierna senza chiedere nulla. Questo non va bene perche spesso si registra un pagamento avvenuto in una data diversa.
+## Problema
 
-## Modifiche
+Attualmente gli articoli degli ordini che compaiono nei Costi Variabili (quelli con stato "da_ordinare" o "ordinato") sono solo in lettura: l'unica azione possibile e "Vai all'ordine". Non c'e modo di segnare se il materiale e stato pagato o meno, ne di registrare la data del pagamento.
 
-### 1. Dialog di pagamento con data personalizzabile
+## Soluzione
+
+### 1. Migrazione Database
+
+Aggiungere due colonne alla tabella `order_items`:
+- `is_paid` (boolean, default false)
+- `paid_date` (date, nullable)
+
+Questo permette di tracciare il pagamento di ogni singolo articolo direttamente nella tabella esistente.
+
+### 2. Modifiche al Componente CompanyCostsManager
 
 **File**: `src/components/forecast/CompanyCostsManager.tsx`
 
-Sostituire l'`AlertDialog` di conferma pagamento (righe 949-963) con un `Dialog` completo che include:
-- Titolo "Registra Pagamento"
-- Un campo data pre-compilato con la data odierna, modificabile dall'utente
-- Pulsante "Conferma Pagamento" e "Annulla"
+- Aggiornare la trasformazione degli order items (`orderItemsAsVariableCosts`) per leggere `is_paid` e `paid_date` dall'articolo
+- Nella colonna Azioni delle righe "Da Ordine", aggiungere:
+  - Se NON pagato: icona check verde che apre il dialog con data di pagamento (stesso dialog gia usato per i costi manuali)
+  - Se pagato: icona undo arancione per riportare a "non pagato"
+- Aggiornare il badge di stato: se l'articolo e pagato, mostrare "Pagato il DD/MM/YYYY"
+- Creare due nuove mutation:
+  - `markOrderItemPaidMutation`: aggiorna `order_items` con `is_paid = true, paid_date = data`
+  - `markOrderItemUnpaidMutation`: aggiorna `order_items` con `is_paid = false, paid_date = null`
+- Aggiornare i filtri di stato per gestire correttamente gli articoli pagati/non pagati
+- Aggiornare i totali KPI per escludere gli articoli gia pagati dal "Da pagare"
+- Mantenere il link "Vai all'ordine" accanto alle nuove azioni
 
-Modifiche tecniche:
-- Aggiungere uno stato `paymentDate` (stringa, default data odierna)
-- Quando si clicca il check verde, si apre il dialog e si pre-compila `paymentDate` con oggi
-- Aggiornare `markPaidMutation` per usare la data selezionata invece di `new Date()`
-- Aggiungere anche la possibilita di "togliere" il flag pagato (toggle): se il costo e gia pagato, un clic riporta a "non pagato"
-
-### 2. Toggle Pagato/Non Pagato nella tabella
-
-Nella colonna Azioni della tabella, aggiungere:
-- Se il costo NON e pagato: icona check verde che apre il dialog con data
-- Se il costo E pagato: icona "X" o "undo" che riporta a non pagato (con conferma rapida)
-- Mostrare la data di pagamento nel badge "Pagato" (es. "Pagato il 15/01/2026")
-
-### 3. Verifica duplicazione
-
-La funzionalita di duplicazione multi-periodo e gia implementata e funzionante. Nessuna modifica necessaria.
-
----
-
-## Riepilogo tecnico
+### 3. Dettagli tecnici
 
 | Modifica | Dettaglio |
 |----------|-----------|
-| Stato `paymentDate` | Nuovo state per la data selezionata nel dialog |
-| Dialog pagamento | Sostituisce AlertDialog con Dialog + campo data |
-| `markPaidMutation` | Accetta oggetto `{id, date}` invece di solo `id` |
-| Nuovo `markUnpaidMutation` | Riporta `is_paid = false, paid_date = null` |
-| Badge "Pagato" | Mostra la data di pagamento effettiva |
-| Toggle in tabella | Check verde (non pagato -> dialog) / Undo (pagato -> non pagato) |
+| Migrazione | `ALTER TABLE order_items ADD COLUMN is_paid boolean DEFAULT false, ADD COLUMN paid_date date` |
+| Query order_items | Aggiungere `is_paid, paid_date` al select |
+| `markOrderItemPaidMutation` | UPDATE order_items SET is_paid=true, paid_date=? WHERE id=? |
+| `markOrderItemUnpaidMutation` | UPDATE order_items SET is_paid=false, paid_date=null WHERE id=? |
+| Dialog pagamento | Riutilizzare lo stesso dialog gia presente, distinguendo se si sta pagando un costo manuale o un articolo ordine |
+| Badge stato | Articolo pagato mostra "Pagato il DD/MM/YYYY" invece di "Da pagare"/"Ordinato" |
+| Filtri | Articoli pagati visibili con filtro "Pagati", esclusi da "Da pagare" |
 
-Nessuna migrazione database necessaria.
