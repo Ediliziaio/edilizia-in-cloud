@@ -102,6 +102,7 @@ type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
 // Unified cost item type used for rendering
 interface UnifiedCost {
   id: string;
+  realOrderItemId?: string;
   name: string;
   cost_type: string;
   amount: number;
@@ -158,7 +159,7 @@ export default function CompanyCostsManager() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("id, name, quantity, purchase_price, status, supplier:suppliers(name), order:orders!inner(id, order_code, company_id)")
+        .select("id, name, quantity, purchase_price, status, is_paid, paid_date, supplier:suppliers(name), order:orders!inner(id, order_code, company_id)")
         .in("status", ["da_ordinare", "ordinato"]);
       if (error) throw error;
       return (data || []) as any[];
@@ -185,14 +186,15 @@ export default function CompanyCostsManager() {
   const orderItemsAsVariableCosts: UnifiedCost[] = useMemo(() => {
     return orderItemCosts.map((item: any) => ({
       id: `order-item-${item.id}`,
+      realOrderItemId: item.id,
       name: item.name,
       cost_type: "variable",
       amount: (Number(item.purchase_price) || 0) * (Number(item.quantity) || 1),
       category: "Materiali",
       recurrence: "once",
-      due_date: new Date().toISOString().split("T")[0], // current date as reference
-      is_paid: false,
-      paid_date: null,
+      due_date: new Date().toISOString().split("T")[0],
+      is_paid: !!item.is_paid,
+      paid_date: item.paid_date || null,
       notes: null,
       order_id: item.order?.id || null,
       order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
@@ -255,8 +257,12 @@ export default function CompanyCostsManager() {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((c) => c.name.toLowerCase().includes(q));
     }
-    // Status filter: order items are always "unpaid", so hide them if filtering for "paid"
-    if (statusFilter === "paid") return [];
+    // Status filter for order items
+    if (statusFilter === "paid") {
+      filtered = filtered.filter((c) => c.is_paid);
+    } else if (statusFilter === "unpaid") {
+      filtered = filtered.filter((c) => !c.is_paid);
+    }
     return filtered;
   }, [orderItemsAsVariableCosts, searchQuery, statusFilter]);
 
@@ -368,6 +374,39 @@ export default function CompanyCostsManager() {
       queryClient.invalidateQueries({ queryKey: ["company-costs"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       toast({ title: "Costo riportato a non pagato" });
+    },
+  });
+
+  // Order item payment mutations
+  const markOrderItemPaidMutation = useMutation({
+    mutationFn: async ({ id, date }: { id: string; date: string }) => {
+      const { error } = await supabase
+        .from("order_items")
+        .update({ is_paid: true, paid_date: date } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-item-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      setPayDialogOpen(false);
+      setPayingCostId(null);
+      toast({ title: "Articolo segnato come pagato" });
+    },
+  });
+
+  const markOrderItemUnpaidMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("order_items")
+        .update({ is_paid: false, paid_date: null } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-item-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      toast({ title: "Articolo riportato a non pagato" });
     },
   });
 
@@ -490,13 +529,19 @@ export default function CompanyCostsManager() {
   );
   const overdueCosts = costs.filter((c: any) => !c.is_paid && new Date(c.due_date) < now);
 
-  const orderItemsTotalUnpaid = orderItemsAsVariableCosts.reduce((s, c) => s + c.amount, 0);
+  const orderItemsTotalUnpaid = orderItemsAsVariableCosts.filter(c => !c.is_paid).reduce((s, c) => s + c.amount, 0);
   const totalUnpaidThisMonth = thisMonthUnpaid.reduce((s: number, c: any) => s + Number(c.amount), 0) + orderItemsTotalUnpaid;
   const totalPaidThisMonth = thisMonthPaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
   const totalOverdue = overdueCosts.reduce((s: number, c: any) => s + Number(c.amount), 0);
 
   const getStatusBadge = (cost: UnifiedCost) => {
     if (cost.isFromOrder) {
+      if (cost.is_paid) {
+        const paidLabel = cost.paid_date
+          ? `Pagato il ${format(new Date(cost.paid_date), "dd/MM/yyyy", { locale: it })}`
+          : "Pagato";
+        return <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400">{paidLabel}</Badge>;
+      }
       if (cost.orderItemStatus === "ordinato") {
         return <Badge className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Ordinato</Badge>;
       }
@@ -623,12 +668,39 @@ export default function CompanyCostsManager() {
                   )}
                   <TableCell className="text-right">
                     {cost.isFromOrder ? (
-                      <Link to={`/azienda/ordini/${cost.order?.id}`}>
-                        <Button size="sm" variant="ghost" className="gap-1 text-xs">
-                          <ExternalLink className="h-3 w-3" />
-                          Vai all'ordine
-                        </Button>
-                      </Link>
+                      <div className="flex justify-end gap-1">
+                        {!cost.is_paid ? (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-green-600 hover:text-green-700"
+                            onClick={() => {
+                              setPayingCostId(cost.id);
+                              setPaymentDate(format(new Date(), "yyyy-MM-dd"));
+                              setPayDialogOpen(true);
+                            }}
+                            title="Segna come pagato"
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-orange-600 hover:text-orange-700"
+                            onClick={() => markOrderItemUnpaidMutation.mutate((cost as any).realOrderItemId)}
+                            title="Riporta a non pagato"
+                          >
+                            <Undo2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Link to={`/azienda/ordini/${cost.order?.id}`}>
+                          <Button size="sm" variant="ghost" className="gap-1 text-xs">
+                            <ExternalLink className="h-3 w-3" />
+                            Vai all'ordine
+                          </Button>
+                        </Link>
+                      </div>
                     ) : (
                       <div className="flex justify-end gap-1">
                         {!cost.is_paid ? (
@@ -1004,12 +1076,17 @@ export default function CompanyCostsManager() {
             <Button
               onClick={() => {
                 if (payingCostId && paymentDate) {
-                  markPaidMutation.mutate({ id: payingCostId, date: paymentDate });
+                  if (payingCostId.startsWith("order-item-")) {
+                    const realId = payingCostId.replace("order-item-", "");
+                    markOrderItemPaidMutation.mutate({ id: realId, date: paymentDate });
+                  } else {
+                    markPaidMutation.mutate({ id: payingCostId, date: paymentDate });
+                  }
                 }
               }}
-              disabled={!paymentDate || markPaidMutation.isPending}
+              disabled={!paymentDate || markPaidMutation.isPending || markOrderItemPaidMutation.isPending}
             >
-              {markPaidMutation.isPending ? "Salvataggio..." : "Conferma Pagamento"}
+              {(markPaidMutation.isPending || markOrderItemPaidMutation.isPending) ? "Salvataggio..." : "Conferma Pagamento"}
             </Button>
           </DialogFooter>
         </DialogContent>
