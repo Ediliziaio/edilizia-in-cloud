@@ -211,13 +211,48 @@ export default function CreateOrder() {
           position: index,
           supplier_id: item.supplier_id || null,
           purchase_price: item.purchase_price || 0,
+          vat_rate: item.vat_rate ?? 22,
+          stock_item_id: item.stock_item_id || null,
         }));
 
-        const { error: itemsError } = await supabase
+        const { data: insertedItems, error: itemsError } = await supabase
           .from("order_items")
-          .insert(itemsToInsert);
+          .insert(itemsToInsert)
+          .select();
 
         if (itemsError) throw itemsError;
+
+        // Auto stock decrement for items picked from warehouse
+        if (insertedItems) {
+          for (const inserted of insertedItems) {
+            if (inserted.stock_item_id) {
+              // Get current stock quantity
+              const { data: currentStock } = await supabase
+                .from("warehouse_stock")
+                .select("quantity")
+                .eq("id", inserted.stock_item_id)
+                .single();
+
+              if (currentStock) {
+                // Decrement stock
+                await supabase
+                  .from("warehouse_stock")
+                  .update({ quantity: Math.max(0, currentStock.quantity - (inserted.quantity || 1)) })
+                  .eq("id", inserted.stock_item_id);
+
+                // Create movement record
+                await supabase.from("warehouse_movements").insert({
+                  stock_item_id: inserted.stock_item_id,
+                  order_item_id: inserted.id,
+                  movement_type: "scarico",
+                  quantity: inserted.quantity || 1,
+                  notes: `Prelievo automatico per ordine ${orderCode.trim() || order.id.slice(0, 8)}`,
+                  performed_by: user!.id,
+                });
+              }
+            }
+          }
+        }
       }
 
       // Create salesperson commission if selected
