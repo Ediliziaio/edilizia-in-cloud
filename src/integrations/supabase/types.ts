@@ -1080,6 +1080,7 @@ export type Database = {
           description: string | null
           features: Json | null
           id: string
+          included_modules: Json | null
           is_active: boolean
           max_orders: number
           max_storage_mb: number
@@ -1098,6 +1099,7 @@ export type Database = {
           description?: string | null
           features?: Json | null
           id?: string
+          included_modules?: Json | null
           is_active?: boolean
           max_orders?: number
           max_storage_mb?: number
@@ -1116,6 +1118,7 @@ export type Database = {
           description?: string | null
           features?: Json | null
           id?: string
+          included_modules?: Json | null
           is_active?: boolean
           max_orders?: number
           max_storage_mb?: number
