@@ -63,6 +63,7 @@ import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
+import { sectorLabels, sectors, statusConfig } from "@/lib/companyUtils";
 
 interface CompanyStats {
   ordersCount: number;
@@ -72,35 +73,6 @@ interface CompanyStats {
   openTicketsCount: number;
   teamCount: number;
 }
-
-const sectorLabels: Record<string, string> = {
-  serramenti: "Serramenti",
-  infissi: "Infissi",
-  bagni: "Bagni",
-  tetti: "Tetti",
-  fotovoltaico: "Fotovoltaico",
-  pittura: "Pittura",
-  ristrutturazioni: "Ristrutturazioni",
-  altro: "Altro",
-};
-
-const sectors: { value: CompanySector; label: string }[] = [
-  { value: "serramenti", label: "Serramenti" },
-  { value: "infissi", label: "Infissi" },
-  { value: "bagni", label: "Bagni" },
-  { value: "tetti", label: "Tetti" },
-  { value: "fotovoltaico", label: "Fotovoltaico" },
-  { value: "pittura", label: "Pittura" },
-  { value: "ristrutturazioni", label: "Ristrutturazioni" },
-  { value: "altro", label: "Altro" },
-];
-
-const statusConfig: Record<CompanyStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  trial: { label: "Trial", variant: "outline" },
-  active: { label: "Attivo", variant: "default" },
-  suspended: { label: "Sospeso", variant: "secondary" },
-  expired: { label: "Scaduto", variant: "destructive" },
-};
 
 const eventTypeLabels: Record<string, string> = {
   trial_started: "Trial avviato",
