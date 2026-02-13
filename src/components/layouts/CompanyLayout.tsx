@@ -6,7 +6,8 @@ import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { 
   LayoutDashboard, 
   ClipboardList, 
-  Users, 
+  Users,
+  HardHat,
   HeadphonesIcon,
   Settings,
   LogOut,
@@ -49,7 +50,7 @@ const allNavItems: NavItem[] = [
   { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
   { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
   { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
-  
+  { title: "Dipendenti", url: "/azienda/dipendenti", icon: HardHat, permissionKey: "canViewEmployees", moduleKey: "employees" },
   { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon, permissionKey: "canViewTickets", moduleKey: "tickets" },
   { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
   { title: "Costi", url: "/azienda/costi", icon: Receipt, permissionKey: "canViewForecast", moduleKey: "forecast" },
