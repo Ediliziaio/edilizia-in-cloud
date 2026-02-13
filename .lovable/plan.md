@@ -1,181 +1,155 @@
 
-
-# Piano: Miglioramento Completo Tab Dettaglio Azienda
+# Piano: Stabilizzazione, Bug Fix e Miglioramenti UX
 
 ## Panoramica
 
-Aggiungere i campi anagrafici mancanti alla tabella `companies` e migliorare tutte le tab del dettaglio azienda con un design professionale da gestionale SaaS.
+Analisi completa del codebase con identificazione di bug, codice morto, warning console e problemi UX. Di seguito il piano dettagliato di interventi.
 
 ---
 
-## 1. Nuovi Campi Database (Migrazione SQL)
+## 1. Bug e Warning da Correggere
 
-Aggiungere alla tabella `companies` i seguenti campi:
+### 1.1 Warning Console: "Function components cannot be given refs"
 
-| Campo | Tipo | Descrizione |
-|-------|------|-------------|
-| `business_name` | text | Ragione sociale |
-| `vat_number` | text | Partita IVA |
-| `fiscal_code` | text | Codice Fiscale |
-| `phone` | text | Telefono aziendale |
-| `pec` | text | PEC (posta certificata) |
-| `sdi_code` | text | Codice SDI (fatturazione elettronica) |
-| `legal_address` | text | Indirizzo sede legale |
-| `legal_city` | text | Citta sede legale |
-| `legal_province` | text | Provincia (sigla) |
-| `legal_postal_code` | text | CAP |
-| `operational_address` | text | Indirizzo sede operativa |
-| `operational_city` | text | Citta operativa |
-| `operational_province` | text | Provincia operativa |
-| `operational_postal_code` | text | CAP operativo |
-| `website` | text | Sito web |
-| `notes` | text | Note interne Super Admin |
+Il warning viene generato perche `CompaniesList` e un function component esportato come `export default function` senza `forwardRef`. React Router lo monta come child di `Outlet` che tenta di passare un ref. La soluzione e ignorabile (non causa errori funzionali), ma per pulire la console bisogna verificare se il componente riceve un ref dal parent.
 
-Tutti nullable, nessun impatto sui dati esistenti.
+**Azione**: Il warning sembra provenire dal `Select` di Radix dentro `CompaniesList`. Non e un bug critico ma va investigato il passaggio di ref a `Select`.
 
----
+### 1.2 Login.tsx - Redirect incompleto per ruoli employee e salesperson
 
-## 2. Tab "Dettagli di base" - Layout Professionale
+In `Login.tsx` (riga 82-90), il `switch` per il redirect dopo login non include `employee` e `salesperson`:
+```
+case "super_admin": return <Navigate to="/admin" />;
+case "company_admin":
+case "company_staff": return <Navigate to="/azienda" />;
+case "customer": return <Navigate to="/cliente" />;
+// MANCANO: employee, salesperson
+```
 
-Layout a 2 colonne (2/3 + 1/3):
+**Azione**: Aggiungere i case mancanti:
+- `employee` -> `/dipendente`
+- `salesperson` -> `/venditore`
 
-**Colonna sinistra** - Form organizzato in 3 sezioni con separatori:
+### 1.3 CompanyDetail.tsx - useEffect con `form` nelle dipendenze
 
-*Sezione 1 - "Identificazione"*
-- Ragione sociale (`business_name`)
-- Nome commerciale (`name`)
-- Email, Telefono
-- Settore (select)
+In `CompanyDetail.tsx` riga 242, `form` e nelle dipendenze di `useEffect` ma `form` e un oggetto `useForm` che cambia ad ogni render, causando potenziali re-fetch infiniti.
 
-*Sezione 2 - "Dati Fiscali"*
-- Partita IVA, Codice Fiscale
-- PEC, Codice SDI
-- Sito web
+**Azione**: Rimuovere `form` dalle dipendenze dell'`useEffect` e usare `form.reset()` fuori dal ciclo di dipendenze.
 
-*Sezione 3 - "Sede Legale"*
-- Indirizzo, CAP, Citta, Provincia
+### 1.4 CompanyDetail.tsx - Mixing useEffect + useState con useQuery
 
-*Sezione 4 - "Sede Operativa"* (con checkbox "uguale alla sede legale")
-- Indirizzo, CAP, Citta, Provincia
+Il componente usa `useEffect` manuale con `useState` per caricare company e stats (righe 204-242), invece di usare `useQuery` come fa per gli altri dati (team, plan, logs). Questo crea inconsistenza e impedisce il caching/refetch automatico.
 
-*Sezione 5 - "Note interne"*
-- Textarea per annotazioni del Super Admin
-
-Bottone "Salva Modifiche" sticky in basso.
-
-**Colonna destra** - Card riepilogo (gia presente, migliorata):
-- Logo o placeholder
-- Nome + ragione sociale
-- Badge stato e settore
-- Piano attuale
-- Date importanti (creazione, aggiornamento, scadenza trial)
-- Contatori rapidi (ordini, clienti, team)
+**Azione**: Convertire il fetch iniziale di company e stats in `useQuery` per consistenza e caching.
 
 ---
 
-## 3. Tab "SaaS" - Miglioramenti
+## 2. Codice da Rimuovere / Pulire
 
-Aggiungere:
-- Card "Storage" con spazio usato (basato su `max_storage_mb` del piano)
-- Sezione "Limiti piano" piu visiva con icone e numeri grandi
-- Confronto visivo tra piano attuale e piani superiori (upsell info)
-- Separare "Moduli inclusi" con icone piu grandi e descrizione per ogni modulo
+### 2.1 Import inutilizzati in AdminLayout.tsx
 
----
+`CreditCard` e importato ma non usato (era per la voce "Abbonamenti" rimossa). La voce e ancora presente in `navItems` come "Piani" e usa `CreditCard`, quindi in realta e ancora usato. **Nessuna azione necessaria.**
 
-## 4. Tab "Abbonamento" - Miglioramenti
+### 2.2 Commenti legacy in App.tsx
 
-- Aggiungere ID Stripe customer se presente
-- Aggiungere data inizio abbonamento corrente (da `company_subscriptions`)
-- Timeline storico piu ricca con icone per tipo evento
-- Card con dati fatturazione (ragione sociale + P.IVA dal tab dettagli, mostrati in sola lettura)
+Righe 26, 31, 104 contengono commenti su file rimossi (`EditCompany`, `Subscriptions`). Sono rumore.
 
----
+**Azione**: Rimuovere i commenti obsoleti.
 
-## 5. Tab "Attivita" - Miglioramenti
+### 2.3 Duplicazione `sectorLabels` e `statusConfig`
 
-- Aggiungere card "Valore medio ordine" (ordersValue / ordersCount)
-- Aggiungere card "Team" con conteggio per ruolo
-- Aggiungere sezione "Ultimi ordini" (lista degli ultimi 5 ordini con stato)
-- Aggiungere sezione "Ultimi ticket" (lista degli ultimi 5 ticket)
+Queste costanti sono duplicate tra `CompaniesList.tsx` e `CompanyDetail.tsx`.
+
+**Azione**: Estrarre in un file condiviso `src/lib/companyUtils.ts` per DRY (opzionale, bassa priorita).
 
 ---
 
-## File da Modificare
+## 3. Miglioramenti UX
+
+### 3.1 CompaniesList - Loading state migliorato
+
+Attualmente mostra solo testo "Caricamento...". Aggiungere un `Loader2` animato per feedback visivo coerente.
+
+### 3.2 CompanyDetail - Feedback salvataggio migliorato
+
+Il bottone "Salva Modifiche" potrebbe mostrare un breve stato di successo (es. checkmark) dopo il salvataggio, non solo il toast.
+
+### 3.3 CompanyDetail - Mutazioni con loading state
+
+I bottoni "Sospendi", "Riattiva", "Estendi Trial", "Conferma" nel dialog cambio piano non mostrano loading state durante le mutazioni.
+
+**Azione**: Aggiungere `disabled` e spinner durante `isPending` delle mutazioni.
+
+### 3.4 Empty states coerenti
+
+Verificare che tutte le tab abbiano empty state con CTA chiare (gia presenti nella maggior parte dei casi).
+
+---
+
+## 4. File da Modificare
 
 | File | Azione | Descrizione |
 |------|--------|-------------|
-| Migrazione SQL | Crea | Aggiungere campi anagrafici a `companies` |
-| `src/pages/admin/CompanyDetail.tsx` | Riscrivere | Tutti i miglioramenti alle 4 tab + tab Team |
-| `src/types/auth.ts` | Modifica | Aggiornare interfaccia `Company` con nuovi campi |
+| `src/pages/Login.tsx` | Fix | Aggiungere redirect per employee e salesperson |
+| `src/pages/admin/CompanyDetail.tsx` | Fix + UX | Rimuovere `form` da useEffect deps, convertire fetch a useQuery, aggiungere loading state ai bottoni mutazione |
+| `src/pages/admin/CompaniesList.tsx` | UX | Migliorare loading state con spinner |
+| `src/App.tsx` | Pulizia | Rimuovere commenti legacy |
 
 ---
 
 ## Dettagli Tecnici
 
-### Migrazione SQL
+### Fix Login.tsx (critico)
 
-```text
-ALTER TABLE companies
-  ADD COLUMN business_name text,
-  ADD COLUMN vat_number text,
-  ADD COLUMN fiscal_code text,
-  ADD COLUMN phone text,
-  ADD COLUMN pec text,
-  ADD COLUMN sdi_code text,
-  ADD COLUMN legal_address text,
-  ADD COLUMN legal_city text,
-  ADD COLUMN legal_province text,
-  ADD COLUMN legal_postal_code text,
-  ADD COLUMN operational_address text,
-  ADD COLUMN operational_city text,
-  ADD COLUMN operational_province text,
-  ADD COLUMN operational_postal_code text,
-  ADD COLUMN website text,
-  ADD COLUMN notes text;
+Aggiungere dopo riga 88:
+```
+case "employee":
+  return <Navigate to="/dipendente" replace />;
+case "salesperson":
+  return <Navigate to="/venditore" replace />;
+```
+Aggiungere anche un `default` che reindirizzi a `/` per sicurezza.
+
+### Fix CompanyDetail.tsx - useEffect
+
+Cambiare le dipendenze dell'useEffect da `[id, form]` a `[id]` e garantire che `form.reset()` venga chiamato correttamente senza causare loop.
+
+Idealmente, convertire tutto il fetch iniziale in `useQuery`:
+```
+const { data: company, isLoading } = useQuery({
+  queryKey: ["company-detail", id],
+  queryFn: async () => { ... },
+  enabled: !!id,
+});
 ```
 
-### Form Schema aggiornato
+### Bottoni mutazione con loading
 
-```text
-formSchema = z.object({
-  name: z.string().min(2),
-  business_name: z.string().optional(),
-  email: z.string().email(),
-  phone: z.string().optional(),
-  sector: z.enum([...]),
-  vat_number: z.string().optional(),
-  fiscal_code: z.string().optional(),
-  pec: z.string().optional(),
-  sdi_code: z.string().optional(),
-  legal_address: z.string().optional(),
-  legal_city: z.string().optional(),
-  legal_province: z.string().optional(),
-  legal_postal_code: z.string().optional(),
-  operational_address: z.string().optional(),
-  operational_city: z.string().optional(),
-  operational_province: z.string().optional(),
-  operational_postal_code: z.string().optional(),
-  website: z.string().optional(),
-  notes: z.string().optional(),
-})
+Per ogni `useMutation`, usare `mutation.isPending` per disabilitare il bottone e mostrare spinner:
+```
+<Button
+  disabled={updateStatusMutation.isPending}
+  onClick={...}
+>
+  {updateStatusMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  Sospendi
+</Button>
 ```
 
-### Tab Attivita - Query aggiuntive
+### CompaniesList loading
 
-```text
--- Ultimi 5 ordini
-SELECT id, description, total_amount, created_at, current_status_id
-FROM orders WHERE company_id = :id
-ORDER BY created_at DESC LIMIT 5
-
--- Ultimi 5 ticket
-SELECT id, subject, status, created_at
-FROM tickets WHERE company_id = :id
-ORDER BY created_at DESC LIMIT 5
+Sostituire il testo "Caricamento..." con il pattern standard usato ovunque:
+```
+<div className="flex items-center justify-center py-12">
+  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+</div>
 ```
 
-### Interfaccia Company aggiornata
+---
 
-Aggiungere i nuovi campi opzionali (tutti `string | null`) all'interfaccia `Company` in `src/types/auth.ts`.
+## Riepilogo Priorita
 
+1. **CRITICO**: Login.tsx - redirect mancanti per employee/salesperson (causa dead-end dopo login)
+2. **ALTO**: CompanyDetail.tsx - `form` in useEffect deps (potenziale loop)
+3. **MEDIO**: Loading states e feedback UX su mutazioni
+4. **BASSO**: Pulizia commenti, DRY costanti duplicate
