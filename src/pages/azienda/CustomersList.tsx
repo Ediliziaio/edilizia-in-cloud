@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -67,6 +67,7 @@ export default function CustomersList() {
   
   const { effectiveCompany, user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Fetch customers for the company
   const { data: customers = [], isLoading } = useQuery({
@@ -175,6 +176,31 @@ export default function CustomersList() {
       });
     }
   };
+
+  // Delete customer mutation
+  const deleteCustomerMutation = useMutation({
+    mutationFn: async (customerId: string) => {
+      const { error } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("id", customerId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      toast({
+        title: "Cliente eliminato",
+        description: "Il cliente è stato eliminato con successo",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Errore",
+        description: error instanceof Error ? error.message : "Impossibile eliminare il cliente",
+        variant: "destructive",
+      });
+    },
+  });
 
   const filteredCustomers = customers.filter(
     (customer) =>
@@ -323,6 +349,49 @@ export default function CustomersList() {
                             >
                               Conferma Reset
                             </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={deleteCustomerMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Elimina Cliente</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {customer.order_count > 0 ? (
+                                <>
+                                  Impossibile eliminare {customer.first_name} {customer.last_name} perché ha{" "}
+                                  <strong>{customer.order_count} ordini</strong> associati.
+                                  <br />
+                                  Elimina prima tutti gli ordini del cliente.
+                                </>
+                              ) : (
+                                <>
+                                  Sei sicuro di voler eliminare {customer.first_name} {customer.last_name}?
+                                  <br />
+                                  Questa azione non può essere annullata.
+                                </>
+                              )}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annulla</AlertDialogCancel>
+                            {customer.order_count === 0 && (
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => deleteCustomerMutation.mutate(customer.id)}
+                              >
+                                Elimina
+                              </AlertDialogAction>
+                            )}
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
