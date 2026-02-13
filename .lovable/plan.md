@@ -1,59 +1,48 @@
 
 
-# Fix: Lista Clienti non carica - errore relazione DB
+# Azioni Rapide: Eliminazione Clienti e Ordini
 
-## Problema
-La query in `CustomersList.tsx`, `CreateOrder.tsx` e `EditOrder.tsx` usa un join PostgREST tra `profiles` e `user_roles`:
-```
-.select("id, first_name, last_name, email, phone, user_roles!inner(role)")
-```
+## Cosa viene aggiunto
 
-PostgREST restituisce errore 400:
-```
-"Could not find a relationship between 'profiles' and 'user_roles' in the schema cache"
-```
+### 1. Lista Clienti (`CustomersList.tsx`)
+- Aggiungere un pulsante **Elimina** (icona cestino) nella colonna Azioni, accanto a Modifica e Reset Password
+- L'eliminazione e protetta da un AlertDialog di conferma
+- Se il cliente ha ordini associati (`order_count > 0`), l'eliminazione viene bloccata con messaggio esplicativo
+- Dopo l'eliminazione, la lista si aggiorna automaticamente tramite `invalidateQueries`
 
-Non esiste una foreign key diretta tra `profiles.id` e `user_roles.user_id`. Entrambe le tabelle referenziano `auth.users(id)` separatamente, ma non sono collegate tra loro.
+### 2. Lista Ordini (`OrdersList.tsx`)
+- Sostituire il singolo pulsante "Visualizza" con un gruppo di 3 azioni:
+  - **Visualizza** (icona occhio) - link al dettaglio ordine (gia esistente)
+  - **Modifica** (icona matita) - link alla pagina di modifica ordine (`/azienda/ordini/${id}/modifica`)
+  - **Elimina** (icona cestino) - con AlertDialog di conferma
+- L'eliminazione dell'ordine cancella prima i dati collegati (order_items, order_status_history, order_employees, order_external_teams, order_salespeople, order_attachments) e poi l'ordine stesso
+- Dopo l'eliminazione, la lista si aggiorna automaticamente
 
-## Causa Root
-Il fix precedente (filtrare per ruolo `customer`) ha introdotto un join non supportato dallo schema. Il campo `user_roles.user_id` ha FK verso `auth.users`, non verso `profiles`.
+## Dettaglio Tecnico
 
-## Soluzione
-Usare due query separate invece del join PostgREST:
+### CustomersList.tsx
+- Aggiungere `useMutation` e `useQueryClient` per la delete
+- Aggiungere icona `Trash2` da lucide-react
+- Prima di eliminare: verificare `order_count === 0`
+- Query: `supabase.from("profiles").delete().eq("id", customerId)`
+- Invalidare `["customers-list"]`
 
-1. Query `user_roles` per ottenere tutti gli `user_id` con ruolo `customer`
-2. Query `profiles` filtrando per quegli ID e per `company_id`
+### OrdersList.tsx
+- Aggiungere `Pencil, Trash2` da lucide-react
+- Aggiungere `useMutation` per la delete
+- Aggiungere `AlertDialog` imports
+- Eliminazione cascata manuale (le FK non hanno ON DELETE CASCADE):
+  1. Eliminare `order_item_attachments` per ogni item dell'ordine
+  2. Eliminare `order_items`
+  3. Eliminare `order_status_history`
+  4. Eliminare `order_employees`
+  5. Eliminare `order_external_teams`
+  6. Eliminare `order_salespeople`
+  7. Eliminare `order_attachments`
+  8. Eliminare l'ordine da `orders`
+- Invalidare `["orders"]`
 
-Questo approccio evita il join non supportato ed e robusto.
+### File da modificare
+1. `src/pages/azienda/CustomersList.tsx` - aggiungere pulsante elimina con protezione ordini
+2. `src/pages/azienda/OrdersList.tsx` - aggiungere pulsanti modifica e elimina con cascata
 
-### Codice corretto (pattern da applicare a tutti e 3 i file):
-```typescript
-// Step 1: get customer user IDs
-const { data: customerRoles } = await supabase
-  .from("user_roles")
-  .select("user_id")
-  .eq("role", "customer");
-
-const customerIds = (customerRoles || []).map(r => r.user_id);
-
-if (customerIds.length === 0) return [];
-
-// Step 2: fetch profiles for those IDs within the company
-const { data, error } = await supabase
-  .from("profiles")
-  .select("id, first_name, last_name, email, phone")
-  .eq("company_id", effectiveCompany.id)
-  .in("id", customerIds)
-  .order("last_name");
-```
-
-## File da modificare
-
-1. **`src/pages/azienda/CustomersList.tsx`** - Query principale lista clienti (riga ~78-87): sostituire il join con due query separate
-2. **`src/pages/azienda/CreateOrder.tsx`** - Dropdown selezione cliente: stesso pattern
-3. **`src/pages/azienda/EditOrder.tsx`** - Dropdown selezione cliente: stesso pattern
-
-## Impatto
-- Risolve il 400 che impedisce di vedere qualsiasi cliente nella lista
-- Il cliente appena creato (flo.andriciuTRTERTc@gmail.com) diventera visibile
-- Nessuna modifica al database necessaria
