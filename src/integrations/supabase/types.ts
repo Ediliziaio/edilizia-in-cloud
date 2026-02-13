@@ -45,43 +45,91 @@ export type Database = {
       }
       companies: {
         Row: {
+          business_name: string | null
           created_at: string
           email: string
+          fiscal_code: string | null
           id: string
+          legal_address: string | null
+          legal_city: string | null
+          legal_postal_code: string | null
+          legal_province: string | null
           logo_url: string | null
           name: string
+          notes: string | null
+          operational_address: string | null
+          operational_city: string | null
+          operational_postal_code: string | null
+          operational_province: string | null
+          pec: string | null
+          phone: string | null
+          sdi_code: string | null
           sector: Database["public"]["Enums"]["company_sector"]
           status: string
           stripe_customer_id: string | null
           subscription_plan_id: string | null
           trial_ends_at: string | null
           updated_at: string
+          vat_number: string | null
+          website: string | null
         }
         Insert: {
+          business_name?: string | null
           created_at?: string
           email: string
+          fiscal_code?: string | null
           id?: string
+          legal_address?: string | null
+          legal_city?: string | null
+          legal_postal_code?: string | null
+          legal_province?: string | null
           logo_url?: string | null
           name: string
+          notes?: string | null
+          operational_address?: string | null
+          operational_city?: string | null
+          operational_postal_code?: string | null
+          operational_province?: string | null
+          pec?: string | null
+          phone?: string | null
+          sdi_code?: string | null
           sector?: Database["public"]["Enums"]["company_sector"]
           status?: string
           stripe_customer_id?: string | null
           subscription_plan_id?: string | null
           trial_ends_at?: string | null
           updated_at?: string
+          vat_number?: string | null
+          website?: string | null
         }
         Update: {
+          business_name?: string | null
           created_at?: string
           email?: string
+          fiscal_code?: string | null
           id?: string
+          legal_address?: string | null
+          legal_city?: string | null
+          legal_postal_code?: string | null
+          legal_province?: string | null
           logo_url?: string | null
           name?: string
+          notes?: string | null
+          operational_address?: string | null
+          operational_city?: string | null
+          operational_postal_code?: string | null
+          operational_province?: string | null
+          pec?: string | null
+          phone?: string | null
+          sdi_code?: string | null
           sector?: Database["public"]["Enums"]["company_sector"]
           status?: string
           stripe_customer_id?: string | null
           subscription_plan_id?: string | null
           trial_ends_at?: string | null
           updated_at?: string
+          vat_number?: string | null
+          website?: string | null
         }
         Relationships: [
           {

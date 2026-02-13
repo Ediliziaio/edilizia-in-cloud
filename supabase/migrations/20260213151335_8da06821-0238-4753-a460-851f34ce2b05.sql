@@ -1,0 +1,17 @@
+ALTER TABLE public.companies
+  ADD COLUMN business_name text,
+  ADD COLUMN vat_number text,
+  ADD COLUMN fiscal_code text,
+  ADD COLUMN phone text,
+  ADD COLUMN pec text,
+  ADD COLUMN sdi_code text,
+  ADD COLUMN legal_address text,
+  ADD COLUMN legal_city text,
+  ADD COLUMN legal_province text,
+  ADD COLUMN legal_postal_code text,
+  ADD COLUMN operational_address text,
+  ADD COLUMN operational_city text,
+  ADD COLUMN operational_province text,
+  ADD COLUMN operational_postal_code text,
+  ADD COLUMN website text,
+  ADD COLUMN notes text;
