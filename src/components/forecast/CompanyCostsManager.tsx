@@ -101,6 +101,7 @@ export default function CompanyCostsManager() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [payConfirmId, setPayConfirmId] = useState<string | null>(null);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+  const [duplicatePeriods, setDuplicatePeriods] = useState(1);
   
   // Filters
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
@@ -275,41 +276,43 @@ export default function CompanyCostsManager() {
   const recurringCosts = useMemo(() => costs.filter((c: any) => c.recurrence !== "once"), [costs]);
 
   const duplicateRecurringMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (periods: number) => {
       let created = 0;
       for (const cost of recurringCosts) {
-        const dueDate = new Date(cost.due_date);
-        let nextDate: Date;
-        if (cost.recurrence === "monthly") nextDate = addMonths(dueDate, 1);
-        else if (cost.recurrence === "quarterly") nextDate = addQuarters(dueDate, 1);
-        else nextDate = addYears(dueDate, 1);
+        for (let p = 1; p <= periods; p++) {
+          const dueDate = new Date(cost.due_date);
+          let nextDate: Date;
+          if (cost.recurrence === "monthly") nextDate = addMonths(dueDate, p);
+          else if (cost.recurrence === "quarterly") nextDate = addQuarters(dueDate, p);
+          else nextDate = addYears(dueDate, p);
 
-        const nextDateStr = format(nextDate, "yyyy-MM-dd");
+          const nextDateStr = format(nextDate, "yyyy-MM-dd");
 
-        const { data: existing } = await supabase
-          .from("company_costs")
-          .select("id")
-          .eq("company_id", companyId!)
-          .eq("name", cost.name)
-          .eq("due_date", nextDateStr)
-          .limit(1);
+          const { data: existing } = await supabase
+            .from("company_costs")
+            .select("id")
+            .eq("company_id", companyId!)
+            .eq("name", cost.name)
+            .eq("due_date", nextDateStr)
+            .limit(1);
 
-        if (existing && existing.length > 0) continue;
+          if (existing && existing.length > 0) continue;
 
-        const { error } = await supabase.from("company_costs").insert({
-          company_id: companyId!,
-          name: cost.name,
-          cost_type: cost.cost_type,
-          amount: cost.amount,
-          category: cost.category,
-          recurrence: cost.recurrence,
-          due_date: nextDateStr,
-          notes: cost.notes,
-          order_id: cost.order_id,
-          is_paid: false,
-        });
-        if (error) throw error;
-        created++;
+          const { error } = await supabase.from("company_costs").insert({
+            company_id: companyId!,
+            name: cost.name,
+            cost_type: cost.cost_type,
+            amount: cost.amount,
+            category: cost.category,
+            recurrence: cost.recurrence,
+            due_date: nextDateStr,
+            notes: cost.notes,
+            order_id: cost.order_id,
+            is_paid: false,
+          });
+          if (error) throw error;
+          created++;
+        }
       }
       return created;
     },
@@ -317,8 +320,9 @@ export default function CompanyCostsManager() {
       queryClient.invalidateQueries({ queryKey: ["company-costs"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       setShowDuplicateConfirm(false);
+      setDuplicatePeriods(1);
       toast({
-        title: count > 0 ? `${count} costi generati per il prossimo periodo` : "Nessun nuovo costo da generare (già esistenti)",
+        title: count > 0 ? `${count} costi generati` : "Nessun nuovo costo da generare (già esistenti)",
       });
     },
     onError: () => {
@@ -810,17 +814,33 @@ export default function CompanyCostsManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>Genera costi ricorrenti</AlertDialogTitle>
             <AlertDialogDescription>
-              Verranno duplicati {recurringCosts.length} costi ricorrenti per il prossimo periodo.
+              Verranno duplicati {recurringCosts.length} costi ricorrenti.
               I duplicati già esistenti verranno ignorati.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="py-4">
+            <Label>Quanti periodi in avanti generare?</Label>
+            <div className="flex items-center gap-3 mt-2">
+              <Input
+                type="number"
+                min={1}
+                max={24}
+                value={duplicatePeriods}
+                onChange={(e) => setDuplicatePeriods(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))}
+                className="w-24"
+              />
+              <span className="text-sm text-muted-foreground">
+                {duplicatePeriods === 1 ? "periodo" : "periodi"} (es. {duplicatePeriods} {duplicatePeriods === 1 ? "mese" : "mesi"} per i mensili)
+              </span>
+            </div>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => duplicateRecurringMutation.mutate()}
+              onClick={() => duplicateRecurringMutation.mutate(duplicatePeriods)}
               disabled={duplicateRecurringMutation.isPending}
             >
-              {duplicateRecurringMutation.isPending ? "Generazione..." : "Genera"}
+              {duplicateRecurringMutation.isPending ? "Generazione..." : `Genera ${duplicatePeriods} ${duplicatePeriods === 1 ? "periodo" : "periodi"}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
