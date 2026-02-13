@@ -1,61 +1,57 @@
 
+# Piano: Miglioramenti Sezione Ordini
 
-# Piano: Scarico Automatico Giacenze + Storico Movimenti
+## Panoramica
 
-## Problemi Attuali
-
-1. **`stock_item_id` e `vat_rate` non vengono salvati**: sia `CreateOrder.tsx` che `EditOrder.tsx` omettono questi campi nel mapping `itemsToInsert`
-2. **Nessuno scarico automatico**: quando l'ordine viene salvato con articoli prelevati da magazzino, la quantita in `warehouse_stock` non viene decrementata e nessun movimento viene registrato
-3. **Nessuno storico movimenti**: nel tab Giacenze non e possibile vedere i movimenti di carico/scarico per articolo
+Tre miglioramenti alla sezione Ordini:
+1. Filtro articoli per origine (Magazzino / Fornitore) nel dettaglio ordine
+2. Nuova colonna "Da Ricevere" nella tabella ordini
+3. Reportistica riepilogativa in alto con filtro mensile
 
 ---
 
-## 1. Correzione Salvataggio Articoli
+## 1. Filtro Articoli per Origine (OrderItemsList)
 
-In entrambi i file (`CreateOrder.tsx` e `EditOrder.tsx`), aggiungere `stock_item_id` e `vat_rate` al mapping `itemsToInsert`:
+Aggiungere sopra la lista articoli un piccolo ToggleGroup con tre opzioni:
+- **Tutti** (default)
+- **Da Giacenza** (solo articoli con `stock_item_id`)
+- **Da Fornitore** (solo articoli senza `stock_item_id`)
+
+Il filtro agisce solo sulla visualizzazione, non modifica i dati.
+
+---
+
+## 2. Colonna "Da Ricevere" nella Tabella Ordini
+
+Aggiungere una colonna nella tabella di `OrdersList.tsx` che mostra l'importo ancora da incassare dal cliente.
+
+Calcolo:
 
 ```text
-const itemsToInsert = orderItems.map((item, index) => ({
-  order_id: ...,
-  name: item.name,
-  description: item.description || null,
-  quantity: item.quantity,
-  status: item.status,
-  position: index,
-  supplier_id: item.supplier_id || null,
-  purchase_price: item.purchase_price || 0,
-  vat_rate: item.vat_rate ?? 22,
-  stock_item_id: item.stock_item_id || null,
-}));
+Da Ricevere = 
+  (deposit_paid ? 0 : deposit_amount) +
+  (deposit_2_paid ? 0 : deposit_2_amount) +
+  (balance_paid ? 0 : balance_amount)
 ```
 
----
-
-## 2. Scarico Automatico al Salvataggio Ordine
-
-Dopo l'insert degli `order_items`, per ogni articolo con `stock_item_id` valorizzato:
-- Decrementare `warehouse_stock.quantity` della quantita prelevata
-- Creare un record in `warehouse_movements` con `movement_type = 'scarico'` e `order_item_id` collegato
-
-Questo va fatto sia in `CreateOrder.tsx` (alla creazione) sia in `EditOrder.tsx` (al salvataggio modifiche, gestendo i delta).
-
-Per `EditOrder`, dato che fa delete + re-insert degli items, la logica sara:
-- Calcolare quali articoli con `stock_item_id` sono nuovi (non presenti prima)
-- Solo per quelli nuovi eseguire lo scarico
-
-Per semplicita e robustezza, il flusso sara:
-- Salvare gli items con `returning` per ottenere gli ID generati
-- Per ogni item con `stock_item_id`, decrementare lo stock e inserire il movimento
+La colonna viene posizionata dopo "Totale", con importo in rosso/arancione se > 0 e verde se tutto pagato (0).
 
 ---
 
-## 3. Storico Movimenti nel Tab Giacenze
+## 3. Reportistica in Alto (Stats Cards)
 
-Aggiungere un bottone "Storico" (icona History) per ogni riga della tabella stock in `WarehouseStockTab.tsx`. Al click, apre un Dialog/Sheet che mostra i movimenti dell'articolo selezionato:
+Aggiungere una riga di card statistiche sopra i filtri, calcolate sugli ordini filtrati. Le card mostreranno:
 
-- Query `warehouse_movements` filtrato per `stock_item_id`
-- Colonne: Data, Tipo (Carico/Scarico con badge colorato), Quantita, Note, Ordine collegato (se presente)
-- Ordinati per data decrescente
+| Card | Valore | Icona |
+|------|--------|-------|
+| N. Ordini | Conteggio ordini filtrati | ShoppingBag |
+| Importo Totale | Somma `total_amount` | Euro |
+| Incassato | Somma degli importi gia pagati (deposit se paid + deposit_2 se paid + balance se paid) | TrendingUp |
+| Da Incassare | Somma degli importi non pagati | AlertCircle |
+
+Tutte le statistiche si aggiornano automaticamente in base ai filtri attivi (stato, cliente, date, importo, pagamenti).
+
+Aggiungere inoltre un **filtro mese rapido** (Select con mesi dell'anno corrente + "Tutti i mesi") che filtra per `created_at` (data contratto). Questo si integra con i filtri gia esistenti.
 
 ---
 
@@ -63,70 +59,78 @@ Aggiungere un bottone "Storico" (icona History) per ogni riga della tabella stoc
 
 | File | Azione | Descrizione |
 |------|--------|-------------|
-| `src/pages/azienda/CreateOrder.tsx` | Modifica | Aggiungere `stock_item_id` + `vat_rate` al mapping items, scarico automatico dopo salvataggio |
-| `src/pages/azienda/EditOrder.tsx` | Modifica | Aggiungere `stock_item_id` + `vat_rate` al mapping items, scarico automatico per nuovi articoli da stock |
-| `src/components/warehouse/WarehouseStockTab.tsx` | Modifica | Aggiungere bottone Storico e dialog movimenti per articolo |
+| `src/components/orders/OrderItemsList.tsx` | Modifica | Aggiungere ToggleGroup filtro origine articoli |
+| `src/pages/azienda/OrdersList.tsx` | Modifica | Aggiungere colonna "Da Ricevere", stats cards in alto, filtro mese rapido |
 
-Nessuna migrazione DB necessaria.
+Nessuna migrazione DB necessaria: tutti i dati sono gia disponibili nella query esistente.
 
 ---
 
 ## Dettagli Tecnici
 
-### Scarico automatico (CreateOrder)
+### Filtro Articoli (OrderItemsList)
 
-Dopo l'insert degli items, aggiungere:
-
-```text
-// Dopo insert order_items con .select() per ottenere gli ID
-const stockItems = itemsWithIds.filter(i => i.stock_item_id);
-for (const item of stockItems) {
-  // Decrementa warehouse_stock
-  await supabase.rpc(...)  // oppure update diretto
-  // Crea movimento
-  await supabase.from("warehouse_movements").insert({
-    stock_item_id: item.stock_item_id,
-    order_item_id: item.id,
-    movement_type: "scarico",
-    quantity: item.quantity,
-    notes: "Prelievo automatico per ordine",
-    performed_by: user.id,
-  });
-}
-```
-
-Per l'update della quantita, usare un update diretto con query sulla quantita corrente:
+Nuovo state `sourceFilter` con valori `"all" | "stock" | "supplier"`. La lista renderizzata filtra gli items:
 
 ```text
-const { data: currentStock } = await supabase
-  .from("warehouse_stock")
-  .select("quantity")
-  .eq("id", item.stock_item_id)
-  .single();
-
-await supabase
-  .from("warehouse_stock")
-  .update({ quantity: Math.max(0, currentStock.quantity - item.quantity) })
-  .eq("id", item.stock_item_id);
-```
-
-### Dialog Storico Movimenti (WarehouseStockTab)
-
-Nuovo state:
-
-```text
-const [historyItem, setHistoryItem] = useState<StockItem | null>(null);
-```
-
-Query movimenti quando `historyItem` e selezionato:
-
-```text
-const { data: movements } = useQuery({
-  queryKey: ["stock-movements", historyItem?.id],
-  queryFn: ..., // select da warehouse_movements + join order_items per ottenere ordine
-  enabled: !!historyItem,
+const displayedItems = items.filter(item => {
+  if (sourceFilter === "stock") return !!item.stock_item_id;
+  if (sourceFilter === "supplier") return !item.stock_item_id;
+  return true;
 });
 ```
 
-UI: Dialog con tabella movimenti (data, tipo con badge verde/rosso, quantita, note, link ordine).
+### Colonna "Da Ricevere" (OrdersList)
 
+Helper function:
+
+```text
+function getAmountDue(order): number {
+  let due = 0;
+  if (!order.deposit_paid) due += order.deposit_amount || 0;
+  if (!order.deposit_2_paid) due += order.deposit_2_amount || 0;
+  if (!order.balance_paid) due += order.balance_amount || 0;
+  return due;
+}
+```
+
+### Stats Cards (OrdersList)
+
+Calcolo con `useMemo` su `filteredOrders`:
+
+```text
+const stats = useMemo(() => {
+  const totalOrders = filteredOrders.length;
+  const totalAmount = sum of total_amount;
+  const collected = sum of paid portions;
+  const pending = sum of unpaid portions;
+  return { totalOrders, totalAmount, collected, pending };
+}, [filteredOrders]);
+```
+
+### Filtro Mese Rapido
+
+Select con 12 mesi + "Tutti":
+
+```text
+const [monthFilter, setMonthFilter] = useState<string>("all");
+// Valori: "all", "2026-01", "2026-02", ...
+// Filtra created_at nel range del mese selezionato
+```
+
+Il filtro mese si integra con il filtro `contractDateRange` gia esistente: se l'utente seleziona un mese, imposta automaticamente il range data contratto. Se usa il date range manuale, il select mese torna su "Tutti".
+
+### Layout Stats Cards
+
+Griglia a 4 colonne (responsive):
+
+```text
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+  <Card> N. Ordini </Card>
+  <Card> Importo Totale </Card>
+  <Card> Incassato </Card>
+  <Card> Da Incassare </Card>
+</div>
+```
+
+Ogni card ha icona colorata, valore grande e label descrittiva.
