@@ -1,69 +1,49 @@
 
-# Piano: Integrazione Articoli Ordine nei Costi Variabili + Pulizia e Stabilizzazione
+# Piano: Miglioramento Flag Pagamento con Data e Duplicazione Costi
 
-## Obiettivo principale
+## Situazione attuale
 
-Gli articoli degli ordini con stato "da_ordinare" e "ordinato" devono comparire automaticamente nella sezione **Costi Variabili** del `CompanyCostsManager`, con stato "Da pagare" (perche la merce non e ancora stata pagata). Quando un articolo passa a "in_magazzino" o "installato", non serve piu mostrarlo come costo da pagare.
+La funzionalita di duplicazione costi ricorrenti esiste gia con selezione multi-periodo. Il problema principale e nel flusso di pagamento: quando si clicca "Segna come pagato", il sistema imposta automaticamente la data odierna senza chiedere nulla. Questo non va bene perche spesso si registra un pagamento avvenuto in una data diversa.
 
----
+## Modifiche
 
-## 1. Integrazione articoli ordine nei Costi Variabili
-
-**File**: `src/components/forecast/CompanyCostsManager.tsx`
-
-### Cosa cambia:
-- Aggiungere una query per recuperare gli `order_items` con status `da_ordinare` o `ordinato` (stessa query gia presente nel previsionale)
-- Creare una lista "virtuale" di costi variabili derivati dagli articoli, con:
-  - **Nome**: nome dell'articolo
-  - **Importo**: `purchase_price * quantity`
-  - **Stato**: "Da pagare" (da_ordinare) o "Ordinato" (ordinato) con badge dedicati
-  - **Ordine**: collegamento al codice ordine
-  - **Fornitore**: nome del fornitore se presente
-  - **Ricorrenza**: "Una tantum" (sono costi puntuali)
-- Questi costi "da ordine" saranno mostrati nel tab **Costi Variabili** e nel tab **Tutti**, mescolati con i costi variabili manuali ma distinguibili tramite un badge "Da Ordine"
-- NON sono editabili/cancellabili dal cost manager (si gestiscono dall'ordine)
-- Aggiornare i summary card per includere questi costi nei totali "Da pagare"
-
-### Dettagli tecnici:
-- Query: `order_items` con `.select("id, name, quantity, purchase_price, status, supplier:suppliers(name), order:orders!inner(id, order_code, company_id)")` filtrata per `status IN (da_ordinare, ordinato)`
-- Merge nella lista `variableCosts` con un flag `isFromOrder: true` per distinguerli
-- Nella tabella: riga con badge arancione "Da Ordine" + badge stato articolo, azioni disabilitate (solo link all'ordine)
-
----
-
-## 2. Fix bug: warning "Function components cannot be given refs"
+### 1. Dialog di pagamento con data personalizzabile
 
 **File**: `src/components/forecast/CompanyCostsManager.tsx`
 
-Il console log mostra un warning su `Select` di Radix. Il problema e nell'uso di `<Select>` dentro il form dialog dove viene passato un ref implicito. Il fix e assicurarsi che i `SelectTrigger` non ricevano ref non gestiti. Verifico e correggo eventuali usi errati.
+Sostituire l'`AlertDialog` di conferma pagamento (righe 949-963) con un `Dialog` completo che include:
+- Titolo "Registra Pagamento"
+- Un campo data pre-compilato con la data odierna, modificabile dall'utente
+- Pulsante "Conferma Pagamento" e "Annulla"
 
----
+Modifiche tecniche:
+- Aggiungere uno stato `paymentDate` (stringa, default data odierna)
+- Quando si clicca il check verde, si apre il dialog e si pre-compila `paymentDate` con oggi
+- Aggiornare `markPaidMutation` per usare la data selezionata invece di `new Date()`
+- Aggiungere anche la possibilita di "togliere" il flag pagato (toggle): se il costo e gia pagato, un clic riporta a "non pagato"
 
-## 3. Pulizia codice e stabilizzazione
+### 2. Toggle Pagato/Non Pagato nella tabella
 
-### 3a. Rimozioni
-- Rimuovere import inutilizzati in `CompanyCostsManager.tsx` (verifico dopo analisi completa)
-- Rimuovere eventuali variabili non referenziate
+Nella colonna Azioni della tabella, aggiungere:
+- Se il costo NON e pagato: icona check verde che apre il dialog con data
+- Se il costo E pagato: icona "X" o "undo" che riporta a non pagato (con conferma rapida)
+- Mostrare la data di pagamento nel badge "Pagato" (es. "Pagato il 15/01/2026")
 
-### 3b. Fix funzionali
-- Gestire il caso `SelectItem value=""` (non valido in Radix Select) nel campo "Collega a ordine" - usare `"none"` al posto di stringa vuota
-- Assicurarsi che i filtri funzionino correttamente con i nuovi costi da ordine
-- Gestire il riepilogo annuale per escludere i costi da ordine (sono puntuali, non ricorrenti)
+### 3. Verifica duplicazione
 
-### 3c. UX
-- Badge "Da Ordine" colorato (es. arancione) per distinguere i costi automatici da quelli manuali
-- Tooltip sulle righe da ordine: "Questo costo viene dagli articoli dell'ordine. Gestiscilo dalla pagina ordine."
-- Aggiungere link diretto all'ordine cliccando sul codice ordine
-- Loading skeleton per la nuova query
-- Conteggi aggiornati nei tab (includendo articoli ordine)
+La funzionalita di duplicazione multi-periodo e gia implementata e funzionante. Nessuna modifica necessaria.
 
 ---
 
 ## Riepilogo tecnico
 
-| File | Modifica |
-|------|----------|
-| `src/components/forecast/CompanyCostsManager.tsx` | Query order_items, merge nei costi variabili, badge "Da Ordine", fix Select ref warning, fix SelectItem value vuoto, pulizia import |
-| `src/pages/azienda/CashFlowForecast.tsx` | Nessuna modifica (gia integrato nel previsionale) |
+| Modifica | Dettaglio |
+|----------|-----------|
+| Stato `paymentDate` | Nuovo state per la data selezionata nel dialog |
+| Dialog pagamento | Sostituisce AlertDialog con Dialog + campo data |
+| `markPaidMutation` | Accetta oggetto `{id, date}` invece di solo `id` |
+| Nuovo `markUnpaidMutation` | Riporta `is_paid = false, paid_date = null` |
+| Badge "Pagato" | Mostra la data di pagamento effettiva |
+| Toggle in tabella | Check verde (non pagato -> dialog) / Undo (pagato -> non pagato) |
 
-Nessuna migrazione database necessaria. I dati degli articoli ordine sono gia disponibili nella tabella `order_items`.
+Nessuna migrazione database necessaria.
