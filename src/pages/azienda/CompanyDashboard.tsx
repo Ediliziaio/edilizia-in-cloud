@@ -44,83 +44,94 @@ export default function CompanyDashboard() {
       const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
-      const [ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes, cashFlowRes, urgentItemsRes] = await Promise.all([
-        // Count total orders
+      const [ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes, cashFlowRes, urgentItemsRes, costsRes] = await Promise.all([
         supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
-        // Count total customers
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
-        // Count open tickets
         supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", companyId!).eq("status", "aperto"),
-        // Recent orders with details
         supabase
           .from("orders")
           .select(`
-            id,
-            description,
-            total_amount,
-            created_at,
+            id, description, total_amount, created_at,
             customer:profiles!orders_customer_id_fkey(first_name, last_name),
             status:order_statuses(name, color)
           `)
           .eq("company_id", companyId!)
           .order("created_at", { ascending: false })
           .limit(5),
-        // Pending revenue (all unpaid balances)
         supabase
           .from("orders")
-          .select("deposit_amount, deposit_paid, deposit_2_amount, deposit_2_paid, balance_amount, balance_paid")
+          .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date")
           .eq("company_id", companyId!),
-        // Cash flow preview (deposits + balances with expected dates)
         supabase
           .from("orders")
           .select(`
-            deposit_amount,
-            deposit_expected_date,
-            deposit_paid,
-            deposit_2_amount,
-            deposit_2_expected_date,
-            deposit_2_paid,
-            balance_amount,
-            balance_expected_date,
-            balance_paid
+            deposit_amount, deposit_expected_date, deposit_paid,
+            deposit_2_amount, deposit_2_expected_date, deposit_2_paid,
+            balance_amount, balance_expected_date, balance_paid
           `)
           .eq("company_id", companyId!),
-        // Urgent warehouse items
         supabase
           .from("order_items")
           .select(`
-            id,
-            name,
-            status,
+            id, name, status,
             order:orders!inner(
-              id,
-              order_code,
-              work_start_date,
-              expected_date,
-              company_id,
+              id, order_code, work_start_date, expected_date, company_id,
               customer:profiles!orders_customer_id_fkey(first_name, last_name)
             )
           `)
           .eq("order.company_id", companyId!)
           .neq("status", "installato")
-          .neq("status", "in_magazzino")
+          .neq("status", "in_magazzino"),
+        // Fetch unpaid costs for this month
+        supabase
+          .from("company_costs")
+          .select("amount, due_date, is_paid")
+          .eq("company_id", companyId!)
+          .eq("is_paid", false),
       ]);
 
-      // Calculate pending revenue (deposits + balance)
+      // Calculate pending revenue
       let pendingRevenue = 0;
       let pendingOrdersCount = 0;
+      let overduePayments = 0;
+      let overdueCount = 0;
+
+      const todayStr = now.toISOString().split("T")[0];
 
       pendingRevenueRes.data?.forEach(order => {
         let orderPending = 0;
-        if (!order.deposit_paid && Number(order.deposit_amount) > 0)
+        if (!order.deposit_paid && Number(order.deposit_amount) > 0) {
           orderPending += Number(order.deposit_amount);
-        if (!order.deposit_2_paid && Number(order.deposit_2_amount) > 0)
+          if (order.deposit_expected_date && order.deposit_expected_date < todayStr) {
+            overduePayments += Number(order.deposit_amount);
+            overdueCount++;
+          }
+        }
+        if (!order.deposit_2_paid && Number(order.deposit_2_amount) > 0) {
           orderPending += Number(order.deposit_2_amount);
-        if (!order.balance_paid && Number(order.balance_amount) > 0)
+          if (order.deposit_2_expected_date && order.deposit_2_expected_date < todayStr) {
+            overduePayments += Number(order.deposit_2_amount);
+            overdueCount++;
+          }
+        }
+        if (!order.balance_paid && Number(order.balance_amount) > 0) {
           orderPending += Number(order.balance_amount);
+          if (order.balance_expected_date && order.balance_expected_date < todayStr) {
+            overduePayments += Number(order.balance_amount);
+            overdueCount++;
+          }
+        }
         if (orderPending > 0) {
           pendingRevenue += orderPending;
           pendingOrdersCount++;
+        }
+      });
+
+      // Calculate unpaid costs due this month
+      let unpaidCostsThisMonth = 0;
+      costsRes.data?.forEach(cost => {
+        if (cost.due_date && cost.due_date <= thisMonthEnd.toISOString().split("T")[0]) {
+          unpaidCostsThisMonth += Number(cost.amount) || 0;
         }
       });
 
@@ -129,7 +140,6 @@ export default function CompanyDashboard() {
       let nextMonthTotal = 0;
 
       cashFlowRes.data?.forEach((order) => {
-        // Check deposit
         if (!order.deposit_paid && order.deposit_expected_date) {
           const depositDate = new Date(order.deposit_expected_date);
           if (depositDate <= thisMonthEnd) {
@@ -138,7 +148,6 @@ export default function CompanyDashboard() {
             nextMonthTotal += Number(order.deposit_amount) || 0;
           }
         }
-        // Check deposit 2
         if (!order.deposit_2_paid && order.deposit_2_expected_date) {
           const deposit2Date = new Date(order.deposit_2_expected_date);
           if (deposit2Date <= thisMonthEnd) {
@@ -147,7 +156,6 @@ export default function CompanyDashboard() {
             nextMonthTotal += Number(order.deposit_2_amount) || 0;
           }
         }
-        // Check balance
         if (!order.balance_paid && order.balance_expected_date) {
           const balanceDate = new Date(order.balance_expected_date);
           if (balanceDate <= thisMonthEnd) {
@@ -190,6 +198,21 @@ export default function CompanyDashboard() {
         }
       });
 
+      // Financial alerts
+      const financialAlerts: { type: "warning" | "error"; message: string }[] = [];
+      if (overdueCount > 0) {
+        financialAlerts.push({
+          type: "error",
+          message: `${overdueCount} pagamenti scaduti per ${formatCurrency(overduePayments)}`,
+        });
+      }
+      if (unpaidCostsThisMonth > thisMonthTotal && unpaidCostsThisMonth > 0) {
+        financialAlerts.push({
+          type: "warning",
+          message: `Uscite previste (${formatCurrency(unpaidCostsThisMonth)}) superiori agli incassi (${formatCurrency(thisMonthTotal)}) questo mese`,
+        });
+      }
+
       return {
         stats: {
           totalOrders: ordersRes.count || 0,
@@ -201,16 +224,18 @@ export default function CompanyDashboard() {
         recentOrders: (ordersDataRes.data as unknown as RecentOrder[]) || [],
         cashFlow: { thisMonth: thisMonthTotal, nextMonth: nextMonthTotal },
         urgentItems: processedUrgentItems.slice(0, 5),
+        financialAlerts,
       };
     },
     enabled: !!companyId,
-    staleTime: 2 * 60 * 1000, // 2 minuti
+    staleTime: 2 * 60 * 1000,
   });
 
   const stats = dashboardData?.stats ?? { totalOrders: 0, totalCustomers: 0, openTickets: 0, pendingRevenue: 0, pendingOrdersCount: 0 };
   const recentOrders = dashboardData?.recentOrders ?? [];
   const cashFlow = dashboardData?.cashFlow ?? { thisMonth: 0, nextMonth: 0 };
   const urgentItems = dashboardData?.urgentItems ?? [];
+  const financialAlerts = dashboardData?.financialAlerts ?? [];
 
   const statCards = [
     {
@@ -287,6 +312,25 @@ export default function CompanyDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Financial Alerts */}
+      {financialAlerts.length > 0 && (
+        <div className="space-y-2">
+          {financialAlerts.map((alert, index) => (
+            <div
+              key={index}
+              className={`flex items-center gap-3 p-3 rounded-lg border ${
+                alert.type === "error"
+                  ? "bg-destructive/10 border-destructive/30 text-destructive"
+                  : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400"
+              }`}
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span className="text-sm font-medium">{alert.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Stats Grid - 4 colonne con icone colorate */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

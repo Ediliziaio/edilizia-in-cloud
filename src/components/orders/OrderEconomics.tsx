@@ -3,7 +3,8 @@ import { formatCurrency } from "@/lib/formatters";
 import { calculateNetFromGross } from "@/lib/vatUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { TrendingUp, TrendingDown, DollarSign, Receipt, UserCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown, DollarSign, Receipt, UserCheck, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface OrderItem {
@@ -18,7 +19,7 @@ interface OrderEconomicsProps {
   totalAmount: number;
   vatRate: number;
   items: OrderItem[];
-  collectedAmount?: number; // Imponibile incassato
+  collectedAmount?: number;
 }
 
 interface CostBreakdown {
@@ -170,14 +171,18 @@ export function OrderEconomics({
   const totalCommissions = commissionDetails.reduce((sum, c) => sum + c.amount, 0);
 
   // VAT summary
-  const vatDebit = saleVatAmount; // IVA a debito (vendita)
-  const vatCredit = totalItemsVat + totalTeamsVat; // IVA a credito (acquisti)
-  const vatBalance = vatDebit - vatCredit; // IVA netta da versare
+  const vatDebit = saleVatAmount;
+  const vatCredit = totalItemsVat + totalTeamsVat;
+  const vatBalance = vatDebit - vatCredit;
 
   // Calculate margin based on net costs INCLUDING commissions
   const totalCostsNet = totalItemsNet + totalLaborNet + totalCommissions;
   const grossMargin = totalAmount - totalCostsNet;
   const marginPercentage = totalAmount > 0 ? (grossMargin / totalAmount) * 100 : 0;
+
+  // Margin alert thresholds
+  const isNegativeMargin = grossMargin < 0;
+  const isLowMargin = marginPercentage > 0 && marginPercentage < 10;
 
   return (
     <Card>
@@ -188,6 +193,22 @@ export function OrderEconomics({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Margin Alert */}
+        {(isNegativeMargin || isLowMargin) && (
+          <div className={`flex items-center gap-2 p-3 rounded-lg border ${
+            isNegativeMargin 
+              ? "bg-destructive/10 border-destructive/30 text-destructive" 
+              : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400"
+          }`}>
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="text-sm font-medium">
+              {isNegativeMargin 
+                ? "Attenzione: i costi superano i ricavi. Margine negativo!" 
+                : `Margine basso (${marginPercentage.toFixed(1)}%). Verifica i costi.`}
+            </span>
+          </div>
+        )}
+
         {/* Sales Section */}
         <div>
           <h4 className="text-sm font-medium text-muted-foreground mb-2">VENDITA</h4>
@@ -351,7 +372,7 @@ export function OrderEconomics({
 
         {/* Margin Section */}
         <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">MARGINE</h4>
+          <h4 className="text-sm font-medium text-muted-foreground mb-2">MARGINE CONSUNTIVO</h4>
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>Imponibile vendita</span>
