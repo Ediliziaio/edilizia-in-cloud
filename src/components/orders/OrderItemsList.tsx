@@ -183,8 +183,8 @@ export function OrderItemsList({
   const handleSaveItem = () => {
     if (!itemName.trim()) return;
 
-    const quantity = parseInt(itemQuantity) || 1;
-    const purchasePrice = parseFloat(itemPurchasePrice) || 0;
+    const quantity = Math.max(1, Math.round(parseInt(itemQuantity) || 1));
+    const purchasePrice = Math.max(0, parseFloat(itemPurchasePrice) || 0);
     
     if (editingIndex !== null) {
       // Edit existing item

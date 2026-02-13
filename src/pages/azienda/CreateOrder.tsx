@@ -328,6 +328,28 @@ export default function CreateOrder() {
       return;
     }
 
+    // Warning: payment dates before order creation
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    if (depositExpectedDate && depositExpectedDate < now) {
+      toast({
+        title: "Attenzione",
+        description: "La data prevista dell'acconto 1 è nel passato.",
+      });
+    }
+    if (deposit2ExpectedDate && deposit2ExpectedDate < now) {
+      toast({
+        title: "Attenzione",
+        description: "La data prevista dell'acconto 2 è nel passato.",
+      });
+    }
+    if (balanceExpectedDate && balanceExpectedDate < now) {
+      toast({
+        title: "Attenzione",
+        description: "La data prevista del saldo è nel passato.",
+      });
+    }
+
     createOrderMutation.mutate();
   };
 
