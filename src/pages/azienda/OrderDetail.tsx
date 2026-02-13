@@ -357,6 +357,9 @@ export default function OrderDetail() {
           purchase_price: item.purchase_price || null,
           vat_rate: item.vat_rate ?? null,
           stock_item_id: item.stock_item_id || null,
+          unit_price: item.unit_price || 0,
+          discount_percent: item.discount_percent || 0,
+          standard_cost: item.standard_cost || 0,
         }));
 
         const { error } = await supabase
@@ -484,6 +487,9 @@ export default function OrderDetail() {
     purchase_price: item.purchase_price || undefined,
     vat_rate: item.vat_rate ?? undefined,
     stock_item_id: item.stock_item_id || undefined,
+    unit_price: (item as any).unit_price || undefined,
+    discount_percent: (item as any).discount_percent || undefined,
+    standard_cost: (item as any).standard_cost || undefined,
     attachments: attachments
       .filter(att => att.order_item_id === item.id)
       .map(att => ({
@@ -501,6 +507,9 @@ export default function OrderDetail() {
     quantity: item.quantity,
     purchase_price: item.purchase_price,
     vat_rate: item.vat_rate,
+    unit_price: item.unit_price,
+    discount_percent: item.discount_percent,
+    standard_cost: item.standard_cost,
   }));
 
   // Calculate order alerts

@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OrderItemAttachments, OrderItemAttachment } from "./OrderItemAttachments";
-import { ArticleCombobox } from "./ArticleCombobox";
+import { ArticleCombobox, ArticleTemplateData } from "./ArticleCombobox";
 import { SupplierSelect } from "./SupplierSelect";
 import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES, calculateNetFromGross } from "@/lib/vatUtils";
@@ -46,6 +46,9 @@ export interface OrderItem {
   vat_rate?: number;
   stock_item_id?: string;
   attachments?: OrderItemAttachment[];
+  unit_price?: number;
+  discount_percent?: number;
+  standard_cost?: number;
 }
 
 interface OrderItemsListProps {
@@ -104,6 +107,9 @@ export function OrderItemsList({
   const [itemPurchasePrice, setItemPurchasePrice] = useState("");
   const [itemVatRate, setItemVatRate] = useState<number>(22);
   const [itemStatus, setItemStatus] = useState<OrderItemStatus>("da_ordinare");
+  const [itemUnitPrice, setItemUnitPrice] = useState("");
+  const [itemDiscountPercent, setItemDiscountPercent] = useState("");
+  const [itemStandardCost, setItemStandardCost] = useState("");
   // Stock picking state
   const [selectedStockItem, setSelectedStockItem] = useState<string>("");
   const [stockPickQuantity, setStockPickQuantity] = useState("1");
@@ -156,6 +162,9 @@ export function OrderItemsList({
     setItemPurchasePrice("");
     setItemVatRate(22);
     setItemStatus("da_ordinare");
+    setItemUnitPrice("");
+    setItemDiscountPercent("");
+    setItemStandardCost("");
     setEditingIndex(null);
     setSelectedStockItem("");
     setStockPickQuantity("1");
@@ -176,6 +185,9 @@ export function OrderItemsList({
     setItemPurchasePrice(item.purchase_price?.toString() || "");
     setItemVatRate(item.vat_rate ?? 22);
     setItemStatus(item.status);
+    setItemUnitPrice(item.unit_price?.toString() || "");
+    setItemDiscountPercent(item.discount_percent?.toString() || "");
+    setItemStandardCost(item.standard_cost?.toString() || "");
     setEditingIndex(index);
     setDialogOpen(true);
   };
@@ -185,9 +197,11 @@ export function OrderItemsList({
 
     const quantity = Math.max(1, Math.round(parseInt(itemQuantity) || 1));
     const purchasePrice = Math.max(0, parseFloat(itemPurchasePrice) || 0);
+    const unitPrice = Math.max(0, parseFloat(itemUnitPrice) || 0);
+    const discountPercent = Math.max(0, Math.min(100, parseFloat(itemDiscountPercent) || 0));
+    const standardCost = Math.max(0, parseFloat(itemStandardCost) || 0);
     
     if (editingIndex !== null) {
-      // Edit existing item
       const newItems = [...items];
       newItems[editingIndex] = {
         ...newItems[editingIndex],
@@ -198,10 +212,12 @@ export function OrderItemsList({
         purchase_price: purchasePrice,
         vat_rate: itemVatRate,
         status: itemStatus,
+        unit_price: unitPrice,
+        discount_percent: discountPercent,
+        standard_cost: standardCost,
       };
       onItemsChange(newItems);
     } else {
-      // Add new item
       const newItem: OrderItem = {
         name: itemName.trim(),
         description: itemDescription.trim() || undefined,
@@ -211,12 +227,29 @@ export function OrderItemsList({
         supplier_id: itemSupplierId,
         purchase_price: purchasePrice,
         vat_rate: itemVatRate,
+        unit_price: unitPrice,
+        discount_percent: discountPercent,
+        standard_cost: standardCost,
       };
       onItemsChange([...items, newItem]);
     }
 
     setDialogOpen(false);
     resetForm();
+  };
+
+  const handleArticleSelect = (name: string, templateData?: ArticleTemplateData) => {
+    setItemName(name);
+    if (templateData) {
+      if (templateData.unit_price > 0) setItemUnitPrice(templateData.unit_price.toString());
+      if (templateData.standard_cost > 0) {
+        setItemStandardCost(templateData.standard_cost.toString());
+        setItemPurchasePrice(templateData.standard_cost.toString());
+      }
+      if (templateData.vat_rate !== undefined) setItemVatRate(templateData.vat_rate);
+      if (templateData.supplier_id) setItemSupplierId(templateData.supplier_id);
+      if (templateData.description) setItemDescription(templateData.description);
+    }
   };
 
   const handleSupplierChange = (supplierId: string | undefined, supplierVatRate?: number) => {
@@ -376,7 +409,19 @@ export function OrderItemsList({
                       {(item.supplier_id || item.supplier_name) && (
                         <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "—"}</span>
                       )}
-                      {item.purchase_price && item.purchase_price > 0 && (
+                      {item.unit_price != null && item.unit_price > 0 && (
+                        <>
+                          <span>
+                            Vendita: {formatCurrency(item.unit_price)} × {item.quantity}
+                            {item.discount_percent != null && item.discount_percent > 0 && ` -${item.discount_percent}%`}
+                            {" = "}
+                            {formatCurrency(
+                              item.unit_price * item.quantity * (1 - (item.discount_percent || 0) / 100)
+                            )}
+                          </span>
+                        </>
+                      )}
+                      {item.purchase_price != null && item.purchase_price > 0 && (
                         <>
                           <span>Costo: {formatCurrency(item.purchase_price * item.quantity)}</span>
                           <span className="text-xs">({item.vat_rate ?? 22}% IVA)</span>
@@ -478,25 +523,45 @@ export function OrderItemsList({
                 </TabsList>
 
                 <TabsContent value="new">
-                  <div className="space-y-4">
+                  <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                     <div className="space-y-2">
                       <Label>Nome Articolo *</Label>
-                      <ArticleCombobox value={itemName} onValueChange={setItemName} placeholder="Seleziona o digita nome articolo..." />
+                      <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Seleziona o digita nome articolo..." />
                     </div>
                     <div className="space-y-2">
                       <Label>Descrizione</Label>
                       <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-2">
                         <Label>Quantità</Label>
                         <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
                       </div>
                       <div className="space-y-2">
+                        <Label>Prezzo Vendita</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+                          <Input type="number" min="0" step="0.01" value={itemUnitPrice} onChange={(e) => setItemUnitPrice(e.target.value)} className="pl-8" placeholder="0.00" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Sconto %</Label>
+                        <Input type="number" min="0" max="100" step="0.1" value={itemDiscountPercent} onChange={(e) => setItemDiscountPercent(e.target.value)} placeholder="0" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
                         <Label>Costo Acquisto</Label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
                           <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Costo Standard</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+                          <Input type="number" min="0" step="0.01" value={itemStandardCost} onChange={(e) => setItemStandardCost(e.target.value)} className="pl-8" placeholder="0.00" />
                         </div>
                       </div>
                     </div>
@@ -591,25 +656,45 @@ export function OrderItemsList({
               </Tabs>
             ) : (
               <>
-                <div className="space-y-4">
+                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                   <div className="space-y-2">
                     <Label>Nome Articolo *</Label>
-                    <ArticleCombobox value={itemName} onValueChange={setItemName} placeholder="Seleziona o digita nome articolo..." />
+                    <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Seleziona o digita nome articolo..." />
                   </div>
                   <div className="space-y-2">
                     <Label>Descrizione</Label>
                     <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-2">
                       <Label>Quantità</Label>
                       <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
                     </div>
                     <div className="space-y-2">
+                      <Label>Prezzo Vendita</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+                        <Input type="number" min="0" step="0.01" value={itemUnitPrice} onChange={(e) => setItemUnitPrice(e.target.value)} className="pl-8" placeholder="0.00" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Sconto %</Label>
+                      <Input type="number" min="0" max="100" step="0.1" value={itemDiscountPercent} onChange={(e) => setItemDiscountPercent(e.target.value)} placeholder="0" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
                       <Label>Costo Acquisto</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
                         <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Costo Standard</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+                        <Input type="number" min="0" step="0.01" value={itemStandardCost} onChange={(e) => setItemStandardCost(e.target.value)} className="pl-8" placeholder="0.00" />
                       </div>
                     </div>
                   </div>

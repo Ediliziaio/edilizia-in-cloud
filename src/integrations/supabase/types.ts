@@ -16,22 +16,46 @@ export type Database = {
     Tables: {
       article_templates: {
         Row: {
+          category: string | null
           company_id: string
           created_at: string
+          description: string | null
           id: string
           name: string
+          sku: string | null
+          standard_cost: number | null
+          supplier_id: string | null
+          unit_of_measure: string | null
+          unit_price: number | null
+          vat_rate: number | null
         }
         Insert: {
+          category?: string | null
           company_id: string
           created_at?: string
+          description?: string | null
           id?: string
           name: string
+          sku?: string | null
+          standard_cost?: number | null
+          supplier_id?: string | null
+          unit_of_measure?: string | null
+          unit_price?: number | null
+          vat_rate?: number | null
         }
         Update: {
+          category?: string | null
           company_id?: string
           created_at?: string
+          description?: string | null
           id?: string
           name?: string
+          sku?: string | null
+          standard_cost?: number | null
+          supplier_id?: string | null
+          unit_of_measure?: string | null
+          unit_price?: number | null
+          vat_rate?: number | null
         }
         Relationships: [
           {
@@ -39,6 +63,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_templates_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
@@ -655,6 +686,7 @@ export type Database = {
         Row: {
           created_at: string | null
           description: string | null
+          discount_percent: number | null
           id: string
           is_paid: boolean | null
           name: string
@@ -663,15 +695,18 @@ export type Database = {
           position: number | null
           purchase_price: number | null
           quantity: number | null
+          standard_cost: number | null
           status: string | null
           stock_item_id: string | null
           supplier_id: string | null
+          unit_price: number | null
           updated_at: string | null
           vat_rate: number | null
         }
         Insert: {
           created_at?: string | null
           description?: string | null
+          discount_percent?: number | null
           id?: string
           is_paid?: boolean | null
           name: string
@@ -680,15 +715,18 @@ export type Database = {
           position?: number | null
           purchase_price?: number | null
           quantity?: number | null
+          standard_cost?: number | null
           status?: string | null
           stock_item_id?: string | null
           supplier_id?: string | null
+          unit_price?: number | null
           updated_at?: string | null
           vat_rate?: number | null
         }
         Update: {
           created_at?: string | null
           description?: string | null
+          discount_percent?: number | null
           id?: string
           is_paid?: boolean | null
           name?: string
@@ -697,9 +735,11 @@ export type Database = {
           position?: number | null
           purchase_price?: number | null
           quantity?: number | null
+          standard_cost?: number | null
           status?: string | null
           stock_item_id?: string | null
           supplier_id?: string | null
+          unit_price?: number | null
           updated_at?: string | null
           vat_rate?: number | null
         }
