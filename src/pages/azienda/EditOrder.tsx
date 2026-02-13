@@ -462,21 +462,58 @@ export default function EditOrder() {
         }
       }
 
-      // Delete existing items and recreate
-      await supabase
-        .from("order_items")
-        .delete()
-        .eq("order_id", id!);
+      // --- Upsert + selective delete strategy ---
+      const existingDbIds = new Set(existingItems.map(i => i.id));
+      const formIds = new Set(orderItems.filter(i => i.id).map(i => i.id!));
 
-      // Insert updated items
-      if (orderItems.length > 0) {
-        const itemsToInsert = orderItems.map((item, index) => ({
+      // Items removed by the user (in DB but not in form)
+      const removedIds = [...existingDbIds].filter(dbId => !formIds.has(dbId));
+
+      // Items to update (have an existing DB id)
+      const itemsToUpdate = orderItems.filter(i => i.id && existingDbIds.has(i.id));
+
+      // Items to insert (no id or id not in DB)
+      const itemsToInsert = orderItems.filter(i => !i.id || !existingDbIds.has(i.id));
+
+      // 1. Delete removed items (handle FK constraints)
+      for (const removedId of removedIds) {
+        await supabase.from("warehouse_movements").delete().eq("order_item_id", removedId);
+        await supabase.from("order_item_attachments").delete().eq("order_item_id", removedId);
+        const { error: delErr } = await supabase.from("order_items").delete().eq("id", removedId);
+        if (delErr) throw delErr;
+      }
+
+      // 2. Update existing items
+      for (let index = 0; index < orderItems.length; index++) {
+        const item = orderItems[index];
+        if (item.id && existingDbIds.has(item.id)) {
+          const { error: updErr } = await supabase.from("order_items").update({
+            name: item.name,
+            description: item.description || null,
+            quantity: item.quantity,
+            status: item.status,
+            position: index,
+            supplier_id: item.supplier_id || null,
+            purchase_price: item.purchase_price || 0,
+            vat_rate: item.vat_rate ?? 22,
+            stock_item_id: item.stock_item_id || null,
+            unit_price: item.unit_price || 0,
+            discount_percent: item.discount_percent || 0,
+            standard_cost: item.standard_cost || 0,
+          }).eq("id", item.id);
+          if (updErr) throw updErr;
+        }
+      }
+
+      // 3. Insert new items
+      if (itemsToInsert.length > 0) {
+        const newItems = itemsToInsert.map((item, idx) => ({
           order_id: id!,
           name: item.name,
           description: item.description || null,
           quantity: item.quantity,
           status: item.status,
-          position: index,
+          position: itemsToUpdate.length + idx,
           supplier_id: item.supplier_id || null,
           purchase_price: item.purchase_price || 0,
           vat_rate: item.vat_rate ?? 22,
@@ -486,12 +523,8 @@ export default function EditOrder() {
           standard_cost: item.standard_cost || 0,
         }));
 
-        const { data: insertedItems, error: itemsError } = await supabase
-          .from("order_items")
-          .insert(itemsToInsert)
-          .select();
-
-        if (itemsError) throw itemsError;
+        const { error: insErr } = await supabase.from("order_items").insert(newItems);
+        if (insErr) throw insErr;
       }
 
       // Apply stock deltas
