@@ -1,187 +1,132 @@
 
 
-# Piano: Gestione Giacenze Magazzino
+# Piano: Scarico Automatico Giacenze + Storico Movimenti
 
-## Panoramica
+## Problemi Attuali
 
-Aggiungere un sistema di inventario reale al magazzino, con articoli in giacenza, quantita, costi unitari e la possibilita di prelevare articoli dal magazzino quando si crea un ordine. Il flusso economico si calcola automaticamente.
-
----
-
-## Architettura
-
-Il sistema si compone di due parti:
-
-1. **Inventario (warehouse_stock)**: tabella con gli articoli fisicamente in magazzino, le quantita disponibili e il costo unitario
-2. **Prelievo da giacenza**: quando si aggiunge un articolo a un ordine, si puo scegliere se prelevarlo dal magazzino (decrementando la giacenza) oppure ordinarlo da fornitore
+1. **`stock_item_id` e `vat_rate` non vengono salvati**: sia `CreateOrder.tsx` che `EditOrder.tsx` omettono questi campi nel mapping `itemsToInsert`
+2. **Nessuno scarico automatico**: quando l'ordine viene salvato con articoli prelevati da magazzino, la quantita in `warehouse_stock` non viene decrementata e nessun movimento viene registrato
+3. **Nessuno storico movimenti**: nel tab Giacenze non e possibile vedere i movimenti di carico/scarico per articolo
 
 ---
 
-## 1. Nuova Tabella `warehouse_stock`
+## 1. Correzione Salvataggio Articoli
 
-| Colonna | Tipo | Descrizione |
-|---------|------|-------------|
-| id | uuid (PK) | |
-| company_id | uuid (FK) | Azienda |
-| name | text | Nome articolo |
-| description | text | Descrizione (opzionale) |
-| quantity | integer | Quantita disponibile |
-| unit_cost | numeric | Costo unitario di acquisto |
-| vat_rate | numeric | Aliquota IVA (default 22) |
-| supplier_id | uuid (FK) | Fornitore (opzionale) |
-| min_stock_level | integer | Soglia minima per alert (default 0) |
-| created_at | timestamptz | |
-| updated_at | timestamptz | |
+In entrambi i file (`CreateOrder.tsx` e `EditOrder.tsx`), aggiungere `stock_item_id` e `vat_rate` al mapping `itemsToInsert`:
 
-**RLS**: stesse policy delle altre tabelle aziendali (company_admin + super_admin).
-
----
-
-## 2. Nuova Tabella `warehouse_movements`
-
-Traccia ogni movimento di magazzino (carico/scarico) per storico e audit.
-
-| Colonna | Tipo | Descrizione |
-|---------|------|-------------|
-| id | uuid (PK) | |
-| stock_item_id | uuid (FK) | Articolo di magazzino |
-| order_item_id | uuid (FK) | Articolo ordine (se scarico per ordine) |
-| movement_type | text | "carico" o "scarico" |
-| quantity | integer | Quantita movimentata |
-| notes | text | Note (opzionale) |
-| performed_by | uuid | Utente che ha eseguito |
-| created_at | timestamptz | |
+```text
+const itemsToInsert = orderItems.map((item, index) => ({
+  order_id: ...,
+  name: item.name,
+  description: item.description || null,
+  quantity: item.quantity,
+  status: item.status,
+  position: index,
+  supplier_id: item.supplier_id || null,
+  purchase_price: item.purchase_price || 0,
+  vat_rate: item.vat_rate ?? 22,
+  stock_item_id: item.stock_item_id || null,
+}));
+```
 
 ---
 
-## 3. UI Magazzino - Nuova Sezione "Giacenze"
+## 2. Scarico Automatico al Salvataggio Ordine
 
-Aggiungere un tab "Giacenze" nella pagina Magazzino (accanto a Lista/Kanban/Calendario), con:
+Dopo l'insert degli `order_items`, per ogni articolo con `stock_item_id` valorizzato:
+- Decrementare `warehouse_stock.quantity` della quantita prelevata
+- Creare un record in `warehouse_movements` con `movement_type = 'scarico'` e `order_item_id` collegato
 
-- **Tabella articoli in giacenza**: nome, quantita disponibile, costo unitario, fornitore, soglia minima
-- **Bottone "Aggiungi Articolo"**: dialog per inserire nuovo articolo in magazzino
-- **Modifica inline**: modifica quantita (carico/scarico manuale)
-- **Alert sotto-scorta**: evidenziazione articoli sotto la soglia minima
-- **Ricerca e filtri**: per nome, fornitore
+Questo va fatto sia in `CreateOrder.tsx` (alla creazione) sia in `EditOrder.tsx` (al salvataggio modifiche, gestendo i delta).
 
----
+Per `EditOrder`, dato che fa delete + re-insert degli items, la logica sara:
+- Calcolare quali articoli con `stock_item_id` sono nuovi (non presenti prima)
+- Solo per quelli nuovi eseguire lo scarico
 
-## 4. Prelievo da Giacenza negli Ordini
-
-Nel dialog di aggiunta articolo (`OrderItemsList`), aggiungere un'opzione **"Preleva da Magazzino"**:
-
-- Un toggle/tab "Nuovo" vs "Da Magazzino"
-- Se "Da Magazzino": mostra combobox con articoli disponibili in giacenza, la quantita disponibile e il costo unitario
-- Selezionando un articolo, il costo si compila automaticamente
-- Al salvataggio: la quantita in `warehouse_stock` diminuisce e viene creato un record in `warehouse_movements`
-- L'articolo dell'ordine viene collegato tramite un campo `stock_item_id` su `order_items`
+Per semplicita e robustezza, il flusso sara:
+- Salvare gli items con `returning` per ottenere gli ID generati
+- Per ogni item con `stock_item_id`, decrementare lo stock e inserire il movimento
 
 ---
 
-## 5. Modifiche alla Tabella `order_items`
+## 3. Storico Movimenti nel Tab Giacenze
 
-Aggiungere una colonna:
+Aggiungere un bottone "Storico" (icona History) per ogni riga della tabella stock in `WarehouseStockTab.tsx`. Al click, apre un Dialog/Sheet che mostra i movimenti dell'articolo selezionato:
 
-| Colonna | Tipo | Descrizione |
-|---------|------|-------------|
-| stock_item_id | uuid (FK, nullable) | Se l'articolo proviene da giacenza |
-
-Quando `stock_item_id` e valorizzato, l'articolo e stato prelevato dal magazzino. Il badge nell'ordine mostrera "Da Magazzino" con icona diversa.
+- Query `warehouse_movements` filtrato per `stock_item_id`
+- Colonne: Data, Tipo (Carico/Scarico con badge colorato), Quantita, Note, Ordine collegato (se presente)
+- Ordinati per data decrescente
 
 ---
 
-## 6. Flusso Economico Automatico
-
-- Il costo dell'articolo prelevato da magazzino viene copiato dal `unit_cost` dello stock
-- Il calcolo del margine nell'ordine (Conto Economico) funziona gia con `purchase_price` su `order_items`, quindi nessuna modifica necessaria a `OrderEconomics`
-- Nel previsionale cassa, gli articoli prelevati da magazzino non generano uscite future (sono gia pagati)
-
----
-
-## File da Creare/Modificare
+## File da Modificare
 
 | File | Azione | Descrizione |
 |------|--------|-------------|
-| Migrazione DB | Crea | Tabelle `warehouse_stock`, `warehouse_movements`, colonna `stock_item_id` su `order_items` |
-| `src/components/warehouse/WarehouseStockTab.tsx` | Crea | UI gestione giacenze (tabella, CRUD, alert sotto-scorta) |
-| `src/components/warehouse/StockItemDialog.tsx` | Crea | Dialog creazione/modifica articolo di magazzino |
-| `src/components/warehouse/StockMovementDialog.tsx` | Crea | Dialog per carico/scarico manuale |
-| `src/pages/azienda/Warehouse.tsx` | Modifica | Aggiungere tab "Giacenze" |
-| `src/components/orders/OrderItemsList.tsx` | Modifica | Aggiungere opzione "Preleva da Magazzino" nel dialog articolo |
-| `src/types/warehouse.ts` | Modifica | Aggiungere tipi per stock e movimenti |
+| `src/pages/azienda/CreateOrder.tsx` | Modifica | Aggiungere `stock_item_id` + `vat_rate` al mapping items, scarico automatico dopo salvataggio |
+| `src/pages/azienda/EditOrder.tsx` | Modifica | Aggiungere `stock_item_id` + `vat_rate` al mapping items, scarico automatico per nuovi articoli da stock |
+| `src/components/warehouse/WarehouseStockTab.tsx` | Modifica | Aggiungere bottone Storico e dialog movimenti per articolo |
+
+Nessuna migrazione DB necessaria.
 
 ---
 
 ## Dettagli Tecnici
 
-### Migrazione SQL
+### Scarico automatico (CreateOrder)
+
+Dopo l'insert degli items, aggiungere:
 
 ```text
--- Tabella giacenze
-CREATE TABLE warehouse_stock (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id uuid NOT NULL REFERENCES companies(id),
-  name text NOT NULL,
-  description text,
-  quantity integer NOT NULL DEFAULT 0,
-  unit_cost numeric NOT NULL DEFAULT 0,
-  vat_rate numeric DEFAULT 22,
-  supplier_id uuid REFERENCES suppliers(id),
-  min_stock_level integer NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
--- Tabella movimenti
-CREATE TABLE warehouse_movements (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  stock_item_id uuid NOT NULL REFERENCES warehouse_stock(id),
-  order_item_id uuid REFERENCES order_items(id),
-  movement_type text NOT NULL CHECK (movement_type IN ('carico', 'scarico')),
-  quantity integer NOT NULL,
-  notes text,
-  performed_by uuid NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
--- Colonna su order_items
-ALTER TABLE order_items ADD COLUMN stock_item_id uuid REFERENCES warehouse_stock(id);
-
--- RLS warehouse_stock
-ALTER TABLE warehouse_stock ENABLE ROW LEVEL SECURITY;
--- (policy company_admin + super_admin come le altre tabelle)
-
--- RLS warehouse_movements
-ALTER TABLE warehouse_movements ENABLE ROW LEVEL SECURITY;
-
--- Trigger updated_at
-CREATE TRIGGER update_warehouse_stock_updated_at
-  BEFORE UPDATE ON warehouse_stock
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+// Dopo insert order_items con .select() per ottenere gli ID
+const stockItems = itemsWithIds.filter(i => i.stock_item_id);
+for (const item of stockItems) {
+  // Decrementa warehouse_stock
+  await supabase.rpc(...)  // oppure update diretto
+  // Crea movimento
+  await supabase.from("warehouse_movements").insert({
+    stock_item_id: item.stock_item_id,
+    order_item_id: item.id,
+    movement_type: "scarico",
+    quantity: item.quantity,
+    notes: "Prelievo automatico per ordine",
+    performed_by: user.id,
+  });
+}
 ```
 
-### UI Giacenze - WarehouseStockTab
-
-- Tabella con colonne: Nome, Quantita, Costo Unitario, Fornitore, Soglia, Azioni
-- Righe con quantita sotto soglia evidenziate in rosso/ambra
-- Bottoni: Aggiungi, Modifica, Carico, Scarico
-- Filtri: ricerca per nome, filtro per fornitore
-
-### Prelievo da Magazzino nel Dialog Articolo
-
-Nel dialog di `OrderItemsList`, aggiungere sopra il form:
+Per l'update della quantita, usare un update diretto con query sulla quantita corrente:
 
 ```text
-[Tab: Nuovo Articolo] [Tab: Da Magazzino]
+const { data: currentStock } = await supabase
+  .from("warehouse_stock")
+  .select("quantity")
+  .eq("id", item.stock_item_id)
+  .single();
 
-Se "Da Magazzino":
-  - Combobox con articoli in giacenza (nome + quantita disponibile)
-  - Quantita da prelevare (max = disponibile)
-  - Costo auto-compilato dal unit_cost
-  - Al salvataggio: insert order_item + update warehouse_stock.quantity + insert warehouse_movement
+await supabase
+  .from("warehouse_stock")
+  .update({ quantity: Math.max(0, currentStock.quantity - item.quantity) })
+  .eq("id", item.stock_item_id);
 ```
 
-### Integrazione con Previsionale Cassa
+### Dialog Storico Movimenti (WarehouseStockTab)
 
-Nessuna modifica necessaria: gli articoli con `stock_item_id` hanno gia il `purchase_price` valorizzato. Il previsionale usa gli articoli con status "da_ordinare"/"ordinato" per le uscite future -- gli articoli prelevati da magazzino avranno status "in_magazzino" e quindi non rientrano nelle uscite previste.
+Nuovo state:
+
+```text
+const [historyItem, setHistoryItem] = useState<StockItem | null>(null);
+```
+
+Query movimenti quando `historyItem` e selezionato:
+
+```text
+const { data: movements } = useQuery({
+  queryKey: ["stock-movements", historyItem?.id],
+  queryFn: ..., // select da warehouse_movements + join order_items per ottenere ordine
+  enabled: !!historyItem,
+});
+```
+
+UI: Dialog con tabella movimenti (data, tipo con badge verde/rosso, quantita, note, link ordine).
 
