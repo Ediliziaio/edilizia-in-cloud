@@ -1,6 +1,8 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSubscriptionLimits, type ModuleKey } from "@/hooks/useSubscriptionLimits";
+import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -38,17 +40,18 @@ interface NavItem {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   permissionKey?: string;
+  moduleKey?: ModuleKey;
 }
 
 const allNavItems: NavItem[] = [
   { title: "Dashboard", url: "/azienda", icon: LayoutDashboard, permissionKey: "canViewDashboard" },
-  { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders" },
-  { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse" },
-  { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar" },
-  { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers" },
-  { title: "Dipendenti", url: "/azienda/dipendenti", icon: HardHat, permissionKey: "canViewEmployees" },
-  { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon, permissionKey: "canViewTickets" },
-  { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast" },
+  { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
+  { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
+  { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
+  { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
+  { title: "Dipendenti", url: "/azienda/dipendenti", icon: HardHat, permissionKey: "canViewEmployees", moduleKey: "employees" },
+  { title: "Assistenza", url: "/azienda/assistenza", icon: HeadphonesIcon, permissionKey: "canViewTickets", moduleKey: "tickets" },
+  { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
   { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings, permissionKey: "canViewSettings" },
 ];
 
@@ -86,6 +89,7 @@ function ImpersonationBanner() {
 function CompanySidebar() {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation } = useAuth();
   const permissions = usePermissions();
+  const { isModuleEnabled } = useSubscriptionLimits();
   const navigate = useNavigate();
   
   const handleLogoutOrExit = () => {
@@ -97,13 +101,20 @@ function CompanySidebar() {
     }
   };
 
-  // Filter nav items based on permissions
+  // Filter nav items based on permissions AND module availability
   const visibleNavItems = useMemo(() => {
     return allNavItems.filter((item) => {
-      if (!item.permissionKey) return true;
-      return permissions[item.permissionKey as keyof typeof permissions] === true;
+      // Check permission
+      if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
+        return false;
+      }
+      // Check module enabled in plan
+      if (item.moduleKey && !isModuleEnabled(item.moduleKey)) {
+        return false;
+      }
+      return true;
     });
-  }, [permissions]);
+  }, [permissions, isModuleEnabled]);
 
   return (
     <Sidebar className="border-r">
@@ -187,6 +198,7 @@ export function CompanyLayout() {
         <CompanySidebar />
         <div className="flex-1 flex flex-col">
           <ImpersonationBanner />
+          <SubscriptionBanner />
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
             <div className="flex-1" />

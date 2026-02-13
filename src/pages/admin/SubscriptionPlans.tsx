@@ -10,8 +10,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro } from "lucide-react";
+import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro, Warehouse, CalendarDays, HardHat, HeadphonesIcon, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+
+const ALL_MODULES = [
+  { key: "orders", label: "Ordini", icon: ClipboardList },
+  { key: "warehouse", label: "Magazzino", icon: Warehouse },
+  { key: "calendar", label: "Calendario", icon: CalendarDays },
+  { key: "customers", label: "Clienti", icon: Users },
+  { key: "employees", label: "Dipendenti", icon: HardHat },
+  { key: "tickets", label: "Assistenza", icon: HeadphonesIcon },
+  { key: "forecast", label: "Previsionale", icon: TrendingUp },
+] as const;
 
 interface PlanForm {
   name: string;
@@ -25,6 +35,7 @@ interface PlanForm {
   features: string[];
   is_active: boolean;
   position: number;
+  included_modules: string[];
   stripe_product_id: string;
   stripe_price_monthly_id: string;
   stripe_price_yearly_id: string;
@@ -42,6 +53,7 @@ const emptyForm: PlanForm = {
   features: [],
   is_active: true,
   position: 0,
+  included_modules: ALL_MODULES.map(m => m.key),
   stripe_product_id: "",
   stripe_price_monthly_id: "",
   stripe_price_yearly_id: "",
@@ -69,7 +81,7 @@ export default function SubscriptionPlans() {
 
   const saveMutation = useMutation({
     mutationFn: async (plan: PlanForm & { id?: string }) => {
-      const payload = {
+      const payload: Record<string, any> = {
         name: plan.name,
         slug: plan.slug,
         description: plan.description || null,
@@ -81,16 +93,17 @@ export default function SubscriptionPlans() {
         features: plan.features,
         is_active: plan.is_active,
         position: plan.position,
+        included_modules: plan.included_modules,
         stripe_product_id: plan.stripe_product_id || null,
         stripe_price_monthly_id: plan.stripe_price_monthly_id || null,
         stripe_price_yearly_id: plan.stripe_price_yearly_id || null,
       };
 
       if (plan.id) {
-        const { error } = await supabase.from("subscription_plans").update(payload).eq("id", plan.id);
+        const { error } = await supabase.from("subscription_plans").update(payload as any).eq("id", plan.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("subscription_plans").insert(payload);
+        const { error } = await supabase.from("subscription_plans").insert(payload as any);
         if (error) throw error;
       }
     },
@@ -137,6 +150,7 @@ export default function SubscriptionPlans() {
       features,
       is_active: plan.is_active,
       position: plan.position,
+      included_modules: Array.isArray((plan as any).included_modules) ? (plan as any).included_modules : ALL_MODULES.map(m => m.key),
       stripe_product_id: plan.stripe_product_id || "",
       stripe_price_monthly_id: plan.stripe_price_monthly_id || "",
       stripe_price_yearly_id: plan.stripe_price_yearly_id || "",
@@ -218,12 +232,25 @@ export default function SubscriptionPlans() {
                   </div>
                 </div>
 
+                {/* Included Modules */}
+                <div className="flex flex-wrap gap-1.5 pt-2 border-t">
+                  {ALL_MODULES.map((mod) => {
+                    const included = Array.isArray((plan as any).included_modules) && (plan as any).included_modules.includes(mod.key);
+                    return (
+                      <Badge key={mod.key} variant={included ? "default" : "outline"} className="text-xs gap-1">
+                        <mod.icon className="h-3 w-3" />
+                        {mod.label}
+                      </Badge>
+                    );
+                  })}
+                </div>
+
                 {/* Features */}
                 {features.length > 0 && (
                   <div className="space-y-1 pt-2 border-t">
                     {features.map((f, i) => (
                       <p key={i} className="text-sm flex items-center gap-2">
-                        <span className="text-green-500">✓</span> {f}
+                        <span className="text-primary">✓</span> {f}
                       </p>
                     ))}
                   </div>
@@ -314,6 +341,32 @@ export default function SubscriptionPlans() {
               <div className="flex items-center gap-3 pt-6">
                 <Switch checked={form.is_active} onCheckedChange={(checked) => setForm({ ...form, is_active: checked })} />
                 <Label>Piano attivo</Label>
+              </div>
+            </div>
+
+            {/* Moduli inclusi */}
+            <div className="space-y-3 pt-2 border-t">
+              <Label className="text-base font-semibold">Moduli inclusi nel piano</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {ALL_MODULES.map((mod) => (
+                  <div key={mod.key} className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="flex items-center gap-2">
+                      <mod.icon className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">{mod.label}</span>
+                    </div>
+                    <Switch
+                      checked={form.included_modules.includes(mod.key)}
+                      onCheckedChange={(checked) => {
+                        setForm({
+                          ...form,
+                          included_modules: checked
+                            ? [...form.included_modules, mod.key]
+                            : form.included_modules.filter((k) => k !== mod.key),
+                        });
+                      }}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 
