@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/formatters";
+import { calculateNetFromGross } from "@/lib/vatUtils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { UserCheck, Percent, DollarSign, Receipt, CalendarIcon, Check, Loader2 } from "lucide-react";
@@ -93,14 +94,17 @@ export function OrderCommissions({
     enabled: !!orderId,
   });
 
+  const { netAmount: netTotalAmount } = calculateNetFromGross(totalAmount, vatRate);
+  const { netAmount: netCollectedAmount } = calculateNetFromGross(collectedAmount, vatRate);
+
   const calculateCommission = (type: string, value: number) => {
     switch (type) {
       case "fixed":
         return value;
       case "percentage_sold":
-        return totalAmount * (value / 100);
+        return netTotalAmount * (value / 100);
       case "percentage_collected":
-        return collectedAmount * (value / 100);
+        return netCollectedAmount * (value / 100);
       default:
         return 0;
     }
@@ -398,8 +402,8 @@ export function OrderCommissions({
               Decurtazioni dall'ordine
             </p>
             <div className="flex justify-between text-sm">
-              <span>Imponibile vendita</span>
-              <span>{formatCurrency(totalAmount)}</span>
+              <span>Imponibile vendita (netto IVA)</span>
+              <span>{formatCurrency(netTotalAmount)}</span>
             </div>
             <div className="flex justify-between text-sm text-destructive">
               <span>Totale provvigioni</span>
@@ -408,7 +412,7 @@ export function OrderCommissions({
             <Separator />
             <div className="flex justify-between text-sm font-semibold">
               <span>Netto dopo provvigioni</span>
-              <span>{formatCurrency(netAfterCommissions)}</span>
+              <span>{formatCurrency(netTotalAmount - totalCommissions)}</span>
             </div>
           </div>
         </CardContent>
