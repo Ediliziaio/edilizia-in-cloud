@@ -37,6 +37,7 @@ interface OrderSalesperson {
   id: string;
   commission_type: string;
   commission_value: number;
+  deduction_amount: number;
   salesperson: {
     first_name: string;
     last_name: string;
@@ -92,6 +93,7 @@ export function OrderEconomics({
           id,
           commission_type,
           commission_value,
+          deduction_amount,
           salesperson:salespeople(first_name, last_name)
         `)
         .eq("order_id", orderId);
@@ -168,14 +170,21 @@ export function OrderEconomics({
     }
   };
 
-  const commissionDetails = orderSalespeople.map((sp) => ({
-    name: `${sp.salesperson.first_name} ${sp.salesperson.last_name}`,
-    type: sp.commission_type,
-    value: sp.commission_value,
-    amount: calculateCommission(sp.commission_type, sp.commission_value),
-  }));
+  const commissionDetails = orderSalespeople.map((sp) => {
+    const grossAmount = calculateCommission(sp.commission_type, sp.commission_value);
+    const deduction = sp.deduction_amount || 0;
+    const netAmount = grossAmount - deduction;
+    return {
+      name: `${sp.salesperson.first_name} ${sp.salesperson.last_name}`,
+      type: sp.commission_type,
+      value: sp.commission_value,
+      grossAmount,
+      deduction,
+      netAmount,
+    };
+  });
 
-  const totalCommissions = commissionDetails.reduce((sum, c) => sum + c.amount, 0);
+  const totalCommissions = commissionDetails.reduce((sum, c) => sum + c.netAmount, 0);
 
   // VAT summary
   const vatDebit = saleVatAmount;
@@ -328,20 +337,34 @@ export function OrderEconomics({
               </h4>
               <div className="space-y-2">
                 {commissionDetails.map((comm, index) => (
-                  <div key={index} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {comm.name}{" "}
-                      <span className="text-xs">
-                        ({comm.type === "fixed" 
-                          ? `€${comm.value}` 
-                          : `${comm.value}% ${comm.type === "percentage_sold" ? "venduto" : "incassato"}`})
+                  <div key={index} className="space-y-0.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {comm.name}{" "}
+                        <span className="text-xs">
+                          ({comm.type === "fixed" 
+                            ? `€${comm.value}` 
+                            : `${comm.value}% ${comm.type === "percentage_sold" ? "venduto" : "incassato"}`})
+                        </span>
                       </span>
-                    </span>
-                    <span>{formatCurrency(comm.amount)}</span>
+                      <span>{formatCurrency(comm.grossAmount)}</span>
+                    </div>
+                    {comm.deduction > 0 && (
+                      <div className="flex justify-between text-xs text-muted-foreground pl-2">
+                        <span>Decurtazione</span>
+                        <span className="text-green-600">- {formatCurrency(comm.deduction)}</span>
+                      </div>
+                    )}
+                    {comm.deduction > 0 && (
+                      <div className="flex justify-between text-sm pl-2 font-medium">
+                        <span>Netto</span>
+                        <span>{formatCurrency(comm.netAmount)}</span>
+                      </div>
+                    )}
                   </div>
                 ))}
                 <div className="flex justify-between font-medium pt-2 border-t">
-                  <span>Totale Provvigioni</span>
+                  <span>Totale Provvigioni{commissionDetails.some(c => c.deduction > 0) ? " (netto decurtazioni)" : ""}</span>
                   <span className="text-destructive">{formatCurrency(totalCommissions)}</span>
                 </div>
               </div>

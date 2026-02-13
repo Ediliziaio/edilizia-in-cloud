@@ -39,6 +39,7 @@ interface OrderSalesperson {
   commission_type: string;
   commission_value: number;
   commission_amount: number;
+  deduction_amount: number;
   is_paid: boolean;
   paid_date: string | null;
   payment_expected_date: string | null;
@@ -118,6 +119,7 @@ export function OrderCommissions({
           commission_type: data.commission_type,
           commission_value: data.commission_value,
           commission_amount: data.commission_amount,
+          deduction_amount: data.deduction_amount,
           is_paid: data.is_paid,
           paid_date: data.paid_date,
           payment_expected_date: data.payment_expected_date,
@@ -158,6 +160,7 @@ export function OrderCommissions({
         commission_type: sp.commission_type,
         commission_value: sp.commission_value,
         commission_amount: sp.commission_amount,
+        deduction_amount: sp.deduction_amount,
         payment_expected_date: sp.payment_expected_date,
       });
     }
@@ -174,6 +177,7 @@ export function OrderCommissions({
       commission_type: paidDialogSp.commission_type,
       commission_value: paidDialogSp.commission_value,
       commission_amount: paidDialogSp.commission_amount,
+      deduction_amount: paidDialogSp.deduction_amount,
       payment_expected_date: paidDialogSp.payment_expected_date,
     });
     setPaidDialogOpen(false);
@@ -188,6 +192,7 @@ export function OrderCommissions({
       commission_type: sp.commission_type,
       commission_value: sp.commission_value,
       commission_amount: sp.commission_amount,
+      deduction_amount: sp.deduction_amount,
       is_paid: sp.is_paid,
       paid_date: sp.paid_date,
     });
@@ -200,6 +205,20 @@ export function OrderCommissions({
       commission_type: type,
       commission_value: value,
       commission_amount: newAmount,
+      deduction_amount: sp.deduction_amount,
+      is_paid: sp.is_paid,
+      paid_date: sp.paid_date,
+      payment_expected_date: sp.payment_expected_date,
+    });
+  };
+
+  const handleUpdateDeduction = (sp: OrderSalesperson, deduction: number) => {
+    updateCommissionMutation.mutate({
+      id: sp.id,
+      commission_type: sp.commission_type,
+      commission_value: sp.commission_value,
+      commission_amount: sp.commission_amount,
+      deduction_amount: deduction,
       is_paid: sp.is_paid,
       paid_date: sp.paid_date,
       payment_expected_date: sp.payment_expected_date,
@@ -207,16 +226,16 @@ export function OrderCommissions({
   };
 
   const totalCommissions = orderSalespeople.reduce((sum, sp) => {
-    return sum + calculateCommission(sp.commission_type, sp.commission_value);
+    const gross = calculateCommission(sp.commission_type, sp.commission_value);
+    return sum + (gross - (sp.deduction_amount || 0));
   }, 0);
 
   const unpaidCommissions = orderSalespeople
     .filter(sp => !sp.is_paid)
     .reduce((sum, sp) => {
-      return sum + calculateCommission(sp.commission_type, sp.commission_value);
+      const gross = calculateCommission(sp.commission_type, sp.commission_value);
+      return sum + (gross - (sp.deduction_amount || 0));
     }, 0);
-
-  const netAfterCommissions = totalAmount - totalCommissions;
 
   if (isLoading) {
     return (
@@ -249,7 +268,9 @@ export function OrderCommissions({
         </CardHeader>
         <CardContent className="space-y-4">
           {orderSalespeople.map((sp) => {
-            const currentAmount = calculateCommission(sp.commission_type, sp.commission_value);
+            const grossAmount = calculateCommission(sp.commission_type, sp.commission_value);
+            const deduction = sp.deduction_amount || 0;
+            const currentAmount = grossAmount - deduction;
 
             return (
               <div
@@ -294,7 +315,7 @@ export function OrderCommissions({
                 </div>
 
                 {!readOnly && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs">Tipo</Label>
                       <Select
@@ -327,6 +348,18 @@ export function OrderCommissions({
                             sp.commission_type,
                             parseFloat(e.target.value) || 0
                           )
+                        }
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Decurtazione (€)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={sp.deduction_amount || 0}
+                        onChange={(e) =>
+                          handleUpdateDeduction(sp, parseFloat(e.target.value) || 0)
                         }
                         className="h-8"
                       />
@@ -384,7 +417,7 @@ export function OrderCommissions({
           {/* Summary */}
           <div className="pt-4 border-t space-y-2">
             <div className="flex justify-between text-sm">
-              <span>Totale Provvigioni</span>
+              <span>Totale Provvigioni{orderSalespeople.some(sp => (sp.deduction_amount || 0) > 0) ? " (netto decurtazioni)" : ""}</span>
               <span className="font-medium">{formatCurrency(totalCommissions)}</span>
             </div>
             {unpaidCommissions > 0 && (
