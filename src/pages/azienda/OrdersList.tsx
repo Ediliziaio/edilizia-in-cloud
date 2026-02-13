@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Plus, Search, Package, Eye, LayoutList, Columns3, X, Euro, ShoppingBag, TrendingUp, AlertCircle, CalendarDays } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
@@ -343,6 +344,26 @@ export default function OrdersList() {
     return { totalOrders, totalAmount, collected, pending };
   }, [filteredOrders]);
 
+  // Dati mensili per il grafico andamento
+  const monthlyData = useMemo(() => {
+    const year = new Date().getFullYear();
+    const months = Array.from({ length: 12 }, (_, i) => ({
+      name: MONTHS[i].substring(0, 3),
+      Incassato: 0,
+      "Da Incassare": 0,
+    }));
+
+    orders.forEach(order => {
+      const d = new Date(order.created_at);
+      if (d.getFullYear() === year) {
+        months[d.getMonth()].Incassato += getAmountCollected(order);
+        months[d.getMonth()]["Da Incassare"] += getAmountDue(order);
+      }
+    });
+
+    return months;
+  }, [orders]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -423,6 +444,37 @@ export default function OrdersList() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Grafico Andamento Mensile */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Andamento Mensile {new Date().getFullYear()}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div style={{ width: "100%", height: 300 }}>
+            <ResponsiveContainer>
+              <BarChart data={monthlyData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                <XAxis dataKey="name" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
+                <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  formatter={(value: number) => formatCurrency(value)}
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--background))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                  }}
+                  labelStyle={{ color: "hsl(var(--foreground))" }}
+                />
+                <Legend />
+                <Bar dataKey="Incassato" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Da Incassare" fill="hsl(25, 95%, 53%)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters Row 1: Search + Status + Payment + Month */}
       <div className="flex flex-col sm:flex-row gap-4">
