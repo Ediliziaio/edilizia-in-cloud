@@ -1,91 +1,158 @@
 
-# Piano: Fix Warning e Miglioramenti UX Magazzino
 
-## 1. Fix Warning Console
+# Piano: Ottimizzazione Calendario - Prospettiva Gestione & Logistica
 
-### WarehouseListView.tsx
-Il warning "Function components cannot be given refs" si genera perche `WarehouseListView` e un componente funzione senza `forwardRef`. React tenta di passare un ref quando viene renderizzato nel contesto del Warehouse.
+## Analisi dell'attuale implementazione
 
-**Fix**: Wrappare con `React.forwardRef`.
+Il Calendario ha 4 viste funzionanti (Mese, Settimana, Carico/Heatmap, Gantt) con drag-and-drop, filtri per stato/cliente e Lead Time. Tuttavia, mancano elementi chiave per un uso professionale nella gestione operativa e logistica.
 
----
+## Problemi identificati
 
-## 2. Pulizia Codice
-
-| File | Elemento | Azione |
-|------|----------|--------|
-| `src/components/warehouse/WarehouseStats.tsx` | Riga 100 vuota | Rimuovere |
-
----
-
-## 3. Miglioramenti UX Calendario
-
-### WarehouseCalendarView.tsx - Dark mode e consistenza visiva
-
-Attualmente la vista Calendario usa:
-- Emoji (🟢🔵🟠) per indicare gli stati
-- Colori hardcoded senza varianti dark mode (`bg-amber-100 text-amber-800`)
-
-**Fix**:
-- Aggiungere varianti `dark:` ai colori delle card ordine nel calendario
-- Aggiungere varianti `dark:` ai colori della legenda
+| Area | Problema | Impatto |
+|------|----------|---------|
+| Visibilita risorse | Non si vede chi e assegnato a ciascun lavoro | Impossibile pianificare le squadre |
+| Conflitti temporali | Nessun alert per sovrapposizioni di lavori sullo stesso giorno | Rischio di sotto/sovra-allocazione |
+| Sequenza logistica | Non e chiaro se la merce arriva PRIMA della posa | Rischio di andare in cantiere senza materiale |
+| Vista settimanale mobile | La griglia 7 colonne e illeggibile su mobile | Inutilizzabile per i responsabili in cantiere |
+| Date mancanti su Mese/Settimana | Click sull'ordine porta solo alla pagina dettaglio, non si possono modificare le date come nel Gantt | Workflow interrotto |
 
 ---
 
-## Riepilogo File da Modificare
+## Modifiche proposte
 
-| File | Tipo | Descrizione |
-|------|------|-------------|
-| `src/components/warehouse/WarehouseListView.tsx` | Modifica | Wrappare con forwardRef |
-| `src/components/warehouse/WarehouseStats.tsx` | Modifica | Rimuovere riga vuota residua |
-| `src/components/warehouse/WarehouseCalendarView.tsx` | Modifica | Aggiungere dark mode ai colori |
+### 1. Alert Logistico "Merce non arrivata" nella vista Mese e Settimana
+
+Nella vista Mese e Settimana, se un ordine ha `expected_date` (posa) ma `warehouse_arrival_date` e assente o successiva alla posa, mostrare un indicatore di warning visivo sull'evento.
+
+**File**: `CalendarMonthView.tsx`, `CalendarWeekView.tsx`
+
+- Aggiungere logica: se `expected_date` esiste e (`warehouse_arrival_date` e null o `warehouse_arrival_date > expected_date`), mostrare un'icona `AlertTriangle` arancione accanto all'evento posa.
+- Nel tooltip, aggiungere la riga "Merce non confermata" o "Merce arriva dopo la posa".
+
+### 2. Squadre assegnate visibili nel Gantt e nel Tooltip
+
+Modificare la query in `Calendar.tsx` per includere i dipendenti assegnati all'ordine tramite la tabella `order_employees`. Mostrare i nomi nel tooltip del Gantt e nelle viste Mese/Settimana.
+
+**File**: `Calendar.tsx` (query), `CalendarGanttView.tsx` (colonna laterale), `DraggableOrderBar.tsx` (tooltip), `CalendarMonthView.tsx` (tooltip), `CalendarWeekView.tsx` (tooltip)
+
+- Nella query, aggiungere: `order_employees(employee:employees(first_name, last_name))`
+- Aggiornare il tipo `CalendarOrder` in `types/calendar.ts` con il campo opzionale `assigned_employees`
+- Mostrare nel tooltip del Gantt e Mese le iniziali dei dipendenti assegnati (es. "MR, LB")
+- Nel pannello laterale del Gantt, mostrare un indicatore se la squadra non e assegnata (badge "No squadra")
+
+### 3. Vista Settimanale responsiva per mobile
+
+La vista Settimana attuale usa una griglia 7 colonne che su mobile e troppo stretta. Su mobile, passare a un layout verticale (lista giornaliera scorrevole).
+
+**File**: `CalendarWeekView.tsx`
+
+- Su `isMobile`, sostituire la griglia `grid-cols-7` con un layout a colonna singola dove ogni giorno e un blocco collassabile con l'elenco degli eventi.
+- Mantenere il badge di capacita in testa a ogni giorno.
+
+### 4. Modifica date rapida anche da Mese e Settimana
+
+Attualmente solo il Gantt permette di modificare le date (tramite click che apre `EditOrderDatesDialog`). Aggiungere lo stesso comportamento nelle viste Mese e Settimana.
+
+**File**: `CalendarMonthView.tsx`, `CalendarWeekView.tsx`
+
+- Importare `EditOrderDatesDialog`
+- Al click sull'evento, aprire il dialog di modifica date invece di navigare alla pagina ordine.
+- Aggiungere un pulsante secondario "Vai all'ordine" nel dialog (o un link nel tooltip).
+
+### 5. Indicatore conflitti nella Heatmap
+
+Nella vista Carico, distinguere tra giorni "pieni ma gestibili" e giorni con conflitti reali (es. stessa squadra su 2 cantieri). Per ora, senza dati sulle squadre specifiche per giorno, rafforzare la segnaletica visiva.
+
+**File**: `CalendarHeatmapView.tsx`
+
+- Se un giorno ha 5+ lavori, aggiungere l'icona `AlertTriangle` nella cella della heatmap.
+- Nella card "Giorni critici", colorare il numero in rosso se > 0.
 
 ---
 
-## Dettagli Tecnici
+## Dettagli tecnici
 
-### WarehouseListView.tsx - forwardRef
+### types/calendar.ts - Nuovo campo
 
 ```text
-// Da:
-export default function WarehouseListView({ ... }: WarehouseListViewProps) {
+export interface CalendarOrder {
+  // ... campi esistenti ...
+  assigned_employees?: Array<{
+    employee: {
+      first_name: string;
+      last_name: string;
+    };
+  }>;
+}
+```
 
-// A:
-import { useState, forwardRef } from "react";
+### Calendar.tsx - Query aggiornata
 
-const WarehouseListView = forwardRef<HTMLDivElement, WarehouseListViewProps>(
-  function WarehouseListView({ orderGroups, onStatusChange, ... }, ref) {
-    // contenuto invariato, ma il div root riceve ref
-    return <div ref={ref} className="space-y-2">...</div>;
-  }
+Aggiungere alla select della query ordini:
+```text
+order_employees(employee:employees(first_name, last_name))
+```
+
+### CalendarMonthView.tsx - Alert logistico
+
+Nel rendering dell'evento "posa", verificare:
+```text
+const hasLogisticRisk = event.type === "posa" && (
+  !event.order.warehouse_arrival_date ||
+  event.order.warehouse_arrival_date > event.order.expected_date
 );
-
-export default WarehouseListView;
 ```
+Se vero, aggiungere `AlertTriangle` con classe `text-amber-500` e tooltip "Attenzione: merce non confermata prima della posa".
 
-### WarehouseCalendarView.tsx - Dark mode
+### CalendarWeekView.tsx - Layout mobile
 
 ```text
-// Card ordine - Da:
-"bg-amber-100 text-amber-800"
-"bg-green-100 text-green-800"
-
-// A:
-"bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-"bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-
-// Legenda - Da:
-<span className="w-3 h-3 rounded bg-green-100">
-<span className="w-3 h-3 rounded bg-amber-100">
-
-// A:
-<span className="w-3 h-3 rounded bg-green-100 dark:bg-green-900/30">
-<span className="w-3 h-3 rounded bg-amber-100 dark:bg-amber-900/30">
+// Su mobile: lista verticale
+{isMobile ? (
+  <div className="space-y-3">
+    {weekDays.map(day => (
+      <Collapsible key={...}>
+        <CollapsibleTrigger>Header giorno con badge</CollapsibleTrigger>
+        <CollapsibleContent>Lista eventi</CollapsibleContent>
+      </Collapsible>
+    ))}
+  </div>
+) : (
+  // Griglia 7 colonne esistente
+)}
 ```
 
-### Verifiche Post-Modifica
+### CalendarMonthView / WeekView - Dialog date
 
-- Console priva del warning "Function components cannot be given refs" per WarehouseListView
-- Vista Calendario leggibile in dark mode
-- Tutte le viste (Lista, Kanban, Calendario, Giacenze) funzionanti
-- Nessuna regressione funzionale
+```text
+const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
+
+// Al click sull'evento:
+onClick={() => setEditingOrder(event.order)}
+
+// Nel JSX:
+{editingOrder && (
+  <EditOrderDatesDialog
+    order={editingOrder}
+    open={!!editingOrder}
+    onOpenChange={(open) => !open && setEditingOrder(null)}
+  />
+)}
+```
+
+---
+
+## Riepilogo file da modificare
+
+| File | Modifica |
+|------|----------|
+| `src/types/calendar.ts` | Aggiungere campo `assigned_employees` |
+| `src/pages/azienda/Calendar.tsx` | Estendere query con join `order_employees` |
+| `src/components/calendar/CalendarMonthView.tsx` | Alert logistico + dialog date + squadre nel tooltip |
+| `src/components/calendar/CalendarWeekView.tsx` | Layout mobile responsivo + alert logistico + dialog date + squadre nel tooltip |
+| `src/components/calendar/CalendarHeatmapView.tsx` | Icona alert su giorni critici |
+| `src/components/calendar/CalendarGanttView.tsx` | Badge "No squadra" nel pannello laterale |
+| `src/components/calendar/DraggableOrderBar.tsx` | Squadre assegnate nel tooltip |
+
+Nessuna migrazione DB necessaria: i dati sono gia presenti nella tabella `order_employees` con join su `employees`.
+
