@@ -186,24 +186,30 @@ export function CalendarWeekView({
                   <CollapsibleTrigger className="w-full">
                     <div
                       className={cn(
-                        "flex items-center justify-between p-3 rounded-lg border transition-colors",
+                        "flex flex-col p-3 rounded-lg border transition-colors",
                         today && "ring-2 ring-primary"
                       )}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className={cn("text-sm font-semibold capitalize", today && "text-primary")}>
-                          {format(day, "EEEE d", { locale: it })}
-                        </span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-sm font-semibold capitalize", today && "text-primary")}>
+                            {format(day, "EEEE d", { locale: it })}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="secondary"
+                            className={cn("text-xs font-medium", getWorkloadColor(workloadCount))}
+                          >
+                            {workloadCount} {workloadCount === 1 ? "lavoro" : "lavori"}
+                          </Badge>
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="secondary"
-                          className={cn("text-xs font-medium", getWorkloadColor(workloadCount))}
-                        >
-                          {workloadCount} {workloadCount === 1 ? "lavoro" : "lavori"}
-                        </Badge>
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      </div>
+                      <Progress
+                        value={Math.min(workloadCount / 6 * 100, 100)}
+                        className="h-1 mt-1.5"
+                      />
                     </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent>

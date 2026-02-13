@@ -24,6 +24,9 @@ export interface Profile {
   email: string;
   phone: string | null;
   address: string | null;
+  fiscal_code: string | null;
+  site_address: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
