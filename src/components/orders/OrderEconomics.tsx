@@ -160,7 +160,7 @@ export function OrderEconomics({
       case "percentage_sold":
         return totalAmount * (value / 100);
       case "percentage_collected":
-        return collectedAmount * (value / 100);
+        return totalAmount * (value / 100);
       default:
         return 0;
     }
