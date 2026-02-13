@@ -1,48 +1,35 @@
 
 
-# Piano: Campi Anagrafici in CreateCompany + Estrazione Costanti DRY
+# Piano: Aggiungere Gestione Persone nel Tab Team (Super Admin)
 
-## 1. Nuovo file condiviso `src/lib/companyUtils.ts`
+## Panoramica
 
-Estrarre da `CompaniesList.tsx` e `CompanyDetail.tsx` le costanti duplicate:
-
-- `sectorLabels` (Record string -> string)
-- `statusConfig` (Record CompanyStatus -> label + variant)
-- `sectors` (array value/label per i Select)
-
-Queste costanti verranno importate nei 3 file che le usano: `CompaniesList`, `CompanyDetail`, `CreateCompany`.
+Attualmente il tab "Team" nella pagina dettaglio azienda mostra solo i dati in sola lettura. Il Super Admin deve poter aggiungere Staff, Venditori e Dipendenti direttamente da questa vista, senza dover usare l'impersonificazione.
 
 ---
 
-## 2. Campi anagrafici in `CreateCompany.tsx`
+## Cosa cambia
 
-Aggiungere al form di creazione le sezioni anagrafiche (tutti opzionali, come nel dettaglio):
+Per ogni sezione del tab Team (Staff, Venditori, Dipendenti), aggiungere un bottone "Aggiungi" nell'header della Card che apre il dialog di creazione corrispondente. Le edge function e i dialog esistenti verranno riutilizzati.
 
-**Sezione "Dati Fiscali"** (dopo Settore):
-- Ragione sociale (`business_name`)
-- Partita IVA (`vat_number`)
-- Codice Fiscale (`fiscal_code`)
-- PEC (`pec`)
-- Codice SDI (`sdi_code`)
-- Telefono (`phone`)
-- Sito web (`website`)
+### Sezione Staff
+- Bottone "Nuovo Staff" nell'header della card Staff
+- Riutilizza `StaffUserDialog` (gia esistente)
+- Chiama la edge function `create-company-staff` passando il `company_id` dell'azienda corrente
+- Mostra la password temporanea dopo la creazione
+- Aggiungere bottone "Permessi" per gestire i permessi dello staff creato (riutilizza `PermissionsDialog`)
 
-**Sezione "Sede Legale"**:
-- Indirizzo, CAP, Citta, Provincia
+### Sezione Venditori
+- Bottone "Nuovo Venditore" nell'header della card Venditori
+- Riutilizza `SalespersonDialog` (gia esistente)
+- Insert diretto nella tabella `salespeople` con il `company_id` dell'azienda
+- Possibilita di creare account (bottone "Crea Account" nella riga, chiama `create-salesperson-user`)
 
-**Sezione "Sede Operativa"** (con checkbox "uguale alla sede legale"):
-- Indirizzo, CAP, Citta, Provincia
-
-I nuovi campi vanno passati alla edge function `create-company`, che li inserira nel record aziendale.
-
----
-
-## 3. Aggiornamento Edge Function `create-company`
-
-La edge function attualmente inserisce solo `name`, `email`, `sector`, `logo_url`. Va aggiornata per accettare e salvare i nuovi campi opzionali:
-- `businessName`, `vatNumber`, `fiscalCode`, `phone`, `pec`, `sdiCode`, `website`
-- `legalAddress`, `legalCity`, `legalProvince`, `legalPostalCode`
-- `operationalAddress`, `operationalCity`, `operationalProvince`, `operationalPostalCode`
+### Sezione Dipendenti
+- Bottone "Nuovo Dipendente" nell'header della card Dipendenti
+- Riutilizza `EmployeeDialog` (gia esistente)
+- Insert diretto nella tabella `employees` con il `company_id` dell'azienda
+- Possibilita di creare account (bottone "Crea Account" nella riga, chiama `create-employee-user`)
 
 ---
 
@@ -50,53 +37,67 @@ La edge function attualmente inserisce solo `name`, `email`, `sector`, `logo_url
 
 | File | Azione | Descrizione |
 |------|--------|-------------|
-| `src/lib/companyUtils.ts` | Crea | Costanti condivise (sectorLabels, statusConfig, sectors) |
-| `src/pages/admin/CreateCompany.tsx` | Modifica | Aggiungere form anagrafici + importare da companyUtils |
-| `src/pages/admin/CompaniesList.tsx` | Modifica | Rimuovere costanti duplicate, importare da companyUtils |
-| `src/pages/admin/CompanyDetail.tsx` | Modifica | Rimuovere costanti duplicate, importare da companyUtils |
-| `supabase/functions/create-company/index.ts` | Modifica | Accettare e salvare i nuovi campi anagrafici |
+| `src/pages/admin/CompanyDetail.tsx` | Modifica | Aggiungere bottoni "Aggiungi", dialog, mutation per Staff/Venditori/Dipendenti + gestione permessi |
 
-Nessuna migrazione DB necessaria: i campi esistono gia nella tabella `companies`.
+Nessun nuovo file, nessuna migrazione DB, nessuna nuova edge function. Tutto il backend necessario esiste gia.
 
 ---
 
 ## Dettagli Tecnici
 
-### companyUtils.ts
+### Nuovi state nel componente
 
 ```text
-export const sectorLabels = { serramenti: "Serramenti", ... }
-export const sectors = [{ value: "serramenti", label: "Serramenti" }, ...]
-export const statusConfig = { trial: { label: "Trial", variant: "outline" }, ... }
+- createStaffOpen (boolean) - dialog creazione staff
+- createSalespersonOpen (boolean) - dialog creazione venditore
+- editingSalesperson (Salesperson | null) - per SalespersonDialog
+- createEmployeeOpen (boolean) - dialog creazione dipendente
+- editingEmployee (Employee | null) - per EmployeeDialog
+- permissionsUser (StaffUser | null) - dialog permessi staff
+- accountDialog (open, type, entity) - dialog creazione account
+- passwordDialog (open, password, name) - mostra password temporanea
 ```
 
-### CreateCompany - Schema aggiornato
+### Nuove mutation
 
-Aggiungere al `formSchema` tutti i campi opzionali con `.optional().or(z.literal(""))`, stesso pattern usato in `CompanyDetail`.
+1. **createStaffMutation**: chiama `create-company-staff` edge function con `company_id` = `id` (dall'URL)
+2. **createSalespersonMutation**: insert in `salespeople` con `company_id` = `id`
+3. **createEmployeeMutation**: insert in `employees` con `company_id` = `id`
+4. **createAccountMutation**: chiama edge function `create-employee-user` o `create-salesperson-user`
+5. **savePermissionsMutation**: update `staff_permissions` per lo staff selezionato
 
-### Edge Function - Insert aggiornato
+Tutte le mutation invalidano la query `["company-team", id]` al successo.
+
+### UI - Bottoni nell'header di ogni Card
+
+Ogni sezione Team avra un bottone "+" nell'header:
 
 ```text
-.insert({
-  name: companyName,
-  email: companyEmail,
-  sector,
-  logo_url: logoUrl || null,
-  business_name: businessName || null,
-  vat_number: vatNumber || null,
-  fiscal_code: fiscalCode || null,
-  phone: phone || null,
-  pec: pec || null,
-  sdi_code: sdiCode || null,
-  website: website || null,
-  legal_address: legalAddress || null,
-  legal_city: legalCity || null,
-  legal_province: legalProvince || null,
-  legal_postal_code: legalPostalCode || null,
-  operational_address: operationalAddress || null,
-  operational_city: operationalCity || null,
-  operational_province: operationalProvince || null,
-  operational_postal_code: operationalPostalCode || null,
-})
+<CardHeader>
+  <div className="flex items-center gap-2">
+    <Icon />
+    <CardTitle>Titolo</CardTitle>
+    <Badge className="ml-auto">N</Badge>
+    <Button size="sm" onClick={...}>
+      <Plus /> Aggiungi
+    </Button>
+  </div>
+</CardHeader>
+```
+
+### UI - Colonna Azioni nelle tabelle
+
+Aggiungere una colonna "Azioni" con:
+- Staff: bottone Permessi (icona Shield)
+- Venditori: bottone "Crea Account" se `user_id` e null
+- Dipendenti: bottone "Crea Account" se `user_id` e null
+
+### Import aggiuntivi
+
+```text
+import { StaffUserDialog, StaffUserFormData } from "@/components/users/StaffUserDialog";
+import { PermissionsDialog, StaffPermissions } from "@/components/users/PermissionsDialog";
+import { SalespersonDialog } from "@/components/salespeople/SalespersonDialog";
+import { EmployeeDialog, EmployeeFormData } from "@/components/employees/EmployeeDialog";
 ```
 
