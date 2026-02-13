@@ -152,19 +152,15 @@ export function OrderEconomics({
   const totalLaborNet = totalEmployeeCosts + totalTeamsNet;
   const totalLaborVat = totalTeamsVat;
 
-  // Calculate net amounts for commission base
-  const { netAmount: netTotalAmount } = calculateNetFromGross(totalAmount, vatRate);
-  const { netAmount: netCollectedAmount } = calculateNetFromGross(collectedAmount, vatRate);
-
-  // Calculate commissions on net (VAT-exclusive) amounts
+  // Calculate commissions - totalAmount and collectedAmount are already net (imponibile)
   const calculateCommission = (type: string, value: number) => {
     switch (type) {
       case "fixed":
         return value;
       case "percentage_sold":
-        return netTotalAmount * (value / 100);
+        return totalAmount * (value / 100);
       case "percentage_collected":
-        return netCollectedAmount * (value / 100);
+        return collectedAmount * (value / 100);
       default:
         return 0;
     }
