@@ -81,8 +81,13 @@ Deno.serve(async (req) => {
 
     if (authError) {
       console.error("Auth error:", authError);
+      const isEmailExists = authError.message?.includes("already been registered") || 
+                            (authError as any).code === "email_exists";
+      const errorMessage = isEmailExists 
+        ? "Esiste già un utente con questo indirizzo email. Usa un'email diversa."
+        : authError.message;
       return new Response(
-        JSON.stringify({ error: authError.message }),
+        JSON.stringify({ error: errorMessage }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
