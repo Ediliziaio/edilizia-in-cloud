@@ -1,86 +1,103 @@
 
 
-# Piano: Rimozione Grafico e Stabilizzazione Progetto
+# Piano: Stabilizzazione e Pulizia Progetto
 
 ## Panoramica
 
-Rimuovere il grafico andamento mensile dalla pagina Ordini, correggere il warning console su `DateRangeFilter`, e pulire import/codice inutilizzato.
+Intervento mirato su bug reali, codice morto e pulizia, senza alterare il comportamento funzionale.
 
 ---
 
-## 1. Rimozione Grafico Andamento Mensile (OrdersList.tsx)
+## 1. Pulizia Codice
 
-- Rimuovere il blocco JSX del grafico (Card con BarChart, righe 448-477)
-- Rimuovere il `useMemo` per `monthlyData` (righe 347-365)
-- Rimuovere gli import di recharts: `BarChart`, `Bar`, `XAxis`, `YAxis`, `CartesianGrid`, `Tooltip`, `Legend`, `ResponsiveContainer`
-- Rimuovere `CardHeader` e `CardTitle` dagli import (non piu usati dopo rimozione grafico)
+### File da eliminare
+| File | Motivo |
+|------|--------|
+| `src/App.css` | Boilerplate Vite mai importato da nessun file. Codice morto. |
 
-Le stats cards, i filtri, la tabella e la pipeline rimangono invariati.
-
----
-
-## 2. Fix Warning Console: DateRangeFilter
-
-Il warning "Function components cannot be given refs" appare perche `DateRangeFilter` viene usato in un contesto dove React tenta di passare un ref. La soluzione e wrappare il componente con `React.forwardRef`.
-
-**File**: `src/components/orders/DateRangeFilter.tsx`
-
-Wrappare l'export con `forwardRef` per eliminare il warning dalla console.
+### Import e codice inutile da rimuovere
+| File | Elemento | Motivo |
+|------|----------|--------|
+| `src/pages/azienda/OrdersList.tsx` | Righe vuote residue (righe 346-347, 428-429) | Righe bianche lasciate dalla rimozione del grafico |
 
 ---
 
-## 3. Pulizia Codice e Import
+## 2. Fix Bug e Warning Console
 
-Analisi dei file modificati di recente per import inutili o codice morto:
+### Bug 1: Warning "Function components cannot be given refs" su DialogFooter
 
-| Elemento | File | Azione |
-|----------|------|--------|
-| Import recharts (6 simboli) | OrdersList.tsx | Rimuovere |
-| `CardHeader`, `CardTitle` | OrdersList.tsx | Rimuovere dall'import |
-| `monthlyData` useMemo | OrdersList.tsx | Rimuovere |
-| Grafico JSX (30 righe) | OrdersList.tsx | Rimuovere |
+**Causa**: `DialogFooter` in `src/components/ui/dialog.tsx` e una semplice funzione senza `forwardRef`. Quando Radix UI internamente prova a passare un ref (ad esempio dentro form o DialogContent), genera il warning. Visibile su `EmployeeDialog` e potenzialmente su tutti i dialog che usano `DialogFooter`.
 
-Nessun file da eliminare. Nessuna migrazione DB necessaria.
+**Fix**: Wrappare `DialogFooter` (e `DialogHeader` per coerenza) con `React.forwardRef` in `src/components/ui/dialog.tsx`.
+
+```text
+// Da:
+const DialogFooter = ({ className, ...props }) => (...)
+
+// A:
+const DialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn(...)} {...props} />
+  )
+);
+DialogFooter.displayName = "DialogFooter";
+```
+
+Stesso trattamento per `DialogHeader`.
 
 ---
 
-## 4. Riepilogo Modifiche
+## 3. Miglioramenti UX
+
+### UX 1: Righe vuote residue nella pagina Ordini
+Pulizia delle righe vuote lasciate dalla rimozione del grafico per rendere il codice piu leggibile e mantenibile.
+
+---
+
+## Riepilogo File da Modificare
 
 | File | Tipo | Descrizione |
 |------|------|-------------|
-| `src/pages/azienda/OrdersList.tsx` | Modifica | Rimuovere grafico, import recharts, monthlyData |
-| `src/components/orders/DateRangeFilter.tsx` | Modifica | Aggiungere forwardRef per eliminare warning console |
+| `src/components/ui/dialog.tsx` | Modifica | Wrappare DialogFooter e DialogHeader con forwardRef |
+| `src/pages/azienda/OrdersList.tsx` | Modifica | Rimuovere righe vuote residue |
+| `src/App.css` | Eliminare | File boilerplate Vite mai usato |
 
 ---
 
 ## Dettagli Tecnici
 
-### OrdersList.tsx - Elementi rimossi
+### dialog.tsx - DialogHeader e DialogFooter con forwardRef
 
 ```text
-- import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer }
-- import CardHeader, CardTitle
-- const monthlyData = useMemo(...)
-- <Card> con grafico BarChart </Card>
-```
+const DialogHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)}
+    {...props}
+  />
+));
+DialogHeader.displayName = "DialogHeader";
 
-### DateRangeFilter.tsx - Fix
-
-Trasformare da:
-```text
-export function DateRangeFilter({ label, range, onRangeChange }: DateRangeFilterProps) { ... }
-```
-A:
-```text
-export const DateRangeFilter = React.forwardRef<HTMLButtonElement, DateRangeFilterProps>(
-  function DateRangeFilter({ label, range, onRangeChange }, ref) { ... }
-);
+const DialogFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}
+    {...props}
+  />
+));
+DialogFooter.displayName = "DialogFooter";
 ```
 
 ### Verifiche Post-Modifica
 
-- Console priva di errori e warning relativi a ref
-- Stats cards funzionanti (usano `getAmountCollected` e `getAmountDue` che restano)
-- Filtro mese funzionante (usa `MONTHS` che resta)
-- Pipeline e tabella invariate
+- Console priva del warning "Function components cannot be given refs" per DialogFooter
+- Tutti i dialog funzionanti (EmployeeDialog, OrderItemsList, StaffUserDialog, ecc.)
 - Nessuna regressione funzionale
+- File App.css rimosso senza impatto (mai importato)
+
