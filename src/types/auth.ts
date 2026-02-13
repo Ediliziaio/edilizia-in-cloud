@@ -44,6 +44,22 @@ export interface Company {
   trial_ends_at: string | null;
   subscription_plan_id: string | null;
   stripe_customer_id: string | null;
+  business_name: string | null;
+  vat_number: string | null;
+  fiscal_code: string | null;
+  phone: string | null;
+  pec: string | null;
+  sdi_code: string | null;
+  legal_address: string | null;
+  legal_city: string | null;
+  legal_province: string | null;
+  legal_postal_code: string | null;
+  operational_address: string | null;
+  operational_city: string | null;
+  operational_province: string | null;
+  operational_postal_code: string | null;
+  website: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
