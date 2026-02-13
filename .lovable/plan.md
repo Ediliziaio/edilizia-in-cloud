@@ -1,103 +1,72 @@
 
 
-# Piano: Stabilizzazione e Pulizia Progetto
+# Piano: Fix Discrepanza "Da Incassare" tra Dashboard, Ordini e Previsionale
 
-## Panoramica
+## Problema Identificato
 
-Intervento mirato su bug reali, codice morto e pulizia, senza alterare il comportamento funzionale.
+La Dashboard mostra un valore "Saldi da Incassare" diverso rispetto alla pagina Ordini e al Previsionale perche calcola solo i **saldi non pagati**, ignorando gli **acconti non pagati**.
 
----
+| Vista | Cosa calcola | Corretto? |
+|-------|-------------|-----------|
+| Ordini (OrdersList) | Acconto 1 + Acconto 2 + Saldo non pagati | Si |
+| Previsionale (CashFlowForecast) | Acconto 1 + Acconto 2 + Saldo non pagati | Si |
+| Dashboard (CompanyDashboard) | Solo Saldo non pagato | **NO** |
 
-## 1. Pulizia Codice
+## Fix
 
-### File da eliminare
-| File | Motivo |
-|------|--------|
-| `src/App.css` | Boilerplate Vite mai importato da nessun file. Codice morto. |
+### File: `src/pages/azienda/CompanyDashboard.tsx`
 
-### Import e codice inutile da rimuovere
-| File | Elemento | Motivo |
-|------|----------|--------|
-| `src/pages/azienda/OrdersList.tsx` | Righe vuote residue (righe 346-347, 428-429) | Righe bianche lasciate dalla rimozione del grafico |
+**1. Modificare la query `pendingRevenueRes`** (riga 69-73)
 
----
-
-## 2. Fix Bug e Warning Console
-
-### Bug 1: Warning "Function components cannot be given refs" su DialogFooter
-
-**Causa**: `DialogFooter` in `src/components/ui/dialog.tsx` e una semplice funzione senza `forwardRef`. Quando Radix UI internamente prova a passare un ref (ad esempio dentro form o DialogContent), genera il warning. Visibile su `EmployeeDialog` e potenzialmente su tutti i dialog che usano `DialogFooter`.
-
-**Fix**: Wrappare `DialogFooter` (e `DialogHeader` per coerenza) con `React.forwardRef` in `src/components/ui/dialog.tsx`.
-
+Attualmente:
 ```text
-// Da:
-const DialogFooter = ({ className, ...props }) => (...)
-
-// A:
-const DialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn(...)} {...props} />
-  )
-);
-DialogFooter.displayName = "DialogFooter";
+supabase
+  .from("orders")
+  .select("balance_amount, balance_paid")
+  .eq("company_id", companyId!)
+  .or("balance_paid.is.null,balance_paid.eq.false")
 ```
 
-Stesso trattamento per `DialogHeader`.
-
----
-
-## 3. Miglioramenti UX
-
-### UX 1: Righe vuote residue nella pagina Ordini
-Pulizia delle righe vuote lasciate dalla rimozione del grafico per rendere il codice piu leggibile e mantenibile.
-
----
-
-## Riepilogo File da Modificare
-
-| File | Tipo | Descrizione |
-|------|------|-------------|
-| `src/components/ui/dialog.tsx` | Modifica | Wrappare DialogFooter e DialogHeader con forwardRef |
-| `src/pages/azienda/OrdersList.tsx` | Modifica | Rimuovere righe vuote residue |
-| `src/App.css` | Eliminare | File boilerplate Vite mai usato |
-
----
-
-## Dettagli Tecnici
-
-### dialog.tsx - DialogHeader e DialogFooter con forwardRef
-
+Deve diventare:
 ```text
-const DialogHeader = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)}
-    {...props}
-  />
-));
-DialogHeader.displayName = "DialogHeader";
-
-const DialogFooter = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}
-    {...props}
-  />
-));
-DialogFooter.displayName = "DialogFooter";
+supabase
+  .from("orders")
+  .select("deposit_amount, deposit_paid, deposit_2_amount, deposit_2_paid, balance_amount, balance_paid")
+  .eq("company_id", companyId!)
 ```
 
-### Verifiche Post-Modifica
+**2. Modificare il calcolo `pendingRevenue`** (righe 110-112)
 
-- Console priva del warning "Function components cannot be given refs" per DialogFooter
-- Tutti i dialog funzionanti (EmployeeDialog, OrderItemsList, StaffUserDialog, ecc.)
-- Nessuna regressione funzionale
-- File App.css rimosso senza impatto (mai importato)
+Attualmente somma solo `balance_amount`. Deve sommare tutte le rate non pagate:
+
+```text
+let pendingRevenue = 0;
+let pendingOrdersCount = 0;
+
+pendingRevenueRes.data?.forEach(order => {
+  let orderPending = 0;
+  if (!order.deposit_paid && Number(order.deposit_amount) > 0)
+    orderPending += Number(order.deposit_amount);
+  if (!order.deposit_2_paid && Number(order.deposit_2_amount) > 0)
+    orderPending += Number(order.deposit_2_amount);
+  if (!order.balance_paid && Number(order.balance_amount) > 0)
+    orderPending += Number(order.balance_amount);
+  if (orderPending > 0) {
+    pendingRevenue += orderPending;
+    pendingOrdersCount++;
+  }
+});
+```
+
+**3. Rinominare la label** della stat card da "Saldi da Incassare" a "Da Incassare" per coerenza con la pagina Ordini.
+
+---
+
+## Riepilogo
+
+| File | Modifica |
+|------|----------|
+| `src/pages/azienda/CompanyDashboard.tsx` | Fix query e calcolo pendingRevenue per includere tutti i pagamenti non incassati |
+
+Nessun altro file da modificare. Nessuna migrazione DB necessaria.
 
