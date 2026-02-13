@@ -39,6 +39,7 @@ import OrderDetail from "@/pages/azienda/OrderDetail";
 import EditOrder from "@/pages/azienda/EditOrder";
 import CustomersList from "@/pages/azienda/CustomersList";
 import CreateCustomer from "@/pages/azienda/CreateCustomer";
+import CompanyCustomerDetail from "@/pages/azienda/CompanyCustomerDetail";
 import CashFlowForecast from "@/pages/azienda/CashFlowForecast";
 import Warehouse from "@/pages/azienda/Warehouse";
 import Calendar from "@/pages/azienda/Calendar";
@@ -126,6 +127,7 @@ const App = () => (
               <Route path="calendario" element={<Calendar />} />
               <Route path="clienti" element={<CustomersList />} />
               <Route path="clienti/nuovo" element={<CreateCustomer />} />
+              <Route path="clienti/:id" element={<CompanyCustomerDetail />} />
               
               <Route path="assistenza" element={<TicketsList />} />
               <Route path="assistenza/:id" element={<TicketDetail />} />
