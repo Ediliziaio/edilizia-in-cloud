@@ -14,6 +14,8 @@ export type CompanySector =
 
 export type TicketStatus = "aperto" | "in_lavorazione" | "risolto";
 
+export type CompanyStatus = "trial" | "active" | "suspended" | "expired";
+
 export interface Profile {
   id: string;
   company_id: string | null;
@@ -38,6 +40,10 @@ export interface Company {
   email: string;
   logo_url: string | null;
   sector: CompanySector;
+  status: CompanyStatus;
+  trial_ends_at: string | null;
+  subscription_plan_id: string | null;
+  stripe_customer_id: string | null;
   created_at: string;
   updated_at: string;
 }
