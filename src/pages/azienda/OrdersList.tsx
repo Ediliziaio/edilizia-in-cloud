@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Plus, Search, Package, Eye, LayoutList, Columns3, X, Euro } from "lucide-react";
+import { Plus, Search, Package, Eye, LayoutList, Columns3, X, Euro, ShoppingBag, TrendingUp, AlertCircle, CalendarDays } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -85,6 +85,30 @@ function getPendingPayments(order: OrderWithDetails): string[] {
   return pending;
 }
 
+// Helper per calcolare importo da ricevere
+function getAmountDue(order: OrderWithDetails): number {
+  let due = 0;
+  if (!order.deposit_paid) due += order.deposit_amount || 0;
+  if (!order.deposit_2_paid) due += (order.deposit_2_amount || 0);
+  if (!order.balance_paid) due += order.balance_amount || 0;
+  return due;
+}
+
+// Helper per calcolare importo incassato
+function getAmountCollected(order: OrderWithDetails): number {
+  let collected = 0;
+  if (order.deposit_paid) collected += order.deposit_amount || 0;
+  if (order.deposit_2_paid) collected += (order.deposit_2_amount || 0);
+  if (order.balance_paid) collected += order.balance_amount || 0;
+  return collected;
+}
+
+// Mesi per filtro rapido
+const MONTHS = [
+  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+];
+
 export default function OrdersList() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
@@ -103,6 +127,7 @@ export default function OrdersList() {
   const [customerFilter, setCustomerFilter] = useState<string>("all");
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
+  const [monthFilter, setMonthFilter] = useState<string>("all");
 
   // Fetch orders for the company (filtered by company_id)
   const { data: orders = [], isLoading } = useQuery({
@@ -221,10 +246,26 @@ export default function OrdersList() {
     setCustomerFilter("all");
     setAmountMin("");
     setAmountMax("");
+    setMonthFilter("all");
     setContractDateRange({ from: undefined, to: undefined });
     setWarehouseDateRange({ from: undefined, to: undefined });
     setExpectedDateRange({ from: undefined, to: undefined });
   };
+
+  // Month filter handler
+  const handleMonthChange = (value: string) => {
+    setMonthFilter(value);
+    if (value === "all") {
+      setContractDateRange({ from: undefined, to: undefined });
+    } else {
+      const year = new Date().getFullYear();
+      const month = parseInt(value);
+      const from = new Date(year, month, 1);
+      const to = new Date(year, month + 1, 0);
+      setContractDateRange({ from, to });
+    }
+  };
+
 
   // Filter orders
   const filteredOrders = orders.filter((order) => {
@@ -293,6 +334,15 @@ export default function OrdersList() {
            matchesContractDate && matchesWarehouseDate && matchesExpectedDate;
   });
 
+  // Stats calcolate sugli ordini filtrati
+  const stats = useMemo(() => {
+    const totalOrders = filteredOrders.length;
+    const totalAmount = filteredOrders.reduce((sum, o) => sum + o.total_amount, 0);
+    const collected = filteredOrders.reduce((sum, o) => sum + getAmountCollected(o), 0);
+    const pending = filteredOrders.reduce((sum, o) => sum + getAmountDue(o), 0);
+    return { totalOrders, totalAmount, collected, pending };
+  }, [filteredOrders]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -326,7 +376,55 @@ export default function OrdersList() {
         </div>
       </div>
 
-      {/* Filters Row 1: Search + Status + Payment */}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <ShoppingBag className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{stats.totalOrders}</p>
+              <p className="text-xs text-muted-foreground">N° Ordini</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-950">
+              <Euro className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{formatCurrency(stats.totalAmount)}</p>
+              <p className="text-xs text-muted-foreground">Importo Totale</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-950">
+              <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{formatCurrency(stats.collected)}</p>
+              <p className="text-xs text-muted-foreground">Incassato</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-950">
+              <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{formatCurrency(stats.pending)}</p>
+              <p className="text-xs text-muted-foreground">Da Incassare</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters Row 1: Search + Status + Payment + Month */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -364,6 +462,18 @@ export default function OrdersList() {
             <SelectItem value="all">Tutti i pagamenti</SelectItem>
             <SelectItem value="pending">In Sospeso</SelectItem>
             <SelectItem value="paid">Tutto Pagato</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={monthFilter} onValueChange={handleMonthChange}>
+          <SelectTrigger className="w-full sm:w-[160px]">
+            <CalendarDays className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Mese" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti i mesi</SelectItem>
+            {MONTHS.map((name, i) => (
+              <SelectItem key={i} value={i.toString()}>{name}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -523,6 +633,7 @@ export default function OrdersList() {
                   <TableHead>Descrizione</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead className="text-right">Totale</TableHead>
+                  <TableHead className="text-right">Da Ricevere</TableHead>
                   <TableHead className="hidden md:table-cell">Data Contratto</TableHead>
                   <TableHead className="hidden lg:table-cell">Arrivo Merce</TableHead>
                   <TableHead className="hidden lg:table-cell">Data Posa</TableHead>
@@ -547,6 +658,16 @@ export default function OrdersList() {
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(order.total_amount)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {(() => {
+                        const due = getAmountDue(order);
+                        return (
+                          <span className={due > 0 ? "text-orange-600 dark:text-orange-400 font-medium" : "text-emerald-600 dark:text-emerald-400"}>
+                            {formatCurrency(due)}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {formatDateShort(order.created_at)}
