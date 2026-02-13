@@ -344,7 +344,6 @@ export default function OrdersList() {
     return { totalOrders, totalAmount, collected, pending };
   }, [filteredOrders]);
 
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -425,7 +424,6 @@ export default function OrdersList() {
           </CardContent>
         </Card>
       </div>
-
 
       {/* Filters Row 1: Search + Status + Payment + Month */}
       <div className="flex flex-col sm:flex-row gap-4">
