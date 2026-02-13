@@ -656,8 +656,10 @@ export type Database = {
           created_at: string | null
           description: string | null
           id: string
+          is_paid: boolean | null
           name: string
           order_id: string
+          paid_date: string | null
           position: number | null
           purchase_price: number | null
           quantity: number | null
@@ -671,8 +673,10 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_paid?: boolean | null
           name: string
           order_id: string
+          paid_date?: string | null
           position?: number | null
           purchase_price?: number | null
           quantity?: number | null
@@ -686,8 +690,10 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_paid?: boolean | null
           name?: string
           order_id?: string
+          paid_date?: string | null
           position?: number | null
           purchase_price?: number | null
           quantity?: number | null
