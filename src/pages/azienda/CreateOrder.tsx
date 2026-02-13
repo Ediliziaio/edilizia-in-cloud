@@ -213,6 +213,9 @@ export default function CreateOrder() {
           purchase_price: item.purchase_price || 0,
           vat_rate: item.vat_rate ?? 22,
           stock_item_id: item.stock_item_id || null,
+          unit_price: item.unit_price || 0,
+          discount_percent: item.discount_percent || 0,
+          standard_cost: item.standard_cost || 0,
         }));
 
         const { data: insertedItems, error: itemsError } = await supabase

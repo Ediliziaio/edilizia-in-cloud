@@ -266,6 +266,9 @@ export default function EditOrder() {
         purchase_price: item.purchase_price || undefined,
         vat_rate: item.vat_rate ?? undefined,
         stock_item_id: item.stock_item_id || undefined,
+        unit_price: (item as any).unit_price || undefined,
+        discount_percent: (item as any).discount_percent || undefined,
+        standard_cost: (item as any).standard_cost || undefined,
       })));
     }
   }, [existingItems]);
@@ -373,6 +376,9 @@ export default function EditOrder() {
           purchase_price: item.purchase_price || 0,
           vat_rate: item.vat_rate ?? 22,
           stock_item_id: item.stock_item_id || null,
+          unit_price: item.unit_price || 0,
+          discount_percent: item.discount_percent || 0,
+          standard_cost: item.standard_cost || 0,
         }));
 
         const { data: insertedItems, error: itemsError } = await supabase

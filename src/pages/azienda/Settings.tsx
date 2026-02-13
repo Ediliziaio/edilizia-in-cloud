@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, ListOrdered, Truck, Key, Users, UserCheck, HardHat } from "lucide-react";
+import { Building2, ListOrdered, Truck, Key, Users, UserCheck, HardHat, Package } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
 import { CompanyProfileForm } from "@/components/settings/CompanyProfileForm";
+import { ArticleCatalog } from "@/components/settings/ArticleCatalog";
 import Employees from "@/pages/azienda/Employees";
 
 export default function Settings() {
@@ -31,7 +32,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-7' : 'grid-cols-4'} lg:w-[${isAdmin ? '1000' : '650'}px]`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-8' : 'grid-cols-5'} lg:w-[${isAdmin ? '1100' : '750'}px]`}>
           <TabsTrigger value="profilo" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Profilo</span>
@@ -39,6 +40,10 @@ export default function Settings() {
           <TabsTrigger value="stati-ordine" className="flex items-center gap-2">
             <ListOrdered className="h-4 w-4" />
             <span className="hidden sm:inline">Stati</span>
+          </TabsTrigger>
+          <TabsTrigger value="catalogo" className="flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            <span className="hidden sm:inline">Catalogo</span>
           </TabsTrigger>
           <TabsTrigger value="fornitori" className="flex items-center gap-2">
             <Truck className="h-4 w-4" />
@@ -103,6 +108,10 @@ export default function Settings() {
 
         <TabsContent value="stati-ordine" className="mt-6">
           <OrderStatusConfig />
+        </TabsContent>
+
+        <TabsContent value="catalogo" className="mt-6">
+          <ArticleCatalog />
         </TabsContent>
 
         <TabsContent value="fornitori" className="mt-6">
