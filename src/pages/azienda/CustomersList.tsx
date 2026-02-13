@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -221,10 +222,15 @@ export default function CustomersList() {
       {/* Content */}
       {isLoading ? (
         <Card>
-          <CardContent className="py-12">
-            <div className="flex items-center justify-center">
-              <p className="text-muted-foreground">Caricamento clienti...</p>
-            </div>
+          <CardContent className="py-6 space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <Skeleton className="h-5 w-[180px]" />
+                <Skeleton className="h-5 w-[200px]" />
+                <Skeleton className="h-5 w-[100px]" />
+                <Skeleton className="h-5 w-[60px]" />
+              </div>
+            ))}
           </CardContent>
         </Card>
       ) : filteredCustomers.length === 0 ? (

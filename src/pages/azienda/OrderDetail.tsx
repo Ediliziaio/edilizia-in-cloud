@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -514,8 +515,24 @@ export default function OrderDetail() {
 
   if (orderLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Caricamento ordine...</p>
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10 rounded" />
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-[250px]" />
+            <Skeleton className="h-4 w-[150px]" />
+          </div>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-6">
+            <Skeleton className="h-[200px] w-full rounded-lg" />
+            <Skeleton className="h-[150px] w-full rounded-lg" />
+          </div>
+          <div className="space-y-6">
+            <Skeleton className="h-[120px] w-full rounded-lg" />
+            <Skeleton className="h-[200px] w-full rounded-lg" />
+          </div>
+        </div>
       </div>
     );
   }

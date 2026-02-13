@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
@@ -594,8 +595,16 @@ export default function OrdersList() {
       {/* Content */}
       {isLoading ? (
         <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            Caricamento ordini...
+          <CardContent className="p-6 space-y-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <Skeleton className="h-5 w-[80px]" />
+                <Skeleton className="h-5 w-[150px] flex-1" />
+                <Skeleton className="h-5 w-[120px]" />
+                <Skeleton className="h-5 w-[80px]" />
+                <Skeleton className="h-5 w-[70px]" />
+              </div>
+            ))}
           </CardContent>
         </Card>
       ) : filteredOrders.length === 0 ? (
