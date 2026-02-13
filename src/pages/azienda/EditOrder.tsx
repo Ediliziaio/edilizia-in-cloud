@@ -517,6 +517,21 @@ export default function EditOrder() {
       return;
     }
 
+    // Validate order items
+    if (orderItems.length > 0) {
+      const invalidItems = orderItems.filter(
+        (item) => !item.name.trim() || item.quantity < 1 || (item.purchase_price !== undefined && item.purchase_price < 0)
+      );
+      if (invalidItems.length > 0) {
+        toast({
+          title: "Articoli non validi",
+          description: "Verifica che tutti gli articoli abbiano un nome, quantità ≥ 1 e prezzo d'acquisto non negativo.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     updateOrderMutation.mutate();
   };
 
