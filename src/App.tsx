@@ -23,12 +23,12 @@ import AdminDashboard from "@/pages/admin/AdminDashboard";
 import CompaniesList from "@/pages/admin/CompaniesList";
 import CreateCompany from "@/pages/admin/CreateCompany";
 import CompanyDetail from "@/pages/admin/CompanyDetail";
-import EditCompany from "@/pages/admin/EditCompany";
+// EditCompany removed - editing is inline in CompanyDetail
 import GlobalOrders from "@/pages/admin/GlobalOrders";
 import GlobalTickets from "@/pages/admin/GlobalTickets";
 import AdminSettings from "@/pages/admin/AdminSettings";
 import SubscriptionPlans from "@/pages/admin/SubscriptionPlans";
-import Subscriptions from "@/pages/admin/Subscriptions";
+// Subscriptions removed - integrated into CompanyDetail
 
 // Company Pages  
 import CompanyDashboard from "@/pages/azienda/CompanyDashboard";
@@ -101,12 +101,11 @@ const App = () => (
               <Route path="aziende" element={<CompaniesList />} />
               <Route path="aziende/nuova" element={<CreateCompany />} />
               <Route path="aziende/:id" element={<CompanyDetail />} />
-              <Route path="aziende/:id/modifica" element={<EditCompany />} />
+              {/* EditCompany route removed - inline editing in CompanyDetail */}
               <Route path="ordini" element={<GlobalOrders />} />
               <Route path="ticket" element={<GlobalTickets />} />
               <Route path="impostazioni" element={<AdminSettings />} />
               <Route path="piani" element={<SubscriptionPlans />} />
-              <Route path="abbonamenti" element={<Subscriptions />} />
             </Route>
 
             {/* Company Admin and Staff Routes */}

@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Company } from "@/types/auth";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+import type { CompanyStatus } from "@/types/auth";
 
 const sectorLabels: Record<string, string> = {
   serramenti: "Serramenti",
@@ -20,10 +24,18 @@ const sectorLabels: Record<string, string> = {
   altro: "Altro",
 };
 
+const statusConfig: Record<CompanyStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  trial: { label: "Trial", variant: "outline" },
+  active: { label: "Attivo", variant: "default" },
+  suspended: { label: "Sospeso", variant: "secondary" },
+  expired: { label: "Scaduto", variant: "destructive" },
+};
+
 export default function CompaniesList() {
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
@@ -31,11 +43,11 @@ export default function CompaniesList() {
     async function fetchCompanies() {
       const { data, error } = await supabase
         .from("companies")
-        .select("*")
+        .select("*, subscription_plans:subscription_plan_id(id, name)")
         .order("created_at", { ascending: false });
 
       if (!error && data) {
-        setCompanies(data as Company[]);
+        setCompanies(data);
       }
       setIsLoading(false);
     }
@@ -43,13 +55,16 @@ export default function CompaniesList() {
     fetchCompanies();
   }, []);
 
-  const filteredCompanies = companies.filter(
-    (company) =>
+  const filteredCompanies = companies.filter((company) => {
+    const matchesSearch =
       company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      company.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || company.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
-  const handleImpersonate = async (companyId: string) => {
+  const handleImpersonate = async (e: React.MouseEvent, companyId: string) => {
+    e.stopPropagation();
     await impersonateCompany(companyId);
     navigate("/azienda");
   };
@@ -69,39 +84,43 @@ export default function CompaniesList() {
         </Button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Cerca per nome o email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Cerca per nome o email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Stato" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti gli stati</SelectItem>
+            <SelectItem value="trial">Trial</SelectItem>
+            <SelectItem value="active">Attivo</SelectItem>
+            <SelectItem value="suspended">Sospeso</SelectItem>
+            <SelectItem value="expired">Scaduto</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader>
-                <div className="h-5 bg-muted rounded w-3/4" />
-                <div className="h-4 bg-muted rounded w-1/2 mt-2" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-4 bg-muted rounded w-1/4" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Caricamento...
+          </CardContent>
+        </Card>
       ) : filteredCompanies.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium">Nessuna azienda trovata</h3>
             <p className="text-muted-foreground text-center mt-2">
-              {searchQuery
-                ? "Prova a modificare i termini di ricerca"
-                : "Inizia creando la prima azienda"}
+              {searchQuery ? "Prova a modificare i termini di ricerca" : "Inizia creando la prima azienda"}
             </p>
             {!searchQuery && (
               <Button asChild className="mt-4">
@@ -114,45 +133,104 @@ export default function CompaniesList() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredCompanies.map((company) => (
-            <Card key={company.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    {company.logo_url ? (
-                      <img
-                        src={company.logo_url}
-                        alt={company.name}
-                        className="h-10 w-10 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Building2 className="h-5 w-5 text-primary" />
-                      </div>
-                    )}
-                    <div>
-                      <CardTitle className="text-base">{company.name}</CardTitle>
-                      <CardDescription className="text-sm">{company.email}</CardDescription>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Badge variant="secondary">{sectorLabels[company.sector] || company.sector}</Badge>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => handleImpersonate(company.id)}
-                >
-                  <LogIn className="mr-2 h-4 w-4" />
-                  Accedi come Admin
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Azienda</TableHead>
+                  <TableHead>Settore</TableHead>
+                  <TableHead>Piano</TableHead>
+                  <TableHead>Stato</TableHead>
+                  <TableHead>Scadenza Trial</TableHead>
+                  <TableHead>Creata il</TableHead>
+                  <TableHead className="text-right">Azioni</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCompanies.map((company) => {
+                  const status = (company.status || "trial") as CompanyStatus;
+                  const cfg = statusConfig[status] || statusConfig.trial;
+                  const plan = company.subscription_plans as { id: string; name: string } | null;
+
+                  return (
+                    <TableRow
+                      key={company.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/admin/aziende/${company.id}`)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          {company.logo_url ? (
+                            <img src={company.logo_url} alt={company.name} className="h-8 w-8 rounded-lg object-cover" />
+                          ) : (
+                            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                              <Building2 className="h-4 w-4 text-primary" />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-medium">{company.name}</p>
+                            <p className="text-xs text-muted-foreground">{company.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{sectorLabels[company.sector] || company.sector}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {plan ? (
+                          <Badge variant="outline">{plan.name}</Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {company.trial_ends_at ? (
+                          <span className="text-sm">
+                            {format(new Date(company.trial_ends_at), "dd/MM/yyyy", { locale: it })}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          {format(new Date(company.created_at), "dd/MM/yyyy", { locale: it })}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/aziende/${company.id}`);
+                            }}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            Apri
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => handleImpersonate(e, company.id)}
+                          >
+                            <LogIn className="h-4 w-4 mr-1" />
+                            Accedi
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

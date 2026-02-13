@@ -7,8 +7,7 @@ import {
   ClipboardList,
   MessageSquare,
   Settings,
-  CreditCard,
-  Receipt
+  CreditCard
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,6 @@ const navItems = [
   { title: "Ordini", url: "/admin/ordini", icon: ClipboardList },
   { title: "Ticket", url: "/admin/ticket", icon: MessageSquare },
   { title: "Piani", url: "/admin/piani", icon: CreditCard },
-  { title: "Abbonamenti", url: "/admin/abbonamenti", icon: Receipt },
 ];
 
 const accountItems = [
