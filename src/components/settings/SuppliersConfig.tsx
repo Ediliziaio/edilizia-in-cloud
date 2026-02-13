@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Truck, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Truck, Plus, Pencil, Trash2, Loader2, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { VAT_RATES, getVatRateLabel } from "@/lib/vatUtils";
@@ -156,6 +156,7 @@ export function SuppliersConfig() {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState("italiani");
+  const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -177,8 +178,20 @@ export function SuppliersConfig() {
     enabled: !!companyId,
   });
 
-  const italiani = suppliers?.filter((s) => !s.is_foreign) || [];
-  const esteri = suppliers?.filter((s) => s.is_foreign) || [];
+  const filterBySearch = (list: Supplier[]) => {
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.product_category && s.product_category.toLowerCase().includes(q)) ||
+        (s.city && s.city.toLowerCase().includes(q)) ||
+        (s.vat_number && s.vat_number.toLowerCase().includes(q))
+    );
+  };
+
+  const italiani = filterBySearch(suppliers?.filter((s) => !s.is_foreign) || []);
+  const esteri = filterBySearch(suppliers?.filter((s) => s.is_foreign) || []);
 
   const invalidateSuppliers = () => {
     queryClient.invalidateQueries({ queryKey: ["suppliers-config"] });
@@ -349,6 +362,16 @@ export function SuppliersConfig() {
             <Skeleton className="h-10 w-full" />
           </div>
         ) : (
+          <div className="space-y-4">
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Cerca per nome, categoria, città o P.IVA..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2 max-w-xs">
               <TabsTrigger value="italiani">Italiani ({italiani.length})</TabsTrigger>
@@ -361,6 +384,7 @@ export function SuppliersConfig() {
               <SupplierTable suppliers={esteri} onEdit={handleOpenEdit} onDelete={handleOpenDelete} />
             </TabsContent>
           </Tabs>
+          </div>
         )}
       </CardContent>
 
