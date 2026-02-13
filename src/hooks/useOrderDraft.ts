@@ -40,8 +40,10 @@ export interface OrderDraftData {
 
 const DRAFT_KEY_PREFIX = "order-draft-";
 
-function getDraftKey(companyId: string) {
-  return `${DRAFT_KEY_PREFIX}${companyId}`;
+function getDraftKey(companyId: string, orderId?: string) {
+  return orderId
+    ? `${DRAFT_KEY_PREFIX}${companyId}-${orderId}`
+    : `${DRAFT_KEY_PREFIX}${companyId}`;
 }
 
 function dateToIso(d: Date | undefined): string | null {
@@ -52,20 +54,20 @@ function isoToDate(s: string | null): Date | undefined {
   return s ? new Date(s) : undefined;
 }
 
-export function useOrderDraft(companyId: string | undefined) {
+export function useOrderDraft(companyId: string | undefined, orderId?: string) {
   const [draftRestored, setDraftRestored] = useState(false);
   const savingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadDraft = useCallback((): OrderDraftData | null => {
     if (!companyId) return null;
     try {
-      const raw = localStorage.getItem(getDraftKey(companyId));
+      const raw = localStorage.getItem(getDraftKey(companyId, orderId));
       if (!raw) return null;
       return JSON.parse(raw) as OrderDraftData;
     } catch {
       return null;
     }
-  }, [companyId]);
+  }, [companyId, orderId]);
 
   const saveDraft = useCallback((data: Omit<OrderDraftData, "savedAt">) => {
     if (!companyId) return;
@@ -73,19 +75,19 @@ export function useOrderDraft(companyId: string | undefined) {
     savingRef.current = setTimeout(() => {
       try {
         const toSave: OrderDraftData = { ...data, savedAt: new Date().toISOString() };
-        localStorage.setItem(getDraftKey(companyId), JSON.stringify(toSave));
+        localStorage.setItem(getDraftKey(companyId, orderId), JSON.stringify(toSave));
       } catch {
         // localStorage full or unavailable
       }
     }, 500);
-  }, [companyId]);
+  }, [companyId, orderId]);
 
   const clearDraft = useCallback(() => {
     if (!companyId) return;
     if (savingRef.current) clearTimeout(savingRef.current);
-    localStorage.removeItem(getDraftKey(companyId));
+    localStorage.removeItem(getDraftKey(companyId, orderId));
     setDraftRestored(false);
-  }, [companyId]);
+  }, [companyId, orderId]);
 
   // Cleanup timeout on unmount
   useEffect(() => {

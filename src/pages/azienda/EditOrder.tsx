@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarIcon, Plus } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { useOrderDraft } from "@/hooks/useOrderDraft";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -131,6 +133,10 @@ export default function EditOrder() {
   } | null>(null);
   const [existingSalespersonRecordId, setExistingSalespersonRecordId] = useState<string | null>(null);
 
+  // Draft auto-save for edit
+  const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id, id);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
   // Calculate balance
   const total = parseFloat(totalAmount) || 0;
   const deposit = parseFloat(depositAmount) || 0;
@@ -202,8 +208,120 @@ export default function EditOrder() {
     }
   }, [existingSalesperson]);
 
-  // Populate form when order data is loaded
+  // Populate form when order data is loaded — check draft first
   useEffect(() => {
+    if (!order) return;
+
+    // Try to restore draft
+    const draft = loadDraft();
+    if (draft) {
+      setCustomerId(draft.customerId || "");
+      setOrderCode(draft.orderCode || "");
+      setDescription(draft.description || "");
+      setInternalNotes(draft.internalNotes || "");
+      setSalespersonId(draft.salespersonId || "");
+      setSalespersonData(draft.salespersonData || null);
+      setExpectedDate(isoToDate(draft.expectedDate));
+      setWarehouseArrivalDate(isoToDate(draft.warehouseArrivalDate));
+      setWorkStartDate(isoToDate(draft.workStartDate));
+      setWorkEndDate(isoToDate(draft.workEndDate));
+      setPaymentType(draft.paymentType || "standard");
+      setTotalAmount(draft.totalAmount || "");
+      setDepositAmount(draft.depositAmount || "");
+      setDeposit2Amount(draft.deposit2Amount || "");
+      setFinancingAmount(draft.financingAmount || "");
+      setVatRate(draft.vatRate || "22");
+      setDepositPaid(draft.depositPaid || false);
+      setDepositPaidDate(isoToDate(draft.depositPaidDate));
+      setDepositExpectedDate(isoToDate(draft.depositExpectedDate));
+      setDeposit2Paid(draft.deposit2Paid || false);
+      setDeposit2PaidDate(isoToDate(draft.deposit2PaidDate));
+      setDeposit2ExpectedDate(isoToDate(draft.deposit2ExpectedDate));
+      setBalancePaid(draft.balancePaid || false);
+      setBalancePaidDate(isoToDate(draft.balancePaidDate));
+      setBalanceExpectedDate(isoToDate(draft.balanceExpectedDate));
+      if (draft.orderItems?.length) setOrderItems(draft.orderItems);
+      setDraftRestored(true);
+      setDataLoaded(true);
+      return;
+    }
+
+    // No draft — load from DB
+    setCustomerId(order.customer_id);
+    setOrderCode(order.order_code || "");
+    setDescription(order.description);
+    setTotalAmount(order.total_amount.toString());
+    setDepositAmount(order.deposit_amount.toString());
+    setDeposit2Amount((order.deposit_2_amount || 0).toString());
+    setFinancingAmount((order.financing_amount || 0).toString());
+    setPaymentType((order.payment_type as PaymentType) || 'standard');
+    setInternalNotes(order.internal_notes || "");
+    setVatRate((order.vat_rate || 22).toString());
+    setDepositPaid(order.deposit_paid || false);
+    setDeposit2Paid(order.deposit_2_paid || false);
+    setBalancePaid(order.balance_paid || false);
+    if (order.deposit_paid_date) setDepositPaidDate(new Date(order.deposit_paid_date));
+    if (order.deposit_expected_date) setDepositExpectedDate(new Date(order.deposit_expected_date));
+    if (order.deposit_2_paid_date) setDeposit2PaidDate(new Date(order.deposit_2_paid_date));
+    if (order.deposit_2_expected_date) setDeposit2ExpectedDate(new Date(order.deposit_2_expected_date));
+    if (order.balance_paid_date) setBalancePaidDate(new Date(order.balance_paid_date));
+    if (order.balance_expected_date) setBalanceExpectedDate(new Date(order.balance_expected_date));
+    if (order.expected_date) setExpectedDate(new Date(order.expected_date));
+    if (order.warehouse_arrival_date) setWarehouseArrivalDate(new Date(order.warehouse_arrival_date));
+    if (order.work_start_date) setWorkStartDate(new Date(order.work_start_date));
+    if (order.work_end_date) setWorkEndDate(new Date(order.work_end_date));
+    setDataLoaded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order]);
+
+  // Populate order items (only if no draft was restored)
+  useEffect(() => {
+    if (existingItems.length > 0 && !draftRestored) {
+      setOrderItems(existingItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        description: item.description || undefined,
+        quantity: item.quantity,
+        status: item.status as OrderItem['status'],
+        position: item.position,
+        supplier_id: item.supplier_id || undefined,
+        purchase_price: item.purchase_price || undefined,
+        vat_rate: item.vat_rate ?? undefined,
+        stock_item_id: item.stock_item_id || undefined,
+        unit_price: (item as any).unit_price || undefined,
+        discount_percent: (item as any).discount_percent || undefined,
+        standard_cost: (item as any).standard_cost || undefined,
+      })));
+    }
+  }, [existingItems, draftRestored]);
+
+  // Auto-save draft on every change (debounced)
+  useEffect(() => {
+    if (!dataLoaded) return;
+    saveDraft({
+      customerId, orderCode, description, internalNotes, statusId: "",
+      salespersonId, salespersonData,
+      expectedDate: dateToIso(expectedDate),
+      warehouseArrivalDate: dateToIso(warehouseArrivalDate),
+      workStartDate: dateToIso(workStartDate),
+      workEndDate: dateToIso(workEndDate),
+      paymentType, totalAmount, depositAmount, deposit2Amount, financingAmount, vatRate,
+      depositPaid, depositPaidDate: dateToIso(depositPaidDate), depositExpectedDate: dateToIso(depositExpectedDate),
+      deposit2Paid, deposit2PaidDate: dateToIso(deposit2PaidDate), deposit2ExpectedDate: dateToIso(deposit2ExpectedDate),
+      balancePaid, balancePaidDate: dateToIso(balancePaidDate), balanceExpectedDate: dateToIso(balanceExpectedDate),
+      orderItems,
+    });
+  }, [customerId, orderCode, description, internalNotes, salespersonId, salespersonData,
+      expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
+      paymentType, totalAmount, depositAmount, deposit2Amount, financingAmount, vatRate,
+      depositPaid, depositPaidDate, depositExpectedDate,
+      deposit2Paid, deposit2PaidDate, deposit2ExpectedDate,
+      balancePaid, balancePaidDate, balanceExpectedDate,
+      orderItems, dataLoaded, saveDraft, dateToIso]);
+
+  const handleClearDraft = useCallback(() => {
+    clearDraft();
+    // Reload from DB
     if (order) {
       setCustomerId(order.customer_id);
       setOrderCode(order.order_code || "");
@@ -218,42 +336,17 @@ export default function EditOrder() {
       setDepositPaid(order.deposit_paid || false);
       setDeposit2Paid(order.deposit_2_paid || false);
       setBalancePaid(order.balance_paid || false);
-      if (order.deposit_paid_date) {
-        setDepositPaidDate(new Date(order.deposit_paid_date));
-      }
-      if (order.deposit_expected_date) {
-        setDepositExpectedDate(new Date(order.deposit_expected_date));
-      }
-      if (order.deposit_2_paid_date) {
-        setDeposit2PaidDate(new Date(order.deposit_2_paid_date));
-      }
-      if (order.deposit_2_expected_date) {
-        setDeposit2ExpectedDate(new Date(order.deposit_2_expected_date));
-      }
-      if (order.balance_paid_date) {
-        setBalancePaidDate(new Date(order.balance_paid_date));
-      }
-      if (order.balance_expected_date) {
-        setBalanceExpectedDate(new Date(order.balance_expected_date));
-      }
-      // Dates
-      if (order.expected_date) {
-        setExpectedDate(new Date(order.expected_date));
-      }
-      if (order.warehouse_arrival_date) {
-        setWarehouseArrivalDate(new Date(order.warehouse_arrival_date));
-      }
-      if (order.work_start_date) {
-        setWorkStartDate(new Date(order.work_start_date));
-      }
-      if (order.work_end_date) {
-        setWorkEndDate(new Date(order.work_end_date));
-      }
+      setDepositPaidDate(order.deposit_paid_date ? new Date(order.deposit_paid_date) : undefined);
+      setDepositExpectedDate(order.deposit_expected_date ? new Date(order.deposit_expected_date) : undefined);
+      setDeposit2PaidDate(order.deposit_2_paid_date ? new Date(order.deposit_2_paid_date) : undefined);
+      setDeposit2ExpectedDate(order.deposit_2_expected_date ? new Date(order.deposit_2_expected_date) : undefined);
+      setBalancePaidDate(order.balance_paid_date ? new Date(order.balance_paid_date) : undefined);
+      setBalanceExpectedDate(order.balance_expected_date ? new Date(order.balance_expected_date) : undefined);
+      setExpectedDate(order.expected_date ? new Date(order.expected_date) : undefined);
+      setWarehouseArrivalDate(order.warehouse_arrival_date ? new Date(order.warehouse_arrival_date) : undefined);
+      setWorkStartDate(order.work_start_date ? new Date(order.work_start_date) : undefined);
+      setWorkEndDate(order.work_end_date ? new Date(order.work_end_date) : undefined);
     }
-  }, [order]);
-
-  // Populate order items
-  useEffect(() => {
     if (existingItems.length > 0) {
       setOrderItems(existingItems.map(item => ({
         id: item.id,
@@ -271,7 +364,7 @@ export default function EditOrder() {
         standard_cost: (item as any).standard_cost || undefined,
       })));
     }
-  }, [existingItems]);
+  }, [clearDraft, order, existingItems]);
 
   // Fetch customers for the company
   const { data: customers = [] } = useQuery({
@@ -485,6 +578,7 @@ export default function EditOrder() {
       }
     },
     onSuccess: () => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["order", id] });
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
@@ -590,6 +684,28 @@ export default function EditOrder() {
           </p>
         </div>
       </div>
+
+      {/* Draft restored banner */}
+      {draftRestored && (
+        <Alert className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30">
+          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+          <AlertDescription className="flex items-center justify-between">
+            <span className="text-yellow-800 dark:text-yellow-200">
+              Bozza recuperata — le modifiche non salvate sono state ripristinate.
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-4 shrink-0"
+              onClick={handleClearDraft}
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              Ripristina originale
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
