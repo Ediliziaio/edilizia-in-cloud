@@ -19,6 +19,7 @@ export interface CalendarOrder {
   } | null;
   assigned_employees?: Array<{
     employee: {
+      id: string;
       first_name: string;
       last_name: string;
     };

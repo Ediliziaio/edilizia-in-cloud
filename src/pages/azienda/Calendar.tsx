@@ -27,6 +27,7 @@ export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [customerFilter, setCustomerFilter] = useState<string>("all");
+  const [employeeFilter, setEmployeeFilter] = useState<string>("all");
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],
@@ -48,7 +49,7 @@ export default function Calendar() {
           current_status_id,
           customer:profiles!orders_customer_id_fkey(first_name, last_name),
           status:order_statuses!orders_current_status_id_fkey(name, color),
-          order_employees(employee:employees(first_name, last_name))
+          order_employees(employee:employees(id, first_name, last_name))
         `)
         .eq("company_id", effectiveCompany.id)
         .order("work_start_date", { ascending: true });
@@ -77,6 +78,20 @@ export default function Calendar() {
     enabled: !!effectiveCompany?.id,
   });
 
+  const { data: companyEmployees = [] } = useQuery({
+    queryKey: ["employees-filter", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("employees")
+        .select("id, first_name, last_name")
+        .eq("company_id", effectiveCompany!.id)
+        .eq("is_active", true)
+        .order("last_name");
+      return data || [];
+    },
+    enabled: !!effectiveCompany?.id,
+  });
+
   const uniqueCustomers = useMemo(() => {
     const customersMap = new Map<string, CustomerFilter>();
     orders.forEach(order => {
@@ -100,9 +115,10 @@ export default function Calendar() {
   const resetFilters = () => {
     setStatusFilter("all");
     setCustomerFilter("all");
+    setEmployeeFilter("all");
   };
 
-  const hasActiveFilters = statusFilter !== "all" || customerFilter !== "all";
+  const hasActiveFilters = statusFilter !== "all" || customerFilter !== "all" || employeeFilter !== "all";
 
   // Filter orders that have at least one date
   const scheduledOrders = useMemo(() => {
@@ -114,6 +130,12 @@ export default function Calendar() {
         }
         if (customerFilter !== "all" && order.customer_id !== customerFilter) {
           return false;
+        }
+        if (employeeFilter !== "all") {
+          const hasEmployee = order.assigned_employees?.some(
+            ae => ae.employee.id === employeeFilter
+          );
+          if (!hasEmployee) return false;
         }
         return true;
       });
@@ -164,6 +186,20 @@ export default function Calendar() {
             {uniqueCustomers.map((customer) => (
               <SelectItem key={customer.id} value={customer.id}>
                 {customer.last_name} {customer.first_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Tutti gli operai" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti gli operai</SelectItem>
+            {companyEmployees.map((emp) => (
+              <SelectItem key={emp.id} value={emp.id}>
+                {emp.last_name} {emp.first_name}
               </SelectItem>
             ))}
           </SelectContent>

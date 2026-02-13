@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, ListOrdered, Truck, Key, Users, UserCheck } from "lucide-react";
+import { Building2, ListOrdered, Truck, Key, Users, UserCheck, HardHat } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { SuppliersConfig } from "@/components/settings/SuppliersConfig";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
+import Employees from "@/pages/azienda/Employees";
 
 export default function Settings() {
   const { effectiveCompany, refreshAuth, role } = useAuth();
@@ -29,7 +30,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-6' : 'grid-cols-4'} lg:w-[${isAdmin ? '900' : '650'}px]`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-7' : 'grid-cols-4'} lg:w-[${isAdmin ? '1000' : '650'}px]`}>
           <TabsTrigger value="profilo" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Profilo</span>
@@ -51,6 +52,10 @@ export default function Settings() {
               <TabsTrigger value="venditori" className="flex items-center gap-2">
                 <UserCheck className="h-4 w-4" />
                 <span className="hidden sm:inline">Venditori</span>
+              </TabsTrigger>
+              <TabsTrigger value="operai" className="flex items-center gap-2">
+                <HardHat className="h-4 w-4" />
+                <span className="hidden sm:inline">Operai</span>
               </TabsTrigger>
             </>
           )}
@@ -118,6 +123,9 @@ export default function Settings() {
 
             <TabsContent value="venditori" className="mt-6">
               <SalespeopleConfig />
+            </TabsContent>
+            <TabsContent value="operai" className="mt-6">
+              <Employees />
             </TabsContent>
           </>
         )}

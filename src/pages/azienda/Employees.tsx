@@ -332,9 +332,9 @@ export default function Employees() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Gestione Personale</h1>
+        <h1 className="text-3xl font-bold">Gestione Operai</h1>
         <p className="text-muted-foreground">
-          Dipendenti interni e squadre esterne
+          Operai interni e squadre esterne
         </p>
       </div>
 
@@ -342,7 +342,7 @@ export default function Employees() {
         <TabsList>
           <TabsTrigger value="employees" className="gap-2">
             <Users className="h-4 w-4" />
-            Dipendenti ({employees.length})
+            Operai ({employees.length})
           </TabsTrigger>
           <TabsTrigger value="teams" className="gap-2">
             <Building2 className="h-4 w-4" />
