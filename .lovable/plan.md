@@ -1,48 +1,27 @@
 
+# Rimozione "Dipendenti" dalla Sidebar
 
-# Azioni Rapide: Eliminazione Clienti e Ordini
+## Cosa viene rimosso
 
-## Cosa viene aggiunto
+La voce "Dipendenti" e ancora presente in due punti:
 
-### 1. Lista Clienti (`CustomersList.tsx`)
-- Aggiungere un pulsante **Elimina** (icona cestino) nella colonna Azioni, accanto a Modifica e Reset Password
-- L'eliminazione e protetta da un AlertDialog di conferma
-- Se il cliente ha ordini associati (`order_count > 0`), l'eliminazione viene bloccata con messaggio esplicativo
-- Dopo l'eliminazione, la lista si aggiorna automaticamente tramite `invalidateQueries`
+1. **Sidebar** (`src/components/layouts/CompanyLayout.tsx`, riga 53) - voce nel menu di navigazione
+2. **Route** (`src/App.tsx`, riga 129) - rotta `/azienda/dipendenti`
+3. **Import** (`src/App.tsx`, riga 47) - import del componente `Employees` (usato solo per quella rotta, dato che in Settings viene importato separatamente)
 
-### 2. Lista Ordini (`OrdersList.tsx`)
-- Sostituire il singolo pulsante "Visualizza" con un gruppo di 3 azioni:
-  - **Visualizza** (icona occhio) - link al dettaglio ordine (gia esistente)
-  - **Modifica** (icona matita) - link alla pagina di modifica ordine (`/azienda/ordini/${id}/modifica`)
-  - **Elimina** (icona cestino) - con AlertDialog di conferma
-- L'eliminazione dell'ordine cancella prima i dati collegati (order_items, order_status_history, order_employees, order_external_teams, order_salespeople, order_attachments) e poi l'ordine stesso
-- Dopo l'eliminazione, la lista si aggiorna automaticamente
+La gestione operai resta accessibile da **Impostazioni > Operai**.
 
-## Dettaglio Tecnico
+## Modifiche
 
-### CustomersList.tsx
-- Aggiungere `useMutation` e `useQueryClient` per la delete
-- Aggiungere icona `Trash2` da lucide-react
-- Prima di eliminare: verificare `order_count === 0`
-- Query: `supabase.from("profiles").delete().eq("id", customerId)`
-- Invalidare `["customers-list"]`
+### 1. `src/components/layouts/CompanyLayout.tsx`
+- Rimuovere la riga con `{ title: "Dipendenti", url: "/azienda/dipendenti", ... }` dall'array `allNavItems`
+- Rimuovere l'import `HardHat` se non usato altrove (verificato: non e usato altrove nel file)
 
-### OrdersList.tsx
-- Aggiungere `Pencil, Trash2` da lucide-react
-- Aggiungere `useMutation` per la delete
-- Aggiungere `AlertDialog` imports
-- Eliminazione cascata manuale (le FK non hanno ON DELETE CASCADE):
-  1. Eliminare `order_item_attachments` per ogni item dell'ordine
-  2. Eliminare `order_items`
-  3. Eliminare `order_status_history`
-  4. Eliminare `order_employees`
-  5. Eliminare `order_external_teams`
-  6. Eliminare `order_salespeople`
-  7. Eliminare `order_attachments`
-  8. Eliminare l'ordine da `orders`
-- Invalidare `["orders"]`
+### 2. `src/App.tsx`
+- Rimuovere la riga `<Route path="dipendenti" element={<Employees />} />`
+- Rimuovere l'import `import Employees from "@/pages/azienda/Employees"` (riga 47)
 
-### File da modificare
-1. `src/pages/azienda/CustomersList.tsx` - aggiungere pulsante elimina con protezione ordini
-2. `src/pages/azienda/OrdersList.tsx` - aggiungere pulsanti modifica e elimina con cascata
+### 3. Verifica `usePermissions.ts`
+- Il permesso `canViewEmployees` resta nel sistema perche controlla anche il tab "Operai" nelle impostazioni, quindi non va rimosso
 
+Nessuna modifica al database necessaria.
