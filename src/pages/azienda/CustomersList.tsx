@@ -74,12 +74,21 @@ export default function CustomersList() {
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       
-      // Use inner join with user_roles to get only customers
+      // Step 1: get customer user IDs
+      const { data: customerRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "customer");
+
+      const customerIds = (customerRoles || []).map(r => r.user_id);
+      if (customerIds.length === 0) return [];
+
+      // Step 2: fetch profiles for those IDs within the company
       const { data: customerProfiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone, user_roles!inner(role)")
-        .eq("user_roles.role", "customer")
-        .eq("company_id", effectiveCompany.id);
+        .select("id, first_name, last_name, email, phone")
+        .eq("company_id", effectiveCompany.id)
+        .in("id", customerIds);
 
       if (profilesError) throw profilesError;
 
@@ -99,7 +108,7 @@ export default function CustomersList() {
         );
       });
 
-      return (customerProfiles || []).map(({ user_roles, ...customer }) => ({
+      return (customerProfiles || []).map((customer) => ({
         ...customer,
         order_count: orderCountMap.get(customer.id) || 0,
       })) as CustomerWithOrders[];
