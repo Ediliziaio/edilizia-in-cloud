@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check } from "lucide-react";
+import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -288,37 +288,48 @@ export default function CustomersList() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={resetPasswordMutation.isPending}
-                        >
-                          <KeyRound className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Reset Password</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Vuoi resettare la password per {customer.first_name} {customer.last_name}?
-                            <br />
-                            <span className="text-muted-foreground">
-                              Verrà generata una nuova password che dovrai comunicare al cliente.
-                            </span>
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Annulla</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => resetPasswordMutation.mutate(customer.id)}
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        asChild
+                      >
+                        <Link to={`/azienda/clienti/${customer.id}`}>
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={resetPasswordMutation.isPending}
                           >
-                            Conferma Reset
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reset Password</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Vuoi resettare la password per {customer.first_name} {customer.last_name}?
+                              <br />
+                              <span className="text-muted-foreground">
+                                Verrà generata una nuova password che dovrai comunicare al cliente.
+                              </span>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annulla</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => resetPasswordMutation.mutate(customer.id)}
+                            >
+                              Conferma Reset
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
