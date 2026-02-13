@@ -8,8 +8,23 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { UsersRound } from "lucide-react";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder } from "@/types/calendar";
+
+function darkenColor(hex: string): string {
+  const r = Math.max(0, parseInt(hex.slice(1, 3), 16) - 40);
+  const g = Math.max(0, parseInt(hex.slice(3, 5), 16) - 40);
+  const b = Math.max(0, parseInt(hex.slice(5, 7), 16) - 40);
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+
+}
+
+function hasLogisticRisk(order: CalendarOrder): boolean {
+  if (!order.expected_date) return false;
+  if (!order.warehouse_arrival_date) return true;
+  return order.warehouse_arrival_date > order.expected_date;
+}
 
 interface BarInfo {
   left: number;
@@ -47,12 +62,21 @@ export function DraggableOrderBar({
 
   const leadTime = calculateLeadTime();
 
+  const logisticRisk = hasLogisticRisk(order);
+  const externalTeamNames = order.assigned_external_teams
+    ?.map((aet) => aet.external_team.name)
+    .join(", ");
+
   const style = {
     left: bar.left + (transform?.x || 0),
     width: Math.max(bar.width, dayWidth),
     backgroundColor: color,
+    borderLeftColor: darkenColor(color),
     opacity: isDragging ? 0.6 : 1,
     cursor: isDragging ? "grabbing" : "grab",
+    ...(logisticRisk ? {
+      backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.15) 4px, rgba(255,255,255,0.15) 8px)`,
+    } : {}),
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -72,15 +96,20 @@ export function DraggableOrderBar({
             ref={setNodeRef}
             {...attributes}
             {...listeners}
-            className="absolute top-2 bottom-2 rounded shadow-sm hover:shadow-md transition-shadow flex items-center px-2 overflow-hidden touch-none"
+            className="absolute top-2 bottom-2 rounded-md shadow-sm hover:shadow-lg transition-all flex items-center px-2 overflow-hidden touch-none border-l-[3px]"
             style={style}
             onClick={handleClick}
           >
-            {bar.width > 60 && (
+            {bar.width > 120 ? (
+              <div className="flex items-center gap-1 text-xs text-white truncate">
+                <span className="font-semibold">{order.order_code || "N/A"}</span>
+                <span className="opacity-75">- {order.customer.last_name}</span>
+              </div>
+            ) : bar.width > 60 ? (
               <span className="text-xs text-white font-medium truncate">
                 {order.order_code || order.description.slice(0, 20)}
               </span>
-            )}
+            ) : null}
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[250px]">
@@ -107,6 +136,12 @@ export function DraggableOrderBar({
               </p>
             ) : (
               <p className="text-xs text-amber-500">Nessuna squadra assegnata</p>
+            )}
+            {externalTeamNames && (
+              <div className="flex items-center gap-1 text-xs">
+                <UsersRound className="h-3 w-3" />
+                <span>{externalTeamNames}</span>
+              </div>
             )}
             {leadTime !== null && (
               <p className="text-xs font-medium">

@@ -24,6 +24,12 @@ export interface CalendarOrder {
       last_name: string;
     };
   }>;
+  assigned_external_teams?: Array<{
+    external_team: {
+      id: string;
+      name: string;
+    };
+  }>;
 }
 
 export interface OrderStatus {

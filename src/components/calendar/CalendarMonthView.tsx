@@ -16,7 +16,7 @@ import {
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, Package, AlertTriangle, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, AlertTriangle, Users, UsersRound } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -144,6 +144,12 @@ export function CalendarMonthView({
                             className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate"
                             style={{ backgroundColor: event.color }}
                           >
+                            {event.order.status && (
+                              <div
+                                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: event.order.status.color }}
+                              />
+                            )}
                             {event.type === "posa" ? (
                               <Hammer className="h-3 w-3 flex-shrink-0" />
                             ) : (
@@ -190,6 +196,17 @@ export function CalendarMonthView({
                                 <span>Nessuna squadra</span>
                               </div>
                             )}
+                            {(() => {
+                              const extNames = event.order.assigned_external_teams
+                                ?.map((aet) => aet.external_team.name)
+                                .join(", ");
+                              return extNames ? (
+                                <div className="flex items-center gap-1 text-xs">
+                                  <UsersRound className="h-3 w-3" />
+                                  <span>{extNames}</span>
+                                </div>
+                              ) : null;
+                            })()}
                             {logisticRisk && (
                               <div className="flex items-center gap-1 text-xs text-amber-500 font-medium">
                                 <AlertTriangle className="h-3 w-3" />

@@ -28,6 +28,7 @@ export default function Calendar() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [customerFilter, setCustomerFilter] = useState<string>("all");
   const [employeeFilter, setEmployeeFilter] = useState<string>("all");
+  const [externalTeamFilter, setExternalTeamFilter] = useState<string>("all");
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],
@@ -49,7 +50,8 @@ export default function Calendar() {
           current_status_id,
           customer:profiles!orders_customer_id_fkey(first_name, last_name),
           status:order_statuses!orders_current_status_id_fkey(name, color),
-          order_employees(employee:employees(id, first_name, last_name))
+          order_employees(employee:employees(id, first_name, last_name)),
+          order_external_teams(external_team:external_teams(id, name))
         `)
         .eq("company_id", effectiveCompany.id)
         .order("work_start_date", { ascending: true });
@@ -58,7 +60,7 @@ export default function Calendar() {
       return (data || []) as CalendarOrder[];
     },
     enabled: !!effectiveCompany?.id,
-    staleTime: 5 * 60 * 1000, // 5 minuti di cache
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: statuses = [] } = useQuery({
@@ -92,6 +94,20 @@ export default function Calendar() {
     enabled: !!effectiveCompany?.id,
   });
 
+  const { data: externalTeams = [] } = useQuery({
+    queryKey: ["external-teams-filter", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("external_teams")
+        .select("id, name")
+        .eq("company_id", effectiveCompany!.id)
+        .eq("is_active", true)
+        .order("name");
+      return data || [];
+    },
+    enabled: !!effectiveCompany?.id,
+  });
+
   const uniqueCustomers = useMemo(() => {
     const customersMap = new Map<string, CustomerFilter>();
     orders.forEach(order => {
@@ -116,9 +132,10 @@ export default function Calendar() {
     setStatusFilter("all");
     setCustomerFilter("all");
     setEmployeeFilter("all");
+    setExternalTeamFilter("all");
   };
 
-  const hasActiveFilters = statusFilter !== "all" || customerFilter !== "all" || employeeFilter !== "all";
+  const hasActiveFilters = statusFilter !== "all" || customerFilter !== "all" || employeeFilter !== "all" || externalTeamFilter !== "all";
 
   // Filter orders that have at least one date
   const scheduledOrders = useMemo(() => {
@@ -137,9 +154,15 @@ export default function Calendar() {
           );
           if (!hasEmployee) return false;
         }
+        if (externalTeamFilter !== "all") {
+          const hasTeam = order.assigned_external_teams?.some(
+            aet => aet.external_team.id === externalTeamFilter
+          );
+          if (!hasTeam) return false;
+        }
         return true;
       });
-  }, [orders, statusFilter, customerFilter]);
+  }, [orders, statusFilter, customerFilter, employeeFilter, externalTeamFilter]);
 
   // Count orders without important dates
   const unplannedOrdersCount = useMemo(() => {
@@ -200,6 +223,20 @@ export default function Calendar() {
             {companyEmployees.map((emp) => (
               <SelectItem key={emp.id} value={emp.id}>
                 {emp.last_name} {emp.first_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={externalTeamFilter} onValueChange={setExternalTeamFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Tutte le squadre" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutte le squadre</SelectItem>
+            {externalTeams.map((team) => (
+              <SelectItem key={team.id} value={team.id}>
+                {team.name}
               </SelectItem>
             ))}
           </SelectContent>

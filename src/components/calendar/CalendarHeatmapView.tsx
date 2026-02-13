@@ -25,9 +25,22 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Hammer, Package, Wrench } from "lucide-react";
+import { Hammer, Package, Wrench, Users, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder } from "@/types/calendar";
+
+function hasLogisticRisk(order: CalendarOrder): boolean {
+  if (!order.expected_date) return false;
+  if (!order.warehouse_arrival_date) return true;
+  return order.warehouse_arrival_date > order.expected_date;
+}
+
+function getEmployeeInitials(order: CalendarOrder): string {
+  if (!order.assigned_employees || order.assigned_employees.length === 0) return "";
+  return order.assigned_employees
+    .map((ae) => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`)
+    .join(", ");
+}
 
 interface CalendarHeatmapViewProps {
   orders: CalendarOrder[];
@@ -156,8 +169,9 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
                 <div
                   className={cn(
                     "min-h-[80px] p-2 transition-colors flex flex-col items-center",
-                    isCurrentMonth ? getHeatColor(count) : "bg-muted/30",
+                  isCurrentMonth ? getHeatColor(count) : "bg-muted/30",
                     !isCurrentMonth && "opacity-40",
+                    isCurrentMonth && isWeekend(day) && "opacity-60 ring-1 ring-inset ring-muted-foreground/20",
                     isCurrentMonth && count > 0 && "cursor-pointer hover:opacity-80"
                   )}
                 >
@@ -170,16 +184,28 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
                   >
                     {format(day, "d")}
                   </div>
-                  {isCurrentMonth && count > 0 && (
-                    <div className="flex items-center gap-1">
-                      <span className={cn("text-xl font-bold", getHeatTextColor(count))}>
-                        {count}
-                      </span>
-                      {count >= 5 && (
-                        <AlertTriangle className="h-4 w-4 text-red-500" />
-                      )}
-                    </div>
-                  )}
+                  {isCurrentMonth && count > 0 && (() => {
+                    const hasPosa = dayOrders.some(o => o.expected_date && isSameDay(parseISO(o.expected_date), day));
+                    const hasMerce = dayOrders.some(o => o.warehouse_arrival_date && isSameDay(parseISO(o.warehouse_arrival_date), day));
+                    const hasLavoro = dayOrders.some(o => o.work_start_date);
+                    return (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className="flex items-center gap-1">
+                          <span className={cn("text-xl font-bold", getHeatTextColor(count))}>
+                            {count}
+                          </span>
+                          {count >= 5 && (
+                            <AlertTriangle className="h-4 w-4 text-red-500" />
+                          )}
+                        </div>
+                        <div className="flex gap-0.5">
+                          {hasPosa && <Hammer className="h-2.5 w-2.5 text-blue-500" />}
+                          {hasMerce && <Package className="h-2.5 w-2.5 text-amber-500" />}
+                          {hasLavoro && <Wrench className="h-2.5 w-2.5 text-green-500" />}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
 
@@ -229,6 +255,30 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
                                 <p className="text-xs text-muted-foreground truncate">
                                   {order.description}
                                 </p>
+                                {(() => {
+                                  const initials = getEmployeeInitials(order);
+                                  const extTeam = order.assigned_external_teams?.map(aet => aet.external_team.name).join(", ");
+                                  const risk = isPosa && hasLogisticRisk(order);
+                                  return (
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      {initials && (
+                                        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                          <Users className="h-2.5 w-2.5" />{initials}
+                                        </span>
+                                      )}
+                                      {extTeam && (
+                                        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                          <UsersRound className="h-2.5 w-2.5" />{extTeam}
+                                        </span>
+                                      )}
+                                      {risk && (
+                                        <span className="text-[10px] text-amber-500 flex items-center gap-0.5">
+                                          <AlertTriangle className="h-2.5 w-2.5" />Rischio
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                               {order.status && (
                                 <div

@@ -15,7 +15,7 @@ import { it } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -113,16 +113,20 @@ export function CalendarWeekView({
     const Icon = style.icon;
     const logisticRisk = event.type === "posa" && hasLogisticRisk(event.order);
     const initials = getEmployeeInitials(event.order);
+    const externalTeamName = event.order.assigned_external_teams
+      ?.map((aet) => aet.external_team.name)
+      .join(", ");
 
     return (
       <button
         key={`${event.order.id}-${event.type}-${idx}`}
         onClick={() => setEditingOrder(event.order)}
         className={cn(
-          "w-full text-left p-2 rounded text-xs transition-colors hover:opacity-80",
+          "w-full text-left p-2 rounded text-xs transition-colors hover:opacity-80 border-l-[3px]",
           style.bg,
           style.text
         )}
+        style={{ borderLeftColor: event.order.status?.color || "transparent" }}
       >
         <div className="flex items-center gap-1 font-medium">
           <Icon className="h-3 w-3 flex-shrink-0" />
@@ -132,10 +136,19 @@ export function CalendarWeekView({
         <div className="truncate mt-0.5 opacity-80">
           {event.order.customer.last_name}
         </div>
+        {event.order.description && (
+          <div className="truncate mt-0.5 opacity-60 text-[10px]">{event.order.description}</div>
+        )}
         {initials && (
           <div className="flex items-center gap-0.5 mt-0.5 opacity-70">
             <Users className="h-2.5 w-2.5" />
             <span className="text-[10px]">{initials}</span>
+          </div>
+        )}
+        {externalTeamName && (
+          <div className="flex items-center gap-0.5 mt-0.5 opacity-70">
+            <UsersRound className="h-2.5 w-2.5" />
+            <span className="text-[10px]">{externalTeamName}</span>
           </div>
         )}
       </button>
