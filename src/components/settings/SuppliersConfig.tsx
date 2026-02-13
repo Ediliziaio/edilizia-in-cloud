@@ -12,6 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -19,8 +22,132 @@ interface Supplier {
   id: string;
   name: string;
   vat_rate: number | null;
+  is_foreign: boolean;
+  address: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
+  country: string | null;
+  vat_number: string | null;
+  fiscal_code: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  product_category: string | null;
+  notes: string | null;
   created_at: string;
   company_id: string;
+}
+
+interface SupplierFormData {
+  name: string;
+  vat_rate: number;
+  is_foreign: boolean;
+  address: string;
+  city: string;
+  province: string;
+  postal_code: string;
+  country: string;
+  vat_number: string;
+  fiscal_code: string;
+  email: string;
+  phone: string;
+  website: string;
+  product_category: string;
+  notes: string;
+}
+
+const emptyForm: SupplierFormData = {
+  name: "",
+  vat_rate: 22,
+  is_foreign: false,
+  address: "",
+  city: "",
+  province: "",
+  postal_code: "",
+  country: "Italia",
+  vat_number: "",
+  fiscal_code: "",
+  email: "",
+  phone: "",
+  website: "",
+  product_category: "",
+  notes: "",
+};
+
+function supplierToForm(s: Supplier): SupplierFormData {
+  return {
+    name: s.name,
+    vat_rate: s.vat_rate || 22,
+    is_foreign: s.is_foreign,
+    address: s.address || "",
+    city: s.city || "",
+    province: s.province || "",
+    postal_code: s.postal_code || "",
+    country: s.country || "Italia",
+    vat_number: s.vat_number || "",
+    fiscal_code: s.fiscal_code || "",
+    email: s.email || "",
+    phone: s.phone || "",
+    website: s.website || "",
+    product_category: s.product_category || "",
+    notes: s.notes || "",
+  };
+}
+
+function SupplierTable({
+  suppliers,
+  onEdit,
+  onDelete,
+}: {
+  suppliers: Supplier[];
+  onEdit: (s: Supplier) => void;
+  onDelete: (s: Supplier) => void;
+}) {
+  if (suppliers.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <Truck className="h-12 w-12 mx-auto mb-4 opacity-50" />
+        <p>Nessun fornitore in questa categoria</p>
+      </div>
+    );
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Nome Fornitore</TableHead>
+          <TableHead>Categoria</TableHead>
+          <TableHead>Città</TableHead>
+          <TableHead>P.IVA</TableHead>
+          <TableHead>Aliquota IVA</TableHead>
+          <TableHead className="w-[100px]">Azioni</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {suppliers.map((supplier) => (
+          <TableRow key={supplier.id}>
+            <TableCell className="font-medium">{supplier.name}</TableCell>
+            <TableCell>{supplier.product_category || "—"}</TableCell>
+            <TableCell>{supplier.city || "—"}</TableCell>
+            <TableCell>{supplier.vat_number || "—"}</TableCell>
+            <TableCell>{getVatRateLabel(supplier.vat_rate || 22)}</TableCell>
+            <TableCell>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" onClick={() => onEdit(supplier)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => onDelete(supplier)}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
 }
 
 export function SuppliersConfig() {
@@ -28,13 +155,13 @@ export function SuppliersConfig() {
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
+  const [activeTab, setActiveTab] = useState("italiani");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
-  const [formData, setFormData] = useState({ name: "", vat_rate: 22 });
+  const [formData, setFormData] = useState<SupplierFormData>({ ...emptyForm });
 
-  // Fetch suppliers
   const { data: suppliers, isLoading } = useQuery({
     queryKey: ["suppliers-config", companyId],
     queryFn: async () => {
@@ -50,21 +177,38 @@ export function SuppliersConfig() {
     enabled: !!companyId,
   });
 
-  // Create supplier mutation
+  const italiani = suppliers?.filter((s) => !s.is_foreign) || [];
+  const esteri = suppliers?.filter((s) => s.is_foreign) || [];
+
+  const invalidateSuppliers = () => {
+    queryClient.invalidateQueries({ queryKey: ["suppliers-config"] });
+    queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+  };
+
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; vat_rate: number }) => {
-      const { error } = await supabase
-        .from("suppliers")
-        .insert({
-          name: data.name,
-          vat_rate: data.vat_rate,
-          company_id: companyId,
-        });
+    mutationFn: async (data: SupplierFormData) => {
+      const { error } = await supabase.from("suppliers").insert({
+        name: data.name,
+        vat_rate: data.vat_rate,
+        is_foreign: data.is_foreign,
+        address: data.address || null,
+        city: data.city || null,
+        province: data.province || null,
+        postal_code: data.postal_code || null,
+        country: data.country || null,
+        vat_number: data.vat_number || null,
+        fiscal_code: data.fiscal_code || null,
+        email: data.email || null,
+        phone: data.phone || null,
+        website: data.website || null,
+        product_category: data.product_category || null,
+        notes: data.notes || null,
+        company_id: companyId,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["suppliers-config"] });
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      invalidateSuppliers();
       toast({ title: "Fornitore creato", description: "Il fornitore è stato aggiunto con successo." });
       handleCloseDialog();
     },
@@ -74,18 +218,32 @@ export function SuppliersConfig() {
     },
   });
 
-  // Update supplier mutation
   const updateMutation = useMutation({
-    mutationFn: async (data: { id: string; name: string; vat_rate: number }) => {
+    mutationFn: async ({ id, ...data }: SupplierFormData & { id: string }) => {
       const { error } = await supabase
         .from("suppliers")
-        .update({ name: data.name, vat_rate: data.vat_rate })
-        .eq("id", data.id);
+        .update({
+          name: data.name,
+          vat_rate: data.vat_rate,
+          is_foreign: data.is_foreign,
+          address: data.address || null,
+          city: data.city || null,
+          province: data.province || null,
+          postal_code: data.postal_code || null,
+          country: data.country || null,
+          vat_number: data.vat_number || null,
+          fiscal_code: data.fiscal_code || null,
+          email: data.email || null,
+          phone: data.phone || null,
+          website: data.website || null,
+          product_category: data.product_category || null,
+          notes: data.notes || null,
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["suppliers-config"] });
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      invalidateSuppliers();
       toast({ title: "Fornitore aggiornato", description: "Le modifiche sono state salvate." });
       handleCloseDialog();
     },
@@ -95,28 +253,23 @@ export function SuppliersConfig() {
     },
   });
 
-  // Delete supplier mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("suppliers")
-        .delete()
-        .eq("id", id);
+      const { error } = await supabase.from("suppliers").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["suppliers-config"] });
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      invalidateSuppliers();
       toast({ title: "Fornitore eliminato", description: "Il fornitore è stato rimosso." });
       setDeleteDialogOpen(false);
       setDeletingSupplier(null);
     },
     onError: (error: Error) => {
       if (error.message.includes("foreign key") || error.message.includes("violates")) {
-        toast({ 
-          title: "Impossibile eliminare", 
-          description: "Il fornitore è associato a degli articoli e non può essere eliminato.", 
-          variant: "destructive" 
+        toast({
+          title: "Impossibile eliminare",
+          description: "Il fornitore è associato a degli articoli e non può essere eliminato.",
+          variant: "destructive",
         });
       } else {
         toast({ title: "Errore", description: "Impossibile eliminare il fornitore.", variant: "destructive" });
@@ -127,20 +280,20 @@ export function SuppliersConfig() {
 
   const handleOpenCreate = () => {
     setEditingSupplier(null);
-    setFormData({ name: "", vat_rate: 22 });
+    setFormData({ ...emptyForm, is_foreign: activeTab === "esteri" });
     setDialogOpen(true);
   };
 
   const handleOpenEdit = (supplier: Supplier) => {
     setEditingSupplier(supplier);
-    setFormData({ name: supplier.name, vat_rate: supplier.vat_rate || 22 });
+    setFormData(supplierToForm(supplier));
     setDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingSupplier(null);
-    setFormData({ name: "", vat_rate: 22 });
+    setFormData({ ...emptyForm });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -149,7 +302,6 @@ export function SuppliersConfig() {
       toast({ title: "Errore", description: "Il nome è obbligatorio.", variant: "destructive" });
       return;
     }
-
     if (editingSupplier) {
       updateMutation.mutate({ id: editingSupplier.id, ...formData });
     } else {
@@ -163,12 +315,12 @@ export function SuppliersConfig() {
   };
 
   const handleConfirmDelete = () => {
-    if (deletingSupplier) {
-      deleteMutation.mutate(deletingSupplier.id);
-    }
+    if (deletingSupplier) deleteMutation.mutate(deletingSupplier.id);
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  const updateField = (field: keyof SupplierFormData, value: string | number | boolean) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
   return (
     <Card>
@@ -180,7 +332,7 @@ export function SuppliersConfig() {
               Fornitori
             </CardTitle>
             <CardDescription>
-              Gestisci i tuoi fornitori e le relative aliquote IVA predefinite
+              Gestisci i tuoi fornitori e le relative informazioni
             </CardDescription>
           </div>
           <Button onClick={handleOpenCreate}>
@@ -196,95 +348,151 @@ export function SuppliersConfig() {
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
           </div>
-        ) : suppliers && suppliers.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome Fornitore</TableHead>
-                <TableHead>Aliquota IVA</TableHead>
-                <TableHead className="w-[100px]">Azioni</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {suppliers.map((supplier) => (
-                <TableRow key={supplier.id}>
-                  <TableCell className="font-medium">{supplier.name}</TableCell>
-                  <TableCell>{getVatRateLabel(supplier.vat_rate || 22)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleOpenEdit(supplier)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleOpenDelete(supplier)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <Truck className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Nessun fornitore configurato</p>
-            <p className="text-sm">Crea un fornitore per iniziare</p>
-          </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-2 max-w-xs">
+              <TabsTrigger value="italiani">Italiani ({italiani.length})</TabsTrigger>
+              <TabsTrigger value="esteri">Esteri ({esteri.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="italiani">
+              <SupplierTable suppliers={italiani} onEdit={handleOpenEdit} onDelete={handleOpenDelete} />
+            </TabsContent>
+            <TabsContent value="esteri">
+              <SupplierTable suppliers={esteri} onEdit={handleOpenEdit} onDelete={handleOpenDelete} />
+            </TabsContent>
+          </Tabs>
         )}
       </CardContent>
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingSupplier ? "Modifica Fornitore" : "Nuovo Fornitore"}
             </DialogTitle>
             <DialogDescription>
-              {editingSupplier
-                ? "Modifica i dati del fornitore"
-                : "Inserisci i dati del nuovo fornitore"}
+              {editingSupplier ? "Modifica i dati del fornitore" : "Inserisci i dati del nuovo fornitore"}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome Fornitore *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Es. ABC Serramenti Srl"
-              />
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Dati Generali */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3">Dati Generali</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome Fornitore *</Label>
+                  <Input id="name" value={formData.name} onChange={(e) => updateField("name", e.target.value)} placeholder="Es. ABC Serramenti Srl" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="product_category">Categoria Prodotti</Label>
+                  <Input id="product_category" value={formData.product_category} onChange={(e) => updateField("product_category", e.target.value)} placeholder="Es. Serramenti, Vetri, Accessori" />
+                </div>
+              </div>
+              <div className="mt-3 space-y-2">
+                <Label>Tipo Fornitore</Label>
+                <Select value={formData.is_foreign ? "estero" : "italiano"} onValueChange={(v) => updateField("is_foreign", v === "estero")}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="italiano">Italiano</SelectItem>
+                    <SelectItem value="estero">Estero</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="vat_rate">Aliquota IVA Predefinita</Label>
-              <Select
-                value={formData.vat_rate.toString()}
-                onValueChange={(value) => setFormData({ ...formData, vat_rate: parseInt(value) })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {VAT_RATES.map((rate) => (
-                    <SelectItem key={rate.value} value={rate.value.toString()}>
-                      {rate.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Questa aliquota verrà applicata di default agli articoli di questo fornitore
-              </p>
+
+            <Separator />
+
+            {/* Dati Fiscali */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3">Dati Fiscali</h4>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="vat_number">P.IVA</Label>
+                  <Input id="vat_number" value={formData.vat_number} onChange={(e) => updateField("vat_number", e.target.value)} placeholder="IT01234567890" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="fiscal_code">Codice Fiscale</Label>
+                  <Input id="fiscal_code" value={formData.fiscal_code} onChange={(e) => updateField("fiscal_code", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vat_rate">Aliquota IVA</Label>
+                  <Select value={formData.vat_rate.toString()} onValueChange={(v) => updateField("vat_rate", parseInt(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VAT_RATES.map((rate) => (
+                        <SelectItem key={rate.value} value={rate.value.toString()}>
+                          {rate.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
+
+            <Separator />
+
+            {/* Contatti */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3">Contatti</h4>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" value={formData.email} onChange={(e) => updateField("email", e.target.value)} placeholder="info@fornitore.it" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Telefono</Label>
+                  <Input id="phone" value={formData.phone} onChange={(e) => updateField("phone", e.target.value)} placeholder="+39 0123 456789" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="website">Sito Web</Label>
+                  <Input id="website" value={formData.website} onChange={(e) => updateField("website", e.target.value)} placeholder="www.fornitore.it" />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Indirizzo */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3">Indirizzo</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="address">Via / Indirizzo</Label>
+                  <Input id="address" value={formData.address} onChange={(e) => updateField("address", e.target.value)} placeholder="Via Roma 1" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city">Città</Label>
+                  <Input id="city" value={formData.city} onChange={(e) => updateField("city", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="province">Provincia</Label>
+                  <Input id="province" value={formData.province} onChange={(e) => updateField("province", e.target.value)} placeholder="MI" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="postal_code">CAP</Label>
+                  <Input id="postal_code" value={formData.postal_code} onChange={(e) => updateField("postal_code", e.target.value)} placeholder="20100" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="country">Paese</Label>
+                  <Input id="country" value={formData.country} onChange={(e) => updateField("country", e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Note */}
+            <div className="space-y-2">
+              <Label htmlFor="notes">Note</Label>
+              <Textarea id="notes" value={formData.notes} onChange={(e) => updateField("notes", e.target.value)} placeholder="Note aggiuntive sul fornitore..." rows={3} />
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCloseDialog}>
                 Annulla
@@ -304,7 +512,7 @@ export function SuppliersConfig() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare il fornitore?</AlertDialogTitle>
             <AlertDialogDescription>
-              Stai per eliminare il fornitore "{deletingSupplier?.name}". 
+              Stai per eliminare il fornitore "{deletingSupplier?.name}".
               Questa azione non può essere annullata.
               {"\n\n"}
               Nota: non è possibile eliminare fornitori associati a degli articoli.
