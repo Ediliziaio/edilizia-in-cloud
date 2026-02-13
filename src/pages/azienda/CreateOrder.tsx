@@ -106,17 +106,20 @@ export default function CreateOrder() {
 
   // Fetch customers for the company
   const { data: customers = [] } = useQuery({
-    queryKey: ["customers", user?.id],
+    queryKey: ["customers", effectiveCompany?.id],
     queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email")
+        .select("id, first_name, last_name, email, user_roles!inner(role)")
+        .eq("user_roles.role", "customer")
+        .eq("company_id", effectiveCompany.id)
         .order("last_name");
 
       if (error) throw error;
-      return data as Customer[];
+      return (data || []).map(({ user_roles, ...rest }) => rest) as Customer[];
     },
-    enabled: !!user,
+    enabled: !!effectiveCompany?.id,
   });
 
   // Fetch order statuses for the company (filtered by company_id)

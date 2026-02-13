@@ -83,7 +83,7 @@ interface OrderItemData {
 export default function EditOrder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -275,17 +275,20 @@ export default function EditOrder() {
 
   // Fetch customers for the company
   const { data: customers = [] } = useQuery({
-    queryKey: ["customers", user?.id],
+    queryKey: ["customers", effectiveCompany?.id],
     queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email")
+        .select("id, first_name, last_name, email, user_roles!inner(role)")
+        .eq("user_roles.role", "customer")
+        .eq("company_id", effectiveCompany.id)
         .order("last_name");
 
       if (error) throw error;
-      return data as Customer[];
+      return (data || []).map(({ user_roles, ...rest }) => rest) as Customer[];
     },
-    enabled: !!user,
+    enabled: !!effectiveCompany?.id,
   });
 
   // Update order mutation

@@ -72,40 +72,22 @@ export default function CustomersList() {
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers-list", effectiveCompany?.id],
     queryFn: async () => {
-      // First, get all profiles with customer role for this company
-      const { data: profiles, error: profilesError } = await supabase
+      if (!effectiveCompany?.id) return [];
+      
+      // Use inner join with user_roles to get only customers
+      const { data: customerProfiles, error: profilesError } = await supabase
         .from("profiles")
-        .select(`
-          id,
-          first_name,
-          last_name,
-          email,
-          phone,
-          company_id
-        `)
-        .not("company_id", "is", null);
+        .select("id, first_name, last_name, email, phone, user_roles!inner(role)")
+        .eq("user_roles.role", "customer")
+        .eq("company_id", effectiveCompany.id);
 
       if (profilesError) throw profilesError;
-
-      // Get user roles to filter only customers
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .eq("role", "customer");
-
-      if (rolesError) throw rolesError;
-
-      const customerIds = new Set(roles.map((r) => r.user_id));
-
-      // Filter profiles to only customers in this company
-      const companyCustomers = profiles.filter(
-        (p) => customerIds.has(p.id) && p.company_id === effectiveCompany?.id
-      );
 
       // Get order counts for each customer
       const { data: orderCounts, error: ordersError } = await supabase
         .from("orders")
-        .select("customer_id");
+        .select("customer_id")
+        .eq("company_id", effectiveCompany.id);
 
       if (ordersError) throw ordersError;
 
@@ -117,7 +99,7 @@ export default function CustomersList() {
         );
       });
 
-      return companyCustomers.map((customer) => ({
+      return (customerProfiles || []).map(({ user_roles, ...customer }) => ({
         ...customer,
         order_count: orderCountMap.get(customer.id) || 0,
       })) as CustomerWithOrders[];
