@@ -108,6 +108,8 @@ export function OrderItemsList({
   const [selectedStockItem, setSelectedStockItem] = useState<string>("");
   const [stockPickQuantity, setStockPickQuantity] = useState("1");
 
+  const [sourceFilter, setSourceFilter] = useState<"all" | "stock" | "supplier">("all");
+
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -295,13 +297,58 @@ export function OrderItemsList({
         )}
       </CardHeader>
       <CardContent>
+        {/* Source filter */}
+        {items.length > 0 && (
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-sm text-muted-foreground">Filtra:</span>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                variant={sourceFilter === "all" ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setSourceFilter("all")}
+              >
+                Tutti
+              </Button>
+              <Button
+                type="button"
+                variant={sourceFilter === "stock" ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => setSourceFilter("stock")}
+              >
+                <Warehouse className="h-3 w-3" />
+                Da Giacenza
+              </Button>
+              <Button
+                type="button"
+                variant={sourceFilter === "supplier" ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => setSourceFilter("supplier")}
+              >
+                <Package className="h-3 w-3" />
+                Da Fornitore
+              </Button>
+            </div>
+          </div>
+        )}
         {items.length === 0 ? (
           <p className="text-muted-foreground text-center py-6">
             Nessun articolo aggiunto. {editable && "Clicca su 'Aggiungi' per inserire articoli."}
           </p>
         ) : (
           <div className="space-y-3">
-            {items.map((item, index) => (
+            {items
+              .filter(item => {
+                if (sourceFilter === "stock") return !!item.stock_item_id;
+                if (sourceFilter === "supplier") return !item.stock_item_id;
+                return true;
+              })
+              .map((item) => {
+                const index = items.indexOf(item);
+                return (
               <div
                 key={item.id || index}
                 className={`p-3 rounded-lg space-y-2 ${STATUS_CONFIG[item.status]?.borderColor || STATUS_CONFIG.da_ordinare.borderColor}`}
@@ -398,7 +445,8 @@ export function OrderItemsList({
                   </div>
                 )}
               </div>
-            ))}
+            );
+              })}
           </div>
         )}
 
