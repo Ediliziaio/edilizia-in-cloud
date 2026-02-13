@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, Save, Loader2, Mail, ClipboardList } from "lucide-react";
+import { ArrowLeft, User, Save, Loader2, Mail, ClipboardList, Trash2, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
 
 export default function CompanyCustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +42,7 @@ export default function CompanyCustomerDetail() {
   const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: customer, isLoading } = useQuery({
     queryKey: ["company-customer-detail", id],
@@ -43,18 +58,21 @@ export default function CompanyCustomerDetail() {
     enabled: !!id,
   });
 
-  const { data: orderCount = 0 } = useQuery({
-    queryKey: ["customer-order-count", id],
+  const { data: orders = [] } = useQuery({
+    queryKey: ["customer-orders-history", id],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from("orders")
-        .select("id", { count: "exact", head: true })
-        .eq("customer_id", id!);
+        .select("id, order_code, description, total_amount, created_at, current_status_id, order_statuses:current_status_id(name, color)")
+        .eq("customer_id", id!)
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return count || 0;
+      return data;
     },
     enabled: !!id,
   });
+
+  const orderCount = orders.length;
 
   useEffect(() => {
     if (customer) {
@@ -105,6 +123,36 @@ export default function CompanyCustomerDetail() {
     }
   };
 
+  const handleDelete = async () => {
+    if (orderCount > 0) {
+      toast({
+        title: "Impossibile eliminare",
+        description: `Il cliente ha ${orderCount} ${orderCount === 1 ? "ordine associato" : "ordini associati"}. Elimina prima gli ordini.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("id", id!);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+      toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo." });
+      navigate("/azienda/clienti");
+    } catch (error) {
+      console.error("Error deleting customer:", error);
+      toast({ title: "Errore", description: "Impossibile eliminare il cliente.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -144,8 +192,36 @@ export default function CompanyCustomerDetail() {
             </Badge>
           </div>
         </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm" disabled={isDeleting}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Elimina
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminare questo cliente?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {orderCount > 0
+                  ? `Impossibile eliminare: il cliente ha ${orderCount} ${orderCount === 1 ? "ordine associato" : "ordini associati"}. Elimina prima gli ordini.`
+                  : "Questa azione è irreversibile. Il cliente e il suo account verranno eliminati permanentemente."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              {orderCount === 0 && (
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Elimina
+                </AlertDialogAction>
+              )}
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
+      {/* Edit Form */}
       <form onSubmit={handleSubmit}>
         <Card className="max-w-xl">
           <CardHeader>
@@ -155,14 +231,12 @@ export default function CompanyCustomerDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Email - Read Only */}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" value={customer.email} disabled className="bg-muted" />
               <p className="text-xs text-muted-foreground">L'email non può essere modificata</p>
             </div>
 
-            {/* Dati anagrafici */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Dati Anagrafici</h3>
               <div className="grid grid-cols-2 gap-4">
@@ -175,12 +249,10 @@ export default function CompanyCustomerDetail() {
                   <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Rossi" maxLength={50} required />
                 </div>
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="fiscalCode">CF / P.IVA</Label>
                 <Input id="fiscalCode" value={fiscalCode} onChange={(e) => setFiscalCode(e.target.value)} placeholder="RSSMRA80A01H501U o 01234567890" maxLength={16} />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefono</Label>
                 <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" maxLength={20} />
@@ -189,7 +261,6 @@ export default function CompanyCustomerDetail() {
 
             <Separator />
 
-            {/* Indirizzi */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Indirizzi</h3>
               <div className="space-y-2">
@@ -204,7 +275,6 @@ export default function CompanyCustomerDetail() {
 
             <Separator />
 
-            {/* Note */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Note</h3>
               <div className="space-y-2">
@@ -213,7 +283,6 @@ export default function CompanyCustomerDetail() {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex justify-end gap-4 pt-4">
               <Button type="button" variant="outline" onClick={() => navigate("/azienda/clienti")}>
                 Annulla
@@ -229,6 +298,66 @@ export default function CompanyCustomerDetail() {
           </CardContent>
         </Card>
       </form>
+
+      {/* Order History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ClipboardList className="h-5 w-5" />
+            Storico Ordini ({orderCount})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {orders.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nessun ordine associato a questo cliente.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Codice</TableHead>
+                  <TableHead>Descrizione</TableHead>
+                  <TableHead>Stato</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead className="text-right">Importo</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orders.map((order) => {
+                  const status = order.order_statuses as { name: string; color: string } | null;
+                  return (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-medium">{order.order_code || "—"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{order.description}</TableCell>
+                      <TableCell>
+                        {status ? (
+                          <Badge variant="outline" className="gap-1.5">
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: status.color }} />
+                            {status.name}
+                          </Badge>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {format(new Date(order.created_at), "dd MMM yyyy", { locale: it })}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        € {Number(order.total_amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => navigate(`/azienda/ordini/${order.id}`)}>
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { SuppliersConfig } from "@/components/settings/SuppliersConfig";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
+import { CompanyProfileForm } from "@/components/settings/CompanyProfileForm";
 import Employees from "@/pages/azienda/Employees";
 
 export default function Settings() {
@@ -65,44 +66,37 @@ export default function Settings() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profilo" className="mt-6">
+        <TabsContent value="profilo" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="h-5 w-5" />
-                Profilo Azienda
+                Logo Azienda
               </CardTitle>
               <CardDescription>
-                Gestisci le informazioni della tua azienda
+                Carica o modifica il logo della tua azienda
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Company Info */}
-              <div className="flex items-center gap-4">
-                {company?.logo_url ? (
-                  <img
-                    src={company.logo_url}
-                    alt={company.name}
-                    className="h-16 w-16 rounded-lg object-contain border"
-                  />
-                ) : (
-                  <div className="h-16 w-16 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Building2 className="h-8 w-8 text-primary" />
-                  </div>
-                )}
-                <div>
-                  <h3 className="font-semibold text-lg">{company?.name}</h3>
-                  <p className="text-muted-foreground">{company?.email}</p>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Logo Uploader */}
+            <CardContent>
               <LogoUploader 
                 company={company} 
                 onLogoUpdated={refreshAuth} 
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Anagrafica Azienda
+              </CardTitle>
+              <CardDescription>
+                Gestisci i dati fiscali, contatti e sedi della tua azienda
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CompanyProfileForm />
             </CardContent>
           </Card>
         </TabsContent>
