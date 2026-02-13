@@ -1,81 +1,61 @@
 
+# Piano: Integrazione Articoli Ordine nei Costi Variabili + Pulizia e Stabilizzazione
 
-# Piano: Export CSV/PDF + Miglioramenti CFO alla Sezione Costi e Previsionale
+## Obiettivo principale
 
-## Analisi da Direttore Finanziario
-
-Dopo analisi approfondita, le aree di miglioramento principali sono:
-
-1. **Manca export dati** - Un CFO deve poter esportare report per CdA, commercialista, banca
-2. **KPI insufficienti** - Mancano indicatori chiave come burn rate, runway, rapporto entrate/uscite
-3. **Nessun confronto temporale** - Non c'e modo di vedere come evolvono i costi mese su mese
-4. **Sezione Costi troppo basica** - Mancano filtri per periodo, ricerca, e riepilogo annuale
-5. **Grafico limitato** - Solo barre, nessuna linea del netto cumulativo per capire il trend
+Gli articoli degli ordini con stato "da_ordinare" e "ordinato" devono comparire automaticamente nella sezione **Costi Variabili** del `CompanyCostsManager`, con stato "Da pagare" (perche la merce non e ancora stata pagata). Quando un articolo passa a "in_magazzino" o "installato", non serve piu mostrarlo come costo da pagare.
 
 ---
 
-## 1. Export CSV e PDF del Previsionale
-
-**File**: `src/pages/azienda/CashFlowForecast.tsx`
-
-### Export CSV
-- Pulsante "Esporta CSV" nell'header della pagina
-- Genera un file CSV con tutte le transazioni (entrate + uscite + costi aziendali)
-- Colonne: Data, Tipo, Descrizione, Ordine, Direzione, Importo
-- Include una sezione di riepilogo in cima con i totali KPI
-- Usa `Blob` + `URL.createObjectURL` per il download lato client
-
-### Export PDF
-- Pulsante "Esporta PDF" accanto al CSV
-- Genera un PDF formattato usando la funzionalita nativa `window.print()` con CSS `@media print`
-- Aggiungere un wrapper con classe `print:` per formattare il layout in stampa
-- Include: KPI, tabella movimenti, riepilogo costi aziendali
-
----
-
-## 2. Miglioramenti Previsionale (visione CFO)
-
-**File**: `src/pages/azienda/CashFlowForecast.tsx`
-
-### 2a. Nuove KPI Card
-Aggiungere una seconda riga di KPI sotto quella esistente:
-- **Burn Rate Mensile**: media uscite mensili (ultimi dati disponibili)
-- **Rapporto Entrate/Uscite**: percentuale (es. "1.5x" = entrate 50% superiori alle uscite)
-- **Costi Scaduti**: totale costi con `due_date < oggi` e `is_paid = false`
-- **Costi Ricorrenti Mensili**: somma di tutti i costi con `recurrence = monthly`
-
-### 2b. Grafico migliorato
-- Aggiungere una **linea del Netto Cumulativo** sovrapposta alle barre (ComposedChart di Recharts)
-- Mostra la tendenza del flusso di cassa accumulato mese su mese
-- Colore verde se positivo, rosso se negativo
-
-### 2c. Breakdown uscite nel grafico
-- Stacked bar per le uscite: separare visivamente "Squadre Esterne", "Provvigioni", "Costi Fissi", "Costi Variabili", "Materiali"
-- Permette al CFO di capire dove vanno i soldi
-
----
-
-## 3. Miglioramenti Sezione Costi
+## 1. Integrazione articoli ordine nei Costi Variabili
 
 **File**: `src/components/forecast/CompanyCostsManager.tsx`
 
-### 3a. Filtri avanzati
-- **Filtro per periodo**: Select con "Questo mese", "Prossimo mese", "Ultimi 3 mesi", "Quest'anno", "Tutti"
-- **Ricerca**: Input di ricerca per nome costo
-- **Filtro stato**: "Tutti", "Da pagare", "Pagati", "Scaduti"
+### Cosa cambia:
+- Aggiungere una query per recuperare gli `order_items` con status `da_ordinare` o `ordinato` (stessa query gia presente nel previsionale)
+- Creare una lista "virtuale" di costi variabili derivati dagli articoli, con:
+  - **Nome**: nome dell'articolo
+  - **Importo**: `purchase_price * quantity`
+  - **Stato**: "Da pagare" (da_ordinare) o "Ordinato" (ordinato) con badge dedicati
+  - **Ordine**: collegamento al codice ordine
+  - **Fornitore**: nome del fornitore se presente
+  - **Ricorrenza**: "Una tantum" (sono costi puntuali)
+- Questi costi "da ordine" saranno mostrati nel tab **Costi Variabili** e nel tab **Tutti**, mescolati con i costi variabili manuali ma distinguibili tramite un badge "Da Ordine"
+- NON sono editabili/cancellabili dal cost manager (si gestiscono dall'ordine)
+- Aggiornare i summary card per includere questi costi nei totali "Da pagare"
 
-### 3b. Riepilogo annuale
-- Card aggiuntiva nel summary: **"Totale Annuo Stimato"** che proietta i costi ricorrenti su 12 mesi
-  - Mensili x 12, Trimestrali x 4, Annuali x 1, Una tantum x 1
-- Mostra la distribuzione per categoria (mini breakdown)
+### Dettagli tecnici:
+- Query: `order_items` con `.select("id, name, quantity, purchase_price, status, supplier:suppliers(name), order:orders!inner(id, order_code, company_id)")` filtrata per `status IN (da_ordinare, ordinato)`
+- Merge nella lista `variableCosts` con un flag `isFromOrder: true` per distinguerli
+- Nella tabella: riga con badge arancione "Da Ordine" + badge stato articolo, azioni disabilitate (solo link all'ordine)
 
-### 3c. Tab "Tutti i Costi"
-- Aggiungere un terzo tab "Tutti" che mostra tutti i costi unificati (fissi + variabili) ordinati per scadenza
-- Utile per avere una vista completa delle uscite
+---
 
-### 3d. Export CSV dei Costi
-- Pulsante "Esporta CSV" nell'header della card Costi
-- Esporta tutti i costi con: Nome, Tipo, Categoria, Importo, Ricorrenza, Scadenza, Stato
+## 2. Fix bug: warning "Function components cannot be given refs"
+
+**File**: `src/components/forecast/CompanyCostsManager.tsx`
+
+Il console log mostra un warning su `Select` di Radix. Il problema e nell'uso di `<Select>` dentro il form dialog dove viene passato un ref implicito. Il fix e assicurarsi che i `SelectTrigger` non ricevano ref non gestiti. Verifico e correggo eventuali usi errati.
+
+---
+
+## 3. Pulizia codice e stabilizzazione
+
+### 3a. Rimozioni
+- Rimuovere import inutilizzati in `CompanyCostsManager.tsx` (verifico dopo analisi completa)
+- Rimuovere eventuali variabili non referenziate
+
+### 3b. Fix funzionali
+- Gestire il caso `SelectItem value=""` (non valido in Radix Select) nel campo "Collega a ordine" - usare `"none"` al posto di stringa vuota
+- Assicurarsi che i filtri funzionino correttamente con i nuovi costi da ordine
+- Gestire il riepilogo annuale per escludere i costi da ordine (sono puntuali, non ricorrenti)
+
+### 3c. UX
+- Badge "Da Ordine" colorato (es. arancione) per distinguere i costi automatici da quelli manuali
+- Tooltip sulle righe da ordine: "Questo costo viene dagli articoli dell'ordine. Gestiscilo dalla pagina ordine."
+- Aggiungere link diretto all'ordine cliccando sul codice ordine
+- Loading skeleton per la nuova query
+- Conteggi aggiornati nei tab (includendo articoli ordine)
 
 ---
 
@@ -83,8 +63,7 @@ Aggiungere una seconda riga di KPI sotto quella esistente:
 
 | File | Modifica |
 |------|----------|
-| `src/pages/azienda/CashFlowForecast.tsx` | Export CSV/PDF, nuove KPI (burn rate, rapporto, scaduti), grafico ComposedChart con netto cumulativo e stacked bars |
-| `src/components/forecast/CompanyCostsManager.tsx` | Filtri (periodo, ricerca, stato), riepilogo annuale, tab "Tutti", export CSV costi |
+| `src/components/forecast/CompanyCostsManager.tsx` | Query order_items, merge nei costi variabili, badge "Da Ordine", fix Select ref warning, fix SelectItem value vuoto, pulizia import |
+| `src/pages/azienda/CashFlowForecast.tsx` | Nessuna modifica (gia integrato nel previsionale) |
 
-Nessuna migrazione database necessaria. Tutti i dati sono gia disponibili nella tabella `company_costs` e nelle query esistenti.
-
+Nessuna migrazione database necessaria. I dati degli articoli ordine sono gia disponibili nella tabella `order_items`.
