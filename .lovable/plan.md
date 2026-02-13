@@ -1,35 +1,31 @@
 
 
-# Miglioramento Provvigioni Venditori
+# Fix: Provvigioni calcolate sull'imponibile (al netto IVA)
 
-## Cosa cambia
+## Il problema
+Attualmente le provvigioni percentuali vengono calcolate sul `totalAmount` che e l'importo lordo (IVA inclusa). Il venditore pero guadagna sull'**imponibile** (al netto dell'IVA).
 
-### 1. Data di pagamento prevista ("Da pagare")
-Quando la provvigione non e ancora pagata, viene mostrato un campo data per impostare la **data prevista di pagamento**. Questo permette di pianificare le uscite nel previsionale.
+Ad esempio, con un ordine da 1.500 euro (IVA 22% inclusa):
+- Imponibile reale: 1.229,51 euro
+- Attualmente la provvigione al 20% viene calcolata su 1.500 euro = 300 euro (SBAGLIATO)
+- Dovrebbe essere calcolata su 1.229,51 euro = 245,90 euro (CORRETTO)
 
-### 2. Popup selezione data pagamento effettivo ("Pagata")
-Quando si attiva lo switch "Pagata", invece di salvare automaticamente la data odierna, si apre un **Dialog** con un calendario per selezionare la data effettiva di pagamento. L'utente conferma la data e solo allora il sistema salva.
-
-### 3. Riepilogo decurtazioni dall'ordine
-In fondo alla card delle provvigioni, viene aggiunta una riga che mostra l'impatto delle provvigioni sul margine dell'ordine, ad esempio:
-- Imponibile vendita: 10.000 euro
-- Totale provvigioni: -500 euro
-- Netto dopo provvigioni: 9.500 euro
+## La soluzione
+Usare la funzione `calculateNetFromGross` (gia presente in `src/lib/vatUtils.ts`) per scorporare l'IVA prima di calcolare la provvigione.
 
 ## Dettaglio tecnico
 
 ### File da modificare
 `src/components/orders/OrderCommissions.tsx`
 
-### Modifiche principali
+### Modifiche
 
-1. **Stato locale per il dialog**: aggiungere `paidDialogOpen` e `paidDialogSp` per gestire quale venditore sta per essere segnato come pagato, e `selectedPaidDate` per la data scelta nel popup.
+1. **Import**: aggiungere `calculateNetFromGross` da `@/lib/vatUtils`
 
-2. **Switch "Pagata"**: quando si attiva (da non pagato a pagato), invece di chiamare direttamente la mutation, aprire il Dialog con il calendario. Se si disattiva (da pagato a non pagato), rimuovere direttamente la data.
+2. **Funzione `calculateCommission`**: scorporare l'IVA da `totalAmount` e `collectedAmount` prima di applicare la percentuale:
+   - `percentage_sold`: calcola la percentuale sull'imponibile di `totalAmount`
+   - `percentage_collected`: calcola la percentuale sull'imponibile di `collectedAmount`
+   - `fixed`: resta invariato (importo fisso, non dipende dall'IVA)
 
-3. **Dialog con calendario**: un componente Dialog che contiene un Calendar per scegliere la data di pagamento effettivo e un pulsante "Conferma".
-
-4. **Campo data prevista**: per ogni provvigione non pagata, mostrare un date picker per `payment_expected_date` (campo gia presente nel database).
-
-5. **Sezione decurtazioni**: in fondo alla card, mostrare il riepilogo dell'impatto delle provvigioni sull'ordine (imponibile - provvigioni = netto).
+3. **Sezione "Decurtazioni"**: aggiornare il riepilogo per mostrare chiaramente l'imponibile (netto IVA) come base di calcolo
 
