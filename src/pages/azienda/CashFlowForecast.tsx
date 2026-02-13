@@ -26,10 +26,18 @@ import {
   UserCheck,
   Receipt,
   AlertCircle,
+  Download,
+  Printer,
+  Flame,
+  ArrowLeftRight,
+  Clock,
+  Repeat,
 } from "lucide-react";
 import {
+  ComposedChart,
   BarChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -510,10 +518,30 @@ export default function CashFlowForecast() {
     };
   }, [expectedPayments, expectedExpenses, expectedCommissions, expectedCompanyCosts, companyCosts]);
 
-  // Prepara dati per grafico (prossimi 6 mesi)
-  const chartData = useMemo(() => {
-    const months: { month: string; Entrate: number; Uscite: number; Netto: number }[] = [];
+  // CFO KPIs
+  const cfoKpis = useMemo(() => {
     const now = new Date();
+    const totalExpensesAll = stats.total.expenses;
+    const totalIncomeAll = stats.total.income;
+    const ratio = totalExpensesAll > 0 ? totalIncomeAll / totalExpensesAll : 0;
+    const overdueCosts = expectedCompanyCosts.filter(
+      (c) => c.expectedDate && c.expectedDate < now
+    );
+    const overdueTotal = overdueCosts.reduce((s, c) => s + c.amount, 0);
+    const monthlyRecurring = companyCosts
+      .filter((c: any) => c.recurrence === "monthly")
+      .reduce((s: number, c: any) => s + Number(c.amount), 0);
+    // Burn rate: average monthly expenses over the 6-month forecast
+    const burnRate = totalExpensesAll > 0 ? totalExpensesAll / 6 : 0;
+
+    return { ratio, overdueTotal, overdueCount: overdueCosts.length, monthlyRecurring, burnRate };
+  }, [stats, expectedCompanyCosts, companyCosts]);
+
+  // Prepara dati per grafico (prossimi 6 mesi) con breakdown e netto cumulativo
+  const chartData = useMemo(() => {
+    const now = new Date();
+    let cumulative = 0;
+    const months: any[] = [];
 
     for (let i = 0; i < 6; i++) {
       const monthDate = addMonths(now, i);
@@ -522,7 +550,7 @@ export default function CashFlowForecast() {
         .filter((p) => p.expectedDate && isSameMonth(p.expectedDate, monthDate))
         .reduce((sum, p) => sum + p.amount, 0);
 
-      const monthExpenses = expectedExpenses
+      const monthTeams = expectedExpenses
         .filter((e) => e.expectedDate && isSameMonth(e.expectedDate, monthDate))
         .reduce((sum, e) => sum + e.amount, 0);
 
@@ -530,20 +558,81 @@ export default function CashFlowForecast() {
         .filter((c) => c.expectedDate && isSameMonth(c.expectedDate, monthDate))
         .reduce((sum, c) => sum + c.amount, 0);
 
-      const monthCosts = projectCostsForMonth(monthDate);
+      const monthFixedCosts = companyCosts
+        .filter((c: any) => {
+          if (c.cost_type !== "fixed") return false;
+          const dueDate = new Date(c.due_date);
+          if (c.recurrence === "monthly") return true;
+          if (c.recurrence === "quarterly" && dueDate.getMonth() % 3 === monthDate.getMonth() % 3) return true;
+          if (c.recurrence === "yearly" && dueDate.getMonth() === monthDate.getMonth()) return true;
+          if (c.recurrence === "once" && isSameMonth(dueDate, monthDate)) return true;
+          return false;
+        })
+        .reduce((s: number, c: any) => s + Number(c.amount), 0);
 
-      const totalOut = monthExpenses + monthCommissions + monthCosts;
+      const monthVariableCosts = companyCosts
+        .filter((c: any) => {
+          if (c.cost_type !== "variable") return false;
+          const dueDate = new Date(c.due_date);
+          if (c.recurrence === "monthly") return true;
+          if (c.recurrence === "quarterly" && dueDate.getMonth() % 3 === monthDate.getMonth() % 3) return true;
+          if (c.recurrence === "yearly" && dueDate.getMonth() === monthDate.getMonth()) return true;
+          if (c.recurrence === "once" && isSameMonth(dueDate, monthDate)) return true;
+          return false;
+        })
+        .reduce((s: number, c: any) => s + Number(c.amount), 0);
+
+      const totalOut = monthTeams + monthCommissions + monthFixedCosts + monthVariableCosts;
+      cumulative += monthIncome - totalOut;
 
       months.push({
         month: format(monthDate, "MMM yyyy", { locale: it }),
         Entrate: monthIncome,
-        Uscite: totalOut,
-        Netto: monthIncome - totalOut,
+        "Squadre Esterne": monthTeams,
+        Provvigioni: monthCommissions,
+        "Costi Fissi": monthFixedCosts,
+        "Costi Variabili": monthVariableCosts,
+        Cumulativo: cumulative,
       });
     }
 
     return months;
   }, [expectedPayments, expectedExpenses, expectedCommissions, companyCosts]);
+
+  // Export CSV
+  const exportCSV = () => {
+    const rows = [["Data", "Tipo", "Descrizione", "Ordine", "Direzione", "Importo"]];
+    allTransactions.forEach((t: any) => {
+      rows.push([
+        t.expectedDate ? format(t.expectedDate, "dd/MM/yyyy") : "",
+        t.type || (t.direction === "in" ? "Pagamento" : "Uscita"),
+        t.customerName || t.teamName || t.name || "",
+        t.orderCode || "",
+        t.direction === "in" ? "Entrata" : "Uscita",
+        String(t.amount),
+      ]);
+    });
+    // Add summary
+    rows.unshift(
+      ["RIEPILOGO PREVISIONALE", "", "", "", "", ""],
+      ["Totale Entrate", "", "", "", "", String(stats.total.income)],
+      ["Totale Uscite", "", "", "", "", String(stats.total.expenses)],
+      ["Saldo Netto", "", "", "", "", String(stats.total.net)],
+      ["", "", "", "", "", ""],
+    );
+    const csv = rows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `previsionale-cassa-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPDF = () => {
+    window.print();
+  };
 
   // Combina e filtra pagamenti per tabella
   const allTransactions = useMemo(() => {
@@ -636,11 +725,23 @@ export default function CashFlowForecast() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Previsionale Cassa</h1>
-        <p className="text-muted-foreground">
-          Analizza entrate e uscite previste, inclusi costi aziendali
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:mb-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Previsionale Cassa</h1>
+          <p className="text-muted-foreground">
+            Analizza entrate e uscite previste, inclusi costi aziendali
+          </p>
+        </div>
+        <div className="flex items-center gap-2 print:hidden">
+          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1">
+            <Download className="h-4 w-4" />
+            Esporta CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportPDF} className="gap-1">
+            <Printer className="h-4 w-4" />
+            Stampa PDF
+          </Button>
+        </div>
       </div>
 
       {/* Stat Cards */}
@@ -710,7 +811,61 @@ export default function CashFlowForecast() {
         </Card>
       </div>
 
-      {/* Sezione Costi Materiali */}
+      {/* CFO KPI Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Burn Rate Mensile</CardTitle>
+            <Flame className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">
+              {formatCurrency(cfoKpis.burnRate)}
+            </div>
+            <p className="text-xs text-muted-foreground">Media uscite/mese (6 mesi)</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Rapporto Entrate/Uscite</CardTitle>
+            <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${cfoKpis.ratio >= 1 ? "text-green-600" : "text-destructive"}`}>
+              {cfoKpis.ratio.toFixed(2)}x
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {cfoKpis.ratio >= 1 ? "Entrate superiori" : "Uscite superiori"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Costi Scaduti</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${cfoKpis.overdueTotal > 0 ? "text-destructive" : "text-green-600"}`}>
+              {formatCurrency(cfoKpis.overdueTotal)}
+            </div>
+            <p className="text-xs text-muted-foreground">{cfoKpis.overdueCount} costi non pagati</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ricorrenti Mensili</CardTitle>
+            <Repeat className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(cfoKpis.monthlyRecurring)}
+            </div>
+            <p className="text-xs text-muted-foreground">Costi fissi mensili</p>
+          </CardContent>
+        </Card>
+      </div>
+
+
       {(pendingItems.length > 0) && (
         <Card className="border-orange-200 bg-orange-50/50 dark:bg-orange-900/10 dark:border-orange-800">
           <CardHeader>
@@ -979,15 +1134,15 @@ export default function CashFlowForecast() {
       </Card>
 
       {/* Grafico Timeline */}
-      <Card>
+      <Card className="print:break-before-page">
         <CardHeader>
           <CardTitle>Timeline Flusso di Cassa</CardTitle>
-          <CardDescription>Previsione entrate e uscite per i prossimi 6 mesi (inclusi costi aziendali)</CardDescription>
+          <CardDescription>Previsione entrate e uscite per i prossimi 6 mesi con netto cumulativo</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
+          <div className="h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
+              <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis 
                   dataKey="month" 
@@ -1010,8 +1165,19 @@ export default function CashFlowForecast() {
                 />
                 <Legend />
                 <Bar dataKey="Entrate" fill="hsl(142.1 76.2% 36.3%)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Uscite" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Bar dataKey="Squadre Esterne" stackId="expenses" fill="hsl(0 84.2% 60.2%)" />
+                <Bar dataKey="Provvigioni" stackId="expenses" fill="hsl(262 83.3% 57.8%)" />
+                <Bar dataKey="Costi Fissi" stackId="expenses" fill="hsl(20 90% 55%)" />
+                <Bar dataKey="Costi Variabili" stackId="expenses" fill="hsl(40 90% 55%)" radius={[4, 4, 0, 0]} />
+                <Line 
+                  type="monotone" 
+                  dataKey="Cumulativo" 
+                  stroke="hsl(var(--primary))" 
+                  strokeWidth={3} 
+                  dot={{ fill: 'hsl(var(--primary))', r: 5 }}
+                  name="Netto Cumulativo"
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </CardContent>

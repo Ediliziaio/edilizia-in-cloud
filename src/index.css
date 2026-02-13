@@ -109,3 +109,19 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print\\:hidden {
+    display: none !important;
+  }
+  .print\\:break-before-page {
+    break-before: page;
+  }
+  nav, aside, header {
+    display: none !important;
+  }
+}

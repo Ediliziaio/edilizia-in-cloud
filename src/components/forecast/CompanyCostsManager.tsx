@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, isWithinInterval, startOfMonth, endOfMonth, addDays, addMonths, addQuarters, addYears } from "date-fns";
+import { format, isWithinInterval, startOfMonth, endOfMonth, addDays, addMonths, addQuarters, addYears, subMonths, startOfYear, endOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Building2,
@@ -13,6 +13,9 @@ import {
   Trash2,
   Receipt,
   Repeat,
+  Search,
+  Download,
+  TrendingUp,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -84,6 +87,9 @@ const defaultFormData: CostFormData = {
   order_id: "",
 };
 
+type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all";
+type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
+
 export default function CompanyCostsManager() {
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -95,6 +101,12 @@ export default function CompanyCostsManager() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [payConfirmId, setPayConfirmId] = useState<string | null>(null);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+  
+  // Filters
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Query costs
   const { data: costs = [], isLoading } = useQuery({
     queryKey: ["company-costs", companyId],
@@ -123,6 +135,73 @@ export default function CompanyCostsManager() {
     },
     enabled: !!companyId,
   });
+
+  // Filtering logic
+  const filteredCosts = useMemo(() => {
+    const now = new Date();
+    let filtered = costs;
+
+    // Period filter
+    if (periodFilter !== "all") {
+      let start: Date, end: Date;
+      if (periodFilter === "this_month") {
+        start = startOfMonth(now);
+        end = endOfMonth(now);
+      } else if (periodFilter === "next_month") {
+        start = startOfMonth(addMonths(now, 1));
+        end = endOfMonth(addMonths(now, 1));
+      } else if (periodFilter === "last_3_months") {
+        start = startOfMonth(subMonths(now, 2));
+        end = endOfMonth(now);
+      } else {
+        start = startOfYear(now);
+        end = endOfYear(now);
+      }
+      filtered = filtered.filter((c: any) => {
+        if (!c.due_date) return false;
+        const d = new Date(c.due_date);
+        return isWithinInterval(d, { start, end });
+      });
+    }
+
+    // Status filter
+    if (statusFilter === "paid") {
+      filtered = filtered.filter((c: any) => c.is_paid);
+    } else if (statusFilter === "unpaid") {
+      filtered = filtered.filter((c: any) => !c.is_paid && new Date(c.due_date) >= now);
+    } else if (statusFilter === "overdue") {
+      filtered = filtered.filter((c: any) => !c.is_paid && new Date(c.due_date) < now);
+    }
+
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((c: any) => c.name.toLowerCase().includes(q));
+    }
+
+    return filtered;
+  }, [costs, periodFilter, statusFilter, searchQuery]);
+
+  const fixedCosts = filteredCosts.filter((c: any) => c.cost_type === "fixed");
+  const variableCosts = filteredCosts.filter((c: any) => c.cost_type === "variable");
+  const allCostsSorted = [...filteredCosts].sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+
+  // Annual estimate
+  const annualEstimate = useMemo(() => {
+    let total = 0;
+    const byCategory: Record<string, number> = {};
+    costs.forEach((c: any) => {
+      let projected = 0;
+      if (c.recurrence === "monthly") projected = Number(c.amount) * 12;
+      else if (c.recurrence === "quarterly") projected = Number(c.amount) * 4;
+      else if (c.recurrence === "yearly") projected = Number(c.amount);
+      else projected = Number(c.amount); // once
+      total += projected;
+      const cat = c.category || "Altro";
+      byCategory[cat] = (byCategory[cat] || 0) + projected;
+    });
+    return { total, byCategory };
+  }, [costs]);
 
   // Mutations
   const saveMutation = useMutation({
@@ -207,7 +286,6 @@ export default function CompanyCostsManager() {
 
         const nextDateStr = format(nextDate, "yyyy-MM-dd");
 
-        // Check duplicate
         const { data: existing } = await supabase
           .from("company_costs")
           .select("id")
@@ -248,6 +326,31 @@ export default function CompanyCostsManager() {
     },
   });
 
+  // Export CSV
+  const exportCostsCSV = () => {
+    const rows = [["Nome", "Tipo", "Categoria", "Importo", "Ricorrenza", "Scadenza", "Stato"]];
+    filteredCosts.forEach((c: any) => {
+      rows.push([
+        c.name,
+        c.cost_type === "fixed" ? "Fisso" : "Variabile",
+        c.category || "",
+        String(c.amount),
+        RECURRENCE_LABELS[c.recurrence] || c.recurrence,
+        c.due_date ? format(new Date(c.due_date), "dd/MM/yyyy") : "",
+        c.is_paid ? "Pagato" : new Date(c.due_date) < new Date() ? "Scaduto" : "Da pagare",
+      ]);
+    });
+    const csv = rows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `costi-aziendali-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "CSV esportato" });
+  };
+
   const openEdit = (cost: any) => {
     setEditingCost(cost);
     setFormData({
@@ -274,18 +377,17 @@ export default function CompanyCostsManager() {
   const thisMonthInterval = { start: startOfMonth(now), end: endOfMonth(now) };
   const soon = addDays(now, 7);
 
-  const fixedCosts = costs.filter((c: any) => c.cost_type === "fixed");
-  const variableCosts = costs.filter((c: any) => c.cost_type === "variable");
-
   const thisMonthUnpaid = costs.filter(
     (c: any) => !c.is_paid && c.due_date && isWithinInterval(new Date(c.due_date), thisMonthInterval)
   );
   const thisMonthPaid = costs.filter(
     (c: any) => c.is_paid && c.paid_date && isWithinInterval(new Date(c.paid_date), thisMonthInterval)
   );
+  const overdueCosts = costs.filter((c: any) => !c.is_paid && new Date(c.due_date) < now);
 
   const totalUnpaidThisMonth = thisMonthUnpaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
   const totalPaidThisMonth = thisMonthPaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const totalOverdue = overdueCosts.reduce((s: number, c: any) => s + Number(c.amount), 0);
 
   const getStatusBadge = (cost: any) => {
     if (cost.is_paid) {
@@ -303,16 +405,18 @@ export default function CompanyCostsManager() {
 
   const renderCostsTable = (items: any[], type: string) => (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => openCreate(type)} className="gap-1">
-          <Plus className="h-4 w-4" />
-          Aggiungi {type === "fixed" ? "Costo Fisso" : "Costo Variabile"}
-        </Button>
-      </div>
+      {type !== "all" && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => openCreate(type)} className="gap-1">
+            <Plus className="h-4 w-4" />
+            Aggiungi {type === "fixed" ? "Costo Fisso" : "Costo Variabile"}
+          </Button>
+        </div>
+      )}
       {items.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40" />
-          <p>Nessun costo {type === "fixed" ? "fisso" : "variabile"} registrato</p>
+          <p>Nessun costo trovato</p>
         </div>
       ) : (
         <div className="rounded-md border">
@@ -320,12 +424,13 @@ export default function CompanyCostsManager() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
+                {type === "all" && <TableHead>Tipo</TableHead>}
                 <TableHead>Categoria</TableHead>
                 <TableHead className="text-right">Importo</TableHead>
                 <TableHead>Ricorrenza</TableHead>
                 <TableHead>Scadenza</TableHead>
                 <TableHead>Stato</TableHead>
-                {type === "variable" && <TableHead>Ordine</TableHead>}
+                {(type === "variable" || type === "all") && <TableHead>Ordine</TableHead>}
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
@@ -333,6 +438,13 @@ export default function CompanyCostsManager() {
               {items.map((cost: any) => (
                 <TableRow key={cost.id}>
                   <TableCell className="font-medium">{cost.name}</TableCell>
+                  {type === "all" && (
+                    <TableCell>
+                      <Badge variant="outline" className={cost.cost_type === "fixed" ? "border-red-400 text-red-600" : "border-amber-400 text-amber-600"}>
+                        {cost.cost_type === "fixed" ? "Fisso" : "Variabile"}
+                      </Badge>
+                    </TableCell>
+                  )}
                   <TableCell>{cost.category || "—"}</TableCell>
                   <TableCell className="text-right font-medium">{formatCurrency(cost.amount)}</TableCell>
                   <TableCell>
@@ -347,7 +459,7 @@ export default function CompanyCostsManager() {
                       : "—"}
                   </TableCell>
                   <TableCell>{getStatusBadge(cost)}</TableCell>
-                  {type === "variable" && (
+                  {(type === "variable" || type === "all") && (
                     <TableCell>
                       {cost.order?.order_code || "—"}
                     </TableCell>
@@ -416,17 +528,23 @@ export default function CompanyCostsManager() {
                 Gestisci costi fissi e variabili, tieni traccia dei pagamenti
               </CardDescription>
             </div>
-            {recurringCosts.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setShowDuplicateConfirm(true)} className="gap-1">
-                <CalendarPlus className="h-4 w-4" />
-                Genera prossimo periodo
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={exportCostsCSV} className="gap-1">
+                <Download className="h-4 w-4" />
+                Esporta CSV
               </Button>
-            )}
+              {recurringCosts.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => setShowDuplicateConfirm(true)} className="gap-1">
+                  <CalendarPlus className="h-4 w-4" />
+                  Genera prossimo periodo
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
               <div className="flex items-center gap-2 mb-1">
                 <AlertCircle className="h-4 w-4 text-red-600" />
@@ -443,11 +561,86 @@ export default function CompanyCostsManager() {
               <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaidThisMonth)}</p>
               <p className="text-xs text-muted-foreground">{thisMonthPaid.length} costi pagati</p>
             </div>
+            <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="h-4 w-4 text-orange-600" />
+                <span className="text-sm font-medium">Scaduti</span>
+              </div>
+              <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalOverdue)}</p>
+              <p className="text-xs text-muted-foreground">{overdueCosts.length} costi scaduti</p>
+            </div>
+            <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium">Stima Annuale</span>
+              </div>
+              <p className="text-2xl font-bold text-blue-600">{formatCurrency(annualEstimate.total)}</p>
+              <p className="text-xs text-muted-foreground">{Object.keys(annualEstimate.byCategory).length} categorie</p>
+            </div>
+          </div>
+
+          {/* Annual breakdown */}
+          {Object.keys(annualEstimate.byCategory).length > 0 && (
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Distribuzione Annuale per Categoria
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {Object.entries(annualEstimate.byCategory)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([cat, amount]) => (
+                    <div key={cat} className="flex justify-between items-center text-sm p-2 rounded bg-background border">
+                      <span className="text-muted-foreground truncate mr-2">{cat}</span>
+                      <span className="font-medium whitespace-nowrap">{formatCurrency(amount)}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Cerca costo..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Periodo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i periodi</SelectItem>
+                <SelectItem value="this_month">Questo mese</SelectItem>
+                <SelectItem value="next_month">Prossimo mese</SelectItem>
+                <SelectItem value="last_3_months">Ultimi 3 mesi</SelectItem>
+                <SelectItem value="this_year">Quest'anno</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Stato" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti gli stati</SelectItem>
+                <SelectItem value="unpaid">Da pagare</SelectItem>
+                <SelectItem value="paid">Pagati</SelectItem>
+                <SelectItem value="overdue">Scaduti</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Tabs */}
-          <Tabs defaultValue="fixed">
+          <Tabs defaultValue="all">
             <TabsList>
+              <TabsTrigger value="all">
+                Tutti ({allCostsSorted.length})
+              </TabsTrigger>
               <TabsTrigger value="fixed">
                 Costi Fissi ({fixedCosts.length})
               </TabsTrigger>
@@ -455,6 +648,9 @@ export default function CompanyCostsManager() {
                 Costi Variabili ({variableCosts.length})
               </TabsTrigger>
             </TabsList>
+            <TabsContent value="all">
+              {renderCostsTable(allCostsSorted, "all")}
+            </TabsContent>
             <TabsContent value="fixed">
               {renderCostsTable(fixedCosts, "fixed")}
             </TabsContent>
