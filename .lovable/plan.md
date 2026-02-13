@@ -1,117 +1,120 @@
 
-# Piano: Stabilizzazione e Completamento EdiliziaInCloud
 
-## Premessa
+# Piano: Completamento Funzionalita Core Mancanti
 
-L'applicazione e gia molto avanzata e copre gran parte dei flussi richiesti. Dopo un audit completo del codice, ho identificato bug critici, funzionalita mancanti e miglioramenti necessari. Il piano e organizzato per priorita: prima i bug bloccanti, poi le funzionalita mancanti, infine le ottimizzazioni.
+## Stato Attuale
 
----
+Le fasi 1-5 precedenti hanno stabilizzato l'applicazione: bug critici corretti, validazioni aggiunte, alert finanziari implementati, UX migliorata. Il flusso ordine-margine-cashflow funziona end-to-end.
 
-## FASE 1: Bug Critici (Priorita Massima)
+## Gap Identificati rispetto ai Requisiti
 
-### Bug 1 - Perdita dati articoli in OrderDetail
-**File**: `src/pages/azienda/OrderDetail.tsx` (righe 334-358)
+Dopo audit completo del codebase, restano queste funzionalita mancanti:
 
-La mutation `updateOrderItemsMutation` cancella e ricrea gli articoli ma salva solo `name, description, quantity, status, position`. Vengono persi:
-- `supplier_id` (fornitore)
-- `purchase_price` (costo acquisto)
-- `vat_rate` (aliquota IVA)
-- `stock_item_id` (articolo da magazzino)
+### GAP 1: Catalogo Articoli/Prodotti strutturato
+**Situazione attuale:** Esiste solo `article_templates` con un campo `name`. Manca un vero catalogo prodotti con SKU, categoria, prezzo vendita, costo standard, unita di misura, aliquota IVA.
 
-**Impatto**: Ogni modifica di stato articoli dalla pagina dettaglio ordine azzera i costi e i fornitori associati.
+**Impatto:** Senza un catalogo strutturato, ogni articolo viene inserito manualmente in ogni ordine senza prezzo di riferimento. Impossibile calcolare il "margine previsto" (basato su costi standard) vs "margine consuntivo" (costi reali).
 
-**Fix**: Aggiungere i campi mancanti nell'oggetto `itemsToInsert`.
+### GAP 2: Margine Previsto vs Consuntivo
+**Situazione attuale:** Il Conto Economico (`OrderEconomics.tsx`) calcola solo il margine consuntivo (basato sui costi effettivi). Non esiste un confronto con i costi standard/previsti.
 
-### Bug 2 - Warning console forwardRef in CustomersList
-**File**: `src/pages/azienda/CustomersList.tsx`
+**Impatto:** L'azienda non puo vedere gli scostamenti tra quanto preventivato e quanto effettivamente speso.
 
-I componenti `Dialog` e `AlertDialog` generano warning React perche ricevono ref senza usare `forwardRef`. Questo e un problema di integrazione con Radix UI.
+### GAP 3: Prezzo di vendita per riga ordine
+**Situazione attuale:** L'ordine ha un `total_amount` globale ma le singole righe non hanno un prezzo di vendita unitario (`unit_price`), sconto, o totale riga. Questo rende impossibile calcolare il margine per singolo articolo.
 
-**Fix**: Verificare che i componenti wrapper siano compatibili con ref forwarding.
+### GAP 4: Generazione PDF (preventivo/conferma ordine)
+**Situazione attuale:** Non esiste alcuna generazione PDF. Il previsionale usa `window.print()`. Nessun preventivo o conferma d'ordine generabile.
 
-### Bug 3 - Route Dipendenti mancante dal pannello azienda
-**File**: `src/App.tsx` e `src/components/layouts/CompanyLayout.tsx`
-
-La pagina `src/pages/azienda/Employees.tsx` esiste ma non ha una route in App.tsx ne un link nella sidebar aziendale. I dipendenti sono gestibili solo se si conosce l'URL diretto.
-
-**Fix**: Aggiungere route `/azienda/dipendenti` in App.tsx e link nella sidebar di CompanyLayout.
+### GAP 5: Versioning Ordini
+**Situazione attuale:** Nessun sistema di revisioni. Quando un ordine viene modificato, la versione precedente viene sovrascritta.
 
 ---
 
-## FASE 2: Flusso Ordine End-to-End (Completamento)
+## Piano di Implementazione (per priorita)
 
-### 2.1 - Pagina Dettaglio Ordine: dati articoli completi
-Assicurarsi che la fetch degli `orderItems` in OrderDetail includa `vat_rate` nel tipo `OrderItemData` e nella mappatura `displayItems`, cosi il Conto Economico calcola correttamente l'IVA per articolo.
+### FASE A: Catalogo Articoli e Prezzo Riga (fondamentale per tutto il resto)
 
-### 2.2 - Validazioni ordine robuste
-Aggiungere validazioni mancanti nel flusso di creazione/modifica ordine:
-- Sconto negativo non ammesso
-- Quantita decimali: bloccare o arrotondare
-- Data incasso prima della data ordine: warning visuale
-- Importo totale 0 con articoli presenti: warning
+**Database:**
+- Espandere `article_templates` con: `sku`, `category`, `unit_price` (prezzo vendita), `standard_cost` (costo standard), `unit_of_measure`, `vat_rate`, `supplier_id`
+- Aggiungere a `order_items`: `unit_price` (prezzo vendita unitario), `discount_percent`, `line_total` (calcolato)
 
-### 2.3 - Margine previsto vs consuntivo
-Nella pagina OrderEconomics, aggiungere una sezione "Margine Previsto" che calcola il margine basandosi sui costi standard degli articoli (prezzo listino), confrontandolo con il "Margine Consuntivo" (costi reali registrati). Questo richiede:
-- Aggiunta colonna `standard_cost` alla tabella `order_items` (opzionale, puo derivare da `purchase_price` al momento della creazione)
-- Visualizzazione side-by-side previsto vs consuntivo con scostamento evidenziato
+**Frontend:**
+- Creare pagina gestione catalogo articoli (CRUD completo) accessibile da Impostazioni o come sezione dedicata
+- Quando si seleziona un articolo dal catalogo nella creazione ordine, auto-compilare prezzo vendita, costo standard, IVA e fornitore
+- Mostrare nella lista articoli ordine: prezzo unitario x quantita - sconto = totale riga
 
----
+**File coinvolti:**
+- Migrazione DB per colonne aggiuntive
+- Nuovo componente `src/components/settings/ArticleCatalog.tsx`
+- Modifica `src/components/orders/OrderItemsList.tsx` (aggiunta campi prezzo vendita e sconto)
+- Modifica `src/components/orders/ArticleCombobox.tsx` (restituire dati completi del template)
 
-## FASE 3: Flusso Finanziario e Cash Flow (Rafforzamento)
+### FASE B: Margine Previsto vs Consuntivo
 
-### 3.1 - Collegamento costi a commessa
-Verificare che ogni costo (manuale o automatico) nella sezione Costi mostri il link all'ordine associato. Gia implementato ma da verificare che funzioni correttamente per tutti i tipi.
+**Logica:**
+- Al momento dell'inserimento articolo, salvare il `standard_cost` (dal catalogo) come riferimento
+- Nel Conto Economico mostrare due colonne affiancate:
+  - **Previsto**: calcolato da `unit_price * qty` (ricavi) - `standard_cost * qty` (costi)
+  - **Consuntivo**: calcolato da ricavi reali - `purchase_price * qty` (costi effettivi)
+  - **Scostamento**: differenza con evidenziazione visiva (verde se positivo, rosso se negativo)
 
-### 3.2 - Alert squilibri finanziari
-Nella Dashboard e nel Previsionale, aggiungere alert quando:
-- I pagamenti previsti superano gli incassi previsti nel mese
-- Il margine scende sotto una soglia configurabile (es. 10%)
-- Ci sono pagamenti scaduti non incassati
+**File coinvolti:**
+- Modifica `src/components/orders/OrderEconomics.tsx` (aggiunta sezione comparativa)
+- Aggiungere colonna `standard_cost` a `order_items` (nella migrazione di Fase A)
 
-### 3.3 - Stato incassi coerente
-Verificare che il calcolo "Da Incassare" sia coerente tra Dashboard, OrdersList e CashFlowForecast. Dall'analisi il calcolo e gia unificato ma va testato con dati reali.
+### FASE C: Generazione PDF Preventivo
 
----
+**Approccio:** Utilizzare la libreria browser-native per generare PDF senza dipendenze esterne pesanti. Creare un componente React che renderizza il preventivo in formato stampabile e usare `window.print()` con CSS `@media print` ottimizzato.
 
-## FASE 4: Pulizia Codice
+**Contenuto PDF:**
+- Intestazione azienda (logo, ragione sociale, P.IVA, indirizzo)
+- Dati cliente
+- Tabella articoli (nome, quantita, prezzo unitario, sconto, totale riga)
+- Riepilogo finanziario (imponibile, IVA, totale)
+- Condizioni di pagamento
+- Note
 
-### 4.1 - Rimuovere import non utilizzati
-Scansione automatica di import inutilizzati in tutti i file principali.
+**File coinvolti:**
+- Nuovo componente `src/components/orders/OrderPrintView.tsx`
+- Aggiunta pulsante "Genera Preventivo" in `OrderDetail.tsx`
+- CSS print styles in `index.css`
 
-### 4.2 - Standardizzare gestione errori
-Creare un pattern unificato per toast di errore/successo invece di ripetere lo stesso blocco `onError/onSuccess` in ogni mutation.
+### FASE D: Versioning base (opzionale, bassa priorita)
 
-### 4.3 - Tipi coerenti
-Unificare le interface duplicate (es. `OrderItem` definita in piu file con campi diversi) in un unico file di tipi condiviso.
-
----
-
-## FASE 5: UX (Miglioramenti)
-
-### 5.1 - Empty state corretto in CustomersList
-Verificare che il messaggio empty state sia corretto ("Nessun cliente" e non "Nessun ticket").
-
-### 5.2 - Loading states uniformi
-Sostituire i testi "Caricamento..." con Skeleton/Spinner coerenti in tutte le pagine.
-
-### 5.3 - Feedback immediato su azioni
-Verificare che ogni azione critica (salva, elimina, cambia stato) abbia feedback toast coerente.
+**Approccio minimale:** Salvare uno snapshot JSON dell'ordine nella tabella `order_status_history` o in una nuova tabella `order_revisions` ogni volta che l'ordine viene modificato, con numero versione incrementale.
 
 ---
 
-## Dettaglio Tecnico dei File Modificati
+## Dettaglio Tecnico - Migrazione Database
 
-| File | Modifica |
-|------|----------|
-| `src/pages/azienda/OrderDetail.tsx` | Fix updateOrderItemsMutation per salvare tutti i campi articolo; aggiunta `vat_rate` al tipo OrderItemData |
-| `src/pages/azienda/CustomersList.tsx` | Fix warning forwardRef |
-| `src/App.tsx` | Aggiunta route `/azienda/dipendenti` |
-| `src/components/layouts/CompanyLayout.tsx` | Aggiunta link Dipendenti nella sidebar |
-| `src/components/orders/OrderEconomics.tsx` | Sezione margine previsto vs consuntivo |
-| `src/pages/azienda/CompanyDashboard.tsx` | Alert squilibri finanziari |
+```text
+ALTER TABLE article_templates:
+  + sku TEXT
+  + category TEXT  
+  + unit_price NUMERIC DEFAULT 0
+  + standard_cost NUMERIC DEFAULT 0
+  + unit_of_measure TEXT DEFAULT 'pz'
+  + vat_rate NUMERIC DEFAULT 22
+  + supplier_id UUID (FK -> suppliers)
+  + description TEXT
 
----
+ALTER TABLE order_items:
+  + unit_price NUMERIC DEFAULT 0
+  + discount_percent NUMERIC DEFAULT 0
+  + standard_cost NUMERIC DEFAULT 0
+```
 
-## Nota importante
+## Sequenza di Implementazione Consigliata
 
-Questo piano e ampio e va implementato in fasi. Consiglio di procedere con la **Fase 1 (bug critici)** immediatamente, poi iterare sulle fasi successive. Il bug #1 (perdita dati articoli) e il piu urgente perche causa perdita di dati reali in produzione.
+1. **Fase A** (Catalogo + Prezzo riga) - prerequisito per tutto il resto
+2. **Fase B** (Margine previsto vs consuntivo) - dipende da Fase A
+3. **Fase C** (PDF) - indipendente, puo procedere in parallelo con B
+4. **Fase D** (Versioning) - opzionale, da valutare dopo
+
+## Note
+
+- Le Fasi A e B insieme risolvono il requisito critico "margine previsto vs consuntivo"
+- La Fase C e il primo passo verso la generazione documenti (preventivo, conferma d'ordine, SAL)
+- La Fase D e minimale ma sufficiente per tracciare le modifiche con storico
+
