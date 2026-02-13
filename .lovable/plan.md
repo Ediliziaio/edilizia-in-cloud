@@ -1,24 +1,28 @@
 
-# Semplificare la sezione PROVVIGIONI VENDITORI nel Conto Economico
+# Fix: Provvigioni calcolate su base sbagliata nel Conto Economico
 
-## Cosa cambia
+## Il problema
+`totalAmount` (passato come prop) e gia l'**imponibile** (netto IVA) -- lo si vede nella sezione VENDITA dove e mostrato come "Imponibile". Ma il codice chiama `calculateNetFromGross(totalAmount, vatRate)` che scorporta l'IVA **una seconda volta**, riducendo la base di calcolo delle provvigioni.
 
-La sezione **PROVVIGIONI VENDITORI** nel Conto Economico attualmente mostra il dettaglio per ogni venditore (provvigione lorda, decurtazione, netto). L'utente vuole che in questa sezione ci sia solo il **totale provvigioni** (netto decurtazioni), senza il dettaglio per singolo venditore.
+Esempio concreto: imponibile 8.181,82 EUR con IVA 10% e provvigione 10% sull'incassato con incassato = 3.000 EUR:
+- Attuale (sbagliato): 3.000 / 1.10 = 2.727,27 --> 10% = 272,73 EUR
+- Corretto: 3.000 e gia imponibile --> 10% = 300,00 EUR
 
-Il dettaglio per venditore resta visibile nella sezione dedicata alle provvigioni (OrderCommissions), che e separata dal Conto Economico.
+Secondo problema: `OrderEconomics` non riceve `collectedAmount` come prop da `OrderDetail`, quindi le provvigioni "% sull'incassato" risultano sempre 0 nel Conto Economico.
 
-## Dettaglio tecnico
+## La soluzione
 
-### File da modificare
-`src/components/orders/OrderEconomics.tsx`
+### File 1: `src/components/orders/OrderEconomics.tsx`
+- **Rimuovere** le righe 156-157 che chiamano `calculateNetFromGross` su `totalAmount` e `collectedAmount`
+- Usare direttamente `totalAmount` e `collectedAmount` nella funzione `calculateCommission` (sono gia imponibili)
 
-### Modifica (righe 330-373)
-Sostituire il blocco che elenca ogni venditore con le relative decurtazioni con una singola riga riepilogativa che mostra:
-- Titolo "PROVVIGIONI VENDITORI" (invariato)
-- Una sola riga: **Totale Provvigioni** con il valore `totalCommissions` (gia calcolato al netto delle decurtazioni)
+### File 2: `src/pages/azienda/OrderDetail.tsx`
+- Passare la prop `collectedAmount` a `OrderEconomics`, calcolata nello stesso modo in cui viene passata a `OrderCommissions` (somma dei pagamenti effettuati: acconto + acconto 2 + saldo)
 
-Rimuovere:
-- Il ciclo `commissionDetails.map(...)` con dettaglio per venditore
-- Le righe di decurtazione e netto per singolo venditore
+### File 3: `src/components/orders/OrderCommissions.tsx`
+- Stesso bug: righe 98-99 chiamano `calculateNetFromGross` su `totalAmount` e `collectedAmount` che sono gia importi netti
+- Rimuovere le righe 98-99 e usare direttamente `totalAmount` e `collectedAmount` nella funzione `calculateCommission`
+- Aggiornare la sezione "Decurtazioni dall'ordine" per mostrare `totalAmount` invece di `netTotalAmount`
 
-Il calcolo del margine resta invariato perche usa gia `totalCommissions`.
+## Impatto
+Nessun cambiamento di comportamento funzionale desiderato. Solo correzione dei calcoli errati che scorporavano l'IVA due volte.
