@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarIcon, Plus, Paperclip } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Plus, Paperclip, Trash2, AlertTriangle } from "lucide-react";
+import { useOrderDraft } from "@/hooks/useOrderDraft";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -95,6 +97,82 @@ export default function CreateOrder() {
     commission_type: string;
     commission_value: number;
   } | null>(null);
+
+  // Draft auto-save
+  const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id);
+
+  // Load draft on mount
+  useEffect(() => {
+    const draft = loadDraft();
+    if (!draft) return;
+    setCustomerId(draft.customerId || "");
+    setOrderCode(draft.orderCode || "");
+    setDescription(draft.description || "");
+    setInternalNotes(draft.internalNotes || "");
+    if (draft.statusId) setStatusId(draft.statusId);
+    setSalespersonId(draft.salespersonId || "");
+    setSalespersonData(draft.salespersonData || null);
+    setExpectedDate(isoToDate(draft.expectedDate));
+    setWarehouseArrivalDate(isoToDate(draft.warehouseArrivalDate));
+    setWorkStartDate(isoToDate(draft.workStartDate));
+    setWorkEndDate(isoToDate(draft.workEndDate));
+    setPaymentType(draft.paymentType || "standard");
+    setTotalAmount(draft.totalAmount || "");
+    setDepositAmount(draft.depositAmount || "");
+    setDeposit2Amount(draft.deposit2Amount || "");
+    setFinancingAmount(draft.financingAmount || "");
+    setVatRate(draft.vatRate || "22");
+    setDepositPaid(draft.depositPaid || false);
+    setDepositPaidDate(isoToDate(draft.depositPaidDate));
+    setDepositExpectedDate(isoToDate(draft.depositExpectedDate));
+    setDeposit2Paid(draft.deposit2Paid || false);
+    setDeposit2PaidDate(isoToDate(draft.deposit2PaidDate));
+    setDeposit2ExpectedDate(isoToDate(draft.deposit2ExpectedDate));
+    setBalancePaid(draft.balancePaid || false);
+    setBalancePaidDate(isoToDate(draft.balancePaidDate));
+    setBalanceExpectedDate(isoToDate(draft.balanceExpectedDate));
+    if (draft.orderItems?.length) setOrderItems(draft.orderItems);
+    setDraftRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveCompany?.id]);
+
+  // Auto-save draft on every change (debounced in hook)
+  useEffect(() => {
+    if (createdOrderId) return; // Don't save after order is created
+    saveDraft({
+      customerId, orderCode, description, internalNotes, statusId,
+      salespersonId, salespersonData,
+      expectedDate: dateToIso(expectedDate),
+      warehouseArrivalDate: dateToIso(warehouseArrivalDate),
+      workStartDate: dateToIso(workStartDate),
+      workEndDate: dateToIso(workEndDate),
+      paymentType, totalAmount, depositAmount, deposit2Amount, financingAmount, vatRate,
+      depositPaid, depositPaidDate: dateToIso(depositPaidDate), depositExpectedDate: dateToIso(depositExpectedDate),
+      deposit2Paid, deposit2PaidDate: dateToIso(deposit2PaidDate), deposit2ExpectedDate: dateToIso(deposit2ExpectedDate),
+      balancePaid, balancePaidDate: dateToIso(balancePaidDate), balanceExpectedDate: dateToIso(balanceExpectedDate),
+      orderItems,
+    });
+  }, [customerId, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
+      expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
+      paymentType, totalAmount, depositAmount, deposit2Amount, financingAmount, vatRate,
+      depositPaid, depositPaidDate, depositExpectedDate,
+      deposit2Paid, deposit2PaidDate, deposit2ExpectedDate,
+      balancePaid, balancePaidDate, balanceExpectedDate,
+      orderItems, createdOrderId, saveDraft, dateToIso]);
+
+  const handleClearDraft = useCallback(() => {
+    clearDraft();
+    setCustomerId(""); setOrderCode(""); setDescription(""); setInternalNotes("");
+    setStatusId(""); setSalespersonId(""); setSalespersonData(null);
+    setExpectedDate(undefined); setWarehouseArrivalDate(undefined);
+    setWorkStartDate(undefined); setWorkEndDate(undefined);
+    setPaymentType("standard"); setTotalAmount(""); setDepositAmount("");
+    setDeposit2Amount(""); setFinancingAmount(""); setVatRate("22");
+    setDepositPaid(false); setDepositPaidDate(undefined); setDepositExpectedDate(undefined);
+    setDeposit2Paid(false); setDeposit2PaidDate(undefined); setDeposit2ExpectedDate(undefined);
+    setBalancePaid(false); setBalancePaidDate(undefined); setBalanceExpectedDate(undefined);
+    setOrderItems([]);
+  }, [clearDraft]);
 
   // Calculate balance
   const total = parseFloat(totalAmount) || 0;
@@ -296,6 +374,7 @@ export default function CreateOrder() {
       return order;
     },
     onSuccess: (order) => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
         title: "Ordine creato",
@@ -401,6 +480,28 @@ export default function CreateOrder() {
           </p>
         </div>
       </div>
+
+      {/* Draft restored banner */}
+      {draftRestored && !createdOrderId && (
+        <Alert className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30">
+          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+          <AlertDescription className="flex items-center justify-between">
+            <span className="text-yellow-800 dark:text-yellow-200">
+              Bozza recuperata — i dati precedenti sono stati ripristinati.
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-4 shrink-0"
+              onClick={handleClearDraft}
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              Cancella bozza
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
