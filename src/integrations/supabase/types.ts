@@ -596,6 +596,7 @@ export type Database = {
           purchase_price: number | null
           quantity: number | null
           status: string | null
+          stock_item_id: string | null
           supplier_id: string | null
           updated_at: string | null
           vat_rate: number | null
@@ -610,6 +611,7 @@ export type Database = {
           purchase_price?: number | null
           quantity?: number | null
           status?: string | null
+          stock_item_id?: string | null
           supplier_id?: string | null
           updated_at?: string | null
           vat_rate?: number | null
@@ -624,6 +626,7 @@ export type Database = {
           purchase_price?: number | null
           quantity?: number | null
           status?: string | null
+          stock_item_id?: string | null
           supplier_id?: string | null
           updated_at?: string | null
           vat_rate?: number | null
@@ -634,6 +637,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_stock"
             referencedColumns: ["id"]
           },
           {
@@ -1321,6 +1331,111 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      warehouse_movements: {
+        Row: {
+          created_at: string
+          id: string
+          movement_type: string
+          notes: string | null
+          order_item_id: string | null
+          performed_by: string
+          quantity: number
+          stock_item_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          movement_type: string
+          notes?: string | null
+          order_item_id?: string | null
+          performed_by: string
+          quantity: number
+          stock_item_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          movement_type?: string
+          notes?: string | null
+          order_item_id?: string | null
+          performed_by?: string
+          quantity?: number
+          stock_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_movements_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_movements_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_stock"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warehouse_stock: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          min_stock_level: number
+          name: string
+          quantity: number
+          supplier_id: string | null
+          unit_cost: number
+          updated_at: string
+          vat_rate: number | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          min_stock_level?: number
+          name: string
+          quantity?: number
+          supplier_id?: string | null
+          unit_cost?: number
+          updated_at?: string
+          vat_rate?: number | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          min_stock_level?: number
+          name?: string
+          quantity?: number
+          supplier_id?: string | null
+          unit_cost?: number
+          updated_at?: string
+          vat_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_stock_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       work_logs: {
         Row: {
