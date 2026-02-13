@@ -239,7 +239,8 @@ export default function CompanyDetail() {
       setIsLoading(false);
     }
     fetchCompanyData();
-  }, [id, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   // Team data queries
   const { data: teamData } = useQuery({
@@ -1344,17 +1345,17 @@ export default function CompanyDetail() {
                     <CreditCard className="h-3 w-3 mr-1" />Cambia piano
                   </Button>
                   {companyStatus !== "suspended" ? (
-                    <Button variant="outline" size="sm" onClick={() => updateStatusMutation.mutate({ newStatus: "suspended", notes: "Sospeso manualmente" })}>
-                      <Pause className="h-3 w-3 mr-1" />Sospendi
+                    <Button variant="outline" size="sm" disabled={updateStatusMutation.isPending} onClick={() => updateStatusMutation.mutate({ newStatus: "suspended", notes: "Sospeso manualmente" })}>
+                      {updateStatusMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Pause className="h-3 w-3 mr-1" />}Sospendi
                     </Button>
                   ) : (
-                    <Button variant="outline" size="sm" onClick={() => updateStatusMutation.mutate({ newStatus: "active", notes: "Riattivato manualmente" })}>
-                      <Play className="h-3 w-3 mr-1" />Riattiva
+                    <Button variant="outline" size="sm" disabled={updateStatusMutation.isPending} onClick={() => updateStatusMutation.mutate({ newStatus: "active", notes: "Riattivato manualmente" })}>
+                      {updateStatusMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}Riattiva
                     </Button>
                   )}
                   {(companyStatus === "trial" || companyStatus === "expired") && (
-                    <Button variant="outline" size="sm" onClick={() => extendTrialMutation.mutate(14)}>
-                      <Timer className="h-3 w-3 mr-1" />+14 giorni trial
+                    <Button variant="outline" size="sm" disabled={extendTrialMutation.isPending} onClick={() => extendTrialMutation.mutate(14)}>
+                      {extendTrialMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Timer className="h-3 w-3 mr-1" />}+14 giorni trial
                     </Button>
                   )}
                 </div>
@@ -1653,7 +1654,8 @@ export default function CompanyDetail() {
           </Select>
           <DialogFooter>
             <Button variant="outline" onClick={() => setChangePlanDialog(false)}>Annulla</Button>
-            <Button onClick={() => selectedPlanId && changePlanMutation.mutate(selectedPlanId)} disabled={!selectedPlanId}>
+            <Button onClick={() => selectedPlanId && changePlanMutation.mutate(selectedPlanId)} disabled={!selectedPlanId || changePlanMutation.isPending}>
+              {changePlanMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Conferma
             </Button>
           </DialogFooter>
