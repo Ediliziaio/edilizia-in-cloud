@@ -314,13 +314,20 @@ export function CalendarGanttView({
                     style={{ height: ROW_HEIGHT }}
                     onClick={() => navigate(`/azienda/ordini/${order.id}`)}
                   >
-                    <div className="flex-1 flex flex-col justify-center px-3">
+                    <div className="flex-1 flex flex-col justify-center px-3 min-w-0">
                       <span className="text-sm font-medium truncate">
                         {order.customer.first_name} {order.customer.last_name}
                       </span>
-                      <span className="text-xs text-muted-foreground truncate">
-                        {order.order_code || "N/A"}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground truncate">
+                          {order.order_code || "N/A"}
+                        </span>
+                        {(!order.assigned_employees || order.assigned_employees.length === 0) && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1 rounded">
+                            No squadra
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="w-16 flex items-center justify-center border-l">
                       {leadTime !== null ? (
