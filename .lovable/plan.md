@@ -1,72 +1,91 @@
 
+# Piano: Fix Warning e Miglioramenti UX Magazzino
 
-# Piano: Fix Discrepanza "Da Incassare" tra Dashboard, Ordini e Previsionale
+## 1. Fix Warning Console
 
-## Problema Identificato
+### WarehouseListView.tsx
+Il warning "Function components cannot be given refs" si genera perche `WarehouseListView` e un componente funzione senza `forwardRef`. React tenta di passare un ref quando viene renderizzato nel contesto del Warehouse.
 
-La Dashboard mostra un valore "Saldi da Incassare" diverso rispetto alla pagina Ordini e al Previsionale perche calcola solo i **saldi non pagati**, ignorando gli **acconti non pagati**.
-
-| Vista | Cosa calcola | Corretto? |
-|-------|-------------|-----------|
-| Ordini (OrdersList) | Acconto 1 + Acconto 2 + Saldo non pagati | Si |
-| Previsionale (CashFlowForecast) | Acconto 1 + Acconto 2 + Saldo non pagati | Si |
-| Dashboard (CompanyDashboard) | Solo Saldo non pagato | **NO** |
-
-## Fix
-
-### File: `src/pages/azienda/CompanyDashboard.tsx`
-
-**1. Modificare la query `pendingRevenueRes`** (riga 69-73)
-
-Attualmente:
-```text
-supabase
-  .from("orders")
-  .select("balance_amount, balance_paid")
-  .eq("company_id", companyId!)
-  .or("balance_paid.is.null,balance_paid.eq.false")
-```
-
-Deve diventare:
-```text
-supabase
-  .from("orders")
-  .select("deposit_amount, deposit_paid, deposit_2_amount, deposit_2_paid, balance_amount, balance_paid")
-  .eq("company_id", companyId!)
-```
-
-**2. Modificare il calcolo `pendingRevenue`** (righe 110-112)
-
-Attualmente somma solo `balance_amount`. Deve sommare tutte le rate non pagate:
-
-```text
-let pendingRevenue = 0;
-let pendingOrdersCount = 0;
-
-pendingRevenueRes.data?.forEach(order => {
-  let orderPending = 0;
-  if (!order.deposit_paid && Number(order.deposit_amount) > 0)
-    orderPending += Number(order.deposit_amount);
-  if (!order.deposit_2_paid && Number(order.deposit_2_amount) > 0)
-    orderPending += Number(order.deposit_2_amount);
-  if (!order.balance_paid && Number(order.balance_amount) > 0)
-    orderPending += Number(order.balance_amount);
-  if (orderPending > 0) {
-    pendingRevenue += orderPending;
-    pendingOrdersCount++;
-  }
-});
-```
-
-**3. Rinominare la label** della stat card da "Saldi da Incassare" a "Da Incassare" per coerenza con la pagina Ordini.
+**Fix**: Wrappare con `React.forwardRef`.
 
 ---
 
-## Riepilogo
+## 2. Pulizia Codice
 
-| File | Modifica |
-|------|----------|
-| `src/pages/azienda/CompanyDashboard.tsx` | Fix query e calcolo pendingRevenue per includere tutti i pagamenti non incassati |
+| File | Elemento | Azione |
+|------|----------|--------|
+| `src/components/warehouse/WarehouseStats.tsx` | Riga 100 vuota | Rimuovere |
 
-Nessun altro file da modificare. Nessuna migrazione DB necessaria.
+---
 
+## 3. Miglioramenti UX Calendario
+
+### WarehouseCalendarView.tsx - Dark mode e consistenza visiva
+
+Attualmente la vista Calendario usa:
+- Emoji (🟢🔵🟠) per indicare gli stati
+- Colori hardcoded senza varianti dark mode (`bg-amber-100 text-amber-800`)
+
+**Fix**:
+- Aggiungere varianti `dark:` ai colori delle card ordine nel calendario
+- Aggiungere varianti `dark:` ai colori della legenda
+
+---
+
+## Riepilogo File da Modificare
+
+| File | Tipo | Descrizione |
+|------|------|-------------|
+| `src/components/warehouse/WarehouseListView.tsx` | Modifica | Wrappare con forwardRef |
+| `src/components/warehouse/WarehouseStats.tsx` | Modifica | Rimuovere riga vuota residua |
+| `src/components/warehouse/WarehouseCalendarView.tsx` | Modifica | Aggiungere dark mode ai colori |
+
+---
+
+## Dettagli Tecnici
+
+### WarehouseListView.tsx - forwardRef
+
+```text
+// Da:
+export default function WarehouseListView({ ... }: WarehouseListViewProps) {
+
+// A:
+import { useState, forwardRef } from "react";
+
+const WarehouseListView = forwardRef<HTMLDivElement, WarehouseListViewProps>(
+  function WarehouseListView({ orderGroups, onStatusChange, ... }, ref) {
+    // contenuto invariato, ma il div root riceve ref
+    return <div ref={ref} className="space-y-2">...</div>;
+  }
+);
+
+export default WarehouseListView;
+```
+
+### WarehouseCalendarView.tsx - Dark mode
+
+```text
+// Card ordine - Da:
+"bg-amber-100 text-amber-800"
+"bg-green-100 text-green-800"
+
+// A:
+"bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+"bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+
+// Legenda - Da:
+<span className="w-3 h-3 rounded bg-green-100">
+<span className="w-3 h-3 rounded bg-amber-100">
+
+// A:
+<span className="w-3 h-3 rounded bg-green-100 dark:bg-green-900/30">
+<span className="w-3 h-3 rounded bg-amber-100 dark:bg-amber-900/30">
+```
+
+### Verifiche Post-Modifica
+
+- Console priva del warning "Function components cannot be given refs" per WarehouseListView
+- Vista Calendario leggibile in dark mode
+- Tutte le viste (Lista, Kanban, Calendario, Giacenze) funzionanti
+- Nessuna regressione funzionale
