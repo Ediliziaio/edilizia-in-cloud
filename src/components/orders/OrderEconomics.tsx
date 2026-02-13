@@ -327,7 +327,7 @@ export function OrderEconomics({
         </div>
 
         {/* Commissions Section */}
-        {commissionDetails.length > 0 && (
+        {totalCommissions > 0 && (
           <>
             <Separator />
             <div>
@@ -335,38 +335,9 @@ export function OrderEconomics({
                 <UserCheck className="h-4 w-4" />
                 PROVVIGIONI VENDITORI
               </h4>
-              <div className="space-y-2">
-                {commissionDetails.map((comm, index) => (
-                  <div key={index} className="space-y-0.5">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">
-                        {comm.name}{" "}
-                        <span className="text-xs">
-                          ({comm.type === "fixed" 
-                            ? `€${comm.value}` 
-                            : `${comm.value}% ${comm.type === "percentage_sold" ? "venduto" : "incassato"}`})
-                        </span>
-                      </span>
-                      <span>{formatCurrency(comm.grossAmount)}</span>
-                    </div>
-                    {comm.deduction > 0 && (
-                      <div className="flex justify-between text-xs text-muted-foreground pl-2">
-                        <span>Decurtazione</span>
-                        <span className="text-green-600">- {formatCurrency(comm.deduction)}</span>
-                      </div>
-                    )}
-                    {comm.deduction > 0 && (
-                      <div className="flex justify-between text-sm pl-2 font-medium">
-                        <span>Netto</span>
-                        <span>{formatCurrency(comm.netAmount)}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                <div className="flex justify-between font-medium pt-2 border-t">
-                  <span>Totale Provvigioni{commissionDetails.some(c => c.deduction > 0) ? " (netto decurtazioni)" : ""}</span>
-                  <span className="text-destructive">{formatCurrency(totalCommissions)}</span>
-                </div>
+              <div className="flex justify-between font-medium">
+                <span>Totale Provvigioni</span>
+                <span className="text-destructive">{formatCurrency(totalCommissions)}</span>
               </div>
             </div>
           </>
