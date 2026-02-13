@@ -357,8 +357,8 @@ export function OrderCommissions({
                       <Input
                         type="number"
                         step="0.01"
-                        value={sp.deduction_amount || 0}
-                        onChange={(e) =>
+                        defaultValue={sp.deduction_amount || 0}
+                        onBlur={(e) =>
                           handleUpdateDeduction(sp, parseFloat(e.target.value) || 0)
                         }
                         className="h-8"
