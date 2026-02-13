@@ -770,11 +770,6 @@ export default function OrderDetail() {
             totalAmount={order.total_amount}
             vatRate={order.vat_rate || 22}
             items={economicsItems}
-            collectedAmount={
-              (order.deposit_paid ? order.deposit_amount : 0) +
-              (order.deposit_2_paid ? (order.deposit_2_amount || 0) : 0) +
-              (order.balance_paid ? order.balance_amount : 0)
-            }
           />
 
           {/* Labor Costs */}
