@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -374,8 +375,16 @@ export default function Employees() {
           <Card>
             <CardContent className="p-0">
               {loadingEmployees ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  Caricamento...
+                <div className="p-6 space-y-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-5 w-[150px]" />
+                      <Skeleton className="h-5 w-[180px]" />
+                      <Skeleton className="h-5 w-[80px]" />
+                      <Skeleton className="h-5 w-[80px]" />
+                      <Skeleton className="h-5 w-[60px]" />
+                    </div>
+                  ))}
                 </div>
               ) : employees.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
@@ -520,8 +529,15 @@ export default function Employees() {
           <Card>
             <CardContent className="p-0">
               {loadingTeams ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  Caricamento...
+                <div className="p-6 space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-5 w-[140px]" />
+                      <Skeleton className="h-5 w-[120px]" />
+                      <Skeleton className="h-5 w-[160px]" />
+                      <Skeleton className="h-5 w-[60px]" />
+                    </div>
+                  ))}
                 </div>
               ) : externalTeams.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
