@@ -51,6 +51,10 @@ export type Database = {
           logo_url: string | null
           name: string
           sector: Database["public"]["Enums"]["company_sector"]
+          status: string
+          stripe_customer_id: string | null
+          subscription_plan_id: string | null
+          trial_ends_at: string | null
           updated_at: string
         }
         Insert: {
@@ -60,6 +64,10 @@ export type Database = {
           logo_url?: string | null
           name: string
           sector?: Database["public"]["Enums"]["company_sector"]
+          status?: string
+          stripe_customer_id?: string | null
+          subscription_plan_id?: string | null
+          trial_ends_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -69,9 +77,75 @@ export type Database = {
           logo_url?: string | null
           name?: string
           sector?: Database["public"]["Enums"]["company_sector"]
+          status?: string
+          stripe_customer_id?: string | null
+          subscription_plan_id?: string | null
+          trial_ends_at?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "companies_subscription_plan_id_fkey"
+            columns: ["subscription_plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_subscriptions: {
+        Row: {
+          billing_period: string
+          canceled_at: string | null
+          company_id: string
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          plan_id: string
+          status: string
+          stripe_subscription_id: string | null
+        }
+        Insert: {
+          billing_period?: string
+          canceled_at?: string | null
+          company_id: string
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_id: string
+          status?: string
+          stripe_subscription_id?: string | null
+        }
+        Update: {
+          billing_period?: string
+          canceled_at?: string | null
+          company_id?: string
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_id?: string
+          status?: string
+          stripe_subscription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_subscriptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       employee_attachments: {
         Row: {
@@ -948,6 +1022,114 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subscription_logs: {
+        Row: {
+          company_id: string
+          created_at: string
+          event_type: string
+          id: string
+          new_status: string | null
+          notes: string | null
+          old_status: string | null
+          performed_by: string | null
+          plan_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          new_status?: string | null
+          notes?: string | null
+          old_status?: string | null
+          performed_by?: string | null
+          plan_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          new_status?: string | null
+          notes?: string | null
+          old_status?: string | null
+          performed_by?: string | null
+          plan_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_logs_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          features: Json | null
+          id: string
+          is_active: boolean
+          max_orders: number
+          max_storage_mb: number
+          max_users: number
+          name: string
+          position: number
+          price_monthly: number
+          price_yearly: number
+          slug: string
+          stripe_price_monthly_id: string | null
+          stripe_price_yearly_id: string | null
+          stripe_product_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean
+          max_orders?: number
+          max_storage_mb?: number
+          max_users?: number
+          name: string
+          position?: number
+          price_monthly?: number
+          price_yearly?: number
+          slug: string
+          stripe_price_monthly_id?: string | null
+          stripe_price_yearly_id?: string | null
+          stripe_product_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean
+          max_orders?: number
+          max_storage_mb?: number
+          max_users?: number
+          name?: string
+          position?: number
+          price_monthly?: number
+          price_yearly?: number
+          slug?: string
+          stripe_price_monthly_id?: string | null
+          stripe_price_yearly_id?: string | null
+          stripe_product_id?: string | null
+        }
+        Relationships: []
       }
       suppliers: {
         Row: {
