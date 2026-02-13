@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, isWithinInterval, startOfMonth, endOfMonth, addDays } from "date-fns";
+import { format, isWithinInterval, startOfMonth, endOfMonth, addDays, addMonths, addQuarters, addYears } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Building2,
@@ -8,6 +8,7 @@ import {
   Check,
   Clock,
   AlertCircle,
+  CalendarPlus,
   Pencil,
   Trash2,
   Receipt,
@@ -93,7 +94,7 @@ export default function CompanyCostsManager() {
   const [formData, setFormData] = useState<CostFormData>(defaultFormData);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [payConfirmId, setPayConfirmId] = useState<string | null>(null);
-
+  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   // Query costs
   const { data: costs = [], isLoading } = useQuery({
     queryKey: ["company-costs", companyId],
@@ -188,6 +189,62 @@ export default function CompanyCostsManager() {
       queryClient.invalidateQueries({ queryKey: ["company-costs"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       toast({ title: "Costo segnato come pagato" });
+    },
+  });
+
+  // Duplicate recurring costs mutation
+  const recurringCosts = useMemo(() => costs.filter((c: any) => c.recurrence !== "once"), [costs]);
+
+  const duplicateRecurringMutation = useMutation({
+    mutationFn: async () => {
+      let created = 0;
+      for (const cost of recurringCosts) {
+        const dueDate = new Date(cost.due_date);
+        let nextDate: Date;
+        if (cost.recurrence === "monthly") nextDate = addMonths(dueDate, 1);
+        else if (cost.recurrence === "quarterly") nextDate = addQuarters(dueDate, 1);
+        else nextDate = addYears(dueDate, 1);
+
+        const nextDateStr = format(nextDate, "yyyy-MM-dd");
+
+        // Check duplicate
+        const { data: existing } = await supabase
+          .from("company_costs")
+          .select("id")
+          .eq("company_id", companyId!)
+          .eq("name", cost.name)
+          .eq("due_date", nextDateStr)
+          .limit(1);
+
+        if (existing && existing.length > 0) continue;
+
+        const { error } = await supabase.from("company_costs").insert({
+          company_id: companyId!,
+          name: cost.name,
+          cost_type: cost.cost_type,
+          amount: cost.amount,
+          category: cost.category,
+          recurrence: cost.recurrence,
+          due_date: nextDateStr,
+          notes: cost.notes,
+          order_id: cost.order_id,
+          is_paid: false,
+        });
+        if (error) throw error;
+        created++;
+      }
+      return created;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      setShowDuplicateConfirm(false);
+      toast({
+        title: count > 0 ? `${count} costi generati per il prossimo periodo` : "Nessun nuovo costo da generare (già esistenti)",
+      });
+    },
+    onError: () => {
+      toast({ title: "Errore nella generazione", variant: "destructive" });
     },
   });
 
@@ -349,13 +406,23 @@ export default function CompanyCostsManager() {
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Gestione Costi Aziendali
-          </CardTitle>
-          <CardDescription>
-            Gestisci costi fissi e variabili, tieni traccia dei pagamenti
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Gestione Costi Aziendali
+              </CardTitle>
+              <CardDescription>
+                Gestisci costi fissi e variabili, tieni traccia dei pagamenti
+              </CardDescription>
+            </div>
+            {recurringCosts.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setShowDuplicateConfirm(true)} className="gap-1">
+                <CalendarPlus className="h-4 w-4" />
+                Genera prossimo periodo
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Summary */}
@@ -536,6 +603,28 @@ export default function CompanyCostsManager() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction onClick={() => { if (payConfirmId) markPaidMutation.mutate(payConfirmId); setPayConfirmId(null); }}>
               Conferma Pagamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Duplicate Recurring Confirm */}
+      <AlertDialog open={showDuplicateConfirm} onOpenChange={setShowDuplicateConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Genera costi ricorrenti</AlertDialogTitle>
+            <AlertDialogDescription>
+              Verranno duplicati {recurringCosts.length} costi ricorrenti per il prossimo periodo.
+              I duplicati già esistenti verranno ignorati.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => duplicateRecurringMutation.mutate()}
+              disabled={duplicateRecurringMutation.isPending}
+            >
+              {duplicateRecurringMutation.isPending ? "Generazione..." : "Genera"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

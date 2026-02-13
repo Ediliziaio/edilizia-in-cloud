@@ -67,7 +67,6 @@ import {
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 import { formatCurrency } from "@/lib/formatters";
 import { ChevronDown } from "lucide-react";
-import CompanyCostsManager from "@/components/forecast/CompanyCostsManager";
 
 interface ExpectedPayment {
   orderId: string;
@@ -135,7 +134,7 @@ export default function CashFlowForecast() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [activeTab, setActiveTab] = useState<"all" | "income" | "expenses">("all");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
-  const [showCostsManager, setShowCostsManager] = useState(false);
+  
 
   // Query ordini con pagamenti non incassati
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
@@ -631,18 +630,8 @@ export default function CashFlowForecast() {
     );
   }
 
-  if (showCostsManager) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => setShowCostsManager(false)}>
-            ← Torna al Previsionale
-          </Button>
-        </div>
-        <CompanyCostsManager />
-      </div>
-    );
-  }
+
+
 
   return (
     <div className="space-y-6">
@@ -922,9 +911,11 @@ export default function CashFlowForecast() {
                 Costi fissi e variabili non ancora pagati
               </CardDescription>
             </div>
-            <Button variant="outline" onClick={() => setShowCostsManager(true)} className="gap-1">
-              <Building2 className="h-4 w-4" />
-              Gestisci Costi
+            <Button variant="outline" asChild className="gap-1">
+              <Link to="/azienda/costi">
+                <Building2 className="h-4 w-4" />
+                Gestisci Costi
+              </Link>
             </Button>
           </div>
         </CardHeader>
