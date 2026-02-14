@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, MessageSquare, Search, Building, Clock, Flame, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { AdminSupportChatSheet } from "./AdminSupportChatSheet";
 import { SupportStats } from "./SupportStats";
 import { SupportFilters } from "./SupportFilters";
@@ -96,9 +96,9 @@ export function AdminSupportChatList() {
       .upsert({ company_id: companyId, ...updates }, { onConflict: "company_id" });
 
     if (error) {
-      toast({ title: "Errore", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     } else {
-      toast({ title: "Aggiornato" });
+      toast.success("Aggiornato");
       queryClient.invalidateQueries({ queryKey: ["admin-support-conversations"] });
     }
   };
