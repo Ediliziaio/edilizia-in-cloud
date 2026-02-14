@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Send } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { playNotificationSound } from "@/lib/notificationSound";
+import { toast } from "sonner";
 
 interface SupportMessage {
   id: string;
@@ -65,11 +67,17 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
           filter: `company_id=eq.${companyId}`,
         },
         (payload) => {
+          const newMsg = payload.new as SupportMessage;
           setMessages((prev) => {
-            const exists = prev.some((m) => m.id === (payload.new as SupportMessage).id);
-            if (exists) return prev;
-            return [...prev, payload.new as SupportMessage];
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
           });
+          if (newMsg.sender_role === "company") {
+            playNotificationSound();
+            toast("Nuovo messaggio da " + companyName, {
+              description: newMsg.message.slice(0, 80),
+            });
+          }
         }
       )
       .subscribe();

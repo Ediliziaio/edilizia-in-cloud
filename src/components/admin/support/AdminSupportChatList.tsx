@@ -8,6 +8,7 @@ import { Loader2, MessageSquare, Search, Building, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { AdminSupportChatSheet } from "./AdminSupportChatSheet";
+import { SupportStats } from "./SupportStats";
 
 interface SupportMessage {
   id: string;
@@ -99,8 +100,15 @@ export function AdminSupportChatList() {
     [conversations, searchQuery]
   );
 
+  const totalMessagesToday = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return messages.filter((m) => new Date(m.created_at) >= today).length;
+  }, [messages]);
+
   return (
     <div className="space-y-4">
+      <SupportStats conversations={conversations} totalMessagesToday={totalMessagesToday} />
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
