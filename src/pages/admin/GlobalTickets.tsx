@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,63 +57,74 @@ const statusConfig: Record<TicketStatus, { label: string; variant: "default" | "
 };
 
 export default function GlobalTickets() {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    async function fetchData() {
-      const [ticketsRes, companiesRes] = await Promise.all([
-        supabase
-          .from("tickets")
-          .select(`
-            id,
-            subject,
-            status,
-            created_at,
-            updated_at,
-            company:companies!tickets_company_id_fkey(id, name),
-            customer:profiles!tickets_customer_id_fkey(first_name, last_name, email)
-          `)
-          .order("created_at", { ascending: false }),
-        supabase.from("companies").select("id, name").order("name"),
-      ]);
+  const { data: tickets = [], isLoading: isLoadingTickets } = useQuery({
+    queryKey: ["admin-global-tickets"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tickets")
+        .select(`
+          id,
+          subject,
+          status,
+          created_at,
+          updated_at,
+          company:companies!tickets_company_id_fkey(id, name),
+          customer:profiles!tickets_customer_id_fkey(first_name, last_name, email)
+        `)
+        .order("created_at", { ascending: false });
 
-      if (ticketsRes.data) {
-        setTickets(ticketsRes.data as unknown as Ticket[]);
-      }
-      if (companiesRes.data) {
-        setCompanies(companiesRes.data);
-      }
-      setIsLoading(false);
-    }
-
-    fetchData();
-  }, []);
-
-  const filteredTickets = tickets.filter((ticket) => {
-    const matchesSearch =
-      ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      `${ticket.customer.first_name} ${ticket.customer.last_name}`
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      ticket.customer.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCompany = selectedCompany === "all" || ticket.company.id === selectedCompany;
-    const matchesStatus = selectedStatus === "all" || ticket.status === selectedStatus;
-    return matchesSearch && matchesCompany && matchesStatus;
+      if (error) throw error;
+      return (data ?? []) as unknown as Ticket[];
+    },
+    staleTime: 3 * 60 * 1000,
   });
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ["admin-companies-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, name")
+        .order("name");
+
+      if (error) throw error;
+      return (data ?? []) as Company[];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const isLoading = isLoadingTickets;
+
+  const filteredTickets = useMemo(() => 
+    tickets.filter((ticket) => {
+      const matchesSearch =
+        ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        `${ticket.customer.first_name} ${ticket.customer.last_name}`
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
+        ticket.customer.email.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCompany = selectedCompany === "all" || ticket.company.id === selectedCompany;
+      const matchesStatus = selectedStatus === "all" || ticket.status === selectedStatus;
+      return matchesSearch && matchesCompany && matchesStatus;
+    }),
+    [tickets, searchQuery, selectedCompany, selectedStatus]
+  );
 
   const handleImpersonate = async (companyId: string, ticketId: string) => {
     await impersonateCompany(companyId);
     navigate(`/azienda/assistenza/${ticketId}`);
   };
 
-  const openTicketsCount = tickets.filter((t) => t.status !== "risolto").length;
+  const openTicketsCount = useMemo(
+    () => tickets.filter((t) => t.status !== "risolto").length,
+    [tickets]
+  );
 
   return (
     <div className="space-y-6">

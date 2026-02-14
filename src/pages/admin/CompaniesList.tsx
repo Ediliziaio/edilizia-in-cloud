@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Building2, Plus, Search, LogIn, ExternalLink, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,28 +16,24 @@ import { sectorLabels, statusConfig } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
 
 export default function CompaniesList() {
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    async function fetchCompanies() {
+  const { data: companies = [], isLoading } = useQuery({
+    queryKey: ["admin-companies"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
         .select("*, subscription_plans:subscription_plan_id(id, name)")
         .order("created_at", { ascending: false });
 
-      if (!error && data) {
-        setCompanies(data);
-      }
-      setIsLoading(false);
-    }
-
-    fetchCompanies();
-  }, []);
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const filteredCompanies = companies.filter((company) => {
     const matchesSearch =
