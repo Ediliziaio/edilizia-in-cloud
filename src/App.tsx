@@ -23,12 +23,9 @@ import AdminDashboard from "@/pages/admin/AdminDashboard";
 import CompaniesList from "@/pages/admin/CompaniesList";
 import CreateCompany from "@/pages/admin/CreateCompany";
 import CompanyDetail from "@/pages/admin/CompanyDetail";
-
-
 import GlobalTickets from "@/pages/admin/GlobalTickets";
 import AdminSettings from "@/pages/admin/AdminSettings";
 import SubscriptionPlans from "@/pages/admin/SubscriptionPlans";
-
 
 // Company Pages  
 import CompanyDashboard from "@/pages/azienda/CompanyDashboard";
@@ -44,7 +41,6 @@ import CashFlowForecast from "@/pages/azienda/CashFlowForecast";
 import Warehouse from "@/pages/azienda/Warehouse";
 import CompanyCosts from "@/pages/azienda/CompanyCosts";
 import Calendar from "@/pages/azienda/Calendar";
-
 
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
@@ -103,8 +99,6 @@ const App = () => (
               <Route path="aziende" element={<CompaniesList />} />
               <Route path="aziende/nuova" element={<CreateCompany />} />
               <Route path="aziende/:id" element={<CompanyDetail />} />
-              
-              
               <Route path="ticket" element={<GlobalTickets />} />
               <Route path="impostazioni" element={<AdminSettings />} />
               <Route path="piani" element={<SubscriptionPlans />} />
