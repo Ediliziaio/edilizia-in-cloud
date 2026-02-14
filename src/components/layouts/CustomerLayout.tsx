@@ -18,7 +18,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NavLink } from "@/components/NavLink";
-import { cn } from "@/lib/utils";
 
 const navItems = [
   { title: "I Miei Ordini", url: "/cliente", icon: ClipboardList },

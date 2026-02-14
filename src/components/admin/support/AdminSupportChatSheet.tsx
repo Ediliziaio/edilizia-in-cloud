@@ -34,7 +34,7 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
   const [loading, setLoading] = useState(true);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open || !companyId) return;
@@ -88,9 +88,7 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
   }, [open, companyId]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async () => {
@@ -130,7 +128,7 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
           </div>
         ) : (
           <ScrollArea className="flex-1">
-            <div ref={scrollRef} className="p-4 space-y-3">
+            <div className="p-4 space-y-3">
               {messages.length === 0 ? (
                 <p className="text-center text-muted-foreground text-sm py-8">
                   Nessun messaggio in questa conversazione
@@ -163,6 +161,7 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
                   );
                 })
               )}
+              <div ref={bottomRef} />
             </div>
           </ScrollArea>
         )}

@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { 
   Home, 
@@ -6,7 +6,6 @@ import {
   CalendarDays, 
   User, 
   LogOut,
-  Menu
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,7 +38,6 @@ const navigationItems = [
 
 function EmployeeSidebar() {
   const { user, signOut } = useAuth();
-  const location = useLocation();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
 

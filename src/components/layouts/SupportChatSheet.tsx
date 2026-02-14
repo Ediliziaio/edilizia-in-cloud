@@ -32,7 +32,7 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
   const [loading, setLoading] = useState(true);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const companyId = effectiveCompany?.id;
 
   // Load messages
@@ -90,9 +90,7 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
 
   // Auto-scroll
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async () => {
@@ -132,7 +130,7 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
           </div>
         ) : (
           <ScrollArea className="flex-1">
-            <div ref={scrollRef} className="p-4 space-y-3">
+            <div className="p-4 space-y-3">
               {messages.length === 0 ? (
                 <p className="text-center text-muted-foreground text-sm py-8">
                   Scrivi un messaggio per iniziare la conversazione
@@ -165,6 +163,7 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
                   );
                 })
               )}
+              <div ref={bottomRef} />
             </div>
           </ScrollArea>
         )}
