@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { addDays, subMonths } from "date-fns";
+import { addDays, subMonths, format } from "date-fns";
+import { it } from "date-fns/locale";
 
 interface RecentActivity {
   id: string;
@@ -32,6 +33,13 @@ export interface AdminMrrStats {
   trialCount: number;
   trialExpiringSoon: number;
   churnRate: number;
+  activeCount: number;
+  expiredCount: number;
+}
+
+export interface MrrChartData {
+  month: string;
+  mrr: number;
 }
 
 export function useAdminDashboardData() {
@@ -67,7 +75,7 @@ export function useAdminDashboardData() {
           created_at,
           company:companies(name)
         `).order("created_at", { ascending: false }).limit(5),
-        supabase.from("companies").select("id, status, trial_ends_at, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly)"),
+        supabase.from("companies").select("id, status, trial_ends_at, subscription_plan_id, created_at, subscription_plans:subscription_plan_id(price_monthly)"),
       ]);
 
       const totalValue = ordersValueRes.data?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
@@ -92,6 +100,26 @@ export function useAdminDashboardData() {
 
       const totalActive = activeCompanies.length;
       const churnRate = totalActive > 0 ? ((expiredCompanies.length / (totalActive + expiredCompanies.length)) * 100) : 0;
+
+      // Build MRR trend (last 6 months)
+      const mrrChartData: MrrChartData[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = subMonths(now, i);
+        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+        const monthMrr = allCompanies.reduce((sum, c) => {
+          const created = new Date(c.created_at);
+          if (created > monthEnd) return sum;
+          if (c.status === "active") {
+            const plan = c.subscription_plans as { price_monthly: number } | null;
+            return sum + (plan?.price_monthly || 0);
+          }
+          return sum;
+        }, 0);
+        mrrChartData.push({
+          month: format(monthDate, "MMM yy", { locale: it }),
+          mrr: monthMrr,
+        });
+      }
 
       const activities: RecentActivity[] = [];
 
@@ -130,7 +158,10 @@ export function useAdminDashboardData() {
           trialCount: trialCompanies.length,
           trialExpiringSoon,
           churnRate: Math.round(churnRate * 10) / 10,
+          activeCount: activeCompanies.length,
+          expiredCount: expiredCompanies.length,
         } as AdminMrrStats,
+        mrrChartData,
         recentCompanies: (recentCompaniesRes.data as RecentCompany[]) || [],
         recentActivity: activities.slice(0, 8),
       };
