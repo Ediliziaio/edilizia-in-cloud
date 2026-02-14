@@ -4,7 +4,6 @@ import {
   LayoutDashboard, 
   Building, 
   LogOut,
-  ClipboardList,
   MessageSquare,
   Settings,
   CreditCard
@@ -28,7 +27,6 @@ import { NavLink } from "@/components/NavLink";
 const navItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Aziende", url: "/admin/aziende", icon: Building },
-  { title: "Ordini", url: "/admin/ordini", icon: ClipboardList },
   { title: "Ticket", url: "/admin/ticket", icon: MessageSquare },
   { title: "Piani", url: "/admin/piani", icon: CreditCard },
 ];
