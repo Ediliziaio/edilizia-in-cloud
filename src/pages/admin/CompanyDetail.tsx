@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Building2, Loader2, Users, Copy, Check, KeyRound } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, Users, Copy, Check } from "lucide-react";
 import { addDays } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
