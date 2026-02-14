@@ -1,31 +1,73 @@
 
 
-# Fix: Cliente non caricato in Modifica Ordine
+# Task Integrate in Ordini, Costi e Magazzino
 
-## Problema
+## Panoramica
 
-Quando si apre la pagina "Modifica Ordine", il sistema di **bozza automatica** (draft) sovrascrive il cliente assegnato con un valore vuoto. Questo succede perche:
+Creare un componente riutilizzabile `LinkedTasks` che mostra le task collegate a un'entita specifica (ordine, costo, articolo magazzino) e permette di crearne di nuove direttamente dal contesto. Il componente viene inserito nelle pagine dettaglio ordine, gestione costi e magazzino stock.
 
-1. La bozza viene salvata automaticamente ad ogni modifica dei campi
-2. Se la bozza e stata salvata prima che il `customerId` fosse correttamente inizializzato, salva una stringa vuota
-3. Al rientro nella pagina, la bozza viene ripristinata e il campo cliente risulta vuoto anche se l'ordine ha un cliente assegnato nel database
+---
 
-## Soluzione
+## 1. Nuovo componente: `src/components/tasks/LinkedTasks.tsx`
 
-Modificare la logica di ripristino bozza in `src/pages/azienda/EditOrder.tsx` per **usare sempre il `customer_id` dal database** quando il draft ha un `customerId` vuoto. Il cliente e un dato critico che non dovrebbe mai essere perso durante il ripristino di una bozza.
+Componente compatto e riutilizzabile che riceve:
+- `orderId?` / `stockItemId?` / `costId?` - per filtrare le task collegate
+- `category` - categoria pre-impostata alla creazione (ordini/magazzino/costi/pagamenti)
+- `companyId` - per il filtro tenant
 
-### Modifica specifica
+Funzionalita:
+- Mostra lista task collegate con titolo, assegnatario, priorita (badge), scadenza, stato
+- Checkbox rapida per completare
+- Pulsante "Aggiungi attivita" che apre il `TaskDialog` gia precompilato con la categoria e l'entita collegata
+- Click su task apre il `TaskDialog` in modifica
+- Query dedicata con filtro sull'entita collegata
+- Contatore task attive nel titolo della card
+- Badge scadute in rosso
 
-Nel `useEffect` che gestisce il caricamento dati (riga ~212-275):
+---
 
-- Quando si ripristina una bozza, se `draft.customerId` e vuoto, usare `order.customer_id` come fallback
-- Cambiare: `setCustomerId(draft.customerId || "")` in `setCustomerId(draft.customerId || order.customer_id)`
+## 2. Modifiche al `TaskDialog`
 
-Questo garantisce che il cliente venga sempre mostrato correttamente, anche se la bozza non contiene l'informazione.
+Aggiungere props opzionali per pre-impostare valori:
+- `defaultCategory?` - categoria pre-selezionata
+- `defaultOrderId?` / `defaultStockItemId?` / `defaultCostId?` - collegamento pre-impostato
+- Questi valori vengono usati come default quando si crea una nuova task (non in modifica)
 
-### File da modificare
+---
 
-| File | Modifica |
-|------|----------|
-| `src/pages/azienda/EditOrder.tsx` | Fallback `customer_id` dal DB durante ripristino bozza |
+## 3. Integrazione nelle pagine esistenti
+
+### `src/pages/azienda/OrderDetail.tsx`
+- Aggiungere `<LinkedTasks orderId={id} category="ordini" />` nella colonna destra (sidebar), dopo "Note Interne"
+- Mostra tutte le task collegate a quell'ordine specifico
+
+### `src/components/forecast/CompanyCostsManager.tsx`
+- Nella tabella costi, aggiungere un pulsante azione "Task" per ogni costo
+- Clicking apre un piccolo pannello/dialog con le task collegate a quel costo
+- In alternativa: aggiungere `<LinkedTasks costId={cost.id} category="costi" />` in un dialog espandibile per ogni riga costo
+
+### `src/components/warehouse/WarehouseStockTab.tsx`
+- Nella colonna azioni di ogni articolo stock, aggiungere un pulsante "Task" (icona CheckSquare)
+- Clicking apre un dialog con `<LinkedTasks stockItemId={item.id} category="magazzino" />`
+
+---
+
+## 4. Riepilogo file
+
+| Azione | File |
+|--------|------|
+| Creare | `src/components/tasks/LinkedTasks.tsx` |
+| Modificare | `src/components/tasks/TaskDialog.tsx` (aggiungere default props) |
+| Modificare | `src/pages/azienda/OrderDetail.tsx` (inserire LinkedTasks in sidebar) |
+| Modificare | `src/components/forecast/CompanyCostsManager.tsx` (pulsante task per costo) |
+| Modificare | `src/components/warehouse/WarehouseStockTab.tsx` (pulsante task per articolo) |
+
+---
+
+## 5. Sincronizzazione
+
+- Tutte le query usano la stessa query key `["tasks"]` per invalidazione automatica
+- Creazione/modifica/completamento da qualsiasi contesto aggiorna tutte le viste
+- La pagina principale Attivita mostra tutto, le viste embedded mostrano solo le task di quell'entita
+- Il `TaskDialog` viene riutilizzato ovunque con gli stessi dati e la stessa logica
 
