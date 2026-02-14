@@ -4,9 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, MessageSquare, Search, Building, Clock, Flame, AlertTriangle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, MessageSquare, Search, Building, Clock, Flame, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { toast } from "@/hooks/use-toast";
 import { AdminSupportChatSheet } from "./AdminSupportChatSheet";
 import { SupportStats } from "./SupportStats";
 import { SupportFilters } from "./SupportFilters";
@@ -76,6 +78,30 @@ export function AdminSupportChatList() {
   const [sortBy, setSortBy] = useState("recent");
   const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(null);
   const queryClient = useQueryClient();
+
+  const handleInlineUpdate = async (
+    companyId: string,
+    field: "status" | "priority",
+    value: string
+  ) => {
+    const updates: Record<string, unknown> = { [field]: value, updated_at: new Date().toISOString() };
+    if (field === "status" && value === "resolved") {
+      updates.resolved_at = new Date().toISOString();
+    } else if (field === "status" && value !== "resolved") {
+      updates.resolved_at = null;
+    }
+
+    const { error } = await supabase
+      .from("support_conversations")
+      .upsert({ company_id: companyId, ...updates }, { onConflict: "company_id" });
+
+    if (error) {
+      toast({ title: "Errore", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Aggiornato" });
+      queryClient.invalidateQueries({ queryKey: ["admin-support-conversations"] });
+    }
+  };
 
   const { data: messages = [], isLoading: loadingMessages } = useQuery({
     queryKey: ["admin-support-messages"],
@@ -272,6 +298,43 @@ export function AdminSupportChatList() {
                     {getAgingIndicator(conv.agingHours, conv.unansweredByAdmin)}
                   </div>
                   <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Select
+                    value={conv.status}
+                    onValueChange={(v) => handleInlineUpdate(conv.companyId, "status", v)}
+                  >
+                    <SelectTrigger className="h-7 text-xs w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Aperta</SelectItem>
+                      <SelectItem value="in_progress">In lavorazione</SelectItem>
+                      <SelectItem value="resolved">Risolta</SelectItem>
+                      <SelectItem value="closed">Chiusa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={conv.priority}
+                    onValueChange={(v) => handleInlineUpdate(conv.companyId, "priority", v)}
+                  >
+                    <SelectTrigger className="h-7 text-xs w-[110px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Bassa</SelectItem>
+                      <SelectItem value="normal">Normale</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                      <SelectItem value="urgent">Urgente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <button
+                    className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-green-600 transition-colors"
+                    title="Segna come risolto"
+                    onClick={() => handleInlineUpdate(conv.companyId, "status", "resolved")}
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                  </button>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
