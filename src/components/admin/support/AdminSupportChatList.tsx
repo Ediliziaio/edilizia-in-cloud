@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,7 @@ interface ConversationSummary {
 export function AdminSupportChatList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: messages = [], isLoading: loadingMessages } = useQuery({
     queryKey: ["admin-support-messages"],
@@ -174,7 +175,12 @@ export function AdminSupportChatList() {
       {selectedCompany && (
         <AdminSupportChatSheet
           open={!!selectedCompany}
-          onOpenChange={(open) => !open && setSelectedCompany(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedCompany(null);
+              queryClient.invalidateQueries({ queryKey: ["admin-support-messages"] });
+            }
+          }}
           companyId={selectedCompany.id}
           companyName={selectedCompany.name}
         />
