@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -129,10 +129,13 @@ export function useCompanyDetail(id: string | undefined) {
     });
   };
 
-  // Auto-reset form when data changes
-  if (company && !form.formState.isDirty) {
-    resetFormWithCompany(company);
-  }
+  const lastResetId = useRef<string | null>(null);
+  useEffect(() => {
+    if (company && company.id !== lastResetId.current) {
+      lastResetId.current = company.id;
+      resetFormWithCompany(company);
+    }
+  }, [company?.id]);
 
   const { data: teamData } = useQuery({
     queryKey: ["company-team", id],
