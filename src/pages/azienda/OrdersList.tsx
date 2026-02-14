@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Plus, Package, LayoutList, Columns3 } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical } from "lucide-react";
+import { format } from "date-fns";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,10 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
 import { OrdersStatsCards } from "@/components/orders/OrdersStatsCards";
 import { OrdersFilters } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
+import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { useToast } from "@/hooks/use-toast";
 
 interface OrderWithDetails {
@@ -70,6 +73,21 @@ function getPendingPayments(order: OrderWithDetails): string[] {
   return pending;
 }
 
+const ORDER_IMPORT_FIELDS: ImportField[] = [
+  { key: "order_code", label: "Codice Ordine", required: false },
+  { key: "customer_email", label: "Email Cliente", required: true, type: "email" },
+  { key: "description", label: "Descrizione", required: true },
+  { key: "total_amount", label: "Importo Totale", required: true, type: "number" },
+  { key: "deposit_amount", label: "Acconto 1", required: false, type: "number" },
+  { key: "deposit_2_amount", label: "Acconto 2", required: false, type: "number" },
+  { key: "balance_amount", label: "Saldo", required: false, type: "number" },
+  { key: "expected_date", label: "Data Prevista", required: false, type: "date" },
+  { key: "warehouse_arrival_date", label: "Data Magazzino", required: false, type: "date" },
+  { key: "work_start_date", label: "Data Inizio Lavori", required: false, type: "date" },
+  { key: "internal_notes", label: "Note Interne", required: false },
+  { key: "payment_type", label: "Tipo Pagamento", required: false },
+];
+
 export default function OrdersList() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
@@ -85,6 +103,7 @@ export default function OrdersList() {
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
   const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders", effectiveCompany?.id],
@@ -285,6 +304,103 @@ export default function OrdersList() {
     return { totalOrders, totalAmount, collected, pending };
   }, [filteredOrders]);
 
+  // Export CSV
+  const exportOrdersCSV = useCallback(() => {
+    const rows = [["Codice Ordine", "Cliente", "Descrizione", "Importo Totale", "Acconto 1", "Acconto 2", "Saldo", "Stato", "Data Contratto", "Data Magazzino", "Data Posa", "Stato Pagamenti"]];
+    filteredOrders.forEach((o) => {
+      const pending = getPendingPayments(o);
+      rows.push([
+        o.order_code || "",
+        o.customer ? `${o.customer.first_name} ${o.customer.last_name}` : "",
+        o.description,
+        String(o.total_amount),
+        String(o.deposit_amount || 0),
+        String(o.deposit_2_amount || 0),
+        String(o.balance_amount || 0),
+        o.status?.name || "",
+        o.created_at ? format(new Date(o.created_at), "dd/MM/yyyy") : "",
+        o.warehouse_arrival_date ? format(new Date(o.warehouse_arrival_date), "dd/MM/yyyy") : "",
+        o.expected_date ? format(new Date(o.expected_date), "dd/MM/yyyy") : "",
+        pending.length > 0 ? pending.join(", ") : "Tutto pagato",
+      ]);
+    });
+    const csv = rows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ordini-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "CSV esportato" });
+  }, [filteredOrders, toast]);
+
+  // Import handler
+  const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
+    if (!effectiveCompany?.id) return { success: 0, errors: ["Azienda non trovata"] };
+
+    // Fetch customers to match by email
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, email")
+      .eq("company_id", effectiveCompany.id);
+    const emailToId = new Map((profiles || []).map((p) => [p.email.toLowerCase(), p.id]));
+
+    // Get default status
+    const { data: defaultStatus } = await supabase
+      .from("order_statuses")
+      .select("id")
+      .eq("company_id", effectiveCompany.id)
+      .eq("is_default", true)
+      .limit(1);
+    const defaultStatusId = defaultStatus?.[0]?.id || null;
+
+    let success = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      try {
+        const email = row.customer_email?.trim().toLowerCase();
+        if (!email) { errors.push(`Riga ${i + 1}: Email cliente mancante`); continue; }
+        const customerId = emailToId.get(email);
+        if (!customerId) { errors.push(`Riga ${i + 1}: Cliente con email "${email}" non trovato`); continue; }
+        if (!row.description?.trim()) { errors.push(`Riga ${i + 1}: Descrizione mancante`); continue; }
+
+        const totalAmount = parseFloat(row.total_amount) || 0;
+        if (totalAmount <= 0) { errors.push(`Riga ${i + 1}: Importo totale non valido`); continue; }
+
+        const depositAmount = parseFloat(row.deposit_amount) || 0;
+        const deposit2Amount = parseFloat(row.deposit_2_amount) || 0;
+        const balanceAmount = row.balance_amount ? parseFloat(row.balance_amount) : totalAmount - depositAmount - deposit2Amount;
+
+        const { error } = await supabase.from("orders").insert({
+          company_id: effectiveCompany.id,
+          customer_id: customerId,
+          description: row.description.trim(),
+          total_amount: totalAmount,
+          deposit_amount: depositAmount,
+          deposit_2_amount: deposit2Amount,
+          balance_amount: Math.max(0, balanceAmount),
+          order_code: row.order_code?.trim() || null,
+          expected_date: row.expected_date || null,
+          warehouse_arrival_date: row.warehouse_arrival_date || null,
+          work_start_date: row.work_start_date || null,
+          internal_notes: row.internal_notes || null,
+          payment_type: row.payment_type || "standard",
+          current_status_id: defaultStatusId,
+        });
+        if (error) throw error;
+        success++;
+      } catch (err: any) {
+        errors.push(`Riga ${i + 1}: ${err?.message || "Errore"}`);
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    return { success, errors };
+  }, [effectiveCompany?.id, queryClient]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -307,6 +423,23 @@ export default function OrdersList() {
               <Columns3 className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportOrdersCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Esporta CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importa da file
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button asChild>
             <Link to="/azienda/ordini/nuovo">
               <Plus className="h-4 w-4 mr-2" />
@@ -393,6 +526,14 @@ export default function OrdersList() {
           isDeleting={deleteOrderMutation.isPending}
         />
       )}
+
+      <CSVImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importa Ordini"
+        fields={ORDER_IMPORT_FIELDS}
+        onImport={handleOrdersImport}
+      />
     </div>
   );
 }

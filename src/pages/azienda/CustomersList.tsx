@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil, Trash2 } from "lucide-react";
+import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil, Trash2, Download, Upload, MoreVertical } from "lucide-react";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -9,33 +10,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 
 interface CustomerWithOrders {
   id: string;
@@ -43,6 +30,10 @@ interface CustomerWithOrders {
   last_name: string;
   email: string;
   phone: string | null;
+  fiscal_code: string | null;
+  address: string | null;
+  site_address: string | null;
+  notes: string | null;
   order_count: number;
 }
 
@@ -56,8 +47,20 @@ interface ResetPasswordResult {
   };
 }
 
+const CUSTOMER_IMPORT_FIELDS: ImportField[] = [
+  { key: "first_name", label: "Nome", required: true },
+  { key: "last_name", label: "Cognome", required: true },
+  { key: "email", label: "Email", required: true, type: "email" },
+  { key: "phone", label: "Telefono", required: false },
+  { key: "fiscal_code", label: "Codice Fiscale", required: false },
+  { key: "address", label: "Indirizzo", required: false },
+  { key: "site_address", label: "Indirizzo Cantiere", required: false },
+  { key: "notes", label: "Note", required: false },
+];
+
 export default function CustomersList() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
   const [resetPasswordDialog, setResetPasswordDialog] = useState<{
     open: boolean;
     customer: CustomerWithOrders | null;
@@ -69,13 +72,11 @@ export default function CustomersList() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch customers for the company
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers-list", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       
-      // Step 1: get customer user IDs
       const { data: customerRoles } = await supabase
         .from("user_roles")
         .select("user_id")
@@ -84,16 +85,14 @@ export default function CustomersList() {
       const customerIds = (customerRoles || []).map(r => r.user_id);
       if (customerIds.length === 0) return [];
 
-      // Step 2: fetch profiles for those IDs within the company
       const { data: customerProfiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone")
+        .select("id, first_name, last_name, email, phone, fiscal_code, address, site_address, notes")
         .eq("company_id", effectiveCompany.id)
         .in("id", customerIds);
 
       if (profilesError) throw profilesError;
 
-      // Get order counts for each customer
       const { data: orderCounts, error: ordersError } = await supabase
         .from("orders")
         .select("customer_id")
@@ -103,10 +102,7 @@ export default function CustomersList() {
 
       const orderCountMap = new Map<string, number>();
       orderCounts.forEach((order) => {
-        orderCountMap.set(
-          order.customer_id,
-          (orderCountMap.get(order.customer_id) || 0) + 1
-        );
+        orderCountMap.set(order.customer_id, (orderCountMap.get(order.customer_id) || 0) + 1);
       });
 
       return (customerProfiles || []).map((customer) => ({
@@ -115,7 +111,7 @@ export default function CustomersList() {
       })) as CustomerWithOrders[];
     },
     enabled: !!effectiveCompany?.id,
-    staleTime: 5 * 60 * 1000, // 5 minuti
+    staleTime: 5 * 60 * 1000,
   });
 
   // Reset password mutation
@@ -123,46 +119,26 @@ export default function CustomersList() {
     mutationFn: async (customerId: string) => {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
-
-      if (!token) {
-        throw new Error("Non autenticato");
-      }
+      if (!token) throw new Error("Non autenticato");
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-customer-password`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ customer_id: customerId }),
         }
       );
-
       const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Errore durante il reset della password");
-      }
-
+      if (!response.ok || !data.success) throw new Error(data.error || "Errore durante il reset della password");
       return data as { success: boolean; newPassword: string; customer: ResetPasswordResult["customer"] };
     },
     onSuccess: (data, customerId) => {
       const customer = customers.find((c) => c.id === customerId);
-      setResetPasswordDialog({
-        open: true,
-        customer: customer || null,
-        newPassword: data.newPassword,
-        copied: false,
-      });
+      setResetPasswordDialog({ open: true, customer: customer || null, newPassword: data.newPassword, copied: false });
     },
     onError: (error) => {
-      toast({
-        title: "Errore",
-        description: error instanceof Error ? error.message : "Impossibile resettare la password",
-        variant: "destructive",
-      });
+      toast({ title: "Errore", description: error instanceof Error ? error.message : "Impossibile resettare la password", variant: "destructive" });
     },
   });
 
@@ -170,35 +146,21 @@ export default function CustomersList() {
     if (resetPasswordDialog.newPassword) {
       await navigator.clipboard.writeText(resetPasswordDialog.newPassword);
       setResetPasswordDialog((prev) => ({ ...prev, copied: true }));
-      toast({
-        title: "Copiato",
-        description: "Password copiata negli appunti",
-      });
+      toast({ title: "Copiato", description: "Password copiata negli appunti" });
     }
   };
 
-  // Delete customer mutation
   const deleteCustomerMutation = useMutation({
     mutationFn: async (customerId: string) => {
-      const { error } = await supabase
-        .from("profiles")
-        .delete()
-        .eq("id", customerId);
+      const { error } = await supabase.from("profiles").delete().eq("id", customerId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers-list"] });
-      toast({
-        title: "Cliente eliminato",
-        description: "Il cliente è stato eliminato con successo",
-      });
+      toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo" });
     },
     onError: (error) => {
-      toast({
-        title: "Errore",
-        description: error instanceof Error ? error.message : "Impossibile eliminare il cliente",
-        variant: "destructive",
-      });
+      toast({ title: "Errore", description: error instanceof Error ? error.message : "Impossibile eliminare il cliente", variant: "destructive" });
     },
   });
 
@@ -209,6 +171,74 @@ export default function CustomersList() {
       customer.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Export CSV
+  const exportCustomersCSV = useCallback(() => {
+    const rows = [["Nome", "Cognome", "Email", "Telefono", "Codice Fiscale", "Indirizzo", "Indirizzo Cantiere", "Note", "N. Ordini"]];
+    filteredCustomers.forEach((c) => {
+      rows.push([
+        c.first_name, c.last_name, c.email, c.phone || "", c.fiscal_code || "",
+        c.address || "", c.site_address || "", c.notes || "", String(c.order_count),
+      ]);
+    });
+    const csv = rows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `clienti-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "CSV esportato" });
+  }, [filteredCustomers, toast]);
+
+  // Import handler
+  const handleCustomersImport = useCallback(async (rows: Record<string, string>[]) => {
+    if (!effectiveCompany?.id) return { success: 0, errors: ["Azienda non trovata"] };
+    
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return { success: 0, errors: ["Non autenticato"] };
+
+    let success = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      try {
+        if (!row.first_name?.trim()) { errors.push(`Riga ${i + 1}: Nome mancante`); continue; }
+        if (!row.last_name?.trim()) { errors.push(`Riga ${i + 1}: Cognome mancante`); continue; }
+        if (!row.email?.trim()) { errors.push(`Riga ${i + 1}: Email mancante`); continue; }
+
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-customer`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              first_name: row.first_name.trim(),
+              last_name: row.last_name.trim(),
+              email: row.email.trim().toLowerCase(),
+              phone: row.phone?.trim() || null,
+              fiscal_code: row.fiscal_code?.trim() || null,
+              address: row.address?.trim() || null,
+              site_address: row.site_address?.trim() || null,
+              notes: row.notes?.trim() || null,
+              company_id: effectiveCompany.id,
+            }),
+          }
+        );
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Errore");
+        success++;
+      } catch (err: any) {
+        errors.push(`Riga ${i + 1} (${row.email || ""}): ${err?.message || "Errore"}`);
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["customers-list"] });
+    return { success, errors };
+  }, [effectiveCompany?.id, queryClient]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -217,12 +247,31 @@ export default function CustomersList() {
           <h1 className="text-2xl font-bold">Clienti</h1>
           <p className="text-muted-foreground">Gestisci i clienti dell'azienda</p>
         </div>
-        <Button asChild>
-          <Link to="/azienda/clienti/nuovo">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuovo Cliente
-          </Link>
-        </Button>
+        <div className="flex items-center gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportCustomersCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Esporta CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importa da file
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button asChild>
+            <Link to="/azienda/clienti/nuovo">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuovo Cliente
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -256,9 +305,7 @@ export default function CustomersList() {
             <Users className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium">Nessun cliente trovato</h3>
             <p className="text-muted-foreground text-center mt-2">
-              {searchQuery
-                ? "Prova a modificare i termini di ricerca"
-                : "Inizia aggiungendo il primo cliente"}
+              {searchQuery ? "Prova a modificare i termini di ricerca" : "Inizia aggiungendo il primo cliente"}
             </p>
             {!searchQuery && (
               <Button asChild className="mt-4">
@@ -312,22 +359,14 @@ export default function CustomersList() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                      >
+                      <Button variant="ghost" size="sm" asChild>
                         <Link to={`/azienda/clienti/${customer.id}`}>
                           <Pencil className="h-4 w-4" />
                         </Link>
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={resetPasswordMutation.isPending}
-                          >
+                          <Button variant="ghost" size="sm" disabled={resetPasswordMutation.isPending}>
                             <KeyRound className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
@@ -344,9 +383,7 @@ export default function CustomersList() {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Annulla</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => resetPasswordMutation.mutate(customer.id)}
-                            >
+                            <AlertDialogAction onClick={() => resetPasswordMutation.mutate(customer.id)}>
                               Conferma Reset
                             </AlertDialogAction>
                           </AlertDialogFooter>
@@ -354,11 +391,7 @@ export default function CustomersList() {
                       </AlertDialog>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={deleteCustomerMutation.isPending}
-                          >
+                          <Button variant="ghost" size="sm" disabled={deleteCustomerMutation.isPending}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </AlertDialogTrigger>
@@ -408,14 +441,7 @@ export default function CustomersList() {
       <Dialog
         open={resetPasswordDialog.open}
         onOpenChange={(open) => {
-          if (!open) {
-            setResetPasswordDialog({
-              open: false,
-              customer: null,
-              newPassword: null,
-              copied: false,
-            });
-          }
+          if (!open) setResetPasswordDialog({ open: false, customer: null, newPassword: null, copied: false });
         }}
       >
         <DialogContent>
@@ -426,7 +452,6 @@ export default function CustomersList() {
               {resetPasswordDialog.customer?.last_name} è stata resettata con successo.
             </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/50 p-4">
               <p className="text-sm text-muted-foreground mb-2">Nuova Password:</p>
@@ -434,44 +459,33 @@ export default function CustomersList() {
                 <code className="flex-1 rounded bg-background px-3 py-2 font-mono text-lg">
                   {resetPasswordDialog.newPassword}
                 </code>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleCopyPassword}
-                >
-                {resetPasswordDialog.copied ? (
-                    <Check className="h-4 w-4 text-success" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                <Button variant="outline" size="icon" onClick={handleCopyPassword}>
+                  {resetPasswordDialog.copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
-
-            <div className="rounded-lg border border-warning/30 bg-warning/10 p-4">
-              <p className="text-sm text-warning-foreground">
+            <div className="rounded-lg border border-orange-300/30 bg-orange-50/50 dark:bg-orange-900/10 p-4">
+              <p className="text-sm">
                 <strong>Importante:</strong> Comunica questa password al cliente in modo sicuro.
                 La password non sarà più visibile dopo aver chiuso questa finestra.
               </p>
             </div>
           </div>
-
           <DialogFooter>
-            <Button
-              onClick={() =>
-                setResetPasswordDialog({
-                  open: false,
-                  customer: null,
-                  newPassword: null,
-                  copied: false,
-                })
-              }
-            >
+            <Button onClick={() => setResetPasswordDialog({ open: false, customer: null, newPassword: null, copied: false })}>
               Ho Copiato la Password
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CSVImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importa Clienti"
+        fields={CUSTOMER_IMPORT_FIELDS}
+        onImport={handleCustomersImport}
+      />
     </div>
   );
 }
