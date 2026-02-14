@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
 import { Plus, CheckSquare, CalendarDays, AlertTriangle } from "lucide-react";
 import { format, isPast, parseISO } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +26,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export function LinkedTasks({ orderId, stockItemId, costId, category, companyId: propCompanyId }: LinkedTasksProps) {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany } = useAuth();
   const companyId = propCompanyId || effectiveCompany?.id;
   const queryClient = useQueryClient();
 
