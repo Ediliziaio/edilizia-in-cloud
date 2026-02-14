@@ -1,139 +1,62 @@
 
 
-# Chat Interna Assistenza con Super Admin
+# Collegamento Chat Assistenza al Pannello Ticket Super Admin
 
-## Cosa cambia
+## Problema attuale
 
-Il bottone "Assistenza" nell'header del layout azienda non navighera piu a `/azienda/assistenza` ma aprira uno **Sheet (pannello laterale destro)** con una chat in tempo reale collegata direttamente al supporto del Super Admin.
+La pagina Ticket del Super Admin (`/admin/ticket`) mostra solo i ticket creati dai clienti (tabella `tickets`), ma NON mostra i messaggi di assistenza inviati dalle aziende tramite la chat interna (tabella `support_messages`). I due sistemi sono scollegati.
 
----
+## Soluzione
 
-## Struttura Database
+Aggiungere alla pagina GlobalTickets un secondo tab/sezione "Chat Aziende" che mostra tutte le conversazioni di supporto dalla tabella `support_messages`, raggruppate per azienda. Il super admin potra aprire ogni conversazione in uno Sheet laterale e rispondere direttamente.
 
-### Nuova tabella: `support_messages`
+## Struttura
 
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | uuid | PK |
-| company_id | uuid | FK -> companies, NOT NULL |
-| sender_id | uuid | NOT NULL (user id) |
-| sender_role | text | `company` o `super_admin` |
-| message | text | NOT NULL |
-| created_at | timestamptz | DEFAULT now() |
-
-### RLS Policies
-- Super Admin: CRUD completo su tutti i messaggi
-- Company Admin: CRUD solo sui messaggi della propria azienda (`company_id = get_user_company_id(auth.uid())`)
-- Company Staff con permesso `can_view_tickets`: SELECT sui messaggi della propria azienda
-
-### Realtime
-- Abilitare realtime sulla tabella `support_messages` per aggiornamenti istantanei
+La pagina `/admin/ticket` avra due tab:
+- **Ticket Clienti** (tab attuale, invariato)
+- **Chat Aziende** (nuovo tab con lista conversazioni + chat inline)
 
 ---
 
-## Interfaccia Utente
+## Dettagli tecnici
 
-### Bottone Header (gia presente)
-- Al click, anziche navigare, apre uno **Sheet** laterale destro
-- Badge con conteggio messaggi non letti (futuro, non in v1)
+### File da creare: `src/components/admin/support/AdminSupportChatList.tsx`
+Componente che:
+1. Carica tutti i `support_messages` raggruppati per `company_id`
+2. Per ogni azienda mostra: nome azienda, ultimo messaggio, data, conteggio messaggi non letti
+3. Al click su un'azienda, apre un `AdminSupportChatSheet`
 
-### Sheet "Assistenza"
-- **Header**: titolo "Assistenza" + descrizione "Chat con il supporto"
-- **Area messaggi**: scroll verticale con bolle stile chat
-  - Messaggi dell'azienda: allineati a destra, sfondo primary
-  - Messaggi del super admin: allineati a sinistra, sfondo muted
-  - Ogni messaggio mostra: testo, orario
-- **Form invio**: Textarea + bottone Send in basso
-- **Loading**: Skeleton durante il caricamento
-- **Stato vuoto**: messaggio "Scrivi un messaggio per iniziare la conversazione"
+### File da creare: `src/components/admin/support/AdminSupportChatSheet.tsx`
+Sheet laterale (simile al `SupportChatSheet` lato azienda) ma con:
+- `sender_role: "super_admin"` quando il super admin invia un messaggio
+- Realtime subscription sulla conversazione selezionata
+- Messaggi del super admin a destra, messaggi dell'azienda a sinistra (invertito rispetto al lato azienda)
 
-### Lato Super Admin (GlobalTickets o area dedicata)
-- I messaggi appaiono nella sezione ticket globali esistente, oppure una sezione dedicata futura
-- Per v1: il super admin vede i messaggi nella tabella `support_messages` tramite impersonazione o una nuova sottosezione
+### File da modificare: `src/pages/admin/GlobalTickets.tsx`
+- Aggiungere `Tabs` (da `@/components/ui/tabs`) con due tab:
+  - "Ticket Clienti": contenuto attuale
+  - "Chat Aziende": il nuovo `AdminSupportChatList`
+- Le SLA stats restano visibili sopra i tab (si riferiscono ai ticket clienti)
 
----
-
-## File da Creare
-
-### `src/components/layouts/SupportChatSheet.tsx`
-Componente Sheet con:
-- Query per caricare messaggi da `support_messages` filtrati per `company_id`
-- Mutation per inviare nuovi messaggi
-- Subscription realtime per ricevere risposte in tempo reale
-- Auto-scroll ai nuovi messaggi
-- Form con Textarea e bottone Send
+### Nessuna migrazione database
+La tabella `support_messages` esiste gia con le RLS corrette per il super admin (`has_role(auth.uid(), 'super_admin'::app_role)`).
 
 ---
 
-## File da Modificare
+## Flusso utente
 
-### `src/components/layouts/CompanyLayout.tsx`
-- Importare `SupportChatSheet`
-- Sostituire il `navigate("/azienda/assistenza")` con `setState` per aprire/chiudere lo Sheet
-- Il bottone "Assistenza" diventa il trigger dello Sheet
-
----
-
-## Dettagli Tecnici
-
-### Migrazione SQL
-```sql
-CREATE TABLE public.support_messages (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id uuid NOT NULL REFERENCES public.companies(id),
-  sender_id uuid NOT NULL,
-  sender_role text NOT NULL DEFAULT 'company',
-  message text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
-
--- Super admin full access
-CREATE POLICY "Super admins can manage all support messages"
-  ON public.support_messages FOR ALL
-  USING (has_role(auth.uid(), 'super_admin'::app_role));
-
--- Company admin can manage their messages
-CREATE POLICY "Company admins can manage their support messages"
-  ON public.support_messages FOR ALL
-  USING (
-    has_role(auth.uid(), 'company_admin'::app_role)
-    AND company_id = get_user_company_id(auth.uid())
-  );
-
--- Staff can view if permitted
-CREATE POLICY "Staff can view support messages if permitted"
-  ON public.support_messages FOR SELECT
-  USING (
-    has_permission(auth.uid(), 'can_view_tickets'::text)
-    AND company_id = get_user_company_id(auth.uid())
-  );
-
--- Enable realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE public.support_messages;
+```text
+Super Admin apre /admin/ticket
+  -> Vede le stat SLA in alto
+  -> Tab "Ticket Clienti" (default): tabella attuale
+  -> Tab "Chat Aziende": lista conversazioni per azienda
+     -> Click su azienda -> Sheet con chat realtime
+     -> Scrive messaggio -> sender_role = "super_admin"
+     -> Azienda lo riceve in tempo reale nel suo SupportChatSheet
 ```
 
-### Realtime subscription nel componente
-```typescript
-supabase
-  .channel('support-messages')
-  .on('postgres_changes', {
-    event: 'INSERT',
-    schema: 'public',
-    table: 'support_messages',
-    filter: `company_id=eq.${companyId}`
-  }, (payload) => {
-    // Aggiungi messaggio alla lista
-  })
-  .subscribe();
-```
+## File coinvolti
 
----
-
-## Ordine di Implementazione
-
-1. Migrazione database (tabella + RLS + realtime)
-2. Creare `SupportChatSheet.tsx`
-3. Modificare `CompanyLayout.tsx` per usare lo Sheet invece della navigazione
-
+1. **Creare** `src/components/admin/support/AdminSupportChatList.tsx` - lista conversazioni
+2. **Creare** `src/components/admin/support/AdminSupportChatSheet.tsx` - chat sheet lato admin
+3. **Modificare** `src/pages/admin/GlobalTickets.tsx` - aggiungere Tabs
