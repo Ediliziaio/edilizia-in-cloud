@@ -10,18 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro, Warehouse, CalendarDays, HardHat, HeadphonesIcon, TrendingUp } from "lucide-react";
+import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-
-const ALL_MODULES = [
-  { key: "orders", label: "Ordini", icon: ClipboardList },
-  { key: "warehouse", label: "Magazzino", icon: Warehouse },
-  { key: "calendar", label: "Calendario", icon: CalendarDays },
-  { key: "customers", label: "Clienti", icon: Users },
-  { key: "employees", label: "Dipendenti", icon: HardHat },
-  { key: "tickets", label: "Assistenza", icon: HeadphonesIcon },
-  { key: "forecast", label: "Previsionale", icon: TrendingUp },
-] as const;
+import { ALL_MODULES } from "@/lib/adminConstants";
 
 interface PlanForm {
   name: string;
