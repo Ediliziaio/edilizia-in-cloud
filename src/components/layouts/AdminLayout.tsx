@@ -1,4 +1,4 @@
-import { Link, useLocation, Outlet } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
   LayoutDashboard, 
@@ -28,7 +28,7 @@ import { NavLink } from "@/components/NavLink";
 const navItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Aziende", url: "/admin/aziende", icon: Building },
-  { title: "Ticket", url: "/admin/ticket", icon: MessageSquare },
+  { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare },
   { title: "Piani", url: "/admin/piani", icon: CreditCard },
   { title: "Referral", url: "/admin/referral", icon: Gift },
 ];
@@ -38,7 +38,6 @@ const accountItems = [
 ];
 
 function AdminSidebar() {
-  const location = useLocation();
   const { signOut } = useAuth();
   
   return (
