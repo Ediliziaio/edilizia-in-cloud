@@ -24,7 +24,7 @@ import CompaniesList from "@/pages/admin/CompaniesList";
 import CreateCompany from "@/pages/admin/CreateCompany";
 import CompanyDetail from "@/pages/admin/CompanyDetail";
 
-import GlobalOrders from "@/pages/admin/GlobalOrders";
+
 import GlobalTickets from "@/pages/admin/GlobalTickets";
 import AdminSettings from "@/pages/admin/AdminSettings";
 import SubscriptionPlans from "@/pages/admin/SubscriptionPlans";
@@ -104,7 +104,7 @@ const App = () => (
               <Route path="aziende/nuova" element={<CreateCompany />} />
               <Route path="aziende/:id" element={<CompanyDetail />} />
               
-              <Route path="ordini" element={<GlobalOrders />} />
+              
               <Route path="ticket" element={<GlobalTickets />} />
               <Route path="impostazioni" element={<AdminSettings />} />
               <Route path="piani" element={<SubscriptionPlans />} />
