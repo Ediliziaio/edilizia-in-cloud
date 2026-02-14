@@ -55,7 +55,7 @@ export default function CompanyDetail() {
 
   const totalTeam = (h.teamData?.admins.length || 0) + (h.teamData?.staff.length || 0) + (h.teamData?.salespeople.length || 0) + (h.teamData?.employees.length || 0);
 
-  const handleImpersonateNav = async () => {
+  const handleImpersonate = async () => {
     await h.handleImpersonate();
     navigate("/azienda");
   };
@@ -70,7 +70,7 @@ export default function CompanyDetail() {
       <CompanyDetailHeader
         company={h.company}
         onBack={() => navigate("/admin/aziende")}
-        onImpersonate={handleImpersonateNav}
+        onImpersonate={handleImpersonate}
       />
 
       <Tabs defaultValue="panoramica">
@@ -84,12 +84,12 @@ export default function CompanyDetail() {
 
         <TabsContent value="panoramica">
           <CompanyOverviewTab
-            stats={h.stats} totalTeam={totalTeam} teamData={h.teamData}
+            stats={h.stats} totalTeam={totalTeam}
             recentOrders={h.recentOrders} recentTickets={h.recentTickets}
             currentPlan={h.currentPlan} currentSubscription={h.currentSubscription}
             monthlyOrders={h.monthlyOrders} daysSinceLastOrder={h.daysSinceLastOrder}
             companyCreatedAt={h.company.created_at}
-            onImpersonate={handleImpersonateNav}
+            onImpersonate={handleImpersonate}
             onImpersonateAndNavigate={handleImpersonateAndNavigate}
           />
         </TabsContent>

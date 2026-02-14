@@ -157,7 +157,7 @@ export function CompanySubscriptionTab({
             </div>
           )}
           {!company.vat_number && !company.pec && !company.sdi_code && (
-            <p className="text-sm text-muted-foreground text-center py-4">Nessun dato fiscale inserito. Compilali nel tab "Dettagli di base".</p>
+            <p className="text-sm text-muted-foreground text-center py-4">Nessun dato fiscale inserito. Compilali nel tab "Dettagli".</p>
           )}
         </CardContent>
       </Card>

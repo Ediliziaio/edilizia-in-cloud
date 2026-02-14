@@ -86,12 +86,11 @@ export function useCompanyDetail(id: string | undefined) {
     queryKey: ["company-detail", id],
     queryFn: async () => {
       if (!id) return null;
-      const [companyRes, ordersRes, customersRes, ticketsRes, profilesRes] = await Promise.all([
+      const [companyRes, ordersRes, profilesRes, ticketsRes] = await Promise.all([
         supabase.from("companies").select("*").eq("id", id).single(),
         supabase.from("orders").select("id, total_amount").eq("company_id", id),
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", id),
+        supabase.from("profiles").select("id", { count: "exact" }).eq("company_id", id),
         supabase.from("tickets").select("id, status").eq("company_id", id),
-        supabase.from("profiles").select("id").eq("company_id", id),
       ]);
       if (!companyRes.data) return null;
       const company = companyRes.data as unknown as Company;
@@ -100,7 +99,7 @@ export function useCompanyDetail(id: string | undefined) {
       const stats: CompanyStats = {
         ordersCount: ordersRes.data?.length || 0,
         ordersValue,
-        customersCount: customersRes.count || 0,
+        customersCount: profilesRes.count || 0,
         ticketsCount: ticketsRes.data?.length || 0,
         openTicketsCount: openTickets,
         teamCount: profilesRes.data?.length || 0,
@@ -165,6 +164,7 @@ export function useCompanyDetail(id: string | undefined) {
       };
     },
     enabled: !!id,
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: currentPlan } = useQuery({
@@ -184,6 +184,7 @@ export function useCompanyDetail(id: string | undefined) {
       return data || [];
     },
     enabled: !!id,
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: currentSubscription } = useQuery({
@@ -193,6 +194,7 @@ export function useCompanyDetail(id: string | undefined) {
       return data;
     },
     enabled: !!id,
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: plans } = useQuery({
@@ -210,6 +212,7 @@ export function useCompanyDetail(id: string | undefined) {
       return data || [];
     },
     enabled: !!id,
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: recentTickets } = useQuery({
@@ -219,6 +222,7 @@ export function useCompanyDetail(id: string | undefined) {
       return data || [];
     },
     enabled: !!id,
+    staleTime: 2 * 60 * 1000,
   });
 
   // Monthly orders for chart (last 6 months)
@@ -236,6 +240,7 @@ export function useCompanyDetail(id: string | undefined) {
       return data || [];
     },
     enabled: !!id,
+    staleTime: 2 * 60 * 1000,
   });
 
   const monthlyOrders = useMemo(() => {
@@ -292,6 +297,9 @@ export function useCompanyDetail(id: string | undefined) {
       refreshCompany();
       toast({ title: "Stato aggiornato" });
     },
+    onError: (err: any) => {
+      toast({ title: "Errore aggiornamento stato", description: err.message, variant: "destructive" });
+    },
   });
 
   const changePlanMutation = useMutation({
@@ -310,6 +318,9 @@ export function useCompanyDetail(id: string | undefined) {
       setChangePlanDialog(false);
       refreshCompany();
       toast({ title: "Piano aggiornato" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Errore cambio piano", description: err.message, variant: "destructive" });
     },
   });
 
@@ -330,6 +341,9 @@ export function useCompanyDetail(id: string | undefined) {
       refreshCompany();
       toast({ title: "Trial esteso" });
     },
+    onError: (err: any) => {
+      toast({ title: "Errore estensione trial", description: err.message, variant: "destructive" });
+    },
   });
 
   // ========== HANDLERS ==========
@@ -338,13 +352,6 @@ export function useCompanyDetail(id: string | undefined) {
     if (company) {
       await impersonateCompany(company.id);
     }
-  };
-
-  const handleImpersonateAndNavigate = async (path: string) => {
-    if (company) {
-      await impersonateCompany(company.id);
-    }
-    return path;
   };
 
   const handleCreateStaff = async (data: StaffUserFormData): Promise<{ temporaryPassword?: string }> => {
@@ -489,7 +496,7 @@ export function useCompanyDetail(id: string | undefined) {
     // Mutations
     updateStatusMutation, changePlanMutation, extendTrialMutation,
     // Handlers
-    handleImpersonate, handleImpersonateAndNavigate, handleCreateStaff, handleSavePermissions,
+    handleImpersonate, handleCreateStaff, handleSavePermissions,
     handleCreateSalesperson, handleCreateEmployee, handleCreateAccount, handleCopyPassword, onSaveDetails,
   };
 }
