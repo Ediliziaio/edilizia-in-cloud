@@ -1543,6 +1543,50 @@ export type Database = {
           },
         ]
       }
+      support_conversations: {
+        Row: {
+          assigned_to: string | null
+          company_id: string
+          created_at: string
+          id: string
+          internal_notes: string | null
+          priority: string
+          resolved_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          internal_notes?: string | null
+          priority?: string
+          resolved_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          internal_notes?: string | null
+          priority?: string
+          resolved_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_messages: {
         Row: {
           company_id: string
