@@ -296,7 +296,7 @@ export default function CompaniesList() {
                         </TableCell>
                       </TableRow>
                       {isExpanded && (
-                        <TableRow className="bg-muted/30 hover:bg-muted/30">
+                        <TableRow className="bg-muted/30 hover:bg-muted/30 transition-all duration-200">
                           <TableCell colSpan={9} className="p-4">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                               <div className="rounded-lg border bg-card p-3">

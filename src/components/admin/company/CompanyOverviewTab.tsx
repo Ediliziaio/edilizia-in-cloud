@@ -19,7 +19,6 @@ interface MonthlyOrderData {
 interface CompanyOverviewTabProps {
   stats: CompanyStats | null;
   totalTeam: number;
-  teamData: { admins: any[]; staff: any[]; salespeople: any[]; employees: any[] } | null | undefined;
   recentOrders: any[] | undefined;
   recentTickets: any[] | undefined;
   currentPlan: any | null;
@@ -39,7 +38,7 @@ function getHealthColor(days: number | null): { color: string; label: string; bg
 }
 
 export function CompanyOverviewTab({
-  stats, totalTeam, teamData, recentOrders, recentTickets,
+  stats, totalTeam, recentOrders, recentTickets,
   currentPlan, currentSubscription, monthlyOrders, daysSinceLastOrder,
   companyCreatedAt, onImpersonate, onImpersonateAndNavigate,
 }: CompanyOverviewTabProps) {
@@ -192,8 +191,8 @@ export function CompanyOverviewTab({
             </div>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Lifetime Value</p>
-              <p className="text-lg font-semibold">{formatCurrency(ltv)}</p>
-              <p className="text-xs text-muted-foreground">{monthsActive} mesi attivi</p>
+              <p className="text-lg font-semibold">{mrr > 0 ? formatCurrency(ltv) : "N/A"}</p>
+              <p className="text-xs text-muted-foreground">{mrr > 0 ? `${monthsActive} mesi attivi` : "Nessun piano attivo"}</p>
             </div>
           </div>
         </CardContent>
