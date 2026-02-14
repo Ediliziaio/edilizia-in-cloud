@@ -1,143 +1,180 @@
 
-# Collegamento Metodo di Pagamento per le Aziende
+
+# Sistema Referral -- Programma di Affiliazione
 
 ## Panoramica
 
-Attualmente il sistema ha predisposizioni per Stripe (campi `stripe_customer_id` nella tabella `companies` e `stripe_product_id`/`stripe_price_*_id` nei piani) ma nessun flusso di pagamento attivo. Questo intervento aggiunge la possibilita per il Super Admin di configurare il metodo di pagamento di ogni azienda, supportando tre modalita:
-
-1. **Stripe** -- pagamento automatico con carta di credito tramite Stripe Checkout
-2. **Bonifico IBAN** -- pagamento manuale su conto corrente con tracciamento
-3. **Altro provider** -- campo libero per annotare metodi alternativi (PayPal, Satispay, ecc.)
+Un sistema completo di referral che permette a chiunque (aziende esistenti, partner, influencer) di consigliare la piattaforma tramite un link personalizzato e guadagnare una commissione ricorrente mensile su ogni azienda che si iscrive tramite il loro link.
 
 ---
 
-## Cosa vede il Super Admin
+## Come Funziona
 
-### Nuovo blocco "Metodo di Pagamento" nel tab Abbonamento
+### Per il Referrer (chi consiglia)
+1. Il Super Admin crea un referrer dalla sezione "Referral" nel pannello admin
+2. Il referrer riceve un **link univoco** (es. `https://app.com/login?ref=ABC123`)
+3. Quando un'azienda si registra tramite quel link, viene tracciata l'associazione
+4. Il referrer guadagna una **commissione ricorrente mensile** (% o importo fisso) finche l'azienda rimane attiva
+5. Il Super Admin puo visualizzare le statistiche e gestire i pagamenti
 
-All'interno di `CompanySubscriptionTab`, tra la card "Stato Abbonamento" e la card "Dati Fatturazione", compare una nuova card:
-
-**Card "Metodo di Pagamento":**
-- **Select** con opzioni: `Stripe`, `Bonifico IBAN`, `Altro`, `Non configurato`
-- Se **Stripe**: mostra il campo Stripe Customer ID (gia esistente), piu un bottone "Genera Link Pagamento" che creera una Checkout Session Stripe
-- Se **Bonifico IBAN**: mostra campi per IBAN, intestatario conto, nome banca, e causale suggerita. Mostra lo stato del pagamento corrente (pagato/in attesa)
-- Se **Altro**: campo di testo libero per annotare il provider e dettagli
-
----
-
-## Modifiche al Database
-
-### Nuove colonne nella tabella `companies`:
-
-| Colonna | Tipo | Default | Note |
-|---------|------|---------|------|
-| `payment_method` | text | `'none'` | Valori: `stripe`, `bank_transfer`, `other`, `none` |
-| `bank_iban` | text | null | IBAN per bonifico |
-| `bank_account_holder` | text | null | Intestatario conto |
-| `bank_name` | text | null | Nome banca |
-| `payment_notes` | text | null | Note/dettagli per "Altro" |
-
-Nessuna nuova tabella. Le colonne si aggiungono alla tabella `companies` gia protetta da RLS.
+### Per il Super Admin
+- Crea/gestisce i referrer con nome, email, e condizioni di commissione
+- Vede dashboard con: link attivi, aziende portate, guadagni maturati, pagamenti effettuati
+- Segna le commissioni come pagate mese per mese
 
 ---
 
-## Flusso Stripe (Checkout Session)
+## Struttura Database
 
-### Nuova Edge Function: `create-checkout-session`
+### Nuova tabella: `referrers`
 
-Quando il Super Admin clicca "Genera Link Pagamento":
+| Colonna | Tipo | Note |
+|---------|------|------|
+| id | uuid | PK |
+| name | text | Nome completo |
+| email | text | Email referrer |
+| phone | text | Telefono (opzionale) |
+| referral_code | text | Codice univoco (es. ABC123) |
+| commission_type | text | `percentage` o `fixed` |
+| commission_value | numeric | Valore (es. 10 = 10% oppure 10 = 10 EUR) |
+| is_active | boolean | Default true |
+| notes | text | Note libere |
+| total_earned | numeric | Cache totale maturato |
+| total_paid | numeric | Cache totale pagato |
+| created_at | timestamp | |
 
-1. L'edge function riceve `company_id` e `plan_id`
-2. Verifica che l'utente sia super_admin
-3. Crea o recupera il Stripe Customer (usando `stripe_customer_id` o creandone uno nuovo)
-4. Crea una Checkout Session con il `stripe_price_monthly_id` o `stripe_price_yearly_id` del piano
-5. Ritorna l'URL della Checkout Session
-6. Il Super Admin puo copiare l'URL e inviarlo all'azienda, oppure aprirlo direttamente
+### Nuova tabella: `referral_companies`
 
-### Nuova Edge Function: `stripe-webhook`
+Traccia quali aziende sono state portate da quale referrer.
 
-Riceve gli eventi da Stripe e aggiorna automaticamente:
-- `checkout.session.completed` -- attiva l'abbonamento, salva `stripe_customer_id`
-- `invoice.paid` -- rinnovo andato a buon fine, aggiorna `current_period_end`
-- `customer.subscription.deleted` -- abbonamento cancellato, status diventa `expired`
+| Colonna | Tipo | Note |
+|---------|------|------|
+| id | uuid | PK |
+| referrer_id | uuid | FK -> referrers |
+| company_id | uuid | FK -> companies |
+| referred_at | timestamp | Data di registrazione |
+| is_active | boolean | Se la commissione e ancora attiva |
+| notes | text | |
 
-### Prerequisito: Chiave Stripe
+### Nuova tabella: `referral_payouts`
 
-Prima di implementare le edge functions Stripe, sara necessario configurare la chiave segreta Stripe (`STRIPE_SECRET_KEY`) tramite i secrets del progetto. Il flusso Stripe funzionera solo dopo aver inserito questa chiave.
+Storico dei pagamenti effettuati ai referrer.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| id | uuid | PK |
+| referrer_id | uuid | FK -> referrers |
+| amount | numeric | Importo pagato |
+| period_start | date | Inizio periodo (es. 2026-01-01) |
+| period_end | date | Fine periodo (es. 2026-01-31) |
+| paid_at | timestamp | Data pagamento |
+| payment_method | text | `bank_transfer`, `paypal`, `other` |
+| notes | text | |
+| created_at | timestamp | |
+
+### RLS Policies
+- Solo `super_admin` puo gestire tutte e tre le tabelle (CRUD completo)
+- Nessun altro ruolo ha accesso
+
+### Colonna aggiuntiva in `companies`
+- `referred_by` (uuid, nullable) -- riferimento al referrer che ha portato l'azienda
 
 ---
 
-## Flusso Bonifico IBAN
+## Interfaccia Utente
 
-Nessuna integrazione esterna. Il Super Admin:
+### 1. Nuova voce nel menu Admin
+- Icona: `Gift` (lucide)
+- Label: "Referral"
+- URL: `/admin/referral`
+- Posizionata dopo "Piani" nella sidebar
 
-1. Seleziona "Bonifico IBAN" come metodo di pagamento
-2. Compila i dati bancari dell'azienda SaaS (il conto su cui l'azienda cliente deve pagare)
-3. I dati vengono salvati nella tabella `companies`
-4. Il Super Admin puo poi tracciare manualmente se il bonifico e stato ricevuto tramite lo stato nel tab Abbonamento
+### 2. Pagina `/admin/referral` -- Dashboard Referral
+
+**Stat cards in alto (4 card):**
+- Referrer attivi (conteggio)
+- Aziende portate (conteggio totale)
+- Commissioni maturate questo mese (EUR)
+- Commissioni da pagare (maturato - pagato)
+
+**Tabella referrer:**
+| Referrer | Codice | Tipo Comm. | Aziende | Maturato | Pagato | Da pagare | Azioni |
+|----------|--------|------------|---------|----------|--------|-----------|--------|
+
+Azioni per riga:
+- **Copia link** -- copia negli appunti il link referral
+- **Dettaglio** -- apre dialog con lista aziende portate e storico pagamenti
+- **Registra pagamento** -- dialog per segnare un pagamento
+- **Modifica** -- dialog per modificare dati e commissione
+- **Disattiva** -- toggle attivo/inattivo
+
+### 3. Dialog "Nuovo Referrer"
+Campi: Nome, Email, Telefono (opz.), Tipo commissione (Select: % o Fisso), Valore commissione, Note.
+Il codice referral viene generato automaticamente (6 caratteri alfanumerici).
+
+### 4. Dialog "Registra Pagamento"
+Campi: Importo, Periodo (da/a), Metodo (Bonifico/PayPal/Altro), Note.
+
+### 5. Dialog "Dettaglio Referrer"
+Due sezioni:
+- **Aziende portate**: tabella con nome azienda, data registrazione, stato, MRR
+- **Storico pagamenti**: tabella con importo, periodo, metodo, data
 
 ---
 
-## Dettagli Tecnici
+## Tracciamento Link
 
-### Migrazione database:
-```sql
-ALTER TABLE companies
-ADD COLUMN payment_method text NOT NULL DEFAULT 'none',
-ADD COLUMN bank_iban text,
-ADD COLUMN bank_account_holder text,
-ADD COLUMN bank_name text,
-ADD COLUMN payment_notes text;
-```
+Quando un'azienda viene creata dal Super Admin con il form "Nuova Azienda":
+- Aggiungere un campo opzionale **"Referrer"** (Select con ricerca) nel form di creazione azienda
+- Se selezionato, viene creato automaticamente il record in `referral_companies`
+
+In futuro, se si implementa un signup self-service, il parametro `?ref=CODE` nella URL verra letto e salvato.
+
+---
+
+## Calcolo Commissioni
+
+La commissione mensile per ogni referrer viene calcolata cosi:
+- Per ogni azienda attiva portata dal referrer, si prende il MRR (prezzo mensile del piano)
+- Se tipo = `percentage`: commissione = MRR * (commission_value / 100)
+- Se tipo = `fixed`: commissione = commission_value (fisso per azienda attiva)
+- Il totale maturato e la somma delle commissioni di tutte le aziende attive
+
+Il calcolo avviene lato frontend nella pagina admin, nessuna edge function necessaria.
+
+---
+
+## File da Creare/Modificare
+
+### Nuovi file:
+- `src/pages/admin/ReferralDashboard.tsx` -- pagina principale referral
+- `src/components/admin/referral/ReferralStatCards.tsx` -- stat cards
+- `src/components/admin/referral/ReferralTable.tsx` -- tabella referrer
+- `src/components/admin/referral/ReferrerDialog.tsx` -- dialog crea/modifica referrer
+- `src/components/admin/referral/ReferrerDetailDialog.tsx` -- dettaglio con aziende e pagamenti
+- `src/components/admin/referral/PayoutDialog.tsx` -- registra pagamento
 
 ### File modificati:
+- `src/App.tsx` -- aggiungere route `/admin/referral`
+- `src/components/layouts/AdminLayout.tsx` -- aggiungere voce "Referral" con icona Gift nel menu
+- `src/pages/admin/CreateCompany.tsx` -- aggiungere campo opzionale "Referrer" nel form
 
-**`src/types/auth.ts`** -- Aggiungere i nuovi campi all'interfaccia `Company`:
-- `payment_method`, `bank_iban`, `bank_account_holder`, `bank_name`, `payment_notes`
-
-**`src/components/admin/company/CompanySubscriptionTab.tsx`** -- Aggiungere la card "Metodo di Pagamento" con:
-- Select per il tipo di metodo
-- Form condizionale per Stripe / IBAN / Altro
-- Bottone salva per i dati di pagamento
-- Bottone "Genera Link Pagamento" per Stripe
-
-**`src/hooks/useCompanyDetail.ts`** -- Aggiungere:
-- Mutation `updatePaymentMethod` per salvare metodo + dati bancari
-- Mutation `createCheckoutSession` per invocare la edge function Stripe
-
-**`supabase/functions/create-checkout-session/index.ts`** -- Nuova edge function:
-- Validazione super_admin
-- Creazione/recupero Stripe Customer
-- Creazione Checkout Session
-- Ritorno URL
-
-**`supabase/functions/stripe-webhook/index.ts`** -- Nuova edge function:
-- Validazione firma webhook Stripe
-- Gestione eventi: `checkout.session.completed`, `invoice.paid`, `customer.subscription.deleted`
-- Aggiornamento stato azienda e subscription
-
-### File nuovi:
-- `supabase/functions/create-checkout-session/index.ts`
-- `supabase/functions/stripe-webhook/index.ts`
-
-### Config Supabase:
-Aggiunta in `supabase/config.toml`:
-```toml
-[functions.create-checkout-session]
-verify_jwt = false
-
-[functions.stripe-webhook]
-verify_jwt = false
-```
+### Migrazione database:
+- Creazione tabelle `referrers`, `referral_companies`, `referral_payouts`
+- Aggiunta colonna `referred_by` a `companies`
+- RLS policies per super_admin
+- Indice univoco su `referrers.referral_code`
 
 ---
 
-## Ordine di implementazione
+## Ordine di Implementazione
 
-1. Migrazione database (nuove colonne)
-2. Aggiornamento tipo `Company` in `auth.ts`
-3. Card "Metodo di Pagamento" nel tab Abbonamento (IBAN + Altro funzionanti subito)
-4. Richiesta chiave Stripe al utente
-5. Edge function `create-checkout-session`
-6. Edge function `stripe-webhook`
-7. Integrazione bottone "Genera Link" nel frontend
+1. Migrazione database (3 tabelle + colonna + RLS + indici)
+2. Pagina `ReferralDashboard` con stat cards e tabella
+3. Dialog creazione/modifica referrer
+4. Dialog dettaglio referrer (aziende + pagamenti)
+5. Dialog registra pagamento
+6. Voce menu sidebar admin
+7. Route in App.tsx
+8. Campo "Referrer" nel form creazione azienda
+
