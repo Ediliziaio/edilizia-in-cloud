@@ -1,70 +1,43 @@
 
+# Verifica e Pulizia Codice -- Risultati
 
-# Refactoring CompanyDetail.tsx + Rimozione sezione Ordini Super Admin
+## Stato Attuale
 
-## Parte 1: Rimozione pagina "Ordini Globali" dal Super Admin
+Ho analizzato tutti i file della sezione Super Admin dopo il refactoring. Il codice e in buono stato complessivo. Ecco i problemi minori trovati:
 
-La voce "Ordini" nella sidebar admin e la pagina `GlobalOrders` verranno completamente rimosse.
+## Problemi Trovati
 
-**File coinvolti:**
-- `src/components/layouts/AdminLayout.tsx` -- rimuovere la voce `{ title: "Ordini", url: "/admin/ordini", icon: ClipboardList }` dall'array `navItems` e l'import `ClipboardList`
-- `src/App.tsx` -- rimuovere la route `<Route path="ordini" element={<GlobalOrders />} />` e l'import di `GlobalOrders`
-- `src/pages/admin/GlobalOrders.tsx` -- eliminare il file
+### 1. Import morto `KeyRound` in CompanyDetail.tsx
 
----
+**File**: `src/pages/admin/CompanyDetail.tsx` (riga 14)
 
-## Parte 2: Spezzare CompanyDetail.tsx in componenti modulari
+`KeyRound` viene importato da lucide-react ma non e mai usato nel componente padre. E usato solo in `CompanyTeamTab.tsx` che lo importa autonomamente.
 
-Il file da 1907 righe verra suddiviso in **7 file** mantenendo lo stesso comportamento funzionale.
+**Azione**: Rimuovere `KeyRound` dall'import di riga 14.
 
-### Struttura file risultante
+### 2. Righe vuote residue in App.tsx
 
-```text
-src/pages/admin/CompanyDetail.tsx          (~200 righe) -- orchestratore con state, queries, mutations
-src/components/admin/company/              -- nuova cartella
-  CompanyDetailHeader.tsx                  (~50 righe)  -- header con logo, nome, badge stato, pulsante impersona
-  CompanyDetailsTab.tsx                    (~250 righe) -- tab "Dettagli di base" (form + sidebar panoramica)
-  CompanyTeamTab.tsx                       (~350 righe) -- tab "Team" (admin, staff, venditori, dipendenti)
-  CompanySaaSTab.tsx                       (~150 righe) -- tab "SaaS" (limiti risorse + moduli + confronto piani)
-  CompanySubscriptionTab.tsx               (~250 righe) -- tab "Abbonamento" (stato, fatturazione, storico)
-  CompanyActivityTab.tsx                   (~200 righe) -- tab "Attivita" (KPI, ultimi ordini/ticket, azioni rapide)
-```
+**File**: `src/App.tsx` (righe 27, 31, 47, 106-107)
 
-### Come funziona
+Dopo la rimozione di `GlobalOrders`, sono rimaste righe vuote extra che rendono il codice meno pulito.
 
-`CompanyDetail.tsx` resta il componente padre che:
-- Gestisce tutto lo **state** (company, stats, form, dialogs)
-- Contiene tutte le **queries** (useQuery per team, plan, logs, ecc.)
-- Contiene tutte le **mutations** (updateStatus, changePlan, extendTrial, ecc.)
-- Passa props ai sotto-componenti di ogni tab
+**Azione**: Rimuovere le righe vuote superflue per mantenere spaziatura coerente.
 
-Ogni componente tab riceve solo le props di cui ha bisogno e si occupa esclusivamente del rendering.
+## Cosa funziona correttamente
 
-### Costanti condivise
+- Tutti gli import nei 6 componenti modulari sono necessari e corretti
+- Le costanti in `adminConstants.ts` sono tutte referenziate
+- Le route in `App.tsx` sono coerenti con la sidebar in `AdminLayout.tsx`
+- `GlobalOrders.tsx` e stato completamente rimosso (nessun riferimento residuo)
+- `OrderEconomics.tsx` e pulito (nessun import `Badge` o prop `collectedAmount`)
+- `CompaniesList.tsx` e `GlobalTickets.tsx` usano correttamente `useQuery`
+- Nessun errore in console
 
-Le costanti `ALL_MODULES`, `PERMISSION_LABELS`, `eventTypeLabels`, `eventTypeIcons`, `commissionTypeLabels`, `ticketStatusLabels` verranno spostate in un file dedicato `src/lib/adminConstants.ts` e importate dove servono.
+## Riepilogo Modifiche
 
-### Dialoghi
+| File | Cosa | Tipo |
+|------|------|------|
+| `src/pages/admin/CompanyDetail.tsx` | Rimuovere import `KeyRound` | Pulizia |
+| `src/App.tsx` | Rimuovere righe vuote extra | Pulizia |
 
-I dialoghi (ChangePlan, StaffUser, Permissions, Salesperson, Employee, Password) restano in `CompanyDetail.tsx` perche dipendono dallo state centralizzato. Vengono renderizzati dopo i tab come oggi.
-
----
-
-## Riepilogo modifiche
-
-| Azione | File |
-|--------|------|
-| Eliminare | `src/pages/admin/GlobalOrders.tsx` |
-| Creare | `src/lib/adminConstants.ts` |
-| Creare | `src/components/admin/company/CompanyDetailHeader.tsx` |
-| Creare | `src/components/admin/company/CompanyDetailsTab.tsx` |
-| Creare | `src/components/admin/company/CompanyTeamTab.tsx` |
-| Creare | `src/components/admin/company/CompanySaaSTab.tsx` |
-| Creare | `src/components/admin/company/CompanySubscriptionTab.tsx` |
-| Creare | `src/components/admin/company/CompanyActivityTab.tsx` |
-| Modificare | `src/pages/admin/CompanyDetail.tsx` (da 1907 a ~200 righe) |
-| Modificare | `src/components/layouts/AdminLayout.tsx` (rimuovere voce Ordini) |
-| Modificare | `src/App.tsx` (rimuovere route e import GlobalOrders) |
-
-Nessun cambiamento funzionale: stessa UI, stessi dati, stesse azioni. Solo riorganizzazione del codice e rimozione della sezione ordini.
-
+Due modifiche minime, nessun impatto funzionale.
