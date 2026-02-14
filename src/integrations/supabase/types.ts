@@ -1622,6 +1622,99 @@ export type Database = {
           },
         ]
       }
+      tasks: {
+        Row: {
+          assigned_to: string | null
+          category: string
+          company_id: string
+          completed_at: string | null
+          cost_id: string | null
+          created_at: string
+          created_by: string
+          due_date: string | null
+          id: string
+          notes: string | null
+          order_id: string | null
+          priority: string
+          status: string
+          stock_item_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          category?: string
+          company_id: string
+          completed_at?: string | null
+          cost_id?: string | null
+          created_at?: string
+          created_by: string
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          priority?: string
+          status?: string
+          stock_item_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          category?: string
+          company_id?: string
+          completed_at?: string | null
+          cost_id?: string | null
+          created_at?: string
+          created_by?: string
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          priority?: string
+          status?: string
+          stock_item_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_cost_id_fkey"
+            columns: ["cost_id"]
+            isOneToOne: false
+            referencedRelation: "company_costs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_stock"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_messages: {
         Row: {
           attachment_url: string | null
