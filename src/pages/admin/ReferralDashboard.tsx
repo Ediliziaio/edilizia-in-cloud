@@ -73,6 +73,7 @@ export default function ReferralDashboard() {
       if (error) throw error;
       return data as Referrer[];
     },
+    staleTime: 120000,
   });
 
   const { data: referralCompanies = [] } = useQuery({
@@ -82,7 +83,8 @@ export default function ReferralDashboard() {
         .from("referral_companies")
         .select("*");
       if (error) throw error;
-      // Fetch company details separately
+      if (data.length === 0) return [] as ReferralCompany[];
+
       const companyIds = [...new Set(data.map((rc: any) => rc.company_id))];
       const { data: companies } = await supabase
         .from("companies")
@@ -100,6 +102,7 @@ export default function ReferralDashboard() {
         return { ...rc, company, plan };
       }) as ReferralCompany[];
     },
+    staleTime: 120000,
   });
 
   const { data: payouts = [] } = useQuery({
@@ -112,6 +115,7 @@ export default function ReferralDashboard() {
       if (error) throw error;
       return data as ReferralPayout[];
     },
+    staleTime: 120000,
   });
 
   const toggleActiveMutation = useMutation({
@@ -125,6 +129,9 @@ export default function ReferralDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["referrers"] });
       toast({ title: "Stato aggiornato" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Errore", description: err.message, variant: "destructive" });
     },
   });
 
@@ -186,6 +193,7 @@ export default function ReferralDashboard() {
         onEdit={handleEdit}
         onDetail={setDetailReferrer}
         onPayout={setPayoutReferrer}
+        isToggling={toggleActiveMutation.isPending}
         onToggleActive={(id, active) => toggleActiveMutation.mutate({ id, is_active: active })}
       />
 
