@@ -66,7 +66,11 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
           filter: `company_id=eq.${companyId}`,
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as SupportMessage]);
+          setMessages((prev) => {
+            const newMsg = payload.new as SupportMessage;
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
         }
       )
       .subscribe();

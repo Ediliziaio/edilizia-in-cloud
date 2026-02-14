@@ -45,7 +45,8 @@ export function AdminSupportChatList() {
       if (error) throw error;
       return (data ?? []) as SupportMessage[];
     },
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
   });
 
   const { data: companies = [] } = useQuery({
