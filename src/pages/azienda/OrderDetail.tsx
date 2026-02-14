@@ -39,6 +39,7 @@ import { OrderEconomics } from "@/components/orders/OrderEconomics";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { OrderCommissions } from "@/components/orders/OrderCommissions";
+import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 
 // Order Alert Interface
@@ -845,6 +846,9 @@ export default function OrderDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Linked Tasks */}
+          <LinkedTasks orderId={id} category="ordini" />
         </div>
       </div>
 

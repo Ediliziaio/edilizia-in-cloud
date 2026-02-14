@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,8 @@ import { formatCurrency } from "@/lib/formatters";
 import { StockItemDialog } from "./StockItemDialog";
 import { StockMovementDialog } from "./StockMovementDialog";
 import { StockMovementHistoryDialog } from "./StockMovementHistoryDialog";
+import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { StockItem } from "@/types/warehouse";
 
 export default function WarehouseStockTab() {
@@ -37,6 +39,7 @@ export default function WarehouseStockTab() {
     item: StockItem | null;
   }>({ open: false, type: "carico", item: null });
   const [historyItem, setHistoryItem] = useState<StockItem | null>(null);
+  const [taskItem, setTaskItem] = useState<StockItem | null>(null);
 
   // Fetch stock items
   const { data: stockItems = [], isLoading } = useQuery({
@@ -268,6 +271,14 @@ export default function WarehouseStockTab() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            title="Task"
+                            onClick={() => setTaskItem(item)}
+                          >
+                            <CheckSquare className="h-4 w-4 text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             title="Storico"
                             onClick={() => setHistoryItem(item)}
                           >
@@ -343,6 +354,19 @@ export default function WarehouseStockTab() {
         onOpenChange={(v) => { if (!v) setHistoryItem(null); }}
         item={historyItem}
       />
+
+      {/* Task Dialog for stock item */}
+      <Dialog open={!!taskItem} onOpenChange={(v) => { if (!v) setTaskItem(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Task - {taskItem?.name}</DialogTitle>
+            <DialogDescription>Attività collegate a questo articolo</DialogDescription>
+          </DialogHeader>
+          {taskItem && (
+            <LinkedTasks stockItemId={taskItem.id} category="magazzino" />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

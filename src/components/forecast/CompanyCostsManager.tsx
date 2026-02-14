@@ -21,6 +21,7 @@ import {
   Package,
   ExternalLink,
   Undo2,
+  CheckSquare,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -52,6 +53,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "@/hooks/use-toast";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 
 const COST_IMPORT_FIELDS: ImportField[] = [
   { key: "name", label: "Nome", required: true },
@@ -146,6 +148,7 @@ export default function CompanyCostsManager() {
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [duplicatePeriods, setDuplicatePeriods] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
+  const [taskCostId, setTaskCostId] = useState<string | null>(null);
 
   // Filters
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
@@ -798,6 +801,15 @@ export default function CompanyCostsManager() {
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8"
+                          onClick={() => setTaskCostId(cost.id)}
+                          title="Task collegate"
+                        >
+                          <CheckSquare className="h-4 w-4 text-primary" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
                           onClick={() => openEdit(cost as any)}
                         >
                           <Pencil className="h-4 w-4" />
@@ -1207,6 +1219,19 @@ export default function CompanyCostsManager() {
         fields={COST_IMPORT_FIELDS}
         onImport={handleCostsImport}
       />
+
+      {/* Task dialog for cost */}
+      <Dialog open={!!taskCostId} onOpenChange={(v) => { if (!v) setTaskCostId(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Task collegate</DialogTitle>
+            <DialogDescription>Attività collegate a questo costo</DialogDescription>
+          </DialogHeader>
+          {taskCostId && (
+            <LinkedTasks costId={taskCostId} category="costi" />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
