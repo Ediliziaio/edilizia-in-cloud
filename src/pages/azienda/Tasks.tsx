@@ -1,0 +1,270 @@
+import { useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
+import { Plus, ListTodo, ExternalLink } from "lucide-react";
+import { format, isAfter, isBefore, addHours, startOfWeek } from "date-fns";
+import { it } from "date-fns/locale";
+import { toast } from "@/hooks/use-toast";
+import { TaskStatCards } from "@/components/tasks/TaskStatCards";
+import { TaskDialog } from "@/components/tasks/TaskDialog";
+import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
+
+const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
+  bassa: { label: "Bassa", className: "bg-muted text-muted-foreground" },
+  normale: { label: "Normale", className: "bg-primary/10 text-primary" },
+  alta: { label: "Alta", className: "bg-warning/10 text-warning" },
+  urgente: { label: "Urgente", className: "bg-destructive/10 text-destructive" },
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  da_fare: "Da fare",
+  in_corso: "In corso",
+  completata: "Completata",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  generale: "Generale",
+  ordini: "Ordini",
+  magazzino: "Magazzino",
+  pagamenti: "Pagamenti",
+  costi: "Costi",
+};
+
+export default function Tasks() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const queryClient = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<any>(null);
+  const [filterStatus, setFilterStatus] = useState("active");
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [filterCategory, setFilterCategory] = useState("all");
+
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ["tasks", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(`
+          *,
+          assigned_profile:profiles!tasks_assigned_to_fkey(first_name, last_name),
+          order:orders!tasks_order_id_fkey(description, order_code),
+          stock_item:warehouse_stock!tasks_stock_item_id_fkey(name),
+          cost:company_costs!tasks_cost_id_fkey(name, amount)
+        `)
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  const now = new Date();
+  const in48h = addHours(now, 48);
+  const weekStart = startOfWeek(now, { locale: it });
+
+  const stats = useMemo(() => {
+    const active = tasks.filter((t) => t.status !== "completata").length;
+    const expiring = tasks.filter((t) => t.status !== "completata" && t.due_date && isAfter(new Date(t.due_date), now) && isBefore(new Date(t.due_date), in48h)).length;
+    const overdue = tasks.filter((t) => t.status !== "completata" && t.due_date && isBefore(new Date(t.due_date), now)).length;
+    const completedThisWeek = tasks.filter((t) => t.status === "completata" && t.completed_at && isAfter(new Date(t.completed_at), weekStart)).length;
+    return { active, expiring, overdue, completedThisWeek };
+  }, [tasks]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (filterStatus === "active" && t.status === "completata") return false;
+      if (filterStatus !== "all" && filterStatus !== "active" && t.status !== filterStatus) return false;
+      if (filterPriority !== "all" && t.priority !== filterPriority) return false;
+      if (filterCategory !== "all" && t.category !== filterCategory) return false;
+      return true;
+    });
+  }, [tasks, filterStatus, filterPriority, filterCategory]);
+
+  const handleToggleComplete = async (task: any) => {
+    const newStatus = task.status === "completata" ? "da_fare" : "completata";
+    const { error } = await supabase
+      .from("tasks")
+      .update({
+        status: newStatus,
+        completed_at: newStatus === "completata" ? new Date().toISOString() : null,
+      })
+      .eq("id", task.id);
+    if (error) {
+      toast({ title: "Errore", description: error.message, variant: "destructive" });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    }
+  };
+
+  const isOverdue = (task: any) => task.status !== "completata" && task.due_date && isBefore(new Date(task.due_date), now);
+
+  const handleRefresh = () => queryClient.invalidateQueries({ queryKey: ["tasks"] });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Attività</h1>
+          <p className="text-muted-foreground">{stats.active} attività attive</p>
+        </div>
+        <Button onClick={() => { setEditingTask(null); setDialogOpen(true); }}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nuova Attività
+        </Button>
+      </div>
+
+      <TaskStatCards {...stats} />
+
+      <div className="flex flex-wrap gap-3">
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Stato" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutte</SelectItem>
+            <SelectItem value="active">Attive</SelectItem>
+            <SelectItem value="da_fare">Da fare</SelectItem>
+            <SelectItem value="in_corso">In corso</SelectItem>
+            <SelectItem value="completata">Completate</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={filterPriority} onValueChange={setFilterPriority}>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Priorità" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutte</SelectItem>
+            <SelectItem value="bassa">Bassa</SelectItem>
+            <SelectItem value="normale">Normale</SelectItem>
+            <SelectItem value="alta">Alta</SelectItem>
+            <SelectItem value="urgente">Urgente</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={filterCategory} onValueChange={setFilterCategory}>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutte</SelectItem>
+            <SelectItem value="generale">Generale</SelectItem>
+            <SelectItem value="ordini">Ordini</SelectItem>
+            <SelectItem value="magazzino">Magazzino</SelectItem>
+            <SelectItem value="pagamenti">Pagamenti</SelectItem>
+            <SelectItem value="costi">Costi</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {isLoading ? (
+        <Card><CardContent className="p-8 text-center text-muted-foreground">Caricamento...</CardContent></Card>
+      ) : filteredTasks.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <ListTodo className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-medium mb-1">Nessuna attività</h3>
+            <p className="text-muted-foreground mb-4">Crea la tua prima attività per iniziare</p>
+            <Button onClick={() => { setEditingTask(null); setDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" /> Nuova Attività
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10"></TableHead>
+                <TableHead>Titolo</TableHead>
+                <TableHead>Assegnatario</TableHead>
+                <TableHead>Collegamento</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Priorità</TableHead>
+                <TableHead>Scadenza</TableHead>
+                <TableHead>Stato</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredTasks.map((task) => (
+                <TableRow
+                  key={task.id}
+                  className={cn(
+                    "cursor-pointer transition-colors",
+                    isOverdue(task) && "bg-destructive/5",
+                    task.status === "completata" && "opacity-60"
+                  )}
+                  onClick={() => { setEditingTask(task); setDialogOpen(true); }}
+                >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={task.status === "completata"}
+                      onCheckedChange={() => handleToggleComplete(task)}
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    <span className={task.status === "completata" ? "line-through" : ""}>{task.title}</span>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {task.assigned_profile
+                      ? `${task.assigned_profile.first_name} ${task.assigned_profile.last_name}`
+                      : "—"}
+                  </TableCell>
+                  <TableCell>
+                    {task.order && (
+                      <Link
+                        to={`/azienda/ordini/${task.order_id}`}
+                        className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {task.order.order_code || task.order.description?.slice(0, 20)}
+                      </Link>
+                    )}
+                    {task.stock_item && (
+                      <span className="text-sm text-muted-foreground">{task.stock_item.name}</span>
+                    )}
+                    {task.cost && (
+                      <span className="text-sm text-muted-foreground">{task.cost.name}</span>
+                    )}
+                    {!task.order && !task.stock_item && !task.cost && "—"}
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs text-muted-foreground">{CATEGORY_LABELS[task.category] || task.category}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={PRIORITY_CONFIG[task.priority]?.className || ""}>
+                      {PRIORITY_CONFIG[task.priority]?.label || task.priority}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {task.due_date ? (
+                      <span className={cn("text-sm", isOverdue(task) && "text-destructive font-medium")}>
+                        {format(new Date(task.due_date), "dd/MM/yyyy")}
+                      </span>
+                    ) : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm">{STATUS_LABELS[task.status] || task.status}</span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+
+      <TaskDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        task={editingTask}
+        onSaved={handleRefresh}
+      />
+    </div>
+  );
+}
