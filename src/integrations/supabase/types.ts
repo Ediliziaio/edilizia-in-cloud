@@ -99,6 +99,7 @@ export type Database = {
           payment_notes: string | null
           pec: string | null
           phone: string | null
+          referred_by: string | null
           sdi_code: string | null
           sector: Database["public"]["Enums"]["company_sector"]
           status: string
@@ -133,6 +134,7 @@ export type Database = {
           payment_notes?: string | null
           pec?: string | null
           phone?: string | null
+          referred_by?: string | null
           sdi_code?: string | null
           sector?: Database["public"]["Enums"]["company_sector"]
           status?: string
@@ -167,6 +169,7 @@ export type Database = {
           payment_notes?: string | null
           pec?: string | null
           phone?: string | null
+          referred_by?: string | null
           sdi_code?: string | null
           sector?: Database["public"]["Enums"]["company_sector"]
           status?: string
@@ -178,6 +181,13 @@ export type Database = {
           website?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "companies_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "referrers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "companies_subscription_plan_id_fkey"
             columns: ["subscription_plan_id"]
@@ -1092,6 +1102,137 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      referral_companies: {
+        Row: {
+          company_id: string
+          id: string
+          is_active: boolean
+          notes: string | null
+          referred_at: string
+          referrer_id: string
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          referred_at?: string
+          referrer_id: string
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          referred_at?: string
+          referrer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_companies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_companies_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "referrers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_payouts: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          notes: string | null
+          paid_at: string
+          payment_method: string
+          period_end: string
+          period_start: string
+          referrer_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string
+          payment_method?: string
+          period_end: string
+          period_start: string
+          referrer_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string
+          payment_method?: string
+          period_end?: string
+          period_start?: string
+          referrer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_payouts_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "referrers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referrers: {
+        Row: {
+          commission_type: string
+          commission_value: number
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+          referral_code: string
+          total_earned: number
+          total_paid: number
+        }
+        Insert: {
+          commission_type?: string
+          commission_value?: number
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+          referral_code: string
+          total_earned?: number
+          total_paid?: number
+        }
+        Update: {
+          commission_type?: string
+          commission_value?: number
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          referral_code?: string
+          total_earned?: number
+          total_paid?: number
+        }
+        Relationships: []
       }
       salespeople: {
         Row: {
