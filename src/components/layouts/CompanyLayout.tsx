@@ -192,6 +192,11 @@ function CompanySidebar() {
 
 export function CompanyLayout() {
   const { effectiveCompany } = useAuth();
+  const permissions = usePermissions();
+  const { isModuleEnabled } = useSubscriptionLimits();
+  const navigate = useNavigate();
+
+  const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
   
   return (
     <SidebarProvider>
@@ -203,6 +208,12 @@ export function CompanyLayout() {
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
             <div className="flex-1" />
+            {showSupport && (
+              <Button variant="outline" size="sm" onClick={() => navigate("/azienda/assistenza")}>
+                <HeadphonesIcon className="h-4 w-4 mr-2" />
+                Assistenza
+              </Button>
+            )}
             <span className="text-sm text-muted-foreground">
               {effectiveCompany?.name}
             </span>
