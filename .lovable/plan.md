@@ -1,104 +1,144 @@
 
-# Analisi e Miglioramenti Sezione Super Admin
+# Analisi Strategica Super Admin -- Visione SaaS Expert
 
-## 1. Dashboard (`AdminDashboard.tsx` - 443 righe)
+## Valutazione Complessiva
 
-**Problemi trovati:**
-- **Link morto**: Riga 422, il bottone "Vedi Ordini Globali" punta a `/admin/ordini` che non esiste piu (la pagina GlobalOrders e stata eliminata). Va rimosso.
-- **File monolitico**: 443 righe con query, logica di calcolo e UI tutto insieme. Andrebbe scomposto in componenti e un hook dedicato.
-- **`sectorLabels` duplicato**: Definito localmente (righe 42-51) ma esiste gia in `src/lib/companyUtils.ts`. Va usato quello centralizzato.
-
-**Intervento proposto:**
-- Rimuovere il bottone "Vedi Ordini Globali" dalla sezione Azioni Rapide
-- Sostituire `sectorLabels` locale con l'import da `companyUtils`
-- Estrarre la query in un hook `useAdminDashboardData`
-- Scomporre la UI in componenti: `AdminStatCards`, `AdminMrrStats`, `AdminRecentCompanies`, `AdminRecentActivity`, `AdminQuickActions`
+La base tecnica e solida: architettura modulare, hook separati, costanti centralizzate. Ma dal punto di vista di chi gestisce e vende un SaaS B2B, mancano diversi strumenti critici per la crescita, il monitoraggio e la riduzione del churn. Ecco cosa serve.
 
 ---
 
-## 2. Dettaglio Azienda (`CompanyDetail.tsx` - 707 righe)
+## 1. DASHBOARD -- Manca la "sala di controllo"
 
-**Problemi trovati:**
-- **Ancora troppo grande** (707 righe): nonostante la UI sia stata scomposta in tab, tutta la logica (7 query, 3 mutation, 8+ handler, 15+ variabili di stato) rimane nel file orchestratore.
-- **Fetch iniziale con `useEffect`/`useState`** (righe 103-142): la query principale dell'azienda usa ancora il pattern manuale con `useEffect` invece di `useQuery`, rompendo la coerenza con il resto del codice.
-- **Nessun caching** sulla query principale dell'azienda.
+**Stato attuale**: 4 stat card + 4 card MRR + lista aziende recenti + attivita recenti. Dati puntuali ma senza trend.
 
-**Intervento proposto:**
-- Estrarre tutta la logica in un hook `useCompanyDetail(id)` che restituisce dati, mutations e handler
-- Migrare il fetch iniziale dell'azienda (righe 103-142) a `useQuery` con `staleTime`
-- Ridurre CompanyDetail.tsx a circa 150-200 righe (solo composizione UI e dialoghi)
+**Cosa manca (priorita alta)**:
 
----
+- **Grafico MRR nel tempo** (linea mensile): senza vedere il trend non sai se stai crescendo o perdendo. E la metrica numero 1 di ogni SaaS.
+- **Funnel Trial-to-Paid**: quante aziende iniziano il trial, quante convertono, quante scadono senza pagare. Senza questo, non sai se il tuo onboarding funziona.
+- **ARR (Annual Recurring Revenue)**: mostrare MRR x 12 come KPI affiancato al MRR.
+- **Net Revenue Retention**: entrate da clienti esistenti mese su mese (upsell vs churn). Indica se i clienti crescono o diminuiscono.
+- **Filtro temporale nella dashboard**: poter confrontare "questo mese vs mese scorso" o "Q1 vs Q2".
+- **Alert automatici**: aziende con trial che scade fra 3 giorni senza attivita (zero ordini creati = probabilmente persa), ticket aperti da oltre 48h senza risposta.
 
-## 3. Lista Aziende (`CompaniesList.tsx` - 217 righe)
+**Cosa manca (priorita media)**:
 
-**Stato: Buono.** Gia migrato a `useQuery`, dimensione gestibile. Nessun intervento necessario.
-
----
-
-## 4. Ticket Globali (`GlobalTickets.tsx` - 275 righe)
-
-**Stato: Buono.** Gia migrato a `useQuery` con `useMemo` per i filtri. Nessun intervento necessario.
+- **Health Score per azienda**: un punteggio 0-100 calcolato su: numero login ultimi 7 giorni, ordini creati, ticket aperti, giorni dall'ultimo accesso. Le aziende con score basso sono a rischio churn.
+- **Mappa di calore attivita**: quali giorni/ore le aziende sono piu attive. Utile per pianificare manutenzione e supporto.
 
 ---
 
-## 5. Creazione Azienda (`CreateCompany.tsx` - 441 righe)
+## 2. LISTA AZIENDE -- Buona ma senza intelligence
 
-**Stato: Accettabile.** E un form lungo ma lineare. La struttura e chiara. Nessun intervento critico.
+**Stato attuale**: Tabella con ricerca, filtro stato, azioni di apertura e impersonificazione.
 
----
+**Cosa manca**:
 
-## 6. Piani Tariffari (`SubscriptionPlans.tsx` - 406 righe)
-
-**Problemi trovati:**
-- **`ALL_MODULES` duplicato**: Definito localmente (righe 16-24) ma esiste gia in `src/lib/adminConstants.ts`. Va usato quello centralizzato.
-
-**Intervento proposto:**
-- Sostituire la definizione locale con l'import da `adminConstants`
-
----
-
-## 7. Impostazioni (`AdminSettings.tsx` - 226 righe)
-
-**Stato: Buono.** File compatto e ben strutturato. Nessun intervento necessario.
+- **Ordinamento per colonna** (click sull'header): fondamentale per trovare aziende per data, piano, settore.
+- **Filtro per settore**: hai 8 settori, ma non puoi filtrarli. Serve per campagne mirate.
+- **Filtro per piano**: "mostrami tutte le aziende Free" per fare upselling.
+- **Colonna "Ultimo accesso"**: la metrica piu importante per prevenire il churn. Se un'azienda non accede da 14 giorni, e in pericolo.
+- **Colonna "Ordini"**: conteggio rapido senza dover aprire ogni azienda.
+- **Export CSV**: per analisi esterne, CRM, campagne email.
+- **Azioni bulk**: seleziona piu aziende e cambia piano, sospendi, estendi trial in blocco. Essenziale quando gestisci 50+ aziende.
+- **Paginazione**: la tabella attualmente carica tutte le aziende. Con 100+ tenant servira paginazione server-side.
 
 ---
 
-## 8. Layout Admin (`AdminLayout.tsx` - 127 righe)
+## 3. DETTAGLIO AZIENDA -- Completo ma manca il "polso"
 
-**Stato: Buono.** Compatto e pulito. Nessun intervento necessario.
+**Stato attuale**: 5 tab ben organizzati (Dettagli, Team, SaaS, Abbonamento, Attivita).
+
+**Cosa manca**:
+
+- **Tab "Engagement"**: grafico a barre con login giornalieri, ordini creati per settimana, tempo medio di sessione. Questo ti dice se l'azienda sta davvero usando il prodotto o se ha solo creato l'account.
+- **Timeline visuale unificata**: nella tab Attivita hai ordini e ticket separati. Servirebbe una timeline unica con TUTTI gli eventi (ordine creato, ticket aperto, piano cambiato, login admin, utente aggiunto) in ordine cronologico. Come un "activity feed" alla Salesforce.
+- **Note interne / CRM mini**: campo note libere del Super Admin sull'azienda. Es: "Chiamato il 15/02, interessato al piano Pro", "Problema con onboarding, ricontattare". Ogni SaaS ha bisogno di un mini-CRM interno.
+- **Tag personalizzati**: poter taggare le aziende (es: "VIP", "a rischio", "demo fatta", "da contattare"). Utile per segmentare e filtrare.
+- **Contatto rapido**: bottone per inviare email direttamente dall'interfaccia (anche solo un mailto: con template pre-compilato).
 
 ---
 
-## Riepilogo Interventi per Priorita
+## 4. TICKET GLOBALI -- Funzionale ma senza SLA
 
-| Priorita | File | Intervento | Impatto |
-|----------|------|------------|---------|
-| Critico | `AdminDashboard.tsx` | Rimuovere link morto `/admin/ordini` | Bug fix |
-| Alto | `AdminDashboard.tsx` | Rimuovere `sectorLabels` duplicato, usare import | Consistenza |
-| Alto | `SubscriptionPlans.tsx` | Rimuovere `ALL_MODULES` duplicato, usare import | Consistenza |
-| Alto | `CompanyDetail.tsx` | Migrare fetch iniziale a `useQuery` | Coerenza architetturale |
-| Medio | `AdminDashboard.tsx` | Estrarre hook + scomporre in componenti | Manutenibilita |
-| Medio | `CompanyDetail.tsx` | Estrarre logica in hook `useCompanyDetail` | Manutenibilita |
+**Stato attuale**: Lista filtrable per azienda e stato. Azione di impersonificazione per gestire.
 
-## Dettagli Tecnici
+**Cosa manca**:
 
-### Fix immediati (senza refactoring)
-1. Rimuovere righe 420-424 in `AdminDashboard.tsx` (bottone "Vedi Ordini Globali")
-2. Sostituire `sectorLabels` locale con import da `@/lib/companyUtils`
-3. Sostituire `ALL_MODULES` locale in `SubscriptionPlans.tsx` con import da `@/lib/adminConstants`
+- **Tempo di risposta medio (SLA)**: quanto tempo passa tra apertura e prima risposta? E la metrica chiave del supporto.
+- **Ticket "aging"**: evidenziare in rosso i ticket aperti da oltre 24h/48h/72h. Attualmente tutti i ticket hanno lo stesso peso visivo.
+- **Priorita**: campo priorita (bassa, media, alta, urgente) con codice colore.
+- **Assegnazione**: chi sta gestendo questo ticket? Attualmente non c'e un campo "assigned_to".
+- **Risposta rapida dal pannello admin**: poter rispondere direttamente senza dover impersonificare l'azienda ogni volta. Oggi per rispondere a un ticket devi: cliccare "Gestisci" -> impersonificare -> navigare al ticket -> rispondere -> uscire dall'impersonificazione. Troppi passaggi.
+- **Contatore ticket per azienda nella dashboard**: "Top 5 aziende per ticket aperti" per identificare aziende problematiche.
 
-### Refactoring Dashboard
-- Nuovo file: `src/hooks/useAdminDashboardData.ts` (query + calcoli MRR/churn)
-- Nuovi componenti in `src/components/admin/dashboard/`:
-  - `AdminStatCards.tsx`
-  - `AdminMrrStats.tsx`
-  - `AdminRecentCompanies.tsx`
-  - `AdminRecentActivity.tsx`
-  - `AdminQuickActions.tsx`
-- `AdminDashboard.tsx` ridotto a circa 60-80 righe
+---
 
-### Refactoring CompanyDetail
-- Nuovo file: `src/hooks/useCompanyDetail.ts` (tutte le query, mutations e handler)
-- Migrazione fetch azienda da `useEffect` a `useQuery`
-- `CompanyDetail.tsx` ridotto a circa 150-200 righe
+## 5. PIANI TARIFFARI -- Buono ma manca l'operativita
+
+**Stato attuale**: CRUD completo con moduli, limiti, Stripe IDs.
+
+**Cosa manca**:
+
+- **Conteggio aziende per piano**: accanto a ogni piano, mostrare "12 aziende attive su questo piano". Oggi non sai quante aziende usano quale piano.
+- **Revenue per piano**: "Piano Pro: 12 aziende x 49 euro = 588 euro/mese MRR". Fondamentale per decidere dove investire.
+- **Confronto piani**: tabella comparativa side-by-side (come le pagine pricing pubbliche) per verificare la coerenza dell'offerta.
+- **Storico modifiche piano**: quando e stato modificato l'ultimo prezzo? Serve un log.
+- **Piano "personalizzato"**: possibilita di creare piani custom per singola azienda (override dei limiti).
+
+---
+
+## 6. IMPOSTAZIONI ADMIN -- Troppo minimale
+
+**Stato attuale**: Solo profilo e cambio password.
+
+**Cosa manca**:
+
+- **Gestione altri Super Admin**: aggiungere/rimuovere altri utenti super_admin. Oggi se c'e un solo super admin e perde l'accesso, il sistema e bloccato.
+- **Log di audit globale**: chi ha fatto cosa e quando. Ogni azione critica (sospensione azienda, cambio piano, creazione utente) dovrebbe essere loggata con timestamp e autore.
+- **Configurazione email/notifiche**: template delle email inviate (benvenuto, scadenza trial, sospensione), possibilita di personalizzare testo e tempistiche.
+- **Configurazione piattaforma**: nome piattaforma, logo, colori brand, dominio personalizzato.
+- **Backup e manutenzione**: stato del database, ultimo backup, possibilita di esportare tutti i dati.
+
+---
+
+## 7. SIDEBAR E NAVIGAZIONE -- Manca una voce critica
+
+**Stato attuale**: Dashboard, Aziende, Ticket, Piani, Impostazioni.
+
+**Cosa aggiungeresti**:
+
+- **"Analytics"** (o "Report"): una pagina dedicata con grafici avanzati: MRR trend, churn trend, crescita aziende, distribuzione per settore, distribuzione per piano, revenue per settore. Oggi queste metriche sono sparse nella dashboard. Servono in una pagina dedicata con filtri temporali.
+- **Badge notifiche sulla sidebar**: "Ticket (3)" con il conteggio ticket aperti, "Aziende" con badge se ci sono trial in scadenza.
+
+---
+
+## Roadmap Prioritizzata
+
+| Priorita | Intervento | Impatto Business | Complessita |
+|----------|-----------|-----------------|-------------|
+| 1 | Grafico MRR trend + ARR nella dashboard | Visibilita crescita | Media |
+| 2 | Colonna "ultimo accesso" + "ordini" nella lista aziende | Prevenzione churn | Bassa |
+| 3 | Ticket aging + SLA metrics | Qualita supporto | Media |
+| 4 | Note interne CRM nel dettaglio azienda | Gestione relazioni | Bassa |
+| 5 | Pagina Analytics dedicata | Decision making | Alta |
+| 6 | Health Score per azienda | Predizione churn | Alta |
+| 7 | Funnel Trial-to-Paid | Ottimizzazione conversione | Media |
+| 8 | Filtri avanzati + export CSV lista aziende | Operativita quotidiana | Bassa |
+| 9 | Badge notifiche nella sidebar | Reattivita | Bassa |
+| 10 | Gestione multi Super Admin | Sicurezza operativa | Media |
+
+---
+
+## Da Dove Iniziare?
+
+Consiglio di partire dai punti 1-4 che hanno il miglior rapporto impatto/complessita:
+
+1. **Grafico MRR trend**: aggiungere un'area chart nella dashboard con l'andamento mensile del MRR (basato sui subscription_logs e company_subscriptions). Aggiungere anche l'ARR.
+
+2. **Colonne intelligenti nella lista aziende**: ultimo accesso, conteggio ordini, filtri per settore e piano.
+
+3. **Ticket aging**: colorare i ticket in base all'eta (verde se meno di 24h, giallo 24-48h, rosso oltre 48h). Aggiungere metriche SLA in cima alla pagina.
+
+4. **Note interne**: aggiungere un campo `admin_notes` nella tabella companies (o una tabella dedicata `company_notes`) e mostrarlo nel dettaglio azienda.
+
+Questi 4 interventi trasformano il pannello da "visualizzatore di dati" a "strumento di gestione attiva del business".
