@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import { useToast } from "@/hooks/use-toast";
 import type { Referrer } from "@/pages/admin/ReferralDashboard";
@@ -11,6 +12,7 @@ import type { Referrer } from "@/pages/admin/ReferralDashboard";
 interface Props {
   referrers: Referrer[];
   isLoading: boolean;
+  isToggling?: boolean;
   getCompanyCount: (id: string) => number;
   getMonthlyCommission: (r: Referrer) => number;
   onEdit: (r: Referrer) => void;
@@ -20,7 +22,7 @@ interface Props {
 }
 
 export function ReferralTable({
-  referrers, isLoading, getCompanyCount, getMonthlyCommission,
+  referrers, isLoading, isToggling, getCompanyCount, getMonthlyCommission,
   onEdit, onDetail, onPayout, onToggleActive,
 }: Props) {
   const { toast } = useToast();
@@ -38,7 +40,17 @@ export function ReferralTable({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Caricamento...</div>
+          <div className="space-y-3 py-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <Skeleton className="h-10 w-32" />
+                <Skeleton className="h-10 w-20" />
+                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-10 flex-1" />
+                <Skeleton className="h-10 w-28" />
+              </div>
+            ))}
+          </div>
         ) : referrers.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             Nessun referrer. Creane uno per iniziare.
@@ -128,6 +140,7 @@ export function ReferralTable({
                             <Button
                               variant="ghost"
                               size="icon"
+                              disabled={isToggling}
                               onClick={() => onToggleActive(r.id, !r.is_active)}
                             >
                               {r.is_active ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -48,6 +49,18 @@ export function PayoutDialog({ referrer, onOpenChange }: Props) {
     },
   });
 
+  useEffect(() => {
+    if (referrer) {
+      form.reset({
+        amount: 0,
+        period_start: "",
+        period_end: "",
+        payment_method: "bank_transfer",
+        notes: "",
+      });
+    }
+  }, [referrer?.id]);
+
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       const { error: payoutError } = await supabase.from("referral_payouts").insert({
@@ -60,10 +73,17 @@ export function PayoutDialog({ referrer, onOpenChange }: Props) {
       });
       if (payoutError) throw payoutError;
 
-      // Update total_paid on referrer
+      // Fetch current total from all payouts to avoid stale state
+      const { data: allPayouts, error: fetchError } = await supabase
+        .from("referral_payouts")
+        .select("amount")
+        .eq("referrer_id", referrer!.id);
+      if (fetchError) throw fetchError;
+
+      const newTotal = (allPayouts || []).reduce((sum, p) => sum + Number(p.amount), 0);
       const { error: updateError } = await supabase
         .from("referrers")
-        .update({ total_paid: (referrer!.total_paid || 0) + data.amount })
+        .update({ total_paid: newTotal })
         .eq("id", referrer!.id);
       if (updateError) throw updateError;
     },
