@@ -35,6 +35,9 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { useMemo, useState } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
+import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
+import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
+import { Badge } from "@/components/ui/badge";
 
 interface NavItem {
   title: string;
@@ -197,8 +200,15 @@ export function CompanyLayout() {
   const { isModuleEnabled } = useSubscriptionLimits();
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
+  const [channelDialogOpen, setChannelDialogOpen] = useState(false);
+  const { unreadCount, markAsRead } = useUnreadSupportCount();
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
+
+  const handleOpenChat = () => {
+    markAsRead();
+    setSupportOpen(true);
+  };
   
   return (
     <SidebarProvider>
@@ -211,9 +221,14 @@ export function CompanyLayout() {
             <SidebarTrigger />
             <div className="flex-1" />
             {showSupport && (
-              <Button variant="outline" size="sm" onClick={() => setSupportOpen(true)}>
+              <Button variant="outline" size="sm" className="relative" onClick={() => setChannelDialogOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 mr-2" />
                 Assistenza
+                {unreadCount > 0 && (
+                  <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1 flex items-center justify-center text-xs">
+                    {unreadCount}
+                  </Badge>
+                )}
               </Button>
             )}
             <span className="text-sm text-muted-foreground">
@@ -226,7 +241,14 @@ export function CompanyLayout() {
         </div>
       </div>
       {showSupport && (
-        <SupportChatSheet open={supportOpen} onOpenChange={setSupportOpen} />
+        <>
+          <SupportChannelDialog
+            open={channelDialogOpen}
+            onOpenChange={setChannelDialogOpen}
+            onOpenChat={handleOpenChat}
+          />
+          <SupportChatSheet open={supportOpen} onOpenChange={setSupportOpen} />
+        </>
       )}
     </SidebarProvider>
   );
