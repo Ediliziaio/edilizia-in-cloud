@@ -215,7 +215,7 @@ export default function EditOrder() {
     // Try to restore draft
     const draft = loadDraft();
     if (draft) {
-      setCustomerId(draft.customerId || "");
+      setCustomerId(draft.customerId || order.customer_id);
       setOrderCode(draft.orderCode || "");
       setDescription(draft.description || "");
       setInternalNotes(draft.internalNotes || "");
