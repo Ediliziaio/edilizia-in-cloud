@@ -1,52 +1,118 @@
 
 
-# Audit Completo - Pulizia, Fix e Stabilizzazione
+# Task Management - Implementazione Completa
 
-## 1. PULIZIA CODICE
+## Panoramica
 
-### Import inutilizzati da rimuovere
+Nuova sezione **Attivita** nell'area azienda con gestione task assegnabili a utenti, collegabili a ordini, magazzino (articoli stock), costi e pagamenti. Ogni task ha titolo, note, priorita, scadenza e assegnatario.
 
-| File | Import inutilizzato |
-|------|-------------------|
-| `src/components/shared/CSVImportDialog.tsx` | `Badge` (mai usato nel JSX) |
-| `src/components/shared/CSVImportDialog.tsx` | `Progress` (mai usato nel JSX) |
+---
 
-### Variabili di stato non utilizzate
+## 1. Database
 
-| File | Variabile | Azione |
-|------|----------|--------|
-| `src/components/shared/CSVImportDialog.tsx` | `importing` | Rimovibile -- lo step "importing" e gia gestito da `step === "importing"`. La variabile e settata ma mai letta |
-| `src/components/shared/CSVImportDialog.tsx` | `progress` | Rimovibile -- settata a 0 ma mai usata nel render |
+### Nuova tabella: `tasks`
 
-## 2. FIX FUNZIONALI
+| Colonna | Tipo | Obbligatorio | Default | Note |
+|---------|------|-------------|---------|------|
+| id | uuid | Si | gen_random_uuid() | PK |
+| company_id | uuid | Si | - | FK companies, tenant isolation |
+| title | text | Si | - | Titolo task |
+| notes | text | No | null | Note/descrizione |
+| status | text | Si | 'da_fare' | da_fare, in_corso, completata |
+| priority | text | Si | 'normale' | bassa, normale, alta, urgente |
+| due_date | date | No | null | Scadenza |
+| assigned_to | uuid | No | null | FK profiles.id |
+| order_id | uuid | No | null | FK orders.id |
+| stock_item_id | uuid | No | null | FK warehouse_stock.id |
+| cost_id | uuid | No | null | FK company_costs.id |
+| category | text | Si | 'generale' | ordini, magazzino, pagamenti, costi, generale |
+| created_by | uuid | Si | - | Chi ha creato la task |
+| completed_at | timestamptz | No | null | Data completamento |
+| created_at | timestamptz | Si | now() | |
+| updated_at | timestamptz | Si | now() | |
 
-### Console Warning: "Function components cannot be given refs" su CSVImportDialog
+### RLS Policies
 
-**Causa**: Il componente `Select` di Radix UI riceve un ref internamente dal `Dialog`, ma `Select` e un function component senza `forwardRef`. Questo warning appare ogni volta che il dialog di import e aperto nella pagina Ordini.
+- **Company admin**: ALL su propria azienda
+- **Staff con can_view_orders**: SELECT su propria azienda
+- **Staff con can_edit_orders**: ALL su propria azienda
+- **Dipendenti**: SELECT dove assigned_to = proprio user_id
+- **Super admin**: ALL
 
-**Soluzione**: Non e possibile modificare la libreria Radix, ma il warning e cosmetico e non impatta la funzionalita. Nessun fix necessario -- e un noto comportamento di React 18 strict mode + Radix internals.
+### Trigger
 
-**Nessun bug funzionale trovato.** Le pagine si caricano, i form salvano, le query gestiscono errori, nessun loading infinito o dead-end.
+- Riuso del trigger `update_updated_at_column` gia esistente
 
-## 3. COERENZA CODEBASE
+---
 
-Nessun nuovo problema di coerenza trovato. Il sistema toast dual-library (use-toast + sonner) e gia stato verificato nei round precedenti.
+## 2. File da creare
 
-## 4. PIANO IMPLEMENTAZIONE
+### `src/pages/azienda/Tasks.tsx`
 
-### Modifiche a `src/components/shared/CSVImportDialog.tsx`
+Pagina principale con:
+- Header: titolo + contatore task attive + pulsante "Nuova Attivita"
+- **StatCards**: totale attive, in scadenza (prossime 48h), scadute, completate settimana
+- **Filtri**: stato, priorita, assegnatario, categoria (ordini/magazzino/costi/pagamenti/generale)
+- **Tabella**: titolo, assegnatario, elemento collegato (ordine/articolo/costo), priorita (badge colorato), scadenza, stato
+- Badge rosso per task scadute
+- Click su riga apre dialog modifica
+- Checkbox rapida per completare (da_fare -> completata)
+- Empty state con CTA
 
-1. **Rimuovere import** `Badge` e `Progress`
-2. **Rimuovere state** `importing` e `progress` (e relative chiamate `setImporting`/`setProgress` nel `reset` e `handleImport`)
+### `src/components/tasks/TaskDialog.tsx`
 
-### Riepilogo
+Dialog creazione/modifica:
+- Titolo (obbligatorio)
+- Note (textarea)
+- Priorita (select: bassa/normale/alta/urgente)
+- Categoria (select: generale/ordini/magazzino/pagamenti/costi)
+- Scadenza (datepicker)
+- Assegna a (select con profili aziendali + dipendenti)
+- Collegamento condizionale in base a categoria:
+  - ordini -> select ordine
+  - magazzino -> select articolo magazzino
+  - costi/pagamenti -> select costo aziendale
+  - generale -> nessun collegamento
+- Stato (select, solo in modifica)
+- Pulsante elimina (solo in modifica)
 
-| Tipo | Dettaglio |
-|------|-----------|
-| Import rimossi | 2 (`Badge`, `Progress`) |
-| State rimossi | 2 (`importing`, `progress`) |
-| Bug corretti | 0 (nessun bug funzionale) |
-| File modificati | 1 (`CSVImportDialog.tsx`) |
+### `src/components/tasks/TaskStatCards.tsx`
 
-**TUTTO OK** dopo la pulizia degli import e state inutilizzati.
+4 card riassuntive: attive, in scadenza, scadute, completate questa settimana.
+
+---
+
+## 3. File da modificare
+
+### `src/App.tsx`
+
+Aggiungere rotta: `<Route path="attivita" element={<Tasks />} />` nel blocco azienda.
+
+### `src/components/layouts/CompanyLayout.tsx`
+
+Aggiungere nav item "Attivita" con icona `CheckSquare`, dopo "Dipendenti", con `permissionKey: "canViewOrders"` e `moduleKey: "orders"`.
+
+---
+
+## 4. UX
+
+- Badge priorita: bassa (grigio), normale (blu), alta (arancione), urgente (rosso)
+- Righe scadute: sfondo rosso leggero
+- Cambio stato rapido con checkbox
+- Toast conferma su ogni azione
+- Empty state con illustrazione e CTA "Crea la tua prima attivita"
+- Collegamento cliccabile all'ordine/costo/articolo associato
+
+---
+
+## 5. Riepilogo modifiche
+
+| Azione | File |
+|--------|------|
+| Migrazione DB | Tabella tasks + RLS + trigger |
+| Creare | `src/pages/azienda/Tasks.tsx` |
+| Creare | `src/components/tasks/TaskDialog.tsx` |
+| Creare | `src/components/tasks/TaskStatCards.tsx` |
+| Modificare | `src/App.tsx` |
+| Modificare | `src/components/layouts/CompanyLayout.tsx` |
 
