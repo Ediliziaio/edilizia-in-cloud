@@ -1,44 +1,70 @@
 
-# Stabilizzazione e Pulizia Progetto
 
-## 1. Bug Fix: Warning Console in CustomersList
+# Refactoring CompanyDetail.tsx + Rimozione sezione Ordini Super Admin
 
-**Problema**: La console mostra "Function components cannot be given refs" per `AlertDialog` in `CustomersList.tsx`. Questo accade perche `AlertDialog` viene usato direttamente come figlio di `TableCell` senza wrapper.
+## Parte 1: Rimozione pagina "Ordini Globali" dal Super Admin
 
-**Soluzione**: Nessuna modifica strutturale necessaria -- il warning e cosmetico e non causa crash. Il componente `AlertDialog` di Radix non accetta ref ma React tenta di passarlo. Il warning non impatta funzionalita.
+La voce "Ordini" nella sidebar admin e la pagina `GlobalOrders` verranno completamente rimosse.
 
-## 2. Pulizia Codice Morto in OrderEconomics.tsx
+**File coinvolti:**
+- `src/components/layouts/AdminLayout.tsx` -- rimuovere la voce `{ title: "Ordini", url: "/admin/ordini", icon: ClipboardList }` dall'array `navItems` e l'import `ClipboardList`
+- `src/App.tsx` -- rimuovere la route `<Route path="ordini" element={<GlobalOrders />} />` e l'import di `GlobalOrders`
+- `src/pages/admin/GlobalOrders.tsx` -- eliminare il file
 
-**File**: `src/components/orders/OrderEconomics.tsx`
+---
 
-Dopo le modifiche precedenti (semplificazione provvigioni), restano elementi inutilizzati:
+## Parte 2: Spezzare CompanyDetail.tsx in componenti modulari
 
-- **Import `Badge`** (riga 6): non usato nel componente
-- **Variabile `commissionDetails`** (righe 169-181): calcolata ma mai renderizzata (il template usa solo `totalCommissions`). Tutta la logica di mapping per nome, tipo, grossAmount, deduction, netAmount per singolo venditore e ora dead code
-- **Prop `collectedAmount`** (riga 52): non piu usata nel calcolo delle provvigioni (sia `percentage_sold` che `percentage_collected` usano `totalAmount`). Puo essere rimossa come prop e dal componente chiamante
+Il file da 1907 righe verra suddiviso in **7 file** mantenendo lo stesso comportamento funzionale.
 
-**Azioni**:
-- Rimuovere import `Badge`
-- Rimuovere il blocco `commissionDetails` (righe 169-181)
-- Ricalcolare `totalCommissions` direttamente da `orderSalespeople` senza passare per `commissionDetails`
-- Rimuovere `collectedAmount` dalla interface props e dal destructuring
-- Rimuovere il passaggio di `collectedAmount` in `OrderDetail.tsx` (righe 773-777)
+### Struttura file risultante
 
-## 3. Pulizia Import in OrderEconomics.tsx
+```text
+src/pages/admin/CompanyDetail.tsx          (~200 righe) -- orchestratore con state, queries, mutations
+src/components/admin/company/              -- nuova cartella
+  CompanyDetailHeader.tsx                  (~50 righe)  -- header con logo, nome, badge stato, pulsante impersona
+  CompanyDetailsTab.tsx                    (~250 righe) -- tab "Dettagli di base" (form + sidebar panoramica)
+  CompanyTeamTab.tsx                       (~350 righe) -- tab "Team" (admin, staff, venditori, dipendenti)
+  CompanySaaSTab.tsx                       (~150 righe) -- tab "SaaS" (limiti risorse + moduli + confronto piani)
+  CompanySubscriptionTab.tsx               (~250 righe) -- tab "Abbonamento" (stato, fatturazione, storico)
+  CompanyActivityTab.tsx                   (~200 righe) -- tab "Attivita" (KPI, ultimi ordini/ticket, azioni rapide)
+```
 
-Dopo la rimozione di `Badge` e `collectedAmount`:
-- Rimuovere `Badge` dall'import di `@/components/ui/badge`
+### Come funziona
 
-## 4. Riepilogo Modifiche
+`CompanyDetail.tsx` resta il componente padre che:
+- Gestisce tutto lo **state** (company, stats, form, dialogs)
+- Contiene tutte le **queries** (useQuery per team, plan, logs, ecc.)
+- Contiene tutte le **mutations** (updateStatus, changePlan, extendTrial, ecc.)
+- Passa props ai sotto-componenti di ogni tab
 
-| File | Cosa | Tipo |
-|------|------|------|
-| `src/components/orders/OrderEconomics.tsx` | Rimuovere import `Badge`, variabile `commissionDetails`, prop `collectedAmount` | Pulizia |
-| `src/pages/azienda/OrderDetail.tsx` | Rimuovere prop `collectedAmount` dal componente `OrderEconomics` | Pulizia |
+Ogni componente tab riceve solo le props di cui ha bisogno e si occupa esclusivamente del rendering.
 
-## 5. Cosa NON cambia
+### Costanti condivise
 
-- Il calcolo delle provvigioni nel Conto Economico resta invariato (usa `totalAmount` per tutte le percentuali)
-- La card `OrderCommissions` resta invariata (usa `collectedAmount` correttamente per mostrare l'importo effettivo da pagare)
-- Il margine resta calcolato correttamente
-- Nessun cambiamento funzionale
+Le costanti `ALL_MODULES`, `PERMISSION_LABELS`, `eventTypeLabels`, `eventTypeIcons`, `commissionTypeLabels`, `ticketStatusLabels` verranno spostate in un file dedicato `src/lib/adminConstants.ts` e importate dove servono.
+
+### Dialoghi
+
+I dialoghi (ChangePlan, StaffUser, Permissions, Salesperson, Employee, Password) restano in `CompanyDetail.tsx` perche dipendono dallo state centralizzato. Vengono renderizzati dopo i tab come oggi.
+
+---
+
+## Riepilogo modifiche
+
+| Azione | File |
+|--------|------|
+| Eliminare | `src/pages/admin/GlobalOrders.tsx` |
+| Creare | `src/lib/adminConstants.ts` |
+| Creare | `src/components/admin/company/CompanyDetailHeader.tsx` |
+| Creare | `src/components/admin/company/CompanyDetailsTab.tsx` |
+| Creare | `src/components/admin/company/CompanyTeamTab.tsx` |
+| Creare | `src/components/admin/company/CompanySaaSTab.tsx` |
+| Creare | `src/components/admin/company/CompanySubscriptionTab.tsx` |
+| Creare | `src/components/admin/company/CompanyActivityTab.tsx` |
+| Modificare | `src/pages/admin/CompanyDetail.tsx` (da 1907 a ~200 righe) |
+| Modificare | `src/components/layouts/AdminLayout.tsx` (rimuovere voce Ordini) |
+| Modificare | `src/App.tsx` (rimuovere route e import GlobalOrders) |
+
+Nessun cambiamento funzionale: stessa UI, stessi dati, stesse azioni. Solo riorganizzazione del codice e rimozione della sezione ordini.
+
