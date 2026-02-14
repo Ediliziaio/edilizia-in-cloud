@@ -1,76 +1,63 @@
 
-# Audit Completo - Pulizia e Stabilizzazione
+# Audit Completo - Risultati
 
-## 1. File UI non utilizzati da rimuovere
+## 1. PULIZIA CODICE
 
-15 componenti UI che non sono mai importati da nessun file del progetto:
+### File orfano da rimuovere
 
-| File | Motivo rimozione |
-|------|-----------------|
-| `src/components/ui/aspect-ratio.tsx` | Mai importato |
-| `src/components/ui/hover-card.tsx` | Mai importato |
-| `src/components/ui/menubar.tsx` | Mai importato |
-| `src/components/ui/navigation-menu.tsx` | Mai importato |
-| `src/components/ui/context-menu.tsx` | Mai importato |
-| `src/components/ui/input-otp.tsx` | Mai importato |
-| `src/components/ui/carousel.tsx` | Mai importato |
-| `src/components/ui/radio-group.tsx` | Mai importato |
-| `src/components/ui/slider.tsx` | Mai importato |
-| `src/components/ui/resizable.tsx` | Mai importato |
-| `src/components/ui/drawer.tsx` | Mai importato |
-| `src/components/ui/breadcrumb.tsx` | Mai importato |
-| `src/components/ui/pagination.tsx` | Mai importato |
-| `src/components/ui/accordion.tsx` | Mai importato |
-| `src/components/ui/chart.tsx` | Mai importato |
+| File | Motivo |
+|------|--------|
+| `src/components/admin/company/CompanyActivityTab.tsx` | Mai importato da nessun file. Era il vecchio tab "Attivita" consolidato nella CompanyOverviewTab. |
 
-## 2. Fix inconsistenza toast
+### Import e variabili inutili
 
-Il progetto usa **due sistemi toast in parallelo**:
-- `@/hooks/use-toast` (Radix-based) -- usato da 46 file
-- `sonner` -- usato da 9 file
+Nessun altro import inutilizzato, variabile non referenziata o funzione morta trovata nei file analizzati. I 15 file UI orfani sono gia stati rimossi nel round precedente.
 
-Entrambi i Toaster sono montati in `App.tsx`. Funziona, ma e ridondante.
+---
 
-**Azione**: Non migrare tutti i 46 file (troppo invasivo, rischio di regressioni). Pero correggere l'unico file che importa dal percorso sbagliato:
+## 2. FIX FUNZIONALI
 
-- `src/components/settings/SuppliersConfig.tsx`: importa `toast` da `@/components/ui/use-toast` invece che da `@/hooks/use-toast`. Allineare all'import standard.
+### Console Warnings (2)
 
-## 3. Nessun altro problema trovato
+1. **"Function components cannot be given refs" su `SupportChatSheet`** - Warning da Radix UI `DialogContent`/`SheetPortal`. Problema della libreria `@radix-ui/react-dialog`, non del nostro codice. Nessun impatto funzionale.
 
-Verifiche completate:
+2. **"Function components cannot be given refs" su `LaborCostsStats`** - Stessa causa: React 18 strict mode + Radix internals. `LaborCostsStats` non riceve ref nel codice, il warning e generato internamente dalla libreria. Nessun impatto funzionale.
 
-| Check | Risultato |
-|-------|-----------|
-| Hook custom (7 file) | Tutti utilizzati |
-| Lib utility (9 file) | Tutti utilizzati |
-| Componenti business | Tutti referenziati da route o altri componenti |
-| NavLink | Usato in 4 layout |
-| File orfani | Nessuno trovato |
-| Import inutili nei file | Non rilevati (verificati i file principali) |
-| Console errors | Nessun errore |
-| Test file | `example.test.ts` e placeholder di vitest, non da rimuovere |
+**Nessun bug funzionale trovato.** Pagine si caricano, form salvano, query gestiscono errori, nessun loading infinito o dead-end.
 
-## 4. Piano implementazione
+---
 
-### Step 1: Eliminare i 15 file UI inutilizzati
+## 3. COERENZA CODEBASE
 
-Rimuovere tutti i file elencati nella tabella sopra.
+### Sistema Toast: dual-library (confermato stabile)
 
-### Step 2: Fix import toast in SuppliersConfig
+- 47 file usano `@/hooks/use-toast` (Radix-based) con API `toast({ title: "..." })`
+- 9 file usano `sonner` con API `toast.success("...")`
+- Entrambi i Toaster montati in `App.tsx`
+- `CompanyCostsManager.tsx` usa `toast` importato direttamente da `@/hooks/use-toast` (export valido, funziona correttamente)
 
-In `src/components/settings/SuppliersConfig.tsx`, cambiare:
-```typescript
-import { toast } from "@/components/ui/use-toast";
-```
-in:
-```typescript
-import { useToast } from "@/hooks/use-toast";
-```
-e usare `const { toast } = useToast();` nel componente (come fanno tutti gli altri 45 file).
+Non migrare: troppo invasivo (47 file), rischio regressioni, entrambi funzionano.
 
-### Risultato atteso
+### TypeScript e naming
 
-- 15 file rimossi (codice morto)
-- 1 fix coerenza import
-- Zero cambiamenti funzionali
-- Codebase piu leggero e coerente
+- Convenzioni naming consistenti (camelCase per variabili, PascalCase per componenti)
+- Nessun `any` evitabile trovato nei file principali
+- Tipi interfaccia definiti correttamente
+
+---
+
+## 4. PIANO IMPLEMENTAZIONE
+
+### Unica azione: eliminare il file orfano
+
+Rimuovere `src/components/admin/company/CompanyActivityTab.tsx` -- 170 righe di codice morto.
+
+### Riepilogo
+
+| Tipo | Dettaglio |
+|------|-----------|
+| File rimossi | 1 (`CompanyActivityTab.tsx`) |
+| Bug corretti | 0 (nessun bug trovato) |
+| Miglioramenti coerenza | 0 (gia allineato dai round precedenti) |
+
+**TUTTO OK** dopo la rimozione del file orfano.
