@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ export default function CompaniesList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("*, subscription_plans:subscription_plan_id(id, name)")
+        .select("*, subscription_plans:subscription_plan_id(id, name, price_monthly)")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -192,6 +193,7 @@ export default function CompaniesList() {
                   <TableHead>Azienda</TableHead>
                   <TableHead>Settore</TableHead>
                   <TableHead>Piano</TableHead>
+                  <TableHead>MRR</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead className="text-center">Ordini</TableHead>
                   <TableHead>Creata il</TableHead>
@@ -202,7 +204,7 @@ export default function CompaniesList() {
                 {filteredCompanies.map((company) => {
                   const status = (company.status || "trial") as CompanyStatus;
                   const cfg = statusConfig[status] || statusConfig.trial;
-                  const plan = company.subscription_plans as { id: string; name: string } | null;
+                  const plan = company.subscription_plans as { id: string; name: string; price_monthly: number } | null;
 
                   return (
                     <TableRow
@@ -236,7 +238,13 @@ export default function CompaniesList() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                        {plan ? (
+                          <span className="text-sm font-medium">{formatCurrency(plan.price_monthly)}</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="text-sm font-medium">{orderCounts[company.id] || 0}</span>

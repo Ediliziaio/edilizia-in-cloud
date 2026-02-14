@@ -16,7 +16,7 @@ import { CompanyDetailsTab } from "@/components/admin/company/CompanyDetailsTab"
 import { CompanyTeamTab } from "@/components/admin/company/CompanyTeamTab";
 import { CompanySaaSTab } from "@/components/admin/company/CompanySaaSTab";
 import { CompanySubscriptionTab } from "@/components/admin/company/CompanySubscriptionTab";
-import { CompanyActivityTab } from "@/components/admin/company/CompanyActivityTab";
+import { CompanyOverviewTab } from "@/components/admin/company/CompanyOverviewTab";
 import { useCompanyDetail } from "@/hooks/useCompanyDetail";
 
 export default function CompanyDetail() {
@@ -73,14 +73,26 @@ export default function CompanyDetail() {
         onImpersonate={handleImpersonateNav}
       />
 
-      <Tabs defaultValue="dettagli">
+      <Tabs defaultValue="panoramica">
         <TabsList>
-          <TabsTrigger value="dettagli">Dettagli di base</TabsTrigger>
+          <TabsTrigger value="panoramica">Panoramica</TabsTrigger>
+          <TabsTrigger value="dettagli">Dettagli</TabsTrigger>
           <TabsTrigger value="team"><Users className="h-4 w-4 mr-1.5" />Team</TabsTrigger>
           <TabsTrigger value="saas">SaaS</TabsTrigger>
           <TabsTrigger value="abbonamento">Abbonamento</TabsTrigger>
-          <TabsTrigger value="attivita">Attività</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="panoramica">
+          <CompanyOverviewTab
+            stats={h.stats} totalTeam={totalTeam} teamData={h.teamData}
+            recentOrders={h.recentOrders} recentTickets={h.recentTickets}
+            currentPlan={h.currentPlan} currentSubscription={h.currentSubscription}
+            monthlyOrders={h.monthlyOrders} daysSinceLastOrder={h.daysSinceLastOrder}
+            companyCreatedAt={h.company.created_at}
+            onImpersonate={handleImpersonateNav}
+            onImpersonateAndNavigate={handleImpersonateAndNavigate}
+          />
+        </TabsContent>
 
         <TabsContent value="dettagli">
           <CompanyDetailsTab
@@ -118,15 +130,6 @@ export default function CompanyDetail() {
             onExtendTrial={(days) => h.extendTrialMutation.mutate(days)}
             isUpdatingStatus={h.updateStatusMutation.isPending}
             isExtendingTrial={h.extendTrialMutation.isPending}
-          />
-        </TabsContent>
-
-        <TabsContent value="attivita">
-          <CompanyActivityTab
-            stats={h.stats} totalTeam={totalTeam} teamData={h.teamData}
-            recentOrders={h.recentOrders} recentTickets={h.recentTickets}
-            onImpersonate={handleImpersonateNav}
-            onImpersonateAndNavigate={handleImpersonateAndNavigate}
           />
         </TabsContent>
       </Tabs>
