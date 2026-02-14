@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -221,6 +221,55 @@ export function useCompanyDetail(id: string | undefined) {
     enabled: !!id,
   });
 
+  // Monthly orders for chart (last 6 months)
+  const { data: allOrders } = useQuery({
+    queryKey: ["company-all-orders-chart", id],
+    queryFn: async () => {
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const { data } = await supabase
+        .from("orders")
+        .select("created_at, total_amount")
+        .eq("company_id", id!)
+        .gte("created_at", sixMonthsAgo.toISOString())
+        .order("created_at", { ascending: true });
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  const monthlyOrders = useMemo(() => {
+    if (!allOrders || allOrders.length === 0) return [];
+    const months: Record<string, { count: number; value: number }> = {};
+    // Pre-fill last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      months[key] = { count: 0, value: 0 };
+    }
+    allOrders.forEach((o) => {
+      const d = new Date(o.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (months[key]) {
+        months[key].count += 1;
+        months[key].value += o.total_amount || 0;
+      }
+    });
+    const monthNames = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+    return Object.entries(months).map(([key, val]) => ({
+      month: monthNames[parseInt(key.split("-")[1]) - 1],
+      count: val.count,
+      value: Math.round(val.value),
+    }));
+  }, [allOrders]);
+
+  const daysSinceLastOrder = useMemo(() => {
+    if (!recentOrders || recentOrders.length === 0) return null;
+    const lastDate = new Date(recentOrders[0].created_at);
+    return Math.round((Date.now() - lastDate.getTime()) / (24 * 60 * 60 * 1000));
+  }, [recentOrders]);
+
   // ========== MUTATIONS ==========
 
   const refreshCompany = () => {
@@ -429,7 +478,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   return {
     // Data
-    company, stats, isLoading, teamData, currentPlan, subscriptionLogs, currentSubscription, plans, recentOrders, recentTickets, form,
+    company, stats, isLoading, teamData, currentPlan, subscriptionLogs, currentSubscription, plans, recentOrders, recentTickets, monthlyOrders, daysSinceLastOrder, form,
     // UI state
     changePlanDialog, setChangePlanDialog, selectedPlanId, setSelectedPlanId, isSaving, sameAsLegal, setSameAsLegal,
     createStaffOpen, setCreateStaffOpen, createStaffLoading,
