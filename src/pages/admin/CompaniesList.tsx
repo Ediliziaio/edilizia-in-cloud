@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Loader2 } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -12,17 +12,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { sectorLabels, statusConfig } from "@/lib/companyUtils";
+import { sectorLabels, statusConfig, sectors } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
 
 export default function CompaniesList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sectorFilter, setSectorFilter] = useState("all");
+  const [planFilter, setPlanFilter] = useState("all");
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
   const { data: companies = [], isLoading } = useQuery({
-    queryKey: ["admin-companies"],
+    queryKey: ["admin-companies-full"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
@@ -35,13 +37,57 @@ export default function CompaniesList() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const filteredCompanies = companies.filter((company) => {
+  // Fetch order counts per company
+  const { data: orderCounts = {} } = useQuery({
+    queryKey: ["admin-companies-order-counts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("orders").select("company_id");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data || []).forEach((o) => {
+        counts[o.company_id] = (counts[o.company_id] || 0) + 1;
+      });
+      return counts;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const uniquePlans = useMemo(() => {
+    const planMap = new Map<string, string>();
+    companies.forEach((c) => {
+      const plan = c.subscription_plans as { id: string; name: string } | null;
+      if (plan) planMap.set(plan.id, plan.name);
+    });
+    return Array.from(planMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [companies]);
+
+  const filteredCompanies = useMemo(() => companies.filter((company) => {
     const matchesSearch =
       company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       company.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || company.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+    const matchesSector = sectorFilter === "all" || company.sector === sectorFilter;
+    const plan = company.subscription_plans as { id: string; name: string } | null;
+    const matchesPlan = planFilter === "all" || plan?.id === planFilter;
+    return matchesSearch && matchesStatus && matchesSector && matchesPlan;
+  }), [companies, searchQuery, statusFilter, sectorFilter, planFilter]);
+
+  const handleExportCSV = () => {
+    const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Creata il"];
+    const rows = filteredCompanies.map((c) => {
+      const plan = c.subscription_plans as { id: string; name: string } | null;
+      return [
+        c.name, c.email, sectorLabels[c.sector] || c.sector, plan?.name || "—",
+        c.status, orderCounts[c.id] || 0, format(new Date(c.created_at), "dd/MM/yyyy"),
+      ].join(",");
+    });
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "aziende.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleImpersonate = async (e: React.MouseEvent, companyId: string) => {
     e.stopPropagation();
@@ -64,8 +110,8 @@ export default function CompaniesList() {
         </Button>
       </div>
 
-      <div className="flex gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Cerca per nome o email..."
@@ -75,7 +121,7 @@ export default function CompaniesList() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Stato" />
           </SelectTrigger>
           <SelectContent>
@@ -86,6 +132,31 @@ export default function CompaniesList() {
             <SelectItem value="expired">Scaduto</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={sectorFilter} onValueChange={setSectorFilter}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Settore" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti i settori</SelectItem>
+            {sectors.map((s) => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={planFilter} onValueChange={setPlanFilter}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Piano" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti i piani</SelectItem>
+            {uniquePlans.map((p) => (
+              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="icon" onClick={handleExportCSV} title="Esporta CSV">
+          <Download className="h-4 w-4" />
+        </Button>
       </div>
 
       {isLoading ? (
@@ -122,7 +193,7 @@ export default function CompaniesList() {
                   <TableHead>Settore</TableHead>
                   <TableHead>Piano</TableHead>
                   <TableHead>Stato</TableHead>
-                  <TableHead>Scadenza Trial</TableHead>
+                  <TableHead className="text-center">Ordini</TableHead>
                   <TableHead>Creata il</TableHead>
                   <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
@@ -167,14 +238,8 @@ export default function CompaniesList() {
                       <TableCell>
                         <Badge variant={cfg.variant}>{cfg.label}</Badge>
                       </TableCell>
-                      <TableCell>
-                        {company.trial_ends_at ? (
-                          <span className="text-sm">
-                            {format(new Date(company.trial_ends_at), "dd/MM/yyyy", { locale: it })}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
+                      <TableCell className="text-center">
+                        <span className="text-sm font-medium">{orderCounts[company.id] || 0}</span>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm">
