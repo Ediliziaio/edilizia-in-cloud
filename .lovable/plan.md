@@ -1,118 +1,31 @@
 
 
-# Task Management - Implementazione Completa
+# Fix: Cliente non caricato in Modifica Ordine
 
-## Panoramica
+## Problema
 
-Nuova sezione **Attivita** nell'area azienda con gestione task assegnabili a utenti, collegabili a ordini, magazzino (articoli stock), costi e pagamenti. Ogni task ha titolo, note, priorita, scadenza e assegnatario.
+Quando si apre la pagina "Modifica Ordine", il sistema di **bozza automatica** (draft) sovrascrive il cliente assegnato con un valore vuoto. Questo succede perche:
 
----
+1. La bozza viene salvata automaticamente ad ogni modifica dei campi
+2. Se la bozza e stata salvata prima che il `customerId` fosse correttamente inizializzato, salva una stringa vuota
+3. Al rientro nella pagina, la bozza viene ripristinata e il campo cliente risulta vuoto anche se l'ordine ha un cliente assegnato nel database
 
-## 1. Database
+## Soluzione
 
-### Nuova tabella: `tasks`
+Modificare la logica di ripristino bozza in `src/pages/azienda/EditOrder.tsx` per **usare sempre il `customer_id` dal database** quando il draft ha un `customerId` vuoto. Il cliente e un dato critico che non dovrebbe mai essere perso durante il ripristino di una bozza.
 
-| Colonna | Tipo | Obbligatorio | Default | Note |
-|---------|------|-------------|---------|------|
-| id | uuid | Si | gen_random_uuid() | PK |
-| company_id | uuid | Si | - | FK companies, tenant isolation |
-| title | text | Si | - | Titolo task |
-| notes | text | No | null | Note/descrizione |
-| status | text | Si | 'da_fare' | da_fare, in_corso, completata |
-| priority | text | Si | 'normale' | bassa, normale, alta, urgente |
-| due_date | date | No | null | Scadenza |
-| assigned_to | uuid | No | null | FK profiles.id |
-| order_id | uuid | No | null | FK orders.id |
-| stock_item_id | uuid | No | null | FK warehouse_stock.id |
-| cost_id | uuid | No | null | FK company_costs.id |
-| category | text | Si | 'generale' | ordini, magazzino, pagamenti, costi, generale |
-| created_by | uuid | Si | - | Chi ha creato la task |
-| completed_at | timestamptz | No | null | Data completamento |
-| created_at | timestamptz | Si | now() | |
-| updated_at | timestamptz | Si | now() | |
+### Modifica specifica
 
-### RLS Policies
+Nel `useEffect` che gestisce il caricamento dati (riga ~212-275):
 
-- **Company admin**: ALL su propria azienda
-- **Staff con can_view_orders**: SELECT su propria azienda
-- **Staff con can_edit_orders**: ALL su propria azienda
-- **Dipendenti**: SELECT dove assigned_to = proprio user_id
-- **Super admin**: ALL
+- Quando si ripristina una bozza, se `draft.customerId` e vuoto, usare `order.customer_id` come fallback
+- Cambiare: `setCustomerId(draft.customerId || "")` in `setCustomerId(draft.customerId || order.customer_id)`
 
-### Trigger
+Questo garantisce che il cliente venga sempre mostrato correttamente, anche se la bozza non contiene l'informazione.
 
-- Riuso del trigger `update_updated_at_column` gia esistente
+### File da modificare
 
----
-
-## 2. File da creare
-
-### `src/pages/azienda/Tasks.tsx`
-
-Pagina principale con:
-- Header: titolo + contatore task attive + pulsante "Nuova Attivita"
-- **StatCards**: totale attive, in scadenza (prossime 48h), scadute, completate settimana
-- **Filtri**: stato, priorita, assegnatario, categoria (ordini/magazzino/costi/pagamenti/generale)
-- **Tabella**: titolo, assegnatario, elemento collegato (ordine/articolo/costo), priorita (badge colorato), scadenza, stato
-- Badge rosso per task scadute
-- Click su riga apre dialog modifica
-- Checkbox rapida per completare (da_fare -> completata)
-- Empty state con CTA
-
-### `src/components/tasks/TaskDialog.tsx`
-
-Dialog creazione/modifica:
-- Titolo (obbligatorio)
-- Note (textarea)
-- Priorita (select: bassa/normale/alta/urgente)
-- Categoria (select: generale/ordini/magazzino/pagamenti/costi)
-- Scadenza (datepicker)
-- Assegna a (select con profili aziendali + dipendenti)
-- Collegamento condizionale in base a categoria:
-  - ordini -> select ordine
-  - magazzino -> select articolo magazzino
-  - costi/pagamenti -> select costo aziendale
-  - generale -> nessun collegamento
-- Stato (select, solo in modifica)
-- Pulsante elimina (solo in modifica)
-
-### `src/components/tasks/TaskStatCards.tsx`
-
-4 card riassuntive: attive, in scadenza, scadute, completate questa settimana.
-
----
-
-## 3. File da modificare
-
-### `src/App.tsx`
-
-Aggiungere rotta: `<Route path="attivita" element={<Tasks />} />` nel blocco azienda.
-
-### `src/components/layouts/CompanyLayout.tsx`
-
-Aggiungere nav item "Attivita" con icona `CheckSquare`, dopo "Dipendenti", con `permissionKey: "canViewOrders"` e `moduleKey: "orders"`.
-
----
-
-## 4. UX
-
-- Badge priorita: bassa (grigio), normale (blu), alta (arancione), urgente (rosso)
-- Righe scadute: sfondo rosso leggero
-- Cambio stato rapido con checkbox
-- Toast conferma su ogni azione
-- Empty state con illustrazione e CTA "Crea la tua prima attivita"
-- Collegamento cliccabile all'ordine/costo/articolo associato
-
----
-
-## 5. Riepilogo modifiche
-
-| Azione | File |
-|--------|------|
-| Migrazione DB | Tabella tasks + RLS + trigger |
-| Creare | `src/pages/azienda/Tasks.tsx` |
-| Creare | `src/components/tasks/TaskDialog.tsx` |
-| Creare | `src/components/tasks/TaskStatCards.tsx` |
-| Modificare | `src/App.tsx` |
-| Modificare | `src/components/layouts/CompanyLayout.tsx` |
+| File | Modifica |
+|------|----------|
+| `src/pages/azienda/EditOrder.tsx` | Fallback `customer_id` dal DB durante ripristino bozza |
 
