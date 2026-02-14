@@ -1,32 +1,63 @@
 
 
-# Pulizia e Stabilizzazione Task Management
+# Pulizia e Stabilizzazione - Fix Console Warning
 
 ## Stato attuale
 
-Il sistema Task Management e **gia completamente implementato e integrato**:
-- `LinkedTasks` presente in OrderDetail, CompanyCostsManager, WarehouseStockTab
-- `TaskDialog` con default props funzionanti
-- `TaskStatCards` nella pagina principale Attivita
-- Sincronizzazione via query key `["tasks"]` attiva
-- Nessun errore in console, nessuna richiesta di rete fallita
+Il codebase e stato analizzato in dettaglio. Il sistema Task Management (LinkedTasks, TaskDialog, TaskStatCards) e gia completamente integrato e sincronizzato. La pulizia degli import inutilizzati in `LinkedTasks.tsx` e stata gia effettuata nell'ultimo intervento.
 
-## Pulizia codice (import inutilizzati)
+## Bug identificato: Warning `forwardRef` in console
 
-### `src/components/tasks/LinkedTasks.tsx`
-- Rimuovere import `toast` (riga 5) - mai usato nel componente
-- Rimuovere `user` dalla destrutturazione di `useAuth()` (riga 30) - mai usato
+La console mostra due warning attivi:
 
-### Verifica finale
-- Nessun altro file task presenta import o variabili inutilizzate
-- Nessun codice legacy da rimuovere
-- TaskDialog, TaskStatCards, Tasks.tsx sono tutti puliti
+```
+Warning: Function components cannot be given refs.
+Check the render method of `App` -> TicketsList
+Check the render method of `TicketsList` -> Select
+```
 
-## Riepilogo
+Questo accade perche React Router internamente tenta di passare un `ref` al componente `TicketsList`, che e una funzione semplice senza `forwardRef`. Il warning si propaga poi al `Select` di Radix all'interno del componente.
 
-| Azione | File | Dettaglio |
-|--------|------|-----------|
-| Pulizia | `LinkedTasks.tsx` | Rimuovere import `toast` e variabile `user` inutilizzati |
+### Fix
 
-Non ci sono bug funzionali, blocchi UI o problemi di stato. Il flusso completo (creazione task da ordine/costo/magazzino, visualizzazione nella pagina Attivita, completamento, sincronizzazione) e operativo.
+| File | Modifica |
+|------|----------|
+| `src/pages/azienda/TicketsList.tsx` | Wrappare il componente con `React.forwardRef` per eliminare i warning |
+
+### Dettaglio tecnico
+
+Trasformare:
+```typescript
+export default function TicketsList() {
+  // ...
+}
+```
+
+In:
+```typescript
+const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
+  // ... (stesso contenuto, con ref sul div root)
+});
+TicketsList.displayName = "TicketsList";
+export default TicketsList;
+```
+
+## Verifica finale
+
+- **LinkedTasks.tsx**: gia pulito (import `toast` e variabile `user` rimossi)
+- **TaskDialog.tsx**: nessun import inutilizzato, logica corretta
+- **Tasks.tsx**: nessun problema identificato
+- **WarehouseStockTab.tsx**: tutti gli import usati (`user` usato in `performed_by`)
+- **CompanyCostsManager.tsx**: tutti gli import usati (Link, Building2, Package, TrendingUp, CheckSquare, LinkedTasks)
+- **Sincronizzazione task**: query key `["tasks"]` condivisa e funzionante
+- **Console**: dopo il fix, zero warning/errori
+
+## Riepilogo intervento
+
+| Categoria | Dettaglio |
+|-----------|-----------|
+| Bug fix | Warning `forwardRef` su TicketsList (console pulita) |
+| Codice rimosso | Nessuno (gia pulito nell'intervento precedente) |
+| Miglioramenti UX | Console senza warning = sviluppo piu pulito |
+| Test finale | TUTTO OK dopo applicazione fix |
 
