@@ -26,6 +26,7 @@ import CompanyDetail from "@/pages/admin/CompanyDetail";
 import GlobalTickets from "@/pages/admin/GlobalTickets";
 import AdminSettings from "@/pages/admin/AdminSettings";
 import SubscriptionPlans from "@/pages/admin/SubscriptionPlans";
+import ReferralDashboard from "@/pages/admin/ReferralDashboard";
 
 // Company Pages  
 import CompanyDashboard from "@/pages/azienda/CompanyDashboard";
@@ -103,6 +104,7 @@ const App = () => (
               <Route path="ticket" element={<GlobalTickets />} />
               <Route path="impostazioni" element={<AdminSettings />} />
               <Route path="piani" element={<SubscriptionPlans />} />
+              <Route path="referral" element={<ReferralDashboard />} />
             </Route>
 
             {/* Company Admin and Staff Routes */}

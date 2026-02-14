@@ -6,7 +6,8 @@ import {
   LogOut,
   MessageSquare,
   Settings,
-  CreditCard
+  CreditCard,
+  Gift
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ const navItems = [
   { title: "Aziende", url: "/admin/aziende", icon: Building },
   { title: "Ticket", url: "/admin/ticket", icon: MessageSquare },
   { title: "Piani", url: "/admin/piani", icon: CreditCard },
+  { title: "Referral", url: "/admin/referral", icon: Gift },
 ];
 
 const accountItems = [

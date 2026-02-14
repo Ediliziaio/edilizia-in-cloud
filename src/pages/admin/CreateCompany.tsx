@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Building2, ArrowLeft, Loader2 } from "lucide-react";
@@ -66,6 +67,20 @@ export default function CreateCompany() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedSector, setSelectedSector] = useState<CompanySector | null>(null);
   const [sameAsLegal, setSameAsLegal] = useState(false);
+  const [selectedReferrerId, setSelectedReferrerId] = useState<string>("");
+
+  const { data: referrers = [] } = useQuery({
+    queryKey: ["referrers-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("referrers")
+        .select("id, name, referral_code")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -121,6 +136,16 @@ export default function CreateCompany() {
 
       if (error) throw error;
       if (!result.success) throw new Error(result.error);
+
+      // If a referrer was selected, create referral_companies record
+      const companyId = result.company?.id;
+      if (selectedReferrerId && selectedReferrerId !== "none" && companyId) {
+        await supabase.from("referral_companies").insert({
+          referrer_id: selectedReferrerId,
+          company_id: companyId,
+        });
+        await supabase.from("companies").update({ referred_by: selectedReferrerId }).eq("id", companyId);
+      }
 
       toast({
         title: "Azienda creata con successo!",
@@ -396,6 +421,30 @@ export default function CreateCompany() {
                         <FormMessage />
                       </FormItem>
                     )} />
+                  </div>
+
+                  {/* Referrer (opzionale) */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
+                      Referral (opzionale)
+                    </h3>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Referrer</label>
+                      <Select onValueChange={setSelectedReferrerId} value={selectedReferrerId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Nessun referrer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nessuno</SelectItem>
+                          {referrers.map((r) => (
+                            <SelectItem key={r.id} value={r.id}>
+                              {r.name} ({r.referral_code})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Se l'azienda è stata portata da un referrer</p>
+                    </div>
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
