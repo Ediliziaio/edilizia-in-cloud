@@ -4,11 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, MessageSquare, Search, Building, Clock } from "lucide-react";
+import { Loader2, MessageSquare, Search, Building, Clock, Flame, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { AdminSupportChatSheet } from "./AdminSupportChatSheet";
 import { SupportStats } from "./SupportStats";
+import { SupportFilters } from "./SupportFilters";
 
 interface SupportMessage {
   id: string;
@@ -23,6 +24,16 @@ interface Company {
   name: string;
 }
 
+interface SupportConversation {
+  id: string;
+  company_id: string;
+  status: string;
+  priority: string;
+  internal_notes: string | null;
+  resolved_at: string | null;
+  updated_at: string;
+}
+
 interface ConversationSummary {
   companyId: string;
   companyName: string;
@@ -30,10 +41,39 @@ interface ConversationSummary {
   lastMessageDate: string;
   totalMessages: number;
   unansweredByAdmin: boolean;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  priority: "low" | "normal" | "high" | "urgent";
+  internalNotes: string | null;
+  resolvedAt: string | null;
+  agingHours: number;
 }
+
+const statusColors: Record<string, string> = {
+  open: "bg-red-100 text-red-800 border-red-200",
+  in_progress: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  resolved: "bg-green-100 text-green-800 border-green-200",
+  closed: "bg-gray-100 text-gray-600 border-gray-200",
+};
+
+const statusLabels: Record<string, string> = {
+  open: "Aperta",
+  in_progress: "In lavorazione",
+  resolved: "Risolta",
+  closed: "Chiusa",
+};
+
+const priorityOrder: Record<string, number> = {
+  urgent: 0,
+  high: 1,
+  normal: 2,
+  low: 3,
+};
 
 export function AdminSupportChatList() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("recent");
   const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(null);
   const queryClient = useQueryClient();
 
@@ -64,8 +104,22 @@ export function AdminSupportChatList() {
     staleTime: 10 * 60 * 1000,
   });
 
+  const { data: conversationsData = [] } = useQuery({
+    queryKey: ["admin-support-conversations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("support_conversations")
+        .select("*");
+      if (error) throw error;
+      return (data ?? []) as SupportConversation[];
+    },
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+  });
+
   const conversations = useMemo(() => {
     const companyMap = new Map(companies.map((c) => [c.id, c.name]));
+    const convMap = new Map(conversationsData.map((c) => [c.company_id, c]));
     const grouped = new Map<string, SupportMessage[]>();
 
     for (const msg of messages) {
@@ -77,8 +131,17 @@ export function AdminSupportChatList() {
 
     const result: ConversationSummary[] = [];
     for (const [companyId, msgs] of grouped) {
-      const lastMsg = msgs[0]; // already sorted desc
+      const lastMsg = msgs[0];
       const companyName = companyMap.get(companyId) || "Azienda sconosciuta";
+      const conv = convMap.get(companyId);
+
+      // Calculate aging: hours since last company message without admin reply
+      let agingHours = 0;
+      const lastCompanyMsg = msgs.find((m) => m.sender_role !== "super_admin");
+      if (lastCompanyMsg && lastMsg.sender_role !== "super_admin") {
+        agingHours = (Date.now() - new Date(lastCompanyMsg.created_at).getTime()) / (1000 * 60 * 60);
+      }
+
       result.push({
         companyId,
         companyName,
@@ -86,20 +149,36 @@ export function AdminSupportChatList() {
         lastMessageDate: lastMsg.created_at,
         totalMessages: msgs.length,
         unansweredByAdmin: lastMsg.sender_role !== "super_admin",
+        status: (conv?.status as ConversationSummary["status"]) || "open",
+        priority: (conv?.priority as ConversationSummary["priority"]) || "normal",
+        internalNotes: conv?.internal_notes || null,
+        resolvedAt: conv?.resolved_at || null,
+        agingHours,
       });
     }
 
-    return result.sort((a, b) => new Date(b.lastMessageDate).getTime() - new Date(a.lastMessageDate).getTime());
-  }, [messages, companies]);
+    return result;
+  }, [messages, companies, conversationsData]);
 
-  const filtered = useMemo(
-    () =>
-      conversations.filter((c) =>
-        c.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
-      ),
-    [conversations, searchQuery]
-  );
+  const filtered = useMemo(() => {
+    let result = conversations.filter(
+      (c) =>
+        (c.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          c.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())) &&
+        (statusFilter === "all" || c.status === statusFilter) &&
+        (priorityFilter === "all" || c.priority === priorityFilter)
+    );
+
+    if (sortBy === "recent") {
+      result.sort((a, b) => new Date(b.lastMessageDate).getTime() - new Date(a.lastMessageDate).getTime());
+    } else if (sortBy === "oldest") {
+      result.sort((a, b) => new Date(a.lastMessageDate).getTime() - new Date(b.lastMessageDate).getTime());
+    } else if (sortBy === "priority") {
+      result.sort((a, b) => (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2));
+    }
+
+    return result;
+  }, [conversations, searchQuery, statusFilter, priorityFilter, sortBy]);
 
   const totalMessagesToday = useMemo(() => {
     const today = new Date();
@@ -107,9 +186,21 @@ export function AdminSupportChatList() {
     return messages.filter((m) => new Date(m.created_at) >= today).length;
   }, [messages]);
 
+  const getAgingIndicator = (hours: number, unanswered: boolean) => {
+    if (!unanswered) return null;
+    if (hours > 48) return <span className="h-2.5 w-2.5 rounded-full bg-red-500 inline-block" title=">48h" />;
+    if (hours > 24) return <span className="h-2.5 w-2.5 rounded-full bg-yellow-500 inline-block" title="24-48h" />;
+    return <span className="h-2.5 w-2.5 rounded-full bg-green-500 inline-block" title="<24h" />;
+  };
+
   return (
     <div className="space-y-4">
-      <SupportStats conversations={conversations} totalMessagesToday={totalMessagesToday} />
+      <SupportStats
+        conversations={conversations}
+        totalMessagesToday={totalMessagesToday}
+        messages={messages}
+      />
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -119,6 +210,15 @@ export function AdminSupportChatList() {
           className="pl-10"
         />
       </div>
+
+      <SupportFilters
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        priorityFilter={priorityFilter}
+        onPriorityChange={setPriorityFilter}
+        sortBy={sortBy}
+        onSortChange={setSortBy}
+      />
 
       {loadingMessages ? (
         <div className="flex items-center justify-center py-12">
@@ -130,7 +230,9 @@ export function AdminSupportChatList() {
             <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium">Nessuna conversazione</h3>
             <p className="text-muted-foreground text-center mt-2">
-              {searchQuery ? "Prova a modificare la ricerca" : "Non ci sono ancora chat di assistenza"}
+              {searchQuery || statusFilter !== "all" || priorityFilter !== "all"
+                ? "Prova a modificare i filtri"
+                : "Non ci sono ancora chat di assistenza"}
             </p>
           </CardContent>
         </Card>
@@ -147,13 +249,27 @@ export function AdminSupportChatList() {
                   <Building className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium truncate">{conv.companyName}</p>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${statusColors[conv.status]}`}>
+                      {statusLabels[conv.status]}
+                    </Badge>
+                    {conv.priority === "urgent" && (
+                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0 gap-0.5">
+                        <Flame className="h-3 w-3" /> Urgente
+                      </Badge>
+                    )}
+                    {conv.priority === "high" && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5 border-orange-300 text-orange-700 bg-orange-50">
+                        <AlertTriangle className="h-3 w-3" /> Alta
+                      </Badge>
+                    )}
                     {conv.unansweredByAdmin && (
-                      <Badge variant="destructive" className="text-xs">
+                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
                         Da rispondere
                       </Badge>
                     )}
+                    {getAgingIndicator(conv.agingHours, conv.unansweredByAdmin)}
                   </div>
                   <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
                 </div>
@@ -179,6 +295,7 @@ export function AdminSupportChatList() {
             if (!open) {
               setSelectedCompany(null);
               queryClient.invalidateQueries({ queryKey: ["admin-support-messages"] });
+              queryClient.invalidateQueries({ queryKey: ["admin-support-conversations"] });
             }
           }}
           companyId={selectedCompany.id}
