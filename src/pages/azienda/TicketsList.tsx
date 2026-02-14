@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,7 +56,7 @@ interface Ticket {
   } | null;
 }
 
-export default function TicketsList() {
+const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { effectiveCompany } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -117,7 +117,7 @@ export default function TicketsList() {
   }
 
   return (
-    <div className="space-y-6">
+    <div ref={ref} className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Assistenza</h1>
@@ -271,4 +271,6 @@ export default function TicketsList() {
       )}
     </div>
   );
-}
+});
+TicketsList.displayName = "TicketsList";
+export default TicketsList;
