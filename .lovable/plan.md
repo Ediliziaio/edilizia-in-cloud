@@ -1,90 +1,143 @@
 
-# Pulizia, Stabilizzazione e UX -- Sezione Admin
+# Collegamento Metodo di Pagamento per le Aziende
 
-## 1. Codice Morto e Pulizia
+## Panoramica
 
-### Da rimuovere/correggere:
+Attualmente il sistema ha predisposizioni per Stripe (campi `stripe_customer_id` nella tabella `companies` e `stripe_product_id`/`stripe_price_*_id` nei piani) ma nessun flusso di pagamento attivo. Questo intervento aggiunge la possibilita per il Super Admin di configurare il metodo di pagamento di ogni azienda, supportando tre modalita:
 
-**`useCompanyDetail.ts`:**
-- La funzione `handleImpersonateAndNavigate` (riga 343-347) fa `return path` invece di navigare -- e inutile perche `CompanyDetail.tsx` la reimplementa localmente (riga 63-66). Va rimossa dall'hook e dal return.
-- Query duplicata: `customersRes` (riga 92) e `profilesRes` (riga 94) interrogano entrambe `profiles` con `company_id = id`. Unificarle in una sola query che restituisce sia il count che gli id.
-- Prop `teamData` passata a `CompanyOverviewTab` ma mai letta dal componente -- rimuovere dalla signature e dal passaggio.
-
-**`CompanySubscriptionTab.tsx`:**
-- Riga 160: il testo dice "tab Dettagli di base" ma il tab si chiama ora "Dettagli". Correggere.
-
-**`CompanyActivityTab.tsx`:**
-- Il file e gia stato eliminato ma `tsconfig.app.tsbuildinfo` potrebbe contenere ancora un riferimento. Nessun import attivo, nessuna azione necessaria nel codice sorgente.
-
-### File coinvolti:
-- `src/hooks/useCompanyDetail.ts`
-- `src/components/admin/company/CompanyOverviewTab.tsx`
-- `src/components/admin/company/CompanySubscriptionTab.tsx`
-- `src/pages/admin/CompanyDetail.tsx`
+1. **Stripe** -- pagamento automatico con carta di credito tramite Stripe Checkout
+2. **Bonifico IBAN** -- pagamento manuale su conto corrente con tracciamento
+3. **Altro provider** -- campo libero per annotare metodi alternativi (PayPal, Satispay, ecc.)
 
 ---
 
-## 2. Fix Funzionali
+## Cosa vede il Super Admin
 
-### Stabilita query:
-- Aggiungere `staleTime: 2 * 60 * 1000` alle query `teamData`, `recentOrders`, `recentTickets`, `allOrders` nell'hook `useCompanyDetail` per allinearsi alla strategia di caching del progetto e ridurre re-fetch inutili.
+### Nuovo blocco "Metodo di Pagamento" nel tab Abbonamento
 
-### Error handling mutations:
-- Aggiungere `onError` a `updateStatusMutation`, `changePlanMutation`, `extendTrialMutation` con toast di errore. Oggi se falliscono l'utente non riceve feedback.
+All'interno di `CompanySubscriptionTab`, tra la card "Stato Abbonamento" e la card "Dati Fatturazione", compare una nuova card:
 
-### Edge case "nessun piano":
-- In `CompanyOverviewTab`, quando `currentPlan` e null, il LTV viene calcolato come `0 * monthsActive = 0` -- OK, ma mostrare "N/A" invece di "0,00" per evitare confusione.
-
-### Validazione form:
-- Il form in `CompanyDetailsTab` ha validazione Zod gia attiva. Verificare che i messaggi di errore siano visibili (lo sono, via `FormMessage`).
+**Card "Metodo di Pagamento":**
+- **Select** con opzioni: `Stripe`, `Bonifico IBAN`, `Altro`, `Non configurato`
+- Se **Stripe**: mostra il campo Stripe Customer ID (gia esistente), piu un bottone "Genera Link Pagamento" che creera una Checkout Session Stripe
+- Se **Bonifico IBAN**: mostra campi per IBAN, intestatario conto, nome banca, e causale suggerita. Mostra lo stato del pagamento corrente (pagato/in attesa)
+- Se **Altro**: campo di testo libero per annotare il provider e dettagli
 
 ---
 
-## 3. Miglioramenti UX
+## Modifiche al Database
 
-### Feedback immediato:
-- Aggiungere toast di errore su tutte le mutation che oggi mancano di `onError`.
-- Il bottone "Salva Modifiche" nel tab Dettagli ha gia lo stato loading -- OK.
+### Nuove colonne nella tabella `companies`:
 
-### Micro-interazione lista aziende:
-- La riga espandibile funziona gia con animazione chevron. Aggiungere `transition-all duration-200` al pannello espandibile per un'apertura piu fluida.
+| Colonna | Tipo | Default | Note |
+|---------|------|---------|------|
+| `payment_method` | text | `'none'` | Valori: `stripe`, `bank_transfer`, `other`, `none` |
+| `bank_iban` | text | null | IBAN per bonifico |
+| `bank_account_holder` | text | null | Intestatario conto |
+| `bank_name` | text | null | Nome banca |
+| `payment_notes` | text | null | Note/dettagli per "Altro" |
 
-### Testo "Dettagli di base" residuo:
-- Correggere in "Dettagli" nel `CompanySubscriptionTab` (riga 160) per coerenza con i tab.
-
-### Empty state consistenti:
-- Tutti gli empty state sono gia gestiti con icona + testo + CTA dove appropriato.
-
----
-
-## 4. Dettagli Tecnici delle Modifiche
-
-### `src/hooks/useCompanyDetail.ts`:
-1. Rimuovere `handleImpersonateAndNavigate` (righe 343-348) e dal return (riga 492)
-2. Unificare query `customersRes` e `profilesRes` in una sola chiamata
-3. Aggiungere `staleTime: 2 * 60 * 1000` alle query senza staleTime (`teamData`, `recentOrders`, `recentTickets`, `allOrders`, `currentSubscription`, `subscriptionLogs`)
-4. Aggiungere `onError` alle 3 mutation con toast destructive
-
-### `src/components/admin/company/CompanyOverviewTab.tsx`:
-1. Rimuovere prop `teamData` dalla interface e dal componente
-2. Mostrare "N/A" per LTV quando `mrr === 0`
-
-### `src/pages/admin/CompanyDetail.tsx`:
-1. Rimuovere passaggio prop `teamData` a `CompanyOverviewTab`
-2. Rimuovere riferimento a `h.handleImpersonateAndNavigate` (non usato direttamente)
-
-### `src/components/admin/company/CompanySubscriptionTab.tsx`:
-1. Correggere testo riga 160: "Dettagli di base" diventa "Dettagli"
-
-### `src/pages/admin/CompaniesList.tsx`:
-1. Aggiungere `transition-all duration-200` al pannello espandibile per fluidita
+Nessuna nuova tabella. Le colonne si aggiungono alla tabella `companies` gia protetta da RLS.
 
 ---
 
-## 5. Cosa NON cambia
+## Flusso Stripe (Checkout Session)
 
-- Nessun comportamento funzionale modificato
-- Nessuna migrazione database
-- Nessun nuovo file creato
-- Struttura tab e navigazione invariata
-- Logica di impersonificazione invariata
+### Nuova Edge Function: `create-checkout-session`
+
+Quando il Super Admin clicca "Genera Link Pagamento":
+
+1. L'edge function riceve `company_id` e `plan_id`
+2. Verifica che l'utente sia super_admin
+3. Crea o recupera il Stripe Customer (usando `stripe_customer_id` o creandone uno nuovo)
+4. Crea una Checkout Session con il `stripe_price_monthly_id` o `stripe_price_yearly_id` del piano
+5. Ritorna l'URL della Checkout Session
+6. Il Super Admin puo copiare l'URL e inviarlo all'azienda, oppure aprirlo direttamente
+
+### Nuova Edge Function: `stripe-webhook`
+
+Riceve gli eventi da Stripe e aggiorna automaticamente:
+- `checkout.session.completed` -- attiva l'abbonamento, salva `stripe_customer_id`
+- `invoice.paid` -- rinnovo andato a buon fine, aggiorna `current_period_end`
+- `customer.subscription.deleted` -- abbonamento cancellato, status diventa `expired`
+
+### Prerequisito: Chiave Stripe
+
+Prima di implementare le edge functions Stripe, sara necessario configurare la chiave segreta Stripe (`STRIPE_SECRET_KEY`) tramite i secrets del progetto. Il flusso Stripe funzionera solo dopo aver inserito questa chiave.
+
+---
+
+## Flusso Bonifico IBAN
+
+Nessuna integrazione esterna. Il Super Admin:
+
+1. Seleziona "Bonifico IBAN" come metodo di pagamento
+2. Compila i dati bancari dell'azienda SaaS (il conto su cui l'azienda cliente deve pagare)
+3. I dati vengono salvati nella tabella `companies`
+4. Il Super Admin puo poi tracciare manualmente se il bonifico e stato ricevuto tramite lo stato nel tab Abbonamento
+
+---
+
+## Dettagli Tecnici
+
+### Migrazione database:
+```sql
+ALTER TABLE companies
+ADD COLUMN payment_method text NOT NULL DEFAULT 'none',
+ADD COLUMN bank_iban text,
+ADD COLUMN bank_account_holder text,
+ADD COLUMN bank_name text,
+ADD COLUMN payment_notes text;
+```
+
+### File modificati:
+
+**`src/types/auth.ts`** -- Aggiungere i nuovi campi all'interfaccia `Company`:
+- `payment_method`, `bank_iban`, `bank_account_holder`, `bank_name`, `payment_notes`
+
+**`src/components/admin/company/CompanySubscriptionTab.tsx`** -- Aggiungere la card "Metodo di Pagamento" con:
+- Select per il tipo di metodo
+- Form condizionale per Stripe / IBAN / Altro
+- Bottone salva per i dati di pagamento
+- Bottone "Genera Link Pagamento" per Stripe
+
+**`src/hooks/useCompanyDetail.ts`** -- Aggiungere:
+- Mutation `updatePaymentMethod` per salvare metodo + dati bancari
+- Mutation `createCheckoutSession` per invocare la edge function Stripe
+
+**`supabase/functions/create-checkout-session/index.ts`** -- Nuova edge function:
+- Validazione super_admin
+- Creazione/recupero Stripe Customer
+- Creazione Checkout Session
+- Ritorno URL
+
+**`supabase/functions/stripe-webhook/index.ts`** -- Nuova edge function:
+- Validazione firma webhook Stripe
+- Gestione eventi: `checkout.session.completed`, `invoice.paid`, `customer.subscription.deleted`
+- Aggiornamento stato azienda e subscription
+
+### File nuovi:
+- `supabase/functions/create-checkout-session/index.ts`
+- `supabase/functions/stripe-webhook/index.ts`
+
+### Config Supabase:
+Aggiunta in `supabase/config.toml`:
+```toml
+[functions.create-checkout-session]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+```
+
+---
+
+## Ordine di implementazione
+
+1. Migrazione database (nuove colonne)
+2. Aggiornamento tipo `Company` in `auth.ts`
+3. Card "Metodo di Pagamento" nel tab Abbonamento (IBAN + Altro funzionanti subito)
+4. Richiesta chiave Stripe al utente
+5. Edge function `create-checkout-session`
+6. Edge function `stripe-webhook`
+7. Integrazione bottone "Genera Link" nel frontend
