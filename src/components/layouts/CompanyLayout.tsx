@@ -33,7 +33,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
 
 interface NavItem {
   title: string;
@@ -195,6 +196,7 @@ export function CompanyLayout() {
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
   const navigate = useNavigate();
+  const [supportOpen, setSupportOpen] = useState(false);
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
   
@@ -209,7 +211,7 @@ export function CompanyLayout() {
             <SidebarTrigger />
             <div className="flex-1" />
             {showSupport && (
-              <Button variant="outline" size="sm" onClick={() => navigate("/azienda/assistenza")}>
+              <Button variant="outline" size="sm" onClick={() => setSupportOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 mr-2" />
                 Assistenza
               </Button>
@@ -223,6 +225,9 @@ export function CompanyLayout() {
           </main>
         </div>
       </div>
+      {showSupport && (
+        <SupportChatSheet open={supportOpen} onOpenChange={setSupportOpen} />
+      )}
     </SidebarProvider>
   );
 }
