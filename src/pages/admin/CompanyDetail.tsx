@@ -130,6 +130,11 @@ export default function CompanyDetail() {
             onExtendTrial={(days) => h.extendTrialMutation.mutate(days)}
             isUpdatingStatus={h.updateStatusMutation.isPending}
             isExtendingTrial={h.extendTrialMutation.isPending}
+            onUpdatePaymentMethod={h.handleUpdatePaymentMethod}
+            isSavingPaymentMethod={h.updatePaymentMethodMutation.isPending}
+            onGenerateCheckout={h.handleCreateCheckout}
+            isGeneratingCheckout={h.createCheckoutMutation.isPending}
+            checkoutUrl={h.checkoutUrl}
           />
         </TabsContent>
       </Tabs>

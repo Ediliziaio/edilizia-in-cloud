@@ -76,6 +76,9 @@ export type Database = {
       }
       companies: {
         Row: {
+          bank_account_holder: string | null
+          bank_iban: string | null
+          bank_name: string | null
           business_name: string | null
           created_at: string
           email: string
@@ -92,6 +95,8 @@ export type Database = {
           operational_city: string | null
           operational_postal_code: string | null
           operational_province: string | null
+          payment_method: string
+          payment_notes: string | null
           pec: string | null
           phone: string | null
           sdi_code: string | null
@@ -105,6 +110,9 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          bank_account_holder?: string | null
+          bank_iban?: string | null
+          bank_name?: string | null
           business_name?: string | null
           created_at?: string
           email: string
@@ -121,6 +129,8 @@ export type Database = {
           operational_city?: string | null
           operational_postal_code?: string | null
           operational_province?: string | null
+          payment_method?: string
+          payment_notes?: string | null
           pec?: string | null
           phone?: string | null
           sdi_code?: string | null
@@ -134,6 +144,9 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          bank_account_holder?: string | null
+          bank_iban?: string | null
+          bank_name?: string | null
           business_name?: string | null
           created_at?: string
           email?: string
@@ -150,6 +163,8 @@ export type Database = {
           operational_city?: string | null
           operational_postal_code?: string | null
           operational_province?: string | null
+          payment_method?: string
+          payment_notes?: string | null
           pec?: string | null
           phone?: string | null
           sdi_code?: string | null

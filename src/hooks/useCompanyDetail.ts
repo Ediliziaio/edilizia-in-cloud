@@ -483,9 +483,68 @@ export function useCompanyDetail(id: string | undefined) {
     }
   };
 
+  const updatePaymentMethodMutation = useMutation({
+    mutationFn: async (data: {
+      payment_method: string;
+      bank_iban: string | null;
+      bank_account_holder: string | null;
+      bank_name: string | null;
+      payment_notes: string | null;
+    }) => {
+      if (!id) return;
+      const { error } = await supabase.from("companies").update(data as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refreshCompany();
+      toast({ title: "Metodo di pagamento aggiornato" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Errore", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleUpdatePaymentMethod = async (data: {
+    payment_method: string;
+    bank_iban: string | null;
+    bank_account_holder: string | null;
+    bank_name: string | null;
+    payment_notes: string | null;
+  }) => {
+    await updatePaymentMethodMutation.mutateAsync(data);
+  };
+
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+
+  const createCheckoutMutation = useMutation({
+    mutationFn: async ({ billingPeriod }: { billingPeriod?: string } = {}) => {
+      if (!id || !company?.subscription_plan_id) throw new Error("Piano non assegnato");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const resp = await supabase.functions.invoke("create-checkout-session", {
+        body: { company_id: id, plan_id: company.subscription_plan_id, billing_period: billingPeriod || "monthly" },
+        headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
+      });
+      if (resp.error) throw new Error(resp.error.message);
+      if (resp.data?.error) throw new Error(resp.data.error);
+      return resp.data;
+    },
+    onSuccess: (data) => {
+      setCheckoutUrl(data.url);
+      toast({ title: "Link di pagamento generato" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Errore generazione link", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleCreateCheckout = () => {
+    createCheckoutMutation.mutate({});
+  };
+
   return {
     // Data
     company, stats, isLoading, teamData, currentPlan, subscriptionLogs, currentSubscription, plans, recentOrders, recentTickets, monthlyOrders, daysSinceLastOrder, form,
+    checkoutUrl,
     // UI state
     changePlanDialog, setChangePlanDialog, selectedPlanId, setSelectedPlanId, isSaving, sameAsLegal, setSameAsLegal,
     createStaffOpen, setCreateStaffOpen, createStaffLoading,
@@ -494,9 +553,10 @@ export function useCompanyDetail(id: string | undefined) {
     permissionsUser, setPermissionsUser, savingPermissions,
     passwordDialog, setPasswordDialog, copiedPassword, setCopiedPassword, creatingAccountFor,
     // Mutations
-    updateStatusMutation, changePlanMutation, extendTrialMutation,
+    updateStatusMutation, changePlanMutation, extendTrialMutation, updatePaymentMethodMutation, createCheckoutMutation,
     // Handlers
     handleImpersonate, handleCreateStaff, handleSavePermissions,
     handleCreateSalesperson, handleCreateEmployee, handleCreateAccount, handleCopyPassword, onSaveDetails,
+    handleUpdatePaymentMethod, handleCreateCheckout,
   };
 }

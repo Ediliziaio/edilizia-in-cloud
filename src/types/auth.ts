@@ -63,6 +63,11 @@ export interface Company {
   operational_postal_code: string | null;
   website: string | null;
   notes: string | null;
+  payment_method: string;
+  bank_iban: string | null;
+  bank_account_holder: string | null;
+  bank_name: string | null;
+  payment_notes: string | null;
   created_at: string;
   updated_at: string;
 }
