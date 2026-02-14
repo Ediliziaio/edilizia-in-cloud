@@ -11,8 +11,6 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export interface ImportField {
@@ -104,8 +102,6 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport }:
   const [fileRows, setFileRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [fileName, setFileName] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ success: number; errors: string[] } | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -115,8 +111,6 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport }:
     setFileRows([]);
     setMapping({});
     setFileName("");
-    setImporting(false);
-    setProgress(0);
     setResult(null);
   }, []);
 
@@ -161,8 +155,6 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport }:
 
   const handleImport = useCallback(async () => {
     setStep("importing");
-    setImporting(true);
-    setProgress(0);
 
     // Build mapped rows
     const mappedRows = fileRows.map((row) => {
@@ -183,7 +175,6 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport }:
     } catch (err: any) {
       setResult({ success: 0, errors: [err?.message || "Errore durante l'importazione"] });
     } finally {
-      setImporting(false);
       setStep("result");
     }
   }, [fileRows, fileHeaders, mapping, onImport]);
