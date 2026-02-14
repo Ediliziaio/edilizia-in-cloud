@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,6 +21,7 @@ export default function CompaniesList() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
@@ -190,6 +191,7 @@ export default function CompaniesList() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10" />
                   <TableHead>Azienda</TableHead>
                   <TableHead>Settore</TableHead>
                   <TableHead>Piano</TableHead>
@@ -205,79 +207,134 @@ export default function CompaniesList() {
                   const status = (company.status || "trial") as CompanyStatus;
                   const cfg = statusConfig[status] || statusConfig.trial;
                   const plan = company.subscription_plans as { id: string; name: string; price_monthly: number } | null;
+                  const isExpanded = expandedId === company.id;
 
                   return (
-                    <TableRow
-                      key={company.id}
-                      className="cursor-pointer"
-                      onClick={() => navigate(`/admin/aziende/${company.id}`)}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          {company.logo_url ? (
-                            <img src={company.logo_url} alt={company.name} className="h-8 w-8 rounded-lg object-cover" />
-                          ) : (
-                            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <Building2 className="h-4 w-4 text-primary" />
-                            </div>
-                          )}
-                          <div>
-                            <p className="font-medium">{company.name}</p>
-                            <p className="text-xs text-muted-foreground">{company.email}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{sectorLabels[company.sector] || company.sector}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {plan ? (
-                          <Badge variant="outline">{plan.name}</Badge>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {plan ? (
-                          <span className="text-sm font-medium">{formatCurrency(plan.price_monthly)}</span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="text-sm font-medium">{orderCounts[company.id] || 0}</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">
-                          {format(new Date(company.created_at), "dd/MM/yyyy", { locale: it })}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                    <React.Fragment key={company.id}>
+                      <TableRow
+                        className="cursor-pointer"
+                        onClick={() => navigate(`/admin/aziende/${company.id}`)}
+                      >
+                        <TableCell className="w-10 px-2">
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
+                            className="h-7 w-7"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/admin/aziende/${company.id}`);
+                              setExpandedId(isExpanded ? null : company.id);
                             }}
                           >
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            Apri
+                            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => handleImpersonate(e, company.id)}
-                          >
-                            <LogIn className="h-4 w-4 mr-1" />
-                            Accedi
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            {company.logo_url ? (
+                              <img src={company.logo_url} alt={company.name} className="h-8 w-8 rounded-lg object-cover" />
+                            ) : (
+                              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                <Building2 className="h-4 w-4 text-primary" />
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-medium">{company.name}</p>
+                              <p className="text-xs text-muted-foreground">{company.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{sectorLabels[company.sector] || company.sector}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {plan ? (
+                            <Badge variant="outline">{plan.name}</Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {plan ? (
+                            <span className="text-sm font-medium">{formatCurrency(plan.price_monthly)}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm font-medium">{orderCounts[company.id] || 0}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">
+                            {format(new Date(company.created_at), "dd/MM/yyyy", { locale: it })}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/admin/aziende/${company.id}`);
+                              }}
+                            >
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              Apri
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => handleImpersonate(e, company.id)}
+                            >
+                              <LogIn className="h-4 w-4 mr-1" />
+                              Accedi
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && (
+                        <TableRow className="bg-muted/30 hover:bg-muted/30">
+                          <TableCell colSpan={9} className="p-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                              <div className="rounded-lg border bg-card p-3">
+                                <p className="text-xs text-muted-foreground">Ordini totali</p>
+                                <p className="text-lg font-bold">{orderCounts[company.id] || 0}</p>
+                              </div>
+                              <div className="rounded-lg border bg-card p-3">
+                                <p className="text-xs text-muted-foreground">MRR</p>
+                                <p className="text-lg font-bold">{plan ? formatCurrency(plan.price_monthly) : "—"}</p>
+                              </div>
+                              <div className="rounded-lg border bg-card p-3">
+                                <p className="text-xs text-muted-foreground">Stato</p>
+                                <Badge variant={cfg.variant} className="mt-1">{cfg.label}</Badge>
+                              </div>
+                              <div className="rounded-lg border bg-card p-3">
+                                <p className="text-xs text-muted-foreground">Creata il</p>
+                                <p className="text-lg font-bold">{format(new Date(company.created_at), "dd/MM/yyyy", { locale: it })}</p>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-3">
+                              <span><strong>Settore:</strong> {sectorLabels[company.sector] || company.sector}</span>
+                              <span><strong>Email:</strong> {company.email}</span>
+                              {plan && <span><strong>Piano:</strong> {plan.name}</span>}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button size="sm" onClick={() => navigate(`/admin/aziende/${company.id}`)}>
+                                <ExternalLink className="h-4 w-4 mr-1" />
+                                Apri dettaglio
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={(e) => handleImpersonate(e, company.id)}>
+                                <LogIn className="h-4 w-4 mr-1" />
+                                Accedi come azienda
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </TableBody>
