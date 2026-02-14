@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/formatters";
 import type { Company, CompanyStatus } from "@/types/auth";
 import { statusConfig } from "@/lib/companyUtils";
 import { eventTypeLabels, eventTypeIcons } from "@/lib/adminConstants";
+import { PaymentMethodCard } from "./PaymentMethodCard";
 
 interface CompanySubscriptionTabProps {
   company: Company;
@@ -20,6 +21,17 @@ interface CompanySubscriptionTabProps {
   onExtendTrial: (days: number) => void;
   isUpdatingStatus: boolean;
   isExtendingTrial: boolean;
+  onUpdatePaymentMethod: (data: {
+    payment_method: string;
+    bank_iban: string | null;
+    bank_account_holder: string | null;
+    bank_name: string | null;
+    payment_notes: string | null;
+  }) => Promise<void>;
+  isSavingPaymentMethod: boolean;
+  onGenerateCheckout?: () => void;
+  isGeneratingCheckout?: boolean;
+  checkoutUrl?: string | null;
 }
 
 export function CompanySubscriptionTab({
@@ -33,6 +45,11 @@ export function CompanySubscriptionTab({
   onExtendTrial,
   isUpdatingStatus,
   isExtendingTrial,
+  onUpdatePaymentMethod,
+  isSavingPaymentMethod,
+  onGenerateCheckout,
+  isGeneratingCheckout,
+  checkoutUrl,
 }: CompanySubscriptionTabProps) {
   const companyStatus = (company.status || "trial") as CompanyStatus;
   const statusCfg = statusConfig[companyStatus] || statusConfig.trial;
@@ -109,6 +126,16 @@ export function CompanySubscriptionTab({
           </div>
         </CardContent>
       </Card>
+
+      {/* Metodo di Pagamento */}
+      <PaymentMethodCard
+        company={company}
+        onSave={onUpdatePaymentMethod}
+        isSaving={isSavingPaymentMethod}
+        onGenerateCheckout={onGenerateCheckout}
+        isGeneratingCheckout={isGeneratingCheckout}
+        checkoutUrl={checkoutUrl}
+      />
 
       {/* Dati Fatturazione */}
       <Card>
