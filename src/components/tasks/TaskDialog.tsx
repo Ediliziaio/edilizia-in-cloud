@@ -35,6 +35,10 @@ interface TaskDialogProps {
   onOpenChange: (open: boolean) => void;
   task?: TaskData | null;
   onSaved: () => void;
+  defaultCategory?: string;
+  defaultOrderId?: string;
+  defaultStockItemId?: string;
+  defaultCostId?: string;
 }
 
 const PRIORITIES = [
@@ -58,7 +62,7 @@ const STATUSES = [
   { value: "completata", label: "Completata" },
 ];
 
-export function TaskDialog({ open, onOpenChange, task, onSaved }: TaskDialogProps) {
+export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId }: TaskDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
@@ -94,12 +98,12 @@ export function TaskDialog({ open, onOpenChange, task, onSaved }: TaskDialogProp
       setPriority("normale");
       setDueDate(undefined);
       setAssignedTo("");
-      setOrderId("");
-      setStockItemId("");
-      setCostId("");
-      setCategory("generale");
+      setOrderId(defaultOrderId || "");
+      setStockItemId(defaultStockItemId || "");
+      setCostId(defaultCostId || "");
+      setCategory(defaultCategory || "generale");
     }
-  }, [task, open]);
+  }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId]);
 
   const { data: assignableUsers = [] } = useQuery({
     queryKey: ["assignable-users", companyId],
