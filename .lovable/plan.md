@@ -1,62 +1,31 @@
 
 
-# Collegamento Chat Assistenza al Pannello Ticket Super Admin
+# Semplificare la pagina Ticket del Super Admin
 
-## Problema attuale
+## Problema
 
-La pagina Ticket del Super Admin (`/admin/ticket`) mostra solo i ticket creati dai clienti (tabella `tickets`), ma NON mostra i messaggi di assistenza inviati dalle aziende tramite la chat interna (tabella `support_messages`). I due sistemi sono scollegati.
+La pagina `/admin/ticket` mostra due tab: "Ticket Clienti" (ticket dei clienti finali delle aziende) e "Chat Aziende" (messaggi di assistenza dalle aziende). Il Super Admin non ha bisogno di vedere i ticket dei clienti delle aziende -- gli interessa solo le richieste di assistenza che le aziende inviano direttamente a lui.
 
 ## Soluzione
 
-Aggiungere alla pagina GlobalTickets un secondo tab/sezione "Chat Aziende" che mostra tutte le conversazioni di supporto dalla tabella `support_messages`, raggruppate per azienda. Il super admin potra aprire ogni conversazione in uno Sheet laterale e rispondere direttamente.
+Rimuovere il sistema a tab e mostrare direttamente la lista delle conversazioni con le aziende come contenuto principale della pagina.
 
-## Struttura
+## Modifiche
 
-La pagina `/admin/ticket` avra due tab:
-- **Ticket Clienti** (tab attuale, invariato)
-- **Chat Aziende** (nuovo tab con lista conversazioni + chat inline)
+### File: `src/pages/admin/GlobalTickets.tsx`
 
----
+1. Rimuovere il componente `Tabs` / `TabsList` / `TabsTrigger` / `TabsContent`
+2. Rimuovere tutta la sezione "Ticket Clienti" (filtri, tabella ticket, query ai ticket)
+3. Rimuovere le stat SLA (che si riferivano ai ticket clienti)
+4. Rimuovere le query `admin-global-tickets` e `admin-companies-list` e tutto lo stato associato (searchQuery, selectedCompany, selectedStatus, filteredTickets, ecc.)
+5. Aggiornare il titolo da "Ticket Globali" a "Assistenza Aziende"
+6. Mostrare direttamente il componente `AdminSupportChatList` come contenuto principale della pagina
+7. Rimuovere le importazioni non piu necessarie (Table, differenceInHours, ecc.)
 
-## Dettagli tecnici
+### Risultato finale
 
-### File da creare: `src/components/admin/support/AdminSupportChatList.tsx`
-Componente che:
-1. Carica tutti i `support_messages` raggruppati per `company_id`
-2. Per ogni azienda mostra: nome azienda, ultimo messaggio, data, conteggio messaggi non letti
-3. Al click su un'azienda, apre un `AdminSupportChatSheet`
+La pagina mostrera:
+- Titolo "Assistenza Aziende" con descrizione
+- Lista delle conversazioni con le aziende (componente `AdminSupportChatList` gia funzionante)
+- Click su un'azienda apre la chat laterale per rispondere
 
-### File da creare: `src/components/admin/support/AdminSupportChatSheet.tsx`
-Sheet laterale (simile al `SupportChatSheet` lato azienda) ma con:
-- `sender_role: "super_admin"` quando il super admin invia un messaggio
-- Realtime subscription sulla conversazione selezionata
-- Messaggi del super admin a destra, messaggi dell'azienda a sinistra (invertito rispetto al lato azienda)
-
-### File da modificare: `src/pages/admin/GlobalTickets.tsx`
-- Aggiungere `Tabs` (da `@/components/ui/tabs`) con due tab:
-  - "Ticket Clienti": contenuto attuale
-  - "Chat Aziende": il nuovo `AdminSupportChatList`
-- Le SLA stats restano visibili sopra i tab (si riferiscono ai ticket clienti)
-
-### Nessuna migrazione database
-La tabella `support_messages` esiste gia con le RLS corrette per il super admin (`has_role(auth.uid(), 'super_admin'::app_role)`).
-
----
-
-## Flusso utente
-
-```text
-Super Admin apre /admin/ticket
-  -> Vede le stat SLA in alto
-  -> Tab "Ticket Clienti" (default): tabella attuale
-  -> Tab "Chat Aziende": lista conversazioni per azienda
-     -> Click su azienda -> Sheet con chat realtime
-     -> Scrive messaggio -> sender_role = "super_admin"
-     -> Azienda lo riceve in tempo reale nel suo SupportChatSheet
-```
-
-## File coinvolti
-
-1. **Creare** `src/components/admin/support/AdminSupportChatList.tsx` - lista conversazioni
-2. **Creare** `src/components/admin/support/AdminSupportChatSheet.tsx` - chat sheet lato admin
-3. **Modificare** `src/pages/admin/GlobalTickets.tsx` - aggiungere Tabs
