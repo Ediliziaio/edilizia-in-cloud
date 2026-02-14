@@ -16,6 +16,7 @@ import {
   Repeat,
   Search,
   Download,
+  Upload,
   TrendingUp,
   Package,
   ExternalLink,
@@ -50,6 +51,17 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "@/hooks/use-toast";
+import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+
+const COST_IMPORT_FIELDS: ImportField[] = [
+  { key: "name", label: "Nome", required: true },
+  { key: "cost_type", label: "Tipo", required: false },
+  { key: "amount", label: "Importo", required: true, type: "number" },
+  { key: "category", label: "Categoria", required: false },
+  { key: "recurrence", label: "Ricorrenza", required: false },
+  { key: "due_date", label: "Data Scadenza", required: true, type: "date" },
+  { key: "notes", label: "Note", required: false },
+];
 
 const CATEGORIES = [
   "Affitto",
@@ -133,6 +145,7 @@ export default function CompanyCostsManager() {
   const [paymentDate, setPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [duplicatePeriods, setDuplicatePeriods] = useState(1);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Filters
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
@@ -495,6 +508,59 @@ export default function CompanyCostsManager() {
     toast({ title: "CSV esportato" });
   };
 
+  // Import handler
+  const handleCostsImport = async (rows: Record<string, string>[]) => {
+    if (!companyId) return { success: 0, errors: ["Azienda non trovata"] };
+    let success = 0;
+    const errors: string[] = [];
+    const recurrenceMap: Record<string, string> = {
+      "mensile": "monthly", "trimestrale": "quarterly", "annuale": "yearly",
+      "una tantum": "once", "monthly": "monthly", "quarterly": "quarterly",
+      "yearly": "yearly", "once": "once",
+    };
+    const typeMap: Record<string, string> = {
+      "fisso": "fixed", "variabile": "variable", "fixed": "fixed", "variable": "variable",
+    };
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      try {
+        if (!row.name?.trim()) { errors.push(`Riga ${i + 1}: Nome mancante`); continue; }
+        const amount = parseFloat(row.amount);
+        if (isNaN(amount) || amount <= 0) { errors.push(`Riga ${i + 1}: Importo non valido`); continue; }
+        if (!row.due_date?.trim()) { errors.push(`Riga ${i + 1}: Data scadenza mancante`); continue; }
+
+        // Parse date (accept dd/MM/yyyy or yyyy-MM-dd)
+        let dueDate = row.due_date.trim();
+        if (dueDate.includes("/")) {
+          const parts = dueDate.split("/");
+          if (parts.length === 3) dueDate = `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+        }
+
+        const costType = typeMap[(row.cost_type || "").toLowerCase().trim()] || "fixed";
+        const recurrence = recurrenceMap[(row.recurrence || "").toLowerCase().trim()] || "monthly";
+
+        const { error } = await supabase.from("company_costs").insert({
+          company_id: companyId,
+          name: row.name.trim(),
+          cost_type: costType,
+          amount,
+          category: row.category?.trim() || null,
+          recurrence,
+          due_date: dueDate,
+          notes: row.notes?.trim() || null,
+        });
+        if (error) throw error;
+        success++;
+      } catch (err: any) {
+        errors.push(`Riga ${i + 1}: ${err?.message || "Errore"}`);
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["company-costs"] });
+    queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+    return { success, errors };
+  };
+
   const openEdit = (cost: any) => {
     setEditingCost(cost);
     setFormData({
@@ -788,6 +854,10 @@ export default function CompanyCostsManager() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1">
+                <Upload className="h-4 w-4" />
+                Importa
+              </Button>
               <Button variant="outline" size="sm" onClick={exportCostsCSV} className="gap-1">
                 <Download className="h-4 w-4" />
                 Esporta CSV
@@ -1129,6 +1199,14 @@ export default function CompanyCostsManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CSVImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importa Costi"
+        fields={COST_IMPORT_FIELDS}
+        onImport={handleCostsImport}
+      />
     </>
   );
 }
