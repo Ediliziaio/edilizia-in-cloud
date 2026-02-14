@@ -1,96 +1,76 @@
 
-# Stabilizzazione Finale - Audit Completo
+# Audit Completo - Pulizia e Stabilizzazione
 
-## Analisi completata
+## 1. File UI non utilizzati da rimuovere
 
-Dopo un'analisi approfondita dell'intero codebase, il progetto risulta gia stabilizzato dai round precedenti. Ecco il report completo.
+15 componenti UI che non sono mai importati da nessun file del progetto:
 
----
+| File | Motivo rimozione |
+|------|-----------------|
+| `src/components/ui/aspect-ratio.tsx` | Mai importato |
+| `src/components/ui/hover-card.tsx` | Mai importato |
+| `src/components/ui/menubar.tsx` | Mai importato |
+| `src/components/ui/navigation-menu.tsx` | Mai importato |
+| `src/components/ui/context-menu.tsx` | Mai importato |
+| `src/components/ui/input-otp.tsx` | Mai importato |
+| `src/components/ui/carousel.tsx` | Mai importato |
+| `src/components/ui/radio-group.tsx` | Mai importato |
+| `src/components/ui/slider.tsx` | Mai importato |
+| `src/components/ui/resizable.tsx` | Mai importato |
+| `src/components/ui/drawer.tsx` | Mai importato |
+| `src/components/ui/breadcrumb.tsx` | Mai importato |
+| `src/components/ui/pagination.tsx` | Mai importato |
+| `src/components/ui/accordion.tsx` | Mai importato |
+| `src/components/ui/chart.tsx` | Mai importato |
 
-## 1. Analisi e pulizia codice
+## 2. Fix inconsistenza toast
 
-### Risultato: PULITO
+Il progetto usa **due sistemi toast in parallelo**:
+- `@/hooks/use-toast` (Radix-based) -- usato da 46 file
+- `sonner` -- usato da 9 file
 
-Tutti i file analizzati sono privi di codice morto, import inutili o variabili non referenziate:
+Entrambi i Toaster sono montati in `App.tsx`. Funziona, ma e ridondante.
 
-| Area | File analizzati | Stato |
-|------|----------------|-------|
-| Support (Admin) | AdminSupportChatList, AdminSupportChatSheet, SupportStats, SupportFilters, ConversationActions | Pulito |
-| Layouts | Admin, Company, Customer, Employee, Salesperson | Pulito (ripuliti nel round precedente) |
-| UI Components | skeleton.tsx, select.tsx | Pulito (skeleton gia convertito a forwardRef) |
-| Company Detail | CompanyActivityTab, CompanyDetailHeader, tabs vari | Pulito |
-| Utility | notificationSound.ts, formatters.ts, adminConstants.ts | Pulito |
+**Azione**: Non migrare tutti i 46 file (troppo invasivo, rischio di regressioni). Pero correggere l'unico file che importa dal percorso sbagliato:
 
-**Nessuna rimozione necessaria.**
+- `src/components/settings/SuppliersConfig.tsx`: importa `toast` da `@/components/ui/use-toast` invece che da `@/hooks/use-toast`. Allineare all'import standard.
 
----
+## 3. Nessun altro problema trovato
 
-## 2. Fix funzionali
+Verifiche completate:
 
-### Console Warning: "Function components cannot be given refs" su Select in CompaniesList
+| Check | Risultato |
+|-------|-----------|
+| Hook custom (7 file) | Tutti utilizzati |
+| Lib utility (9 file) | Tutti utilizzati |
+| Componenti business | Tutti referenziati da route o altri componenti |
+| NavLink | Usato in 4 layout |
+| File orfani | Nessuno trovato |
+| Import inutili nei file | Non rilevati (verificati i file principali) |
+| Console errors | Nessun errore |
+| Test file | `example.test.ts` e placeholder di vitest, non da rimuovere |
 
-- **Causa**: `SelectPrimitive.Root` di Radix UI non implementa `forwardRef`. Questo e un problema noto della libreria `@radix-ui/react-select`, non del nostro codice.
-- **Impatto**: Solo warning cosmetico in console. Nessun impatto funzionale (Select funziona correttamente, nessun crash, nessun blocco).
-- **Azione**: Nessuna -- il fix richiederebbe un upgrade della libreria Radix o un workaround con wrapper component che aggiunge complessita senza beneficio reale.
+## 4. Piano implementazione
 
-### Inconsistenza toast API
+### Step 1: Eliminare i 15 file UI inutilizzati
 
-- **Dove**: `AdminSupportChatList.tsx` usa `toast` da `@/hooks/use-toast` (API: `toast({ title: "..." })`), mentre `AdminSupportChatSheet.tsx` usa `toast` da `sonner` (API: `toast.success("...")`).
-- **Impatto**: Entrambi funzionano correttamente con le rispettive API. Nessun bug.
-- **Azione consigliata**: Allineare su un'unica libreria toast per coerenza del codebase. Standardizzare `AdminSupportChatList.tsx` su `sonner` (gia usato nel resto del progetto).
+Rimuovere tutti i file elencati nella tabella sopra.
 
-### Fix: Standardizzare toast in AdminSupportChatList.tsx
+### Step 2: Fix import toast in SuppliersConfig
 
-**File: `src/components/admin/support/AdminSupportChatList.tsx`**
-
-Cambiare:
+In `src/components/settings/SuppliersConfig.tsx`, cambiare:
 ```typescript
-import { toast } from "@/hooks/use-toast";
-// ...
-toast({ title: "Errore", description: error.message, variant: "destructive" });
-toast({ title: "Aggiornato" });
+import { toast } from "@/components/ui/use-toast";
 ```
-
-In:
+in:
 ```typescript
-import { toast } from "sonner";
-// ...
-toast.error(error.message);
-toast.success("Aggiornato");
+import { useToast } from "@/hooks/use-toast";
 ```
+e usare `const { toast } = useToast();` nel componente (come fanno tutti gli altri 45 file).
 
----
+### Risultato atteso
 
-## 3. UX "esperienziale"
-
-### Risultato: GIA FLUIDA
-
-- Filtri assistenza: Tabs per stato + Select per priorita/ordinamento -- gia implementati
-- Azioni inline: Select stato/priorita + pulsante risolto direttamente sulla riga -- gia implementati
-- Chat sheet: Toolbar azioni + note interne + auto-scroll + realtime -- gia implementato
-- Stats: 4 metriche SLA con calcolo automatico -- gia implementate
-- Aging indicators: Pallini colorati per tempo di attesa -- gia implementati
-- Feedback: Toast su ogni azione, loading states, empty states -- gia presenti
-
-**Nessun miglioramento UX necessario.**
-
----
-
-## 4. Riepilogo modifiche
-
-| Tipo | File | Descrizione |
-|------|------|-------------|
-| Fix coerenza | `AdminSupportChatList.tsx` | Standardizzare import toast da `sonner` invece di `@/hooks/use-toast` |
-
-Questa e l'unica modifica necessaria. Tutto il resto e gia stabile e funzionante.
-
----
-
-## 5. Conferma test
-
-- **Smoke test**: Flusso assistenza completo (lista -> filtri -> inline actions -> chat -> azioni) funzionante
-- **Console**: 1 warning Radix (libreria esterna, non risolvibile lato nostro codice)
-- **Performance**: Nessun lag, nessun re-render inutile (staleTime configurato, query invalidation mirata)
-- **Responsiveness**: Layout flex-wrap su filtri e azioni, funziona su mobile
-
-**TUTTO OK**
+- 15 file rimossi (codice morto)
+- 1 fix coerenza import
+- Zero cambiamenti funzionali
+- Codebase piu leggero e coerente
