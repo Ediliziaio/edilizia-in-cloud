@@ -359,6 +359,18 @@ export default function CompanyCostsManager() {
     return { items, paid, unpaid, totalPaid: paid.reduce((s, i) => s + i.amount, 0), totalUnpaid: unpaid.reduce((s, i) => s + i.amount, 0) };
   }, [supplierPaymentItems]);
 
+  // Supplier grouped data for progress bars (extracted from IIFE)
+  const supplierGroupedData = useMemo(() => {
+    const map = new Map<string, { paid: number; total: number }>();
+    supplierPaymentsData.items.forEach(i => {
+      const e = map.get(i.supplierName) || { paid: 0, total: 0 };
+      e.total += i.amount;
+      if (i.isPaid) e.paid += i.amount;
+      map.set(i.supplierName, e);
+    });
+    return Array.from(map.entries());
+  }, [supplierPaymentsData]);
+
   const fixedCosts = filteredCosts.filter((c: any) => c.cost_type === "fixed");
   const manualVariableCosts = filteredCosts.filter((c: any) => c.cost_type === "variable");
   const variableCostsWithOrders = [...manualVariableCosts, ...filteredOrderItemCosts];
@@ -649,7 +661,7 @@ export default function CompanyCostsManager() {
 
   const handleSupplierChange = useCallback((supplierId: string) => {
     if (supplierId === "none") {
-      setFormData(prev => ({ ...prev, supplier_id: "" }));
+      setFormData(prev => ({ ...prev, supplier_id: "none" }));
       return;
     }
     const supplier = suppliers.find((s: any) => s.id === supplierId);
@@ -831,16 +843,29 @@ export default function CompanyCostsManager() {
                       </TableCell>
                     )}
                     <TableCell className="text-right">
+                      <TooltipProvider>
                       {cost.isFromOrder ? (
                         <div className="flex justify-end gap-1">
                           {!cost.is_paid ? (
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700"
-                              onClick={() => { setPayingCostId(cost.id); setPaymentDate(format(new Date(), "yyyy-MM-dd")); setPayDialogOpen(true); }}
-                              title="Segna come pagato"><Check className="h-4 w-4" /></Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700"
+                                  onClick={() => { setPayingCostId(cost.id); setPaymentDate(format(new Date(), "yyyy-MM-dd")); setPayDialogOpen(true); }}
+                                  disabled={markOrderItemPaidMutation.isPending}
+                                ><Check className="h-4 w-4" /></Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Segna come pagato</TooltipContent>
+                            </Tooltip>
                           ) : (
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-orange-600 hover:text-orange-700"
-                              onClick={() => markOrderItemUnpaidMutation.mutate((cost as any).realOrderItemId)}
-                              title="Riporta a non pagato"><Undo2 className="h-4 w-4" /></Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-orange-600 hover:text-orange-700"
+                                  onClick={() => markOrderItemUnpaidMutation.mutate((cost as any).realOrderItemId)}
+                                  disabled={markOrderItemUnpaidMutation.isPending}
+                                ><Undo2 className="h-4 w-4" /></Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Riporta a non pagato</TooltipContent>
+                            </Tooltip>
                           )}
                           <Link to={`/azienda/ordini/${cost.order?.id}`}>
                             <Button size="sm" variant="ghost" className="gap-1 text-xs">
@@ -851,24 +876,52 @@ export default function CompanyCostsManager() {
                       ) : (
                         <div className="flex justify-end gap-1">
                           {!cost.is_paid ? (
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700"
-                              onClick={() => { setPayingCostId(cost.id); setPaymentDate(format(new Date(), "yyyy-MM-dd")); setPayDialogOpen(true); }}
-                              title="Segna come pagato"><Check className="h-4 w-4" /></Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700"
+                                  onClick={() => { setPayingCostId(cost.id); setPaymentDate(format(new Date(), "yyyy-MM-dd")); setPayDialogOpen(true); }}
+                                  disabled={markPaidMutation.isPending}
+                                ><Check className="h-4 w-4" /></Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Segna come pagato</TooltipContent>
+                            </Tooltip>
                           ) : (
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-orange-600 hover:text-orange-700"
-                              onClick={() => markUnpaidMutation.mutate(cost.id)}
-                              title="Riporta a non pagato"><Undo2 className="h-4 w-4" /></Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-orange-600 hover:text-orange-700"
+                                  onClick={() => markUnpaidMutation.mutate(cost.id)}
+                                  disabled={markUnpaidMutation.isPending}
+                                ><Undo2 className="h-4 w-4" /></Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Riporta a non pagato</TooltipContent>
+                            </Tooltip>
                           )}
-                          <Button size="icon" variant="ghost" className="h-8 w-8"
-                            onClick={() => setTaskCostId(cost.id)} title="Task collegate">
-                            <CheckSquare className="h-4 w-4 text-primary" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8"
-                            onClick={() => openEdit(cost as any)}><Pencil className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"
-                            onClick={() => setDeleteConfirmId(cost.id)}><Trash2 className="h-4 w-4" /></Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-8 w-8"
+                                onClick={() => setTaskCostId(cost.id)}>
+                                <CheckSquare className="h-4 w-4 text-primary" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Task collegate</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-8 w-8"
+                                onClick={() => openEdit(cost as any)}><Pencil className="h-4 w-4" /></Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Modifica</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"
+                                onClick={() => setDeleteConfirmId(cost.id)}><Trash2 className="h-4 w-4" /></Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Elimina</TooltipContent>
+                          </Tooltip>
                         </div>
                       )}
+                      </TooltipProvider>
                     </TableCell>
                   </TableRow>
                 );
@@ -1080,24 +1133,15 @@ export default function CompanyCostsManager() {
                 </div>
                 {supplierPaymentsData.items.length > 0 && (
                   <div className="space-y-3">
-                    {(() => {
-                      const map = new Map<string, { paid: number; total: number }>();
-                      supplierPaymentsData.items.forEach(i => {
-                        const e = map.get(i.supplierName) || { paid: 0, total: 0 };
-                        e.total += i.amount;
-                        if (i.isPaid) e.paid += i.amount;
-                        map.set(i.supplierName, e);
-                      });
-                      return Array.from(map.entries()).map(([name, d]) => (
-                        <div key={name} className="p-3 rounded-lg border bg-background">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-sm">{name}</span>
-                            <span className="text-xs text-muted-foreground">{formatCurrency(d.paid)} / {formatCurrency(d.total)}</span>
-                          </div>
-                          <Progress value={d.total > 0 ? (d.paid / d.total) * 100 : 0} className="h-2 [&>div]:bg-indigo-500" />
+                    {supplierGroupedData.map(([name, d]) => (
+                      <div key={name} className="p-3 rounded-lg border bg-background">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-sm">{name}</span>
+                          <span className="text-xs text-muted-foreground">{formatCurrency(d.paid)} / {formatCurrency(d.total)}</span>
                         </div>
-                      ));
-                    })()}
+                        <Progress value={d.total > 0 ? (d.paid / d.total) * 100 : 0} className="h-2 [&>div]:bg-indigo-500" />
+                      </div>
+                    ))}
                   </div>
                 )}
                 {supplierPaymentsData.items.length > 0 ? (
@@ -1371,7 +1415,14 @@ export default function CompanyCostsManager() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
             <Button
-              onClick={() => saveMutation.mutate(formData)}
+              onClick={() => {
+                const amt = parseFloat(formData.amount);
+                if (isNaN(amt) || amt <= 0) {
+                  toast({ title: "L'importo deve essere maggiore di zero", variant: "destructive" });
+                  return;
+                }
+                saveMutation.mutate(formData);
+              }}
               disabled={!formData.name || !formData.amount || !formData.due_date || saveMutation.isPending}
             >
               {saveMutation.isPending ? "Salvataggio..." : editingCost ? "Aggiorna" : "Aggiungi"}
