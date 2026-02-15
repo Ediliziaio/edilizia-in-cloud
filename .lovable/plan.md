@@ -1,62 +1,80 @@
 
-# Duplica Costo + Rimozione Tab Fornitori
 
-## Panoramica
+# Pagamenti Fornitori, Squadre Esterne e Dipendenti come Costi Variabili
 
-Due interventi principali:
+## Obiettivo
 
-1. **Duplica costo con un click**: aggiungere un'azione "Duplica" nel DropdownMenu di ogni costo. Pre-compila il dialog con gli stessi dati ma avanza la data di scadenza di un mese.
-2. **Rimozione tab "Fornitori"**: eliminare la tab dedicata ai pagamenti fornitori dalla sezione Costi. I pagamenti ai fornitori (acconti e saldi derivati dagli articoli d'ordine con `payment_method` 50/50 o 30/70) sono gia' visibili come costi variabili nella tab "Variabili" e nel Previsionale. La tab separata e' ridondante e crea confusione.
+Far comparire automaticamente nella sezione "Costi" tutti i pagamenti derivanti dagli ordini: articoli con fornitore (sdoppiati in acconto/saldo se rateizzati), squadre esterne e costi manodopera dipendenti. In questo modo la sezione Costi diventa il punto unico di controllo per tutte le uscite e alimenta correttamente il Previsionale.
 
 ---
 
-## Dettaglio Tecnico
+## 1. Nuova query: Articoli con fornitore (pagamenti sdoppiati)
 
-### File modificato: `src/components/forecast/CompanyCostsManager.tsx`
+Sostituire la query attuale `orderItemCosts` (che filtra solo `da_ordinare`/`ordinato`) con una nuova query che recupera TUTTI gli articoli con `supplier_id` non nullo, includendo i campi necessari per la rateizzazione:
 
-### 1. Funzione "Duplica Costo"
+- `payment_method`, `deposit_amount`, `deposit_paid`, `deposit_paid_date`
+- `balance_amount`, `balance_paid`, `balance_paid_date`, `balance_expected_date`
+- `is_paid`, `paid_date`
 
-Aggiungere una nuova funzione `openDuplicate(cost)` che:
-- Copia tutti i dati del costo (`name`, `cost_type`, `amount`, `category`, `recurrence`, `notes`, `supplier_id`, `vat_rate`)
-- Avanza la `due_date` di 1 mese usando `addMonths`
-- Imposta `periods` a `"1"` e `is_gross` a `false`
-- NON imposta `editingCost` (cosi' salva come nuovo)
-- Apre il dialog
+### Logica di trasformazione (`useMemo`)
 
-Nel `DropdownMenu` di ogni riga (non proveniente da ordine), aggiungere una voce:
-- Icona `Copy` da lucide-react
-- Testo: "Duplica (+1 mese)"
+Per ogni articolo con fornitore:
+- Se `payment_method` e' `50_50` o `30_70`: genera DUE righe
+  - Riga 1: "Acconto - [nome articolo]" con importo `deposit_amount`, stato `deposit_paid`, data `deposit_paid_date`
+  - Riga 2: "Saldo - [nome articolo]" con importo `balance_amount`, stato `balance_paid`, data scadenza `balance_expected_date`
+- Altrimenti: genera UNA riga con il costo totale (`purchase_price * quantity`), stato `is_paid`
 
-### 2. Rimozione Tab Fornitori
+Ogni riga avra' `supplierName` visibile e link all'ordine.
 
-Eliminare dal JSX:
-- Il `TabsTrigger` con `value="suppliers"` (riga ~1383-1386)
-- L'intero `TabsContent value="suppliers"` (righe ~1391-1474)
+## 2. Nuova query: Squadre esterne
 
-Eliminare il codice morto associato:
-- La query `supplierPaymentItems` (righe ~252-269) -- usata SOLO per la tab fornitori
-- Il `useMemo` `supplierPaymentsData` (righe ~375-395) -- dipende da `supplierPaymentItems`
-- Il `useMemo` `supplierGroupedData` (righe ~398-407) -- dipende da `supplierPaymentsData`
-- La stat card "Fornitori da pagare" (righe ~1294-1301) che usa `vatStats.supplierUnpaid` -- opzionale, ma la logica sottostante (`vatStats.supplierUnpaid`) puo' restare perche' calcola dai `company_costs` con `supplier_id`
+Aggiungere una query su `order_external_teams` (join con `external_teams` per il nome e `orders` per il codice ordine), filtrando per `company_id`.
 
-Nota: i pagamenti ai fornitori derivati dagli ordini (acconti/saldi) sono gia' gestiti nel Previsionale tramite `ForecastSupplierPayments` e `useCashFlowData`. Non si perde nessuna informazione rimuovendo la tab.
+Trasformazione: ogni riga diventa un costo variabile con:
+- Nome: "[nome squadra]"
+- Importo: `total_cost`
+- Data: `payment_date`
+- Stato: `is_paid`
+- Categoria: "Squadre Esterne"
 
-### 3. Pulizia import
+## 3. Nuova query: Dipendenti (costi manodopera)
 
-Rimuovere `isLoadingSupplierPayments` dal destructuring della query rimossa. Verificare che `Progress` non sia piu' usato altrove nel file (era usato solo nelle progress bar fornitori) e rimuoverlo dagli import se necessario.
+Aggiungere una query su `order_employees` (join con `employees` per il nome e `orders` per il codice ordine), filtrando per `company_id`.
+
+Trasformazione: ogni riga diventa un costo variabile con:
+- Nome: "[nome dipendente]"
+- Importo: `total_cost`
+- Data: data corrente (non c'e' campo specifico)
+- Stato: non gestito (sempre "da pagare" come voce informativa)
+- Categoria: "Manodopera"
+
+## 4. Integrazione nella vista
+
+Tutte queste righe "da ordine" verranno unite in `variableCostsWithOrders` e `allCostsSorted`, con il flag `isFromOrder: true` per impedire modifica/eliminazione (sono dati derivati dagli ordini).
+
+Le tab resteranno: "Tutti", "Fissi", "Variabili" -- ma la tab "Variabili" ora includera' anche fornitori sdoppiati, squadre e manodopera.
+
+## 5. Stat cards
+
+Le stat cards "Da pagare" e "Pagato" includeranno anche i totali di questi costi derivati dagli ordini, dando una visione completa.
+
+## 6. Mini-grafico
+
+Il mini-grafico distribuzione mensile includera' anche i costi derivati dagli ordini nei calcoli "Variabili".
 
 ---
 
-## Riepilogo modifiche
+## File modificato
 
-| Azione | Dettaglio |
-|--------|-----------|
-| Nuova funzione | `openDuplicate(cost)` con data +1 mese |
-| Nuova voce menu | "Duplica (+1 mese)" nel DropdownMenu |
-| Nuovo import | `Copy` da lucide-react |
-| Rimosso | Tab "Fornitori" (TabsTrigger + TabsContent) |
-| Rimosso | Query `supplierPaymentItems` |
-| Rimosso | `useMemo` `supplierPaymentsData` e `supplierGroupedData` |
-| Rimosso | Import `Progress` (se non usato altrove) |
+Solo `src/components/forecast/CompanyCostsManager.tsx`:
+
+1. Sostituire query `orderItemCosts` con query piu' completa (tutti gli articoli con supplier, tutti i campi pagamento)
+2. Aggiungere query `externalTeamCosts` su `order_external_teams`
+3. Aggiungere query `employeeCosts` su `order_employees`
+4. Riscrivere `orderItemsAsVariableCosts` per sdoppiare gli articoli rateizzati
+5. Creare `externalTeamAsVariableCosts` e `employeeAsVariableCosts`
+6. Unire tutto in `variableCostsWithOrders` e `allCostsSorted`
+7. Aggiornare il mini-grafico per includere costi da ordine nei "Variabili"
 
 Nessuna modifica al database.
+
