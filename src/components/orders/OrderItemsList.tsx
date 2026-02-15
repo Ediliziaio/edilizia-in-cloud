@@ -73,6 +73,7 @@ export interface OrderItem {
   deposit_amount?: number;
   deposit_paid?: boolean;
   deposit_paid_date?: string;
+  deposit_expected_date?: string;
   balance_amount?: number;
   balance_paid?: boolean;
   balance_paid_date?: string;
@@ -155,6 +156,7 @@ export function OrderItemsList({
   const [itemBalancePaid, setItemBalancePaid] = useState(false);
   const [itemBalancePaidDate, setItemBalancePaidDate] = useState<Date | undefined>();
   const [itemBalanceExpectedDate, setItemBalanceExpectedDate] = useState<Date | undefined>();
+  const [itemDepositExpectedDate, setItemDepositExpectedDate] = useState<Date | undefined>();
   // Stock picking state
   const [selectedStockItem, setSelectedStockItem] = useState<string>("");
   const [stockPickQuantity, setStockPickQuantity] = useState("1");
@@ -222,6 +224,7 @@ export function OrderItemsList({
     setItemBalancePaid(false);
     setItemBalancePaidDate(undefined);
     setItemBalanceExpectedDate(undefined);
+    setItemDepositExpectedDate(undefined);
     setEditingIndex(null);
     setSelectedStockItem("");
     setStockPickQuantity("1");
@@ -252,6 +255,7 @@ export function OrderItemsList({
     setItemBalancePaid(item.balance_paid || false);
     setItemBalancePaidDate(item.balance_paid_date ? new Date(item.balance_paid_date) : undefined);
     setItemBalanceExpectedDate(item.balance_expected_date ? new Date(item.balance_expected_date) : undefined);
+    setItemDepositExpectedDate(item.deposit_expected_date ? new Date(item.deposit_expected_date) : undefined);
     setEditingIndex(index);
     setDialogOpen(true);
   };
@@ -291,6 +295,7 @@ export function OrderItemsList({
       deposit_amount: isInstallment ? depositAmt : 0,
       deposit_paid: isInstallment ? itemDepositPaid : false,
       deposit_paid_date: isInstallment && itemDepositPaid && itemDepositPaidDate ? itemDepositPaidDate.toISOString().split("T")[0] : undefined,
+      deposit_expected_date: isInstallment && !itemDepositPaid && itemDepositExpectedDate ? itemDepositExpectedDate.toISOString().split("T")[0] : undefined,
       balance_amount: isInstallment ? balanceAmt : 0,
       balance_paid: isInstallment ? itemBalancePaid : false,
       balance_paid_date: isInstallment && itemBalancePaid && itemBalancePaidDate ? itemBalancePaidDate.toISOString().split("T")[0] : undefined,
@@ -509,7 +514,21 @@ export function OrderItemsList({
                           {itemDepositPaidDate ? format(itemDepositPaidDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data..."}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemDepositPaidDate} onSelect={setItemDepositPaidDate} locale={it} /></PopoverContent>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemDepositPaidDate} onSelect={setItemDepositPaidDate} locale={it} className="pointer-events-auto" /></PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+                {!itemDepositPaid && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Data Prevista Acconto</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm h-9", !itemDepositExpectedDate && "text-muted-foreground")} type="button">
+                          <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                          {itemDepositExpectedDate ? format(itemDepositExpectedDate, "dd/MM/yyyy", { locale: it }) : "Data prevista..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemDepositExpectedDate} onSelect={setItemDepositExpectedDate} locale={it} className="pointer-events-auto" /></PopoverContent>
                     </Popover>
                   </div>
                 )}

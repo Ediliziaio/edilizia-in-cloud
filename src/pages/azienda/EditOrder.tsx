@@ -301,6 +301,7 @@ export default function EditOrder() {
         balance_paid: (item as any).balance_paid || false,
         balance_paid_date: (item as any).balance_paid_date || undefined,
         balance_expected_date: (item as any).balance_expected_date || undefined,
+        deposit_expected_date: (item as any).deposit_expected_date || undefined,
       })));
     }
   }, [existingItems, draftRestored]);
@@ -379,6 +380,7 @@ export default function EditOrder() {
         balance_paid: (item as any).balance_paid || false,
         balance_paid_date: (item as any).balance_paid_date || undefined,
         balance_expected_date: (item as any).balance_expected_date || undefined,
+        deposit_expected_date: (item as any).deposit_expected_date || undefined,
       })));
     }
   }, [clearDraft, order, existingItems]);
@@ -527,6 +529,7 @@ export default function EditOrder() {
             balance_paid: item.balance_paid || false,
             balance_paid_date: item.balance_paid_date || null,
             balance_expected_date: item.balance_expected_date || null,
+            deposit_expected_date: item.deposit_expected_date || null,
           }).eq("id", item.id);
           if (updErr) throw updErr;
         }
@@ -558,6 +561,7 @@ export default function EditOrder() {
           balance_paid: item.balance_paid || false,
           balance_paid_date: item.balance_paid_date || null,
           balance_expected_date: item.balance_expected_date || null,
+          deposit_expected_date: item.deposit_expected_date || null,
         }));
 
         const { error: insErr } = await supabase.from("order_items").insert(newItems);

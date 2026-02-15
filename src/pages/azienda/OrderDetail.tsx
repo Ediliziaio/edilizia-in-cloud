@@ -503,6 +503,7 @@ export default function OrderDetail() {
           balance_paid: item.balance_paid ?? false,
           balance_paid_date: item.balance_paid_date || null,
           balance_expected_date: item.balance_expected_date || null,
+          deposit_expected_date: item.deposit_expected_date || null,
         })
         .eq("id", item.id);
       if (error) throw error;
@@ -558,6 +559,7 @@ export default function OrderDetail() {
     balance_paid: item.balance_paid ?? undefined,
     balance_paid_date: item.balance_paid_date || undefined,
     balance_expected_date: item.balance_expected_date || undefined,
+    deposit_expected_date: (item as any).deposit_expected_date || undefined,
     attachments: attachments
       .filter(att => att.order_item_id === item.id)
       .map(att => ({

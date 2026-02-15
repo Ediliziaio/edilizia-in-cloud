@@ -1,0 +1,1 @@
+ALTER TABLE order_items ADD COLUMN deposit_expected_date date DEFAULT null;
