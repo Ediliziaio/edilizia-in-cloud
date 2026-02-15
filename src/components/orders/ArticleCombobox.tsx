@@ -101,11 +101,17 @@ export function ArticleCombobox({
 
   const handleCreateNew = async () => {
     if (!searchValue.trim()) return;
-    
-    await createTemplateMutation.mutateAsync(searchValue);
-    onValueChange(searchValue.trim());
+    const trimmed = searchValue.trim();
+    onValueChange(trimmed);
     setOpen(false);
     setSearchValue("");
+    if (companyId) {
+      try {
+        await createTemplateMutation.mutateAsync(trimmed);
+      } catch {
+        // Template non creato, ma il nome è già stato impostato
+      }
+    }
   };
 
   return (
