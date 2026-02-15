@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Truck, Plus, Pencil, Trash2, Loader2, Search } from "lucide-react";
+import { Truck, Plus, Pencil, Trash2, Loader2, Search, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { VAT_RATES, getVatRateLabel } from "@/lib/vatUtils";
@@ -18,6 +18,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 interface Supplier {
   id: string;
@@ -175,6 +178,8 @@ export function SuppliersConfig() {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
   const [formData, setFormData] = useState<SupplierFormData>({ ...emptyForm });
+  const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
 
   const { data: suppliers, isLoading } = useQuery({
     queryKey: ["suppliers-config", companyId],
@@ -190,6 +195,12 @@ export function SuppliersConfig() {
     },
     enabled: !!companyId,
   });
+
+  const existingCategories = useMemo(() => {
+    if (!suppliers) return [];
+    const cats = new Set(suppliers.map(s => s.product_category).filter(Boolean) as string[]);
+    return Array.from(cats).sort();
+  }, [suppliers]);
 
   const filterBySearch = (list: Supplier[]) => {
     if (!searchQuery.trim()) return list;
@@ -424,8 +435,66 @@ export function SuppliersConfig() {
                   <Input id="name" value={formData.name} onChange={(e) => updateField("name", e.target.value)} placeholder="Es. ABC Serramenti Srl" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="product_category">Categoria Prodotti</Label>
-                  <Input id="product_category" value={formData.product_category} onChange={(e) => updateField("product_category", e.target.value)} placeholder="Es. Serramenti, Vetri, Accessori" />
+                  <Label>Categoria Prodotti</Label>
+                  <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={categoryPopoverOpen}
+                        className="w-full justify-between font-normal"
+                      >
+                        {formData.product_category || "Seleziona categoria..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Cerca o crea categoria..."
+                          value={categorySearch}
+                          onValueChange={setCategorySearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty className="py-2 px-4 text-sm text-muted-foreground">
+                            Nessuna categoria trovata
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {existingCategories
+                              .filter(cat => !categorySearch || cat.toLowerCase().includes(categorySearch.toLowerCase()))
+                              .map((cat) => (
+                                <CommandItem
+                                  key={cat}
+                                  value={cat}
+                                  onSelect={() => {
+                                    updateField("product_category", cat);
+                                    setCategoryPopoverOpen(false);
+                                    setCategorySearch("");
+                                  }}
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", formData.product_category === cat ? "opacity-100" : "opacity-0")} />
+                                  {cat}
+                                </CommandItem>
+                              ))}
+                            {categorySearch.trim() && !existingCategories.some(c => c.toLowerCase() === categorySearch.toLowerCase()) && (
+                              <CommandItem
+                                value={`create-${categorySearch}`}
+                                onSelect={() => {
+                                  updateField("product_category", categorySearch.trim());
+                                  setCategoryPopoverOpen(false);
+                                  setCategorySearch("");
+                                }}
+                                className="text-primary"
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Crea "{categorySearch}"
+                              </CommandItem>
+                            )}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 mt-3">
