@@ -26,6 +26,7 @@ import {
   Info,
   MoreHorizontal,
   X,
+  Copy,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -74,7 +75,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
-import { Progress } from "@/components/ui/progress";
+
 import { VAT_RATES, calculateNetFromGross, calculateGrossFromNet } from "@/lib/vatUtils";
 import {
   Command,
@@ -248,26 +249,6 @@ export default function CompanyCostsManager() {
     enabled: !!companyId,
   });
 
-  // Query supplier installment payments
-  const { data: supplierPaymentItems = [], isLoading: isLoadingSupplierPayments } = useQuery({
-    queryKey: ["supplier-payment-items", companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_items")
-        .select(`
-          id, name, purchase_price, quantity,
-          balance_amount, balance_expected_date, balance_paid, balance_paid_date,
-          deposit_amount, deposit_paid, deposit_paid_date,
-          is_paid, paid_date, payment_method,
-          supplier:suppliers(name),
-          order:orders!inner(id, order_code, company_id)
-        `)
-        .not("supplier_id", "is", null);
-      if (error) throw error;
-      return (data || []).filter((item: any) => item.order?.company_id === companyId) as any[];
-    },
-    enabled: !!companyId,
-  });
 
   // Query orders for linking
   const { data: orders = [] } = useQuery({
@@ -371,40 +352,6 @@ export default function CompanyCostsManager() {
     return filtered;
   }, [orderItemsAsVariableCosts, searchQuery, statusFilter]);
 
-  // Supplier payments computed
-  const supplierPaymentsData = useMemo(() => {
-    const items: { id: string; supplierName: string; orderCode: string | null; orderId: string; type: string; amount: number; isPaid: boolean; date: Date | null; paidDate: string | null }[] = [];
-    supplierPaymentItems.forEach((item: any) => {
-      const supplierName = item.supplier?.name || "Fornitore sconosciuto";
-      const totalCost = (Number(item.purchase_price) || 0) * (Number(item.quantity) || 1);
-      const method = item.payment_method;
-
-      if (method === "50_50" || method === "30_70") {
-        const depositPct = method === "50_50" ? 0.5 : 0.3;
-        const depositAmt = Number(item.deposit_amount) || totalCost * depositPct;
-        const balanceAmt = Number(item.balance_amount) || totalCost - depositAmt;
-        items.push({ id: `${item.id}-dep`, supplierName, orderCode: item.order?.order_code, orderId: item.order?.id, type: "Acconto", amount: depositAmt, isPaid: !!item.deposit_paid, date: item.deposit_paid_date ? new Date(item.deposit_paid_date) : null, paidDate: item.deposit_paid_date });
-        items.push({ id: `${item.id}-bal`, supplierName, orderCode: item.order?.order_code, orderId: item.order?.id, type: "Saldo", amount: balanceAmt, isPaid: !!item.balance_paid, date: item.balance_expected_date ? new Date(item.balance_expected_date) : null, paidDate: item.balance_paid_date });
-      } else if (totalCost > 0) {
-        items.push({ id: item.id, supplierName, orderCode: item.order?.order_code, orderId: item.order?.id, type: "Pagamento", amount: totalCost, isPaid: !!item.is_paid, date: item.paid_date ? new Date(item.paid_date) : (item.balance_expected_date ? new Date(item.balance_expected_date) : null), paidDate: item.paid_date });
-      }
-    });
-    const paid = items.filter(i => i.isPaid);
-    const unpaid = items.filter(i => !i.isPaid);
-    return { items, paid, unpaid, totalPaid: paid.reduce((s, i) => s + i.amount, 0), totalUnpaid: unpaid.reduce((s, i) => s + i.amount, 0) };
-  }, [supplierPaymentItems]);
-
-  // Supplier grouped data for progress bars
-  const supplierGroupedData = useMemo(() => {
-    const map = new Map<string, { paid: number; total: number }>();
-    supplierPaymentsData.items.forEach(i => {
-      const e = map.get(i.supplierName) || { paid: 0, total: 0 };
-      e.total += i.amount;
-      if (i.isPaid) e.paid += i.amount;
-      map.set(i.supplierName, e);
-    });
-    return Array.from(map.entries());
-  }, [supplierPaymentsData]);
 
   // Monthly distribution for mini-chart
   const monthlyDistribution = useMemo(() => {
@@ -822,6 +769,26 @@ export default function CompanyCostsManager() {
     setDialogOpen(true);
   };
 
+  const openDuplicate = (cost: any) => {
+    setEditingCost(null);
+    const nextMonth = addMonths(new Date(cost.due_date), 1);
+    setFormData({
+      name: cost.name,
+      cost_type: cost.cost_type,
+      amount: String(cost.amount),
+      category: cost.category || "",
+      recurrence: cost.recurrence,
+      due_date: format(nextMonth, "yyyy-MM-dd"),
+      notes: cost.notes || "",
+      order_id: cost.order_id || "none",
+      supplier_id: cost.supplier_id || "none",
+      vat_rate: String(cost.vat_rate ?? 22),
+      is_gross: false,
+      periods: "1",
+    });
+    setDialogOpen(true);
+  };
+
   const handleSupplierChange = useCallback((supplierId: string) => {
     if (supplierId === "none") {
       setFormData(prev => ({ ...prev, supplier_id: "none" }));
@@ -1145,6 +1112,12 @@ export default function CompanyCostsManager() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
+                                    onClick={() => openDuplicate(cost)}
+                                  >
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Duplica (+1 mese)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
                                     className="text-destructive focus:text-destructive"
                                     onClick={() => setDeleteConfirmId(cost.id)}
                                   >
@@ -1380,98 +1353,10 @@ export default function CompanyCostsManager() {
               <TabsTrigger value="all">Tutti ({allCostsSorted.length})</TabsTrigger>
               <TabsTrigger value="fixed">Fissi ({fixedCosts.length})</TabsTrigger>
               <TabsTrigger value="variable">Variabili ({variableCostsWithOrders.length})</TabsTrigger>
-              <TabsTrigger value="suppliers" className="gap-1">
-                <Truck className="h-3.5 w-3.5" />
-                Fornitori ({supplierPaymentsData.items.length})
-              </TabsTrigger>
             </TabsList>
             <TabsContent value="all">{renderCostsTable(allCostsSorted, "all")}</TabsContent>
             <TabsContent value="fixed">{renderCostsTable(fixedCosts, "fixed")}</TabsContent>
             <TabsContent value="variable">{renderCostsTable(variableCostsWithOrders, "variable")}</TabsContent>
-            <TabsContent value="suppliers">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-lg bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Clock className="h-4 w-4 text-indigo-600" />
-                      <span className="text-sm font-medium">Da pagare ai fornitori</span>
-                    </div>
-                    <p className="text-2xl font-bold text-indigo-600">{formatCurrency(supplierPaymentsData.totalUnpaid)}</p>
-                    <p className="text-xs text-muted-foreground">{supplierPaymentsData.unpaid.length} rate in sospeso</p>
-                  </div>
-                  <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Check className="h-4 w-4 text-green-600" />
-                      <span className="text-sm font-medium">Già pagato</span>
-                    </div>
-                    <p className="text-2xl font-bold text-green-600">{formatCurrency(supplierPaymentsData.totalPaid)}</p>
-                    <p className="text-xs text-muted-foreground">{supplierPaymentsData.paid.length} pagamenti effettuati</p>
-                  </div>
-                </div>
-                {supplierPaymentsData.items.length > 0 && (
-                  <div className="space-y-3">
-                    {supplierGroupedData.map(([name, d]) => (
-                      <div key={name} className="p-3 rounded-lg border bg-background">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-sm">{name}</span>
-                          <span className="text-xs text-muted-foreground">{formatCurrency(d.paid)} / {formatCurrency(d.total)}</span>
-                        </div>
-                        <Progress value={d.total > 0 ? (d.paid / d.total) * 100 : 0} className="h-2 [&>div]:bg-indigo-500" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {supplierPaymentsData.items.length > 0 ? (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Fornitore</TableHead>
-                          <TableHead>Ordine</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead className="text-right">Importo</TableHead>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Stato</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {supplierPaymentsData.items.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell className="font-medium">{item.supplierName}</TableCell>
-                            <TableCell>
-                              {item.orderCode ? (
-                                <Link to={`/azienda/ordini/${item.orderId}`} className="text-primary hover:underline text-sm">{item.orderCode}</Link>
-                              ) : "—"}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="border-indigo-400 text-indigo-600 gap-1">
-                                <Truck className="h-3 w-3" />{item.type}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(item.amount)}</TableCell>
-                            <TableCell>{item.date ? format(item.date, "dd/MM/yyyy", { locale: it }) : "—"}</TableCell>
-                            <TableCell>
-                              {item.isPaid ? (
-                                <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400">
-                                  Pagato{item.paidDate ? ` il ${format(new Date(item.paidDate), "dd/MM/yyyy", { locale: it })}` : ""}
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400">Da pagare</Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Truck className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                    <p>Nessun pagamento fornitore trovato</p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
