@@ -1,97 +1,113 @@
 
 
-# Ristrutturazione Sezione Costi: Automazione Ricorrenze e Pulizia
+# Selezione Multipla e Azioni Rapide sui Costi
 
-## Il Bug dei 43.200 euro
+## Panoramica
 
-Il calcolo "Distribuzione Annuale" e' sbagliato perche' moltiplica OGNI riga di costo per il suo fattore di ricorrenza (x12 per mensile). Se l'affitto a 900 euro/mese e' stato duplicato in 4 righe (tramite "Genera periodo"), il sistema calcola: 900 x 12 x 4 righe = 43.200 euro. Dovrebbe essere 900 x 12 = 10.800. Il dato e' fuorviante e va rimosso.
+Aggiungere due funzionalita' principali alla sezione Costi:
 
----
-
-## Cosa viene rimosso
-
-| Elemento | Motivo |
-|----------|--------|
-| Card "Stima Annuale" (blu) dalle stat cards | Calcolo sbagliato e fuorviante |
-| Sezione "Distribuzione Annuale per Categoria" | Stessa logica errata |
-| Pulsante "Genera periodo" nell'header | Sostituito dall'automazione nel form |
-| Dialog "Genera costi ricorrenti" (AlertDialog) | Non piu' necessario |
-| Variabile `annualEstimate` e relativo `useMemo` | Codice morto |
-| Variabili `showDuplicateConfirm`, `duplicatePeriods` | Codice morto |
-| Mutation `duplicateRecurringMutation` | Codice morto |
-| Variabile `recurringCosts` | Codice morto |
-| Import `CalendarPlus` e `TrendingUp` da lucide-react | Non piu' usati |
+1. **Eliminazione in blocco dei ricorrenti**: un pulsante "Elimina tutti con stesso nome" che cancella tutte le righe con lo stesso nome (es. tutti i 12 mesi di "Affitto Ufficio")
+2. **Selezione multipla con barra azioni rapide**: checkbox su ogni riga per selezionare piu' costi e applicare azioni in blocco (elimina, segna pagati, segna non pagati)
 
 ---
 
 ## Cosa viene aggiunto
 
-### Campo "Numero periodi" nel form di creazione
+### 1. Eliminazione gruppo ricorrenti
 
-Quando la ricorrenza e' diversa da "Una tantum", appare un campo numerico sotto la ricorrenza:
+Nella riga di ogni costo non proveniente da ordine, accanto al pulsante Elimina singolo, aggiungere un'opzione nel menu contestuale (DropdownMenu) con:
+- **"Elimina singolo"**: comportamento attuale
+- **"Elimina tutti '[nome]'"**: elimina tutti i costi della stessa azienda con lo stesso nome
 
-- Label: "Periodi da generare"
-- Default intelligente: 12 per mensile, 4 per trimestrale, 1 per annuale
-- Range: 1-60
-- Anteprima testuale: "Verranno creati 12 costi da Mar 2026 a Feb 2027"
-- Visibile solo in creazione (non in modifica, dove si tocca il singolo costo)
+Quando cliccato, mostra un AlertDialog di conferma: "Stai per eliminare X costi con il nome 'Affitto Ufficio'. Questa azione non puo' essere annullata."
 
-### Generazione automatica al salvataggio
+### 2. Selezione multipla + Barra azioni
 
-Quando si salva un costo ricorrente con periodi maggiore di 1:
+**Checkbox nelle tabelle:**
+- Checkbox nell'header per selezionare/deselezionare tutto
+- Checkbox per ogni riga (solo costi non provenienti da ordini)
 
-1. Inserisce il costo base alla data indicata
-2. Genera automaticamente i costi successivi con date scalate (mese+1, mese+2, ecc.)
-3. Ogni costo generato ha `is_paid: false`
-4. Controlla duplicati (stessa azienda + nome + data) prima di inserire
-5. Toast finale: "Creati 12 costi da Mar 2026 a Feb 2027"
-
-### Flusso utente risultante
-
-1. Clicca "Nuovo Costo"
-2. Compila: nome "Affitto Ufficio", importo 900 euro, categoria "Affitto"
-3. Seleziona ricorrenza: "Mensile"
-4. Seleziona data: "01/03/2026"
-5. Imposta periodi: 12
-6. Vede: "Verranno creati 12 costi da Mar 2026 a Feb 2027"
-7. Salva
-8. Il sistema crea 12 righe da 900 euro, una per mese
+**Barra azioni (sticky in alto quando ci sono selezioni):**
+Appare sopra la tabella quando almeno 1 costo e' selezionato. Mostra:
+- Contatore: "X costi selezionati"
+- Pulsante "Segna pagati" (verde)
+- Pulsante "Segna non pagati" (arancione)
+- Pulsante "Elimina selezionati" (rosso)
+- Pulsante "Deseleziona"
 
 ---
 
-## Dettaglio tecnico
+## Dettaglio Tecnico
 
 ### File modificato: `src/components/forecast/CompanyCostsManager.tsx`
 
-**1. Nuovo campo in CostFormData**
+**1. Nuovi stati**
 
-Aggiungere `periods: string` con default `"1"`.
+```typescript
+const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+const [deleteGroupName, setDeleteGroupName] = useState<string | null>(null);
+const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+```
 
-**2. UI nel dialog - Sezione Pianificazione**
+**2. Nuove mutations**
 
-Sotto il selettore "Ricorrenza", quando il valore non e' "once", mostrare:
-- Input numerico "Periodi da generare" (1-60)
-- Testo anteprima con date calcolate usando `addMonths`/`addQuarters`/`addYears`
+- `deleteGroupMutation`: riceve un nome, cancella tutti i `company_costs` con `company_id` + `name` corrispondente. Toast: "Eliminati X costi 'nome'"
+- `bulkDeleteMutation`: riceve array di ID, cancella tutti con `.in("id", ids)`
+- `bulkMarkPaidMutation`: aggiorna `is_paid = true, paid_date = today` per tutti gli ID selezionati
+- `bulkMarkUnpaidMutation`: aggiorna `is_paid = false, paid_date = null` per tutti gli ID selezionati
 
-**3. Modifica `saveMutation`**
+Tutte le mutation resettano `selectedIds` e invalidano le query al completamento.
 
-Se `recurrence !== "once"` e `periods > 1` e non si sta editando:
-- Loop da 0 a periods-1
-- Calcola data per ogni periodo
-- Batch insert con controllo duplicati
-- Toast riepilogativo
+**3. Conteggio gruppo per nome**
 
-**4. Riorganizzazione stat cards**
+Un `useMemo` che conta quante righe esistono per ogni nome:
+```typescript
+const costNameCounts = useMemo(() => {
+  const map = new Map<string, number>();
+  costs.forEach(c => map.set(c.name, (map.get(c.name) || 0) + 1));
+  return map;
+}, [costs]);
+```
 
-Da 6 a 5 cards. Griglia aggiornata a `xl:grid-cols-5`.
+**4. Modifica `renderCostsTable`**
 
-**5. Pulizia import**
+- Aggiungere colonna Checkbox come prima colonna
+- Header checkbox per select all/none (solo costi non-order nella vista corrente)
+- Per ogni riga non-order: checkbox controllata da `selectedIds`
+- Sostituire il pulsante Elimina singolo con un DropdownMenu:
+  - "Elimina" (singolo)
+  - "Elimina tutti 'X'" (visibile solo se `costNameCounts.get(name) > 1`)
 
-Rimuovere `CalendarPlus` e `TrendingUp` dagli import di lucide-react.
+**5. Barra azioni rapide**
+
+Componente JSX posizionato subito sopra la tabella (dentro `renderCostsTable`), visibile solo se `selectedIds.size > 0`:
+
+```
+[X costi selezionati] [Segna pagati] [Segna non pagati] [Elimina] [Deseleziona]
+```
+
+Stile: barra con background primary/muted, bordo arrotondato, padding, flex layout con gap.
+
+**6. Nuovi import**
+
+- `Checkbox` da `@/components/ui/checkbox`
+- `DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger` da `@/components/ui/dropdown-menu`
+- `MoreHorizontal` da lucide-react (per il trigger del dropdown)
+
+**7. Reset selezione**
+
+`selectedIds` viene resettato quando cambiano i filtri (periodo, stato, ricerca, fornitore, categoria) tramite un `useEffect`.
+
+---
+
+## Nuovi AlertDialog
+
+- **Elimina gruppo**: "Eliminare tutti i X costi con il nome '[nome]'? Questa azione non puo' essere annullata."
+- **Elimina selezionati**: "Eliminare X costi selezionati? Questa azione non puo' essere annullata."
 
 ---
 
 ## Nessuna modifica al database
 
-Non servono nuove tabelle o colonne. Si usano le stesse righe `company_costs`, semplicemente ne vengono create multiple al salvataggio.
+Tutte le operazioni usano le API esistenti (`delete`, `update`) sulla tabella `company_costs`.
 
