@@ -1,98 +1,88 @@
 
-# Semplificazione Articoli Ordine + Stato Pagamento Fornitore
 
-## Panoramica
+# Riepilogo Pagamenti Fornitori + Pulizia e Stabilizzazione
 
-Rimuovere i campi "Prezzo Vendita", "Sconto %" e "Costo Standard" dal form degli articoli dell'ordine, mantenendo solo "Costo Acquisto" con IVA. Aggiungere uno "Stato Pagamento Fornitore" per tracciare come e quando si paga il fornitore per ogni articolo, con supporto per modalita di pagamento (50/50, 30/70, RIBA, ecc.).
+## 1. Nuova Feature: Widget "Pagamenti Fornitori" nella Dashboard
 
----
+Aggiungere una card nella dashboard aziendale che mostra un riepilogo dei pagamenti ai fornitori, basato sui dati `order_items` con i campi `is_paid`, `paid_date`, `payment_method` e `supplier_id`.
 
-## 1. Migrazione Database
+### Implementazione
 
-Aggiungere una nuova colonna `payment_method` alla tabella `order_items` per gestire la modalita di pagamento al fornitore.
+**Nuovo componente**: `src/components/dashboard/SupplierPaymentsSummary.tsx`
+
+Questo componente:
+- Esegue una query su `order_items` filtrando per `company_id` (via join su `orders`)
+- Raggruppa per fornitore (`supplier_id`) con join su `suppliers` per il nome
+- Calcola per ciascun fornitore:
+  - Totale pagato (`is_paid = true`)
+  - Totale da pagare (`is_paid = false`)
+  - Modalita di pagamento prevalente
+- Mostra una lista con barre di progresso (pagato vs totale)
+- Badge colorati: verde per "Pagato", arancione per "Da pagare"
+- Link a "Vedi dettaglio" che porta al previsionale
+
+**Modifica**: `src/pages/azienda/CompanyDashboard.tsx`
+
+- Aggiungere la query per i dati pagamenti fornitori nel `Promise.all` esistente
+- Inserire il widget nella griglia bottom row (trasformandola da 2 a 3 colonne, oppure aggiungendo una nuova riga)
+
+### Layout proposto
+
+La bottom row attuale ha 2 colonne (Alert Magazzino + Azioni Rapide). Aggiungere il widget come terza colonna:
 
 ```text
-ALTER TABLE order_items ADD COLUMN payment_method text DEFAULT NULL;
+[Alert Magazzino] [Pagamenti Fornitori] [Azioni Rapide]
 ```
 
-Le colonne `unit_price`, `discount_percent`, `standard_cost` rimangono nel DB (per non rompere dati storici) ma non vengono piu usate nel form. I nuovi articoli avranno questi campi a 0/null.
+### Query dati
+
+```sql
+SELECT 
+  s.id, s.name,
+  oi.purchase_price, oi.quantity, oi.is_paid, oi.payment_method
+FROM order_items oi
+JOIN orders o ON o.id = oi.order_id
+LEFT JOIN suppliers s ON s.id = oi.supplier_id
+WHERE o.company_id = :companyId
+```
+
+Poi raggruppamento lato client per fornitore.
 
 ---
 
-## 2. Modifiche a `OrderItemsList.tsx`
+## 2. Pulizia e Bug Fix
 
-### Form dialog (sia tab "Nuovo Articolo" che fallback senza stock)
-- **Rimuovere** i campi: "Prezzo Vendita", "Sconto %", "Costo Standard"
-- **Mantenere**: Quantita, Costo Acquisto, IVA Acquisto, Stato Articolo, Fornitore
-- **Aggiungere**: sezione "Stato Pagamento Fornitore" con:
-  - Toggle Pagato / Non Pagato (usa `is_paid` esistente)
-  - Data pagamento (`paid_date` esistente)
-  - Modalita pagamento (`payment_method` - nuovo): select con opzioni:
-    - "Bonifico unico"
-    - "50% acconto + 50% saldo"
-    - "30% acconto + 70% saldo"
-    - "RIBA"
-    - "Contanti"
-    - "Altro"
+### Codice da verificare e pulire
 
-### Lista articoli (card visualizzazione)
-- **Rimuovere** la riga "Vendita: X x Y -Z% = ..." dalla visualizzazione
-- **Aggiungere** badge stato pagamento (es. "Pagato" verde / "Non pagato" arancione)
-- Mostrare la modalita di pagamento se presente
+| File | Azione |
+|------|--------|
+| `OrderEconomics.tsx` | Verificare che la sezione "Margine Previsto vs Consuntivo" sia stata rimossa correttamente |
+| `OrderItemsList.tsx` | Verificare che i legacy fields (`unit_price`, `discount_percent`, `standard_cost`) non generino problemi nella UI |
+| `EditOrder.tsx` | Verificare coerenza con CreateOrder per i nuovi campi `is_paid`, `paid_date`, `payment_method` |
+| `useOrderDraft.ts` | Verificare che l'interfaccia `OrderDraftData` includa i nuovi campi item |
 
-### State e logica
-- Rimuovere state: `itemUnitPrice`, `itemDiscountPercent`, `itemStandardCost`
-- Aggiungere state: `itemIsPaid`, `itemPaidDate`, `itemPaymentMethod`
-- Aggiornare `resetForm()`, `openEditDialog()`, `handleSaveItem()`, `handleArticleSelect()`
+### Validazioni da verificare
 
-### Interface `OrderItem`
-- Rimuovere: `unit_price`, `discount_percent`, `standard_cost`
-- Aggiungere: `is_paid`, `paid_date`, `payment_method`
+- Articolo senza fornitore: il widget deve raggruppare sotto "Senza fornitore"
+- Articolo con `purchase_price = 0`: non deve causare errori di calcolo
+- Fornitore con tutti articoli pagati: mostrare progresso al 100%
 
 ---
 
-## 3. Modifiche a `OrderEconomics.tsx`
+## 3. UX e Stabilita
 
-- Rimuovere la sezione "MARGINE PREVISTO vs CONSUNTIVO" (righe 358-399) che dipendeva da `standard_cost`
-- Rimuovere i riferimenti a `unit_price`, `discount_percent`, `standard_cost` dall'interfaccia `OrderItem` interna
-- Il margine consuntivo continua a funzionare normalmente basandosi su `purchase_price`
-
----
-
-## 4. Aggiornamento `ArticleCombobox` / `handleArticleSelect`
-
-Quando si seleziona un articolo dal catalogo:
-- Non piu popolare `unit_price` e `standard_cost`
-- Popolare solo: `purchase_price` (da `standard_cost` del template), `vat_rate`, `supplier_id`, `description`
+- Il widget mostra uno stato empty chiaro ("Nessun articolo con fornitore associato") se non ci sono dati
+- Loading state con skeleton durante il caricamento
+- I totali sono formattati con `formatCurrency`
+- Badge pagamento coerenti con quelli usati in OrderItemsList
 
 ---
 
-## 5. Aggiornamento salvataggio ordine
-
-### `CreateOrder.tsx` e `EditOrder.tsx`
-- Aggiornare il payload di insert/upsert degli `order_items` per includere `is_paid`, `paid_date`, `payment_method`
-- Impostare `unit_price: 0`, `discount_percent: 0`, `standard_cost: 0` nei nuovi inserimenti
-
-### `useOrderDraft.ts`
-- Aggiornare l'interfaccia `OrderDraftData` per riflettere i nuovi campi degli `OrderItem`
-
----
-
-## 6. Riepilogo file
+## 4. Riepilogo file
 
 | Azione | File |
 |--------|------|
-| Migrazione | Aggiungere colonna `payment_method` a `order_items` |
-| Modificare | `src/components/orders/OrderItemsList.tsx` (rimuovere campi, aggiungere pagamento) |
-| Modificare | `src/components/orders/OrderEconomics.tsx` (rimuovere sezione margine previsto) |
-| Modificare | `src/pages/azienda/CreateOrder.tsx` (aggiornare payload salvataggio) |
-| Modificare | `src/pages/azienda/EditOrder.tsx` (aggiornare payload salvataggio) |
-| Modificare | `src/hooks/useOrderDraft.ts` (aggiornare interfaccia) |
+| Creare | `src/components/dashboard/SupplierPaymentsSummary.tsx` |
+| Modificare | `src/pages/azienda/CompanyDashboard.tsx` (aggiungere widget + query) |
+| Verificare | `OrderEconomics.tsx`, `EditOrder.tsx`, `useOrderDraft.ts` (coerenza campi) |
 
----
-
-## 7. Impatto
-
-- I dati storici con `unit_price`/`standard_cost` restano nel DB ma non vengono piu visualizzati
-- Il Conto Economico perde la sezione "Previsto vs Consuntivo" ma mantiene il margine basato sui costi effettivi
-- Ogni articolo ora traccia il pagamento al fornitore con modalita e data
