@@ -16,7 +16,7 @@ import {
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, Package, AlertTriangle, Users, UsersRound } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, AlertTriangle, Users, UsersRound, CalendarClock, Search, Truck, UserCheck } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -25,11 +25,13 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import type { CalendarOrder } from "@/types/calendar";
+import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
+import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 
 interface CalendarEvent {
-  type: "posa" | "merce";
-  order: CalendarOrder;
+  type: "posa" | "merce" | "appointment";
+  order?: CalendarOrder;
+  appointment?: CalendarAppointment;
   color: string;
 }
 
@@ -46,19 +48,31 @@ function hasLogisticRisk(order: CalendarOrder): boolean {
   return order.warehouse_arrival_date > order.expected_date;
 }
 
+const APPOINTMENT_ICONS: Record<string, typeof CalendarClock> = {
+  sopralluogo: Search,
+  consegna: Truck,
+  riunione: Users,
+  cliente: UserCheck,
+  generico: CalendarClock,
+};
+
 interface CalendarMonthViewProps {
   orders: CalendarOrder[];
+  appointments?: CalendarAppointment[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
 }
 
 export function CalendarMonthView({
   orders,
+  appointments = [],
   currentDate,
   onDateChange,
 }: CalendarMonthViewProps) {
   const navigate = useNavigate();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
+  const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
+  const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
@@ -76,6 +90,11 @@ export function CalendarMonthView({
       }
       if (order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day)) {
         events.push({ type: "merce", order, color: "#F59E0B" });
+      }
+    });
+    appointments.forEach((apt) => {
+      if (isSameDay(parseISO(apt.appointment_date), day)) {
+        events.push({ type: "appointment", appointment: apt, color: "#6366F1" });
       }
     });
     return events;
@@ -133,6 +152,40 @@ export function CalendarMonthView({
 
                 <div className="space-y-1">
                   {dayEvents.slice(0, 4).map((event, eventIdx) => {
+                    if (event.type === "appointment" && event.appointment) {
+                      const apt = event.appointment;
+                      const AptIcon = APPOINTMENT_ICONS[apt.appointment_type] || CalendarClock;
+                      return (
+                        <Tooltip key={`apt-${apt.id}-${eventIdx}`}>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => {
+                                setEditingAppointment({
+                                  id: apt.id, title: apt.title, description: apt.description,
+                                  appointment_date: apt.appointment_date, appointment_time: apt.appointment_time,
+                                  appointment_type: apt.appointment_type, assigned_to: apt.assigned_to,
+                                  order_id: apt.order_id, is_completed: apt.is_completed,
+                                });
+                                setAppointmentDialogOpen(true);
+                              }}
+                              className={cn("w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate", apt.is_completed && "opacity-50")}
+                              style={{ backgroundColor: event.color }}
+                            >
+                              <AptIcon className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate font-medium">{apt.title}</span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs">
+                            <p className="font-semibold">{apt.title}</p>
+                            {apt.appointment_time && <p className="text-xs">Ore: {apt.appointment_time.slice(0, 5)}</p>}
+                            {apt.description && <p className="text-xs text-muted-foreground">{apt.description}</p>}
+                            <p className="text-xs text-primary mt-1">Clicca per modificare</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
+
+                    if (!event.order) return null;
                     const logisticRisk = event.type === "posa" && hasLogisticRisk(event.order);
                     const initials = getEmployeeInitials(event.order);
 
@@ -140,79 +193,44 @@ export function CalendarMonthView({
                       <Tooltip key={`${event.order.id}-${event.type}-${eventIdx}`}>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={() => setEditingOrder(event.order)}
+                            onClick={() => setEditingOrder(event.order!)}
                             className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate"
                             style={{ backgroundColor: event.color }}
                           >
                             {event.order.status && (
-                              <div
-                                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: event.order.status.color }}
-                              />
+                              <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: event.order.status.color }} />
                             )}
-                            {event.type === "posa" ? (
-                              <Hammer className="h-3 w-3 flex-shrink-0" />
-                            ) : (
-                              <Package className="h-3 w-3 flex-shrink-0" />
-                            )}
+                            {event.type === "posa" ? <Hammer className="h-3 w-3 flex-shrink-0" /> : <Package className="h-3 w-3 flex-shrink-0" />}
                             <span className="truncate font-medium">
                               {event.order.order_code || "Ordine"} - {event.order.customer.last_name}
                             </span>
-                            {logisticRisk && (
-                              <AlertTriangle className="h-3 w-3 flex-shrink-0 text-yellow-200" />
-                            )}
+                            {logisticRisk && <AlertTriangle className="h-3 w-3 flex-shrink-0 text-yellow-200" />}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="right" className="max-w-xs">
                           <div className="space-y-1">
-                            <p className="font-semibold">
-                              {event.order.order_code || "N/A"} - {event.type === "posa" ? "Data Posa" : "Arrivo Merce"}
-                            </p>
-                            <p className="text-sm">
-                              {event.order.customer.first_name} {event.order.customer.last_name}
-                            </p>
-                            {event.order.description && (
-                              <p className="text-xs text-muted-foreground line-clamp-2">
-                                {event.order.description}
-                              </p>
-                            )}
+                            <p className="font-semibold">{event.order.order_code || "N/A"} - {event.type === "posa" ? "Data Posa" : "Arrivo Merce"}</p>
+                            <p className="text-sm">{event.order.customer.first_name} {event.order.customer.last_name}</p>
+                            {event.order.description && <p className="text-xs text-muted-foreground line-clamp-2">{event.order.description}</p>}
                             {event.order.status && (
                               <div className="flex items-center gap-2 mt-1">
-                                <div
-                                  className="w-2 h-2 rounded-full"
-                                  style={{ backgroundColor: event.order.status.color }}
-                                />
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: event.order.status.color }} />
                                 <span className="text-xs">{event.order.status.name}</span>
                               </div>
                             )}
                             {initials ? (
-                              <div className="flex items-center gap-1 text-xs">
-                                <Users className="h-3 w-3" />
-                                <span>{initials}</span>
-                              </div>
+                              <div className="flex items-center gap-1 text-xs"><Users className="h-3 w-3" /><span>{initials}</span></div>
                             ) : (
-                              <div className="flex items-center gap-1 text-xs text-amber-500">
-                                <Users className="h-3 w-3" />
-                                <span>Nessuna squadra</span>
-                              </div>
+                              <div className="flex items-center gap-1 text-xs text-amber-500"><Users className="h-3 w-3" /><span>Nessuna squadra</span></div>
                             )}
                             {(() => {
-                              const extNames = event.order.assigned_external_teams
-                                ?.map((aet) => aet.external_team.name)
-                                .join(", ");
-                              return extNames ? (
-                                <div className="flex items-center gap-1 text-xs">
-                                  <UsersRound className="h-3 w-3" />
-                                  <span>{extNames}</span>
-                                </div>
-                              ) : null;
+                              const extNames = event.order!.assigned_external_teams?.map((aet) => aet.external_team.name).join(", ");
+                              return extNames ? (<div className="flex items-center gap-1 text-xs"><UsersRound className="h-3 w-3" /><span>{extNames}</span></div>) : null;
                             })()}
                             {logisticRisk && (
                               <div className="flex items-center gap-1 text-xs text-amber-500 font-medium">
                                 <AlertTriangle className="h-3 w-3" />
-                                {!event.order.warehouse_arrival_date
-                                  ? "Merce non confermata"
-                                  : "Merce arriva dopo la posa"}
+                                {!event.order!.warehouse_arrival_date ? "Merce non confermata" : "Merce arriva dopo la posa"}
                               </div>
                             )}
                             <p className="text-xs text-primary mt-1">Clicca per modificare le date</p>
@@ -222,9 +240,7 @@ export function CalendarMonthView({
                     );
                   })}
                   {dayEvents.length > 4 && (
-                    <div className="text-xs text-muted-foreground text-center">
-                      +{dayEvents.length - 4} altri
-                    </div>
+                    <div className="text-xs text-muted-foreground text-center">+{dayEvents.length - 4} altri</div>
                   )}
                 </div>
               </div>
@@ -235,30 +251,34 @@ export function CalendarMonthView({
 
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center">
-            <Hammer className="h-2.5 w-2.5 text-white" />
-          </div>
+          <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center"><Hammer className="h-2.5 w-2.5 text-white" /></div>
           <span className="text-muted-foreground">Data Posa Prevista</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-amber-500 flex items-center justify-center">
-            <Package className="h-2.5 w-2.5 text-white" />
-          </div>
+          <div className="w-4 h-4 rounded bg-amber-500 flex items-center justify-center"><Package className="h-2.5 w-2.5 text-white" /></div>
           <span className="text-muted-foreground">Arrivo Merce</span>
         </div>
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <span className="text-muted-foreground">Rischio logistico</span>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-indigo-500 flex items-center justify-center"><CalendarClock className="h-2.5 w-2.5 text-white" /></div>
+          <span className="text-muted-foreground">Appuntamenti</span>
+        </div>
       </div>
 
       {editingOrder && (
-        <EditOrderDatesDialog
-          order={editingOrder}
-          open={!!editingOrder}
-          onOpenChange={(open) => !open && setEditingOrder(null)}
-        />
+        <EditOrderDatesDialog order={editingOrder} open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)} />
       )}
+
+      <AppointmentDialog
+        open={appointmentDialogOpen}
+        onOpenChange={setAppointmentDialogOpen}
+        appointment={editingAppointment}
+        onSaved={() => { setEditingAppointment(null); }}
+        showOrderSelect={true}
+      />
     </Card>
   );
 }

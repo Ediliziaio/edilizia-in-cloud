@@ -40,6 +40,7 @@ import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { OrderCommissions } from "@/components/orders/OrderCommissions";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
 import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 
@@ -932,6 +933,9 @@ export default function OrderDetail() {
 
           {/* Linked Tasks */}
           <LinkedTasks orderId={id} category="ordini" />
+
+          {/* Linked Appointments */}
+          <LinkedAppointments orderId={id!} />
         </div>
       </div>
 

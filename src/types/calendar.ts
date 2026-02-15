@@ -47,3 +47,25 @@ export interface CustomerFilter {
 export type GanttZoom = "year" | "quarter" | "month" | "week";
 
 export type CalendarViewType = "month" | "week" | "gantt" | "heatmap";
+
+export interface CalendarAppointment {
+  id: string;
+  title: string;
+  description: string | null;
+  appointment_date: string;
+  appointment_time: string | null;
+  appointment_type: string;
+  assigned_to: string | null;
+  order_id: string | null;
+  is_completed: boolean;
+  company_id: string;
+  created_by: string;
+  assigned?: {
+    first_name: string;
+    last_name: string;
+  } | null;
+  order?: {
+    order_code: string | null;
+    description: string;
+  } | null;
+}
