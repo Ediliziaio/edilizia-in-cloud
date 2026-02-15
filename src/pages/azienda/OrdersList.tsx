@@ -6,6 +6,7 @@ import { format } from "date-fns";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { calculateNetFromGross } from "@/lib/vatUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +24,7 @@ interface OrderWithDetails {
   order_code: string | null;
   description: string;
   total_amount: number;
+  vat_rate: number | null;
   deposit_amount: number;
   deposit_paid: boolean | null;
   deposit_2_amount: number | null;
@@ -124,6 +126,127 @@ export default function OrdersList() {
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Batch queries for cost calculations
+  const orderIds = orders.map(o => o.id);
+
+  const { data: itemCosts = [] } = useQuery({
+    queryKey: ["order-items-costs", effectiveCompany?.id, orderIds],
+    queryFn: async () => {
+      if (orderIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("order_items")
+        .select("order_id, purchase_price, quantity, vat_rate")
+        .in("order_id", orderIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: orderIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: employeeCosts = [] } = useQuery({
+    queryKey: ["order-employees-costs", effectiveCompany?.id, orderIds],
+    queryFn: async () => {
+      if (orderIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("order_employees")
+        .select("order_id, total_cost")
+        .in("order_id", orderIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: orderIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: externalTeamCosts = [] } = useQuery({
+    queryKey: ["order-external-teams-costs", effectiveCompany?.id, orderIds],
+    queryFn: async () => {
+      if (orderIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("order_external_teams")
+        .select("order_id, total_cost, vat_rate")
+        .in("order_id", orderIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: orderIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: salespeopleData = [] } = useQuery({
+    queryKey: ["order-salespeople-costs", effectiveCompany?.id, orderIds],
+    queryFn: async () => {
+      if (orderIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("order_salespeople")
+        .select("order_id, commission_type, commission_value, deduction_amount")
+        .in("order_id", orderIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: orderIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Build orderCosts map
+  const orderCostsMap = useMemo(() => {
+    const map = new Map<string, { variableCosts: number; grossMargin: number }>();
+    const orderAmountMap = new Map(orders.map(o => [o.id, o.total_amount]));
+
+    // Aggregate item costs per order (purchase_price is gross, needs VAT scorporo)
+    const itemCostsByOrder = new Map<string, number>();
+    for (const item of itemCosts) {
+      const gross = (item.purchase_price || 0) * (item.quantity || 1);
+      const { netAmount } = calculateNetFromGross(gross, item.vat_rate ?? 22);
+      itemCostsByOrder.set(item.order_id, (itemCostsByOrder.get(item.order_id) || 0) + netAmount);
+    }
+
+    // Aggregate employee costs per order (already net)
+    const empCostsByOrder = new Map<string, number>();
+    for (const e of employeeCosts) {
+      empCostsByOrder.set(e.order_id, (empCostsByOrder.get(e.order_id) || 0) + e.total_cost);
+    }
+
+    // Aggregate external team costs per order (gross, needs scorporo)
+    const teamCostsByOrder = new Map<string, number>();
+    for (const t of externalTeamCosts) {
+      const { netAmount } = calculateNetFromGross(t.total_cost, t.vat_rate ?? 22);
+      teamCostsByOrder.set(t.order_id, (teamCostsByOrder.get(t.order_id) || 0) + netAmount);
+    }
+
+    // Aggregate commissions per order
+    const commissionsByOrder = new Map<string, number>();
+    for (const sp of salespeopleData) {
+      const totalAmount = orderAmountMap.get(sp.order_id) || 0;
+      let commission = 0;
+      switch (sp.commission_type) {
+        case "fixed":
+          commission = sp.commission_value;
+          break;
+        case "percentage_sold":
+        case "percentage_collected":
+          commission = totalAmount * (sp.commission_value / 100);
+          break;
+      }
+      commission -= sp.deduction_amount || 0;
+      commissionsByOrder.set(sp.order_id, (commissionsByOrder.get(sp.order_id) || 0) + commission);
+    }
+
+    for (const orderId of orderIds) {
+      const totalAmount = orderAmountMap.get(orderId) || 0;
+      const variableCosts =
+        (itemCostsByOrder.get(orderId) || 0) +
+        (empCostsByOrder.get(orderId) || 0) +
+        (teamCostsByOrder.get(orderId) || 0) +
+        (commissionsByOrder.get(orderId) || 0);
+      const grossMargin = totalAmount - variableCosts;
+      map.set(orderId, { variableCosts, grossMargin });
+    }
+
+    return map;
+  }, [orders, orderIds, itemCosts, employeeCosts, externalTeamCosts, salespeopleData]);
 
   const { data: statuses = [] } = useQuery({
     queryKey: ["order-statuses", effectiveCompany?.id],
@@ -298,10 +421,10 @@ export default function OrdersList() {
 
   const stats = useMemo(() => {
     const totalOrders = filteredOrders.length;
-    const totalAmount = filteredOrders.reduce((sum, o) => sum + o.total_amount, 0);
+    const totalGross = filteredOrders.reduce((sum, o) => sum + o.total_amount * (1 + (o.vat_rate ?? 22) / 100), 0);
     const collected = filteredOrders.reduce((sum, o) => sum + getAmountCollected(o), 0);
     const pending = filteredOrders.reduce((sum, o) => sum + getAmountDue(o), 0);
-    return { totalOrders, totalAmount, collected, pending };
+    return { totalOrders, totalGross, collected, pending };
   }, [filteredOrders]);
 
   // Export CSV
@@ -524,6 +647,7 @@ export default function OrdersList() {
           orders={filteredOrders}
           onDelete={(id) => deleteOrderMutation.mutate(id)}
           isDeleting={deleteOrderMutation.isPending}
+          orderCosts={orderCostsMap}
         />
       )}
 

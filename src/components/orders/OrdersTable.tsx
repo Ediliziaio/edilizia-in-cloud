@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Eye, Pencil, Trash2 } from "lucide-react";
-import { formatCurrency, formatDateShort } from "@/lib/formatters";
+import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -29,6 +29,7 @@ interface OrderWithDetails {
   order_code: string | null;
   description: string;
   total_amount: number;
+  vat_rate: number | null;
   deposit_amount: number;
   deposit_paid: boolean | null;
   deposit_2_amount: number | null;
@@ -66,13 +67,27 @@ function getAmountDue(order: OrderWithDetails): number {
   return due;
 }
 
+function getAmountCollected(order: OrderWithDetails): number {
+  let collected = 0;
+  if (order.deposit_paid) collected += order.deposit_amount || 0;
+  if (order.deposit_2_paid) collected += (order.deposit_2_amount || 0);
+  if (order.balance_paid) collected += order.balance_amount || 0;
+  return collected;
+}
+
+export interface OrderCosts {
+  variableCosts: number;
+  grossMargin: number;
+}
+
 interface OrdersTableProps {
   orders: OrderWithDetails[];
   onDelete: (orderId: string) => void;
   isDeleting: boolean;
+  orderCosts: Map<string, OrderCosts>;
 }
 
-export function OrdersTable({ orders, onDelete, isDeleting }: OrdersTableProps) {
+export function OrdersTable({ orders, onDelete, isDeleting, orderCosts }: OrdersTableProps) {
   return (
     <Card>
       <div className="overflow-x-auto">
@@ -82,11 +97,12 @@ export function OrdersTable({ orders, onDelete, isDeleting }: OrdersTableProps) 
               <TableHead>Codice</TableHead>
               <TableHead>Descrizione</TableHead>
               <TableHead>Cliente</TableHead>
-              <TableHead className="text-right">Totale</TableHead>
+              <TableHead className="text-right">Tot. Ivato</TableHead>
+              <TableHead className="text-right">Imponibile</TableHead>
+              <TableHead className="text-right">Incassato</TableHead>
               <TableHead className="text-right">Da Ricevere</TableHead>
-              <TableHead className="hidden md:table-cell">Data Contratto</TableHead>
-              <TableHead className="hidden lg:table-cell">Arrivo Merce</TableHead>
-              <TableHead className="hidden lg:table-cell">Data Posa</TableHead>
+              <TableHead className="text-right">Costi Var.</TableHead>
+              <TableHead className="text-right">Margine</TableHead>
               <TableHead>Pagamenti</TableHead>
               <TableHead>Stato</TableHead>
               <TableHead className="text-right">Azioni</TableHead>
@@ -95,7 +111,14 @@ export function OrdersTable({ orders, onDelete, isDeleting }: OrdersTableProps) 
           <TableBody>
             {orders.map((order) => {
               const due = getAmountDue(order);
+              const collected = getAmountCollected(order);
               const pending = getPendingPayments(order);
+              const vatRate = order.vat_rate ?? 22;
+              const totalIvato = order.total_amount * (1 + vatRate / 100);
+              const costs = orderCosts.get(order.id);
+              const variableCosts = costs?.variableCosts ?? 0;
+              const grossMargin = costs?.grossMargin ?? order.total_amount;
+
               return (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">
@@ -110,21 +133,30 @@ export function OrdersTable({ orders, onDelete, isDeleting }: OrdersTableProps) 
                       : "—"}
                   </TableCell>
                   <TableCell className="text-right">
+                    {formatCurrency(totalIvato)}
+                  </TableCell>
+                  <TableCell className="text-right">
                     {formatCurrency(order.total_amount)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className={collected > 0 ? "text-emerald-600 dark:text-emerald-400" : ""}>
+                      {formatCurrency(collected)}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <span className={due > 0 ? "text-orange-600 dark:text-orange-400 font-medium" : "text-emerald-600 dark:text-emerald-400"}>
                       {formatCurrency(due)}
                     </span>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {formatDateShort(order.created_at)}
+                  <TableCell className="text-right">
+                    <span className="text-muted-foreground">
+                      {formatCurrency(variableCosts)}
+                    </span>
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {order.warehouse_arrival_date ? formatDateShort(order.warehouse_arrival_date) : "—"}
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {order.expected_date ? formatDateShort(order.expected_date) : "—"}
+                  <TableCell className="text-right">
+                    <span className={grossMargin >= 0 ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-destructive font-medium"}>
+                      {formatCurrency(grossMargin)}
+                    </span>
                   </TableCell>
                   <TableCell>
                     {pending.length === 0 ? (

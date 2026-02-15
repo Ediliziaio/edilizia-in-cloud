@@ -4,7 +4,7 @@ import { formatCurrency } from "@/lib/formatters";
 
 interface OrdersStats {
   totalOrders: number;
-  totalAmount: number;
+  totalGross: number;
   collected: number;
   pending: number;
 }
@@ -33,8 +33,8 @@ export function OrdersStatsCards({ stats }: OrdersStatsCardsProps) {
             <Euro className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <p className="text-2xl font-bold">{formatCurrency(stats.totalAmount)}</p>
-            <p className="text-xs text-muted-foreground">Importo Totale</p>
+            <p className="text-2xl font-bold">{formatCurrency(stats.totalGross)}</p>
+            <p className="text-xs text-muted-foreground">Totale Ivato</p>
           </div>
         </CardContent>
       </Card>
