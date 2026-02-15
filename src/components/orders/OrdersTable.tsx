@@ -118,6 +118,9 @@ export function OrdersTable({ orders, onDelete, isDeleting, orderCosts }: Orders
               const costs = orderCosts.get(order.id);
               const variableCosts = costs?.variableCosts ?? 0;
               const grossMargin = costs?.grossMargin ?? order.total_amount;
+              const marginPercent = order.total_amount > 0 
+                ? (grossMargin / order.total_amount) * 100 
+                : 0;
 
               return (
                 <TableRow key={order.id}>
@@ -155,7 +158,7 @@ export function OrdersTable({ orders, onDelete, isDeleting, orderCosts }: Orders
                   </TableCell>
                   <TableCell className="text-right">
                     <span className={grossMargin >= 0 ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-destructive font-medium"}>
-                      {formatCurrency(grossMargin)}
+                      {formatCurrency(grossMargin)} - {marginPercent.toFixed(1)}%
                     </span>
                   </TableCell>
                   <TableCell>
