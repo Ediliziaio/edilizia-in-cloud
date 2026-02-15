@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
@@ -17,18 +17,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3 } from "lucide-react";
-import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter } from "@/types/calendar";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3, Plus } from "lucide-react";
+import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment } from "@/types/calendar";
+import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 
 export default function Calendar() {
   const { effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
   const [view, setView] = useState<CalendarViewType>(isMobile ? "month" : "gantt");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [customerFilter, setCustomerFilter] = useState<string>("all");
   const [employeeFilter, setEmployeeFilter] = useState<string>("all");
   const [externalTeamFilter, setExternalTeamFilter] = useState<string>("all");
+  const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],
@@ -58,6 +61,26 @@ export default function Calendar() {
       
       if (error) throw error;
       return (data || []) as CalendarOrder[];
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch appointments
+  const { data: appointments = [] } = useQuery({
+    queryKey: ["appointments", effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("appointments")
+        .select(`
+          *,
+          order:orders!appointments_order_id_fkey(order_code, description)
+        `)
+        .eq("company_id", effectiveCompany.id)
+        .order("appointment_date", { ascending: true });
+      if (error) throw error;
+      return (data || []) as unknown as CalendarAppointment[];
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
@@ -289,10 +312,16 @@ export default function Calendar() {
           )}
         </ToggleGroup>
 
-        <Button variant="outline" size="sm" onClick={goToToday}>
-          <CalendarDays className="h-4 w-4 mr-2" />
-          Oggi
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Appuntamento
+          </Button>
+          <Button variant="outline" size="sm" onClick={goToToday}>
+            <CalendarDays className="h-4 w-4 mr-2" />
+            Oggi
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -302,12 +331,14 @@ export default function Calendar() {
       ) : view === "month" ? (
         <CalendarMonthView
           orders={scheduledOrders}
+          appointments={appointments}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
         />
       ) : view === "week" ? (
         <CalendarWeekView
           orders={scheduledOrders}
+          appointments={appointments}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
         />
@@ -326,6 +357,15 @@ export default function Calendar() {
           onDateChange={setCurrentDate}
         />
       )}
+
+      <AppointmentDialog
+        open={appointmentDialogOpen}
+        onOpenChange={setAppointmentDialogOpen}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        }}
+        showOrderSelect={true}
+      />
     </div>
   );
 }

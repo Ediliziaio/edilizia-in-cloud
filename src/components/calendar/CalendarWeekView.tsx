@@ -16,15 +16,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown, CalendarClock, Search, Truck, UserCheck } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import type { CalendarOrder } from "@/types/calendar";
+import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
+import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 
 interface CalendarWeekViewProps {
   orders: CalendarOrder[];
+  appointments?: CalendarAppointment[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
 }
@@ -43,18 +45,30 @@ function hasLogisticRisk(order: CalendarOrder): boolean {
 }
 
 interface WeekEvent {
-  order: CalendarOrder;
-  type: "posa" | "merce" | "lavoro";
+  order?: CalendarOrder;
+  appointment?: CalendarAppointment;
+  type: "posa" | "merce" | "lavoro" | "appointment";
 }
+
+const APPOINTMENT_ICONS: Record<string, typeof CalendarClock> = {
+  sopralluogo: Search,
+  consegna: Truck,
+  riunione: Users,
+  cliente: UserCheck,
+  generico: CalendarClock,
+};
 
 export function CalendarWeekView({
   orders,
+  appointments = [],
   currentDate,
   onDateChange,
 }: CalendarWeekViewProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
+  const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
+  const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
 
   const weekDays = useMemo(() => {
     const start = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -78,11 +92,16 @@ export function CalendarWeekView({
         const workStart = parseISO(order.work_start_date);
         const workEnd = order.work_end_date ? parseISO(order.work_end_date) : workStart;
         if (day >= workStart && day <= workEnd) {
-          const alreadyHasPosa = events.some((e) => e.order.id === order.id && e.type === "posa");
+          const alreadyHasPosa = events.some((e) => e.order?.id === order.id && e.type === "posa");
           if (!alreadyHasPosa) {
             events.push({ order, type: "lavoro" });
           }
         }
+      }
+    });
+    appointments.forEach((apt) => {
+      if (isSameDay(parseISO(apt.appointment_date), day)) {
+        events.push({ appointment: apt, type: "appointment" });
       }
     });
     return events;
@@ -95,7 +114,7 @@ export function CalendarWeekView({
     return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
   };
 
-  const getEventStyle = (type: "posa" | "merce" | "lavoro") => {
+  const getEventStyle = (type: "posa" | "merce" | "lavoro" | "appointment") => {
     switch (type) {
       case "posa":
         return { bg: "bg-blue-100 dark:bg-blue-900/40", text: "text-blue-700 dark:text-blue-300", icon: Hammer };
@@ -103,6 +122,8 @@ export function CalendarWeekView({
         return { bg: "bg-orange-100 dark:bg-orange-900/40", text: "text-orange-700 dark:text-orange-300", icon: Package };
       case "lavoro":
         return { bg: "bg-green-100 dark:bg-green-900/40", text: "text-green-700 dark:text-green-300", icon: Wrench };
+      case "appointment":
+        return { bg: "bg-indigo-100 dark:bg-indigo-900/40", text: "text-indigo-700 dark:text-indigo-300", icon: CalendarClock };
     }
   };
 
@@ -110,6 +131,51 @@ export function CalendarWeekView({
   const handleNextWeek = () => onDateChange(addWeeks(currentDate, 1));
 
   const renderEventCard = (event: WeekEvent, idx: number) => {
+    // Appointment event
+    if (event.type === "appointment" && event.appointment) {
+      const apt = event.appointment;
+      const style = getEventStyle("appointment");
+      const AptIcon = APPOINTMENT_ICONS[apt.appointment_type] || CalendarClock;
+
+      return (
+        <button
+          key={`apt-${apt.id}-${idx}`}
+          onClick={() => {
+            setEditingAppointment({
+              id: apt.id,
+              title: apt.title,
+              description: apt.description,
+              appointment_date: apt.appointment_date,
+              appointment_time: apt.appointment_time,
+              appointment_type: apt.appointment_type,
+              assigned_to: apt.assigned_to,
+              order_id: apt.order_id,
+              is_completed: apt.is_completed,
+            });
+            setAppointmentDialogOpen(true);
+          }}
+          className={cn(
+            "w-full text-left p-2 rounded text-xs transition-colors hover:opacity-80 border-l-[3px] border-indigo-500",
+            style.bg,
+            style.text,
+            apt.is_completed && "opacity-50"
+          )}
+        >
+          <div className="flex items-center gap-1 font-medium">
+            <AptIcon className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">{apt.title}</span>
+          </div>
+          {apt.appointment_time && (
+            <div className="truncate mt-0.5 opacity-80 text-[10px]">
+              {apt.appointment_time.slice(0, 5)}
+            </div>
+          )}
+        </button>
+      );
+    }
+
+    // Order event
+    if (!event.order) return null;
     const style = getEventStyle(event.type);
     const Icon = style.icon;
     const logisticRisk = event.type === "posa" && hasLogisticRisk(event.order);
@@ -121,7 +187,7 @@ export function CalendarWeekView({
     return (
       <button
         key={`${event.order.id}-${event.type}-${idx}`}
-        onClick={() => setEditingOrder(event.order)}
+        onClick={() => setEditingOrder(event.order!)}
         className={cn(
           "w-full text-left p-2 rounded text-xs transition-colors hover:opacity-80 border-l-[3px]",
           style.bg,
@@ -290,6 +356,11 @@ export function CalendarWeekView({
             <AlertTriangle className="h-3 w-3 text-amber-500" />
             <span className="text-muted-foreground">Rischio logistico</span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-indigo-100 dark:bg-indigo-900/40" />
+            <CalendarClock className="h-3 w-3 text-indigo-600" />
+            <span className="text-muted-foreground">Appuntamenti</span>
+          </div>
         </div>
       </CardContent>
 
@@ -300,6 +371,16 @@ export function CalendarWeekView({
           onOpenChange={(open) => !open && setEditingOrder(null)}
         />
       )}
+
+      <AppointmentDialog
+        open={appointmentDialogOpen}
+        onOpenChange={setAppointmentDialogOpen}
+        appointment={editingAppointment}
+        onSaved={() => {
+          setEditingAppointment(null);
+        }}
+        showOrderSelect={true}
+      />
     </Card>
   );
 }
