@@ -32,6 +32,11 @@ export interface OrderDraftData {
   balancePaid: boolean;
   balancePaidDate: string | null;
   balanceExpectedDate: string | null;
+  // Financing payment status
+  financingPaid: boolean;
+  financingPaidDate: string | null;
+  financingExpectedDate: string | null;
+  financingCost: string;
   // Items
   orderItems: OrderItem[];
   // Meta

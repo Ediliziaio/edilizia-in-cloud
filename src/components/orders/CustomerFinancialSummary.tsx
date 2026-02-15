@@ -73,10 +73,20 @@ export function CustomerFinancialSummary({
                 <span className="text-muted-foreground">Finanziamento</span>
                 <span>{formatCurrency(financingAmount)}</span>
               </div>
-              <div className="flex justify-between font-bold text-lg">
-                <span>Saldo da Pagare</span>
-                <span className="text-muted-foreground">€ 0,00</span>
-              </div>
+              {(() => {
+                const clientBalance = totalWithVat - depositAmount - financingAmount;
+                return clientBalance > 0 ? (
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>Saldo da Pagare</span>
+                    <span>{formatCurrency(clientBalance)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>Saldo da Pagare</span>
+                    <span className="text-muted-foreground">€ 0,00</span>
+                  </div>
+                );
+              })()}
               <p className="text-sm text-muted-foreground">
                 Pagamento tramite finanziaria
               </p>

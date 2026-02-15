@@ -155,6 +155,11 @@ export default function EditOrder() {
   const [balancePaid, setBalancePaid] = useState(false);
   const [balancePaidDate, setBalancePaidDate] = useState<Date | undefined>();
   const [balanceExpectedDate, setBalanceExpectedDate] = useState<Date | undefined>();
+  // Financing payment status
+  const [financingPaid, setFinancingPaid] = useState(false);
+  const [financingPaidDate, setFinancingPaidDate] = useState<Date | undefined>();
+  const [financingExpectedDate, setFinancingExpectedDate] = useState<Date | undefined>();
+  const [financingCost, setFinancingCost] = useState("");
 
   // Order items state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -178,9 +183,12 @@ export default function EditOrder() {
   const total = parseFloat(totalAmount) || 0;
   const deposit = parseFloat(depositAmount) || 0;
   const deposit2 = parseFloat(deposit2Amount) || 0;
+  const financing = parseFloat(financingAmount) || 0;
   const vat = parseFloat(vatRate) || 22;
   const totalWithVat = total * (1 + vat / 100);
-  const balance = paymentType === 'standard' ? Math.max(0, totalWithVat - deposit - deposit2) : 0;
+  const balance = paymentType === 'standard'
+    ? Math.max(0, totalWithVat - deposit - deposit2)
+    : Math.max(0, totalWithVat - deposit - financing);
 
   // Fetch order data
   const { data: order, isLoading: orderLoading } = useQuery({
@@ -278,6 +286,10 @@ export default function EditOrder() {
       setBalancePaidDate(isoToDate(draft.balancePaidDate));
       setBalanceExpectedDate(isoToDate(draft.balanceExpectedDate));
       if (draft.orderItems?.length) setOrderItems(draft.orderItems);
+      setFinancingPaid(draft.financingPaid || false);
+      setFinancingPaidDate(isoToDate(draft.financingPaidDate));
+      setFinancingExpectedDate(isoToDate(draft.financingExpectedDate));
+      setFinancingCost(draft.financingCost || "");
       setDraftRestored(true);
       setDataLoaded(true);
       return;
@@ -307,6 +319,11 @@ export default function EditOrder() {
     if (order.warehouse_arrival_date) setWarehouseArrivalDate(new Date(order.warehouse_arrival_date));
     if (order.work_start_date) setWorkStartDate(new Date(order.work_start_date));
     if (order.work_end_date) setWorkEndDate(new Date(order.work_end_date));
+    // Financing fields
+    setFinancingPaid((order as any).financing_paid || false);
+    setFinancingCost(((order as any).financing_cost || 0).toString());
+    if ((order as any).financing_paid_date) setFinancingPaidDate(new Date((order as any).financing_paid_date));
+    if ((order as any).financing_expected_date) setFinancingExpectedDate(new Date((order as any).financing_expected_date));
     setDataLoaded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order]);
@@ -332,6 +349,8 @@ export default function EditOrder() {
       depositPaid, depositPaidDate: dateToIso(depositPaidDate), depositExpectedDate: dateToIso(depositExpectedDate),
       deposit2Paid, deposit2PaidDate: dateToIso(deposit2PaidDate), deposit2ExpectedDate: dateToIso(deposit2ExpectedDate),
       balancePaid, balancePaidDate: dateToIso(balancePaidDate), balanceExpectedDate: dateToIso(balanceExpectedDate),
+      financingPaid, financingPaidDate: dateToIso(financingPaidDate), financingExpectedDate: dateToIso(financingExpectedDate),
+      financingCost,
       orderItems,
     });
   }, [customerId, orderCode, description, internalNotes, salespersonId, salespersonData,
@@ -340,6 +359,7 @@ export default function EditOrder() {
       depositPaid, depositPaidDate, depositExpectedDate,
       deposit2Paid, deposit2PaidDate, deposit2ExpectedDate,
       balancePaid, balancePaidDate, balanceExpectedDate,
+      financingPaid, financingPaidDate, financingExpectedDate, financingCost,
       orderItems, dataLoaded, saveDraft, dateToIso]);
 
   const handleClearDraft = useCallback(() => {
@@ -369,6 +389,10 @@ export default function EditOrder() {
       setWarehouseArrivalDate(order.warehouse_arrival_date ? new Date(order.warehouse_arrival_date) : undefined);
       setWorkStartDate(order.work_start_date ? new Date(order.work_start_date) : undefined);
       setWorkEndDate(order.work_end_date ? new Date(order.work_end_date) : undefined);
+      setFinancingPaid((order as any).financing_paid || false);
+      setFinancingCost(((order as any).financing_cost || 0).toString());
+      setFinancingPaidDate((order as any).financing_paid_date ? new Date((order as any).financing_paid_date) : undefined);
+      setFinancingExpectedDate((order as any).financing_expected_date ? new Date((order as any).financing_expected_date) : undefined);
     }
     if (existingItems.length > 0) {
       setOrderItems(existingItems.map(mapDbItemToOrderItem));
@@ -436,6 +460,10 @@ export default function EditOrder() {
           balance_expected_date: balanceExpectedDate?.toISOString().split("T")[0] || null,
           deposit_expected_date: depositExpectedDate?.toISOString().split("T")[0] || null,
           deposit_2_expected_date: deposit2ExpectedDate?.toISOString().split("T")[0] || null,
+          financing_paid: financingPaid,
+          financing_paid_date: financingPaidDate?.toISOString().split("T")[0] || null,
+          financing_expected_date: financingExpectedDate?.toISOString().split("T")[0] || null,
+          financing_cost: parseFloat(financingCost) || 0,
         })
         .eq("id", id!);
 
@@ -889,6 +917,14 @@ export default function EditOrder() {
             onBalancePaidChange={setBalancePaid}
             onBalancePaidDateChange={setBalancePaidDate}
             onBalanceExpectedDateChange={setBalanceExpectedDate}
+            financingPaid={financingPaid}
+            financingPaidDate={financingPaidDate}
+            financingExpectedDate={financingExpectedDate}
+            financingCost={financingCost}
+            onFinancingPaidChange={setFinancingPaid}
+            onFinancingPaidDateChange={setFinancingPaidDate}
+            onFinancingExpectedDateChange={setFinancingExpectedDate}
+            onFinancingCostChange={setFinancingCost}
           />
         </div>
 

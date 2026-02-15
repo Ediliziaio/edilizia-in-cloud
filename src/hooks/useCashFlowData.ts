@@ -41,6 +41,8 @@ export function useCashFlowData() {
           deposit_amount, deposit_paid, deposit_expected_date,
           deposit_2_amount, deposit_2_paid, deposit_2_expected_date,
           balance_amount, balance_paid, balance_expected_date,
+          financing_amount, financing_paid, financing_expected_date,
+          financing_cost, payment_type,
           customer:profiles!orders_customer_id_fkey(first_name, last_name)
         `)
         .eq("company_id", companyId!);
@@ -202,6 +204,19 @@ export function useCashFlowData() {
           type: "Saldo",
           amount: Number(order.balance_amount),
           expectedDate: order.balance_expected_date ? new Date(order.balance_expected_date) : null,
+          direction: "in",
+        });
+      }
+      // Financing income
+      const o = order as any;
+      if (!o.financing_paid && o.financing_amount && o.financing_amount > 0) {
+        payments.push({
+          orderId: order.id,
+          orderCode: order.order_code,
+          customerName,
+          type: "Finanziamento",
+          amount: Number(o.financing_amount),
+          expectedDate: o.financing_expected_date ? new Date(o.financing_expected_date) : null,
           direction: "in",
         });
       }
