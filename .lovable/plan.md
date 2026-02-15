@@ -1,120 +1,59 @@
 
-# Ristrutturazione Previsionale Cassa + Integrazione Provvigioni nei Costi
+# Fix Registrazione Pagamento nei Costi
 
-## Stato attuale e problemi
+## Problema
 
-**Sezione Costi (`CompanyCostsManager.tsx`)**:
-- Mostra: costi manuali, articoli fornitore, squadre esterne, manodopera
-- **MANCA**: provvigioni commerciali (`order_salespeople`) -- vanno aggiunte
+Il handler del dialog "Conferma Pagamento" (riga 1907-1915) gestisce solo 3 casi:
+1. Articoli fornitore (con `realOrderItemId`) → aggiorna `order_items`
+2. Squadre esterne (ID che inizia con `ext-team-`) → aggiorna `order_external_teams`
+3. **Tutto il resto** → aggiorna `company_costs`
 
-**Previsionale Cassa (`CashFlowForecast.tsx`)**:
-- 8 stat cards + 4 sezioni dettaglio separate + grafico + tabella = troppo dispersivo
-- Le provvigioni compaiono nella card separata ma **mancano dalla tabella unificata e dal CSV**
-- Dati duplicati tra card dedicate e tabella
+Ma le **provvigioni** (ID `commission-xxx`) e i **costi dipendente** (ID `emp-cost-xxx`) finiscono nel caso 3, che tenta di aggiornare la tabella `company_costs` con un ID inesistente. Il pagamento fallisce silenziosamente.
 
----
+Lo stesso problema esiste nel pulsante "Riporta a non pagato" (riga 1355-1358): gestisce solo `realOrderItemId` e `ext-team-`, ignorando provvigioni e dipendenti.
 
-## Parte 1: Aggiungere Provvigioni nella sezione Costi
+## Soluzione
 
-**File: `src/components/forecast/CompanyCostsManager.tsx`**
+### 1. Aggiungere due nuove mutation
 
-1. Aggiungere query `order_salespeople` (come gia' fatto per external teams e employees):
-   ```
-   from("order_salespeople")
-     .select("id, commission_amount, is_paid, paid_date, payment_expected_date,
-              salesperson:salespeople!inner(first_name, last_name, company_id),
-              order:orders!inner(id, order_code, company_id)")
-     .eq("salesperson.company_id", companyId)
-   ```
+- **`markCommissionPaidMutation`**: aggiorna `order_salespeople` con `is_paid = true, paid_date = date`
+- **`markCommissionUnpaidMutation`**: aggiorna `order_salespeople` con `is_paid = false, paid_date = null`
+- **`markEmployeeCostPaidMutation`**: aggiorna `order_labor_costs` con `is_paid = true, paid_date = date`
+- **`markEmployeeCostUnpaidMutation`**: aggiorna `order_labor_costs` con `is_paid = false, paid_date = null`
 
-2. Trasformare in `UnifiedCost[]` con categoria "Provvigioni":
-   - `name`: nome del venditore
-   - `amount`: `commission_amount`
-   - `category`: "Provvigioni"
-   - `due_date`: `payment_expected_date`
-   - `is_paid`: dal campo `is_paid`
-   - `isFromOrder`: true
+### 2. Aggiornare il handler "Conferma Pagamento" (riga 1907-1915)
 
-3. Aggiungere al merge `allOrderDerivedCosts`:
-   ```
-   [...orderItemsAsVariableCosts, ...externalTeamAsVariableCosts,
-    ...employeeAsVariableCosts, ...commissionAsVariableCosts]
-   ```
-
-4. Aggiornare il filtro Origine: "Da Ordine" includera' anche le provvigioni
-
----
-
-## Parte 2: Ristrutturazione Previsionale Cassa
-
-### Nuova struttura pagina
+Aggiungere i due nuovi casi prima del fallback:
 
 ```text
-+--------------------------------------------------+
-|  Header: Previsionale Cassa       [CSV] [PDF]     |
-+--------------------------------------------------+
-|  [Questo Mese]  [Prossimo Mese]  [Prossimi 3M]   |
-|  Entrate / Uscite / Netto per ciascuno            |
-+--------------------------------------------------+
-|  Riepilogo Uscite (card compatta)                 |
-|  Squadre | Provvigioni | Fornitori | C.Fissi | V  |
-|  + Burn Rate e Rapporto E/U                       |
-+--------------------------------------------------+
-|  Grafico 6 mesi (invariato)                       |
-+--------------------------------------------------+
-|  Tabella Unificata con filtro Categoria            |
-|  [Tutti|Entrate|Uscite] [Categoria] [Data]        |
-|  Include TUTTO: Incassi, Squadre, Provvigioni,    |
-|  Costi Aziendali, Pagamenti Fornitori             |
-+--------------------------------------------------+
+if (realOrderItemId)        → markOrderItemPaidMutation
+else if (id = "ext-team-")  → markExtTeamPaidMutation
+else if (id = "commission-")→ markCommissionPaidMutation  (NUOVO)
+else if (id = "emp-cost-")  → markEmployeeCostPaidMutation (NUOVO)
+else                        → markPaidMutation (company_costs)
 ```
 
-### 2a. Semplificare Stat Cards (`ForecastStatCards.tsx`)
-- Da 8 a **3 card**: Questo Mese, Prossimo Mese, Prossimi 3 Mesi
-- Ogni card: Entrate (verde), Uscite (rosso), Netto (grassetto, colorato)
-- Rimuovere card CFO KPIs separate
+### 3. Aggiornare il pulsante "Riporta a non pagato" (riga 1355-1358)
 
-### 2b. Nuovo componente: Riepilogo Uscite (`ForecastExpensesSummary.tsx`)
-- Una card compatta con breakdown uscite in sospeso
-- 5 mini-sezioni inline: Squadre Esterne, Provvigioni, Pagamenti Fornitori, Costi Fissi, Costi Variabili
-- Footer: Burn Rate mensile e Rapporto Entrate/Uscite
-- Alert collapsible per materiali pendenti (se presenti)
+Stessa logica per i casi di unpaid:
 
-### 2c. Rimuovere sezioni dettaglio separate dalla pagina
-- Non importare piu': `ForecastMaterialCosts`, `ForecastCommissions`, `ForecastCompanyCosts`, `ForecastSupplierPayments`
-- I file restano nel codebase (non vengono cancellati)
-- Tutti i dati confluiscono nella tabella unificata
+```text
+if (realOrderItemId)        → markOrderItemUnpaidMutation
+else if (id = "ext-team-")  → markExtTeamUnpaidMutation
+else if (id = "commission-")→ markCommissionUnpaidMutation (NUOVO)
+else if (id = "emp-cost-")  → markEmployeeCostUnpaidMutation (NUOVO)
+```
 
-### 2d. Integrare Provvigioni nella tabella (`ForecastTransactionsTable.tsx`)
-- Aggiungere prop `expectedCommissions`
-- Includerle in `allTransactions` con badge viola "Provvigione" e icona UserCheck
-- Aggiungere filtro **Categoria** (Select):
-  - Tutte le categorie
-  - Incassi Clienti
-  - Squadre Esterne
-  - Provvigioni
-  - Costi Aziendali
-  - Pagamenti Fornitori
+### 4. Aggiornare lo stato disabled del bottone
 
-### 2e. Fix Export CSV (`CashFlowForecast.tsx`)
-- Aggiungere provvigioni all'array delle transazioni CSV
-- Passare `expectedCommissions` alla tabella
+Aggiungere `markCommissionPaidMutation.isPending` e `markEmployeeCostPaidMutation.isPending` alla condizione `disabled` del bottone "Conferma Pagamento".
 
----
+## Verifica tabella database
 
-## File modificati
+Prima di implementare, verificare che `order_salespeople` abbia le colonne `is_paid` e `paid_date` (dai dati di rete risulta che le ha). Verificare anche `order_labor_costs` per i costi dipendente.
+
+## File modificato
 
 | File | Azione |
 |------|--------|
-| `src/components/forecast/CompanyCostsManager.tsx` | Aggiungere query + trasformazione provvigioni |
-| `src/components/forecast/ForecastStatCards.tsx` | Riscrittura: 3 card con breakdown |
-| `src/components/forecast/ForecastExpensesSummary.tsx` | **Nuovo**: riepilogo compatto uscite |
-| `src/components/forecast/ForecastTransactionsTable.tsx` | Aggiungere provvigioni + filtro categoria |
-| `src/pages/azienda/CashFlowForecast.tsx` | Ristrutturare layout, fix CSV |
-
-## Cosa NON cambia
-
-- Hook `useCashFlowData.ts` (dati gia' tutti disponibili)
-- Grafico `ForecastChart.tsx` (gia' ben strutturato)
-- Nessuna modifica al database
-- I file delle card rimosse restano nel codebase
+| `src/components/forecast/CompanyCostsManager.tsx` | Aggiungere 4 mutation + aggiornare handler pagamento/unpaid |
