@@ -393,6 +393,7 @@ export type Database = {
           monthly_hours: number
           net_salary: number
           phone: string | null
+          role_type: string
           updated_at: string
           user_id: string | null
         }
@@ -408,6 +409,7 @@ export type Database = {
           monthly_hours?: number
           net_salary?: number
           phone?: string | null
+          role_type?: string
           updated_at?: string
           user_id?: string | null
         }
@@ -423,6 +425,7 @@ export type Database = {
           monthly_hours?: number
           net_salary?: number
           phone?: string | null
+          role_type?: string
           updated_at?: string
           user_id?: string | null
         }

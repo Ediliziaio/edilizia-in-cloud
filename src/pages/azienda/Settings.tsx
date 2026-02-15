@@ -61,7 +61,7 @@ export default function Settings() {
               </TabsTrigger>
               <TabsTrigger value="operai" className="flex items-center gap-2">
                 <HardHat className="h-4 w-4" />
-                <span className="hidden sm:inline">Operai</span>
+                <span className="hidden sm:inline">Staff</span>
               </TabsTrigger>
             </>
           )}

@@ -51,9 +51,11 @@ interface EmployeeDialogProps {
     net_salary: number;
     monthly_hours: number;
     is_active: boolean;
+    role_type?: string;
   } | null;
   onSave: (data: EmployeeFormData) => void;
   isSaving: boolean;
+  roleType?: 'operaio' | 'staff_interno';
 }
 
 export function EmployeeDialog({
@@ -62,7 +64,11 @@ export function EmployeeDialog({
   employee,
   onSave,
   isSaving,
+  roleType = 'operaio',
 }: EmployeeDialogProps) {
+  const effectiveRoleType = employee?.role_type || roleType;
+  const isStaffInterno = effectiveRoleType === 'staff_interno';
+  const entityLabel = isStaffInterno ? 'Staff' : 'Operaio';
   const form = useForm<EmployeeFormData>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
@@ -116,12 +122,12 @@ export function EmployeeDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {employee ? "Modifica Dipendente" : "Nuovo Dipendente"}
+            {employee ? `Modifica ${entityLabel}` : `Nuovo ${entityLabel}`}
           </DialogTitle>
           <DialogDescription>
             {employee
-              ? "Modifica i dati del dipendente"
-              : "Inserisci i dati del nuovo dipendente"}
+              ? `Modifica i dati del ${entityLabel.toLowerCase()}`
+              : `Inserisci i dati del nuovo ${entityLabel.toLowerCase()}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -264,7 +270,7 @@ export function EmployeeDialog({
                 Annulla
               </Button>
               <Button type="submit" disabled={isSaving}>
-                {isSaving ? "Salvataggio..." : employee ? "Salva Modifiche" : "Crea Dipendente"}
+                {isSaving ? "Salvataggio..." : employee ? "Salva Modifiche" : `Crea ${entityLabel}`}
               </Button>
             </DialogFooter>
           </form>

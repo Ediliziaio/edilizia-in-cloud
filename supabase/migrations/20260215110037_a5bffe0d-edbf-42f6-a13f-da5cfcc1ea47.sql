@@ -1,0 +1,1 @@
+ALTER TABLE public.employees ADD COLUMN role_type TEXT NOT NULL DEFAULT 'operaio';

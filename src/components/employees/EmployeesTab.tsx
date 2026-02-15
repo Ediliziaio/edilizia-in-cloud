@@ -35,6 +35,7 @@ interface Employee {
   monthly_hours: number;
   is_active: boolean;
   user_id: string | null;
+  role_type?: string;
 }
 
 interface EmployeesTabProps {
