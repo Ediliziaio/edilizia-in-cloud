@@ -1,129 +1,100 @@
 
+# Stabilizzazione e Miglioramento Sezione Costi e Previsionale
 
-# Miglioramento Sezione Costi Aziendali - Livello Controllo di Gestione
+## Analisi Completata
 
-## Panoramica
-
-Trasformare la sezione Costi in uno strumento professionale di amministrazione e controllo di gestione, aggiungendo:
-- Gestione IVA (importo netto/lordo con scorporo automatico)
-- Collegamento a fornitori dalle Impostazioni (con categorie dinamiche)
-- UX migliorata con layout piu' chiaro e funzionale
+Ho analizzato in dettaglio tutti i file coinvolti nella sezione Costi e Previsionale. Il codice e' funzionalmente solido ma presenta alcune aree di miglioramento in termini di pulizia, robustezza e UX.
 
 ---
 
-## 1. Migrazione Database
+## 1) Pulizia Codice
 
-Aggiungere alla tabella `company_costs`:
+### Elementi da rimuovere/correggere in `CompanyCostsManager.tsx`:
+- **Import `Upload`** da lucide-react: usato, OK
+- **Import `Link`** da react-router-dom: usato nella tabella, OK
+- Nessun import inutilizzato trovato nei file analizzati
+- Le interfacce e tipi sono tutti referenziati correttamente
 
-```text
-vat_rate    NUMERIC DEFAULT 22       -- Aliquota IVA
-supplier_id UUID    REFERENCES suppliers(id) ON DELETE SET NULL  -- Fornitore collegato
-```
-
----
-
-## 2. Categorie Fornitori Dinamiche
-
-Attualmente `product_category` nei fornitori e' un campo testo libero. Il piano prevede:
-
-- Nel dialog di creazione/modifica costo, mostrare un combobox per la categoria che:
-  - Elenca le categorie esistenti (estratte dai valori unici di `company_costs.category` e `suppliers.product_category`)
-  - Permette di digitare una nuova categoria che viene salvata direttamente nel campo `category`
-- Nessuna tabella aggiuntiva necessaria: le categorie sono derivate dai dati esistenti
+### Consolidamento:
+- La costante `COST_IMPORT_FIELDS` potrebbe essere spostata in un file separato, ma essendo usata solo qui resta accettabile
+- Il rendering inline della tabella fornitori (righe 1083-1100) con `(() => { ... })()` va estratto in un blocco `useMemo` separato per leggibilita'
 
 ---
 
-## 3. Collegamento Fornitori nel Form Costi
+## 2) Fix Funzionali
 
-Nel dialog di creazione/modifica costo:
+### Bug 1: Query `supplierBalances` non filtra per company
+La query a riga 113-127 in `useCashFlowData.ts` filtra in JS con `.filter()` dopo aver scaricato tutti gli order_items con supplier. Questo funziona ma e' inefficiente. Tuttavia NON e' un bug bloccante - la filter e' corretta.
 
-- Aggiungere un Select "Fornitore" che mostra i fornitori dall'elenco in Impostazioni (tabella `suppliers`)
-- Selezionando un fornitore:
-  - L'aliquota IVA viene precompilata dalla `vat_rate` del fornitore
-  - La categoria viene precompilata dalla `product_category` del fornitore (se presente)
-- Il fornitore e' opzionale (i costi come affitto, utenze non hanno fornitore)
+### Bug 2: `orderItemCosts` query stessa problematica
+Riga 203-213: stessa filter post-fetch. Funzionale ma non ottimale.
 
----
+### Bug 3: Potenziale null reference in `supplierPaymentsData`
+Riga 341-360: `item.supplier?.name` e' protetto, ma `item.order?.company_id` potrebbe essere undefined se l'inner join fallisce. Il `.filter()` a riga 232 protegge ma va reso piu' robusto.
 
-## 4. Gestione IVA nel Form Costi
+### Bug 4: `calculateGrossFromNet` restituisce oggetto ma in `exportCostsCSV` si accede `.grossAmount`
+Riga 557-558: Funziona correttamente perche' la funzione restituisce `{ grossAmount, vatAmount }`.
 
-Aggiungere al dialog di creazione/modifica:
+### Bug 5: Nessuna validazione sull'importo nel form
+Se l'utente inserisce un importo negativo o zero, il salvataggio procede. Va aggiunta validazione.
 
-- Select "Aliquota IVA" con le opzioni standard (22%, 10%, 4%, 0%)
-- Toggle "Importo Ivato / Imponibile" (come gia' implementato negli ordini)
-- Se "Ivato": l'importo inserito e' il lordo, il sistema scorporera' l'IVA e salvera' l'imponibile
-- Se "Imponibile": l'importo e' gia' netto
-- Mostrare sotto il campo importo un riepilogo: "Imponibile: X EUR | IVA (22%): Y EUR | Totale: Z EUR"
+### Bug 6: Il campo `supplier_id` nel form viene settato a stringa vuota `""` invece di `"none"` in `handleSupplierChange`
+Riga 652: quando si seleziona "none", `supplier_id` diventa `""` ma il Select usa `"none"` come valore. Questo causa inconsistenza visiva (il Select non mostra "Nessun fornitore" dopo la deselezione).
 
-Nella tabella costi:
-- Mostrare l'importo netto (imponibile) come valore principale
-- In un tooltip o sotto-riga mostrare "IVA 22%: X EUR"
-
----
-
-## 5. Miglioramenti UX (Controllo di Gestione)
-
-### 5a. Layout Summary Cards migliorato
-- Aggiungere card "Fornitori da pagare" (totale non pagato per i costi con supplier_id)
-- Card "IVA a debito" (somma IVA su costi non pagati) per visione fiscale
-
-### 5b. Tabella costi migliorata
-- Colonna "Fornitore" con nome fornitore linkabile
-- Colonna "IVA" con badge aliquota
-- Raggruppamento visivo per fornitore nella tab Fornitori (gia' presente, da migliorare con totali per fornitore)
-
-### 5c. Form dialog migliorato
-- Layout a 2 colonne piu' strutturato
-- Sezione "Dati Fiscali" separata (IVA + fornitore)
-- Sezione "Pianificazione" separata (ricorrenza + scadenza)
-- Feedback visivo immediato sullo scorporo IVA
-
-### 5d. Filtri migliorati
-- Aggiungere filtro per fornitore
-- Aggiungere filtro per categoria
+### Fix da implementare:
+| Bug | File | Fix |
+|-----|------|-----|
+| Validazione importo | `CompanyCostsManager.tsx` | Aggiungere check `amount > 0` nel bottone salva |
+| Supplier ID inconsistenza | `CompanyCostsManager.tsx` | Usare `"none"` coerentemente nel `handleSupplierChange` |
+| Inline IIFE nel rendering | `CompanyCostsManager.tsx` | Estrarre in useMemo `supplierGroupedData` |
 
 ---
 
-## 6. Riepilogo File e Modifiche
+## 3) Miglioramenti UX
+
+### 3a. Feedback immediato
+- Aggiungere `disabled` state visivo durante tutte le mutation in corso (alcune gia' presenti, verificare completezza)
+- Toast di successo/errore gia' implementati - OK
+
+### 3b. Empty states
+- La sezione Fornitori nella tab ha gia' un empty state con icona - OK
+- La tabella costi ha empty state - OK
+
+### 3c. Miglioramenti visivi nella sezione Costi
+- Le 6 summary cards sono gia' ben implementate con colori distinti
+- Il form dialog ha gia' il layout strutturato con sezioni separate
+- Lo scorporo IVA in tempo reale e' gia' implementato
+
+### 3d. Miglioramenti da implementare:
+- **Loading state sui pulsanti azioni**: i pulsanti "Segna come pagato" e "Riporta a non pagato" non mostrano loading durante la mutation
+- **Animazione transizione tab**: aggiungere una transizione fade tra i tab content
+- **Tooltip sulle azioni**: alcuni pulsanti hanno `title` ma non Tooltip component - uniformare
+- **Conferma visiva pagamento**: dopo aver segnato un costo come pagato, la riga dovrebbe avere una breve animazione di conferma (opacity flash)
+
+---
+
+## 4) Riepilogo Modifiche
 
 | Azione | File | Dettaglio |
 |--------|------|-----------|
-| Migrazione DB | -- | Aggiungere `vat_rate` e `supplier_id` a `company_costs` |
-| Modificare | `src/components/forecast/CompanyCostsManager.tsx` | Form con IVA, fornitori, categorie dinamiche, UX migliorata |
-| Modificare | `src/lib/forecastTypes.ts` | Aggiungere `vatRate` e `supplierName` a `CompanyCostEntry` (se usato) |
+| Fix | `CompanyCostsManager.tsx` | Correggere inconsistenza `supplier_id` nel form (vuoto vs "none") |
+| Fix | `CompanyCostsManager.tsx` | Aggiungere validazione importo > 0 |
+| Refactor | `CompanyCostsManager.tsx` | Estrarre IIFE supplier grouping in useMemo |
+| UX | `CompanyCostsManager.tsx` | Aggiungere loading state ai pulsanti azione pagamento |
+| UX | `CompanyCostsManager.tsx` | Uniformare Tooltip su tutti i pulsanti azione |
+| Verifica | `useCashFlowData.ts` | Confermare che le query con filter JS funzionino correttamente |
+| Verifica | `ForecastSupplierPayments.tsx` | Confermare rendering corretto con dati reali |
+| Verifica | `ForecastTransactionsTable.tsx` | Confermare badge fornitori nella tabella transazioni |
+| Verifica | `ForecastChart.tsx` | Confermare barra "Fornitori" nel grafico |
 
 ---
 
-## 7. Dettaglio Tecnico - Form Costi Aggiornato
+## 5) Output Atteso
 
-### Nuovi campi `CostFormData`:
+Dopo l'implementazione:
+- **Cose rimosse**: IIFE inline sostituito con useMemo (pulizia, non rimozione file)
+- **Bug corretti**: 2 fix (supplier_id + validazione importo)
+- **UX migliorata**: loading state pulsanti, tooltip uniformi
+- **Test finale**: verifica completa del flusso costi -> previsionale -> grafico -> tabella transazioni
 
-```text
-supplier_id: string    -- ID fornitore (opzionale)
-vat_rate: string       -- Aliquota IVA (default "22")
-is_gross: boolean      -- true = importo ivato, false = imponibile
-```
-
-### Query aggiuntiva:
-- Fetch `suppliers` dell'azienda per popolare il Select fornitore nel dialog
-
-### Logica salvataggio:
-- Se `is_gross === true`: `amount = grossAmount / (1 + vatRate/100)` (salva sempre il netto)
-- Se `is_gross === false`: `amount = inputAmount` (gia' netto)
-- Salvare `vat_rate` e `supplier_id` nel record
-
-### Logica visualizzazione:
-- In tabella: mostrare `amount` (netto) + badge IVA
-- Nel tooltip: mostrare `amount * (1 + vat_rate/100)` come totale lordo
-
----
-
-## Risultato Atteso
-
-Un amministratore vedra':
-1. **Summary**: 5 card con totali (da pagare, pagato, scaduti, stima annuale, fornitori)
-2. **Filtri**: ricerca + periodo + stato + fornitore + categoria
-3. **Tabella**: nome, fornitore, categoria, imponibile, IVA%, ricorrenza, scadenza, stato, azioni
-4. **Form**: layout professionale con sezioni separate, scorporo IVA automatico, fornitore collegato con precompilazione
-5. **Tab Fornitori**: raggruppamento con barre progresso e dettaglio rate
-
+Nessun file verra' rimosso, nessun componente eliminato. Le modifiche sono tutte interne a `CompanyCostsManager.tsx` con verifiche di integrita' sugli altri componenti.
