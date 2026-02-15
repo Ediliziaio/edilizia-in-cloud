@@ -11,9 +11,6 @@ interface OrderItem {
   purchase_price?: number;
   quantity: number;
   vat_rate?: number;
-  unit_price?: number;
-  discount_percent?: number;
-  standard_cost?: number;
 }
 
 interface OrderEconomicsProps {
@@ -353,50 +350,6 @@ export function OrderEconomics({
         </div>
 
         <Separator />
-
-        {/* Planned vs Actual Margin Section */}
-        {items.some(i => (i.standard_cost ?? 0) > 0) && (() => {
-          const totalPlannedCost = items.reduce((sum, i) => sum + ((i.standard_cost || 0) * i.quantity), 0);
-          const totalActualCost = items.reduce((sum, i) => sum + ((i.purchase_price || 0) * i.quantity), 0);
-          const plannedMargin = totalAmount - totalPlannedCost;
-          const actualMargin = totalAmount - totalActualCost;
-          const variance = actualMargin - plannedMargin;
-          return (
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground mb-2">MARGINE PREVISTO vs CONSUNTIVO</h4>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Costi standard (previsti)</span>
-                  <span>{formatCurrency(totalPlannedCost)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Costi effettivi (consuntivi)</span>
-                  <span>{formatCurrency(totalActualCost)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-medium pt-1 border-t">
-                  <span>Margine Previsto</span>
-                  <span className={plannedMargin >= 0 ? "text-green-600" : "text-destructive"}>
-                    {formatCurrency(plannedMargin)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm font-medium">
-                  <span>Margine Consuntivo</span>
-                  <span className={actualMargin >= 0 ? "text-green-600" : "text-destructive"}>
-                    {formatCurrency(actualMargin)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm font-semibold pt-1 border-t">
-                  <span>Scostamento</span>
-                  <span className={variance >= 0 ? "text-green-600" : "text-destructive"}>
-                    {variance >= 0 ? "+" : ""}{formatCurrency(variance)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {items.some(i => (i.standard_cost ?? 0) > 0) && <Separator />}
 
         {/* Margin Section */}
         <div>

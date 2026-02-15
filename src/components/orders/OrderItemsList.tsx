@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Pencil, Package, Warehouse } from "lucide-react";
+import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -28,10 +29,29 @@ import { OrderItemAttachments, OrderItemAttachment } from "./OrderItemAttachment
 import { ArticleCombobox, ArticleTemplateData } from "./ArticleCombobox";
 import { SupplierSelect } from "./SupplierSelect";
 import { formatCurrency } from "@/lib/formatters";
-import { VAT_RATES, calculateNetFromGross } from "@/lib/vatUtils";
+import { VAT_RATES } from "@/lib/vatUtils";
 import type { StockItem } from "@/types/warehouse";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 export type OrderItemStatus = 'da_ordinare' | 'ordinato' | 'in_magazzino' | 'installato';
+
+export const PAYMENT_METHODS = [
+  { value: "bonifico_unico", label: "Bonifico unico" },
+  { value: "50_50", label: "50% acconto + 50% saldo" },
+  { value: "30_70", label: "30% acconto + 70% saldo" },
+  { value: "riba", label: "RIBA" },
+  { value: "contanti", label: "Contanti" },
+  { value: "altro", label: "Altro" },
+] as const;
 
 export interface OrderItem {
   id?: string;
@@ -46,6 +66,10 @@ export interface OrderItem {
   vat_rate?: number;
   stock_item_id?: string;
   attachments?: OrderItemAttachment[];
+  is_paid?: boolean;
+  paid_date?: string;
+  payment_method?: string;
+  // Legacy fields kept for backwards compat
   unit_price?: number;
   discount_percent?: number;
   standard_cost?: number;
@@ -107,9 +131,9 @@ export function OrderItemsList({
   const [itemPurchasePrice, setItemPurchasePrice] = useState("");
   const [itemVatRate, setItemVatRate] = useState<number>(22);
   const [itemStatus, setItemStatus] = useState<OrderItemStatus>("da_ordinare");
-  const [itemUnitPrice, setItemUnitPrice] = useState("");
-  const [itemDiscountPercent, setItemDiscountPercent] = useState("");
-  const [itemStandardCost, setItemStandardCost] = useState("");
+  const [itemIsPaid, setItemIsPaid] = useState(false);
+  const [itemPaidDate, setItemPaidDate] = useState<Date | undefined>();
+  const [itemPaymentMethod, setItemPaymentMethod] = useState<string>("");
   // Stock picking state
   const [selectedStockItem, setSelectedStockItem] = useState<string>("");
   const [stockPickQuantity, setStockPickQuantity] = useState("1");
@@ -154,6 +178,11 @@ export function OrderItemsList({
     return suppliers.find(s => s.id === supplierId)?.name || null;
   };
 
+  const getPaymentMethodLabel = (value?: string) => {
+    if (!value) return null;
+    return PAYMENT_METHODS.find(m => m.value === value)?.label || value;
+  };
+
   const resetForm = () => {
     setItemName("");
     setItemDescription("");
@@ -162,9 +191,9 @@ export function OrderItemsList({
     setItemPurchasePrice("");
     setItemVatRate(22);
     setItemStatus("da_ordinare");
-    setItemUnitPrice("");
-    setItemDiscountPercent("");
-    setItemStandardCost("");
+    setItemIsPaid(false);
+    setItemPaidDate(undefined);
+    setItemPaymentMethod("");
     setEditingIndex(null);
     setSelectedStockItem("");
     setStockPickQuantity("1");
@@ -185,9 +214,9 @@ export function OrderItemsList({
     setItemPurchasePrice(item.purchase_price?.toString() || "");
     setItemVatRate(item.vat_rate ?? 22);
     setItemStatus(item.status);
-    setItemUnitPrice(item.unit_price?.toString() || "");
-    setItemDiscountPercent(item.discount_percent?.toString() || "");
-    setItemStandardCost(item.standard_cost?.toString() || "");
+    setItemIsPaid(item.is_paid || false);
+    setItemPaidDate(item.paid_date ? new Date(item.paid_date) : undefined);
+    setItemPaymentMethod(item.payment_method || "");
     setEditingIndex(index);
     setDialogOpen(true);
   };
@@ -197,39 +226,35 @@ export function OrderItemsList({
 
     const quantity = Math.max(1, Math.round(parseInt(itemQuantity) || 1));
     const purchasePrice = Math.max(0, parseFloat(itemPurchasePrice) || 0);
-    const unitPrice = Math.max(0, parseFloat(itemUnitPrice) || 0);
-    const discountPercent = Math.max(0, Math.min(100, parseFloat(itemDiscountPercent) || 0));
-    const standardCost = Math.max(0, parseFloat(itemStandardCost) || 0);
     
+    const commonFields = {
+      name: itemName.trim(),
+      description: itemDescription.trim() || undefined,
+      quantity,
+      supplier_id: itemSupplierId,
+      purchase_price: purchasePrice,
+      vat_rate: itemVatRate,
+      status: itemStatus,
+      is_paid: itemIsPaid,
+      paid_date: itemIsPaid && itemPaidDate ? itemPaidDate.toISOString().split("T")[0] : undefined,
+      payment_method: itemPaymentMethod || undefined,
+      // Legacy fields zeroed out
+      unit_price: 0,
+      discount_percent: 0,
+      standard_cost: 0,
+    };
+
     if (editingIndex !== null) {
       const newItems = [...items];
       newItems[editingIndex] = {
         ...newItems[editingIndex],
-        name: itemName.trim(),
-        description: itemDescription.trim() || undefined,
-        quantity,
-        supplier_id: itemSupplierId,
-        purchase_price: purchasePrice,
-        vat_rate: itemVatRate,
-        status: itemStatus,
-        unit_price: unitPrice,
-        discount_percent: discountPercent,
-        standard_cost: standardCost,
+        ...commonFields,
       };
       onItemsChange(newItems);
     } else {
       const newItem: OrderItem = {
-        name: itemName.trim(),
-        description: itemDescription.trim() || undefined,
-        quantity,
-        status: itemStatus,
+        ...commonFields,
         position: items.length,
-        supplier_id: itemSupplierId,
-        purchase_price: purchasePrice,
-        vat_rate: itemVatRate,
-        unit_price: unitPrice,
-        discount_percent: discountPercent,
-        standard_cost: standardCost,
       };
       onItemsChange([...items, newItem]);
     }
@@ -241,9 +266,7 @@ export function OrderItemsList({
   const handleArticleSelect = (name: string, templateData?: ArticleTemplateData) => {
     setItemName(name);
     if (templateData) {
-      if (templateData.unit_price > 0) setItemUnitPrice(templateData.unit_price.toString());
       if (templateData.standard_cost > 0) {
-        setItemStandardCost(templateData.standard_cost.toString());
         setItemPurchasePrice(templateData.standard_cost.toString());
       }
       if (templateData.vat_rate !== undefined) setItemVatRate(templateData.vat_rate);
@@ -254,7 +277,6 @@ export function OrderItemsList({
 
   const handleSupplierChange = (supplierId: string | undefined, supplierVatRate?: number) => {
     setItemSupplierId(supplierId);
-    // Inherit VAT rate from supplier if available
     if (supplierVatRate !== undefined) {
       setItemVatRate(supplierVatRate);
     }
@@ -294,6 +316,98 @@ export function OrderItemsList({
     setDialogOpen(false);
     resetForm();
   };
+
+  const renderNewArticleForm = () => (
+    <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+      <div className="space-y-2">
+        <Label>Nome Articolo *</Label>
+        <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Seleziona o digita nome articolo..." />
+      </div>
+      <div className="space-y-2">
+        <Label>Descrizione</Label>
+        <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Quantità</Label>
+          <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Costo Acquisto</Label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+            <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label>IVA Acquisto</Label>
+        <Select value={itemVatRate.toString()} onValueChange={(v) => setItemVatRate(parseInt(v))}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {VAT_RATES.map((rate) => (
+              <SelectItem key={rate.value} value={rate.value.toString()}>{rate.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Stato Articolo</Label>
+        <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+              <SelectItem key={status} value={status}>{config.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Fornitore</Label>
+        <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} />
+      </div>
+
+      {/* Supplier Payment Status Section */}
+      <div className="border-t pt-4 space-y-3">
+        <Label className="text-sm font-semibold">Stato Pagamento Fornitore</Label>
+        <div className="space-y-2">
+          <Label>Modalità Pagamento</Label>
+          <Select value={itemPaymentMethod} onValueChange={setItemPaymentMethod}>
+            <SelectTrigger><SelectValue placeholder="Seleziona modalità..." /></SelectTrigger>
+            <SelectContent>
+              {PAYMENT_METHODS.map((m) => (
+                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center justify-between">
+          <Label>Pagato</Label>
+          <Switch checked={itemIsPaid} onCheckedChange={setItemIsPaid} />
+        </div>
+        {itemIsPaid && (
+          <div className="space-y-2">
+            <Label>Data Pagamento</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn("w-full justify-start text-left font-normal", !itemPaidDate && "text-muted-foreground")}
+                  type="button"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {itemPaidDate ? format(itemPaidDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data..."}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={itemPaidDate} onSelect={setItemPaidDate} locale={it} />
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <Card>
@@ -335,34 +449,12 @@ export function OrderItemsList({
           <div className="flex items-center gap-2 mb-4">
             <span className="text-sm text-muted-foreground">Filtra:</span>
             <div className="flex gap-1">
-              <Button
-                type="button"
-                variant={sourceFilter === "all" ? "default" : "outline"}
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => setSourceFilter("all")}
-              >
-                Tutti
+              <Button type="button" variant={sourceFilter === "all" ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setSourceFilter("all")}>Tutti</Button>
+              <Button type="button" variant={sourceFilter === "stock" ? "default" : "outline"} size="sm" className="h-7 text-xs gap-1" onClick={() => setSourceFilter("stock")}>
+                <Warehouse className="h-3 w-3" />Da Giacenza
               </Button>
-              <Button
-                type="button"
-                variant={sourceFilter === "stock" ? "default" : "outline"}
-                size="sm"
-                className="h-7 text-xs gap-1"
-                onClick={() => setSourceFilter("stock")}
-              >
-                <Warehouse className="h-3 w-3" />
-                Da Giacenza
-              </Button>
-              <Button
-                type="button"
-                variant={sourceFilter === "supplier" ? "default" : "outline"}
-                size="sm"
-                className="h-7 text-xs gap-1"
-                onClick={() => setSourceFilter("supplier")}
-              >
-                <Package className="h-3 w-3" />
-                Da Fornitore
+              <Button type="button" variant={sourceFilter === "supplier" ? "default" : "outline"} size="sm" className="h-7 text-xs gap-1" onClick={() => setSourceFilter("supplier")}>
+                <Package className="h-3 w-3" />Da Fornitore
               </Button>
             </div>
           </div>
@@ -404,28 +496,31 @@ export function OrderItemsList({
                           Da Fornitore
                         </Badge>
                       )}
+                      {/* Payment status badge */}
+                      {item.is_paid ? (
+                        <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Pagato
+                        </Badge>
+                      ) : (
+                        <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
+                          <Clock className="h-3 w-3" />
+                          Non pagato
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
                       {(item.supplier_id || item.supplier_name) && (
                         <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "—"}</span>
-                      )}
-                      {item.unit_price != null && item.unit_price > 0 && (
-                        <>
-                          <span>
-                            Vendita: {formatCurrency(item.unit_price)} × {item.quantity}
-                            {item.discount_percent != null && item.discount_percent > 0 && ` -${item.discount_percent}%`}
-                            {" = "}
-                            {formatCurrency(
-                              item.unit_price * item.quantity * (1 - (item.discount_percent || 0) / 100)
-                            )}
-                          </span>
-                        </>
                       )}
                       {item.purchase_price != null && item.purchase_price > 0 && (
                         <>
                           <span>Costo: {formatCurrency(item.purchase_price * item.quantity)}</span>
                           <span className="text-xs">({item.vat_rate ?? 22}% IVA)</span>
                         </>
+                      )}
+                      {item.payment_method && (
+                        <span>Mod.: {getPaymentMethodLabel(item.payment_method)}</span>
                       )}
                     </div>
                     {item.description && (
@@ -458,18 +553,10 @@ export function OrderItemsList({
 
                     {editable && (
                       <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(index)}
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(index)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteItem(index)}
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteItem(index)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </>
@@ -477,7 +564,7 @@ export function OrderItemsList({
                   </div>
                 </div>
 
-                {/* Attachments section - only show if item has an id (saved to DB) */}
+                {/* Attachments section */}
                 {item.id && (
                   <div className="pt-2 border-t">
                     <OrderItemAttachments
@@ -523,75 +610,7 @@ export function OrderItemsList({
                 </TabsList>
 
                 <TabsContent value="new">
-                  <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
-                    <div className="space-y-2">
-                      <Label>Nome Articolo *</Label>
-                      <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Seleziona o digita nome articolo..." />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Descrizione</Label>
-                      <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." />
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="space-y-2">
-                        <Label>Quantità</Label>
-                        <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Prezzo Vendita</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
-                          <Input type="number" min="0" step="0.01" value={itemUnitPrice} onChange={(e) => setItemUnitPrice(e.target.value)} className="pl-8" placeholder="0.00" />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Sconto %</Label>
-                        <Input type="number" min="0" max="100" step="0.1" value={itemDiscountPercent} onChange={(e) => setItemDiscountPercent(e.target.value)} placeholder="0" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Costo Acquisto</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
-                          <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Costo Standard</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
-                          <Input type="number" min="0" step="0.01" value={itemStandardCost} onChange={(e) => setItemStandardCost(e.target.value)} className="pl-8" placeholder="0.00" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>IVA Acquisto</Label>
-                      <Select value={itemVatRate.toString()} onValueChange={(v) => setItemVatRate(parseInt(v))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {VAT_RATES.map((rate) => (
-                            <SelectItem key={rate.value} value={rate.value.toString()}>{rate.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Stato Articolo</Label>
-                      <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                            <SelectItem key={status} value={status}>{config.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Fornitore</Label>
-                      <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} />
-                    </div>
-                  </div>
+                  {renderNewArticleForm()}
                   <DialogFooter className="mt-4">
                     <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
                     <Button onClick={handleSaveItem} disabled={!itemName.trim()}>Aggiungi</Button>
@@ -656,75 +675,7 @@ export function OrderItemsList({
               </Tabs>
             ) : (
               <>
-                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
-                  <div className="space-y-2">
-                    <Label>Nome Articolo *</Label>
-                    <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Seleziona o digita nome articolo..." />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Descrizione</Label>
-                    <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." />
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-2">
-                      <Label>Quantità</Label>
-                      <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Prezzo Vendita</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
-                        <Input type="number" min="0" step="0.01" value={itemUnitPrice} onChange={(e) => setItemUnitPrice(e.target.value)} className="pl-8" placeholder="0.00" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Sconto %</Label>
-                      <Input type="number" min="0" max="100" step="0.1" value={itemDiscountPercent} onChange={(e) => setItemDiscountPercent(e.target.value)} placeholder="0" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Costo Acquisto</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
-                        <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Costo Standard</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
-                        <Input type="number" min="0" step="0.01" value={itemStandardCost} onChange={(e) => setItemStandardCost(e.target.value)} className="pl-8" placeholder="0.00" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>IVA Acquisto</Label>
-                    <Select value={itemVatRate.toString()} onValueChange={(v) => setItemVatRate(parseInt(v))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {VAT_RATES.map((rate) => (
-                          <SelectItem key={rate.value} value={rate.value.toString()}>{rate.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Stato Articolo</Label>
-                    <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                          <SelectItem key={status} value={status}>{config.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Fornitore</Label>
-                    <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} />
-                  </div>
-                </div>
+                {renderNewArticleForm()}
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
                   <Button onClick={handleSaveItem} disabled={!itemName.trim()}>
