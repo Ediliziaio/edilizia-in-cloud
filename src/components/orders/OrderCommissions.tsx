@@ -426,26 +426,6 @@ export function OrderCommissions({
             )}
           </div>
 
-          {/* Decurtazioni dall'ordine */}
-          <Separator />
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Decurtazioni dall'ordine
-            </p>
-            <div className="flex justify-between text-sm">
-              <span>Imponibile vendita (netto IVA)</span>
-              <span>{formatCurrency(totalAmount)}</span>
-            </div>
-            <div className="flex justify-between text-sm text-destructive">
-              <span>Totale provvigioni</span>
-              <span>- {formatCurrency(totalCommissions)}</span>
-            </div>
-            <Separator />
-            <div className="flex justify-between text-sm font-semibold">
-              <span>Netto dopo provvigioni</span>
-              <span>{formatCurrency(totalAmount - totalCommissions)}</span>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
