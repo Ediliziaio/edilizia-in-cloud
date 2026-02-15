@@ -203,6 +203,7 @@ export default function CompanyCostsManager() {
   const [searchQuery, setSearchQuery] = useState("");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [originFilter, setOriginFilter] = useState<"all" | "manual" | "order">("all");
 
   // Query costs with supplier join
   const { data: costs = [], isLoading } = useQuery({
@@ -399,6 +400,7 @@ export default function CompanyCostsManager() {
 
   // Filtering logic
   const filteredCosts = useMemo(() => {
+    if (originFilter === "order") return [];
     const now = new Date();
     let filtered = costs as any[];
 
@@ -437,9 +439,10 @@ export default function CompanyCostsManager() {
     }
 
     return filtered;
-  }, [costs, periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter]);
+  }, [costs, periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter]);
 
   const filteredOrderItemCosts = useMemo(() => {
+    if (originFilter === "manual") return [];
     let filtered = allOrderDerivedCosts;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -451,7 +454,7 @@ export default function CompanyCostsManager() {
       filtered = filtered.filter((c) => c.category === categoryFilter);
     }
     return filtered;
-  }, [allOrderDerivedCosts, searchQuery, statusFilter, categoryFilter]);
+  }, [allOrderDerivedCosts, searchQuery, statusFilter, categoryFilter, originFilter]);
 
   // Query orders for linking
   const { data: orders = [] } = useQuery({
@@ -528,7 +531,7 @@ export default function CompanyCostsManager() {
   // Reset selection when filters change
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter]);
+  }, [periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter]);
 
   // Group delete mutation
   const deleteGroupMutation = useMutation({
@@ -1511,6 +1514,14 @@ export default function CompanyCostsManager() {
                 {dynamicCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select value={originFilter} onValueChange={(v) => setOriginFilter(v as "all" | "manual" | "order")}>
+              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Origine" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte le origini</SelectItem>
+                <SelectItem value="manual">Manuale</SelectItem>
+                <SelectItem value="order">Da Ordine</SelectItem>
               </SelectContent>
             </Select>
           </div>
