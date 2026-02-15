@@ -341,6 +341,8 @@ export default function EditOrder() {
   // Auto-save draft on every change (debounced)
   useEffect(() => {
     if (!dataLoaded) return;
+    // Don't save draft with empty customerId if the order has a valid customer
+    if (customerId === "" && order?.customer_id) return;
     saveDraft({
       customerId, orderCode, description, internalNotes, statusId: "",
       salespersonId, salespersonData,
@@ -406,7 +408,7 @@ export default function EditOrder() {
   }, [clearDraft, order, existingItems]);
 
   // Fetch customers for the company
-  const { data: customers = [] } = useQuery({
+  const { data: customers = [], isLoading: isLoadingCustomers } = useQuery({
     queryKey: ["customers", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -430,6 +432,7 @@ export default function EditOrder() {
       return (data || []) as Customer[];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch the order's customer directly to ensure it's always available (Super Admin race condition fix)
@@ -445,6 +448,7 @@ export default function EditOrder() {
       return data as Customer | null;
     },
     enabled: !!order?.customer_id,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Merge: ensure the order's customer is always in the list
@@ -852,9 +856,9 @@ export default function EditOrder() {
               <div className="space-y-2">
                 <Label htmlFor="customer">Cliente *</Label>
                 <div className="flex gap-2">
-                  <Select value={customerId} onValueChange={setCustomerId}>
+                  <Select value={customerId && allCustomers.some(c => c.id === customerId) ? customerId : undefined} onValueChange={setCustomerId}>
                     <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Seleziona un cliente" />
+                      <SelectValue placeholder={isLoadingCustomers ? "Caricamento..." : "Seleziona un cliente"} />
                     </SelectTrigger>
                     <SelectContent>
                       {allCustomers.map((customer) => (
