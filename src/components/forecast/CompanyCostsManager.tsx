@@ -234,14 +234,14 @@ export default function CompanyCostsManager() {
     enabled: !!companyId,
   });
 
-  // Query order items with status da_ordinare or ordinato
-  const { data: orderItemCosts = [], isLoading: isLoadingOrderItems } = useQuery({
-    queryKey: ["order-item-costs", companyId],
+  // Query ALL order items with supplier (for split payments)
+  const { data: orderItemCosts = [] } = useQuery({
+    queryKey: ["order-item-costs-full", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("id, name, quantity, purchase_price, status, is_paid, paid_date, supplier:suppliers(name), order:orders!inner(id, order_code, company_id)")
-        .in("status", ["da_ordinare", "ordinato"])
+        .select("id, name, quantity, purchase_price, status, payment_method, deposit_amount, deposit_paid, deposit_paid_date, balance_amount, balance_paid, balance_paid_date, balance_expected_date, is_paid, paid_date, supplier:suppliers(name), order:orders!inner(id, order_code, company_id)")
+        .not("supplier_id", "is", null)
         .eq("order.company_id", companyId!);
       if (error) throw error;
       return (data || []) as any[];
@@ -249,55 +249,152 @@ export default function CompanyCostsManager() {
     enabled: !!companyId,
   });
 
-
-  // Query orders for linking
-  const { data: orders = [] } = useQuery({
-    queryKey: ["orders-for-costs", companyId],
+  // Query external teams from orders
+  const { data: externalTeamCosts = [] } = useQuery({
+    queryKey: ["order-external-team-costs", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("orders")
-        .select("id, order_code, description")
-        .eq("company_id", companyId!)
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .from("order_external_teams")
+        .select("id, total_cost, payment_date, is_paid, paid_date, external_team:external_teams(name), order:orders!inner(id, order_code, company_id)")
+        .eq("order.company_id", companyId!);
       if (error) throw error;
-      return data || [];
+      return (data || []) as any[];
     },
     enabled: !!companyId,
   });
 
-  // Dynamic categories from costs + suppliers
-  const dynamicCategories = useMemo(() => {
-    const cats = new Set<string>();
-    costs.forEach((c: any) => { if (c.category) cats.add(c.category); });
-    suppliers.forEach((s: any) => { if (s.product_category) cats.add(s.product_category); });
-    if (cats.size === 0) {
-      ["Affitto", "Utenze", "Assicurazioni", "Leasing", "Trasporti", "Consulenze", "Marketing", "Software", "Tasse", "Materiali", "Altro"].forEach(c => cats.add(c));
-    }
-    return Array.from(cats).sort();
-  }, [costs, suppliers]);
+  // Query employees from orders
+  const { data: employeeCosts = [] } = useQuery({
+    queryKey: ["order-employee-costs", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_employees")
+        .select("id, total_cost, employee:employees(first_name, last_name), order:orders!inner(id, order_code, company_id)")
+        .eq("order.company_id", companyId!);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    enabled: !!companyId,
+  });
 
-  // Transform order items into unified cost format
+  // Transform order items into unified cost format (split installments)
   const orderItemsAsVariableCosts: UnifiedCost[] = useMemo(() => {
-    return orderItemCosts.map((item: any) => ({
-      id: `order-item-${item.id}`,
-      realOrderItemId: item.id,
-      name: item.name,
+    const rows: UnifiedCost[] = [];
+    orderItemCosts.forEach((item: any) => {
+      const pm = item.payment_method;
+      const order = item.order ? { id: item.order.id, order_code: item.order.order_code } : null;
+      const supplierName = item.supplier?.name || null;
+
+      if (pm === "50_50" || pm === "30_70") {
+        // Deposit row
+        rows.push({
+          id: `order-item-dep-${item.id}`,
+          realOrderItemId: item.id,
+          name: `Acconto - ${item.name}`,
+          cost_type: "variable",
+          amount: Number(item.deposit_amount) || 0,
+          category: "Fornitori",
+          recurrence: "once",
+          due_date: item.deposit_paid_date || new Date().toISOString().split("T")[0],
+          is_paid: !!item.deposit_paid,
+          paid_date: item.deposit_paid_date || null,
+          notes: null,
+          order_id: order?.id || null,
+          order,
+          isFromOrder: true,
+          orderItemStatus: item.status,
+          supplierName,
+        });
+        // Balance row
+        rows.push({
+          id: `order-item-bal-${item.id}`,
+          realOrderItemId: item.id,
+          name: `Saldo - ${item.name}`,
+          cost_type: "variable",
+          amount: Number(item.balance_amount) || 0,
+          category: "Fornitori",
+          recurrence: "once",
+          due_date: item.balance_expected_date || item.balance_paid_date || new Date().toISOString().split("T")[0],
+          is_paid: !!item.balance_paid,
+          paid_date: item.balance_paid_date || null,
+          notes: null,
+          order_id: order?.id || null,
+          order,
+          isFromOrder: true,
+          orderItemStatus: item.status,
+          supplierName,
+        });
+      } else {
+        // Single row
+        rows.push({
+          id: `order-item-${item.id}`,
+          realOrderItemId: item.id,
+          name: item.name,
+          cost_type: "variable",
+          amount: (Number(item.purchase_price) || 0) * (Number(item.quantity) || 1),
+          category: "Fornitori",
+          recurrence: "once",
+          due_date: item.paid_date || new Date().toISOString().split("T")[0],
+          is_paid: !!item.is_paid,
+          paid_date: item.paid_date || null,
+          notes: null,
+          order_id: order?.id || null,
+          order,
+          isFromOrder: true,
+          orderItemStatus: item.status,
+          supplierName,
+        });
+      }
+    });
+    return rows;
+  }, [orderItemCosts]);
+
+  // Transform external teams into unified cost format
+  const externalTeamAsVariableCosts: UnifiedCost[] = useMemo(() => {
+    return externalTeamCosts.map((item: any) => ({
+      id: `ext-team-${item.id}`,
+      name: item.external_team?.name || "Squadra Esterna",
       cost_type: "variable",
-      amount: (Number(item.purchase_price) || 0) * (Number(item.quantity) || 1),
-      category: "Materiali",
+      amount: Number(item.total_cost) || 0,
+      category: "Squadre Esterne",
       recurrence: "once",
-      due_date: new Date().toISOString().split("T")[0],
+      due_date: item.payment_date || new Date().toISOString().split("T")[0],
       is_paid: !!item.is_paid,
       paid_date: item.paid_date || null,
       notes: null,
       order_id: item.order?.id || null,
       order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
       isFromOrder: true,
-      orderItemStatus: item.status,
-      supplierName: item.supplier?.name || null,
+      supplierName: null,
     }));
-  }, [orderItemCosts]);
+  }, [externalTeamCosts]);
+
+  // Transform employee costs into unified cost format
+  const employeeAsVariableCosts: UnifiedCost[] = useMemo(() => {
+    return employeeCosts.map((item: any) => ({
+      id: `emp-cost-${item.id}`,
+      name: `${item.employee?.first_name || ""} ${item.employee?.last_name || ""}`.trim() || "Dipendente",
+      cost_type: "variable",
+      amount: Number(item.total_cost) || 0,
+      category: "Manodopera",
+      recurrence: "once",
+      due_date: new Date().toISOString().split("T")[0],
+      is_paid: false,
+      paid_date: null,
+      notes: null,
+      order_id: item.order?.id || null,
+      order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
+      isFromOrder: true,
+      supplierName: null,
+    }));
+  }, [employeeCosts]);
+
+  // All order-derived costs combined
+  const allOrderDerivedCosts = useMemo(() => [
+    ...orderItemsAsVariableCosts,
+    ...externalTeamAsVariableCosts,
+    ...employeeAsVariableCosts,
+  ], [orderItemsAsVariableCosts, externalTeamAsVariableCosts, employeeAsVariableCosts]);
 
   // Filtering logic
   const filteredCosts = useMemo(() => {
@@ -342,18 +439,50 @@ export default function CompanyCostsManager() {
   }, [costs, periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter]);
 
   const filteredOrderItemCosts = useMemo(() => {
-    let filtered = orderItemsAsVariableCosts;
+    let filtered = allOrderDerivedCosts;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      filtered = filtered.filter((c) => c.name.toLowerCase().includes(q));
+      filtered = filtered.filter((c) => c.name.toLowerCase().includes(q) || (c.supplierName || "").toLowerCase().includes(q));
     }
     if (statusFilter === "paid") filtered = filtered.filter((c) => c.is_paid);
     else if (statusFilter === "unpaid") filtered = filtered.filter((c) => !c.is_paid);
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((c) => c.category === categoryFilter);
+    }
     return filtered;
-  }, [orderItemsAsVariableCosts, searchQuery, statusFilter]);
+  }, [allOrderDerivedCosts, searchQuery, statusFilter, categoryFilter]);
+
+  // Query orders for linking
+  const { data: orders = [] } = useQuery({
+    queryKey: ["orders-for-costs", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, order_code, description")
+        .eq("company_id", companyId!)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  // Dynamic categories from costs + suppliers
+  const dynamicCategories = useMemo(() => {
+    const cats = new Set<string>();
+    costs.forEach((c: any) => { if (c.category) cats.add(c.category); });
+    suppliers.forEach((s: any) => { if (s.product_category) cats.add(s.product_category); });
+    // Add order-derived categories
+    allOrderDerivedCosts.forEach((c) => { if (c.category) cats.add(c.category); });
+    if (cats.size === 0) {
+      ["Affitto", "Utenze", "Assicurazioni", "Leasing", "Trasporti", "Consulenze", "Marketing", "Software", "Tasse", "Materiali", "Altro"].forEach(c => cats.add(c));
+    }
+    return Array.from(cats).sort();
+  }, [costs, suppliers, allOrderDerivedCosts]);
 
 
-  // Monthly distribution for mini-chart
+  // Monthly distribution for mini-chart (includes order-derived costs)
   const monthlyDistribution = useMemo(() => {
     const now = new Date();
     const months = [];
@@ -370,6 +499,15 @@ export default function CompanyCostsManager() {
           else variable += Number(c.amount);
         }
       });
+      // Add order-derived costs as variable
+      allOrderDerivedCosts.forEach((c) => {
+        if (c.is_paid) return;
+        if (!c.due_date) return;
+        const d = new Date(c.due_date);
+        if (d >= ms && d <= me) {
+          variable += c.amount;
+        }
+      });
       months.push({
         month: format(ms, "MMM yy", { locale: it }),
         Fissi: fixed,
@@ -377,7 +515,7 @@ export default function CompanyCostsManager() {
       });
     }
     return months;
-  }, [costs]);
+  }, [costs, allOrderDerivedCosts]);
 
   // Cost name counts for group delete
   const costNameCounts = useMemo(() => {
@@ -650,7 +788,7 @@ export default function CompanyCostsManager() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-item-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["order-item-costs-full"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       setPayDialogOpen(false);
       setPayingCostId(null);
@@ -664,9 +802,35 @@ export default function CompanyCostsManager() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-item-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["order-item-costs-full"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       toast({ title: "Articolo riportato a non pagato" });
+    },
+  });
+
+  const markExtTeamPaidMutation = useMutation({
+    mutationFn: async ({ id, date }: { id: string; date: string }) => {
+      const { error } = await supabase.from("order_external_teams").update({ is_paid: true, paid_date: date } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-external-team-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      setPayDialogOpen(false);
+      setPayingCostId(null);
+      toast({ title: "Squadra esterna segnata come pagata" });
+    },
+  });
+
+  const markExtTeamUnpaidMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("order_external_teams").update({ is_paid: false, paid_date: null } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-external-team-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      toast({ title: "Squadra esterna riportata a non pagata" });
     },
   });
 
@@ -827,7 +991,7 @@ export default function CompanyCostsManager() {
   const thisMonthPaid = costs.filter((c: any) => c.is_paid && c.paid_date && isWithinInterval(new Date(c.paid_date), thisMonthInterval));
   const overdueCosts = costs.filter((c: any) => !c.is_paid && new Date(c.due_date) < now);
 
-  const orderItemsTotalUnpaid = orderItemsAsVariableCosts.filter(c => !c.is_paid).reduce((s, c) => s + c.amount, 0);
+  const orderItemsTotalUnpaid = allOrderDerivedCosts.filter(c => !c.is_paid).reduce((s, c) => s + c.amount, 0);
   const totalUnpaidThisMonth = thisMonthUnpaid.reduce((s: number, c: any) => s + Number(c.amount), 0) + orderItemsTotalUnpaid;
   const totalPaidThisMonth = thisMonthPaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
   const totalOverdue = overdueCosts.reduce((s: number, c: any) => s + Number(c.amount), 0);
@@ -1154,7 +1318,10 @@ export default function CompanyCostsManager() {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => cost.realOrderItemId && markOrderItemUnpaidMutation.mutate(cost.realOrderItemId)}>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                                        if (cost.realOrderItemId) markOrderItemUnpaidMutation.mutate(cost.realOrderItemId);
+                                        else if (cost.id.startsWith("ext-team-")) markExtTeamUnpaidMutation.mutate(cost.id.replace("ext-team-", ""));
+                                      }}>
                                         <Undo2 className="h-3.5 w-3.5 text-orange-600" />
                                       </Button>
                                     </TooltipTrigger>
@@ -1696,8 +1863,11 @@ export default function CompanyCostsManager() {
             <Button
               onClick={() => {
                 if (payingCostId && paymentDate) {
-                  if (payingCostId.startsWith("order-item-")) {
-                    markOrderItemPaidMutation.mutate({ id: payingCostId.replace("order-item-", ""), date: paymentDate });
+                  const derivedCost = allOrderDerivedCosts.find(c => c.id === payingCostId);
+                  if (derivedCost?.realOrderItemId) {
+                    markOrderItemPaidMutation.mutate({ id: derivedCost.realOrderItemId, date: paymentDate });
+                  } else if (payingCostId.startsWith("ext-team-")) {
+                    markExtTeamPaidMutation.mutate({ id: payingCostId.replace("ext-team-", ""), date: paymentDate });
                   } else {
                     markPaidMutation.mutate({ id: payingCostId, date: paymentDate });
                   }
