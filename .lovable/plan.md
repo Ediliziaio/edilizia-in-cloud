@@ -1,84 +1,100 @@
 
 
-# Registrazione Costo Acquisto al Salvataggio Giacenza
+# Fix Costi Dipendenti: da una tantum a mensile (stipendio)
 
-## Cosa cambia
+## Problema attuale
 
-Quando si aggiunge un nuovo articolo in giacenza (o si esegue un carico), l'utente potra opzionalmente registrare il costo di acquisto sostenuto direttamente dalla dialog, senza doverlo inserire manualmente nella sezione Costi.
+Nella sezione Costi, i dipendenti (es. Alessandro Natale) appaiono come costi una tantum derivati dagli ordini (ore x tariffa oraria = ~300 EUR). Ma il costo reale di un dipendente e il suo **stipendio lordo mensile** (es. 2.000 EUR/mese), non l'assegnazione al singolo ordine.
 
-## Comportamento
+Inoltre, vengono mostrati solo i dipendenti assegnati a ordini, non tutti quelli dell'azienda.
 
-- Nel dialog "Nuovo Articolo in Giacenza", viene aggiunto un **toggle/checkbox** "Registra costo acquisto"
-- Se attivato, appaiono due campi aggiuntivi:
-  - **Data pagamento** (precompilata con oggi)
-  - **Categoria costo** (opzionale, es. "Materiali", "Magazzino")
-- Al salvataggio, oltre a creare l'articolo in `warehouse_stock`, il sistema inserisce automaticamente un record nella tabella `company_costs` con:
-  - `name`: nome dell'articolo + " (acquisto magazzino)"
-  - `amount`: costo unitario x quantita
-  - `vat_rate`: aliquota IVA selezionata
-  - `supplier_id`: fornitore selezionato
-  - `due_date`: data pagamento
-  - `is_paid`: true
-  - `paid_date`: data pagamento
-  - `cost_type`: "variable"
-  - `category`: categoria selezionata o "Magazzino"
-  - `recurrence`: "once"
+## Soluzione
 
-- In **modifica** articolo, il toggle non appare (il costo e gia stato registrato alla creazione)
-- Lo stesso meccanismo viene aggiunto anche al dialog di **Carico** (StockMovementDialog), per registrare il costo di un riapprovvigionamento
+### 1. Nuova query: tutti i dipendenti attivi dell'azienda
+
+Aggiungere una query che carica tutti i dipendenti attivi dalla tabella `employees` (non da `order_employees`), con il loro stipendio lordo.
+
+### 2. Trasformazione in costi mensili ricorrenti
+
+Ogni dipendente attivo diventa un costo con:
+- **Nome**: "Nome Cognome (stipendio)"
+- **Importo**: `gross_salary`
+- **Tipo**: Fisso
+- **Ricorrenza**: Mensile
+- **Categoria**: "Personale"
+- **Origine**: Automatica (da ordine, non modificabile)
+
+### 3. Rimuovere i costi per-ordine dei dipendenti
+
+La trasformazione `employeeAsVariableCosts` (basata su `order_employees`) verra rimossa dalla sezione Costi. I costi per-ordine restano visibili nella scheda Manodopera del singolo ordine, ma nella vista Costi conta solo lo stipendio mensile.
+
+### 4. Squadre esterne: restano una tantum
+
+Nessun cambiamento per le squadre esterne -- continuano a essere costi una tantum derivati dagli ordini.
 
 ---
 
 ## Dettaglio tecnico
 
-### File modificati
+### File: `src/components/forecast/CompanyCostsManager.tsx`
 
-| File | Modifica |
-|------|----------|
-| `src/components/warehouse/StockItemDialog.tsx` | Aggiungere checkbox "Registra costo acquisto", campi data e categoria. Passare i nuovi dati via `onSave`. |
-| `src/components/warehouse/WarehouseStockTab.tsx` | Nel `saveMutation` (solo insert, non update): se i dati costo sono presenti, inserire anche in `company_costs`. |
-| `src/components/warehouse/StockMovementDialog.tsx` | Aggiungere lo stesso toggle per i movimenti di carico, passando i dati extra via `onSave`. |
-| `src/components/warehouse/WarehouseStockTab.tsx` | Nel `movementMutation` (solo tipo "carico"): se i dati costo sono presenti, inserire in `company_costs`. |
+**A. Sostituire la query `order-employee-costs`** con una nuova query su `employees`:
 
-### Interfaccia `onSave` aggiornata (StockItemDialog)
-
-```text
-onSave: (data: {
-  name, description, quantity, unit_cost, vat_rate, supplier_id, min_stock_level,
-  // nuovi campi opzionali:
-  registerCost?: boolean;
-  costPaidDate?: string;
-  costCategory?: string;
-}) => void
+```typescript
+const { data: activeEmployees = [] } = useQuery({
+  queryKey: ["active-employees-costs", companyId],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id, first_name, last_name, gross_salary, is_active")
+      .eq("company_id", companyId!)
+      .eq("is_active", true)
+      .order("last_name");
+    if (error) throw error;
+    return data || [];
+  },
+  enabled: !!companyId,
+});
 ```
 
-### Logica insert costo (in saveMutation, solo creazione)
+**B. Sostituire `employeeAsVariableCosts`** con una trasformazione che genera un costo mensile per ogni dipendente attivo, replicando la stessa logica dei costi ricorrenti (una riga per ogni mese per i prossimi 12 mesi, oppure un'unica riga "monthly"):
 
-```text
-if (data.registerCost && !data.id) {
-  const totalAmount = data.unit_cost * data.quantity;
-  await supabase.from("company_costs").insert({
-    company_id, 
-    name: data.name + " (acquisto magazzino)",
-    cost_type: "variable",
-    amount: totalAmount,
-    vat_rate: data.vat_rate,
-    supplier_id: data.supplier_id || null,
-    due_date: data.costPaidDate,
-    is_paid: true,
-    paid_date: data.costPaidDate,
-    category: data.costCategory || "Magazzino",
-    recurrence: "once",
-  });
-}
+```typescript
+const employeeAsFixedCosts: UnifiedCost[] = useMemo(() => {
+  return activeEmployees.map((emp) => ({
+    id: `employee-salary-${emp.id}`,
+    name: `${emp.first_name} ${emp.last_name} (stipendio)`,
+    cost_type: "fixed",
+    amount: Number(emp.gross_salary) || 0,
+    category: "Personale",
+    recurrence: "monthly",
+    due_date: format(endOfMonth(new Date()), "yyyy-MM-dd"),
+    is_paid: false,  // gestito manualmente
+    paid_date: null,
+    notes: null,
+    order_id: null,
+    order: null,
+    isFromOrder: true, // per renderlo non editabile
+    supplierName: null,
+  }));
+}, [activeEmployees]);
 ```
 
-### UX del toggle
+**C. Aggiornare `allOrderDerivedCosts`**: sostituire `employeeAsVariableCosts` con `employeeAsFixedCosts`.
 
-- Checkbox con label "Registra costo acquisto nei Costi Aziendali"
-- Sotto il checkbox (visibile solo se attivo):
-  - Campo data con valore default = oggi
-  - Select categoria (opzionale)
-- Il toggle e disattivato di default
-- Non appare in modalita modifica (`editingItem` presente)
+**D. Aggiornare le mutation di pagamento**: il prefisso cambia da `emp-cost-` a `employee-salary-`. Il pagamento verra registrato nella tabella `company_costs` con un inserimento automatico (o tramite un meccanismo dedicato) anziche aggiornare `order_employees`.
+
+**E. Rimuovere** la query `order-employee-costs` e la relativa mutation `markEmployeeCostPaidMutation`/`markEmployeeCostUnpaidMutation` poiche non servono piu in questa vista.
+
+---
+
+## Riepilogo
+
+| Voce | Prima | Dopo |
+|------|-------|------|
+| Dipendenti nei Costi | Una tantum da ordine (ore x tariffa) | Mensile (stipendio lordo) |
+| Dipendenti visibili | Solo quelli assegnati a ordini | Tutti quelli attivi |
+| Squadre esterne | Una tantum da ordine | Invariato |
+| Categoria | "Manodopera" | "Personale" |
+| Tipo costo | Variabile | Fisso |
 
