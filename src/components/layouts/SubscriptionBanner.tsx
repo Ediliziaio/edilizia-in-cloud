@@ -4,10 +4,11 @@ import { AlertTriangle, Clock, XCircle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function SubscriptionBanner() {
-  const { isImpersonating } = useAuth();
+  const { isImpersonating, effectiveCompany } = useAuth();
   const { companyStatus, trialDaysLeft, trialExpired } = useSubscriptionLimits();
 
   if (isImpersonating) return null;
+  if (!effectiveCompany) return null;
   if (companyStatus === "active") return null;
 
   let bgColor = "";

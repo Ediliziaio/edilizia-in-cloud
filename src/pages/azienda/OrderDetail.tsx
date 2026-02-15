@@ -139,11 +139,18 @@ interface OrderDetail {
   work_end_date: string | null;
   deposit_paid: boolean;
   deposit_paid_date: string | null;
+  deposit_expected_date: string | null;
   deposit_2_paid: boolean;
   deposit_2_paid_date: string | null;
+  deposit_2_expected_date: string | null;
   balance_paid: boolean;
   balance_paid_date: string | null;
   balance_expected_date: string | null;
+  financing_paid: boolean | null;
+  financing_paid_date: string | null;
+  financing_expected_date: string | null;
+  financing_cost: number | null;
+  has_building_bonus: boolean;
   customer: {
     id: string;
     first_name: string;

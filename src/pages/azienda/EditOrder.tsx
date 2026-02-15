@@ -67,6 +67,11 @@ interface OrderData {
   balance_paid: boolean;
   balance_paid_date: string | null;
   balance_expected_date: string | null;
+  financing_paid: boolean | null;
+  financing_paid_date: string | null;
+  financing_expected_date: string | null;
+  financing_cost: number | null;
+  has_building_bonus: boolean;
 }
 
 interface OrderItemData {
@@ -322,11 +327,11 @@ export default function EditOrder() {
     if (order.work_start_date) setWorkStartDate(new Date(order.work_start_date));
     if (order.work_end_date) setWorkEndDate(new Date(order.work_end_date));
     // Financing fields
-    setFinancingPaid((order as any).financing_paid || false);
-    setFinancingCost(((order as any).financing_cost || 0).toString());
-    if ((order as any).financing_paid_date) setFinancingPaidDate(new Date((order as any).financing_paid_date));
-    if ((order as any).financing_expected_date) setFinancingExpectedDate(new Date((order as any).financing_expected_date));
-    setHasBuildingBonus((order as any).has_building_bonus || false);
+    setFinancingPaid(order.financing_paid || false);
+    setFinancingCost((order.financing_cost || 0).toString());
+    if (order.financing_paid_date) setFinancingPaidDate(new Date(order.financing_paid_date));
+    if (order.financing_expected_date) setFinancingExpectedDate(new Date(order.financing_expected_date));
+    setHasBuildingBonus(order.has_building_bonus || false);
     setDataLoaded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order]);
@@ -396,11 +401,11 @@ export default function EditOrder() {
       setWarehouseArrivalDate(order.warehouse_arrival_date ? new Date(order.warehouse_arrival_date) : undefined);
       setWorkStartDate(order.work_start_date ? new Date(order.work_start_date) : undefined);
       setWorkEndDate(order.work_end_date ? new Date(order.work_end_date) : undefined);
-      setFinancingPaid((order as any).financing_paid || false);
-      setFinancingCost(((order as any).financing_cost || 0).toString());
-      setFinancingPaidDate((order as any).financing_paid_date ? new Date((order as any).financing_paid_date) : undefined);
-      setFinancingExpectedDate((order as any).financing_expected_date ? new Date((order as any).financing_expected_date) : undefined);
-      setHasBuildingBonus((order as any).has_building_bonus || false);
+      setFinancingPaid(order.financing_paid || false);
+      setFinancingCost((order.financing_cost || 0).toString());
+      setFinancingPaidDate(order.financing_paid_date ? new Date(order.financing_paid_date) : undefined);
+      setFinancingExpectedDate(order.financing_expected_date ? new Date(order.financing_expected_date) : undefined);
+      setHasBuildingBonus(order.has_building_bonus || false);
     }
     if (existingItems.length > 0) {
       setOrderItems(existingItems.map(mapDbItemToOrderItem));
