@@ -178,6 +178,9 @@ interface OrderItemData {
   is_paid: boolean | null;
   paid_date: string | null;
   payment_method: string | null;
+  unit_price: number | null;
+  discount_percent: number | null;
+  standard_cost: number | null;
   deposit_amount: number | null;
   deposit_paid: boolean | null;
   deposit_paid_date: string | null;
@@ -185,6 +188,7 @@ interface OrderItemData {
   balance_paid: boolean | null;
   balance_paid_date: string | null;
   balance_expected_date: string | null;
+  deposit_expected_date: string | null;
 }
 
 interface OrderItemAttachmentData {
@@ -546,9 +550,9 @@ export default function OrderDetail() {
     purchase_price: item.purchase_price || undefined,
     vat_rate: item.vat_rate ?? undefined,
     stock_item_id: item.stock_item_id || undefined,
-    unit_price: (item as any).unit_price || undefined,
-    discount_percent: (item as any).discount_percent || undefined,
-    standard_cost: (item as any).standard_cost || undefined,
+    unit_price: item.unit_price || undefined,
+    discount_percent: item.discount_percent || undefined,
+    standard_cost: item.standard_cost || undefined,
     is_paid: item.is_paid ?? undefined,
     paid_date: item.paid_date || undefined,
     payment_method: item.payment_method || undefined,
@@ -559,7 +563,7 @@ export default function OrderDetail() {
     balance_paid: item.balance_paid ?? undefined,
     balance_paid_date: item.balance_paid_date || undefined,
     balance_expected_date: item.balance_expected_date || undefined,
-    deposit_expected_date: (item as any).deposit_expected_date || undefined,
+    deposit_expected_date: item.deposit_expected_date || undefined,
     attachments: attachments
       .filter(att => att.order_item_id === item.id)
       .map(att => ({
