@@ -8,6 +8,7 @@ import { ClipboardList, Users, HeadphonesIcon, Plus, Loader2, Euro, Package, Tre
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@/lib/formatters";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
+import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
 
 interface RecentOrder {
   id: string;
@@ -449,8 +450,8 @@ export default function CompanyDashboard() {
         <LaborCostsStats />
       </div>
 
-      {/* Bottom Row - 2 colonne */}
-      <div className="grid gap-6 md:grid-cols-2">
+      {/* Bottom Row - 3 colonne */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Warehouse Alerts */}
         <Card>
           <CardHeader>
@@ -494,6 +495,9 @@ export default function CompanyDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Supplier Payments Summary */}
+        <SupplierPaymentsSummary />
 
         {/* Quick Actions */}
         <Card>
