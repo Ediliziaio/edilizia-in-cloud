@@ -1,100 +1,75 @@
 
 
-# Fix Costi Dipendenti: da una tantum a mensile (stipendio)
+# Ristrutturazione Tab "Operai" in "Staff" con 3 sotto-tab
 
-## Problema attuale
+## Cosa cambia
 
-Nella sezione Costi, i dipendenti (es. Alessandro Natale) appaiono come costi una tantum derivati dagli ordini (ore x tariffa oraria = ~300 EUR). Ma il costo reale di un dipendente e il suo **stipendio lordo mensile** (es. 2.000 EUR/mese), non l'assegnazione al singolo ordine.
+La tab "Operai" nelle Impostazioni viene rinominata in **"Staff"** e al suo interno si trovano 3 sotto-tab:
 
-Inoltre, vengono mostrati solo i dipendenti assegnati a ordini, non tutti quelli dell'azienda.
+1. **Operai** -- personale interno di cantiere, pagato mensilmente (stipendio)
+2. **Squadre Esterne** -- ditte esterne, costi una tantum per lavoro (invariato)
+3. **Staff Interno** -- personale d'ufficio/amministrazione, pagato mensilmente (stipendio)
 
-## Soluzione
+## Modifica database
 
-### 1. Nuova query: tutti i dipendenti attivi dell'azienda
+Aggiungere una colonna `role_type` alla tabella `employees` per distinguere operai da staff interno:
 
-Aggiungere una query che carica tutti i dipendenti attivi dalla tabella `employees` (non da `order_employees`), con il loro stipendio lordo.
+- Colonna: `role_type TEXT NOT NULL DEFAULT 'operaio'`
+- Valori: `'operaio'` oppure `'staff_interno'`
+- Tutti i dipendenti esistenti diventano automaticamente "operaio" grazie al default
 
-### 2. Trasformazione in costi mensili ricorrenti
+## Modifiche ai file
 
-Ogni dipendente attivo diventa un costo con:
-- **Nome**: "Nome Cognome (stipendio)"
-- **Importo**: `gross_salary`
-- **Tipo**: Fisso
-- **Ricorrenza**: Mensile
-- **Categoria**: "Personale"
-- **Origine**: Automatica (da ordine, non modificabile)
+### 1. `src/pages/azienda/Settings.tsx`
+- Rinominare la tab da "Operai" a "Staff" (label e icona restano `HardHat` o si usa `Users`)
 
-### 3. Rimuovere i costi per-ordine dei dipendenti
+### 2. `src/pages/azienda/Employees.tsx` (file principale della tab)
+- Cambiare titolo da "Gestione Operai" a "Gestione Staff"
+- Aggiungere una terza sotto-tab "Staff Interno" accanto a "Operai" e "Squadre Esterne"
+- Filtrare i dipendenti per `role_type`:
+  - Tab "Operai": mostra solo `role_type === 'operaio'`
+  - Tab "Staff Interno": mostra solo `role_type === 'staff_interno'`
+- Aggiungere un pulsante "Nuovo" per ciascuna tab che apre lo stesso `EmployeeDialog` ma con il `role_type` corretto
 
-La trasformazione `employeeAsVariableCosts` (basata su `order_employees`) verra rimossa dalla sezione Costi. I costi per-ordine restano visibili nella scheda Manodopera del singolo ordine, ma nella vista Costi conta solo lo stipendio mensile.
+### 3. `src/components/employees/EmployeeDialog.tsx`
+- Aggiungere prop `roleType: 'operaio' | 'staff_interno'` per personalizzare titoli e label:
+  - Operaio: "Nuovo Operaio" / "Modifica Operaio"
+  - Staff Interno: "Nuovo Staff" / "Modifica Staff"
+- Il `role_type` viene passato nei dati del form (aggiunto a `EmployeeFormData`)
 
-### 4. Squadre esterne: restano una tantum
+### 4. `src/pages/azienda/Employees.tsx` (mutation)
+- Nel `saveEmployeeMutation`, includere `role_type` nell'insert (non nell'update, il tipo non cambia)
 
-Nessun cambiamento per le squadre esterne -- continuano a essere costi una tantum derivati dagli ordini.
-
----
+### 5. Costi (nessuna modifica)
+- La query nel `CompanyCostsManager` gia carica tutti i dipendenti attivi e li trasforma in costi mensili. Sia operai che staff interno appariranno correttamente come costi fissi mensili con il loro stipendio lordo.
 
 ## Dettaglio tecnico
 
-### File: `src/components/forecast/CompanyCostsManager.tsx`
+### Migrazione SQL
 
-**A. Sostituire la query `order-employee-costs`** con una nuova query su `employees`:
-
-```typescript
-const { data: activeEmployees = [] } = useQuery({
-  queryKey: ["active-employees-costs", companyId],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("employees")
-      .select("id, first_name, last_name, gross_salary, is_active")
-      .eq("company_id", companyId!)
-      .eq("is_active", true)
-      .order("last_name");
-    if (error) throw error;
-    return data || [];
-  },
-  enabled: !!companyId,
-});
+```sql
+ALTER TABLE public.employees 
+ADD COLUMN role_type TEXT NOT NULL DEFAULT 'operaio';
 ```
 
-**B. Sostituire `employeeAsVariableCosts`** con una trasformazione che genera un costo mensile per ogni dipendente attivo, replicando la stessa logica dei costi ricorrenti (una riga per ogni mese per i prossimi 12 mesi, oppure un'unica riga "monthly"):
+### Filtraggio nelle sotto-tab
 
 ```typescript
-const employeeAsFixedCosts: UnifiedCost[] = useMemo(() => {
-  return activeEmployees.map((emp) => ({
-    id: `employee-salary-${emp.id}`,
-    name: `${emp.first_name} ${emp.last_name} (stipendio)`,
-    cost_type: "fixed",
-    amount: Number(emp.gross_salary) || 0,
-    category: "Personale",
-    recurrence: "monthly",
-    due_date: format(endOfMonth(new Date()), "yyyy-MM-dd"),
-    is_paid: false,  // gestito manualmente
-    paid_date: null,
-    notes: null,
-    order_id: null,
-    order: null,
-    isFromOrder: true, // per renderlo non editabile
-    supplierName: null,
-  }));
-}, [activeEmployees]);
+const operai = employees.filter(e => e.role_type === 'operaio');
+const staffInterno = employees.filter(e => e.role_type === 'staff_interno');
 ```
 
-**C. Aggiornare `allOrderDerivedCosts`**: sostituire `employeeAsVariableCosts` con `employeeAsFixedCosts`.
+### Struttura tab risultante in Settings
 
-**D. Aggiornare le mutation di pagamento**: il prefisso cambia da `emp-cost-` a `employee-salary-`. Il pagamento verra registrato nella tabella `company_costs` con un inserimento automatico (o tramite un meccanismo dedicato) anziche aggiornare `order_employees`.
+```
+Impostazioni > Staff
+  |-- Operai (dipendenti cantiere, stipendio mensile)
+  |-- Squadre Esterne (ditte esterne, costo per lavoro)  
+  |-- Staff Interno (ufficio/admin, stipendio mensile)
+  |-- Rapportini
+```
 
-**E. Rimuovere** la query `order-employee-costs` e la relativa mutation `markEmployeeCostPaidMutation`/`markEmployeeCostUnpaidMutation` poiche non servono piu in questa vista.
+### Impatto sui costi
 
----
-
-## Riepilogo
-
-| Voce | Prima | Dopo |
-|------|-------|------|
-| Dipendenti nei Costi | Una tantum da ordine (ore x tariffa) | Mensile (stipendio lordo) |
-| Dipendenti visibili | Solo quelli assegnati a ordini | Tutti quelli attivi |
-| Squadre esterne | Una tantum da ordine | Invariato |
-| Categoria | "Manodopera" | "Personale" |
-| Tipo costo | Variabile | Fisso |
+Nessuna modifica necessaria: il `CompanyCostsManager` carica gia TUTTI i dipendenti attivi dalla tabella `employees` e li mostra come costi mensili. Aggiungendo staff interno alla stessa tabella, appariranno automaticamente nei costi con la label "(stipendio)".
 
