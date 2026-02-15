@@ -1,59 +1,113 @@
 
-# Fix Registrazione Pagamento nei Costi
+# Fix: Pagamenti non aggiornati nelle statistiche Costi
 
-## Problema
+## Problema identificato
 
-Il handler del dialog "Conferma Pagamento" (riga 1907-1915) gestisce solo 3 casi:
-1. Articoli fornitore (con `realOrderItemId`) → aggiorna `order_items`
-2. Squadre esterne (ID che inizia con `ext-team-`) → aggiorna `order_external_teams`
-3. **Tutto il resto** → aggiorna `company_costs`
+Il pagamento funziona correttamente a livello database (le provvigioni risultano pagate nel DB), ma le **stat cards** mostrano ancora "0 pagati" perche' il calcolo delle statistiche ignora i costi derivati dagli ordini.
 
-Ma le **provvigioni** (ID `commission-xxx`) e i **costi dipendente** (ID `emp-cost-xxx`) finiscono nel caso 3, che tenta di aggiornare la tabella `company_costs` con un ID inesistente. Il pagamento fallisce silenziosamente.
+### Bug specifici trovati
 
-Lo stesso problema esiste nel pulsante "Riporta a non pagato" (riga 1355-1358): gestisce solo `realOrderItemId` e `ext-team-`, ignorando provvigioni e dipendenti.
+**1. Stats "Pagato (mese)" ignora i costi da ordine** (righe 1081-1087)
+- `totalPaidThisMonth` conta solo i `company_costs` manuali pagati
+- I costi da ordine pagati (fornitori, squadre, provvigioni, dipendenti) non vengono sommati
+
+**2. Stats "Da pagare (mese)" somma TUTTI i costi da ordine non pagati indipendentemente dal mese** (riga 1085-1086)
+- `orderItemsTotalUnpaid` somma tutti i costi da ordine non pagati senza filtro temporale
+- Dovrebbe filtrare solo quelli con scadenza nel mese corrente
+
+**3. Nessun feedback in caso di errore** -- tutte le mutation di pagamento mancano di `onError`
+- Se un update fallisce, l'utente non riceve alcun messaggio
+
+**4. Pagamento deposito/saldo ordine errato** (riga 826)
+- Per articoli con metodo 50/50 o 30/70, `markOrderItemPaidMutation` aggiorna `is_paid` invece di `deposit_paid`/`balance_paid`
+- Questo non riflette correttamente lo stato parziale del pagamento
+
+---
 
 ## Soluzione
 
-### 1. Aggiungere due nuove mutation
+### File: `src/components/forecast/CompanyCostsManager.tsx`
 
-- **`markCommissionPaidMutation`**: aggiorna `order_salespeople` con `is_paid = true, paid_date = date`
-- **`markCommissionUnpaidMutation`**: aggiorna `order_salespeople` con `is_paid = false, paid_date = null`
-- **`markEmployeeCostPaidMutation`**: aggiorna `order_labor_costs` con `is_paid = true, paid_date = date`
-- **`markEmployeeCostUnpaidMutation`**: aggiorna `order_labor_costs` con `is_paid = false, paid_date = null`
+**Fix 1 -- Includere costi da ordine nelle stats:**
 
-### 2. Aggiornare il handler "Conferma Pagamento" (riga 1907-1915)
+```typescript
+// PRIMA (riga 1081-1088):
+const thisMonthUnpaid = costs.filter(...)
+const thisMonthPaid = costs.filter(...)
+const orderItemsTotalUnpaid = allOrderDerivedCosts.filter(c => !c.is_paid).reduce(...)
+const totalUnpaidThisMonth = thisMonthUnpaid.reduce(...) + orderItemsTotalUnpaid;
+const totalPaidThisMonth = thisMonthPaid.reduce(...); // <-- solo manuali!
 
-Aggiungere i due nuovi casi prima del fallback:
+// DOPO:
+// Filtro mese anche per order-derived
+const orderDerivedThisMonthUnpaid = allOrderDerivedCosts.filter(c => 
+  !c.is_paid && c.due_date && isWithinInterval(new Date(c.due_date), thisMonthInterval)
+);
+const orderDerivedThisMonthPaid = allOrderDerivedCosts.filter(c => 
+  c.is_paid && c.paid_date && isWithinInterval(new Date(c.paid_date), thisMonthInterval)
+);
 
-```text
-if (realOrderItemId)        → markOrderItemPaidMutation
-else if (id = "ext-team-")  → markExtTeamPaidMutation
-else if (id = "commission-")→ markCommissionPaidMutation  (NUOVO)
-else if (id = "emp-cost-")  → markEmployeeCostPaidMutation (NUOVO)
-else                        → markPaidMutation (company_costs)
+const totalUnpaidThisMonth = thisMonthUnpaid.reduce(...) + 
+  orderDerivedThisMonthUnpaid.reduce((s, c) => s + c.amount, 0);
+const totalPaidThisMonth = thisMonthPaid.reduce(...) + 
+  orderDerivedThisMonthPaid.reduce((s, c) => s + c.amount, 0);
 ```
 
-### 3. Aggiornare il pulsante "Riporta a non pagato" (riga 1355-1358)
+Aggiornare anche il contatore sotto le card per mostrare il numero corretto di pagati (manuali + ordine).
 
-Stessa logica per i casi di unpaid:
+**Fix 2 -- Aggiungere `onError` a tutte le mutation di pagamento:**
 
-```text
-if (realOrderItemId)        → markOrderItemUnpaidMutation
-else if (id = "ext-team-")  → markExtTeamUnpaidMutation
-else if (id = "commission-")→ markCommissionUnpaidMutation (NUOVO)
-else if (id = "emp-cost-")  → markEmployeeCostUnpaidMutation (NUOVO)
+Aggiungere a `markPaidMutation`, `markOrderItemPaidMutation`, `markExtTeamPaidMutation`, `markCommissionPaidMutation`, `markEmployeeCostPaidMutation` (e le rispettive unpaid):
+```typescript
+onError: (error) => {
+  console.error("Payment error:", error);
+  toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+},
 ```
 
-### 4. Aggiornare lo stato disabled del bottone
+**Fix 3 -- Gestire correttamente deposito/saldo per articoli fornitore:**
 
-Aggiungere `markCommissionPaidMutation.isPending` e `markEmployeeCostPaidMutation.isPending` alla condizione `disabled` del bottone "Conferma Pagamento".
+Modificare `markOrderItemPaidMutation` per distinguere tra deposito, saldo e pagamento singolo. Passare il tipo di pagamento come parametro:
+```typescript
+// Aggiungere un campo "paymentType" per distinguere
+type OrderItemPaymentType = "single" | "deposit" | "balance";
 
-## Verifica tabella database
+const markOrderItemPaidMutation = useMutation({
+  mutationFn: async ({ id, date, paymentType }: { id: string; date: string; paymentType: OrderItemPaymentType }) => {
+    let updateData: any;
+    if (paymentType === "deposit") {
+      updateData = { deposit_paid: true, deposit_paid_date: date };
+    } else if (paymentType === "balance") {
+      updateData = { balance_paid: true, balance_paid_date: date };
+    } else {
+      updateData = { is_paid: true, paid_date: date };
+    }
+    const { error } = await supabase.from("order_items").update(updateData).eq("id", id);
+    if (error) throw error;
+  },
+  ...
+});
+```
 
-Prima di implementare, verificare che `order_salespeople` abbia le colonne `is_paid` e `paid_date` (dai dati di rete risulta che le ha). Verificare anche `order_labor_costs` per i costi dipendente.
+Nel handler di conferma pagamento, determinare il tipo in base all'ID del costo:
+- `order-item-dep-xxx` -> `paymentType: "deposit"`
+- `order-item-bal-xxx` -> `paymentType: "balance"`
+- `order-item-xxx` -> `paymentType: "single"`
 
-## File modificato
+Stessa logica per il pulsante "Riporta a non pagato".
 
-| File | Azione |
-|------|--------|
-| `src/components/forecast/CompanyCostsManager.tsx` | Aggiungere 4 mutation + aggiornare handler pagamento/unpaid |
+**Fix 4 -- Aggiungere `markExtTeamPaidMutation.isPending` alla condizione disabled del bottone** (attualmente mancante).
+
+---
+
+## Riepilogo modifiche
+
+| Cosa | Stato attuale | Dopo il fix |
+|------|---------------|-------------|
+| Card "Pagato (mese)" | Solo costi manuali | Manuali + Da Ordine |
+| Card "Da pagare (mese)" | Tutti gli ordini senza filtro mese | Filtrati per mese corrente |
+| Errori pagamento | Silenziosi | Toast di errore visibile |
+| Pagamento deposito fornitore | Aggiorna campo sbagliato | Aggiorna deposit_paid/balance_paid |
+| Contatore pagati | Solo manuali | Include tutti i tipi |
+
+Un unico file modificato: `src/components/forecast/CompanyCostsManager.tsx`
