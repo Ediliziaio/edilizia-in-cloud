@@ -553,10 +553,10 @@ export function OrderItemsList({
 
                     {editable && (
                       <>
-                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(index)}>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteItem(index)}>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </>
@@ -612,8 +612,8 @@ export function OrderItemsList({
                 <TabsContent value="new">
                   {renderNewArticleForm()}
                   <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
-                    <Button onClick={handleSaveItem} disabled={!itemName.trim()}>Aggiungi</Button>
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+                    <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()}>Aggiungi</Button>
                   </DialogFooter>
                 </TabsContent>
 
@@ -662,8 +662,9 @@ export function OrderItemsList({
                     })()}
                   </div>
                   <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
                     <Button
+                      type="button"
                       onClick={handlePickFromStock}
                       disabled={!selectedStockItem || !parseInt(stockPickQuantity) || parseInt(stockPickQuantity) > (stockItems.find((s) => s.id === selectedStockItem)?.quantity || 0)}
                     >
@@ -677,8 +678,8 @@ export function OrderItemsList({
               <>
                 {renderNewArticleForm()}
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
-                  <Button onClick={handleSaveItem} disabled={!itemName.trim()}>
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+                  <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()}>
                     {editingIndex !== null ? "Salva" : "Aggiungi"}
                   </Button>
                 </DialogFooter>
