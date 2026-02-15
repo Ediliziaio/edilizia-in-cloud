@@ -1,103 +1,129 @@
 
-# Sincronizzazione Pagamenti Fornitori con Previsionale e Costi
 
-## Problema Identificato
+# Miglioramento Sezione Costi Aziendali - Livello Controllo di Gestione
 
-Quando paghi un fornitore (es. acconto di 2.500 EUR con metodo 50/50), questo pagamento NON appare nel Previsionale ne' nei Costi Aziendali. Il hook `useCashFlowData.ts` ha gia' una query `supplierBalances` (righe 110-128) che recupera i saldi non pagati, ma **i dati non vengono mai utilizzati** nei calcoli delle statistiche, nel grafico o nella tabella transazioni.
+## Panoramica
 
-## Modifiche Previste
-
-### 1. Hook `useCashFlowData.ts` - Integrare pagamenti fornitori
-
-**a) Espandere la query `supplierBalances` (riga 110-128)**
-- Rimuovere il filtro `balance_paid = false` per recuperare TUTTI gli articoli con metodo a rate (50/50, 30/70)
-- Includere anche articoli con metodo a pagamento singolo (bonifico, riba, ecc.) che hanno `is_paid = false`
-- Aggiungere `purchase_price, quantity, is_paid` alla select
-
-**b) Creare nuovo computed `expectedSupplierPayments`**
-- Tipo: array di oggetti con `supplierName, amount, expectedDate, direction: "out", isPaid, type ("Acconto Fornitore" | "Saldo Fornitore")`
-- Per articoli 50/50 / 30/70: genera 2 righe (acconto + saldo), mostrando solo quelli non pagati
-- Per articoli a pagamento singolo: genera 1 riga se non pagato
-
-**c) Includere nei calcoli `stats`**
-- Aggiungere `expectedSupplierPayments` (non pagati) alle uscite di ogni periodo (thisMonth, nextMonth, next3Months, total)
-- Creare campo `stats.total.supplierPaymentsTotal` per il totale specifico
-
-**d) Includere nel `chartData`**
-- Aggiungere nuova barra stacked "Fornitori" nel grafico a 6 mesi
-- Colore: un blu/viola distinto dalle altre categorie
-
-**e) Esportare `expectedSupplierPayments` dal hook**
-
-### 2. Tipo `forecastTypes.ts` - Nuova interfaccia
-
-Aggiungere:
-```
-ExpectedSupplierPayment {
-  orderItemId: string;
-  orderId: string;
-  orderCode: string | null;
-  supplierName: string;
-  type: "Acconto Fornitore" | "Saldo Fornitore" | "Pagamento Fornitore";
-  amount: number;
-  expectedDate: Date | null;
-  direction: "out";
-}
-```
-
-Aggiungere `supplierPaymentsTotal: number` a `ForecastStats.total`.
-
-### 3. Componente `ForecastTransactionsTable.tsx`
-
-- Accettare nuovo prop `expectedSupplierPayments`
-- Includerli nelle transazioni combinate con badge dedicato (es. "Fornitore" con icona Truck, colore indaco)
-- Mostrare nome fornitore e tipo (Acconto/Saldo)
-
-### 4. Componente `ForecastChart.tsx`
-
-- Aggiungere nuova barra stacked "Fornitori" con colore indaco (`hsl(230 80% 55%)`)
-- Posizionarla nello stack delle uscite
-
-### 5. Pagina `CashFlowForecast.tsx`
-
-- Passare `expectedSupplierPayments` alla `ForecastTransactionsTable`
-- Includerli nell'export CSV
-
-### 6. Nuova sezione nel Previsionale: `ForecastSupplierPayments`
-
-Nuovo componente card dedicato (simile a `ForecastCompanyCosts`) che mostra:
-- Totale da pagare ai fornitori (non pagato)
-- Totale gia' pagato ai fornitori (pagato di recente)
-- Tabella con prossime scadenze: fornitore, ordine, tipo rata, importo, data scadenza
-- Badge colore: rosso se scaduto, arancione se entro 7 giorni, grigio altrimenti
-- Colore tema: indaco/blu (per distinguerlo dai costi aziendali rossi e dai materiali arancioni)
-
-### 7. Pagina `CompanyCostsManager.tsx` - Sezione fornitori
-
-Aggiungere un nuovo tab o sezione "Pagamenti Fornitori" che mostra:
-- I pagamenti effettuati (deposit_paid / balance_paid = true con date)
-- I pagamenti in scadenza
-- Sincronizzazione automatica: i dati vengono letti direttamente da `order_items`, nessuna duplicazione in `company_costs`
+Trasformare la sezione Costi in uno strumento professionale di amministrazione e controllo di gestione, aggiungendo:
+- Gestione IVA (importo netto/lordo con scorporo automatico)
+- Collegamento a fornitori dalle Impostazioni (con categorie dinamiche)
+- UX migliorata con layout piu' chiaro e funzionale
 
 ---
 
-## Riepilogo File
+## 1. Migrazione Database
 
-| Azione | File |
-|--------|------|
-| Modificare | `src/lib/forecastTypes.ts` (nuova interfaccia + campo stats) |
-| Modificare | `src/hooks/useCashFlowData.ts` (query + computed + stats + chart + export) |
-| Creare | `src/components/forecast/ForecastSupplierPayments.tsx` (nuova card) |
-| Modificare | `src/components/forecast/ForecastTransactionsTable.tsx` (nuovo prop + righe fornitori) |
-| Modificare | `src/components/forecast/ForecastChart.tsx` (nuova barra "Fornitori") |
-| Modificare | `src/pages/azienda/CashFlowForecast.tsx` (integrazione + CSV) |
-| Modificare | `src/components/forecast/CompanyCostsManager.tsx` (tab pagamenti fornitori) |
+Aggiungere alla tabella `company_costs`:
+
+```text
+vat_rate    NUMERIC DEFAULT 22       -- Aliquota IVA
+supplier_id UUID    REFERENCES suppliers(id) ON DELETE SET NULL  -- Fornitore collegato
+```
+
+---
+
+## 2. Categorie Fornitori Dinamiche
+
+Attualmente `product_category` nei fornitori e' un campo testo libero. Il piano prevede:
+
+- Nel dialog di creazione/modifica costo, mostrare un combobox per la categoria che:
+  - Elenca le categorie esistenti (estratte dai valori unici di `company_costs.category` e `suppliers.product_category`)
+  - Permette di digitare una nuova categoria che viene salvata direttamente nel campo `category`
+- Nessuna tabella aggiuntiva necessaria: le categorie sono derivate dai dati esistenti
+
+---
+
+## 3. Collegamento Fornitori nel Form Costi
+
+Nel dialog di creazione/modifica costo:
+
+- Aggiungere un Select "Fornitore" che mostra i fornitori dall'elenco in Impostazioni (tabella `suppliers`)
+- Selezionando un fornitore:
+  - L'aliquota IVA viene precompilata dalla `vat_rate` del fornitore
+  - La categoria viene precompilata dalla `product_category` del fornitore (se presente)
+- Il fornitore e' opzionale (i costi come affitto, utenze non hanno fornitore)
+
+---
+
+## 4. Gestione IVA nel Form Costi
+
+Aggiungere al dialog di creazione/modifica:
+
+- Select "Aliquota IVA" con le opzioni standard (22%, 10%, 4%, 0%)
+- Toggle "Importo Ivato / Imponibile" (come gia' implementato negli ordini)
+- Se "Ivato": l'importo inserito e' il lordo, il sistema scorporera' l'IVA e salvera' l'imponibile
+- Se "Imponibile": l'importo e' gia' netto
+- Mostrare sotto il campo importo un riepilogo: "Imponibile: X EUR | IVA (22%): Y EUR | Totale: Z EUR"
+
+Nella tabella costi:
+- Mostrare l'importo netto (imponibile) come valore principale
+- In un tooltip o sotto-riga mostrare "IVA 22%: X EUR"
+
+---
+
+## 5. Miglioramenti UX (Controllo di Gestione)
+
+### 5a. Layout Summary Cards migliorato
+- Aggiungere card "Fornitori da pagare" (totale non pagato per i costi con supplier_id)
+- Card "IVA a debito" (somma IVA su costi non pagati) per visione fiscale
+
+### 5b. Tabella costi migliorata
+- Colonna "Fornitore" con nome fornitore linkabile
+- Colonna "IVA" con badge aliquota
+- Raggruppamento visivo per fornitore nella tab Fornitori (gia' presente, da migliorare con totali per fornitore)
+
+### 5c. Form dialog migliorato
+- Layout a 2 colonne piu' strutturato
+- Sezione "Dati Fiscali" separata (IVA + fornitore)
+- Sezione "Pianificazione" separata (ricorrenza + scadenza)
+- Feedback visivo immediato sullo scorporo IVA
+
+### 5d. Filtri migliorati
+- Aggiungere filtro per fornitore
+- Aggiungere filtro per categoria
+
+---
+
+## 6. Riepilogo File e Modifiche
+
+| Azione | File | Dettaglio |
+|--------|------|-----------|
+| Migrazione DB | -- | Aggiungere `vat_rate` e `supplier_id` a `company_costs` |
+| Modificare | `src/components/forecast/CompanyCostsManager.tsx` | Form con IVA, fornitori, categorie dinamiche, UX migliorata |
+| Modificare | `src/lib/forecastTypes.ts` | Aggiungere `vatRate` e `supplierName` a `CompanyCostEntry` (se usato) |
+
+---
+
+## 7. Dettaglio Tecnico - Form Costi Aggiornato
+
+### Nuovi campi `CostFormData`:
+
+```text
+supplier_id: string    -- ID fornitore (opzionale)
+vat_rate: string       -- Aliquota IVA (default "22")
+is_gross: boolean      -- true = importo ivato, false = imponibile
+```
+
+### Query aggiuntiva:
+- Fetch `suppliers` dell'azienda per popolare il Select fornitore nel dialog
+
+### Logica salvataggio:
+- Se `is_gross === true`: `amount = grossAmount / (1 + vatRate/100)` (salva sempre il netto)
+- Se `is_gross === false`: `amount = inputAmount` (gia' netto)
+- Salvare `vat_rate` e `supplier_id` nel record
+
+### Logica visualizzazione:
+- In tabella: mostrare `amount` (netto) + badge IVA
+- Nel tooltip: mostrare `amount * (1 + vat_rate/100)` come totale lordo
+
+---
 
 ## Risultato Atteso
 
-Esempio con il caso dell'utente (fornitore "marysorina", 50/50, totale 5.000 EUR):
-- **Previsionale**: mostra -2.500 EUR a febbraio (acconto pagato) e -2.500 EUR a marzo (saldo da pagare)
-- **Grafico**: barra indaco "Fornitori" visibile nei mesi corrispondenti
-- **Tabella transazioni**: 1 riga "Saldo Fornitore - marysorina" con data prevista e importo
-- **Card Fornitori**: riepilogo con barra progresso 50%, scadenza saldo evidenziata
-- **Costi**: tab dedicato con storico pagamenti fornitori sincronizzato in tempo reale
+Un amministratore vedra':
+1. **Summary**: 5 card con totali (da pagare, pagato, scaduti, stima annuale, fornitori)
+2. **Filtri**: ricerca + periodo + stato + fornitore + categoria
+3. **Tabella**: nome, fornitore, categoria, imponibile, IVA%, ricorrenza, scadenza, stato, azioni
+4. **Form**: layout professionale con sezioni separate, scorporo IVA automatico, fornitore collegato con precompilazione
+5. **Tab Fornitori**: raggruppamento con barre progresso e dettaglio rate
+
