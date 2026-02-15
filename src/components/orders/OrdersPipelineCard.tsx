@@ -6,50 +6,7 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-
-interface OrderWithDetails {
-  id: string;
-  order_code: string | null;
-  description: string;
-  total_amount: number;
-  deposit_amount: number;
-  deposit_paid: boolean | null;
-  deposit_2_amount: number | null;
-  deposit_2_paid: boolean | null;
-  balance_amount: number;
-  balance_paid: boolean | null;
-  expected_date: string | null;
-  warehouse_arrival_date: string | null;
-  created_at: string;
-  current_status_id: string | null;
-  customer: {
-    first_name: string;
-    last_name: string;
-    email: string;
-  } | null;
-  status: {
-    name: string;
-    color: string;
-  } | null;
-}
-
-function getPendingPayments(order: OrderWithDetails): string[] {
-  const pending: string[] = [];
-  
-  if (order.deposit_amount > 0 && !order.deposit_paid) {
-    pending.push("Acc. 1");
-  }
-  
-  if (order.deposit_2_amount && order.deposit_2_amount > 0 && !order.deposit_2_paid) {
-    pending.push("Acc. 2");
-  }
-  
-  if (order.balance_amount > 0 && !order.balance_paid) {
-    pending.push("Saldo");
-  }
-  
-  return pending;
-}
+import { type OrderWithDetails, getPendingPayments } from "@/lib/orderUtils";
 
 interface OrdersPipelineCardProps {
   order: OrderWithDetails;

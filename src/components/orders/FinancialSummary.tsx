@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/formatters";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,17 +65,12 @@ interface FinancialSummaryProps extends PaymentStatusProps {
   readOnly?: boolean;
 }
 
-function DatePickerField({
-  label,
-  date,
-  onDateChange,
-  disabled = false,
-}: {
+const DatePickerField = React.forwardRef<HTMLDivElement, {
   label: string;
   date?: Date;
   onDateChange: (date?: Date) => void;
   disabled?: boolean;
-}) {
+}>(({ label, date, onDateChange, disabled = false }, ref) => {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -104,19 +99,10 @@ function DatePickerField({
       </PopoverContent>
     </Popover>
   );
-}
+});
+DatePickerField.displayName = "DatePickerField";
 
-function PaymentStatusRow({
-  label,
-  amount,
-  paid,
-  paidDate,
-  expectedDate,
-  onPaidChange,
-  onPaidDateChange,
-  onExpectedDateChange,
-  readOnly = false,
-}: {
+const PaymentStatusRow = React.forwardRef<HTMLDivElement, {
   label: string;
   amount: number;
   paid?: boolean;
@@ -126,14 +112,13 @@ function PaymentStatusRow({
   onPaidDateChange?: (date?: Date) => void;
   onExpectedDateChange?: (date?: Date) => void;
   readOnly?: boolean;
-}) {
+}>(({ label, amount, paid, paidDate, expectedDate, onPaidChange, onPaidDateChange, onExpectedDateChange, readOnly = false }, ref) => {
   if (amount <= 0) return null;
 
   const status: PaymentStatus = paid ? 'pagato' : 'non_pagato';
 
   const handleStatusChange = (newStatus: PaymentStatus) => {
     onPaidChange?.(newStatus === 'pagato');
-    // Clear dates when status changes
     if (newStatus === 'pagato') {
       onExpectedDateChange?.(undefined);
     } else {
@@ -142,7 +127,7 @@ function PaymentStatusRow({
   };
 
   return (
-    <div className="flex flex-col gap-2 p-3 rounded-lg bg-muted/30 border">
+    <div ref={ref} className="flex flex-col gap-2 p-3 rounded-lg bg-muted/30 border">
       <div className="flex justify-between items-center">
         <span className="font-medium">{label}</span>
         <span className="font-semibold">{formatCurrency(amount)}</span>
@@ -193,7 +178,8 @@ function PaymentStatusRow({
       </div>
     </div>
   );
-}
+});
+PaymentStatusRow.displayName = "PaymentStatusRow";
 
 export function FinancialSummary({
   totalAmount,
