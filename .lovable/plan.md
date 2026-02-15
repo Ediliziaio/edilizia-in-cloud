@@ -1,79 +1,60 @@
 
 
-# Pulizia, Fix e Stabilizzazione del Progetto
+# Verifica e Pulizia: Codice Morto e Funzionalita
 
-## 1. Bug e Warning da Correggere
+## Stato Attuale
 
-### BUG-1: Console Warning "Function components cannot be given refs" (FinancialSummary.tsx)
-I componenti `PaymentStatusRow` e `DatePickerField` dentro `FinancialSummary.tsx` vengono usati come figli di componenti che tentano di passare ref. Entrambi sono function component senza `forwardRef`.
+Dopo la precedente fase di refactoring, il codebase e gia in buono stato. Tuttavia restano **2 copie duplicate** dell'interface `OrderWithDetails` che non sono state migrate al file centralizzato.
 
-**Fix**: Wrappare `PaymentStatusRow` e `DatePickerField` con `React.forwardRef` per eliminare i warning in console.
+## Problemi Trovati
 
-### BUG-2: Funzioni duplicate in 3 file
-Le funzioni `getAmountDue`, `getAmountCollected` e `getPendingPayments` sono duplicate identiche in:
-- `src/pages/azienda/OrdersList.tsx`
-- `src/components/orders/OrdersTable.tsx`
-- `src/components/orders/OrdersPipelineCard.tsx`
+### 1. Interface `OrderWithDetails` ancora duplicata in 2 file
 
-**Fix**: Estrarre queste funzioni in un file utility condiviso (es. `src/lib/orderUtils.ts`) e importarle nei 3 file, rimuovendo le copie locali.
-
-### BUG-3: Interface `OrderWithDetails` duplicata
-La stessa interface e definita in `OrdersList.tsx` e `OrdersTable.tsx`.
-
-**Fix**: Spostarla nel file utility condiviso ed esportarla da li.
-
-## 2. Pulizia Codice
-
-### CLEAN-1: Funzioni inutilizzate in OrdersList.tsx
-Le funzioni `getAmountDue`, `getAmountCollected`, `getPendingPayments` in `OrdersList.tsx` sono usate solo nelle stats e nell'export CSV. Dopo l'estrazione in utility, le copie locali vanno rimosse.
-
-### CLEAN-2: Interface `OrderCosts` gia esportata correttamente
-L'export di `OrderCosts` in `OrdersTable.tsx` e corretto e non serve duplicazione.
-
-## 3. Miglioramenti UX
-
-### UX-1: Tabella ordini - overflow orizzontale
-La tabella con 12 colonne puo risultare stretta su schermi piccoli. Gia presente `overflow-x-auto` -- verificato OK.
-
-### UX-2: Margine con colore e percentuale
-Gia implementato con colori verde/rosso e percentuale. Nessun intervento necessario.
-
-## Dettaglio Tecnico
-
-### Nuovo file: `src/lib/orderUtils.ts`
-Conterra:
-- Interface `OrderWithDetails`
-- Funzione `getAmountDue(order): number`
-- Funzione `getAmountCollected(order): number`
-- Funzione `getPendingPayments(order): string[]`
-
-### File: `src/components/orders/FinancialSummary.tsx`
-- Wrappare `DatePickerField` con `React.forwardRef`
-- Wrappare `PaymentStatusRow` con `React.forwardRef`
-
-### File: `src/pages/azienda/OrdersList.tsx`
-- Rimuovere interface `OrderWithDetails` locale (righe 22-47)
-- Rimuovere funzioni `getAmountDue`, `getAmountCollected`, `getPendingPayments` locali (righe 54-76)
-- Importare da `@/lib/orderUtils`
-
-### File: `src/components/orders/OrdersTable.tsx`
-- Rimuovere interface `OrderWithDetails` locale (righe 27-52)
-- Rimuovere funzioni `getPendingPayments`, `getAmountDue`, `getAmountCollected` locali (righe 54-76)
-- Importare da `@/lib/orderUtils`
-
-### File: `src/components/orders/OrdersPipelineCard.tsx`
-- Rimuovere funzione `getPendingPayments` locale
-- Importare da `@/lib/orderUtils`
-
-## Riepilogo Interventi
-
-| Categoria | Cosa | Dove |
+| File | Righe | Problema |
 |---|---|---|
-| Bug fix | forwardRef warning | FinancialSummary.tsx |
-| Pulizia | Funzioni duplicate x3 | OrdersList, OrdersTable, OrdersPipelineCard |
-| Pulizia | Interface duplicata x2 | OrdersList, OrdersTable |
-| Rifattorizzazione | Nuovo file utility | lib/orderUtils.ts |
+| `src/components/orders/OrdersPipelineColumn.tsx` | 6-30 | Interface locale identica a `orderUtils.ts` |
+| `src/components/orders/OrdersPipelineView.tsx` | 16-40 | Interface locale identica a `orderUtils.ts` |
+
+Entrambi i file definiscono la stessa interface localmente invece di importarla da `@/lib/orderUtils`.
+
+### 2. Interface `OrderStatus` duplicata
+
+Presente sia in `OrdersPipelineColumn.tsx` (righe 32-37) che in `OrdersPipelineView.tsx` (righe 42-47). Identica in entrambi. Puo essere estratta in `orderUtils.ts`.
+
+## Cosa e gia OK (verificato)
+
+- `orderUtils.ts`: funzioni centralizzate, nessuna duplicazione residua
+- `OrdersTable.tsx`: importa correttamente da `orderUtils`, nessun codice morto
+- `OrdersPipelineCard.tsx`: importa correttamente da `orderUtils`
+- `OrdersList.tsx`: importa correttamente, nessuna funzione locale duplicata
+- `FinancialSummary.tsx`: `forwardRef` applicato correttamente a `DatePickerField` e `PaymentStatusRow`
+- `OrdersStatsCards.tsx`: pulito, nessun codice morto
+- Margine con percentuale: funzionante
+
+## Interventi da Fare
+
+### File: `src/lib/orderUtils.ts`
+- Aggiungere export dell'interface `OrderStatus` (id, name, color, position)
+
+### File: `src/components/orders/OrdersPipelineColumn.tsx`
+- Rimuovere interface locale `OrderWithDetails` (righe 6-30)
+- Rimuovere interface locale `OrderStatus` (righe 32-37)
+- Importare entrambe da `@/lib/orderUtils`
+
+### File: `src/components/orders/OrdersPipelineView.tsx`
+- Rimuovere interface locale `OrderWithDetails` (righe 16-40)
+- Rimuovere interface locale `OrderStatus` (righe 42-47)
+- Importare entrambe da `@/lib/orderUtils`
+
+## Riepilogo
+
+| Cosa | Azione |
+|---|---|
+| `OrderWithDetails` duplicata x2 | Rimuovere e importare da orderUtils |
+| `OrderStatus` duplicata x2 | Estrarre in orderUtils e importare |
+| Codice morto | Nessun altro trovato |
+| Bug funzionali | Nessuno rilevato |
+| Console warning | Gia risolti nella sessione precedente |
 
 ## Vincolo
-Nessun cambiamento al comportamento funzionale. Solo pulizia, deduplicazione e fix warning.
-
+Nessun cambiamento funzionale. Solo eliminazione duplicazioni residue.
