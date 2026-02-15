@@ -160,6 +160,7 @@ export default function EditOrder() {
   const [financingPaidDate, setFinancingPaidDate] = useState<Date | undefined>();
   const [financingExpectedDate, setFinancingExpectedDate] = useState<Date | undefined>();
   const [financingCost, setFinancingCost] = useState("");
+  const [hasBuildingBonus, setHasBuildingBonus] = useState(false);
 
   // Order items state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -290,6 +291,7 @@ export default function EditOrder() {
       setFinancingPaidDate(isoToDate(draft.financingPaidDate));
       setFinancingExpectedDate(isoToDate(draft.financingExpectedDate));
       setFinancingCost(draft.financingCost || "");
+      setHasBuildingBonus(draft.hasBuildingBonus || false);
       setDraftRestored(true);
       setDataLoaded(true);
       return;
@@ -324,6 +326,7 @@ export default function EditOrder() {
     setFinancingCost(((order as any).financing_cost || 0).toString());
     if ((order as any).financing_paid_date) setFinancingPaidDate(new Date((order as any).financing_paid_date));
     if ((order as any).financing_expected_date) setFinancingExpectedDate(new Date((order as any).financing_expected_date));
+    setHasBuildingBonus((order as any).has_building_bonus || false);
     setDataLoaded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order]);
@@ -351,6 +354,7 @@ export default function EditOrder() {
       balancePaid, balancePaidDate: dateToIso(balancePaidDate), balanceExpectedDate: dateToIso(balanceExpectedDate),
       financingPaid, financingPaidDate: dateToIso(financingPaidDate), financingExpectedDate: dateToIso(financingExpectedDate),
       financingCost,
+      hasBuildingBonus,
       orderItems,
     });
   }, [customerId, orderCode, description, internalNotes, salespersonId, salespersonData,
@@ -360,6 +364,7 @@ export default function EditOrder() {
       deposit2Paid, deposit2PaidDate, deposit2ExpectedDate,
       balancePaid, balancePaidDate, balanceExpectedDate,
       financingPaid, financingPaidDate, financingExpectedDate, financingCost,
+      hasBuildingBonus,
       orderItems, dataLoaded, saveDraft, dateToIso]);
 
   const handleClearDraft = useCallback(() => {
@@ -393,6 +398,7 @@ export default function EditOrder() {
       setFinancingCost(((order as any).financing_cost || 0).toString());
       setFinancingPaidDate((order as any).financing_paid_date ? new Date((order as any).financing_paid_date) : undefined);
       setFinancingExpectedDate((order as any).financing_expected_date ? new Date((order as any).financing_expected_date) : undefined);
+      setHasBuildingBonus((order as any).has_building_bonus || false);
     }
     if (existingItems.length > 0) {
       setOrderItems(existingItems.map(mapDbItemToOrderItem));
@@ -464,6 +470,7 @@ export default function EditOrder() {
           financing_paid_date: financingPaidDate?.toISOString().split("T")[0] || null,
           financing_expected_date: financingExpectedDate?.toISOString().split("T")[0] || null,
           financing_cost: parseFloat(financingCost) || 0,
+          has_building_bonus: hasBuildingBonus,
         })
         .eq("id", id!);
 
@@ -925,6 +932,8 @@ export default function EditOrder() {
             onFinancingPaidDateChange={setFinancingPaidDate}
             onFinancingExpectedDateChange={setFinancingExpectedDate}
             onFinancingCostChange={setFinancingCost}
+            hasBuildingBonus={hasBuildingBonus}
+            onHasBuildingBonusChange={setHasBuildingBonus}
           />
         </div>
 

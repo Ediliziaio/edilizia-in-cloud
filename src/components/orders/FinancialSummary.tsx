@@ -17,8 +17,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Euro, CalendarIcon, Check, Clock } from "lucide-react";
+import { Euro, CalendarIcon, Check, Clock, Building2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -72,6 +73,9 @@ interface FinancialSummaryProps extends PaymentStatusProps {
   onVatRateChange: (value: string) => void;
   balance: number;
   readOnly?: boolean;
+  // Building bonus
+  hasBuildingBonus?: boolean;
+  onHasBuildingBonusChange?: (value: boolean) => void;
 }
 
 const DatePickerField = React.forwardRef<HTMLDivElement, {
@@ -233,6 +237,9 @@ export function FinancialSummary({
   onFinancingPaidDateChange,
   onFinancingExpectedDateChange,
   onFinancingCostChange,
+  // Building bonus
+  hasBuildingBonus,
+  onHasBuildingBonusChange,
 }: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
   
@@ -401,6 +408,20 @@ export function FinancialSummary({
           </Select>
         </div>
 
+        {/* Building Bonus Toggle */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="building-bonus" className="cursor-pointer">Bonus Edilizio</Label>
+          </div>
+          <Switch
+            id="building-bonus"
+            checked={hasBuildingBonus || false}
+            onCheckedChange={onHasBuildingBonusChange}
+            disabled={readOnly}
+          />
+        </div>
+
         {/* VAT Summary */}
         <div className="p-3 rounded-lg bg-muted/50 space-y-2">
           <div className="flex justify-between text-sm">
@@ -415,6 +436,29 @@ export function FinancialSummary({
             <span>Totale con IVA</span>
             <span>{formatCurrency(totalWithVat)}</span>
           </div>
+          {hasBuildingBonus && (() => {
+            const bankTaxableBase = totalWithVat / 1.22;
+            const bankWithholding = bankTaxableBase * 0.11;
+            return (
+              <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
+                <p className="text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-1">
+                  <Building2 className="h-3 w-3" />
+                  Ritenuta Bonus Edilizio
+                </p>
+                <div className="flex justify-between text-xs">
+                  <span className="text-amber-700 dark:text-amber-300">Imponibile bancario (÷ 1.22)</span>
+                  <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankTaxableBase)}</span>
+                </div>
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-amber-700 dark:text-amber-300">Ritenuta 11%</span>
+                  <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankWithholding)}</span>
+                </div>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  Importo trattenuto dalla banca — recuperabile in dichiarazione
+                </p>
+              </div>
+            );
+          })()}
         </div>
 
         {paymentType === 'standard' ? (
@@ -654,6 +698,7 @@ interface FinancialSummaryReadOnlyProps {
   financingPaidDate?: string | null;
   financingExpectedDate?: string | null;
   financingCost?: number;
+  hasBuildingBonus?: boolean;
 }
 
 export function FinancialSummaryReadOnly({
@@ -677,6 +722,7 @@ export function FinancialSummaryReadOnly({
   financingPaidDate,
   financingExpectedDate,
   financingCost,
+  hasBuildingBonus,
 }: FinancialSummaryReadOnlyProps) {
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
@@ -707,6 +753,29 @@ export function FinancialSummaryReadOnly({
           <span>Totale con IVA</span>
           <span>{formatCurrency(totalWithVat)}</span>
         </div>
+        {hasBuildingBonus && (() => {
+          const bankTaxableBase = totalWithVat / 1.22;
+          const bankWithholding = bankTaxableBase * 0.11;
+          return (
+            <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
+              <p className="text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-1">
+                <Building2 className="h-3 w-3" />
+                Ritenuta Bonus Edilizio
+              </p>
+              <div className="flex justify-between text-xs">
+                <span className="text-amber-700 dark:text-amber-300">Imponibile bancario (÷ 1.22)</span>
+                <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankTaxableBase)}</span>
+              </div>
+              <div className="flex justify-between text-xs font-semibold">
+                <span className="text-amber-700 dark:text-amber-300">Ritenuta 11%</span>
+                <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankWithholding)}</span>
+              </div>
+              <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                Importo trattenuto dalla banca — recuperabile in dichiarazione
+              </p>
+            </div>
+          );
+        })()}
 
         <div className="pt-3 border-t space-y-3">
           {paymentType === 'standard' ? (
