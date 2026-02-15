@@ -807,6 +807,10 @@ export default function CompanyCostsManager() {
       setPayingCostId(null);
       toast({ title: "Costo segnato come pagato" });
     },
+    onError: (error) => {
+      console.error("Payment error:", error);
+      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+    },
   });
 
   const markUnpaidMutation = useMutation({
@@ -819,11 +823,23 @@ export default function CompanyCostsManager() {
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       toast({ title: "Costo riportato a non pagato" });
     },
+    onError: (error) => {
+      console.error("Payment error:", error);
+      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+    },
   });
 
   const markOrderItemPaidMutation = useMutation({
-    mutationFn: async ({ id, date }: { id: string; date: string }) => {
-      const { error } = await supabase.from("order_items").update({ is_paid: true, paid_date: date } as any).eq("id", id);
+    mutationFn: async ({ id, date, paymentType }: { id: string; date: string; paymentType?: "single" | "deposit" | "balance" }) => {
+      let updateData: any;
+      if (paymentType === "deposit") {
+        updateData = { deposit_paid: true, deposit_paid_date: date };
+      } else if (paymentType === "balance") {
+        updateData = { balance_paid: true, balance_paid_date: date };
+      } else {
+        updateData = { is_paid: true, paid_date: date };
+      }
+      const { error } = await supabase.from("order_items").update(updateData).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -833,17 +849,33 @@ export default function CompanyCostsManager() {
       setPayingCostId(null);
       toast({ title: "Articolo segnato come pagato" });
     },
+    onError: (error) => {
+      console.error("Payment error:", error);
+      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+    },
   });
 
   const markOrderItemUnpaidMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("order_items").update({ is_paid: false, paid_date: null } as any).eq("id", id);
+    mutationFn: async ({ id, paymentType }: { id: string; paymentType?: "single" | "deposit" | "balance" }) => {
+      let updateData: any;
+      if (paymentType === "deposit") {
+        updateData = { deposit_paid: false, deposit_paid_date: null };
+      } else if (paymentType === "balance") {
+        updateData = { balance_paid: false, balance_paid_date: null };
+      } else {
+        updateData = { is_paid: false, paid_date: null };
+      }
+      const { error } = await supabase.from("order_items").update(updateData).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-item-costs-full"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       toast({ title: "Articolo riportato a non pagato" });
+    },
+    onError: (error) => {
+      console.error("Payment error:", error);
+      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
 
@@ -859,6 +891,10 @@ export default function CompanyCostsManager() {
       setPayingCostId(null);
       toast({ title: "Squadra esterna segnata come pagata" });
     },
+    onError: (error) => {
+      console.error("Payment error:", error);
+      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+    },
   });
 
   const markExtTeamUnpaidMutation = useMutation({
@@ -870,6 +906,10 @@ export default function CompanyCostsManager() {
       queryClient.invalidateQueries({ queryKey: ["order-external-team-costs"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       toast({ title: "Squadra esterna riportata a non pagata" });
+    },
+    onError: (error) => {
+      console.error("Payment error:", error);
+      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
 
@@ -885,6 +925,10 @@ export default function CompanyCostsManager() {
       setPayingCostId(null);
       toast({ title: "Provvigione segnata come pagata" });
     },
+    onError: (error) => {
+      console.error("Payment error:", error);
+      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+    },
   });
 
   const markCommissionUnpaidMutation = useMutation({
@@ -896,6 +940,10 @@ export default function CompanyCostsManager() {
       queryClient.invalidateQueries({ queryKey: ["order-commission-costs"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       toast({ title: "Provvigione riportata a non pagata" });
+    },
+    onError: (error) => {
+      console.error("Payment error:", error);
+      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
 
@@ -911,6 +959,10 @@ export default function CompanyCostsManager() {
       setPayingCostId(null);
       toast({ title: "Costo dipendente segnato come pagato" });
     },
+    onError: (error) => {
+      console.error("Payment error:", error);
+      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+    },
   });
 
   const markEmployeeCostUnpaidMutation = useMutation({
@@ -922,6 +974,10 @@ export default function CompanyCostsManager() {
       queryClient.invalidateQueries({ queryKey: ["order-employee-costs"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       toast({ title: "Costo dipendente riportato a non pagato" });
+    },
+    onError: (error) => {
+      console.error("Payment error:", error);
+      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
     },
   });
 
@@ -1082,9 +1138,10 @@ export default function CompanyCostsManager() {
   const thisMonthPaid = costs.filter((c: any) => c.is_paid && c.paid_date && isWithinInterval(new Date(c.paid_date), thisMonthInterval));
   const overdueCosts = costs.filter((c: any) => !c.is_paid && new Date(c.due_date) < now);
 
-  const orderItemsTotalUnpaid = allOrderDerivedCosts.filter(c => !c.is_paid).reduce((s, c) => s + c.amount, 0);
-  const totalUnpaidThisMonth = thisMonthUnpaid.reduce((s: number, c: any) => s + Number(c.amount), 0) + orderItemsTotalUnpaid;
-  const totalPaidThisMonth = thisMonthPaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
+  const orderDerivedThisMonthUnpaid = allOrderDerivedCosts.filter(c => !c.is_paid && c.due_date && isWithinInterval(new Date(c.due_date), thisMonthInterval));
+  const orderDerivedThisMonthPaid = allOrderDerivedCosts.filter(c => c.is_paid && c.paid_date && isWithinInterval(new Date(c.paid_date), thisMonthInterval));
+  const totalUnpaidThisMonth = thisMonthUnpaid.reduce((s: number, c: any) => s + Number(c.amount), 0) + orderDerivedThisMonthUnpaid.reduce((s, c) => s + c.amount, 0);
+  const totalPaidThisMonth = thisMonthPaid.reduce((s: number, c: any) => s + Number(c.amount), 0) + orderDerivedThisMonthPaid.reduce((s, c) => s + c.amount, 0);
   const totalOverdue = overdueCosts.reduce((s: number, c: any) => s + Number(c.amount), 0);
 
   const getStatusBadge = (cost: UnifiedCost) => {
@@ -1405,7 +1462,10 @@ export default function CompanyCostsManager() {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
-                                        if (cost.realOrderItemId) markOrderItemUnpaidMutation.mutate(cost.realOrderItemId);
+                                        if (cost.realOrderItemId) {
+                                          const paymentType = cost.id.startsWith("order-item-dep-") ? "deposit" as const : cost.id.startsWith("order-item-bal-") ? "balance" as const : "single" as const;
+                                          markOrderItemUnpaidMutation.mutate({ id: cost.realOrderItemId, paymentType });
+                                        }
                                         else if (cost.id.startsWith("ext-team-")) markExtTeamUnpaidMutation.mutate(cost.id.replace("ext-team-", ""));
                                         else if (cost.id.startsWith("commission-")) markCommissionUnpaidMutation.mutate(cost.id.replace("commission-", ""));
                                         else if (cost.id.startsWith("emp-cost-")) markEmployeeCostUnpaidMutation.mutate(cost.id.replace("emp-cost-", ""));
@@ -1493,7 +1553,7 @@ export default function CompanyCostsManager() {
                 <span className="text-xs font-medium">Da pagare (mese)</span>
               </div>
               <p className="text-xl font-bold text-red-600">{formatCurrency(totalUnpaidThisMonth)}</p>
-              <p className="text-[10px] text-muted-foreground">{thisMonthUnpaid.length} costi + {filteredOrderItemCosts.filter(c => !c.is_paid).length} da ordini</p>
+              <p className="text-[10px] text-muted-foreground">{thisMonthUnpaid.length + orderDerivedThisMonthUnpaid.length} da pagare</p>
             </div>
             <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
               <div className="flex items-center gap-2 mb-1">
@@ -1501,7 +1561,7 @@ export default function CompanyCostsManager() {
                 <span className="text-xs font-medium">Pagato (mese)</span>
               </div>
               <p className="text-xl font-bold text-green-600">{formatCurrency(totalPaidThisMonth)}</p>
-              <p className="text-[10px] text-muted-foreground">{thisMonthPaid.length} pagati</p>
+              <p className="text-[10px] text-muted-foreground">{thisMonthPaid.length + orderDerivedThisMonthPaid.length} pagati</p>
             </div>
             <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800">
               <div className="flex items-center gap-2 mb-1">
@@ -1961,7 +2021,8 @@ export default function CompanyCostsManager() {
                 if (payingCostId && paymentDate) {
                   const derivedCost = allOrderDerivedCosts.find(c => c.id === payingCostId);
                   if (derivedCost?.realOrderItemId) {
-                    markOrderItemPaidMutation.mutate({ id: derivedCost.realOrderItemId, date: paymentDate });
+                    const paymentType = payingCostId.startsWith("order-item-dep-") ? "deposit" as const : payingCostId.startsWith("order-item-bal-") ? "balance" as const : "single" as const;
+                    markOrderItemPaidMutation.mutate({ id: derivedCost.realOrderItemId, date: paymentDate, paymentType });
                   } else if (payingCostId.startsWith("ext-team-")) {
                     markExtTeamPaidMutation.mutate({ id: payingCostId.replace("ext-team-", ""), date: paymentDate });
                   } else if (payingCostId.startsWith("commission-")) {
@@ -1973,7 +2034,7 @@ export default function CompanyCostsManager() {
                   }
                 }
               }}
-              disabled={!paymentDate || markPaidMutation.isPending || markOrderItemPaidMutation.isPending || markCommissionPaidMutation.isPending || markEmployeeCostPaidMutation.isPending}
+              disabled={!paymentDate || markPaidMutation.isPending || markOrderItemPaidMutation.isPending || markExtTeamPaidMutation.isPending || markCommissionPaidMutation.isPending || markEmployeeCostPaidMutation.isPending}
             >
               {(markPaidMutation.isPending || markOrderItemPaidMutation.isPending) ? "Salvataggio..." : "Conferma Pagamento"}
             </Button>
