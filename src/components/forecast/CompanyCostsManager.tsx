@@ -1153,6 +1153,7 @@ export default function CompanyCostsManager() {
                     />
                   </TableHead>
                   <TableHead>Nome</TableHead>
+                  <TableHead>Origine</TableHead>
                   {type === "all" && <TableHead>Tipo</TableHead>}
                   <TableHead>Fornitore</TableHead>
                   <TableHead>Categoria</TableHead>
@@ -1184,25 +1185,19 @@ export default function CompanyCostsManager() {
                           <span className="block w-4" />
                         )}
                       </TableCell>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {cost.name}
-                          {cost.isFromOrder && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 gap-1 text-[10px] px-1.5">
-                                    <Package className="h-3 w-3" />
-                                    Da Ordine
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Costo dagli articoli dell'ordine</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </div>
+                      <TableCell className="font-medium">{cost.name}</TableCell>
+                      <TableCell>
+                        {cost.isFromOrder ? (
+                          <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 gap-1 text-[10px] px-1.5">
+                            <Package className="h-3 w-3" />
+                            Da Ordine
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 gap-1 text-[10px] px-1.5">
+                            <Pencil className="h-3 w-3" />
+                            Manuale
+                          </Badge>
+                        )}
                       </TableCell>
                       {type === "all" && (
                         <TableCell>
