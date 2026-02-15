@@ -97,6 +97,7 @@ export interface ForecastStats {
     expensesCount: number;
     commissionsTotal: number;
     costsTotal: number;
+    supplierPaymentsTotal: number;
   };
 }
 
@@ -112,6 +113,18 @@ export interface CostsSummary {
   upcoming: CompanyCostEntry[];
   fixedTotal: number;
   variableTotal: number;
+}
+
+export interface ExpectedSupplierPayment {
+  orderItemId: string;
+  orderId: string;
+  orderCode: string | null;
+  supplierName: string;
+  type: "Acconto Fornitore" | "Saldo Fornitore" | "Pagamento Fornitore";
+  amount: number;
+  expectedDate: Date | null;
+  isPaid: boolean;
+  direction: "out";
 }
 
 export interface Supplier {

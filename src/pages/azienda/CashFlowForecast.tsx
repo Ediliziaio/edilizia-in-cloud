@@ -12,6 +12,7 @@ import { ForecastCommissions } from "@/components/forecast/ForecastCommissions";
 import { ForecastCompanyCosts } from "@/components/forecast/ForecastCompanyCosts";
 import { ForecastChart } from "@/components/forecast/ForecastChart";
 import { ForecastTransactionsTable } from "@/components/forecast/ForecastTransactionsTable";
+import { ForecastSupplierPayments } from "@/components/forecast/ForecastSupplierPayments";
 
 export default function CashFlowForecast() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
@@ -23,6 +24,7 @@ export default function CashFlowForecast() {
     expectedPayments,
     expectedExpenses,
     expectedCommissions,
+    expectedSupplierPayments,
     expectedCompanyCosts,
     stats,
     cfoKpis,
@@ -51,6 +53,15 @@ export default function CashFlowForecast() {
         customerName: c.name,
         teamName: c.name,
         orderCode: null,
+      })),
+      ...expectedSupplierPayments.filter(p => !p.isPaid).map((s) => ({
+        expectedDate: s.expectedDate,
+        amount: s.amount,
+        direction: "out" as const,
+        type: s.type,
+        customerName: s.supplierName,
+        teamName: s.supplierName,
+        orderCode: s.orderCode,
       })),
     ];
 
@@ -140,12 +151,18 @@ export default function CashFlowForecast() {
 
       <ForecastCompanyCosts costsSummary={costsSummary} />
 
+      <ForecastSupplierPayments
+        expectedSupplierPayments={expectedSupplierPayments}
+        supplierPaymentsTotal={stats.total.supplierPaymentsTotal}
+      />
+
       <ForecastChart chartData={chartData} />
 
       <ForecastTransactionsTable
         expectedPayments={expectedPayments}
         expectedExpenses={expectedExpenses}
         expectedCompanyCosts={expectedCompanyCosts}
+        expectedSupplierPayments={expectedSupplierPayments}
         activeTab={activeTab}
         onActiveTabChange={setActiveTab}
         dateRange={dateRange}
