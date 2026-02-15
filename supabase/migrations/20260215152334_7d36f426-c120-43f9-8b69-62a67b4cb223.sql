@@ -1,0 +1,1 @@
+ALTER TABLE public.orders ADD COLUMN has_building_bonus boolean NOT NULL DEFAULT false;

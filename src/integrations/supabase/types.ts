@@ -1006,6 +1006,7 @@ export type Database = {
           financing_expected_date: string | null
           financing_paid: boolean | null
           financing_paid_date: string | null
+          has_building_bonus: boolean
           id: string
           internal_notes: string | null
           order_code: string | null
@@ -1041,6 +1042,7 @@ export type Database = {
           financing_expected_date?: string | null
           financing_paid?: boolean | null
           financing_paid_date?: string | null
+          has_building_bonus?: boolean
           id?: string
           internal_notes?: string | null
           order_code?: string | null
@@ -1076,6 +1078,7 @@ export type Database = {
           financing_expected_date?: string | null
           financing_paid?: boolean | null
           financing_paid_date?: string | null
+          has_building_bonus?: boolean
           id?: string
           internal_notes?: string | null
           order_code?: string | null

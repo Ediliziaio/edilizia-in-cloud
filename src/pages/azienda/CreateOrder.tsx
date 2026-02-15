@@ -89,6 +89,7 @@ export default function CreateOrder() {
   const [financingPaidDate, setFinancingPaidDate] = useState<Date | undefined>();
   const [financingExpectedDate, setFinancingExpectedDate] = useState<Date | undefined>();
   const [financingCost, setFinancingCost] = useState("");
+  const [hasBuildingBonus, setHasBuildingBonus] = useState(false);
 
   // Order items state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -141,6 +142,7 @@ export default function CreateOrder() {
     setFinancingPaidDate(isoToDate(draft.financingPaidDate));
     setFinancingExpectedDate(isoToDate(draft.financingExpectedDate));
     setFinancingCost(draft.financingCost || "");
+    setHasBuildingBonus(draft.hasBuildingBonus || false);
     setDraftRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveCompany?.id]);
@@ -161,6 +163,7 @@ export default function CreateOrder() {
       balancePaid, balancePaidDate: dateToIso(balancePaidDate), balanceExpectedDate: dateToIso(balanceExpectedDate),
       financingPaid, financingPaidDate: dateToIso(financingPaidDate), financingExpectedDate: dateToIso(financingExpectedDate),
       financingCost,
+      hasBuildingBonus,
       orderItems,
     });
   }, [customerId, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
@@ -170,6 +173,7 @@ export default function CreateOrder() {
       deposit2Paid, deposit2PaidDate, deposit2ExpectedDate,
       balancePaid, balancePaidDate, balanceExpectedDate,
       financingPaid, financingPaidDate, financingExpectedDate, financingCost,
+      hasBuildingBonus,
       orderItems, createdOrderId, saveDraft, dateToIso]);
 
   const handleClearDraft = useCallback(() => {
@@ -184,7 +188,7 @@ export default function CreateOrder() {
     setDeposit2Paid(false); setDeposit2PaidDate(undefined); setDeposit2ExpectedDate(undefined);
     setBalancePaid(false); setBalancePaidDate(undefined); setBalanceExpectedDate(undefined);
     setFinancingPaid(false); setFinancingPaidDate(undefined); setFinancingExpectedDate(undefined);
-    setFinancingCost("");
+    setFinancingCost(""); setHasBuildingBonus(false);
     setOrderItems([]);
   }, [clearDraft]);
 
@@ -295,6 +299,7 @@ export default function CreateOrder() {
           financing_paid_date: financingPaidDate?.toISOString().split("T")[0] || null,
           financing_expected_date: financingExpectedDate?.toISOString().split("T")[0] || null,
           financing_cost: fCost,
+          has_building_bonus: hasBuildingBonus,
         })
         .select()
         .single();
@@ -678,6 +683,8 @@ export default function CreateOrder() {
             onFinancingPaidDateChange={setFinancingPaidDate}
             onFinancingExpectedDateChange={setFinancingExpectedDate}
             onFinancingCostChange={setFinancingCost}
+            hasBuildingBonus={hasBuildingBonus}
+            onHasBuildingBonusChange={setHasBuildingBonus}
           />
         </div>
 

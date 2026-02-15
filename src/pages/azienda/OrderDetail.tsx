@@ -842,6 +842,7 @@ export default function OrderDetail() {
             financingPaidDate={(order as any).financing_paid_date}
             financingExpectedDate={(order as any).financing_expected_date}
             financingCost={(order as any).financing_cost}
+            hasBuildingBonus={(order as any).has_building_bonus}
           />
 
           {/* Order Economics */}

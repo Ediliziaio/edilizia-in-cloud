@@ -39,6 +39,8 @@ export interface OrderDraftData {
   financingCost: string;
   // Items
   orderItems: OrderItem[];
+  // Building bonus
+  hasBuildingBonus: boolean;
   // Meta
   savedAt: string;
 }
