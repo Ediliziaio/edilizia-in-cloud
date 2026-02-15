@@ -165,7 +165,7 @@ export function LaborCostsStats() {
             <CardDescription>Statistiche del mese corrente</CardDescription>
           </div>
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/azienda/dipendenti">Gestisci</Link>
+            <Link to="/azienda/impostazioni">Gestisci</Link>
           </Button>
         </div>
       </CardHeader>
