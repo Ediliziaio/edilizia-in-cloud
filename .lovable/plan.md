@@ -1,30 +1,71 @@
 
-# Fix: Escludere articoli da Giacenze dalla sezione Costi
 
-## Problema
+# Stabilizzazione e Pulizia Progetto - Sezione Costi
 
-Gli articoli presi dal magazzino (Giacenze) hanno il campo `stock_item_id` valorizzato, il che significa che il costo e' gia' stato sostenuto al momento dell'acquisto dello stock. Questi articoli non devono apparire nella sezione Costi come "da pagare" perche' sono gia' pagati tramite l'inventario.
+## 1. Bug Critico: Previsionale mostra articoli da Giacenze
 
-Esempio: "Motore Tapparelle mario" e' stato prelevato dalle Giacenze, quindi il suo costo e' gia' coperto e non deve comparire tra i costi variabili derivati dagli ordini.
+### Problema
+Il hook `useCashFlowData.ts` (riga 113-130) nella query `supplierBalances` recupera TUTTI gli `order_items` con `supplier_id` non nullo, **senza escludere** quelli con `stock_item_id` valorizzato. Questo significa che articoli come "Motore Tapparelle mario" (prelevati dal magazzino) appaiono ancora nel **Previsionale Cassa** come pagamenti fornitori attesi, anche se sono stati correttamente esclusi dalla sezione Costi.
 
-## Soluzione
+### Fix
+Aggiungere `.is("stock_item_id", null)` alla query `supplierBalances` in `useCashFlowData.ts` (riga 124), allineandola con la correzione gia' applicata in `CompanyCostsManager.tsx`.
 
-Aggiungere un filtro alla query degli articoli con fornitore in `CompanyCostsManager.tsx` (riga ~244) per escludere gli articoli provenienti dal magazzino:
-
+### File: `src/hooks/useCashFlowData.ts`
+Dopo la riga `.not("supplier_id", "is", null)` (riga 124), aggiungere:
 ```
 .is("stock_item_id", null)
 ```
 
-Questo filtro garantisce che solo gli articoli acquistati direttamente per l'ordine (non prelevati dallo stock) vengano mostrati come costi.
+---
 
-## Dettaglio tecnico
+## 2. Bug Secondario: query `pendingItems` include articoli da Giacenze
+
+La query `pendingItems` (riga 92-108) filtra per status `da_ordinare`/`ordinato` ma non esclude `stock_item_id`. In teoria articoli da stock non dovrebbero avere questi status, ma per sicurezza conviene aggiungere lo stesso filtro.
+
+### File: `src/hooks/useCashFlowData.ts`
+Aggiungere `.is("stock_item_id", null)` anche alla query `pendingItems` (dopo riga 102).
+
+---
+
+## 3. Pulizia codice morto e import inutili
 
 ### File: `src/components/forecast/CompanyCostsManager.tsx`
 
-Nella query che recupera gli `order_items` con fornitore (riga ~244), dopo `.not("supplier_id", "is", null)`, aggiungere:
+Dopo analisi completa del file (1899 righe):
+- **Tutti gli import sono utilizzati** - nessun import morto trovato
+- **Tutte le variabili di stato sono referenziate**
+- **Tutte le mutation sono collegate a bottoni/azioni nell'interfaccia**
+- Il file e' grande ma ben organizzato con logica coerente
 
-```typescript
-.is("stock_item_id", null)
-```
+### Nessun codice morto identificato
+La pulizia della tab Fornitori e delle relative query/useMemo e' gia' stata eseguita nella sessione precedente.
 
-Nessun altro file modificato. Nessuna modifica al database.
+---
+
+## 4. Verifica funzionale (risultati)
+
+| Check | Stato |
+|-------|-------|
+| Console errori runtime | Nessun errore (solo warning postMessage irrilevanti) |
+| Network requests | Tutte 200 OK |
+| Filtro `stock_item_id` in CompanyCostsManager | Corretto (gia' applicato) |
+| Filtro `stock_item_id` in useCashFlowData | **DA CORREGGERE** (mancante) |
+| Tabs Costi (Tutti/Fissi/Variabili) | Funzionanti |
+| Stat cards | Funzionanti |
+| Dialog creazione/modifica/duplica | Funzionanti |
+| Loading states | Presenti (Skeleton) |
+| Empty states | Presenti ("Nessun costo trovato" con icona) |
+| Filtri (periodo/stato/fornitore/categoria) | Funzionanti |
+| Azioni bulk (seleziona/paga/elimina) | Funzionanti |
+
+---
+
+## 5. Riepilogo Modifiche
+
+| Azione | File | Dettaglio |
+|--------|------|-----------|
+| Bug fix | `src/hooks/useCashFlowData.ts` | Aggiungere `.is("stock_item_id", null)` a query `supplierBalances` (riga 124) |
+| Bug fix | `src/hooks/useCashFlowData.ts` | Aggiungere `.is("stock_item_id", null)` a query `pendingItems` (riga 102) |
+
+Nessuna modifica al database. Nessun file rimosso. Nessun cambio di comportamento funzionale - solo allineamento del filtro Giacenze tra Costi e Previsionale.
+
