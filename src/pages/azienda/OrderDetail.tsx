@@ -837,7 +837,11 @@ export default function OrderDetail() {
             deposit2PaidDate={order.deposit_2_paid_date}
             balancePaid={order.balance_paid}
             balancePaidDate={order.balance_paid_date}
-            balanceExpectedDate={order.balance_expected_date}
+            balanceExpectedDate={(order as any).balance_expected_date}
+            financingPaid={(order as any).financing_paid}
+            financingPaidDate={(order as any).financing_paid_date}
+            financingExpectedDate={(order as any).financing_expected_date}
+            financingCost={(order as any).financing_cost}
           />
 
           {/* Order Economics */}

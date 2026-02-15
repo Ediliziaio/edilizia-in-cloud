@@ -14,6 +14,13 @@ export interface OrderWithDetails {
   warehouse_arrival_date: string | null;
   created_at: string;
   current_status_id: string | null;
+  // Financing
+  financing_amount?: number | null;
+  financing_paid?: boolean | null;
+  financing_paid_date?: string | null;
+  financing_expected_date?: string | null;
+  financing_cost?: number | null;
+  payment_type?: string | null;
   customer: {
     first_name: string;
     last_name: string;
@@ -53,5 +60,6 @@ export function getPendingPayments(order: OrderWithDetails): string[] {
   if (order.deposit_amount > 0 && !order.deposit_paid) pending.push("Acc. 1");
   if (order.deposit_2_amount && order.deposit_2_amount > 0 && !order.deposit_2_paid) pending.push("Acc. 2");
   if (order.balance_amount > 0 && !order.balance_paid) pending.push("Saldo");
+  if (order.financing_amount && order.financing_amount > 0 && !order.financing_paid) pending.push("Finanz.");
   return pending;
 }

@@ -1002,6 +1002,10 @@ export type Database = {
           description: string
           expected_date: string | null
           financing_amount: number | null
+          financing_cost: number | null
+          financing_expected_date: string | null
+          financing_paid: boolean | null
+          financing_paid_date: string | null
           id: string
           internal_notes: string | null
           order_code: string | null
@@ -1033,6 +1037,10 @@ export type Database = {
           description: string
           expected_date?: string | null
           financing_amount?: number | null
+          financing_cost?: number | null
+          financing_expected_date?: string | null
+          financing_paid?: boolean | null
+          financing_paid_date?: string | null
           id?: string
           internal_notes?: string | null
           order_code?: string | null
@@ -1064,6 +1072,10 @@ export type Database = {
           description?: string
           expected_date?: string | null
           financing_amount?: number | null
+          financing_cost?: number | null
+          financing_expected_date?: string | null
+          financing_paid?: boolean | null
+          financing_paid_date?: string | null
           id?: string
           internal_notes?: string | null
           order_code?: string | null

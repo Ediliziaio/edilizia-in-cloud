@@ -46,6 +46,15 @@ interface PaymentStatusProps {
   onBalancePaidChange?: (paid: boolean) => void;
   onBalancePaidDateChange?: (date?: Date) => void;
   onBalanceExpectedDateChange?: (date?: Date) => void;
+  // Financing payment status
+  financingPaid?: boolean;
+  financingPaidDate?: Date;
+  financingExpectedDate?: Date;
+  financingCost?: string;
+  onFinancingPaidChange?: (paid: boolean) => void;
+  onFinancingPaidDateChange?: (date?: Date) => void;
+  onFinancingExpectedDateChange?: (date?: Date) => void;
+  onFinancingCostChange?: (value: string) => void;
 }
 
 interface FinancialSummaryProps extends PaymentStatusProps {
@@ -215,6 +224,15 @@ export function FinancialSummary({
   onBalancePaidChange,
   onBalancePaidDateChange,
   onBalanceExpectedDateChange,
+  // Financing payment status
+  financingPaid,
+  financingPaidDate,
+  financingExpectedDate,
+  financingCost,
+  onFinancingPaidChange,
+  onFinancingPaidDateChange,
+  onFinancingExpectedDateChange,
+  onFinancingCostChange,
 }: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
   
@@ -223,6 +241,7 @@ export function FinancialSummary({
   const [rawDepositInput, setRawDepositInput] = useState(depositAmount);
   const [rawDeposit2Input, setRawDeposit2Input] = useState(deposit2Amount);
   const [rawFinancingInput, setRawFinancingInput] = useState(financingAmount);
+  const [rawFinancingCostInput, setRawFinancingCostInput] = useState(financingCost || "");
   
   const vat = parseFloat(vatRate) || 22;
   const total = parseFloat(totalAmount) || 0;
@@ -250,14 +269,16 @@ export function FinancialSummary({
     setRawFinancingInput(financingAmount);
   }, [financingAmount]);
 
+  useEffect(() => {
+    setRawFinancingCostInput(financingCost || "");
+  }, [financingCost]);
+
   // Handle input mode change
   const handleInputModeChange = (mode: AmountInputMode) => {
     setInputMode(mode);
     if (mode === 'gross') {
-      // Convert current net to gross for display
       setRawTotalInput(totalWithVat > 0 ? totalWithVat.toFixed(2) : "");
     } else {
-      // Show net amount
       setRawTotalInput(totalAmount);
     }
   };
@@ -278,26 +299,26 @@ export function FinancialSummary({
   const handleVatRateChange = (newRate: string) => {
     onVatRateChange(newRate);
     if (inputMode === 'gross' && rawTotalInput) {
-      // Recalculate: the net stays the same, update the gross display
       const newVat = parseFloat(newRate) || 22;
       const newGross = total * (1 + newVat / 100);
       setRawTotalInput(newGross > 0 ? newGross.toFixed(2) : "");
     }
   };
 
-  // Handle deposit blur
   const handleDepositBlur = () => {
     onDepositAmountChange(rawDepositInput);
   };
 
-  // Handle deposit 2 blur
   const handleDeposit2Blur = () => {
     onDeposit2AmountChange(rawDeposit2Input);
   };
 
-  // Handle financing blur
   const handleFinancingBlur = () => {
     onFinancingAmountChange(rawFinancingInput);
+  };
+
+  const handleFinancingCostBlur = () => {
+    onFinancingCostChange?.(rawFinancingCostInput);
   };
 
   return (
@@ -546,17 +567,63 @@ export function FinancialSummary({
                   disabled={readOnly}
                 />
               </div>
+              {(parseFloat(financingAmount) || 0) > 0 && (
+                <PaymentStatusRow
+                  label="Incasso Finanziamento"
+                  amount={parseFloat(financingAmount) || 0}
+                  paid={financingPaid}
+                  paidDate={financingPaidDate}
+                  expectedDate={financingExpectedDate}
+                  onPaidChange={onFinancingPaidChange}
+                  onPaidDateChange={onFinancingPaidDateChange}
+                  onExpectedDateChange={onFinancingExpectedDateChange}
+                  readOnly={readOnly}
+                />
+              )}
             </div>
 
-            {/* Info */}
-            <div className="pt-4 border-t">
-              <p className="text-sm text-muted-foreground">
-                Pagamento tramite finanziaria
-              </p>
-              <div className="flex justify-between items-center text-lg font-semibold mt-2">
-                <span>Saldo da Pagare</span>
-                <span className="text-muted-foreground">€ 0,00</span>
+            {/* Financing Cost */}
+            <div className="space-y-2">
+              <Label htmlFor="financing-cost">Costo Finanziaria</Label>
+              <p className="text-xs text-muted-foreground">Commissione da versare alla finanziaria (es. tasso zero)</p>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  €
+                </span>
+                <Input
+                  id="financing-cost"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={rawFinancingCostInput}
+                  onChange={(e) => setRawFinancingCostInput(e.target.value)}
+                  onBlur={handleFinancingCostBlur}
+                  className="pl-8"
+                  placeholder="0.00"
+                  disabled={readOnly}
+                />
               </div>
+            </div>
+
+            {/* Balance */}
+            <div className="pt-4 border-t space-y-3">
+              <div className="flex justify-between items-center text-lg font-semibold">
+                <span>Saldo Cliente</span>
+                <span>{formatCurrency(balance)}</span>
+              </div>
+              {balance > 0 && (
+                <PaymentStatusRow
+                  label="Stato Saldo"
+                  amount={balance}
+                  paid={balancePaid}
+                  paidDate={balancePaidDate}
+                  expectedDate={balanceExpectedDate}
+                  onPaidChange={onBalancePaidChange}
+                  onPaidDateChange={onBalancePaidDateChange}
+                  onExpectedDateChange={onBalanceExpectedDateChange}
+                  readOnly={readOnly}
+                />
+              )}
             </div>
           </>
         )}
@@ -574,7 +641,6 @@ interface FinancialSummaryReadOnlyProps {
   paymentType: PaymentType;
   balanceAmount: number;
   vatRate?: number;
-  // Payment status
   depositPaid?: boolean;
   depositPaidDate?: string | null;
   depositExpectedDate?: string | null;
@@ -584,6 +650,10 @@ interface FinancialSummaryReadOnlyProps {
   balancePaid?: boolean;
   balancePaidDate?: string | null;
   balanceExpectedDate?: string | null;
+  financingPaid?: boolean;
+  financingPaidDate?: string | null;
+  financingExpectedDate?: string | null;
+  financingCost?: number;
 }
 
 export function FinancialSummaryReadOnly({
@@ -603,6 +673,10 @@ export function FinancialSummaryReadOnly({
   balancePaid,
   balancePaidDate,
   balanceExpectedDate,
+  financingPaid,
+  financingPaidDate,
+  financingExpectedDate,
+  financingCost,
 }: FinancialSummaryReadOnlyProps) {
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
@@ -729,13 +803,51 @@ export function FinancialSummaryReadOnly({
                   </div>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Finanziamento</span>
-                <span className="text-accent-foreground">{formatCurrency(financingAmount)}</span>
+              <div className="p-3 rounded-lg bg-muted/30 space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Finanziamento</span>
+                  <span className="font-medium">{formatCurrency(financingAmount)}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  {financingPaid ? (
+                    <span className="flex items-center gap-1 text-green-600">
+                      <Check className="h-3 w-3" />
+                      Incassato {financingPaidDate && `il ${formatPaymentDate(financingPaidDate)}`}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-amber-600">
+                      <Clock className="h-3 w-3" />
+                      In attesa {financingExpectedDate && `- Previsto ${formatPaymentDate(financingExpectedDate)}`}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex justify-between pt-2 border-t mt-2">
-                <span className="font-medium">Saldo</span>
-                <span className="font-bold text-lg text-muted-foreground">€ 0,00</span>
+              {(financingCost || 0) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Costo Finanziaria</span>
+                  <span className="text-destructive font-medium">- {formatCurrency(financingCost || 0)}</span>
+                </div>
+              )}
+              <div className="p-3 rounded-lg bg-muted/30 space-y-1">
+                <div className="flex justify-between pt-2 border-t">
+                  <span className="font-medium">Saldo Cliente</span>
+                  <span className="font-bold text-lg">{formatCurrency(balanceAmount)}</span>
+                </div>
+                {balanceAmount > 0 && (
+                  <div className="flex items-center gap-2 text-xs">
+                    {balancePaid ? (
+                      <span className="flex items-center gap-1 text-green-600">
+                        <Check className="h-3 w-3" />
+                        Pagato {balancePaidDate && `il ${formatPaymentDate(balancePaidDate)}`}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-amber-600">
+                        <Clock className="h-3 w-3" />
+                        In attesa {balanceExpectedDate && `- Previsto ${formatPaymentDate(balanceExpectedDate)}`}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}

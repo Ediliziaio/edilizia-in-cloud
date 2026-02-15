@@ -84,6 +84,11 @@ export default function CreateOrder() {
   const [balancePaid, setBalancePaid] = useState(false);
   const [balancePaidDate, setBalancePaidDate] = useState<Date | undefined>();
   const [balanceExpectedDate, setBalanceExpectedDate] = useState<Date | undefined>();
+  // Financing payment status
+  const [financingPaid, setFinancingPaid] = useState(false);
+  const [financingPaidDate, setFinancingPaidDate] = useState<Date | undefined>();
+  const [financingExpectedDate, setFinancingExpectedDate] = useState<Date | undefined>();
+  const [financingCost, setFinancingCost] = useState("");
 
   // Order items state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -132,6 +137,10 @@ export default function CreateOrder() {
     setBalancePaidDate(isoToDate(draft.balancePaidDate));
     setBalanceExpectedDate(isoToDate(draft.balanceExpectedDate));
     if (draft.orderItems?.length) setOrderItems(draft.orderItems);
+    setFinancingPaid(draft.financingPaid || false);
+    setFinancingPaidDate(isoToDate(draft.financingPaidDate));
+    setFinancingExpectedDate(isoToDate(draft.financingExpectedDate));
+    setFinancingCost(draft.financingCost || "");
     setDraftRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveCompany?.id]);
@@ -150,6 +159,8 @@ export default function CreateOrder() {
       depositPaid, depositPaidDate: dateToIso(depositPaidDate), depositExpectedDate: dateToIso(depositExpectedDate),
       deposit2Paid, deposit2PaidDate: dateToIso(deposit2PaidDate), deposit2ExpectedDate: dateToIso(deposit2ExpectedDate),
       balancePaid, balancePaidDate: dateToIso(balancePaidDate), balanceExpectedDate: dateToIso(balanceExpectedDate),
+      financingPaid, financingPaidDate: dateToIso(financingPaidDate), financingExpectedDate: dateToIso(financingExpectedDate),
+      financingCost,
       orderItems,
     });
   }, [customerId, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
@@ -158,6 +169,7 @@ export default function CreateOrder() {
       depositPaid, depositPaidDate, depositExpectedDate,
       deposit2Paid, deposit2PaidDate, deposit2ExpectedDate,
       balancePaid, balancePaidDate, balanceExpectedDate,
+      financingPaid, financingPaidDate, financingExpectedDate, financingCost,
       orderItems, createdOrderId, saveDraft, dateToIso]);
 
   const handleClearDraft = useCallback(() => {
@@ -171,6 +183,8 @@ export default function CreateOrder() {
     setDepositPaid(false); setDepositPaidDate(undefined); setDepositExpectedDate(undefined);
     setDeposit2Paid(false); setDeposit2PaidDate(undefined); setDeposit2ExpectedDate(undefined);
     setBalancePaid(false); setBalancePaidDate(undefined); setBalanceExpectedDate(undefined);
+    setFinancingPaid(false); setFinancingPaidDate(undefined); setFinancingExpectedDate(undefined);
+    setFinancingCost("");
     setOrderItems([]);
   }, [clearDraft]);
 
@@ -178,9 +192,12 @@ export default function CreateOrder() {
   const total = parseFloat(totalAmount) || 0;
   const deposit = parseFloat(depositAmount) || 0;
   const deposit2 = parseFloat(deposit2Amount) || 0;
+  const financing = parseFloat(financingAmount) || 0;
   const vat = parseFloat(vatRate) || 22;
   const totalWithVat = total * (1 + vat / 100);
-  const balance = paymentType === 'standard' ? Math.max(0, totalWithVat - deposit - deposit2) : 0;
+  const balance = paymentType === 'standard'
+    ? Math.max(0, totalWithVat - deposit - deposit2)
+    : Math.max(0, totalWithVat - deposit - financing);
 
   // Fetch customers for the company
   const { data: customers = [] } = useQuery({
@@ -242,6 +259,7 @@ export default function CreateOrder() {
 
       const financing = parseFloat(financingAmount) || 0;
       const vatValue = parseFloat(vatRate) || 22;
+      const fCost = parseFloat(financingCost) || 0;
 
       // Create the order
       const { data: order, error: orderError } = await supabase
@@ -273,6 +291,10 @@ export default function CreateOrder() {
           balance_expected_date: balanceExpectedDate?.toISOString().split("T")[0] || null,
           deposit_expected_date: depositExpectedDate?.toISOString().split("T")[0] || null,
           deposit_2_expected_date: deposit2ExpectedDate?.toISOString().split("T")[0] || null,
+          financing_paid: financingPaid,
+          financing_paid_date: financingPaidDate?.toISOString().split("T")[0] || null,
+          financing_expected_date: financingExpectedDate?.toISOString().split("T")[0] || null,
+          financing_cost: fCost,
         })
         .select()
         .single();
@@ -648,6 +670,14 @@ export default function CreateOrder() {
             onBalancePaidChange={setBalancePaid}
             onBalancePaidDateChange={setBalancePaidDate}
             onBalanceExpectedDateChange={setBalanceExpectedDate}
+            financingPaid={financingPaid}
+            financingPaidDate={financingPaidDate}
+            financingExpectedDate={financingExpectedDate}
+            financingCost={financingCost}
+            onFinancingPaidChange={setFinancingPaid}
+            onFinancingPaidDateChange={setFinancingPaidDate}
+            onFinancingExpectedDateChange={setFinancingExpectedDate}
+            onFinancingCostChange={setFinancingCost}
           />
         </div>
 
