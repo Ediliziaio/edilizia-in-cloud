@@ -1,0 +1,1 @@
+ALTER TABLE public.order_items ADD COLUMN payment_method text DEFAULT NULL;

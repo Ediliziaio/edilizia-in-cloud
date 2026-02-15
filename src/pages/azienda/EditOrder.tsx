@@ -80,6 +80,9 @@ interface OrderItemData {
   purchase_price: number | null;
   vat_rate: number | null;
   stock_item_id: string | null;
+  is_paid: boolean | null;
+  paid_date: string | null;
+  payment_method: string | null;
 }
 
 export default function EditOrder() {
@@ -288,9 +291,9 @@ export default function EditOrder() {
         purchase_price: item.purchase_price || undefined,
         vat_rate: item.vat_rate ?? undefined,
         stock_item_id: item.stock_item_id || undefined,
-        unit_price: (item as any).unit_price || undefined,
-        discount_percent: (item as any).discount_percent || undefined,
-        standard_cost: (item as any).standard_cost || undefined,
+        is_paid: item.is_paid || false,
+        paid_date: item.paid_date || undefined,
+        payment_method: item.payment_method || undefined,
       })));
     }
   }, [existingItems, draftRestored]);
@@ -359,9 +362,9 @@ export default function EditOrder() {
         purchase_price: item.purchase_price || undefined,
         vat_rate: item.vat_rate ?? undefined,
         stock_item_id: item.stock_item_id || undefined,
-        unit_price: (item as any).unit_price || undefined,
-        discount_percent: (item as any).discount_percent || undefined,
-        standard_cost: (item as any).standard_cost || undefined,
+        is_paid: item.is_paid || false,
+        paid_date: item.paid_date || undefined,
+        payment_method: item.payment_method || undefined,
       })));
     }
   }, [clearDraft, order, existingItems]);
@@ -497,9 +500,12 @@ export default function EditOrder() {
             purchase_price: item.purchase_price || 0,
             vat_rate: item.vat_rate ?? 22,
             stock_item_id: item.stock_item_id || null,
-            unit_price: item.unit_price || 0,
-            discount_percent: item.discount_percent || 0,
-            standard_cost: item.standard_cost || 0,
+            unit_price: 0,
+            discount_percent: 0,
+            standard_cost: 0,
+            is_paid: item.is_paid || false,
+            paid_date: item.paid_date || null,
+            payment_method: item.payment_method || null,
           }).eq("id", item.id);
           if (updErr) throw updErr;
         }
@@ -518,9 +524,12 @@ export default function EditOrder() {
           purchase_price: item.purchase_price || 0,
           vat_rate: item.vat_rate ?? 22,
           stock_item_id: item.stock_item_id || null,
-          unit_price: item.unit_price || 0,
-          discount_percent: item.discount_percent || 0,
-          standard_cost: item.standard_cost || 0,
+          unit_price: 0,
+          discount_percent: 0,
+          standard_cost: 0,
+          is_paid: item.is_paid || false,
+          paid_date: item.paid_date || null,
+          payment_method: item.payment_method || null,
         }));
 
         const { error: insErr } = await supabase.from("order_items").insert(newItems);

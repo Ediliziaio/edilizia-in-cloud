@@ -717,6 +717,7 @@ export type Database = {
           name: string
           order_id: string
           paid_date: string | null
+          payment_method: string | null
           position: number | null
           purchase_price: number | null
           quantity: number | null
@@ -737,6 +738,7 @@ export type Database = {
           name: string
           order_id: string
           paid_date?: string | null
+          payment_method?: string | null
           position?: number | null
           purchase_price?: number | null
           quantity?: number | null
@@ -757,6 +759,7 @@ export type Database = {
           name?: string
           order_id?: string
           paid_date?: string | null
+          payment_method?: string | null
           position?: number | null
           purchase_price?: number | null
           quantity?: number | null
