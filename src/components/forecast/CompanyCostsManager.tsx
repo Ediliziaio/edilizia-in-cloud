@@ -265,16 +265,18 @@ export default function CompanyCostsManager() {
     enabled: !!companyId,
   });
 
-  // Query employees from orders
-  const { data: employeeCosts = [] } = useQuery({
-    queryKey: ["order-employee-costs", companyId],
+  // Query all active employees for monthly salary costs
+  const { data: activeEmployees = [] } = useQuery({
+    queryKey: ["active-employees-costs", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("order_employees")
-        .select("id, total_cost, is_paid, paid_date, employee:employees(first_name, last_name), order:orders!inner(id, order_code, company_id)")
-        .eq("order.company_id", companyId!);
+        .from("employees")
+        .select("id, first_name, last_name, gross_salary, is_active")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .order("last_name");
       if (error) throw error;
-      return (data || []) as any[];
+      return data || [];
     },
     enabled: !!companyId,
   });
@@ -385,25 +387,25 @@ export default function CompanyCostsManager() {
     }));
   }, [externalTeamCosts]);
 
-  // Transform employee costs into unified cost format
-  const employeeAsVariableCosts: UnifiedCost[] = useMemo(() => {
-    return employeeCosts.map((item: any) => ({
-      id: `emp-cost-${item.id}`,
-      name: `${item.employee?.first_name || ""} ${item.employee?.last_name || ""}`.trim() || "Dipendente",
-      cost_type: "variable",
-      amount: Number(item.total_cost) || 0,
-      category: "Manodopera",
-      recurrence: "once",
-      due_date: item.paid_date || new Date().toISOString().split("T")[0],
-      is_paid: !!item.is_paid,
-      paid_date: item.paid_date || null,
+  // Transform active employees into fixed monthly salary costs
+  const employeeAsFixedCosts: UnifiedCost[] = useMemo(() => {
+    return activeEmployees.map((emp) => ({
+      id: `employee-salary-${emp.id}`,
+      name: `${emp.first_name} ${emp.last_name} (stipendio)`,
+      cost_type: "fixed",
+      amount: Number(emp.gross_salary) || 0,
+      category: "Personale",
+      recurrence: "monthly",
+      due_date: format(endOfMonth(new Date()), "yyyy-MM-dd"),
+      is_paid: false,
+      paid_date: null,
       notes: null,
-      order_id: item.order?.id || null,
-      order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
+      order_id: null,
+      order: null,
       isFromOrder: true,
       supplierName: null,
     }));
-  }, [employeeCosts]);
+  }, [activeEmployees]);
 
   // Transform commissions into unified cost format
   const commissionAsVariableCosts: UnifiedCost[] = useMemo(() => {
@@ -429,9 +431,9 @@ export default function CompanyCostsManager() {
   const allOrderDerivedCosts = useMemo(() => [
     ...orderItemsAsVariableCosts,
     ...externalTeamAsVariableCosts,
-    ...employeeAsVariableCosts,
+    ...employeeAsFixedCosts,
     ...commissionAsVariableCosts,
-  ], [orderItemsAsVariableCosts, externalTeamAsVariableCosts, employeeAsVariableCosts, commissionAsVariableCosts]);
+  ], [orderItemsAsVariableCosts, externalTeamAsVariableCosts, employeeAsFixedCosts, commissionAsVariableCosts]);
 
   // Filtering logic
   const filteredCosts = useMemo(() => {
@@ -947,39 +949,6 @@ export default function CompanyCostsManager() {
     },
   });
 
-  const markEmployeeCostPaidMutation = useMutation({
-    mutationFn: async ({ id, date }: { id: string; date: string }) => {
-      const { error } = await supabase.from("order_employees").update({ is_paid: true, paid_date: date } as any).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-employee-costs"] });
-      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
-      setPayDialogOpen(false);
-      setPayingCostId(null);
-      toast({ title: "Costo dipendente segnato come pagato" });
-    },
-    onError: (error) => {
-      console.error("Payment error:", error);
-      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
-    },
-  });
-
-  const markEmployeeCostUnpaidMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("order_employees").update({ is_paid: false, paid_date: null } as any).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-employee-costs"] });
-      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
-      toast({ title: "Costo dipendente riportato a non pagato" });
-    },
-    onError: (error) => {
-      console.error("Payment error:", error);
-      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
-    },
-  });
 
   const exportCostsCSV = () => {
     const allForExport = [...filteredCosts, ...filteredOrderItemCosts];
@@ -1468,7 +1437,7 @@ export default function CompanyCostsManager() {
                                         }
                                         else if (cost.id.startsWith("ext-team-")) markExtTeamUnpaidMutation.mutate(cost.id.replace("ext-team-", ""));
                                         else if (cost.id.startsWith("commission-")) markCommissionUnpaidMutation.mutate(cost.id.replace("commission-", ""));
-                                        else if (cost.id.startsWith("emp-cost-")) markEmployeeCostUnpaidMutation.mutate(cost.id.replace("emp-cost-", ""));
+                                        
                                       }}>
                                         <Undo2 className="h-3.5 w-3.5 text-orange-600" />
                                       </Button>
@@ -2027,14 +1996,12 @@ export default function CompanyCostsManager() {
                     markExtTeamPaidMutation.mutate({ id: payingCostId.replace("ext-team-", ""), date: paymentDate });
                   } else if (payingCostId.startsWith("commission-")) {
                     markCommissionPaidMutation.mutate({ id: payingCostId.replace("commission-", ""), date: paymentDate });
-                  } else if (payingCostId.startsWith("emp-cost-")) {
-                    markEmployeeCostPaidMutation.mutate({ id: payingCostId.replace("emp-cost-", ""), date: paymentDate });
                   } else {
                     markPaidMutation.mutate({ id: payingCostId, date: paymentDate });
                   }
                 }
               }}
-              disabled={!paymentDate || markPaidMutation.isPending || markOrderItemPaidMutation.isPending || markExtTeamPaidMutation.isPending || markCommissionPaidMutation.isPending || markEmployeeCostPaidMutation.isPending}
+              disabled={!paymentDate || markPaidMutation.isPending || markOrderItemPaidMutation.isPending || markExtTeamPaidMutation.isPending || markCommissionPaidMutation.isPending}
             >
               {(markPaidMutation.isPending || markOrderItemPaidMutation.isPending) ? "Salvataggio..." : "Conferma Pagamento"}
             </Button>
