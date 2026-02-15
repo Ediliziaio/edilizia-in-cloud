@@ -2,7 +2,7 @@ export interface ExpectedPayment {
   orderId: string;
   orderCode: string | null;
   customerName: string;
-  type: "Acconto 1" | "Acconto 2" | "Saldo";
+  type: "Acconto 1" | "Acconto 2" | "Saldo" | "Finanziamento";
   amount: number;
   expectedDate: Date | null;
   direction: "in";
