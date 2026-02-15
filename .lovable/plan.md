@@ -1,134 +1,93 @@
 
 
-# Pulizia, Fix e Stabilizzazione del Progetto
+# Finanziamento: Saldo, Data Incasso e Costo Finanziaria
 
-## 1. Pulizia Codice (Import e Cast Inutili)
+## Problemi Attuali
 
-### Import non utilizzati
-| File | Import da rimuovere | Motivo |
-|---|---|---|
-| `src/pages/azienda/CreateOrder.tsx` | `Paperclip` dalla riga 4 | Usato solo dentro `OrderAttachments` (componente separato), il `Paperclip` locale e usato solo nella card placeholder (riga 775) - questo e OK, resta |
-| `src/pages/azienda/EditOrder.tsx` | `Paperclip` non presente | Gia pulito |
+1. **Saldo sempre a zero**: quando selezioni "Finanziamento" e inserisci un acconto, il saldo risultante non viene mostrato (hardcoded a 0)
+2. **Nessun tracciamento incasso finanziamento**: non puoi registrare quando la finanziaria ti pagherà (subito o in data futura)
+3. **Nessun campo per il costo finanziaria**: se offri tasso zero al cliente, devi pagare una commissione alla finanziaria (es. 500 euro su 6000) ma non c'e dove registrarlo
 
-Dopo analisi completa, `Paperclip` in CreateOrder.tsx e effettivamente usato (riga 775). Nessun import morto trovato in questi file principali.
+## Soluzione
 
-### Cast `as any` residui (13 file coinvolti)
-I cast `as any` residui sono quasi tutti **necessari** per motivi di tipizzazione Supabase (tipi generati incompleti o query con join):
+### A. Nuovo schema database (migrazione SQL)
 
-| File | Cast | Necessario? |
-|---|---|---|
-| `CompanyCostsManager.tsx` | `as any[]` su query con join | Si - Supabase non inferisce i tipi dei join complessi |
-| `useSubscriptionLimits.ts` | `(currentPlan as any).included_modules` | Si - `included_modules` e `jsonb`, tipizzato come `Json` |
-| `EmployeeProfile.tsx` | `(employee?.company as any)?.name` | Si - join non tipizzato |
-| `EmployeeLayout.tsx` | `(employee?.company as any)?.name` | Si - stessa ragione |
-| `useCompanyDetail.ts` | `data as any` | Si - payload dinamico |
-| `SubscriptionPlans.tsx` | `payload as any`, `included_modules` | Si - payload dinamico + jsonb |
-| `Employees.tsx` | `(data as any).role_type` | Si - campo potenzialmente mancante dal tipo |
-| `WorkLogsAdminTab.tsx` | `as any[]` su filtro join | Si - join complesso |
-| `CSVImportDialog.tsx` | `as any[]` su parsing XLSX | Si - libreria senza tipi specifici |
-| `notificationSound.ts` | `(window as any).webkitAudioContext` | Si - API browser vendor-prefixed |
-| `StockMovementHistoryDialog.tsx` | `(oi as any).order` | Si - join non tipizzato |
-| `TaskDialog.tsx` | `payload as any` | Si - payload dinamico per insert |
+Aggiungere 3 nuove colonne alla tabella `orders`:
 
-**Conclusione**: Nessun cast `as any` da rimuovere. Tutti i rimanenti sono necessari per limitazioni dei tipi Supabase o librerie esterne.
+| Colonna | Tipo | Default | Descrizione |
+|---|---|---|---|
+| `financing_paid` | boolean | false | Il finanziamento e stato incassato? |
+| `financing_paid_date` | date | null | Data incasso dalla finanziaria |
+| `financing_expected_date` | date | null | Data prevista incasso |
+| `financing_cost` | numeric | 0 | Costo da pagare alla finanziaria (es. commissione tasso zero) |
 
-### File `src/components/ui/use-toast.ts`
-File wrapper che re-esporta da `@/hooks/use-toast`. E un alias di convenienza - non e codice morto dato che potrebbe essere importato da alcuni componenti.
+### B. Logica Saldo Finanziamento
 
-## 2. Fix Funzionali
+Il saldo con finanziamento verra calcolato correttamente:
 
-### Bug 1: EditOrder non ha il campo "Stato" nella form
-In `CreateOrder.tsx` c'e un campo "Stato Iniziale" con Select, ma in `EditOrder.tsx` manca completamente. Non e possibile cambiare lo stato dalla pagina di modifica (solo dal dettaglio con il progress tracker). Questo non e un bug ma una scelta architetturale - lo stato si cambia dal dettaglio ordine.
-
-### Bug 2: `EditOrder.tsx` - duplicazione logica mappatura items
-Le righe ~291-313 e ~370-393 contengono la **stessa identica logica** di mappatura degli item dal DB al form state. La prima e in `useEffect` al caricamento, la seconda in `handleClearDraft`. Questo non e un bug ma codice duplicato che si puo estrarre in una funzione helper.
-
-**Fix**: Estrarre una funzione `mapDbItemToOrderItem(item: OrderItemData): OrderItem` e usarla in entrambi i punti.
-
-### Bug 3: Console pulita
-Dai log della console non emergono errori. L'applicazione funziona correttamente.
-
-## 3. Miglioramenti UX
-
-### 3a. Loading states consistenti
-- Verificato che `EditOrder.tsx` ha un loading state (riga 736-741)
-- Verificato che `OrderDetail.tsx` ha skeleton loading (riga 599+)
-- Verificato che `CreateOrder` non ha bisogno di loading (form vuoto)
-
-### 3b. Feedback immediato
-- Il pulsante "Salva" mostra "Salvataggio..." durante il submit
-- Il pulsante "Crea Ordine" mostra "Creazione..." durante il submit
-- Toast di successo e errore sono presenti
-
-### 3c. Gestione errori
-- Validazione form con toast descrittivi (cliente, descrizione, importo, articoli)
-- Warning per date nel passato in CreateOrder
-
-## 4. Interventi Proposti
-
-### Intervento 1: Estrarre helper `mapDbItemToOrderItem` in EditOrder.tsx
-Ridurre la duplicazione di ~25 righe identiche di mappatura items, estraendo in una funzione locale.
-
-### Intervento 2: Pulizia import `Paperclip` (NO - e usato)
-Dopo verifica, `Paperclip` e usato in CreateOrder.tsx per la card placeholder documenti. Niente da fare.
-
-### Intervento 3: Rimozione `statusId: ""` hardcoded in EditOrder draft save
-Alla riga 321, `statusId: ""` e hardcoded nella draft save di EditOrder. Questo campo non e usato in EditOrder ma e presente nel tipo `OrderDraftData`. Non causa bug ma e codice confuso.
-
-## Riepilogo Finale
-
-### Cose da rimuovere
-- Codice duplicato nella mappatura items di `EditOrder.tsx` (refactor in funzione helper)
-
-### Bug corretti
-- Nessun bug critico trovato (il fix ArticleCombobox era gia stato applicato nella sessione precedente)
-
-### Miglioramenti UX
-- Il refactor della mappatura items migliora la manutenibilita senza cambiare il comportamento
-
-### Conferma test
-Il progetto e stabile:
-- Console pulita, nessun errore
-- Tutti i flussi verificati: creazione ordine, modifica ordine, dettaglio ordine
-- Tipi corretti (cast `as any` rimossi dove possibile nelle sessioni precedenti)
-- Draft auto-save funzionante
-- Validazioni presenti su tutti i form
-- Loading states e feedback utente consistenti
-
-**Nota**: L'unico intervento concreto e il refactor della duplicazione in EditOrder.tsx. Il progetto e gia in buono stato dopo le pulizie delle sessioni precedenti.
-
-## Dettaglio Tecnico
-
-### EditOrder.tsx - Refactor mappatura items
-
-Creare una funzione helper:
-```typescript
-function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
-  return {
-    id: item.id,
-    name: item.name,
-    description: item.description || undefined,
-    quantity: item.quantity,
-    status: item.status as OrderItem['status'],
-    position: item.position,
-    supplier_id: item.supplier_id || undefined,
-    purchase_price: item.purchase_price || undefined,
-    vat_rate: item.vat_rate ?? undefined,
-    stock_item_id: item.stock_item_id || undefined,
-    is_paid: item.is_paid || false,
-    paid_date: item.paid_date || undefined,
-    payment_method: item.payment_method || undefined,
-    deposit_amount: item.deposit_amount || 0,
-    deposit_paid: item.deposit_paid || false,
-    deposit_paid_date: item.deposit_paid_date || undefined,
-    balance_amount: item.balance_amount || 0,
-    balance_paid: item.balance_paid || false,
-    balance_paid_date: item.balance_paid_date || undefined,
-    balance_expected_date: item.balance_expected_date || undefined,
-    deposit_expected_date: item.deposit_expected_date || undefined,
-  };
-}
+```text
+Totale con IVA = Imponibile + IVA
+Finanziamento = importo coperto dalla finanziaria
+Saldo cliente = Totale con IVA - Acconto - Finanziamento
 ```
 
-Usarla in entrambi i `useEffect` (righe ~291 e ~370) sostituendo i blocchi `.map(item => ({...}))` duplicati con `.map(mapDbItemToOrderItem)`.
+Se il finanziamento copre tutto il residuo dopo l'acconto, il saldo sara zero. Ma se non lo copre completamente, il saldo mostrera la differenza.
 
+### C. UI Finanziamento (FinancialSummary.tsx)
+
+Nella sezione finanziamento verranno aggiunti:
+
+1. **Riga "Incasso Finanziamento"**: con stato Pagato/Non Pagato + data incasso o data prevista (stesso pattern delle righe acconto/saldo)
+2. **Campo "Costo Finanziaria"**: importo che l'azienda deve alla finanziaria (es. commissione tasso zero)
+3. **Saldo cliente calcolato**: non piu hardcoded a zero, ma `TotaleIVA - Acconto - Finanziamento`
+
+Il layout sara:
+
+```text
+Acconto (opzionale)      [campo euro]
+  Stato Acconto          [Pagato/Non Pagato] [Data]
+
+Valore Finanziamento     [campo euro]
+  Incasso Finanziamento  [Pagato/Non Pagato] [Data]
+
+Costo Finanziaria        [campo euro]
+  (commissione tasso zero o altro costo)
+
+Saldo Cliente            € calcolato (TotaleIVA - Acconto - Finanziamento)
+  Stato Saldo            [Pagato/Non Pagato] [Data]  (se > 0)
+```
+
+### D. File da Modificare
+
+1. **Migrazione SQL**: aggiunta colonne `financing_paid`, `financing_paid_date`, `financing_expected_date`, `financing_cost`
+2. **`src/components/orders/FinancialSummary.tsx`**:
+   - Nuove props per financing paid/date/expected + financing cost
+   - Rimuovere "Saldo: 0" hardcoded, mostrare il saldo reale
+   - Aggiungere `PaymentStatusRow` per incasso finanziamento
+   - Aggiungere campo input per costo finanziaria
+   - Aggiornare anche `FinancialSummaryReadOnly` con le stesse info
+3. **`src/pages/azienda/CreateOrder.tsx`**:
+   - Nuovi state per `financingPaid`, `financingPaidDate`, `financingExpectedDate`, `financingCost`
+   - Ricalcolo balance: `totalWithVat - deposit - financing` (non piu 0)
+   - Salvare i nuovi campi nel database all'insert
+   - Aggiornare draft save/restore
+4. **`src/pages/azienda/EditOrder.tsx`**:
+   - Stessi nuovi state e calcolo balance
+   - Caricare e salvare i nuovi campi dal/nel database
+   - Aggiornare draft save/restore e `mapDbItemToOrderItem`
+5. **`src/pages/azienda/OrderDetail.tsx`**: mostrare i nuovi campi nella vista read-only
+6. **`src/components/orders/CustomerFinancialSummary.tsx`**: aggiornare il riepilogo cliente
+7. **`src/hooks/useOrderDraft.ts`**: aggiungere i nuovi campi nel tipo `OrderDraftData`
+8. **`src/hooks/useCashFlowData.ts`**: includere l'incasso finanziamento nelle entrate previste e il costo finanziaria nelle uscite
+9. **`src/lib/orderUtils.ts`**: aggiornare `OrderWithDetails` con i nuovi campi e le funzioni di calcolo
+
+### E. Integrazione con Previsionale Cassa
+
+- **Incasso finanziamento non pagato** con data prevista: compare come entrata nel previsionale
+- **Costo finanziaria**: compare come uscita nel previsionale (tipo "Costo Finanziaria")
+
+### F. Impatto
+
+- Nessun ordine esistente viene rotto (default: `financing_paid = false`, `financing_cost = 0`)
+- Il calcolo saldo e retrocompatibile: ordini standard non cambiano
+- Il costo finanziaria e opzionale (default 0)
