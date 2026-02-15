@@ -1,60 +1,50 @@
 
+# Aggiungere "Data Prevista Acconto" negli Articoli
 
-# Verifica e Pulizia: Codice Morto e Funzionalita
+## Problema
+Quando un articolo ha pagamento rateizzato (50/50 o 30/70) e l'acconto non e stato pagato, non c'e modo di inserire una data prevista per il pagamento dell'acconto. Il campo esiste gia per il saldo ("Data Prevista Saldo") ma manca per l'acconto.
 
-## Stato Attuale
+## Interventi
 
-Dopo la precedente fase di refactoring, il codebase e gia in buono stato. Tuttavia restano **2 copie duplicate** dell'interface `OrderWithDetails` che non sono state migrate al file centralizzato.
+### 1. Migrazione Database
+Aggiungere la colonna `deposit_expected_date` alla tabella `order_items` (tipo `date`, nullable, default null).
 
-## Problemi Trovati
+### 2. Interface `OrderItem` (OrderItemsList.tsx)
+Aggiungere il campo `deposit_expected_date?: string` all'interface, accanto ai campi deposit esistenti.
 
-### 1. Interface `OrderWithDetails` ancora duplicata in 2 file
+### 3. UI nel dialog articolo (OrderItemsList.tsx)
+Nella sezione "Acconto" del form rateizzato (righe 492-516), aggiungere un date picker "Data Prevista Acconto" che appare quando `!itemDepositPaid` (speculare a come funziona gia "Data Prevista Saldo" per il saldo non pagato).
 
-| File | Righe | Problema |
-|---|---|---|
-| `src/components/orders/OrdersPipelineColumn.tsx` | 6-30 | Interface locale identica a `orderUtils.ts` |
-| `src/components/orders/OrdersPipelineView.tsx` | 16-40 | Interface locale identica a `orderUtils.ts` |
+### 4. State e logica di salvataggio (OrderItemsList.tsx)
+- Nuovo state: `itemDepositExpectedDate`
+- Reset nel `resetForm()`
+- Caricamento in `openEditDialog()`
+- Salvataggio in `handleSaveItem()` dentro `commonFields`
 
-Entrambi i file definiscono la stessa interface localmente invece di importarla da `@/lib/orderUtils`.
+### 5. Persistenza in CreateOrder.tsx e EditOrder.tsx
+Includere `deposit_expected_date` nella mappatura degli order items quando vengono salvati su DB (insert e update).
 
-### 2. Interface `OrderStatus` duplicata
+### 6. Lettura in OrderDetail.tsx
+Includere `deposit_expected_date` nel mapping degli item caricati, cosi il valore viene passato correttamente al componente `OrderItemsList`.
 
-Presente sia in `OrdersPipelineColumn.tsx` (righe 32-37) che in `OrdersPipelineView.tsx` (righe 42-47). Identica in entrambi. Puo essere estratta in `orderUtils.ts`.
+## Dettaglio Tecnico
 
-## Cosa e gia OK (verificato)
+### Migrazione SQL
+```sql
+ALTER TABLE order_items 
+ADD COLUMN deposit_expected_date date DEFAULT null;
+```
 
-- `orderUtils.ts`: funzioni centralizzate, nessuna duplicazione residua
-- `OrdersTable.tsx`: importa correttamente da `orderUtils`, nessun codice morto
-- `OrdersPipelineCard.tsx`: importa correttamente da `orderUtils`
-- `OrdersList.tsx`: importa correttamente, nessuna funzione locale duplicata
-- `FinancialSummary.tsx`: `forwardRef` applicato correttamente a `DatePickerField` e `PaymentStatusRow`
-- `OrdersStatsCards.tsx`: pulito, nessun codice morto
-- Margine con percentuale: funzionante
+### File modificati
 
-## Interventi da Fare
-
-### File: `src/lib/orderUtils.ts`
-- Aggiungere export dell'interface `OrderStatus` (id, name, color, position)
-
-### File: `src/components/orders/OrdersPipelineColumn.tsx`
-- Rimuovere interface locale `OrderWithDetails` (righe 6-30)
-- Rimuovere interface locale `OrderStatus` (righe 32-37)
-- Importare entrambe da `@/lib/orderUtils`
-
-### File: `src/components/orders/OrdersPipelineView.tsx`
-- Rimuovere interface locale `OrderWithDetails` (righe 16-40)
-- Rimuovere interface locale `OrderStatus` (righe 42-47)
-- Importare entrambe da `@/lib/orderUtils`
-
-## Riepilogo
-
-| Cosa | Azione |
+| File | Modifica |
 |---|---|
-| `OrderWithDetails` duplicata x2 | Rimuovere e importare da orderUtils |
-| `OrderStatus` duplicata x2 | Estrarre in orderUtils e importare |
-| Codice morto | Nessun altro trovato |
-| Bug funzionali | Nessuno rilevato |
-| Console warning | Gia risolti nella sessione precedente |
+| `src/components/orders/OrderItemsList.tsx` | Interface + state + UI date picker + save/load |
+| `src/pages/azienda/CreateOrder.tsx` | Mappatura `deposit_expected_date` nell'insert items |
+| `src/pages/azienda/EditOrder.tsx` | Mappatura nel load + update items |
+| `src/pages/azienda/OrderDetail.tsx` | Mappatura nel load items |
 
-## Vincolo
-Nessun cambiamento funzionale. Solo eliminazione duplicazioni residue.
+### Comportamento UI
+- Acconto NON pagato: mostra "Data Prevista Acconto" (date picker)
+- Acconto pagato: mostra "Data Pagamento Acconto" (come gia funziona)
+- Identico al pattern gia esistente per il Saldo
