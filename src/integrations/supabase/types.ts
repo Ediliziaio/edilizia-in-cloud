@@ -737,6 +737,7 @@ export type Database = {
           balance_paid_date: string | null
           created_at: string | null
           deposit_amount: number | null
+          deposit_expected_date: string | null
           deposit_paid: boolean | null
           deposit_paid_date: string | null
           description: string | null
@@ -765,6 +766,7 @@ export type Database = {
           balance_paid_date?: string | null
           created_at?: string | null
           deposit_amount?: number | null
+          deposit_expected_date?: string | null
           deposit_paid?: boolean | null
           deposit_paid_date?: string | null
           description?: string | null
@@ -793,6 +795,7 @@ export type Database = {
           balance_paid_date?: string | null
           created_at?: string | null
           deposit_amount?: number | null
+          deposit_expected_date?: string | null
           deposit_paid?: boolean | null
           deposit_paid_date?: string | null
           description?: string | null
