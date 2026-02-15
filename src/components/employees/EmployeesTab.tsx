@@ -46,6 +46,7 @@ interface EmployeesTabProps {
   onDelete: (id: string) => void;
   onViewAttachments: (employee: Employee) => void;
   onCreateUser: (employee: Employee) => void;
+  roleType?: 'operaio' | 'staff_interno';
 }
 
 export function EmployeesTab({
@@ -56,6 +57,7 @@ export function EmployeesTab({
   onDelete,
   onViewAttachments,
   onCreateUser,
+  roleType = 'operaio',
 }: EmployeesTabProps) {
   const activeEmployees = employees.filter((e) => e.is_active);
   const inactiveEmployees = employees.filter((e) => !e.is_active);
@@ -92,7 +94,9 @@ export function EmployeesTab({
             </div>
           ) : employees.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              Nessun dipendente registrato. Aggiungi il primo dipendente per iniziare.
+              {roleType === 'staff_interno'
+                ? "Nessun membro dello staff interno registrato. Aggiungi il primo per iniziare."
+                : "Nessun operaio registrato. Aggiungi il primo operaio per iniziare."}
             </div>
           ) : (
             <Table>

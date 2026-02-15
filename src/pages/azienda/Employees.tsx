@@ -155,6 +155,7 @@ export default function Employees() {
           name: data.name, contact_name: data.contact_name || null,
           phone: data.phone || null, email: data.email || null,
           notes: data.notes || null, is_active: data.is_active,
+          vat_rate: data.vat_rate,
         }).eq("id", data.id);
         if (error) throw error;
       } else {
@@ -163,6 +164,7 @@ export default function Employees() {
           name: data.name, contact_name: data.contact_name || null,
           phone: data.phone || null, email: data.email || null,
           notes: data.notes || null, is_active: data.is_active,
+          vat_rate: data.vat_rate,
         });
         if (error) throw error;
       }
@@ -270,6 +272,7 @@ export default function Employees() {
           <EmployeesTab
             employees={operai}
             isLoading={loadingEmployees}
+            roleType="operaio"
             onNew={() => { setEditingEmployee(null); setActiveRoleType('operaio'); setEmployeeDialogOpen(true); }}
             onEdit={handleEditEmployee}
             onDelete={(id) => deleteEmployeeMutation.mutate(id)}
@@ -293,6 +296,7 @@ export default function Employees() {
           <EmployeesTab
             employees={staffInterno}
             isLoading={loadingEmployees}
+            roleType="staff_interno"
             onNew={() => { setEditingEmployee(null); setActiveRoleType('staff_interno'); setEmployeeDialogOpen(true); }}
             onEdit={handleEditEmployee}
             onDelete={(id) => deleteEmployeeMutation.mutate(id)}

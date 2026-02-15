@@ -32,7 +32,7 @@ export function useCashFlowData() {
 
   // Query ordini con pagamenti non incassati
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
-    queryKey: ["forecast-orders", user?.id],
+    queryKey: ["forecast-orders", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -42,11 +42,12 @@ export function useCashFlowData() {
           deposit_2_amount, deposit_2_paid, deposit_2_expected_date,
           balance_amount, balance_paid, balance_expected_date,
           customer:profiles!orders_customer_id_fkey(first_name, last_name)
-        `);
+        `)
+        .eq("company_id", companyId!);
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -138,6 +139,7 @@ export function useCashFlowData() {
       const { data, error } = await supabase
         .from("company_costs")
         .select("*")
+        .eq("company_id", companyId!)
         .eq("is_paid", false)
         .order("due_date", { ascending: true });
       if (error) throw error;
