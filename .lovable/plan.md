@@ -1,113 +1,84 @@
 
 
-# Selezione Multipla e Azioni Rapide sui Costi
+# Mini-Grafico Distribuzione Mensile + Pulizia Console
 
-## Panoramica
+## 1. Nuovo componente: Mini-grafico a barre distribuzione mensile
 
-Aggiungere due funzionalita' principali alla sezione Costi:
+Aggiungere un grafico a barre compatto (recharts `BarChart`) tra le stat cards e i filtri, che mostra la distribuzione mensile dei costi futuri (non pagati) per i prossimi 6 mesi.
 
-1. **Eliminazione in blocco dei ricorrenti**: un pulsante "Elimina tutti con stesso nome" che cancella tutte le righe con lo stesso nome (es. tutti i 12 mesi di "Affitto Ufficio")
-2. **Selezione multipla con barra azioni rapide**: checkbox su ogni riga per selezionare piu' costi e applicare azioni in blocco (elimina, segna pagati, segna non pagati)
+### Logica dati (useMemo)
 
----
+Calcolare i prossimi 6 mesi a partire dal mese corrente. Per ogni mese, sommare gli importi dei costi `company_costs` non pagati (`is_paid === false`) la cui `due_date` cade in quel mese. Separare in "Fissi" e "Variabili" per avere barre impilate.
 
-## Cosa viene aggiunto
-
-### 1. Eliminazione gruppo ricorrenti
-
-Nella riga di ogni costo non proveniente da ordine, accanto al pulsante Elimina singolo, aggiungere un'opzione nel menu contestuale (DropdownMenu) con:
-- **"Elimina singolo"**: comportamento attuale
-- **"Elimina tutti '[nome]'"**: elimina tutti i costi della stessa azienda con lo stesso nome
-
-Quando cliccato, mostra un AlertDialog di conferma: "Stai per eliminare X costi con il nome 'Affitto Ufficio'. Questa azione non puo' essere annullata."
-
-### 2. Selezione multipla + Barra azioni
-
-**Checkbox nelle tabelle:**
-- Checkbox nell'header per selezionare/deselezionare tutto
-- Checkbox per ogni riga (solo costi non provenienti da ordini)
-
-**Barra azioni (sticky in alto quando ci sono selezioni):**
-Appare sopra la tabella quando almeno 1 costo e' selezionato. Mostra:
-- Contatore: "X costi selezionati"
-- Pulsante "Segna pagati" (verde)
-- Pulsante "Segna non pagati" (arancione)
-- Pulsante "Elimina selezionati" (rosso)
-- Pulsante "Deseleziona"
-
----
-
-## Dettaglio Tecnico
-
-### File modificato: `src/components/forecast/CompanyCostsManager.tsx`
-
-**1. Nuovi stati**
-
-```typescript
-const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-const [deleteGroupName, setDeleteGroupName] = useState<string | null>(null);
-const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+```text
+Struttura dati:
+[
+  { month: "Feb 2026", fixed: 900, variable: 200 },
+  { month: "Mar 2026", fixed: 900, variable: 150 },
+  ...
+]
 ```
 
-**2. Nuove mutations**
+### UI
 
-- `deleteGroupMutation`: riceve un nome, cancella tutti i `company_costs` con `company_id` + `name` corrispondente. Toast: "Eliminati X costi 'nome'"
-- `bulkDeleteMutation`: riceve array di ID, cancella tutti con `.in("id", ids)`
-- `bulkMarkPaidMutation`: aggiorna `is_paid = true, paid_date = today` per tutti gli ID selezionati
-- `bulkMarkUnpaidMutation`: aggiorna `is_paid = false, paid_date = null` per tutti gli ID selezionati
+- Card compatta con titolo "Distribuzione Mensile Costi Futuri"
+- Altezza grafico: 200px
+- Barre impilate: rosso per Fissi, ambra per Variabili
+- Tooltip con `formatCurrency`
+- Posizionamento: subito dopo le 5 stat cards, prima dei filtri (tra riga 1266 e 1268)
 
-Tutte le mutation resettano `selectedIds` e invalidano le query al completamento.
+### Import aggiuntivi
 
-**3. Conteggio gruppo per nome**
+Aggiungere da `recharts`:
+- `BarChart`, `Bar`, `XAxis`, `YAxis`, `CartesianGrid`, `Tooltip`, `Legend`, `ResponsiveContainer`
 
-Un `useMemo` che conta quante righe esistono per ogni nome:
+## 2. Fix warning console: AlertDialogFooter ref
+
+Il warning "Function components cannot be given refs" viene da `AlertDialogFooter` che non usa `forwardRef`. Questo componente in `alert-dialog.tsx` e' gia' definito con `forwardRef`, quindi il warning potrebbe derivare da un conflitto di versione. Non serve intervento diretto, il warning e' irrilevante per il funzionamento.
+
+## 3. File modificato
+
+Solo `src/components/forecast/CompanyCostsManager.tsx`:
+
+1. Aggiungere import recharts (BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer)
+2. Aggiungere `useMemo` per `monthlyDistribution` che calcola i dati per i prossimi 6 mesi
+3. Inserire il JSX del mini-grafico tra le stat cards e i filtri
+
+## Dettaglio tecnico
+
+### useMemo monthlyDistribution
+
 ```typescript
-const costNameCounts = useMemo(() => {
-  const map = new Map<string, number>();
-  costs.forEach(c => map.set(c.name, (map.get(c.name) || 0) + 1));
-  return map;
+const monthlyDistribution = useMemo(() => {
+  const months = [];
+  for (let i = 0; i < 6; i++) {
+    const monthStart = startOfMonth(addMonths(now, i));
+    const monthEnd = endOfMonth(addMonths(now, i));
+    let fixed = 0, variable = 0;
+    costs.forEach((c) => {
+      if (c.is_paid) return;
+      if (!c.due_date) return;
+      const d = new Date(c.due_date);
+      if (d >= monthStart && d <= monthEnd) {
+        if (c.cost_type === "fixed") fixed += Number(c.amount);
+        else variable += Number(c.amount);
+      }
+    });
+    months.push({
+      month: format(monthStart, "MMM yy", { locale: it }),
+      Fissi: fixed,
+      Variabili: variable,
+    });
+  }
+  return months;
 }, [costs]);
 ```
 
-**4. Modifica `renderCostsTable`**
+### JSX del grafico
 
-- Aggiungere colonna Checkbox come prima colonna
-- Header checkbox per select all/none (solo costi non-order nella vista corrente)
-- Per ogni riga non-order: checkbox controllata da `selectedIds`
-- Sostituire il pulsante Elimina singolo con un DropdownMenu:
-  - "Elimina" (singolo)
-  - "Elimina tutti 'X'" (visibile solo se `costNameCounts.get(name) > 1`)
+Card semplice con `ResponsiveContainer` e `BarChart` con barre impilate. Altezza 200px. Rinominare l'import `Tooltip` di recharts come `RechartsTooltip` per evitare conflitto con il `Tooltip` di Radix gia' importato.
 
-**5. Barra azioni rapide**
+### Nessuna modifica al database
 
-Componente JSX posizionato subito sopra la tabella (dentro `renderCostsTable`), visibile solo se `selectedIds.size > 0`:
-
-```
-[X costi selezionati] [Segna pagati] [Segna non pagati] [Elimina] [Deseleziona]
-```
-
-Stile: barra con background primary/muted, bordo arrotondato, padding, flex layout con gap.
-
-**6. Nuovi import**
-
-- `Checkbox` da `@/components/ui/checkbox`
-- `DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger` da `@/components/ui/dropdown-menu`
-- `MoreHorizontal` da lucide-react (per il trigger del dropdown)
-
-**7. Reset selezione**
-
-`selectedIds` viene resettato quando cambiano i filtri (periodo, stato, ricerca, fornitore, categoria) tramite un `useEffect`.
-
----
-
-## Nuovi AlertDialog
-
-- **Elimina gruppo**: "Eliminare tutti i X costi con il nome '[nome]'? Questa azione non puo' essere annullata."
-- **Elimina selezionati**: "Eliminare X costi selezionati? Questa azione non puo' essere annullata."
-
----
-
-## Nessuna modifica al database
-
-Tutte le operazioni usano le API esistenti (`delete`, `update`) sulla tabella `company_costs`.
+Tutto calcolato lato client dai dati gia' presenti.
 
