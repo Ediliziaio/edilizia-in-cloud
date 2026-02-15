@@ -432,6 +432,29 @@ export default function EditOrder() {
     enabled: !!effectiveCompany?.id,
   });
 
+  // Fetch the order's customer directly to ensure it's always available (Super Admin race condition fix)
+  const { data: orderCustomer } = useQuery({
+    queryKey: ["order-customer", order?.customer_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email")
+        .eq("id", order!.customer_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as Customer | null;
+    },
+    enabled: !!order?.customer_id,
+  });
+
+  // Merge: ensure the order's customer is always in the list
+  const allCustomers = (() => {
+    if (orderCustomer && !customers.find(c => c.id === orderCustomer.id)) {
+      return [orderCustomer, ...customers];
+    }
+    return customers;
+  })();
+
   // Update order mutation
   const updateOrderMutation = useMutation({
     mutationFn: async () => {
@@ -834,7 +857,7 @@ export default function EditOrder() {
                       <SelectValue placeholder="Seleziona un cliente" />
                     </SelectTrigger>
                     <SelectContent>
-                      {customers.map((customer) => (
+                      {allCustomers.map((customer) => (
                         <SelectItem key={customer.id} value={customer.id}>
                           {customer.first_name} {customer.last_name} ({customer.email})
                         </SelectItem>
