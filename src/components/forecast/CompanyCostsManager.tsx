@@ -242,6 +242,7 @@ export default function CompanyCostsManager() {
         .from("order_items")
         .select("id, name, quantity, purchase_price, status, payment_method, deposit_amount, deposit_paid, deposit_paid_date, balance_amount, balance_paid, balance_paid_date, balance_expected_date, is_paid, paid_date, supplier:suppliers(name), order:orders!inner(id, order_code, company_id)")
         .not("supplier_id", "is", null)
+        .is("stock_item_id", null)
         .eq("order.company_id", companyId!);
       if (error) throw error;
       return (data || []) as any[];
