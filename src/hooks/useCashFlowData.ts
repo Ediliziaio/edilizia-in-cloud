@@ -99,7 +99,8 @@ export function useCashFlowData() {
           supplier:suppliers(name),
           order:orders!inner(id, order_code, company_id)
         `)
-        .in("status", ["da_ordinare", "ordinato"]);
+        .in("status", ["da_ordinare", "ordinato"])
+        .is("stock_item_id", null);
       if (error) throw error;
       return (data || []).filter((item: any) => item.order?.company_id === companyId);
     },
@@ -121,7 +122,8 @@ export function useCashFlowData() {
           supplier:suppliers(name),
           order:orders!inner(id, order_code, company_id)
         `)
-        .not("supplier_id", "is", null);
+        .not("supplier_id", "is", null)
+        .is("stock_item_id", null);
       if (error) throw error;
       return (data || []).filter((item: any) => item.order?.company_id === companyId);
     },
