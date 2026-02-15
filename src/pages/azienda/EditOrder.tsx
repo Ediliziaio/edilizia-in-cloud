@@ -93,6 +93,32 @@ interface OrderItemData {
   deposit_expected_date: string | null;
 }
 
+function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description || undefined,
+    quantity: item.quantity,
+    status: item.status as OrderItem['status'],
+    position: item.position,
+    supplier_id: item.supplier_id || undefined,
+    purchase_price: item.purchase_price || undefined,
+    vat_rate: item.vat_rate ?? undefined,
+    stock_item_id: item.stock_item_id || undefined,
+    is_paid: item.is_paid || false,
+    paid_date: item.paid_date || undefined,
+    payment_method: item.payment_method || undefined,
+    deposit_amount: item.deposit_amount || 0,
+    deposit_paid: item.deposit_paid || false,
+    deposit_paid_date: item.deposit_paid_date || undefined,
+    balance_amount: item.balance_amount || 0,
+    balance_paid: item.balance_paid || false,
+    balance_paid_date: item.balance_paid_date || undefined,
+    balance_expected_date: item.balance_expected_date || undefined,
+    deposit_expected_date: item.deposit_expected_date || undefined,
+  };
+}
+
 export default function EditOrder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -288,29 +314,7 @@ export default function EditOrder() {
   // Populate order items (only if no draft was restored)
   useEffect(() => {
     if (existingItems.length > 0 && !draftRestored) {
-      setOrderItems(existingItems.map(item => ({
-        id: item.id,
-        name: item.name,
-        description: item.description || undefined,
-        quantity: item.quantity,
-        status: item.status as OrderItem['status'],
-        position: item.position,
-        supplier_id: item.supplier_id || undefined,
-        purchase_price: item.purchase_price || undefined,
-        vat_rate: item.vat_rate ?? undefined,
-        stock_item_id: item.stock_item_id || undefined,
-        is_paid: item.is_paid || false,
-        paid_date: item.paid_date || undefined,
-        payment_method: item.payment_method || undefined,
-        deposit_amount: item.deposit_amount || 0,
-        deposit_paid: item.deposit_paid || false,
-        deposit_paid_date: item.deposit_paid_date || undefined,
-        balance_amount: item.balance_amount || 0,
-        balance_paid: item.balance_paid || false,
-        balance_paid_date: item.balance_paid_date || undefined,
-        balance_expected_date: item.balance_expected_date || undefined,
-        deposit_expected_date: item.deposit_expected_date || undefined,
-      })));
+      setOrderItems(existingItems.map(mapDbItemToOrderItem));
     }
   }, [existingItems, draftRestored]);
 
@@ -367,29 +371,7 @@ export default function EditOrder() {
       setWorkEndDate(order.work_end_date ? new Date(order.work_end_date) : undefined);
     }
     if (existingItems.length > 0) {
-      setOrderItems(existingItems.map(item => ({
-        id: item.id,
-        name: item.name,
-        description: item.description || undefined,
-        quantity: item.quantity,
-        status: item.status as OrderItem['status'],
-        position: item.position,
-        supplier_id: item.supplier_id || undefined,
-        purchase_price: item.purchase_price || undefined,
-        vat_rate: item.vat_rate ?? undefined,
-        stock_item_id: item.stock_item_id || undefined,
-        is_paid: item.is_paid || false,
-        paid_date: item.paid_date || undefined,
-        payment_method: item.payment_method || undefined,
-        deposit_amount: item.deposit_amount || 0,
-        deposit_paid: item.deposit_paid || false,
-        deposit_paid_date: item.deposit_paid_date || undefined,
-        balance_amount: item.balance_amount || 0,
-        balance_paid: item.balance_paid || false,
-        balance_paid_date: item.balance_paid_date || undefined,
-        balance_expected_date: item.balance_expected_date || undefined,
-        deposit_expected_date: item.deposit_expected_date || undefined,
-      })));
+      setOrderItems(existingItems.map(mapDbItemToOrderItem));
     }
   }, [clearDraft, order, existingItems]);
 
