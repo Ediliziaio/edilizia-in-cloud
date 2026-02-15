@@ -40,6 +40,7 @@ import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { OrderCommissions } from "@/components/orders/OrderCommissions";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
 import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 
 // Order Alert Interface
@@ -176,6 +177,14 @@ interface OrderItemData {
   stock_item_id: string | null;
   is_paid: boolean | null;
   paid_date: string | null;
+  payment_method: string | null;
+  deposit_amount: number | null;
+  deposit_paid: boolean | null;
+  deposit_paid_date: string | null;
+  balance_amount: number | null;
+  balance_paid: boolean | null;
+  balance_paid_date: string | null;
+  balance_expected_date: string | null;
 }
 
 interface OrderItemAttachmentData {
@@ -772,6 +781,9 @@ export default function OrderDetail() {
             vatRate={order.vat_rate || 22}
             items={economicsItems}
           />
+
+          {/* Supplier Payments */}
+          <SupplierPaymentsCard items={orderItems} companyId={effectiveCompany?.id || ""} />
 
           {/* Labor Costs */}
           <OrderLaborCosts orderId={id!} editable={true} />
