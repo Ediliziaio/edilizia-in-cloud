@@ -584,8 +584,10 @@ export type Database = {
           hourly_rate: number
           hours_worked: number
           id: string
+          is_paid: boolean
           notes: string | null
           order_id: string
+          paid_date: string | null
           total_cost: number
         }
         Insert: {
@@ -594,8 +596,10 @@ export type Database = {
           hourly_rate?: number
           hours_worked?: number
           id?: string
+          is_paid?: boolean
           notes?: string | null
           order_id: string
+          paid_date?: string | null
           total_cost?: number
         }
         Update: {
@@ -604,8 +608,10 @@ export type Database = {
           hourly_rate?: number
           hours_worked?: number
           id?: string
+          is_paid?: boolean
           notes?: string | null
           order_id?: string
+          paid_date?: string | null
           total_cost?: number
         }
         Relationships: [
