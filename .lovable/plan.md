@@ -1,113 +1,84 @@
 
-# Fix: Pagamenti non aggiornati nelle statistiche Costi
 
-## Problema identificato
+# Registrazione Costo Acquisto al Salvataggio Giacenza
 
-Il pagamento funziona correttamente a livello database (le provvigioni risultano pagate nel DB), ma le **stat cards** mostrano ancora "0 pagati" perche' il calcolo delle statistiche ignora i costi derivati dagli ordini.
+## Cosa cambia
 
-### Bug specifici trovati
+Quando si aggiunge un nuovo articolo in giacenza (o si esegue un carico), l'utente potra opzionalmente registrare il costo di acquisto sostenuto direttamente dalla dialog, senza doverlo inserire manualmente nella sezione Costi.
 
-**1. Stats "Pagato (mese)" ignora i costi da ordine** (righe 1081-1087)
-- `totalPaidThisMonth` conta solo i `company_costs` manuali pagati
-- I costi da ordine pagati (fornitori, squadre, provvigioni, dipendenti) non vengono sommati
+## Comportamento
 
-**2. Stats "Da pagare (mese)" somma TUTTI i costi da ordine non pagati indipendentemente dal mese** (riga 1085-1086)
-- `orderItemsTotalUnpaid` somma tutti i costi da ordine non pagati senza filtro temporale
-- Dovrebbe filtrare solo quelli con scadenza nel mese corrente
+- Nel dialog "Nuovo Articolo in Giacenza", viene aggiunto un **toggle/checkbox** "Registra costo acquisto"
+- Se attivato, appaiono due campi aggiuntivi:
+  - **Data pagamento** (precompilata con oggi)
+  - **Categoria costo** (opzionale, es. "Materiali", "Magazzino")
+- Al salvataggio, oltre a creare l'articolo in `warehouse_stock`, il sistema inserisce automaticamente un record nella tabella `company_costs` con:
+  - `name`: nome dell'articolo + " (acquisto magazzino)"
+  - `amount`: costo unitario x quantita
+  - `vat_rate`: aliquota IVA selezionata
+  - `supplier_id`: fornitore selezionato
+  - `due_date`: data pagamento
+  - `is_paid`: true
+  - `paid_date`: data pagamento
+  - `cost_type`: "variable"
+  - `category`: categoria selezionata o "Magazzino"
+  - `recurrence`: "once"
 
-**3. Nessun feedback in caso di errore** -- tutte le mutation di pagamento mancano di `onError`
-- Se un update fallisce, l'utente non riceve alcun messaggio
-
-**4. Pagamento deposito/saldo ordine errato** (riga 826)
-- Per articoli con metodo 50/50 o 30/70, `markOrderItemPaidMutation` aggiorna `is_paid` invece di `deposit_paid`/`balance_paid`
-- Questo non riflette correttamente lo stato parziale del pagamento
-
----
-
-## Soluzione
-
-### File: `src/components/forecast/CompanyCostsManager.tsx`
-
-**Fix 1 -- Includere costi da ordine nelle stats:**
-
-```typescript
-// PRIMA (riga 1081-1088):
-const thisMonthUnpaid = costs.filter(...)
-const thisMonthPaid = costs.filter(...)
-const orderItemsTotalUnpaid = allOrderDerivedCosts.filter(c => !c.is_paid).reduce(...)
-const totalUnpaidThisMonth = thisMonthUnpaid.reduce(...) + orderItemsTotalUnpaid;
-const totalPaidThisMonth = thisMonthPaid.reduce(...); // <-- solo manuali!
-
-// DOPO:
-// Filtro mese anche per order-derived
-const orderDerivedThisMonthUnpaid = allOrderDerivedCosts.filter(c => 
-  !c.is_paid && c.due_date && isWithinInterval(new Date(c.due_date), thisMonthInterval)
-);
-const orderDerivedThisMonthPaid = allOrderDerivedCosts.filter(c => 
-  c.is_paid && c.paid_date && isWithinInterval(new Date(c.paid_date), thisMonthInterval)
-);
-
-const totalUnpaidThisMonth = thisMonthUnpaid.reduce(...) + 
-  orderDerivedThisMonthUnpaid.reduce((s, c) => s + c.amount, 0);
-const totalPaidThisMonth = thisMonthPaid.reduce(...) + 
-  orderDerivedThisMonthPaid.reduce((s, c) => s + c.amount, 0);
-```
-
-Aggiornare anche il contatore sotto le card per mostrare il numero corretto di pagati (manuali + ordine).
-
-**Fix 2 -- Aggiungere `onError` a tutte le mutation di pagamento:**
-
-Aggiungere a `markPaidMutation`, `markOrderItemPaidMutation`, `markExtTeamPaidMutation`, `markCommissionPaidMutation`, `markEmployeeCostPaidMutation` (e le rispettive unpaid):
-```typescript
-onError: (error) => {
-  console.error("Payment error:", error);
-  toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
-},
-```
-
-**Fix 3 -- Gestire correttamente deposito/saldo per articoli fornitore:**
-
-Modificare `markOrderItemPaidMutation` per distinguere tra deposito, saldo e pagamento singolo. Passare il tipo di pagamento come parametro:
-```typescript
-// Aggiungere un campo "paymentType" per distinguere
-type OrderItemPaymentType = "single" | "deposit" | "balance";
-
-const markOrderItemPaidMutation = useMutation({
-  mutationFn: async ({ id, date, paymentType }: { id: string; date: string; paymentType: OrderItemPaymentType }) => {
-    let updateData: any;
-    if (paymentType === "deposit") {
-      updateData = { deposit_paid: true, deposit_paid_date: date };
-    } else if (paymentType === "balance") {
-      updateData = { balance_paid: true, balance_paid_date: date };
-    } else {
-      updateData = { is_paid: true, paid_date: date };
-    }
-    const { error } = await supabase.from("order_items").update(updateData).eq("id", id);
-    if (error) throw error;
-  },
-  ...
-});
-```
-
-Nel handler di conferma pagamento, determinare il tipo in base all'ID del costo:
-- `order-item-dep-xxx` -> `paymentType: "deposit"`
-- `order-item-bal-xxx` -> `paymentType: "balance"`
-- `order-item-xxx` -> `paymentType: "single"`
-
-Stessa logica per il pulsante "Riporta a non pagato".
-
-**Fix 4 -- Aggiungere `markExtTeamPaidMutation.isPending` alla condizione disabled del bottone** (attualmente mancante).
+- In **modifica** articolo, il toggle non appare (il costo e gia stato registrato alla creazione)
+- Lo stesso meccanismo viene aggiunto anche al dialog di **Carico** (StockMovementDialog), per registrare il costo di un riapprovvigionamento
 
 ---
 
-## Riepilogo modifiche
+## Dettaglio tecnico
 
-| Cosa | Stato attuale | Dopo il fix |
-|------|---------------|-------------|
-| Card "Pagato (mese)" | Solo costi manuali | Manuali + Da Ordine |
-| Card "Da pagare (mese)" | Tutti gli ordini senza filtro mese | Filtrati per mese corrente |
-| Errori pagamento | Silenziosi | Toast di errore visibile |
-| Pagamento deposito fornitore | Aggiorna campo sbagliato | Aggiorna deposit_paid/balance_paid |
-| Contatore pagati | Solo manuali | Include tutti i tipi |
+### File modificati
 
-Un unico file modificato: `src/components/forecast/CompanyCostsManager.tsx`
+| File | Modifica |
+|------|----------|
+| `src/components/warehouse/StockItemDialog.tsx` | Aggiungere checkbox "Registra costo acquisto", campi data e categoria. Passare i nuovi dati via `onSave`. |
+| `src/components/warehouse/WarehouseStockTab.tsx` | Nel `saveMutation` (solo insert, non update): se i dati costo sono presenti, inserire anche in `company_costs`. |
+| `src/components/warehouse/StockMovementDialog.tsx` | Aggiungere lo stesso toggle per i movimenti di carico, passando i dati extra via `onSave`. |
+| `src/components/warehouse/WarehouseStockTab.tsx` | Nel `movementMutation` (solo tipo "carico"): se i dati costo sono presenti, inserire in `company_costs`. |
+
+### Interfaccia `onSave` aggiornata (StockItemDialog)
+
+```text
+onSave: (data: {
+  name, description, quantity, unit_cost, vat_rate, supplier_id, min_stock_level,
+  // nuovi campi opzionali:
+  registerCost?: boolean;
+  costPaidDate?: string;
+  costCategory?: string;
+}) => void
+```
+
+### Logica insert costo (in saveMutation, solo creazione)
+
+```text
+if (data.registerCost && !data.id) {
+  const totalAmount = data.unit_cost * data.quantity;
+  await supabase.from("company_costs").insert({
+    company_id, 
+    name: data.name + " (acquisto magazzino)",
+    cost_type: "variable",
+    amount: totalAmount,
+    vat_rate: data.vat_rate,
+    supplier_id: data.supplier_id || null,
+    due_date: data.costPaidDate,
+    is_paid: true,
+    paid_date: data.costPaidDate,
+    category: data.costCategory || "Magazzino",
+    recurrence: "once",
+  });
+}
+```
+
+### UX del toggle
+
+- Checkbox con label "Registra costo acquisto nei Costi Aziendali"
+- Sotto il checkbox (visibile solo se attivo):
+  - Campo data con valore default = oggi
+  - Select categoria (opzionale)
+- Il toggle e disattivato di default
+- Non appare in modalita modifica (`editingItem` presente)
+
