@@ -479,6 +479,54 @@ export default function OrderDetail() {
     updateOrderItemsMutation.mutate(items);
   };
 
+  // Single item update mutation (preserves ID, no destructive delete)
+  const updateSingleItemMutation = useMutation({
+    mutationFn: async (item: OrderItem) => {
+      if (!item.id) throw new Error("Item ID required for update");
+      const { error } = await supabase
+        .from("order_items")
+        .update({
+          name: item.name,
+          description: item.description || null,
+          quantity: item.quantity,
+          status: item.status,
+          supplier_id: item.supplier_id || null,
+          purchase_price: item.purchase_price ?? 0,
+          vat_rate: item.vat_rate ?? 22,
+          is_paid: item.is_paid ?? false,
+          paid_date: item.paid_date || null,
+          payment_method: item.payment_method || null,
+          deposit_amount: item.deposit_amount ?? 0,
+          deposit_paid: item.deposit_paid ?? false,
+          deposit_paid_date: item.deposit_paid_date || null,
+          balance_amount: item.balance_amount ?? 0,
+          balance_paid: item.balance_paid ?? false,
+          balance_paid_date: item.balance_paid_date || null,
+          balance_expected_date: item.balance_expected_date || null,
+        })
+        .eq("id", item.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-items", id] });
+      toast({
+        title: "Articolo aggiornato",
+        description: "L'articolo è stato aggiornato con successo.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Si è verificato un errore durante l'aggiornamento dell'articolo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleItemUpdate = (item: OrderItem) => {
+    updateSingleItemMutation.mutate(item);
+  };
+
   // Convert status history for progress tracker
   const progressHistory: StatusHistoryItem[] = statusHistory.map((h) => ({
     status_id: h.status_id,
@@ -500,6 +548,16 @@ export default function OrderDetail() {
     unit_price: (item as any).unit_price || undefined,
     discount_percent: (item as any).discount_percent || undefined,
     standard_cost: (item as any).standard_cost || undefined,
+    is_paid: item.is_paid ?? undefined,
+    paid_date: item.paid_date || undefined,
+    payment_method: item.payment_method || undefined,
+    deposit_amount: item.deposit_amount ?? undefined,
+    deposit_paid: item.deposit_paid ?? undefined,
+    deposit_paid_date: item.deposit_paid_date || undefined,
+    balance_amount: item.balance_amount ?? undefined,
+    balance_paid: item.balance_paid ?? undefined,
+    balance_paid_date: item.balance_paid_date || undefined,
+    balance_expected_date: item.balance_expected_date || undefined,
     attachments: attachments
       .filter(att => att.order_item_id === item.id)
       .map(att => ({
@@ -667,8 +725,10 @@ export default function OrderDetail() {
               items={displayItems}
               onItemsChange={handleItemsChange}
               editable={false}
+              allowEdit={true}
               showStatusControls={true}
               onAttachmentsRefresh={handleAttachmentsRefresh}
+              onItemUpdate={handleItemUpdate}
             />
           )}
 

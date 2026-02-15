@@ -87,9 +87,11 @@ interface OrderItemsListProps {
   items: OrderItem[];
   onItemsChange: (items: OrderItem[]) => void;
   editable?: boolean;
+  allowEdit?: boolean;
   showStatusControls?: boolean;
   onAttachmentsRefresh?: () => void;
   onStockPick?: (stockItemId: string, quantity: number) => void;
+  onItemUpdate?: (item: OrderItem) => void;
 }
 
 const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
@@ -126,9 +128,11 @@ export function OrderItemsList({
   items,
   onItemsChange,
   editable = true,
+  allowEdit = false,
   showStatusControls = false,
   onAttachmentsRefresh,
   onStockPick,
+  onItemUpdate,
 }: OrderItemsListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -298,12 +302,17 @@ export function OrderItemsList({
     };
 
     if (editingIndex !== null) {
-      const newItems = [...items];
-      newItems[editingIndex] = {
-        ...newItems[editingIndex],
+      const updatedItem = {
+        ...items[editingIndex],
         ...commonFields,
       };
-      onItemsChange(newItems);
+      if (onItemUpdate && allowEdit) {
+        onItemUpdate(updatedItem);
+      } else {
+        const newItems = [...items];
+        newItems[editingIndex] = updatedItem;
+        onItemsChange(newItems);
+      }
     } else {
       const newItem: OrderItem = {
         ...commonFields,
@@ -723,14 +732,16 @@ export function OrderItemsList({
                       </Badge>
                     )}
 
-                    {editable && (
+                    {(editable || allowEdit) && (
                       <>
                         <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {editable && (
+                          <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </>
                     )}
                   </div>
