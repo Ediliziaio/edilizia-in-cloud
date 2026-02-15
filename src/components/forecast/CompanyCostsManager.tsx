@@ -61,7 +61,7 @@ import { toast } from "@/hooks/use-toast";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { Progress } from "@/components/ui/progress";
-import { VAT_RATES, calculateNetFromGross, calculateGrossFromNet, getVatRateLabel } from "@/lib/vatUtils";
+import { VAT_RATES, calculateNetFromGross, calculateGrossFromNet } from "@/lib/vatUtils";
 import {
   Command,
   CommandEmpty,
@@ -151,7 +151,7 @@ export default function CompanyCostsManager() {
   const queryClient = useQueryClient();
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingCost, setEditingCost] = useState<any>(null);
+  const [editingCost, setEditingCost] = useState<UnifiedCost | null>(null);
   const [formData, setFormData] = useState<CostFormData>(defaultFormData);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
@@ -178,6 +178,7 @@ export default function CompanyCostsManager() {
       const { data, error } = await supabase
         .from("company_costs")
         .select("*, order:orders(id, order_code), supplier:suppliers(id, name, product_category, vat_rate)")
+        .eq("company_id", companyId!)
         .order("due_date", { ascending: true });
       if (error) throw error;
       return data || [];
@@ -192,6 +193,7 @@ export default function CompanyCostsManager() {
       const { data, error } = await supabase
         .from("suppliers")
         .select("id, name, product_category, vat_rate")
+        .eq("company_id", companyId!)
         .order("name");
       if (error) throw error;
       return data || [];
@@ -206,7 +208,8 @@ export default function CompanyCostsManager() {
       const { data, error } = await supabase
         .from("order_items")
         .select("id, name, quantity, purchase_price, status, is_paid, paid_date, supplier:suppliers(name), order:orders!inner(id, order_code, company_id)")
-        .in("status", ["da_ordinare", "ordinato"]);
+        .in("status", ["da_ordinare", "ordinato"])
+        .eq("order.company_id", companyId!);
       if (error) throw error;
       return (data || []) as any[];
     },
@@ -241,6 +244,7 @@ export default function CompanyCostsManager() {
       const { data, error } = await supabase
         .from("orders")
         .select("id, order_code, description")
+        .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -1200,7 +1204,7 @@ export default function CompanyCostsManager() {
       </Card>
 
       {/* Add/Edit Dialog - Professional Layout */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setEditingCost(null); setFormData(defaultFormData); } setDialogOpen(open); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingCost ? "Modifica Costo" : "Nuovo Costo"}</DialogTitle>
@@ -1354,10 +1358,19 @@ export default function CompanyCostsManager() {
                     <span>{formatCurrency(formVatPreview.grossAmount)}</span>
                   </div>
                   {formData.is_gross && (
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
-                      <Info className="h-3 w-3" />
-                      Verrà salvato l'imponibile di {formatCurrency(formVatPreview.netAmount)}
-                    </p>
+                     <TooltipProvider>
+                       <Tooltip>
+                         <TooltipTrigger asChild>
+                           <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1 cursor-help">
+                             <Info className="h-3 w-3" />
+                             Verrà salvato l'imponibile di {formatCurrency(formVatPreview.netAmount)}
+                           </p>
+                         </TooltipTrigger>
+                         <TooltipContent>
+                           L'importo lordo viene scorporato e salvato come imponibile netto
+                         </TooltipContent>
+                       </Tooltip>
+                     </TooltipProvider>
                   )}
                 </div>
               )}
@@ -1446,7 +1459,7 @@ export default function CompanyCostsManager() {
       </AlertDialog>
 
       {/* Payment Dialog */}
-      <Dialog open={payDialogOpen} onOpenChange={(open) => { if (!open) { setPayDialogOpen(false); setPayingCostId(null); } }}>
+      <Dialog open={payDialogOpen} onOpenChange={(open) => { if (!open) { setPayDialogOpen(false); setPayingCostId(null); setPaymentDate(format(new Date(), "yyyy-MM-dd")); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Registra Pagamento</DialogTitle>
