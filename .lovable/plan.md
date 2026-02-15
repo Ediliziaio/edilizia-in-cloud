@@ -1,50 +1,57 @@
 
-# Verifica e Pulizia: Cast `(item as any)` Inutili
+# Fix: Impossibile aggiungere articoli e salvare ordine
 
-## Stato Attuale
-Tutte le funzionalita implementate (Data Prevista Acconto, deduplicazione interface, forwardRef) funzionano correttamente. Console pulita, nessun errore. La colonna `deposit_expected_date` e presente nei tipi generati e nel database.
+## Problema Identificato
 
-## Problema Trovato
+Il bug e nel componente `ArticleCombobox.tsx`. Quando l'utente digita un nuovo nome articolo e clicca "+ Aggiungi 'nome'", il sistema tenta di creare un template nel database. Se `companyId` e `undefined` (es. Super Admin senza azienda impersonata), la mutazione lancia un errore non gestito che **blocca completamente** l'assegnazione del nome all'articolo.
 
-### Cast `(item as any)` non necessari
-I tipi Supabase generati per `order_items` includono gia tutti i campi (`deposit_amount`, `deposit_paid`, `deposit_paid_date`, `balance_amount`, `balance_paid`, `balance_paid_date`, `balance_expected_date`, `deposit_expected_date`, `unit_price`, `discount_percent`, `standard_cost`). I cast `(item as any)` sono residui di quando i campi non erano ancora nei tipi e ora sono codice morto da pulire.
+Conseguenza a catena:
+1. Il nome articolo non viene mai impostato
+2. Il pulsante "Aggiungi" nel dialog non fa nulla (controlla `itemName.trim()`)
+3. Nessun articolo viene aggiunto alla lista
+4. L'ordine non puo essere salvato correttamente
 
-### File coinvolti
+## Soluzione
 
-| File | Righe | N. cast da rimuovere |
-|---|---|---|
-| `src/pages/azienda/EditOrder.tsx` | 297-304, 376-383 | 16 cast (2 blocchi identici) |
-| `src/pages/azienda/OrderDetail.tsx` | 549-551, 562 | 4 cast |
+### File: `src/components/orders/ArticleCombobox.tsx`
 
-## Interventi
+Modificare `handleCreateNew` per:
+1. Impostare **sempre** il nome dell'articolo tramite `onValueChange`, anche se la creazione del template fallisce
+2. Aggiungere un try/catch per gestire l'errore silenziosamente (il template e un aiuto opzionale, non un requisito)
+3. Se `companyId` non e disponibile, saltare la creazione del template e impostare solo il nome
 
-### File: `src/pages/azienda/EditOrder.tsx`
-Sostituire tutti i `(item as any).campo` con `item.campo` direttamente, in entrambi i blocchi di mappatura items (righe ~297-304 e ~376-383):
-- `(item as any).deposit_amount` -> `item.deposit_amount`
-- `(item as any).deposit_paid` -> `item.deposit_paid`
-- `(item as any).deposit_paid_date` -> `item.deposit_paid_date`
-- `(item as any).balance_amount` -> `item.balance_amount`
-- `(item as any).balance_paid` -> `item.balance_paid`
-- `(item as any).balance_paid_date` -> `item.balance_paid_date`
-- `(item as any).balance_expected_date` -> `item.balance_expected_date`
-- `(item as any).deposit_expected_date` -> `item.deposit_expected_date`
+### Codice attuale (problematico)
+```typescript
+const handleCreateNew = async () => {
+  if (!searchValue.trim()) return;
+  await createTemplateMutation.mutateAsync(searchValue); // ERRORE qui blocca tutto
+  onValueChange(searchValue.trim()); // Mai raggiunto
+  setOpen(false);
+  setSearchValue("");
+};
+```
 
-### File: `src/pages/azienda/OrderDetail.tsx`
-Stessa operazione per le righe ~549-551 e 562:
-- `(item as any).unit_price` -> `item.unit_price`
-- `(item as any).discount_percent` -> `item.discount_percent`
-- `(item as any).standard_cost` -> `item.standard_cost`
-- `(item as any).deposit_expected_date` -> `item.deposit_expected_date`
+### Codice corretto
+```typescript
+const handleCreateNew = async () => {
+  if (!searchValue.trim()) return;
+  const trimmed = searchValue.trim();
+  // Imposta il nome immediatamente (non dipende dal template)
+  onValueChange(trimmed);
+  setOpen(false);
+  setSearchValue("");
+  // Tenta la creazione del template in background (opzionale)
+  if (companyId) {
+    try {
+      await createTemplateMutation.mutateAsync(searchValue);
+    } catch {
+      // Template non creato, ma il nome e gia stato impostato
+    }
+  }
+};
+```
 
-## Cosa e gia OK (verificato)
-
-- `OrderItemsList.tsx`: interface completa, state e UI per Data Prevista Acconto funzionanti
-- `CreateOrder.tsx`: mappatura corretta senza cast
-- `orderUtils.ts`: centralizzato, nessuna duplicazione
-- `FinancialSummary.tsx`: forwardRef OK
-- `OrdersPipelineView/Column`: importano da orderUtils
-- Console: nessun errore o warning
-- Database: colonna `deposit_expected_date` presente nella tabella `order_items`
-
-## Vincolo
-Nessun cambiamento funzionale. Solo rimozione di cast `as any` non necessari per migliorare type-safety.
+## Impatto
+- Nessun cambiamento funzionale visibile per utenti con `companyId` valido
+- Gli utenti Super Admin (o con company non ancora caricata) potranno aggiungere articoli senza blocchi
+- Il template viene comunque creato quando possibile
