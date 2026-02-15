@@ -36,6 +36,7 @@ interface Employee {
   monthly_hours: number;
   is_active: boolean;
   user_id: string | null;
+  role_type?: string;
 }
 
 interface ExternalTeam {
@@ -65,6 +66,7 @@ export default function Employees() {
   const [createUserEmployee, setCreateUserEmployee] = useState<Employee | null>(null);
   const [createUserEmail, setCreateUserEmail] = useState("");
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
+  const [activeRoleType, setActiveRoleType] = useState<'operaio' | 'staff_interno'>('operaio');
 
   // Fetch employees
   const { data: employees = [], isLoading: loadingEmployees } = useQuery({
@@ -100,7 +102,7 @@ export default function Employees() {
 
   // Mutations
   const saveEmployeeMutation = useMutation({
-    mutationFn: async (data: EmployeeFormData & { id?: string }) => {
+    mutationFn: async (data: EmployeeFormData & { id?: string; role_type?: string }) => {
       if (data.id) {
         const { error } = await supabase.from("employees").update({
           first_name: data.first_name, last_name: data.last_name,
@@ -116,6 +118,7 @@ export default function Employees() {
           email: data.email || null, phone: data.phone || null,
           gross_salary: data.gross_salary, net_salary: data.net_salary,
           monthly_hours: data.monthly_hours, is_active: data.is_active,
+          role_type: (data as any).role_type || 'operaio',
         });
         if (error) throw error;
       }
@@ -219,8 +222,11 @@ export default function Employees() {
   };
 
   const handleSaveEmployee = (data: EmployeeFormData) => {
-    saveEmployeeMutation.mutate({ ...data, id: editingEmployee?.id });
+    saveEmployeeMutation.mutate({ ...data, id: editingEmployee?.id, role_type: editingEmployee ? editingEmployee.role_type : activeRoleType });
   };
+
+  const operai = employees.filter(e => (e.role_type || 'operaio') === 'operaio');
+  const staffInterno = employees.filter(e => e.role_type === 'staff_interno');
 
   const handleSaveTeam = (data: ExternalTeamFormData) => {
     saveTeamMutation.mutate({ ...data, id: editingTeam?.id });
@@ -236,19 +242,23 @@ export default function Employees() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Gestione Operai</h1>
-        <p className="text-muted-foreground">Operai interni e squadre esterne</p>
+        <h1 className="text-3xl font-bold">Gestione Staff</h1>
+        <p className="text-muted-foreground">Operai, squadre esterne e staff interno</p>
       </div>
 
       <Tabs defaultValue="employees" className="space-y-4">
         <TabsList>
           <TabsTrigger value="employees" className="gap-2">
             <Users className="h-4 w-4" />
-            Operai ({employees.length})
+            Operai ({operai.length})
           </TabsTrigger>
           <TabsTrigger value="teams" className="gap-2">
             <Building2 className="h-4 w-4" />
             Squadre ({externalTeams.length})
+          </TabsTrigger>
+          <TabsTrigger value="staff-interno" className="gap-2">
+            <Users className="h-4 w-4" />
+            Staff Interno ({staffInterno.length})
           </TabsTrigger>
           <TabsTrigger value="worklogs" className="gap-2">
             <Clock className="h-4 w-4" />
@@ -258,9 +268,9 @@ export default function Employees() {
 
         <TabsContent value="employees">
           <EmployeesTab
-            employees={employees}
+            employees={operai}
             isLoading={loadingEmployees}
-            onNew={() => { setEditingEmployee(null); setEmployeeDialogOpen(true); }}
+            onNew={() => { setEditingEmployee(null); setActiveRoleType('operaio'); setEmployeeDialogOpen(true); }}
             onEdit={handleEditEmployee}
             onDelete={(id) => deleteEmployeeMutation.mutate(id)}
             onViewAttachments={setAttachmentsEmployee}
@@ -279,6 +289,18 @@ export default function Employees() {
           />
         </TabsContent>
 
+        <TabsContent value="staff-interno">
+          <EmployeesTab
+            employees={staffInterno}
+            isLoading={loadingEmployees}
+            onNew={() => { setEditingEmployee(null); setActiveRoleType('staff_interno'); setEmployeeDialogOpen(true); }}
+            onEdit={handleEditEmployee}
+            onDelete={(id) => deleteEmployeeMutation.mutate(id)}
+            onViewAttachments={setAttachmentsEmployee}
+            onCreateUser={handleCreateUser}
+          />
+        </TabsContent>
+
         <TabsContent value="worklogs">
           <WorkLogsAdminTab />
         </TabsContent>
@@ -291,6 +313,7 @@ export default function Employees() {
         employee={editingEmployee}
         onSave={handleSaveEmployee}
         isSaving={saveEmployeeMutation.isPending}
+        roleType={activeRoleType}
       />
 
       <ExternalTeamDialog
