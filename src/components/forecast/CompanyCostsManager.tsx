@@ -271,7 +271,7 @@ export default function CompanyCostsManager() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_employees")
-        .select("id, total_cost, employee:employees(first_name, last_name), order:orders!inner(id, order_code, company_id)")
+        .select("id, total_cost, is_paid, paid_date, employee:employees(first_name, last_name), order:orders!inner(id, order_code, company_id)")
         .eq("order.company_id", companyId!);
       if (error) throw error;
       return (data || []) as any[];
@@ -394,9 +394,9 @@ export default function CompanyCostsManager() {
       amount: Number(item.total_cost) || 0,
       category: "Manodopera",
       recurrence: "once",
-      due_date: new Date().toISOString().split("T")[0],
-      is_paid: false,
-      paid_date: null,
+      due_date: item.paid_date || new Date().toISOString().split("T")[0],
+      is_paid: !!item.is_paid,
+      paid_date: item.paid_date || null,
       notes: null,
       order_id: item.order?.id || null,
       order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
@@ -870,6 +870,58 @@ export default function CompanyCostsManager() {
       queryClient.invalidateQueries({ queryKey: ["order-external-team-costs"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       toast({ title: "Squadra esterna riportata a non pagata" });
+    },
+  });
+
+  const markCommissionPaidMutation = useMutation({
+    mutationFn: async ({ id, date }: { id: string; date: string }) => {
+      const { error } = await supabase.from("order_salespeople").update({ is_paid: true, paid_date: date } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-commission-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      setPayDialogOpen(false);
+      setPayingCostId(null);
+      toast({ title: "Provvigione segnata come pagata" });
+    },
+  });
+
+  const markCommissionUnpaidMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("order_salespeople").update({ is_paid: false, paid_date: null } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-commission-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      toast({ title: "Provvigione riportata a non pagata" });
+    },
+  });
+
+  const markEmployeeCostPaidMutation = useMutation({
+    mutationFn: async ({ id, date }: { id: string; date: string }) => {
+      const { error } = await supabase.from("order_employees").update({ is_paid: true, paid_date: date } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-employee-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      setPayDialogOpen(false);
+      setPayingCostId(null);
+      toast({ title: "Costo dipendente segnato come pagato" });
+    },
+  });
+
+  const markEmployeeCostUnpaidMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("order_employees").update({ is_paid: false, paid_date: null } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-employee-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
+      toast({ title: "Costo dipendente riportato a non pagato" });
     },
   });
 
@@ -1355,6 +1407,8 @@ export default function CompanyCostsManager() {
                                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                                         if (cost.realOrderItemId) markOrderItemUnpaidMutation.mutate(cost.realOrderItemId);
                                         else if (cost.id.startsWith("ext-team-")) markExtTeamUnpaidMutation.mutate(cost.id.replace("ext-team-", ""));
+                                        else if (cost.id.startsWith("commission-")) markCommissionUnpaidMutation.mutate(cost.id.replace("commission-", ""));
+                                        else if (cost.id.startsWith("emp-cost-")) markEmployeeCostUnpaidMutation.mutate(cost.id.replace("emp-cost-", ""));
                                       }}>
                                         <Undo2 className="h-3.5 w-3.5 text-orange-600" />
                                       </Button>
@@ -1910,12 +1964,16 @@ export default function CompanyCostsManager() {
                     markOrderItemPaidMutation.mutate({ id: derivedCost.realOrderItemId, date: paymentDate });
                   } else if (payingCostId.startsWith("ext-team-")) {
                     markExtTeamPaidMutation.mutate({ id: payingCostId.replace("ext-team-", ""), date: paymentDate });
+                  } else if (payingCostId.startsWith("commission-")) {
+                    markCommissionPaidMutation.mutate({ id: payingCostId.replace("commission-", ""), date: paymentDate });
+                  } else if (payingCostId.startsWith("emp-cost-")) {
+                    markEmployeeCostPaidMutation.mutate({ id: payingCostId.replace("emp-cost-", ""), date: paymentDate });
                   } else {
                     markPaidMutation.mutate({ id: payingCostId, date: paymentDate });
                   }
                 }
               }}
-              disabled={!paymentDate || markPaidMutation.isPending || markOrderItemPaidMutation.isPending}
+              disabled={!paymentDate || markPaidMutation.isPending || markOrderItemPaidMutation.isPending || markCommissionPaidMutation.isPending || markEmployeeCostPaidMutation.isPending}
             >
               {(markPaidMutation.isPending || markOrderItemPaidMutation.isPending) ? "Salvataggio..." : "Conferma Pagamento"}
             </Button>
