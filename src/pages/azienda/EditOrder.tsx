@@ -83,6 +83,14 @@ interface OrderItemData {
   is_paid: boolean | null;
   paid_date: string | null;
   payment_method: string | null;
+  deposit_amount: number | null;
+  deposit_paid: boolean | null;
+  deposit_paid_date: string | null;
+  balance_amount: number | null;
+  balance_paid: boolean | null;
+  balance_paid_date: string | null;
+  balance_expected_date: string | null;
+  deposit_expected_date: string | null;
 }
 
 export default function EditOrder() {
@@ -294,14 +302,14 @@ export default function EditOrder() {
         is_paid: item.is_paid || false,
         paid_date: item.paid_date || undefined,
         payment_method: item.payment_method || undefined,
-        deposit_amount: (item as any).deposit_amount || 0,
-        deposit_paid: (item as any).deposit_paid || false,
-        deposit_paid_date: (item as any).deposit_paid_date || undefined,
-        balance_amount: (item as any).balance_amount || 0,
-        balance_paid: (item as any).balance_paid || false,
-        balance_paid_date: (item as any).balance_paid_date || undefined,
-        balance_expected_date: (item as any).balance_expected_date || undefined,
-        deposit_expected_date: (item as any).deposit_expected_date || undefined,
+        deposit_amount: item.deposit_amount || 0,
+        deposit_paid: item.deposit_paid || false,
+        deposit_paid_date: item.deposit_paid_date || undefined,
+        balance_amount: item.balance_amount || 0,
+        balance_paid: item.balance_paid || false,
+        balance_paid_date: item.balance_paid_date || undefined,
+        balance_expected_date: item.balance_expected_date || undefined,
+        deposit_expected_date: item.deposit_expected_date || undefined,
       })));
     }
   }, [existingItems, draftRestored]);
@@ -373,14 +381,14 @@ export default function EditOrder() {
         is_paid: item.is_paid || false,
         paid_date: item.paid_date || undefined,
         payment_method: item.payment_method || undefined,
-        deposit_amount: (item as any).deposit_amount || 0,
-        deposit_paid: (item as any).deposit_paid || false,
-        deposit_paid_date: (item as any).deposit_paid_date || undefined,
-        balance_amount: (item as any).balance_amount || 0,
-        balance_paid: (item as any).balance_paid || false,
-        balance_paid_date: (item as any).balance_paid_date || undefined,
-        balance_expected_date: (item as any).balance_expected_date || undefined,
-        deposit_expected_date: (item as any).deposit_expected_date || undefined,
+        deposit_amount: item.deposit_amount || 0,
+        deposit_paid: item.deposit_paid || false,
+        deposit_paid_date: item.deposit_paid_date || undefined,
+        balance_amount: item.balance_amount || 0,
+        balance_paid: item.balance_paid || false,
+        balance_paid_date: item.balance_paid_date || undefined,
+        balance_expected_date: item.balance_expected_date || undefined,
+        deposit_expected_date: item.deposit_expected_date || undefined,
       })));
     }
   }, [clearDraft, order, existingItems]);
