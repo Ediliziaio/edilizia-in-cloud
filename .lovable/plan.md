@@ -1,51 +1,107 @@
 
-# Bonus Edilizio: Ritenuta Bancaria 11%
 
-## Cosa viene aggiunto
+# Appuntamenti: Sistema di Gestione dal Calendario e Ordine
 
-Quando il cliente paga tramite bonifico per bonus edilizio, la banca trattiene l'11% dell'imponibile calcolato con IVA al 22% (anche se il contratto ha IVA diversa, es. 10%).
+## Panoramica
 
-Esempio: Ordine da 10.000 euro con IVA 10% = Totale 11.000 euro.
-La banca calcola l'imponibile come: 11.000 / 1.22 = 9.016,39 euro.
-Ritenuta = 9.016,39 x 11% = 991,80 euro.
+Aggiungere un sistema di appuntamenti che permette di creare eventi come sopralluoghi tecnici, appuntamenti con clienti, consegne, ecc. Gli appuntamenti possono essere collegati a un ordine (opzionale), assegnati a utenti dell'azienda e visualizzati sia nella pagina dettaglio ordine che nel calendario lavori.
 
-Questo importo non e un costo (si recupera sulle tasse), ma serve saperlo.
+## 1. Database: Nuova tabella `appointments`
 
-## Modifiche previste
+| Colonna | Tipo | Default | Descrizione |
+|---|---|---|---|
+| `id` | uuid | gen_random_uuid() | PK |
+| `company_id` | uuid | NOT NULL | Tenant isolation |
+| `order_id` | uuid | NULL | Collegamento opzionale a un ordine |
+| `title` | text | NOT NULL | Es. "Sopralluogo tecnico", "Appuntamento cliente" |
+| `description` | text | NULL | Note aggiuntive |
+| `appointment_date` | date | NOT NULL | Data dell'appuntamento |
+| `appointment_time` | time | NULL | Ora (opzionale) |
+| `assigned_to` | uuid | NULL | Utente assegnato (profilo) |
+| `appointment_type` | text | 'generico' | Tipo: sopralluogo, consegna, riunione, generico |
+| `is_completed` | boolean | false | Completato si/no |
+| `created_by` | uuid | NOT NULL | Chi ha creato |
+| `created_at` | timestamptz | now() | |
+| `updated_at` | timestamptz | now() | |
 
-### 1. Database: nuova colonna
-Aggiunta colonna `has_building_bonus` (boolean, default false) alla tabella `orders`.
+**RLS Policies:**
+- Company admin: ALL sulla propria azienda
+- Staff con `can_view_calendar`: SELECT
+- Staff con `can_edit_orders`: ALL
+- Super admin: ALL
 
-### 2. UI: Toggle + Calcolo automatico nel Riepilogo Finanziario
-Nel componente `FinancialSummary.tsx`:
-- Nuovo switch/checkbox "Bonus Edilizio" sotto l'aliquota IVA
-- Quando attivo, appare un riquadro informativo con:
-  - Imponibile bancario (Totale IVA inclusa / 1.22)
-  - Ritenuta 11% calcolata
-  - Nota: "Importo trattenuto dalla banca - recuperabile in dichiarazione"
+## 2. Nuovo componente: `AppointmentDialog.tsx`
 
-Nella vista read-only (`FinancialSummaryReadOnly` e `OrderDetail`):
-- Stesso riquadro informativo se il flag e attivo
+Dialog modale per creare/modificare un appuntamento con:
+- **Titolo** (obbligatorio)
+- **Tipo** (select: Sopralluogo, Consegna, Riunione, Appuntamento Cliente, Generico)
+- **Data** (obbligatorio, date picker)
+- **Ora** (opzionale, input time)
+- **Assegnato a** (select con utenti/dipendenti dell'azienda)
+- **Ordine collegato** (select opzionale, visibile solo dal calendario; pre-compilato se aperto da OrderDetail)
+- **Note** (textarea opzionale)
 
-### 3. File da modificare
-- **Migrazione SQL**: aggiunta `has_building_bonus` boolean default false
-- **`FinancialSummary.tsx`**: nuova prop `hasBuildingBonus` + `onHasBuildingBonusChange`, logica calcolo e UI
-- **`CreateOrder.tsx`**: nuovo state `hasBuildingBonus`, passaggio props, salvataggio nel DB
-- **`EditOrder.tsx`**: caricamento e salvataggio del campo, aggiornamento draft
-- **`OrderDetail.tsx`**: passaggio prop alla vista read-only
-- **`useOrderDraft.ts`**: aggiunta campo `hasBuildingBonus` nel tipo draft
-- **`CustomerFinancialSummary.tsx`**: mostrare la ritenuta se attiva
+Pattern identico a `TaskDialog.tsx` per coerenza.
 
-### 4. Formula di calcolo
+## 3. Nuovo componente: `LinkedAppointments.tsx`
+
+Componente riutilizzabile (come `LinkedTasks`) che mostra gli appuntamenti collegati a un ordine:
+- Lista con icona tipo, titolo, data/ora, assegnatario, stato completato
+- Bottone "Nuovo Appuntamento" che apre il dialog
+- Click su appuntamento per modificarlo
+- Possibilita di segnare come completato con checkbox
+
+## 4. Integrazione in OrderDetail.tsx
+
+Aggiungere il componente `LinkedAppointments` nella colonna destra, accanto alle attivita collegate:
 
 ```text
-imponibileBancario = totaleConIVA / 1.22
-ritenutaBancaria = imponibileBancario * 0.11
+[Note Interne]
+[Attivita Collegate]     <-- gia esistente
+[Appuntamenti]           <-- NUOVO
 ```
 
-Sempre calcolato con divisore 1.22, indipendentemente dall'IVA del contratto.
+## 5. Integrazione nel Calendario
 
-### 5. Impatto
-- Nessun ordine esistente viene modificato (default: false)
-- Nessun impatto sul previsionale cassa (non e un costo)
-- Puramente informativo per l'utente
+### 5.1 Fetch appuntamenti
+In `Calendar.tsx`, aggiungere una query per caricare gli appuntamenti e unirli agli eventi del calendario.
+
+### 5.2 Visualizzazione nelle viste Mese e Settimana
+Gli appuntamenti appariranno come eventi con un'icona distinta (es. CalendarClock) e colore diverso dagli ordini (es. viola/indaco) per distinguerli visivamente.
+
+### 5.3 Bottone "Nuovo Appuntamento"
+Aggiungere un bottone nella toolbar del calendario per creare appuntamenti direttamente (senza ordine collegato obbligatorio).
+
+## 6. File da creare/modificare
+
+**Nuovi file:**
+- `supabase/migrations/..._create_appointments.sql` - Tabella + RLS
+- `src/components/appointments/AppointmentDialog.tsx` - Dialog CRUD
+- `src/components/appointments/LinkedAppointments.tsx` - Lista per ordine
+
+**File da modificare:**
+- `src/pages/azienda/OrderDetail.tsx` - Aggiungere `LinkedAppointments`
+- `src/pages/azienda/Calendar.tsx` - Query + bottone + passaggio dati
+- `src/components/calendar/CalendarMonthView.tsx` - Render appuntamenti
+- `src/components/calendar/CalendarWeekView.tsx` - Render appuntamenti
+- `src/types/calendar.ts` - Tipo `CalendarAppointment`
+
+## 7. Dettagli tecnici
+
+### Tipi appuntamento con icone
+| Tipo | Label | Icona |
+|---|---|---|
+| sopralluogo | Sopralluogo | Search |
+| consegna | Consegna | Truck |
+| riunione | Riunione | Users |
+| cliente | Appuntamento Cliente | UserCheck |
+| generico | Generico | CalendarClock |
+
+### Query key per invalidazione
+`["appointments", companyId]` e `["order-appointments", orderId]` per mantenere la sincronizzazione.
+
+## 8. Impatto
+
+- Nessun dato esistente viene toccato
+- La funzionalita e completamente nuova e additiva
+- Gli appuntamenti sono indipendenti dalle task (sistema separato pensato per eventi con data/ora specifica)
