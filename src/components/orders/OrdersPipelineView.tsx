@@ -12,39 +12,7 @@ import {
 import { OrdersPipelineColumn } from "./OrdersPipelineColumn";
 import { OrdersPipelineCard } from "./OrdersPipelineCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-interface OrderWithDetails {
-  id: string;
-  order_code: string | null;
-  description: string;
-  total_amount: number;
-  deposit_amount: number;
-  deposit_paid: boolean | null;
-  deposit_2_amount: number | null;
-  deposit_2_paid: boolean | null;
-  balance_amount: number;
-  balance_paid: boolean | null;
-  expected_date: string | null;
-  warehouse_arrival_date: string | null;
-  created_at: string;
-  current_status_id: string | null;
-  customer: {
-    first_name: string;
-    last_name: string;
-    email: string;
-  } | null;
-  status: {
-    name: string;
-    color: string;
-  } | null;
-}
-
-interface OrderStatus {
-  id: string;
-  name: string;
-  color: string;
-  position?: number;
-}
+import { type OrderWithDetails, type OrderStatus } from "@/lib/orderUtils";
 
 interface OrdersPipelineViewProps {
   orders: OrderWithDetails[];

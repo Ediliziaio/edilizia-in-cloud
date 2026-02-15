@@ -25,6 +25,13 @@ export interface OrderWithDetails {
   } | null;
 }
 
+export interface OrderStatus {
+  id: string;
+  name: string;
+  color: string;
+  position?: number;
+}
+
 export function getAmountDue(order: OrderWithDetails): number {
   let due = 0;
   if (!order.deposit_paid) due += order.deposit_amount || 0;
