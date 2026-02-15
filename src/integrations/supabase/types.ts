@@ -212,7 +212,9 @@ export type Database = {
           order_id: string | null
           paid_date: string | null
           recurrence: string
+          supplier_id: string | null
           updated_at: string
+          vat_rate: number | null
         }
         Insert: {
           amount?: number
@@ -228,7 +230,9 @@ export type Database = {
           order_id?: string | null
           paid_date?: string | null
           recurrence?: string
+          supplier_id?: string | null
           updated_at?: string
+          vat_rate?: number | null
         }
         Update: {
           amount?: number
@@ -244,7 +248,9 @@ export type Database = {
           order_id?: string | null
           paid_date?: string | null
           recurrence?: string
+          supplier_id?: string | null
           updated_at?: string
+          vat_rate?: number | null
         }
         Relationships: [
           {
@@ -259,6 +265,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
