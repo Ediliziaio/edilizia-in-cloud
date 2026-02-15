@@ -10,7 +10,6 @@ import {
   Check,
   Clock,
   AlertCircle,
-  CalendarPlus,
   Pencil,
   Trash2,
   Receipt,
@@ -18,7 +17,6 @@ import {
   Search,
   Download,
   Upload,
-  TrendingUp,
   Package,
   ExternalLink,
   Undo2,
@@ -93,6 +91,12 @@ const RECURRENCE_LABELS: Record<string, string> = {
   yearly: "Annuale",
 };
 
+const DEFAULT_PERIODS: Record<string, number> = {
+  monthly: 12,
+  quarterly: 4,
+  yearly: 1,
+};
+
 interface CostFormData {
   name: string;
   cost_type: string;
@@ -105,6 +109,7 @@ interface CostFormData {
   supplier_id: string;
   vat_rate: string;
   is_gross: boolean;
+  periods: string;
 }
 
 const defaultFormData: CostFormData = {
@@ -119,6 +124,7 @@ const defaultFormData: CostFormData = {
   supplier_id: "",
   vat_rate: "22",
   is_gross: false,
+  periods: "12",
 };
 
 type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all";
@@ -145,6 +151,13 @@ interface UnifiedCost {
   vat_rate?: number | null;
 }
 
+function getNextDate(baseDate: Date, recurrence: string, offset: number): Date {
+  if (recurrence === "monthly") return addMonths(baseDate, offset);
+  if (recurrence === "quarterly") return addQuarters(baseDate, offset);
+  if (recurrence === "yearly") return addYears(baseDate, offset);
+  return baseDate;
+}
+
 export default function CompanyCostsManager() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -157,8 +170,6 @@ export default function CompanyCostsManager() {
   const [payDialogOpen, setPayDialogOpen] = useState(false);
   const [payingCostId, setPayingCostId] = useState<string | null>(null);
   const [paymentDate, setPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
-  const [duplicatePeriods, setDuplicatePeriods] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
   const [taskCostId, setTaskCostId] = useState<string | null>(null);
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
@@ -258,7 +269,6 @@ export default function CompanyCostsManager() {
     const cats = new Set<string>();
     costs.forEach((c: any) => { if (c.category) cats.add(c.category); });
     suppliers.forEach((s: any) => { if (s.product_category) cats.add(s.product_category); });
-    // Add some defaults if empty
     if (cats.size === 0) {
       ["Affitto", "Utenze", "Assicurazioni", "Leasing", "Trasporti", "Consulenze", "Marketing", "Software", "Tasse", "Materiali", "Altro"].forEach(c => cats.add(c));
     }
@@ -363,7 +373,7 @@ export default function CompanyCostsManager() {
     return { items, paid, unpaid, totalPaid: paid.reduce((s, i) => s + i.amount, 0), totalUnpaid: unpaid.reduce((s, i) => s + i.amount, 0) };
   }, [supplierPaymentItems]);
 
-  // Supplier grouped data for progress bars (extracted from IIFE)
+  // Supplier grouped data for progress bars
   const supplierGroupedData = useMemo(() => {
     const map = new Map<string, { paid: number; total: number }>();
     supplierPaymentsData.items.forEach(i => {
@@ -384,25 +394,9 @@ export default function CompanyCostsManager() {
     return dateA - dateB;
   });
 
-  const annualEstimate = useMemo(() => {
-    let total = 0;
-    const byCategory: Record<string, number> = {};
-    costs.forEach((c: any) => {
-      let projected = 0;
-      if (c.recurrence === "monthly") projected = Number(c.amount) * 12;
-      else if (c.recurrence === "quarterly") projected = Number(c.amount) * 4;
-      else if (c.recurrence === "yearly") projected = Number(c.amount);
-      else projected = Number(c.amount);
-      total += projected;
-      const cat = c.category || "Altro";
-      byCategory[cat] = (byCategory[cat] || 0) + projected;
-    });
-    return { total, byCategory };
-  }, [costs]);
-
   // VAT calculations for stats
   const vatStats = useMemo(() => {
-    let vatDebit = 0; // IVA su costi non pagati
+    let vatDebit = 0;
     let supplierUnpaid = 0;
     costs.forEach((c: any) => {
       if (!c.is_paid) {
@@ -417,26 +411,38 @@ export default function CompanyCostsManager() {
     return { vatDebit, supplierUnpaid };
   }, [costs]);
 
+  // Period preview for form
+  const periodsPreview = useMemo(() => {
+    if (formData.recurrence === "once" || !formData.due_date) return null;
+    const periods = Math.max(1, Math.min(60, parseInt(formData.periods) || 1));
+    if (periods <= 1) return null;
+    const baseDate = new Date(formData.due_date);
+    const lastDate = getNextDate(baseDate, formData.recurrence, periods - 1);
+    return {
+      count: periods,
+      from: format(baseDate, "MMM yyyy", { locale: it }),
+      to: format(lastDate, "MMM yyyy", { locale: it }),
+    };
+  }, [formData.recurrence, formData.due_date, formData.periods]);
+
   // Mutations
   const saveMutation = useMutation({
     mutationFn: async (data: CostFormData) => {
       const vatRate = parseFloat(data.vat_rate) || 0;
       let netAmount = parseFloat(data.amount) || 0;
 
-      // If user entered gross, calculate net
       if (data.is_gross && vatRate > 0) {
         const { netAmount: net } = calculateNetFromGross(netAmount, vatRate);
         netAmount = net;
       }
 
-      const payload = {
+      const basePayload = {
         company_id: companyId!,
         name: data.name,
         cost_type: data.cost_type,
         amount: netAmount,
         category: data.category || null,
         recurrence: data.recurrence,
-        due_date: data.due_date,
         notes: data.notes || null,
         order_id: data.order_id && data.order_id !== "none" ? data.order_id : null,
         supplier_id: data.supplier_id && data.supplier_id !== "none" ? data.supplier_id : null,
@@ -444,20 +450,62 @@ export default function CompanyCostsManager() {
       };
 
       if (editingCost) {
-        const { error } = await supabase.from("company_costs").update(payload).eq("id", editingCost.id);
+        const { error } = await supabase.from("company_costs").update({ ...basePayload, due_date: data.due_date }).eq("id", editingCost.id);
         if (error) throw error;
-      } else {
-        const { error } = await supabase.from("company_costs").insert(payload);
-        if (error) throw error;
+        return { created: 1, isEdit: true };
       }
+
+      // Auto-generate multiple periods for recurring costs
+      const periods = data.recurrence !== "once" ? Math.max(1, Math.min(60, parseInt(data.periods) || 1)) : 1;
+      const baseDate = new Date(data.due_date);
+      let created = 0;
+
+      for (let i = 0; i < periods; i++) {
+        const date = getNextDate(baseDate, data.recurrence, i);
+        const dateStr = format(date, "yyyy-MM-dd");
+
+        // Check duplicates
+        if (periods > 1) {
+          const { data: existing } = await supabase
+            .from("company_costs")
+            .select("id")
+            .eq("company_id", companyId!)
+            .eq("name", data.name)
+            .eq("due_date", dateStr)
+            .limit(1);
+          if (existing && existing.length > 0) continue;
+        }
+
+        const { error } = await supabase.from("company_costs").insert({
+          ...basePayload,
+          due_date: dateStr,
+          is_paid: false,
+        });
+        if (error) throw error;
+        created++;
+      }
+
+      return { created, isEdit: false, periods, baseDate };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["company-costs"] });
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       setDialogOpen(false);
       setEditingCost(null);
       setFormData(defaultFormData);
-      toast({ title: editingCost ? "Costo aggiornato" : "Costo aggiunto" });
+
+      if (result.isEdit) {
+        toast({ title: "Costo aggiornato" });
+      } else if (result.created > 1) {
+        const baseDate = result.baseDate as Date;
+        const lastDate = getNextDate(baseDate, formData.recurrence, result.created - 1);
+        toast({
+          title: `Creati ${result.created} costi`,
+          description: `Da ${format(baseDate, "MMM yyyy", { locale: it })} a ${format(lastDate, "MMM yyyy", { locale: it })}`,
+        });
+      } else {
+        toast({ title: result.created > 0 ? "Costo aggiunto" : "Costo già esistente (duplicato ignorato)" });
+      }
     },
     onError: () => {
       toast({ title: "Errore nel salvataggio", variant: "destructive" });
@@ -526,43 +574,6 @@ export default function CompanyCostsManager() {
       queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
       toast({ title: "Articolo riportato a non pagato" });
     },
-  });
-
-  const recurringCosts = useMemo(() => costs.filter((c: any) => c.recurrence !== "once"), [costs]);
-
-  const duplicateRecurringMutation = useMutation({
-    mutationFn: async (periods: number) => {
-      let created = 0;
-      for (const cost of recurringCosts) {
-        for (let p = 1; p <= periods; p++) {
-          const dueDate = new Date(cost.due_date);
-          let nextDate: Date;
-          if (cost.recurrence === "monthly") nextDate = addMonths(dueDate, p);
-          else if (cost.recurrence === "quarterly") nextDate = addQuarters(dueDate, p);
-          else nextDate = addYears(dueDate, p);
-          const nextDateStr = format(nextDate, "yyyy-MM-dd");
-          const { data: existing } = await supabase.from("company_costs").select("id").eq("company_id", companyId!).eq("name", cost.name).eq("due_date", nextDateStr).limit(1);
-          if (existing && existing.length > 0) continue;
-          const { error } = await supabase.from("company_costs").insert({
-            company_id: companyId!, name: cost.name, cost_type: cost.cost_type, amount: cost.amount,
-            category: cost.category, recurrence: cost.recurrence, due_date: nextDateStr,
-            notes: cost.notes, order_id: cost.order_id, is_paid: false,
-            supplier_id: (cost as any).supplier_id || null, vat_rate: (cost as any).vat_rate || 22,
-          });
-          if (error) throw error;
-          created++;
-        }
-      }
-      return created;
-    },
-    onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
-      queryClient.invalidateQueries({ queryKey: ["forecast-company-costs"] });
-      setShowDuplicateConfirm(false);
-      setDuplicatePeriods(1);
-      toast({ title: count > 0 ? `${count} costi generati` : "Nessun nuovo costo da generare (già esistenti)" });
-    },
-    onError: () => { toast({ title: "Errore nella generazione", variant: "destructive" }); },
   });
 
   const exportCostsCSV = () => {
@@ -653,6 +664,7 @@ export default function CompanyCostsManager() {
       supplier_id: cost.supplier_id || "none",
       vat_rate: String(cost.vat_rate ?? 22),
       is_gross: false,
+      periods: "1",
     });
     setDialogOpen(true);
   };
@@ -827,105 +839,114 @@ export default function CompanyCostsManager() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <span className="flex items-center gap-1 text-sm">
-                        <Repeat className="h-3 w-3" />
+                      <Badge variant="outline" className="text-xs">
+                        <Repeat className="h-3 w-3 mr-1" />
                         {RECURRENCE_LABELS[cost.recurrence] || cost.recurrence}
-                      </span>
+                      </Badge>
                     </TableCell>
                     <TableCell>
-                      {cost.isFromOrder ? "—" : cost.due_date ? format(new Date(cost.due_date), "dd/MM/yyyy", { locale: it }) : "—"}
+                      {cost.due_date ? format(new Date(cost.due_date), "dd/MM/yyyy", { locale: it }) : "—"}
                     </TableCell>
                     <TableCell>{getStatusBadge(cost)}</TableCell>
                     {(type === "variable" || type === "all") && (
                       <TableCell>
-                        {cost.order?.order_code ? (
-                          <Link to={`/azienda/ordini/${cost.order.id}`} className="text-primary hover:underline flex items-center gap-1 text-sm">
-                            {cost.order.order_code}
+                        {cost.order ? (
+                          <Link to={`/azienda/ordini/${cost.order.id}`} className="text-primary hover:underline text-sm flex items-center gap-1">
+                            {cost.order.order_code || "Ordine"}
                             <ExternalLink className="h-3 w-3" />
                           </Link>
-                        ) : "—"}
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
                       </TableCell>
                     )}
-                    <TableCell className="text-right">
-                      <TooltipProvider>
-                      {cost.isFromOrder ? (
-                        <div className="flex justify-end gap-1">
-                          {!cost.is_paid ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700"
-                                  onClick={() => { setPayingCostId(cost.id); setPaymentDate(format(new Date(), "yyyy-MM-dd")); setPayDialogOpen(true); }}
-                                  disabled={markOrderItemPaidMutation.isPending}
-                                ><Check className="h-4 w-4" /></Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Segna come pagato</TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-orange-600 hover:text-orange-700"
-                                  onClick={() => markOrderItemUnpaidMutation.mutate((cost as any).realOrderItemId)}
-                                  disabled={markOrderItemUnpaidMutation.isPending}
-                                ><Undo2 className="h-4 w-4" /></Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Riporta a non pagato</TooltipContent>
-                            </Tooltip>
-                          )}
-                          <Link to={`/azienda/ordini/${cost.order?.id}`}>
-                            <Button size="sm" variant="ghost" className="gap-1 text-xs">
-                              <ExternalLink className="h-3 w-3" /> Ordine
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        {!cost.isFromOrder && (
+                          <>
+                            {!cost.is_paid ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setPayingCostId(cost.id); setPayDialogOpen(true); }}>
+                                      <CheckSquare className="h-3.5 w-3.5 text-green-600" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Segna come pagato</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => markUnpaidMutation.mutate(cost.id)}>
+                                      <Undo2 className="h-3.5 w-3.5 text-orange-600" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Riporta a non pagato</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setTaskCostId(cost.id)}>
+                                    <AlertCircle className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Task collegate</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(cost)}>
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                          </Link>
-                        </div>
-                      ) : (
-                        <div className="flex justify-end gap-1">
-                          {!cost.is_paid ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700"
-                                  onClick={() => { setPayingCostId(cost.id); setPaymentDate(format(new Date(), "yyyy-MM-dd")); setPayDialogOpen(true); }}
-                                  disabled={markPaidMutation.isPending}
-                                ><Check className="h-4 w-4" /></Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Segna come pagato</TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-orange-600 hover:text-orange-700"
-                                  onClick={() => markUnpaidMutation.mutate(cost.id)}
-                                  disabled={markUnpaidMutation.isPending}
-                                ><Undo2 className="h-4 w-4" /></Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Riporta a non pagato</TooltipContent>
-                            </Tooltip>
-                          )}
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button size="icon" variant="ghost" className="h-8 w-8"
-                                onClick={() => setTaskCostId(cost.id)}>
-                                <CheckSquare className="h-4 w-4 text-primary" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Task collegate</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button size="icon" variant="ghost" className="h-8 w-8"
-                                onClick={() => openEdit(cost as any)}><Pencil className="h-4 w-4" /></Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Modifica</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"
-                                onClick={() => setDeleteConfirmId(cost.id)}><Trash2 className="h-4 w-4" /></Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Elimina</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      )}
-                      </TooltipProvider>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteConfirmId(cost.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        )}
+                        {cost.isFromOrder && (
+                          <>
+                            {!cost.is_paid ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setPayingCostId(cost.id); setPayDialogOpen(true); }}>
+                                      <CheckSquare className="h-3.5 w-3.5 text-green-600" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Segna come pagato</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => cost.realOrderItemId && markOrderItemUnpaidMutation.mutate(cost.realOrderItemId)}>
+                                      <Undo2 className="h-3.5 w-3.5 text-orange-600" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Riporta a non pagato</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            {cost.order && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                                      <Link to={`/azienda/ordini/${cost.order.id}`}>
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                      </Link>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Vai all'ordine</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -937,16 +958,12 @@ export default function CompanyCostsManager() {
     </div>
   );
 
-  if (isLoading || isLoadingOrderItems || isLoadingSupplierPayments) {
+  if (isLoading) {
     return (
       <Card>
-        <CardContent className="p-6 space-y-4">
-          <Skeleton className="h-8 w-64" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => (<Skeleton key={i} className="h-24 rounded-lg" />))}
-          </div>
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-64 w-full" />
+        <CardHeader><Skeleton className="h-8 w-48" /></CardHeader>
+        <CardContent className="space-y-4">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
         </CardContent>
       </Card>
     );
@@ -973,11 +990,6 @@ export default function CompanyCostsManager() {
               <Button variant="outline" size="sm" onClick={exportCostsCSV} className="gap-1">
                 <Download className="h-4 w-4" /> Esporta
               </Button>
-              {recurringCosts.length > 0 && (
-                <Button variant="outline" size="sm" onClick={() => setShowDuplicateConfirm(true)} className="gap-1">
-                  <CalendarPlus className="h-4 w-4" /> Genera periodo
-                </Button>
-              )}
               <Button size="sm" onClick={() => openCreate("fixed")} className="gap-1">
                 <Plus className="h-4 w-4" /> Nuovo Costo
               </Button>
@@ -985,15 +997,15 @@ export default function CompanyCostsManager() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Summary Cards - 6 cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {/* Summary Cards - 5 cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
               <div className="flex items-center gap-2 mb-1">
                 <AlertCircle className="h-4 w-4 text-red-600" />
-                <span className="text-xs font-medium">Da pagare</span>
+                <span className="text-xs font-medium">Da pagare (mese)</span>
               </div>
               <p className="text-xl font-bold text-red-600">{formatCurrency(totalUnpaidThisMonth)}</p>
-              <p className="text-[10px] text-muted-foreground">{thisMonthUnpaid.length} costi + ordini</p>
+              <p className="text-[10px] text-muted-foreground">{thisMonthUnpaid.length} costi + {filteredOrderItemCosts.filter(c => !c.is_paid).length} da ordini</p>
             </div>
             <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
               <div className="flex items-center gap-2 mb-1">
@@ -1010,14 +1022,6 @@ export default function CompanyCostsManager() {
               </div>
               <p className="text-xl font-bold text-orange-600">{formatCurrency(totalOverdue)}</p>
               <p className="text-[10px] text-muted-foreground">{overdueCosts.length} scaduti</p>
-            </div>
-            <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
-              <div className="flex items-center gap-2 mb-1">
-                <TrendingUp className="h-4 w-4 text-blue-600" />
-                <span className="text-xs font-medium">Stima Annuale</span>
-              </div>
-              <p className="text-xl font-bold text-blue-600">{formatCurrency(annualEstimate.total)}</p>
-              <p className="text-[10px] text-muted-foreground">{Object.keys(annualEstimate.byCategory).length} categorie</p>
             </div>
             <div className="p-4 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800">
               <div className="flex items-center gap-2 mb-1">
@@ -1036,24 +1040,6 @@ export default function CompanyCostsManager() {
               <p className="text-[10px] text-muted-foreground">Costi con fornitore</p>
             </div>
           </div>
-
-          {/* Annual breakdown */}
-          {Object.keys(annualEstimate.byCategory).length > 0 && (
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Distribuzione Annuale per Categoria
-              </h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                {Object.entries(annualEstimate.byCategory).sort(([, a], [, b]) => b - a).map(([cat, amount]) => (
-                  <div key={cat} className="flex justify-between items-center text-sm p-2 rounded bg-background border">
-                    <span className="text-muted-foreground truncate mr-2">{cat}</span>
-                    <span className="font-medium whitespace-nowrap">{formatCurrency(amount)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
@@ -1203,7 +1189,7 @@ export default function CompanyCostsManager() {
         </CardContent>
       </Card>
 
-      {/* Add/Edit Dialog - Professional Layout */}
+      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setEditingCost(null); setFormData(defaultFormData); } setDialogOpen(open); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -1387,7 +1373,13 @@ export default function CompanyCostsManager() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Ricorrenza</Label>
-                  <Select value={formData.recurrence} onValueChange={(v) => setFormData({ ...formData, recurrence: v })}>
+                  <Select
+                    value={formData.recurrence}
+                    onValueChange={(v) => {
+                      const newPeriods = v === "once" ? "1" : String(DEFAULT_PERIODS[v] || 1);
+                      setFormData({ ...formData, recurrence: v, periods: newPeriods });
+                    }}
+                  >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="once">Una tantum</SelectItem>
@@ -1402,6 +1394,28 @@ export default function CompanyCostsManager() {
                   <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} />
                 </div>
               </div>
+
+              {/* Periods field - only for recurring, only in creation mode */}
+              {formData.recurrence !== "once" && !editingCost && (
+                <div className="space-y-2">
+                  <Label>Periodi da generare</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={formData.periods}
+                    onChange={(e) => setFormData({ ...formData, periods: e.target.value })}
+                    className="w-32"
+                  />
+                  {periodsPreview && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Repeat className="h-3 w-3" />
+                      Verranno creati {periodsPreview.count} costi da {periodsPreview.from} a {periodsPreview.to}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {formData.cost_type === "variable" && (
                 <div>
                   <Label>Collega a ordine (opzionale)</Label>
@@ -1438,7 +1452,7 @@ export default function CompanyCostsManager() {
               }}
               disabled={!formData.name || !formData.amount || !formData.due_date || saveMutation.isPending}
             >
-              {saveMutation.isPending ? "Salvataggio..." : editingCost ? "Aggiorna" : "Aggiungi"}
+              {saveMutation.isPending ? "Salvataggio..." : editingCost ? "Aggiorna" : periodsPreview ? `Crea ${periodsPreview.count} costi` : "Aggiungi"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1488,34 +1502,6 @@ export default function CompanyCostsManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Duplicate Recurring Confirm */}
-      <AlertDialog open={showDuplicateConfirm} onOpenChange={setShowDuplicateConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Genera costi ricorrenti</AlertDialogTitle>
-            <AlertDialogDescription>
-              Verranno duplicati {recurringCosts.length} costi ricorrenti. I duplicati già esistenti verranno ignorati.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-4">
-            <Label>Quanti periodi in avanti generare?</Label>
-            <div className="flex items-center gap-3 mt-2">
-              <Input type="number" min={1} max={24} value={duplicatePeriods}
-                onChange={(e) => setDuplicatePeriods(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))} className="w-24" />
-              <span className="text-sm text-muted-foreground">
-                {duplicatePeriods === 1 ? "periodo" : "periodi"}
-              </span>
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => duplicateRecurringMutation.mutate(duplicatePeriods)} disabled={duplicateRecurringMutation.isPending}>
-              {duplicateRecurringMutation.isPending ? "Generazione..." : `Genera ${duplicatePeriods} ${duplicatePeriods === 1 ? "periodo" : "periodi"}`}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <CSVImportDialog open={importOpen} onOpenChange={setImportOpen} title="Importa Costi" fields={COST_IMPORT_FIELDS} onImport={handleCostsImport} />
 
