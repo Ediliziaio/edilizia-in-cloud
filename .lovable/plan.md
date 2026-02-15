@@ -1,88 +1,50 @@
 
 
-# Riepilogo Pagamenti Fornitori + Pulizia e Stabilizzazione
+# Fix: Modifica articolo causa salvataggio automatico + Stabilizzazione
 
-## 1. Nuova Feature: Widget "Pagamenti Fornitori" nella Dashboard
+## Problema identificato
 
-Aggiungere una card nella dashboard aziendale che mostra un riepilogo dei pagamenti ai fornitori, basato sui dati `order_items` con i campi `is_paid`, `paid_date`, `payment_method` e `supplier_id`.
+Quando clicchi sul pulsante "Modifica" (matita) o "Elimina" (cestino) di un articolo nella pagina di modifica ordine, il form viene inviato automaticamente perche quei `<Button>` non hanno `type="button"`. Essendo dentro un tag `<form>`, il browser li interpreta come `type="submit"`, invocando `handleSubmit` che salva e fa redirect a `/azienda/ordini/:id`.
 
-### Implementazione
+## Root cause
 
-**Nuovo componente**: `src/components/dashboard/SupplierPaymentsSummary.tsx`
-
-Questo componente:
-- Esegue una query su `order_items` filtrando per `company_id` (via join su `orders`)
-- Raggruppa per fornitore (`supplier_id`) con join su `suppliers` per il nome
-- Calcola per ciascun fornitore:
-  - Totale pagato (`is_paid = true`)
-  - Totale da pagare (`is_paid = false`)
-  - Modalita di pagamento prevalente
-- Mostra una lista con barre di progresso (pagato vs totale)
-- Badge colorati: verde per "Pagato", arancione per "Da pagare"
-- Link a "Vedi dettaglio" che porta al previsionale
-
-**Modifica**: `src/pages/azienda/CompanyDashboard.tsx`
-
-- Aggiungere la query per i dati pagamenti fornitori nel `Promise.all` esistente
-- Inserire il widget nella griglia bottom row (trasformandola da 2 a 3 colonne, oppure aggiungendo una nuova riga)
-
-### Layout proposto
-
-La bottom row attuale ha 2 colonne (Alert Magazzino + Azioni Rapide). Aggiungere il widget come terza colonna:
+In `OrderItemsList.tsx`, i pulsanti alle righe 556 e 559:
 
 ```text
-[Alert Magazzino] [Pagamenti Fornitori] [Azioni Rapide]
+<Button variant="ghost" size="icon" onClick={() => openEditDialog(index)}>
+<Button variant="ghost" size="icon" onClick={() => handleDeleteItem(index)}>
 ```
 
-### Query dati
+Non hanno `type="button"`. Dentro un `<form>` (quello di `EditOrder.tsx` riga 752), un bottone senza `type` esplicito e' `type="submit"` per default HTML.
 
-```sql
-SELECT 
-  s.id, s.name,
-  oi.purchase_price, oi.quantity, oi.is_paid, oi.payment_method
-FROM order_items oi
-JOIN orders o ON o.id = oi.order_id
-LEFT JOIN suppliers s ON s.id = oi.supplier_id
-WHERE o.company_id = :companyId
-```
+## Fix
 
-Poi raggruppamento lato client per fornitore.
+Aggiungere `type="button"` a **tutti** i `<Button>` dentro `OrderItemsList.tsx` che non devono inviare il form:
 
----
+| Riga | Bottone | Fix |
+|------|---------|-----|
+| 556 | Modifica (Pencil) | Aggiungere `type="button"` |
+| 559 | Elimina (Trash2) | Aggiungere `type="button"` |
+| 615 | Dialog "Annulla" | Aggiungere `type="button"` |
+| 616 | Dialog "Aggiungi" | Aggiungere `type="button"` |
+| 665 | Dialog stock "Annulla" | Aggiungere `type="button"` |
+| 666-668 | Dialog stock "Preleva" | Aggiungere `type="button"` |
+| 680 | Dialog fallback "Annulla" | Aggiungere `type="button"` |
+| 681 | Dialog fallback "Salva/Aggiungi" | Aggiungere `type="button"` |
 
-## 2. Pulizia e Bug Fix
+## Verifica aggiuntiva
 
-### Codice da verificare e pulire
+- Controllare che i filtri (riga 452-458) abbiano gia `type="button"` -- confermato, li hanno gia
+- Controllare che il bottone "Aggiungi" nel CardHeader (riga 421) abbia `type="button"` -- confermato, lo ha gia
 
-| File | Azione |
-|------|--------|
-| `OrderEconomics.tsx` | Verificare che la sezione "Margine Previsto vs Consuntivo" sia stata rimossa correttamente |
-| `OrderItemsList.tsx` | Verificare che i legacy fields (`unit_price`, `discount_percent`, `standard_cost`) non generino problemi nella UI |
-| `EditOrder.tsx` | Verificare coerenza con CreateOrder per i nuovi campi `is_paid`, `paid_date`, `payment_method` |
-| `useOrderDraft.ts` | Verificare che l'interfaccia `OrderDraftData` includa i nuovi campi item |
+## Impatto
 
-### Validazioni da verificare
+- **Bug risolto**: Modifica e eliminazione articoli non causeranno piu il submit del form
+- **Zero rischi**: Aggiungere `type="button"` e' un fix puramente correttivo, nessun cambio funzionale
 
-- Articolo senza fornitore: il widget deve raggruppare sotto "Senza fornitore"
-- Articolo con `purchase_price = 0`: non deve causare errori di calcolo
-- Fornitore con tutti articoli pagati: mostrare progresso al 100%
-
----
-
-## 3. UX e Stabilita
-
-- Il widget mostra uno stato empty chiaro ("Nessun articolo con fornitore associato") se non ci sono dati
-- Loading state con skeleton durante il caricamento
-- I totali sono formattati con `formatCurrency`
-- Badge pagamento coerenti con quelli usati in OrderItemsList
-
----
-
-## 4. Riepilogo file
+## File coinvolti
 
 | Azione | File |
 |--------|------|
-| Creare | `src/components/dashboard/SupplierPaymentsSummary.tsx` |
-| Modificare | `src/pages/azienda/CompanyDashboard.tsx` (aggiungere widget + query) |
-| Verificare | `OrderEconomics.tsx`, `EditOrder.tsx`, `useOrderDraft.ts` (coerenza campi) |
+| Modificare | `src/components/orders/OrderItemsList.tsx` (aggiungere `type="button"` a 8 bottoni) |
 
