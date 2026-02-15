@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Truck, Plus, Pencil, Trash2, Loader2, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +36,7 @@ interface Supplier {
   website: string | null;
   product_category: string | null;
   notes: string | null;
+  payment_method: string | null;
   created_at: string;
   company_id: string;
 }
@@ -55,6 +57,7 @@ interface SupplierFormData {
   website: string;
   product_category: string;
   notes: string;
+  payment_method: string;
 }
 
 const emptyForm: SupplierFormData = {
@@ -73,6 +76,7 @@ const emptyForm: SupplierFormData = {
   website: "",
   product_category: "",
   notes: "",
+  payment_method: "",
 };
 
 function supplierToForm(s: Supplier): SupplierFormData {
@@ -92,8 +96,14 @@ function supplierToForm(s: Supplier): SupplierFormData {
     website: s.website || "",
     product_category: s.product_category || "",
     notes: s.notes || "",
+    payment_method: s.payment_method || "",
   };
 }
+
+const getPaymentMethodLabel = (value: string | null) => {
+  if (!value) return "—";
+  return PAYMENT_METHODS.find((m) => m.value === value)?.label || value;
+};
 
 function SupplierTable({
   suppliers,
@@ -119,6 +129,7 @@ function SupplierTable({
         <TableRow>
           <TableHead>Nome Fornitore</TableHead>
           <TableHead>Categoria</TableHead>
+          <TableHead>Mod. Pagamento</TableHead>
           <TableHead>Città</TableHead>
           <TableHead>P.IVA</TableHead>
           <TableHead>Aliquota IVA</TableHead>
@@ -130,6 +141,7 @@ function SupplierTable({
           <TableRow key={supplier.id}>
             <TableCell className="font-medium">{supplier.name}</TableCell>
             <TableCell>{supplier.product_category || "—"}</TableCell>
+            <TableCell>{getPaymentMethodLabel(supplier.payment_method)}</TableCell>
             <TableCell>{supplier.city || "—"}</TableCell>
             <TableCell>{supplier.vat_number || "—"}</TableCell>
             <TableCell>{getVatRateLabel(supplier.vat_rate || 22)}</TableCell>
@@ -217,6 +229,7 @@ export function SuppliersConfig() {
         website: data.website || null,
         product_category: data.product_category || null,
         notes: data.notes || null,
+        payment_method: data.payment_method || null,
         company_id: companyId,
       });
       if (error) throw error;
@@ -252,6 +265,7 @@ export function SuppliersConfig() {
           website: data.website || null,
           product_category: data.product_category || null,
           notes: data.notes || null,
+          payment_method: data.payment_method || null,
         })
         .eq("id", id);
       if (error) throw error;
@@ -414,7 +428,22 @@ export function SuppliersConfig() {
                   <Input id="product_category" value={formData.product_category} onChange={(e) => updateField("product_category", e.target.value)} placeholder="Es. Serramenti, Vetri, Accessori" />
                 </div>
               </div>
-              <div className="mt-3 space-y-2">
+              <div className="grid grid-cols-2 gap-4 mt-3">
+                <div className="space-y-2">
+                  <Label>Modalità di Pagamento</Label>
+                  <Select value={formData.payment_method || "none"} onValueChange={(v) => updateField("payment_method", v === "none" ? "" : v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleziona modalità..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nessuna</SelectItem>
+                      {PAYMENT_METHODS.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                 <Label>Tipo Fornitore</Label>
                 <Select value={formData.is_foreign ? "estero" : "italiano"} onValueChange={(v) => updateField("is_foreign", v === "estero")}>
                   <SelectTrigger className="w-[200px]">
@@ -437,7 +466,8 @@ export function SuppliersConfig() {
                 <div className="space-y-2">
                   <Label htmlFor="vat_number">P.IVA</Label>
                   <Input id="vat_number" value={formData.vat_number} onChange={(e) => updateField("vat_number", e.target.value)} placeholder="IT01234567890" />
-                </div>
+              </div>
+              </div>
                 <div className="space-y-2">
                   <Label htmlFor="fiscal_code">Codice Fiscale</Label>
                   <Input id="fiscal_code" value={formData.fiscal_code} onChange={(e) => updateField("fiscal_code", e.target.value)} />

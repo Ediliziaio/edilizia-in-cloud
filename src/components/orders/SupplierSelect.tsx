@@ -23,16 +23,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { VAT_RATES } from "@/lib/vatUtils";
+import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
 
 interface Supplier {
   id: string;
   name: string;
   vat_rate: number;
+  payment_method: string | null;
 }
 
 interface SupplierSelectProps {
   value?: string;
-  onValueChange: (value: string | undefined, supplierVatRate?: number) => void;
+  onValueChange: (value: string | undefined, supplierVatRate?: number, paymentMethod?: string) => void;
   placeholder?: string;
 }
 
@@ -44,6 +46,7 @@ export function SupplierSelect({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newSupplierName, setNewSupplierName] = useState("");
   const [newSupplierVatRate, setNewSupplierVatRate] = useState<number>(22);
+  const [newSupplierPaymentMethod, setNewSupplierPaymentMethod] = useState<string>("");
   const { effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -56,7 +59,7 @@ export function SupplierSelect({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
-        .select("id, name, vat_rate")
+        .select("id, name, vat_rate, payment_method")
         .eq("company_id", companyId!)
         .order("name");
       if (error) throw error;
@@ -67,7 +70,7 @@ export function SupplierSelect({
 
   // Create supplier mutation
   const createSupplierMutation = useMutation({
-    mutationFn: async ({ name, vatRate }: { name: string; vatRate: number }) => {
+    mutationFn: async ({ name, vatRate, paymentMethod }: { name: string; vatRate: number; paymentMethod: string }) => {
       if (!companyId) throw new Error("Company ID non disponibile");
       const { data, error } = await supabase
         .from("suppliers")
@@ -75,6 +78,7 @@ export function SupplierSelect({
           company_id: companyId,
           name: name.trim(),
           vat_rate: vatRate,
+          payment_method: paymentMethod || null,
         })
         .select()
         .single();
@@ -83,10 +87,11 @@ export function SupplierSelect({
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      onValueChange(data.id, data.vat_rate);
+      onValueChange(data.id, data.vat_rate, data.payment_method || undefined);
       setDialogOpen(false);
       setNewSupplierName("");
       setNewSupplierVatRate(22);
+      setNewSupplierPaymentMethod("");
       toast({
         title: "Fornitore creato",
         description: `${data.name} è stato aggiunto ai fornitori.`,
@@ -103,15 +108,15 @@ export function SupplierSelect({
 
   const handleCreateSupplier = () => {
     if (!newSupplierName.trim()) return;
-    createSupplierMutation.mutate({ name: newSupplierName, vatRate: newSupplierVatRate });
+    createSupplierMutation.mutate({ name: newSupplierName, vatRate: newSupplierVatRate, paymentMethod: newSupplierPaymentMethod });
   };
 
   const handleSelectChange = (v: string) => {
     if (v === "none") {
-      onValueChange(undefined, undefined);
+      onValueChange(undefined, undefined, undefined);
     } else {
       const supplier = suppliers.find(s => s.id === v);
-      onValueChange(v, supplier?.vat_rate);
+      onValueChange(v, supplier?.vat_rate, supplier?.payment_method || undefined);
     }
   };
 
@@ -177,6 +182,23 @@ export function SupplierSelect({
                     <SelectItem key={rate.value} value={rate.value.toString()}>
                       {rate.label}
                     </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Modalità di Pagamento</Label>
+              <Select
+                value={newSupplierPaymentMethod || "none"}
+                onValueChange={(v) => setNewSupplierPaymentMethod(v === "none" ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleziona modalità..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nessuna</SelectItem>
+                  {PAYMENT_METHODS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

@@ -294,6 +294,13 @@ export default function EditOrder() {
         is_paid: item.is_paid || false,
         paid_date: item.paid_date || undefined,
         payment_method: item.payment_method || undefined,
+        deposit_amount: (item as any).deposit_amount || 0,
+        deposit_paid: (item as any).deposit_paid || false,
+        deposit_paid_date: (item as any).deposit_paid_date || undefined,
+        balance_amount: (item as any).balance_amount || 0,
+        balance_paid: (item as any).balance_paid || false,
+        balance_paid_date: (item as any).balance_paid_date || undefined,
+        balance_expected_date: (item as any).balance_expected_date || undefined,
       })));
     }
   }, [existingItems, draftRestored]);
@@ -365,6 +372,13 @@ export default function EditOrder() {
         is_paid: item.is_paid || false,
         paid_date: item.paid_date || undefined,
         payment_method: item.payment_method || undefined,
+        deposit_amount: (item as any).deposit_amount || 0,
+        deposit_paid: (item as any).deposit_paid || false,
+        deposit_paid_date: (item as any).deposit_paid_date || undefined,
+        balance_amount: (item as any).balance_amount || 0,
+        balance_paid: (item as any).balance_paid || false,
+        balance_paid_date: (item as any).balance_paid_date || undefined,
+        balance_expected_date: (item as any).balance_expected_date || undefined,
       })));
     }
   }, [clearDraft, order, existingItems]);
@@ -506,6 +520,13 @@ export default function EditOrder() {
             is_paid: item.is_paid || false,
             paid_date: item.paid_date || null,
             payment_method: item.payment_method || null,
+            deposit_amount: item.deposit_amount || 0,
+            deposit_paid: item.deposit_paid || false,
+            deposit_paid_date: item.deposit_paid_date || null,
+            balance_amount: item.balance_amount || 0,
+            balance_paid: item.balance_paid || false,
+            balance_paid_date: item.balance_paid_date || null,
+            balance_expected_date: item.balance_expected_date || null,
           }).eq("id", item.id);
           if (updErr) throw updErr;
         }
@@ -530,6 +551,13 @@ export default function EditOrder() {
           is_paid: item.is_paid || false,
           paid_date: item.paid_date || null,
           payment_method: item.payment_method || null,
+          deposit_amount: item.deposit_amount || 0,
+          deposit_paid: item.deposit_paid || false,
+          deposit_paid_date: item.deposit_paid_date || null,
+          balance_amount: item.balance_amount || 0,
+          balance_paid: item.balance_paid || false,
+          balance_paid_date: item.balance_paid_date || null,
+          balance_expected_date: item.balance_expected_date || null,
         }));
 
         const { error: insErr } = await supabase.from("order_items").insert(newItems);
