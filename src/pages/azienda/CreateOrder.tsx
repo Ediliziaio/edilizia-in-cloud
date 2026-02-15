@@ -309,6 +309,13 @@ export default function CreateOrder() {
           is_paid: item.is_paid || false,
           paid_date: item.paid_date || null,
           payment_method: item.payment_method || null,
+          deposit_amount: item.deposit_amount || 0,
+          deposit_paid: item.deposit_paid || false,
+          deposit_paid_date: item.deposit_paid_date || null,
+          balance_amount: item.balance_amount || 0,
+          balance_paid: item.balance_paid || false,
+          balance_paid_date: item.balance_paid_date || null,
+          balance_expected_date: item.balance_expected_date || null,
         }));
 
         const { data: insertedItems, error: itemsError } = await supabase

@@ -69,6 +69,14 @@ export interface OrderItem {
   is_paid?: boolean;
   paid_date?: string;
   payment_method?: string;
+  // Installment tracking fields
+  deposit_amount?: number;
+  deposit_paid?: boolean;
+  deposit_paid_date?: string;
+  balance_amount?: number;
+  balance_paid?: boolean;
+  balance_paid_date?: string;
+  balance_expected_date?: string;
   // Legacy fields kept for backwards compat
   unit_price?: number;
   discount_percent?: number;
@@ -111,6 +119,7 @@ interface Supplier {
   id: string;
   name: string;
   vat_rate: number;
+  payment_method: string | null;
 }
 
 export function OrderItemsList({
@@ -134,6 +143,14 @@ export function OrderItemsList({
   const [itemIsPaid, setItemIsPaid] = useState(false);
   const [itemPaidDate, setItemPaidDate] = useState<Date | undefined>();
   const [itemPaymentMethod, setItemPaymentMethod] = useState<string>("");
+  // Installment tracking state
+  const [itemDepositAmount, setItemDepositAmount] = useState<number>(0);
+  const [itemDepositPaid, setItemDepositPaid] = useState(false);
+  const [itemDepositPaidDate, setItemDepositPaidDate] = useState<Date | undefined>();
+  const [itemBalanceAmount, setItemBalanceAmount] = useState<number>(0);
+  const [itemBalancePaid, setItemBalancePaid] = useState(false);
+  const [itemBalancePaidDate, setItemBalancePaidDate] = useState<Date | undefined>();
+  const [itemBalanceExpectedDate, setItemBalanceExpectedDate] = useState<Date | undefined>();
   // Stock picking state
   const [selectedStockItem, setSelectedStockItem] = useState<string>("");
   const [stockPickQuantity, setStockPickQuantity] = useState("1");
@@ -149,7 +166,7 @@ export function OrderItemsList({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
-        .select("id, name, vat_rate")
+        .select("id, name, vat_rate, payment_method")
         .eq("company_id", companyId!);
       if (error) throw error;
       return data as Supplier[];
@@ -194,6 +211,13 @@ export function OrderItemsList({
     setItemIsPaid(false);
     setItemPaidDate(undefined);
     setItemPaymentMethod("");
+    setItemDepositAmount(0);
+    setItemDepositPaid(false);
+    setItemDepositPaidDate(undefined);
+    setItemBalanceAmount(0);
+    setItemBalancePaid(false);
+    setItemBalancePaidDate(undefined);
+    setItemBalanceExpectedDate(undefined);
     setEditingIndex(null);
     setSelectedStockItem("");
     setStockPickQuantity("1");
@@ -217,6 +241,13 @@ export function OrderItemsList({
     setItemIsPaid(item.is_paid || false);
     setItemPaidDate(item.paid_date ? new Date(item.paid_date) : undefined);
     setItemPaymentMethod(item.payment_method || "");
+    setItemDepositAmount(item.deposit_amount || 0);
+    setItemDepositPaid(item.deposit_paid || false);
+    setItemDepositPaidDate(item.deposit_paid_date ? new Date(item.deposit_paid_date) : undefined);
+    setItemBalanceAmount(item.balance_amount || 0);
+    setItemBalancePaid(item.balance_paid || false);
+    setItemBalancePaidDate(item.balance_paid_date ? new Date(item.balance_paid_date) : undefined);
+    setItemBalanceExpectedDate(item.balance_expected_date ? new Date(item.balance_expected_date) : undefined);
     setEditingIndex(index);
     setDialogOpen(true);
   };
@@ -226,6 +257,21 @@ export function OrderItemsList({
 
     const quantity = Math.max(1, Math.round(parseInt(itemQuantity) || 1));
     const purchasePrice = Math.max(0, parseFloat(itemPurchasePrice) || 0);
+    const totalCost = purchasePrice * quantity;
+    
+    const isInstallment = itemPaymentMethod === "50_50" || itemPaymentMethod === "30_70";
+    let depositAmt = 0;
+    let balanceAmt = 0;
+    if (isInstallment) {
+      const depositPercent = itemPaymentMethod === "50_50" ? 0.5 : 0.3;
+      depositAmt = Math.round(totalCost * depositPercent * 100) / 100;
+      balanceAmt = Math.round((totalCost - depositAmt) * 100) / 100;
+    }
+
+    // For installment: is_paid = both deposit and balance paid
+    const isPaidGlobal = isInstallment 
+      ? (itemDepositPaid && itemBalancePaid)
+      : itemIsPaid;
     
     const commonFields = {
       name: itemName.trim(),
@@ -235,9 +281,16 @@ export function OrderItemsList({
       purchase_price: purchasePrice,
       vat_rate: itemVatRate,
       status: itemStatus,
-      is_paid: itemIsPaid,
-      paid_date: itemIsPaid && itemPaidDate ? itemPaidDate.toISOString().split("T")[0] : undefined,
+      is_paid: isPaidGlobal,
+      paid_date: !isInstallment && itemIsPaid && itemPaidDate ? itemPaidDate.toISOString().split("T")[0] : undefined,
       payment_method: itemPaymentMethod || undefined,
+      deposit_amount: isInstallment ? depositAmt : 0,
+      deposit_paid: isInstallment ? itemDepositPaid : false,
+      deposit_paid_date: isInstallment && itemDepositPaid && itemDepositPaidDate ? itemDepositPaidDate.toISOString().split("T")[0] : undefined,
+      balance_amount: isInstallment ? balanceAmt : 0,
+      balance_paid: isInstallment ? itemBalancePaid : false,
+      balance_paid_date: isInstallment && itemBalancePaid && itemBalancePaidDate ? itemBalancePaidDate.toISOString().split("T")[0] : undefined,
+      balance_expected_date: isInstallment && itemBalanceExpectedDate ? itemBalanceExpectedDate.toISOString().split("T")[0] : undefined,
       // Legacy fields zeroed out
       unit_price: 0,
       discount_percent: 0,
@@ -275,10 +328,15 @@ export function OrderItemsList({
     }
   };
 
-  const handleSupplierChange = (supplierId: string | undefined, supplierVatRate?: number) => {
+  const handleSupplierChange = (supplierId: string | undefined, supplierVatRate?: number, paymentMethod?: string) => {
     setItemSupplierId(supplierId);
     if (supplierVatRate !== undefined) {
       setItemVatRate(supplierVatRate);
+    }
+    if (paymentMethod) {
+      setItemPaymentMethod(paymentMethod);
+    } else if (!supplierId) {
+      setItemPaymentMethod("");
     }
   };
 
@@ -381,30 +439,114 @@ export function OrderItemsList({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center justify-between">
-          <Label>Pagato</Label>
-          <Switch checked={itemIsPaid} onCheckedChange={setItemIsPaid} />
-        </div>
-        {itemIsPaid && (
-          <div className="space-y-2">
-            <Label>Data Pagamento</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn("w-full justify-start text-left font-normal", !itemPaidDate && "text-muted-foreground")}
-                  type="button"
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {itemPaidDate ? format(itemPaidDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data..."}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={itemPaidDate} onSelect={setItemPaidDate} locale={it} />
-              </PopoverContent>
-            </Popover>
-          </div>
+
+        {/* Conditional: single payment vs installments */}
+        {itemPaymentMethod && itemPaymentMethod !== "50_50" && itemPaymentMethod !== "30_70" && (
+          <>
+            <div className="flex items-center justify-between">
+              <Label>Pagato</Label>
+              <Switch checked={itemIsPaid} onCheckedChange={setItemIsPaid} />
+            </div>
+            {itemIsPaid && (
+              <div className="space-y-2">
+                <Label>Data Pagamento</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn("w-full justify-start text-left font-normal", !itemPaidDate && "text-muted-foreground")}
+                      type="button"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {itemPaidDate ? format(itemPaidDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data..."}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar mode="single" selected={itemPaidDate} onSelect={setItemPaidDate} locale={it} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+          </>
         )}
+
+        {/* Installment tracking: 50/50 or 30/70 */}
+        {(itemPaymentMethod === "50_50" || itemPaymentMethod === "30_70") && (() => {
+          const qty = Math.max(1, parseInt(itemQuantity) || 1);
+          const price = Math.max(0, parseFloat(itemPurchasePrice) || 0);
+          const totalCost = price * qty;
+          const depositPercent = itemPaymentMethod === "50_50" ? 0.5 : 0.3;
+          const depositAmt = Math.round(totalCost * depositPercent * 100) / 100;
+          const balanceAmt = Math.round((totalCost - depositAmt) * 100) / 100;
+          return (
+            <div className="space-y-4 bg-muted/50 rounded-lg p-3">
+              {/* Acconto */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="font-semibold text-sm">Acconto ({itemPaymentMethod === "50_50" ? "50%" : "30%"})</Label>
+                  <span className="text-sm font-medium">{formatCurrency(depositAmt)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Pagato</Label>
+                  <Switch checked={itemDepositPaid} onCheckedChange={setItemDepositPaid} />
+                </div>
+                {itemDepositPaid && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Data Pagamento Acconto</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm h-9", !itemDepositPaidDate && "text-muted-foreground")} type="button">
+                          <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                          {itemDepositPaidDate ? format(itemDepositPaidDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemDepositPaidDate} onSelect={setItemDepositPaidDate} locale={it} /></PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+              </div>
+              {/* Saldo */}
+              <div className="space-y-2 border-t pt-3">
+                <div className="flex items-center justify-between">
+                  <Label className="font-semibold text-sm">Saldo ({itemPaymentMethod === "50_50" ? "50%" : "70%"})</Label>
+                  <span className="text-sm font-medium">{formatCurrency(balanceAmt)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Pagato</Label>
+                  <Switch checked={itemBalancePaid} onCheckedChange={setItemBalancePaid} />
+                </div>
+                {itemBalancePaid && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Data Pagamento Saldo</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm h-9", !itemBalancePaidDate && "text-muted-foreground")} type="button">
+                          <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                          {itemBalancePaidDate ? format(itemBalancePaidDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemBalancePaidDate} onSelect={setItemBalancePaidDate} locale={it} /></PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+                {!itemBalancePaid && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Data Prevista Saldo</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm h-9", !itemBalanceExpectedDate && "text-muted-foreground")} type="button">
+                          <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                          {itemBalanceExpectedDate ? format(itemBalanceExpectedDate, "dd/MM/yyyy", { locale: it }) : "Data prevista..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={itemBalanceExpectedDate} onSelect={setItemBalanceExpectedDate} locale={it} /></PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -497,7 +639,26 @@ export function OrderItemsList({
                         </Badge>
                       )}
                       {/* Payment status badge */}
-                      {item.is_paid ? (
+                      {(item.payment_method === "50_50" || item.payment_method === "30_70") ? (
+                        <>
+                          {item.deposit_paid && item.balance_paid ? (
+                            <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Tutto pagato
+                            </Badge>
+                          ) : item.deposit_paid ? (
+                            <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
+                              <Clock className="h-3 w-3" />
+                              Acconto pagato
+                            </Badge>
+                          ) : (
+                            <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
+                              <Clock className="h-3 w-3" />
+                              Non pagato
+                            </Badge>
+                          )}
+                        </>
+                      ) : item.is_paid ? (
                         <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
                           <CheckCircle className="h-3 w-3" />
                           Pagato
@@ -523,6 +684,17 @@ export function OrderItemsList({
                         <span>Mod.: {getPaymentMethodLabel(item.payment_method)}</span>
                       )}
                     </div>
+                    {/* Installment detail line */}
+                    {(item.payment_method === "50_50" || item.payment_method === "30_70") && (item.deposit_amount || item.balance_amount) && (
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                        <span>
+                          Acconto: {formatCurrency(item.deposit_amount || 0)} {item.deposit_paid ? (item.deposit_paid_date ? `✓ ${item.deposit_paid_date}` : "✓") : "—"}
+                        </span>
+                        <span>
+                          Saldo: {formatCurrency(item.balance_amount || 0)} {item.balance_paid ? (item.balance_paid_date ? `✓ ${item.balance_paid_date}` : "✓") : item.balance_expected_date ? `previsto ${item.balance_expected_date}` : "—"}
+                        </span>
+                      </div>
+                    )}
                     {item.description && (
                       <p className="text-sm text-muted-foreground truncate mt-1">{item.description}</p>
                     )}

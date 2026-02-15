@@ -106,6 +106,27 @@ export function useCashFlowData() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Query supplier unpaid balances (installment tracking)
+  const { data: supplierBalances = [], isLoading: loadingSupplierBalances } = useQuery({
+    queryKey: ["forecast-supplier-balances", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_items")
+        .select(`
+          id, name, balance_amount, balance_expected_date, balance_paid, deposit_amount, deposit_paid, payment_method,
+          supplier:suppliers(name),
+          order:orders!inner(id, order_code, company_id)
+        `)
+        .eq("balance_paid", false)
+        .not("balance_expected_date", "is", null)
+        .in("payment_method", ["50_50", "30_70"]);
+      if (error) throw error;
+      return (data || []).filter((item: any) => item.order?.company_id === companyId);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Query costi aziendali non pagati
   const { data: companyCosts = [], isLoading: loadingCosts } = useQuery({
     queryKey: ["forecast-company-costs", companyId],
@@ -122,7 +143,7 @@ export function useCashFlowData() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts;
+  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances;
 
   // Fornitori unici
   const suppliers = useMemo<Supplier[]>(() => {

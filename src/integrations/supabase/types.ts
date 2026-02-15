@@ -709,7 +709,14 @@ export type Database = {
       }
       order_items: {
         Row: {
+          balance_amount: number | null
+          balance_expected_date: string | null
+          balance_paid: boolean | null
+          balance_paid_date: string | null
           created_at: string | null
+          deposit_amount: number | null
+          deposit_paid: boolean | null
+          deposit_paid_date: string | null
           description: string | null
           discount_percent: number | null
           id: string
@@ -730,7 +737,14 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          balance_amount?: number | null
+          balance_expected_date?: string | null
+          balance_paid?: boolean | null
+          balance_paid_date?: string | null
           created_at?: string | null
+          deposit_amount?: number | null
+          deposit_paid?: boolean | null
+          deposit_paid_date?: string | null
           description?: string | null
           discount_percent?: number | null
           id?: string
@@ -751,7 +765,14 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          balance_amount?: number | null
+          balance_expected_date?: string | null
+          balance_paid?: boolean | null
+          balance_paid_date?: string | null
           created_at?: string | null
+          deposit_amount?: number | null
+          deposit_paid?: boolean | null
+          deposit_paid_date?: string | null
           description?: string | null
           discount_percent?: number | null
           id?: string
@@ -1488,6 +1509,7 @@ export type Database = {
           is_foreign: boolean
           name: string
           notes: string | null
+          payment_method: string | null
           phone: string | null
           postal_code: string | null
           product_category: string | null
@@ -1508,6 +1530,7 @@ export type Database = {
           is_foreign?: boolean
           name: string
           notes?: string | null
+          payment_method?: string | null
           phone?: string | null
           postal_code?: string | null
           product_category?: string | null
@@ -1528,6 +1551,7 @@ export type Database = {
           is_foreign?: boolean
           name?: string
           notes?: string | null
+          payment_method?: string | null
           phone?: string | null
           postal_code?: string | null
           product_category?: string | null
