@@ -61,6 +61,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/formatters";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 import { toast } from "@/hooks/use-toast";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
@@ -395,6 +405,32 @@ export default function CompanyCostsManager() {
     });
     return Array.from(map.entries());
   }, [supplierPaymentsData]);
+
+  // Monthly distribution for mini-chart
+  const monthlyDistribution = useMemo(() => {
+    const now = new Date();
+    const months = [];
+    for (let i = 0; i < 6; i++) {
+      const ms = startOfMonth(addMonths(now, i));
+      const me = endOfMonth(addMonths(now, i));
+      let fixed = 0, variable = 0;
+      costs.forEach((c: any) => {
+        if (c.is_paid) return;
+        if (!c.due_date) return;
+        const d = new Date(c.due_date);
+        if (d >= ms && d <= me) {
+          if (c.cost_type === "fixed") fixed += Number(c.amount);
+          else variable += Number(c.amount);
+        }
+      });
+      months.push({
+        month: format(ms, "MMM yy", { locale: it }),
+        Fissi: fixed,
+        Variabili: variable,
+      });
+    }
+    return months;
+  }, [costs]);
 
   // Cost name counts for group delete
   const costNameCounts = useMemo(() => {
@@ -1264,6 +1300,33 @@ export default function CompanyCostsManager() {
               <p className="text-[10px] text-muted-foreground">Costi con fornitore</p>
             </div>
           </div>
+
+          {/* Monthly Distribution Mini-Chart */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Distribuzione Mensile Costi Futuri</CardTitle>
+              <CardDescription>Costi non pagati per i prossimi 6 mesi</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyDistribution}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                    <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+                    <RechartsTooltip
+                      formatter={(value: number) => formatCurrency(value)}
+                      contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px" }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
+                    />
+                    <Legend />
+                    <Bar dataKey="Fissi" stackId="costs" fill="hsl(0 84.2% 60.2%)" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Variabili" stackId="costs" fill="hsl(45 93% 47%)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
