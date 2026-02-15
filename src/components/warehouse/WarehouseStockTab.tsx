@@ -7,7 +7,7 @@ import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, Hi
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -78,6 +78,27 @@ export default function WarehouseStockTab() {
     return suppliers.find((s) => s.id === id)?.name || "—";
   };
 
+  // Helper to insert a company_cost record
+  const insertCostRecord = async (itemName: string, unitCost: number, qty: number, vatRate: number, supplierId?: string, costPaidDate?: string, costCategory?: string) => {
+    if (!companyId) return;
+    const totalAmount = unitCost * qty;
+    if (totalAmount <= 0) return;
+    const { error } = await supabase.from("company_costs").insert({
+      company_id: companyId,
+      name: `${itemName} (acquisto magazzino)`,
+      cost_type: "variable",
+      amount: totalAmount,
+      vat_rate: vatRate,
+      supplier_id: supplierId || null,
+      due_date: costPaidDate || new Date().toISOString().slice(0, 10),
+      is_paid: true,
+      paid_date: costPaidDate || new Date().toISOString().slice(0, 10),
+      category: costCategory || "Magazzino",
+      recurrence: "once",
+    });
+    if (error) console.error("Error inserting cost:", error);
+  };
+
   // Create/update stock item
   const saveMutation = useMutation({
     mutationFn: async (data: {
@@ -89,6 +110,9 @@ export default function WarehouseStockTab() {
       vat_rate: number;
       supplier_id?: string;
       min_stock_level: number;
+      registerCost?: boolean;
+      costPaidDate?: string;
+      costCategory?: string;
     }) => {
       if (data.id) {
         const { error } = await supabase
@@ -116,10 +140,16 @@ export default function WarehouseStockTab() {
           min_stock_level: data.min_stock_level,
         });
         if (error) throw error;
+
+        // Register cost if requested (only for new items)
+        if (data.registerCost) {
+          await insertCostRecord(data.name, data.unit_cost, data.quantity, data.vat_rate, data.supplier_id, data.costPaidDate, data.costCategory);
+        }
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
       setDialogOpen(false);
       setEditingItem(null);
       toast({ title: "Salvato", description: "Articolo di magazzino salvato." });
@@ -136,11 +166,17 @@ export default function WarehouseStockTab() {
       type,
       quantity,
       notes,
+      registerCost,
+      costPaidDate,
+      costCategory,
     }: {
       stockItemId: string;
       type: "carico" | "scarico";
       quantity: number;
       notes?: string;
+      registerCost?: boolean;
+      costPaidDate?: string;
+      costCategory?: string;
     }) => {
       // Insert movement
       const { error: movError } = await supabase.from("warehouse_movements").insert({
@@ -162,9 +198,15 @@ export default function WarehouseStockTab() {
         .update({ quantity: Math.max(0, newQty) })
         .eq("id", stockItemId);
       if (updError) throw updError;
+
+      // Register cost if requested (only for carico)
+      if (registerCost && type === "carico") {
+        await insertCostRecord(currentItem.name, currentItem.unit_cost, quantity, currentItem.vat_rate ?? 22, currentItem.supplier_id || undefined, costPaidDate, costCategory);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["company-costs"] });
       setMovementDialog({ open: false, type: "carico", item: null });
       toast({ title: "Movimento registrato" });
     },

@@ -17,9 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SupplierSelect } from "@/components/orders/SupplierSelect";
 import { VAT_RATES } from "@/lib/vatUtils";
 import type { StockItem } from "@/types/warehouse";
+import { format } from "date-fns";
+
+const COST_CATEGORIES = ["Materiali", "Magazzino", "Attrezzature", "Consumabili", "Altro"];
 
 interface StockItemDialogProps {
   open: boolean;
@@ -32,6 +36,9 @@ interface StockItemDialogProps {
     vat_rate: number;
     supplier_id?: string;
     min_stock_level: number;
+    registerCost?: boolean;
+    costPaidDate?: string;
+    costCategory?: string;
   }) => void;
   editingItem?: StockItem | null;
   isPending?: boolean;
@@ -51,6 +58,9 @@ export function StockItemDialog({
   const [vatRate, setVatRate] = useState<number>(22);
   const [supplierId, setSupplierId] = useState<string | undefined>();
   const [minStockLevel, setMinStockLevel] = useState("0");
+  const [registerCost, setRegisterCost] = useState(false);
+  const [costPaidDate, setCostPaidDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [costCategory, setCostCategory] = useState("Magazzino");
 
   useEffect(() => {
     if (editingItem) {
@@ -61,6 +71,7 @@ export function StockItemDialog({
       setVatRate(editingItem.vat_rate ?? 22);
       setSupplierId(editingItem.supplier_id || undefined);
       setMinStockLevel(editingItem.min_stock_level.toString());
+      setRegisterCost(false);
     } else {
       setName("");
       setDescription("");
@@ -69,6 +80,9 @@ export function StockItemDialog({
       setVatRate(22);
       setSupplierId(undefined);
       setMinStockLevel("0");
+      setRegisterCost(false);
+      setCostPaidDate(format(new Date(), "yyyy-MM-dd"));
+      setCostCategory("Magazzino");
     }
   }, [editingItem, open]);
 
@@ -82,8 +96,13 @@ export function StockItemDialog({
       vat_rate: vatRate,
       supplier_id: supplierId,
       min_stock_level: parseInt(minStockLevel) || 0,
+      ...(registerCost && !editingItem
+        ? { registerCost: true, costPaidDate, costCategory }
+        : {}),
     });
   };
+
+  const isCreating = !editingItem;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -184,6 +203,47 @@ export function StockItemDialog({
               }}
             />
           </div>
+
+          {/* Cost registration toggle - only for new items */}
+          {isCreating && (
+            <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="register-cost"
+                  checked={registerCost}
+                  onCheckedChange={(checked) => setRegisterCost(checked === true)}
+                />
+                <Label htmlFor="register-cost" className="text-sm font-medium cursor-pointer">
+                  Registra costo acquisto nei Costi Aziendali
+                </Label>
+              </div>
+              {registerCost && (
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Data pagamento</Label>
+                    <Input
+                      type="date"
+                      value={costPaidDate}
+                      onChange={(e) => setCostPaidDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Categoria</Label>
+                    <Select value={costCategory} onValueChange={setCostCategory}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COST_CATEGORIES.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
