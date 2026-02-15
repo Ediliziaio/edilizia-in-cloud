@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { format, isBefore, isAfter } from "date-fns";
 import { it } from "date-fns/locale";
-import { Calendar, Building2, Receipt } from "lucide-react";
+import { Calendar, Building2, Receipt, Truck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,12 +16,13 @@ import {
 } from "@/components/ui/table";
 import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 import { formatCurrency } from "@/lib/formatters";
-import type { ExpectedPayment, ExpectedExpense, CompanyCostEntry, DateRange } from "@/lib/forecastTypes";
+import type { ExpectedPayment, ExpectedExpense, ExpectedSupplierPayment, CompanyCostEntry, DateRange } from "@/lib/forecastTypes";
 
 interface ForecastTransactionsTableProps {
   expectedPayments: ExpectedPayment[];
   expectedExpenses: ExpectedExpense[];
   expectedCompanyCosts: CompanyCostEntry[];
+  expectedSupplierPayments?: ExpectedSupplierPayment[];
   activeTab: "all" | "income" | "expenses";
   onActiveTabChange: (value: "all" | "income" | "expenses") => void;
   dateRange: DateRange;
@@ -32,6 +33,7 @@ export function ForecastTransactionsTable({
   expectedPayments,
   expectedExpenses,
   expectedCompanyCosts,
+  expectedSupplierPayments = [],
   activeTab,
   onActiveTabChange,
   dateRange,
@@ -52,6 +54,16 @@ export function ForecastTransactionsTable({
         customerName: c.name,
         costCategory: c.category,
       })),
+      ...expectedSupplierPayments.filter(p => !p.isPaid).map((s) => ({
+        orderId: s.orderId,
+        orderCode: s.orderCode,
+        expectedDate: s.expectedDate,
+        amount: s.amount,
+        direction: "out" as const,
+        type: s.type,
+        teamName: s.supplierName,
+        customerName: s.supplierName,
+      })),
     ];
     return combined.sort((a, b) => {
       if (!a.expectedDate && !b.expectedDate) return 0;
@@ -59,7 +71,7 @@ export function ForecastTransactionsTable({
       if (!b.expectedDate) return -1;
       return a.expectedDate.getTime() - b.expectedDate.getTime();
     });
-  }, [expectedPayments, expectedExpenses, expectedCompanyCosts]);
+  }, [expectedPayments, expectedExpenses, expectedCompanyCosts, expectedSupplierPayments]);
 
   const filteredTransactions = useMemo(() => {
     let filtered = allTransactions;
@@ -132,6 +144,11 @@ export function ForecastTransactionsTable({
           <Badge variant="outline" className="border-amber-400 text-amber-600 gap-1">
             <Receipt className="h-3 w-3" />
             Costo Variabile
+          </Badge>
+        ) : transaction.type?.includes("Fornitore") ? (
+          <Badge variant="outline" className="border-indigo-400 text-indigo-600 gap-1">
+            <Truck className="h-3 w-3" />
+            {transaction.type}
           </Badge>
         ) : (
           <Badge variant="outline" className="border-destructive text-destructive gap-1">

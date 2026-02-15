@@ -51,6 +51,7 @@ export function ForecastChart({ chartData }: ForecastChartProps) {
               <Bar dataKey="Entrate" fill="hsl(142.1 76.2% 36.3%)" radius={[4, 4, 0, 0]} />
               <Bar dataKey="Squadre Esterne" stackId="expenses" fill="hsl(0 84.2% 60.2%)" />
               <Bar dataKey="Provvigioni" stackId="expenses" fill="hsl(262 83.3% 57.8%)" />
+              <Bar dataKey="Fornitori" stackId="expenses" fill="hsl(230 80% 55%)" />
               <Bar dataKey="Costi Fissi" stackId="expenses" fill="hsl(20 90% 55%)" />
               <Bar dataKey="Costi Variabili" stackId="expenses" fill="hsl(40 90% 55%)" radius={[4, 4, 0, 0]} />
               <Line

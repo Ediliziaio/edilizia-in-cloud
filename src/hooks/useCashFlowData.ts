@@ -16,6 +16,7 @@ import type {
   ExpectedPayment,
   ExpectedExpense,
   ExpectedCommission,
+  ExpectedSupplierPayment,
   CompanyCostEntry,
   ExternalTeamPayment,
   MaterialCosts,
@@ -106,20 +107,21 @@ export function useCashFlowData() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Query supplier unpaid balances (installment tracking)
+  // Query supplier payment tracking (installments from order_items)
   const { data: supplierBalances = [], isLoading: loadingSupplierBalances } = useQuery({
     queryKey: ["forecast-supplier-balances", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
         .select(`
-          id, name, balance_amount, balance_expected_date, balance_paid, deposit_amount, deposit_paid, payment_method,
+          id, name, purchase_price, quantity,
+          balance_amount, balance_expected_date, balance_paid, balance_paid_date,
+          deposit_amount, deposit_paid, deposit_paid_date,
+          is_paid, paid_date, payment_method,
           supplier:suppliers(name),
           order:orders!inner(id, order_code, company_id)
         `)
-        .eq("balance_paid", false)
-        .not("balance_expected_date", "is", null)
-        .in("payment_method", ["50_50", "30_70"]);
+        .not("supplier_id", "is", null);
       if (error) throw error;
       return (data || []).filter((item: any) => item.order?.company_id === companyId);
     },
@@ -267,6 +269,70 @@ export function useCashFlowData() {
     }));
   }, [companyCosts]);
 
+  // Pagamenti fornitori attesi (da order_items con supplier)
+  const expectedSupplierPayments = useMemo<ExpectedSupplierPayment[]>(() => {
+    const payments: ExpectedSupplierPayment[] = [];
+    supplierBalances.forEach((item: any) => {
+      const supplierName = item.supplier?.name || "Fornitore sconosciuto";
+      const totalCost = (Number(item.purchase_price) || 0) * (Number(item.quantity) || 1);
+      const paymentMethod = item.payment_method;
+
+      if (paymentMethod === "50_50" || paymentMethod === "30_70") {
+        const depositPct = paymentMethod === "50_50" ? 0.5 : 0.3;
+        const depositAmt = Number(item.deposit_amount) || totalCost * depositPct;
+        const balanceAmt = Number(item.balance_amount) || totalCost - depositAmt;
+
+        if (!item.deposit_paid) {
+          payments.push({
+            orderItemId: item.id,
+            orderId: item.order.id,
+            orderCode: item.order.order_code,
+            supplierName,
+            type: "Acconto Fornitore",
+            amount: depositAmt,
+            expectedDate: item.deposit_paid_date ? new Date(item.deposit_paid_date) : null,
+            isPaid: false,
+            direction: "out",
+          });
+        }
+        if (item.deposit_paid && !item.balance_paid) {
+          payments.push({
+            orderItemId: item.id,
+            orderId: item.order.id,
+            orderCode: item.order.order_code,
+            supplierName,
+            type: "Saldo Fornitore",
+            amount: balanceAmt,
+            expectedDate: item.balance_expected_date ? new Date(item.balance_expected_date) : null,
+            isPaid: false,
+            direction: "out",
+          });
+        }
+      } else {
+        // Single payment methods (bonifico, riba, etc.)
+        if (!item.is_paid && totalCost > 0) {
+          payments.push({
+            orderItemId: item.id,
+            orderId: item.order.id,
+            orderCode: item.order.order_code,
+            supplierName,
+            type: "Pagamento Fornitore",
+            amount: totalCost,
+            expectedDate: item.balance_expected_date ? new Date(item.balance_expected_date) : null,
+            isPaid: false,
+            direction: "out",
+          });
+        }
+      }
+    });
+    return payments.sort((a, b) => {
+      if (!a.expectedDate && !b.expectedDate) return 0;
+      if (!a.expectedDate) return 1;
+      if (!b.expectedDate) return -1;
+      return a.expectedDate.getTime() - b.expectedDate.getTime();
+    });
+  }, [supplierBalances]);
+
   // Project recurring costs into a future month
   const projectCostsForMonth = (monthDate: Date) => {
     let total = 0;
@@ -321,10 +387,17 @@ export function useCashFlowData() {
       projectCostsForMonth(now) + projectCostsForMonth(addMonths(now, 1)) + projectCostsForMonth(addMonths(now, 2));
     const totalCosts = sumAmount(expectedCompanyCosts);
 
-    const totalAllExpenses = totalExpenses + totalCommissions + totalCosts;
-    const thisMonthAllExpenses = thisMonthExpenses + thisMonthCommissions + thisMonthCosts;
-    const nextMonthAllExpenses = nextMonthExpenses + nextMonthCommissions + nextMonthCosts;
-    const next3MonthsAllExpenses = next3MonthsExpenses + next3MonthsCommissions + next3MonthsCosts;
+    // Supplier payments
+    const unpaidSupplierPayments = expectedSupplierPayments.filter(p => !p.isPaid);
+    const totalSupplierPayments = sumAmount(unpaidSupplierPayments);
+    const thisMonthSupplier = sumAmount(filterByInterval(unpaidSupplierPayments, thisMonth));
+    const nextMonthSupplier = sumAmount(filterByInterval(unpaidSupplierPayments, nextMonth));
+    const next3MonthsSupplier = sumAmount(filterByInterval(unpaidSupplierPayments, next3Months));
+
+    const totalAllExpenses = totalExpenses + totalCommissions + totalCosts + totalSupplierPayments;
+    const thisMonthAllExpenses = thisMonthExpenses + thisMonthCommissions + thisMonthCosts + thisMonthSupplier;
+    const nextMonthAllExpenses = nextMonthExpenses + nextMonthCommissions + nextMonthCosts + nextMonthSupplier;
+    const next3MonthsAllExpenses = next3MonthsExpenses + next3MonthsCommissions + next3MonthsCosts + next3MonthsSupplier;
 
     return {
       thisMonth: {
@@ -335,7 +408,8 @@ export function useCashFlowData() {
         expensesCount:
           filterByInterval(expectedExpenses, thisMonth).length +
           filterByInterval(expectedCommissions, thisMonth).length +
-          filterByInterval(expectedCompanyCosts, thisMonth).length,
+          filterByInterval(expectedCompanyCosts, thisMonth).length +
+          filterByInterval(unpaidSupplierPayments, thisMonth).length,
       },
       nextMonth: {
         income: nextMonthIncome,
@@ -352,12 +426,13 @@ export function useCashFlowData() {
         expenses: totalAllExpenses,
         net: totalIncome - totalAllExpenses,
         incomeCount: expectedPayments.length,
-        expensesCount: expectedExpenses.length + expectedCommissions.length + expectedCompanyCosts.length,
+        expensesCount: expectedExpenses.length + expectedCommissions.length + expectedCompanyCosts.length + unpaidSupplierPayments.length,
         commissionsTotal: totalCommissions,
         costsTotal: totalCosts,
+        supplierPaymentsTotal: totalSupplierPayments,
       },
     };
-  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedCompanyCosts, companyCosts]);
+  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedCompanyCosts, expectedSupplierPayments, companyCosts]);
 
   // CFO KPIs
   const cfoKpis = useMemo<CfoKpis>(() => {
@@ -416,7 +491,11 @@ export function useCashFlowData() {
         })
         .reduce((s: number, c: any) => s + Number(c.amount), 0);
 
-      const totalOut = monthTeams + monthCommissions + monthFixedCosts + monthVariableCosts;
+      const monthSupplier = expectedSupplierPayments
+        .filter((p) => !p.isPaid && p.expectedDate && isSameMonth(p.expectedDate, monthDate))
+        .reduce((sum, p) => sum + p.amount, 0);
+
+      const totalOut = monthTeams + monthCommissions + monthFixedCosts + monthVariableCosts + monthSupplier;
       cumulative += monthIncome - totalOut;
 
       months.push({
@@ -426,11 +505,12 @@ export function useCashFlowData() {
         Provvigioni: monthCommissions,
         "Costi Fissi": monthFixedCosts,
         "Costi Variabili": monthVariableCosts,
+        Fornitori: monthSupplier,
         Cumulativo: cumulative,
       });
     }
     return months;
-  }, [expectedPayments, expectedExpenses, expectedCommissions, companyCosts]);
+  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, companyCosts]);
 
   // Costs summary
   const costsSummary = useMemo<CostsSummary>(() => {
@@ -475,6 +555,7 @@ export function useCashFlowData() {
     expectedPayments,
     expectedExpenses,
     expectedCommissions,
+    expectedSupplierPayments,
     expectedCompanyCosts,
     stats,
     cfoKpis,
