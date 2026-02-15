@@ -279,6 +279,20 @@ export default function CompanyCostsManager() {
     enabled: !!companyId,
   });
 
+  // Query commissions from orders
+  const { data: commissionCosts = [] } = useQuery({
+    queryKey: ["order-commission-costs", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_salespeople")
+        .select("id, commission_amount, is_paid, paid_date, payment_expected_date, salesperson:salespeople!inner(first_name, last_name, company_id), order:orders!inner(id, order_code, company_id)")
+        .eq("salesperson.company_id", companyId!);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    enabled: !!companyId,
+  });
+
   // Transform order items into unified cost format (split installments)
   const orderItemsAsVariableCosts: UnifiedCost[] = useMemo(() => {
     const rows: UnifiedCost[] = [];
@@ -391,12 +405,33 @@ export default function CompanyCostsManager() {
     }));
   }, [employeeCosts]);
 
+  // Transform commissions into unified cost format
+  const commissionAsVariableCosts: UnifiedCost[] = useMemo(() => {
+    return commissionCosts.map((item: any) => ({
+      id: `commission-${item.id}`,
+      name: `${item.salesperson?.first_name || ""} ${item.salesperson?.last_name || ""}`.trim() || "Venditore",
+      cost_type: "variable",
+      amount: Number(item.commission_amount) || 0,
+      category: "Provvigioni",
+      recurrence: "once",
+      due_date: item.payment_expected_date || new Date().toISOString().split("T")[0],
+      is_paid: !!item.is_paid,
+      paid_date: item.paid_date || null,
+      notes: null,
+      order_id: item.order?.id || null,
+      order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
+      isFromOrder: true,
+      supplierName: null,
+    }));
+  }, [commissionCosts]);
+
   // All order-derived costs combined
   const allOrderDerivedCosts = useMemo(() => [
     ...orderItemsAsVariableCosts,
     ...externalTeamAsVariableCosts,
     ...employeeAsVariableCosts,
-  ], [orderItemsAsVariableCosts, externalTeamAsVariableCosts, employeeAsVariableCosts]);
+    ...commissionAsVariableCosts,
+  ], [orderItemsAsVariableCosts, externalTeamAsVariableCosts, employeeAsVariableCosts, commissionAsVariableCosts]);
 
   // Filtering logic
   const filteredCosts = useMemo(() => {

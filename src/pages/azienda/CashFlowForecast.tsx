@@ -7,17 +7,13 @@ import { formatCurrency } from "@/lib/formatters";
 import type { DateRange } from "@/lib/forecastTypes";
 import { useCashFlowData } from "@/hooks/useCashFlowData";
 import { ForecastStatCards } from "@/components/forecast/ForecastStatCards";
-import { ForecastMaterialCosts } from "@/components/forecast/ForecastMaterialCosts";
-import { ForecastCommissions } from "@/components/forecast/ForecastCommissions";
-import { ForecastCompanyCosts } from "@/components/forecast/ForecastCompanyCosts";
+import { ForecastExpensesSummary } from "@/components/forecast/ForecastExpensesSummary";
 import { ForecastChart } from "@/components/forecast/ForecastChart";
 import { ForecastTransactionsTable } from "@/components/forecast/ForecastTransactionsTable";
-import { ForecastSupplierPayments } from "@/components/forecast/ForecastSupplierPayments";
 
 export default function CashFlowForecast() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [activeTab, setActiveTab] = useState<"all" | "income" | "expenses">("all");
-  const [supplierFilter, setSupplierFilter] = useState<string>("all");
 
   const {
     isLoading,
@@ -30,21 +26,28 @@ export default function CashFlowForecast() {
     cfoKpis,
     chartData,
     costsSummary,
-    suppliers,
     pendingItems,
     getMaterialCosts,
   } = useCashFlowData();
 
-  const materialCosts = useMemo(
-    () => getMaterialCosts(supplierFilter),
-    [getMaterialCosts, supplierFilter]
-  );
+  const materialCosts = useMemo(() => getMaterialCosts("all"), [getMaterialCosts]);
+  const pendingMaterialsCount = materialCosts.toOrder.count + materialCosts.ordered.count;
+  const pendingMaterialsTotal = materialCosts.toOrder.total + materialCosts.ordered.total;
 
   // Export CSV
   const exportCSV = () => {
     const allTransactions = [
       ...expectedPayments.map((p) => ({ ...p, direction: "in" as const })),
       ...expectedExpenses.map((e) => ({ ...e, type: "Squadra Esterna" as const, direction: "out" as const })),
+      ...expectedCommissions.map((c) => ({
+        expectedDate: c.expectedDate,
+        amount: c.amount,
+        direction: "out" as const,
+        type: "Provvigione",
+        customerName: c.salespersonName,
+        teamName: c.salespersonName,
+        orderCode: c.orderCode,
+      })),
       ...expectedCompanyCosts.map((c) => ({
         expectedDate: c.expectedDate,
         amount: c.amount,
@@ -99,8 +102,8 @@ export default function CashFlowForecast() {
         <div className="flex items-center gap-3">
           <div className="h-8 w-48 bg-muted animate-pulse rounded" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
             <Card key={i}>
               <CardContent className="p-6">
                 <div className="h-16 bg-muted animate-pulse rounded" />
@@ -134,26 +137,15 @@ export default function CashFlowForecast() {
         </div>
       </div>
 
-      <ForecastStatCards stats={stats} cfoKpis={cfoKpis} />
+      <ForecastStatCards stats={stats} />
 
-      <ForecastMaterialCosts
-        materialCosts={materialCosts}
-        supplierFilter={supplierFilter}
-        onSupplierFilterChange={setSupplierFilter}
-        suppliers={suppliers}
-        hasPendingItems={pendingItems.length > 0}
-      />
-
-      <ForecastCommissions
-        expectedCommissions={expectedCommissions}
-        commissionsTotal={stats.total.commissionsTotal}
-      />
-
-      <ForecastCompanyCosts costsSummary={costsSummary} />
-
-      <ForecastSupplierPayments
-        expectedSupplierPayments={expectedSupplierPayments}
-        supplierPaymentsTotal={stats.total.supplierPaymentsTotal}
+      <ForecastExpensesSummary
+        stats={stats}
+        cfoKpis={cfoKpis}
+        costsSummary={costsSummary}
+        hasPendingMaterials={pendingMaterialsCount > 0}
+        pendingMaterialsCount={pendingMaterialsCount}
+        pendingMaterialsTotal={pendingMaterialsTotal}
       />
 
       <ForecastChart chartData={chartData} />
@@ -163,6 +155,7 @@ export default function CashFlowForecast() {
         expectedExpenses={expectedExpenses}
         expectedCompanyCosts={expectedCompanyCosts}
         expectedSupplierPayments={expectedSupplierPayments}
+        expectedCommissions={expectedCommissions}
         activeTab={activeTab}
         onActiveTabChange={setActiveTab}
         dateRange={dateRange}
