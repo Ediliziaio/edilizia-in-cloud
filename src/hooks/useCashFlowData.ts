@@ -151,7 +151,123 @@ export function useCashFlowData() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances;
+  // === TREASURY: paid data queries ===
+
+  // Paid company costs
+  const { data: paidCompanyCosts = [], isLoading: loadingPaidCosts } = useQuery({
+    queryKey: ["treasury-paid-costs", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("company_costs")
+        .select("*")
+        .eq("company_id", companyId!)
+        .eq("is_paid", true)
+        .order("paid_date", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Paid external teams
+  const { data: paidExternalTeams = [], isLoading: loadingPaidTeams } = useQuery({
+    queryKey: ["treasury-paid-teams", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_external_teams")
+        .select(`
+          id, total_cost, paid_date, is_paid, vat_rate,
+          order:orders!inner(id, order_code, company_id),
+          external_team:external_teams(name)
+        `)
+        .eq("is_paid", true);
+      if (error) throw error;
+      return (data || []).filter((item: any) => item.order?.company_id === companyId);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Paid commissions
+  const { data: paidCommissions = [], isLoading: loadingPaidCommissions } = useQuery({
+    queryKey: ["treasury-paid-commissions", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_salespeople")
+        .select(`
+          id, commission_amount, paid_date, is_paid,
+          salesperson:salespeople!inner(first_name, last_name, company_id),
+          order:orders!inner(id, order_code, company_id)
+        `)
+        .eq("is_paid", true);
+      if (error) throw error;
+      return (data || []).filter((item: any) => item.order?.company_id === companyId);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Paid supplier items (order_items with supplier)
+  const { data: paidSupplierItems = [], isLoading: loadingPaidSuppliers } = useQuery({
+    queryKey: ["treasury-paid-suppliers", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_items")
+        .select(`
+          id, name, purchase_price, quantity,
+          is_paid, paid_date,
+          deposit_amount, deposit_paid, deposit_paid_date,
+          balance_amount, balance_paid, balance_paid_date,
+          payment_method,
+          supplier:suppliers(name, is_foreign),
+          order:orders!inner(id, order_code, company_id)
+        `)
+        .not("supplier_id", "is", null)
+        .is("stock_item_id", null);
+      if (error) throw error;
+      // Filter only items with at least one payment made
+      return (data || [])
+        .filter((item: any) => item.order?.company_id === companyId)
+        .filter((item: any) => item.is_paid || item.deposit_paid || item.balance_paid);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Active employees for salary calculation
+  const { data: activeEmployees = [], isLoading: loadingEmployees } = useQuery({
+    queryKey: ["treasury-employees", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id, first_name, last_name, gross_salary, net_salary, role_type, is_active")
+        .eq("company_id", companyId!)
+        .eq("is_active", true);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Treasury categories
+  const { data: treasuryCategories = [], isLoading: loadingTreasuryCategories } = useQuery({
+    queryKey: ["treasury-categories", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("treasury_categories")
+        .select("*")
+        .eq("company_id", companyId!)
+        .order("position", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories;
 
   // Fornitori unici
   const suppliers = useMemo<Supplier[]>(() => {
@@ -584,5 +700,13 @@ export function useCashFlowData() {
     suppliers,
     pendingItems,
     getMaterialCosts,
+    // Treasury data
+    paidCompanyCosts,
+    paidExternalTeams,
+    paidCommissions,
+    paidSupplierItems,
+    activeEmployees,
+    treasuryCategories,
+    companyId,
   };
 }

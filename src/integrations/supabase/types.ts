@@ -276,6 +276,7 @@ export type Database = {
           paid_date: string | null
           recurrence: string
           supplier_id: string | null
+          treasury_category_id: string | null
           updated_at: string
           vat_rate: number | null
         }
@@ -294,6 +295,7 @@ export type Database = {
           paid_date?: string | null
           recurrence?: string
           supplier_id?: string | null
+          treasury_category_id?: string | null
           updated_at?: string
           vat_rate?: number | null
         }
@@ -312,6 +314,7 @@ export type Database = {
           paid_date?: string | null
           recurrence?: string
           supplier_id?: string | null
+          treasury_category_id?: string | null
           updated_at?: string
           vat_rate?: number | null
         }
@@ -335,6 +338,13 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_treasury_category_id_fkey"
+            columns: ["treasury_category_id"]
+            isOneToOne: false
+            referencedRelation: "treasury_categories"
             referencedColumns: ["id"]
           },
         ]
@@ -1931,6 +1941,54 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      treasury_categories: {
+        Row: {
+          area: string
+          company_id: string
+          created_at: string | null
+          id: string
+          is_income: boolean | null
+          name: string
+          parent_id: string | null
+          position: number | null
+        }
+        Insert: {
+          area: string
+          company_id: string
+          created_at?: string | null
+          id?: string
+          is_income?: boolean | null
+          name: string
+          parent_id?: string | null
+          position?: number | null
+        }
+        Update: {
+          area?: string
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          is_income?: boolean | null
+          name?: string
+          parent_id?: string | null
+          position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "treasury_categories_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "treasury_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "treasury_categories"
             referencedColumns: ["id"]
           },
         ]
