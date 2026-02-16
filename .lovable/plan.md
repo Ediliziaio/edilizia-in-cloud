@@ -1,143 +1,128 @@
 
 
-# Stabilizzazione, Pulizia e QA Completa
+# Homepage "Edilizia in Cloud" - Landing Page
 
-## Risultati dell'Analisi
-
-Dopo un'analisi approfondita dell'intero codebase (hooks, componenti, pagine, contesti, edge functions), il progetto risulta **ben strutturato e funzionalmente solido**. Le correzioni necessarie sono minori.
+Creazione di una landing page di vendita professionale con design dark, animazioni fluide e sezioni derivate dal PDF della sales letter, ispirata allo stile visivo di theoryholding.com.
 
 ---
 
-## 1. Codice Morto da Rimuovere
+## Design e Stile
 
-### File: `src/components/forecast/TreasuryTab.tsx`
-
-**A. Variabile `lastActualTreasury` mai utilizzata (riga 442)**
-La variabile viene dichiarata nel `forecastData` useMemo ma non viene mai letta. Il forecast cumulative parte da `forecastCum = 0` e non la usa.
-
-```
-// RIMUOVERE questa riga:
-const lastActualTreasury = monthKeys.length > 0 ? treeData.netMonthly[monthKeys[monthKeys.length - 1]] || 0 : 0;
-```
+- **Tema scuro** (sfondo nero/grigio scuro) come theoryholding.com
+- **Accenti colore**: verde teal del logo Edilizia in Cloud + giallo/lime per le CTA (come theoryholding.com)
+- **Tipografia bold**: titoli grandi e impattanti, testi secondari in grigio chiaro
+- **Animazioni scroll-based**: elementi che appaiono con fade-in e slide-up quando entrano nel viewport (Intersection Observer)
+- **Effetti hover**: pulsanti con scale e glow, card con lift effect
+- **Spaziatura generosa** tra le sezioni per un look premium
 
 ---
 
-## 2. Bug Funzionali Identificati
+## Struttura della Pagina (Sezioni)
 
-### Nessun bug critico trovato
+### 1. Navbar (fissa, trasparente -> scura allo scroll)
+- Logo Edilizia in Cloud a sinistra
+- Link: Funzionalita, Vantaggi, Confronto, Prezzi
+- CTA "Richiedi Demo" (bottone lime/giallo)
+- Link "Accedi" per utenti esistenti (va a /login)
 
-- Tutte le route sono raggiungibili e correttamente protette da `ProtectedRoute`
-- Le query Supabase hanno tutte gestione errori (try/catch o onError)
-- I form (ordini, clienti, dipendenti, costi) salvano correttamente
-- I loading state sono implementati su tutte le pagine principali
-- I ruoli accedono solo alle sezioni autorizzate
-- Le RLS policy coprono tutte le tabelle
-- `console.error` viene usato solo in handler di errore (nessun `console.log` di debug residuo)
+### 2. Hero Section (fullscreen)
+- Sfondo scuro con gradiente sottile
+- Badge: "IL 1 SOFTWARE IN ITALIA PER IMPRENDITORI EDILI"
+- Titolo grande: "Smetti di Fatturare al Buio. Inizia a Guadagnare con i Numeri."
+- Sottotitolo: testo sulla proposta di valore
+- Due CTA: "Richiedi Demo Gratuita" (lime) + "Scopri le Funzionalita" (outline)
+- Animazione fade-in staggerata sugli elementi
+
+### 3. Pain Points (Problemi)
+- Titolo: "Stai Fatturando... Ma i Soldi Dove Sono?"
+- Lista dei 7 problemi del PDF con icone animate
+- Conclusione empatica
+
+### 4. Tabella Costi dell'Inazione
+- Titolo: "Quanto Ti Costa NON Controllare i Numeri?"
+- Tabella stilizzata (sfondo scuro, bordi sottili) con i 5 errori e i relativi costi
+- Totale evidenziato in rosso/arancione: "20.000 - 100.000 EUR/anno"
+
+### 5. La Soluzione
+- Titolo: "La Soluzione: Edilizia in Cloud"
+- 3 domande chiave in card evidenziate (margine reale, previsione cassa, perdite)
+- Testo di spiegazione sulla semplicita
+
+### 6. I 7 Moduli (Feature showcase)
+- Titolo: "7 Strumenti Integrati. Zero Complicazioni."
+- Card per ogni modulo con:
+  - Icona
+  - Nome modulo
+  - Descrizione breve
+  - Obiettivo quantificabile
+  - Risparmio stimato
+- Layout griglia con animazione staggerata all'ingresso
+
+### 7. Confronto (Competitor Table)
+- Titolo: "Perche Edilizia in Cloud e Diverso"
+- Tabella "Gli Altri vs Edilizia in Cloud" con check/x icons
+- Design dark con riga Edilizia in Cloud evidenziata
+
+### 8. Per Chi E / Non E
+- Due colonne: "Perfetto per te se..." (verde) / "NON e per te se..." (rosso)
+- Lista con check e X
+
+### 9. 5 Criteri di Scelta
+- Titolo: "5 Criteri per Scegliere il Software Giusto"
+- Cards numerate con i 5 punti dal PDF
+
+### 10. Pricing / Investimento
+- Titolo: "L'Investimento (e Perche NON e un Costo)"
+- Confronto costi: commercialista, controller, ERP vs Edilizia in Cloud
+- CTA grande
+
+### 11. Garanzia
+- Badge/card evidenziata: "Garanzia Margine o Rimborsato - 30 Giorni"
+- Testo dal PDF
+
+### 12. CTA Finale + PS
+- Titolo: "SMETTI DI FATTURARE AL BUIO."
+- CTA grande "RICHIEDI LA TUA DEMO GRATUITA ORA"
+- I 3 P.S. dal PDF come testo sotto
+
+### 13. Footer
+- Logo, copyright, link utili
 
 ---
 
-## 3. Miglioramenti UX Minori
+## Dettagli Tecnici
 
-### Nessun miglioramento critico necessario
+### File da creare:
+1. **`src/pages/Home.tsx`** - Pagina principale che importa tutte le sezioni
+2. **`src/components/landing/LandingNavbar.tsx`** - Navbar con scroll effect
+3. **`src/components/landing/HeroSection.tsx`** - Hero fullscreen
+4. **`src/components/landing/PainPointsSection.tsx`** - Problemi
+5. **`src/components/landing/CostTableSection.tsx`** - Tabella costi inazione
+6. **`src/components/landing/SolutionSection.tsx`** - La soluzione
+7. **`src/components/landing/ModulesSection.tsx`** - I 7 moduli
+8. **`src/components/landing/ComparisonSection.tsx`** - Confronto competitor
+9. **`src/components/landing/TargetSection.tsx`** - Per chi e / non e
+10. **`src/components/landing/CriteriaSection.tsx`** - 5 criteri
+11. **`src/components/landing/PricingSection.tsx`** - Investimento
+12. **`src/components/landing/GuaranteeSection.tsx`** - Garanzia
+13. **`src/components/landing/FinalCtaSection.tsx`** - CTA finale
+14. **`src/components/landing/LandingFooter.tsx`** - Footer
+15. **`src/hooks/useScrollAnimation.ts`** - Hook per animazioni Intersection Observer
 
-Il flusso e gia fluido:
-- Tutte le tab hanno empty state chiari ("Nessun movimento previsto", "Nessun incasso registrato", ecc.)
-- I dialog si chiudono dopo il salvataggio
-- I toast di successo/errore sono implementati ovunque
-- Il toggle Previsionale ha feedback immediato (icona Eye/EyeOff + label dinamica)
-- Le date picker hanno bottone di reset (X)
-- La griglia tesoreria ha sticky column per la navigazione orizzontale
+### File da modificare:
+- **`src/App.tsx`** - Aggiungere rotta `/home` per la landing page
+- **`tailwind.config.ts`** - Aggiungere keyframes per le animazioni (fade-in-up, stagger)
 
----
+### Animazioni:
+- **Intersection Observer hook** personalizzato per triggerare animazioni quando gli elementi entrano nel viewport
+- **Fade-in-up** staggerato per liste e card
+- **Navbar** che diventa opaca allo scroll (scroll listener)
+- **Counter animation** per i numeri nella sezione costi
+- **Hover effects** sulle card dei moduli (scale + shadow)
+- **Smooth scroll** per i link interni della navbar
 
-## 4. Piano di Implementazione
+### Routing:
+- La rotta `/home` mostrera la landing page (accessibile senza autenticazione)
+- Il bottone "Accedi" nella navbar portera a `/login`
+- La CTA "Richiedi Demo" scrollera alla sezione CTA finale o aprira un link esterno
 
-### Unica modifica necessaria:
-
-**File: `src/components/forecast/TreasuryTab.tsx`**
-- Rimuovere la variabile `lastActualTreasury` (riga 442) e il commento associato (riga 441)
-
-### Riepilogo:
-- **Cose rimosse**: 1 variabile morta (`lastActualTreasury`)
-- **Bug corretti**: 0 (nessun bug critico o lieve trovato)
-- **Miglioramenti UX**: 0 (flusso gia completo e fluido)
-- **Console**: pulita (solo `console.error` in error handler)
-- **Performance**: staleTime impostato su tutte le query (5 min)
-- **Sicurezza**: RLS attive su tutte le tabelle, nessun dato sensibile esposto
-
-### Conferma test: **TUTTO OK**
-
----
-
-## 5. Refactoring: CompanyCostsManager (2032 righe) — ATTIVITÀ SEPARATA
-
-### Obiettivo
-Scomporre il monolite `src/components/forecast/CompanyCostsManager.tsx` in moduli più piccoli e manutenibili, seguendo il pattern già adottato nel progetto (es. CashFlowForecast → hook + tab components).
-
-### Analisi della struttura attuale
-
-Il file contiene 5 blocchi logici distinti mescolati insieme:
-
-| Blocco | Righe (circa) | Responsabilità |
-|--------|---------------|----------------|
-| **Data Fetching** | 1–302 | 6 query Supabase (costs, suppliers, orderItems, externalTeams, employees, commissions) |
-| **Data Transformation** | 304–500 | 4 useMemo per trasformare dati da ordini in `UnifiedCost[]` + filtri combinati |
-| **Mutations** | 502–1032 | 10+ mutazioni (CRUD costi, mark paid/unpaid per 4 entità diverse, bulk ops, CSV import/export) |
-| **Stats & Helpers** | 1107–1140 | Calcoli statistiche, badge renderer, VAT preview |
-| **UI/JSX** | 1141–2032 | Tabella con selezione multipla, 5 stat cards, grafico recharts, 6 dialogs (form, delete, group delete, bulk delete, payment, tasks, CSV import) |
-
-### Piano di Refactoring (6 task)
-
-#### Task 1: Estrarre hook `useCompanyCostsData.ts`
-- Spostare le 6 query + i 4 useMemo di trasformazione + i filtri combinati
-- Esporre: `costs`, `filteredCosts`, `filteredOrderItemCosts`, `allOrderDerivedCosts`, `suppliers`, `dynamicCategories`, `monthlyDistribution`, `vatStats`, `isLoading`
-- **Input**: `companyId`, filtri (period, status, search, supplier, category, origin)
-- ~500 righe → hook dedicato
-
-#### Task 2: Estrarre hook `useCompanyCostsMutations.ts`
-- Spostare tutte le 10+ mutazioni (save, delete, markPaid/Unpaid per costs, orderItems, extTeams, commissions, bulk ops)
-- Esporre oggetti mutation pronti all'uso
-- **Input**: `companyId`, `queryClient`
-- ~530 righe → hook dedicato
-
-#### Task 3: Estrarre `CostsStatsCards.tsx`
-- Le 5 stat cards (da pagare, pagato, scaduti, IVA a debito, fornitori) + il mini-chart recharts
-- **Props**: stats calcolati dal hook
-- ~100 righe
-
-#### Task 4: Estrarre `CostsTable.tsx`
-- La funzione `renderCostsTable` (righe 1141-1482) con selezione multipla, bulk action bar, badge renderer
-- **Props**: items, type, selectedIds, callbacks
-- ~340 righe
-
-#### Task 5: Estrarre `CostFormDialog.tsx`
-- Il Dialog di creazione/modifica (righe 1662-1929) con sezioni Basic Info, Fiscal, Planning
-- Include: category combobox, VAT preview, periods preview
-- **Props**: formData, suppliers, orders, categories, callbacks
-- ~270 righe
-
-#### Task 6: Estrarre `CostsDialogs.tsx`
-- I 4 dialogs ausiliari: delete confirm, group delete, bulk delete, payment dialog
-- **Props**: state + callbacks
-- ~100 righe
-
-### Risultato atteso
-
-```
-src/components/forecast/
-├── CompanyCostsManager.tsx   (~150 righe, orchestratore)
-├── CostsStatsCards.tsx        (~100 righe)
-├── CostsTable.tsx             (~340 righe)
-├── CostFormDialog.tsx         (~270 righe)
-├── CostsDialogs.tsx           (~100 righe)
-└── ...
-
-src/hooks/
-├── useCompanyCostsData.ts     (~500 righe)
-├── useCompanyCostsMutations.ts (~530 righe)
-└── ...
-```
-
-**Rischio**: Basso. Nessuna modifica funzionale, solo riorganizzazione strutturale.
-**Priorità**: Media. Il componente funziona correttamente ma è difficile da manutenere.
-**Stima**: 2-3 sessioni di lavoro.
