@@ -1,5 +1,6 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Target, TrendingUp, Shield, PieChart, BarChart3, ArrowUpRight } from "lucide-react";
+import AIImage from "./AIImage";
 
 const questions = [
   { icon: Target, q: "Qual è il margine REALE di ogni commessa?", desc: "Non il margine stimato. Quello vero, aggiornato in tempo reale con costi effettivi." },
@@ -12,7 +13,6 @@ export default function SolutionSection() {
 
   return (
     <section className="py-24 md:py-32 bg-[#1a2744] relative overflow-hidden">
-      {/* Gradient orb */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-[#0fa68c]/[0.06] rounded-full blur-[150px]" />
 
       <div ref={ref} className="max-w-6xl mx-auto px-6">
@@ -31,22 +31,32 @@ export default function SolutionSection() {
           Un software che risponde alle 3 domande che ogni imprenditore edile dovrebbe farsi ogni giorno.
         </p>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-16">
-          {questions.map((q, i) => (
-            <div
-              key={i}
-              className={`p-8 rounded-2xl bg-white/[0.05] border border-white/[0.1] hover:border-[#0fa68c]/40 hover:bg-white/[0.08] transition-all duration-500 group ${
-                isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-              }`}
-              style={{ transitionDelay: isVisible ? `${300 + i * 120}ms` : "0ms" }}
-            >
-              <div className="w-12 h-12 rounded-xl bg-[#0fa68c]/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                <q.icon className="w-6 h-6 text-[#0fa68c]" />
+        <div className="grid md:grid-cols-[1fr_280px] gap-8 mb-16">
+          <div className="grid md:grid-cols-3 gap-6">
+            {questions.map((q, i) => (
+              <div
+                key={i}
+                className={`p-8 rounded-2xl bg-white/[0.05] border border-white/[0.1] hover:border-[#0fa68c]/40 hover:bg-white/[0.08] transition-all duration-500 group ${
+                  isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+                }`}
+                style={{ transitionDelay: isVisible ? `${300 + i * 120}ms` : "0ms" }}
+              >
+                <div className="w-12 h-12 rounded-xl bg-[#0fa68c]/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                  <q.icon className="w-6 h-6 text-[#0fa68c]" />
+                </div>
+                <h3 className="text-white font-bold text-lg mb-3">{q.q}</h3>
+                <p className="text-white/50 text-sm leading-relaxed">{q.desc}</p>
               </div>
-              <h3 className="text-white font-bold text-lg mb-3">{q.q}</h3>
-              <p className="text-white/50 text-sm leading-relaxed">{q.desc}</p>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          <div className="hidden md:flex items-center">
+            <AIImage
+              prompt="Dashboard digitale moderna su tablet con grafici a barre e linee colorati, cantiere edile sullo sfondo sfocato con gru, stile illustrazione flat professionale, palette teal e navy, aspetto pulito e moderno"
+              alt="Dashboard su tablet in cantiere"
+              className="w-full"
+            />
+          </div>
         </div>
 
         {/* Dashboard mockup */}
@@ -85,7 +95,6 @@ export default function SolutionSection() {
               />
             ))}
           </div>
-          {/* Shimmer overlay */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent animate-shimmer" style={{ backgroundSize: "200% 100%" }} />
         </div>
 

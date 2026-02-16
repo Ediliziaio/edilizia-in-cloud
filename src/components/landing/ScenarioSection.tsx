@@ -1,5 +1,6 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { XCircle, CheckCircle } from "lucide-react";
+import AIImage from "./AIImage";
 
 const scenarioA = [
   "Stessa fatica, stessi problemi, stessa ansia a fine mese",
@@ -42,10 +43,15 @@ export default function ScenarioSection() {
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-16"
             }`}
           >
-            <h3 className="text-xl font-bold text-[#1a2744] mb-6 flex items-center gap-2">
+            <h3 className="text-xl font-bold text-[#1a2744] mb-4 flex items-center gap-2">
               <XCircle className="w-6 h-6 text-red-500" />
               Scenario A — Senza controllo
             </h3>
+            <AIImage
+              prompt="Imprenditore preoccupato con espressione ansiosa che guarda fogli con numeri in rosso e conti negativi, stile illustrazione minimalista flat, toni rossi e grigi, sfondo chiaro, formato orizzontale 16:9"
+              alt="Scenario senza controllo"
+              className="w-full h-40 object-cover mb-5"
+            />
             <ul className="space-y-4">
               {scenarioA.map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
@@ -61,10 +67,15 @@ export default function ScenarioSection() {
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-16"
             }`}
           >
-            <h3 className="text-xl font-bold text-[#1a2744] mb-6 flex items-center gap-2">
+            <h3 className="text-xl font-bold text-[#1a2744] mb-4 flex items-center gap-2">
               <CheckCircle className="w-6 h-6 text-[#0fa68c]" />
               Scenario B — Con Edilizia in Cloud
             </h3>
+            <AIImage
+              prompt="Imprenditore soddisfatto e sorridente che guarda uno schermo con grafici in crescita verdi e dashboard positiva, stile illustrazione minimalista flat, toni verdi e teal, sfondo chiaro, formato orizzontale 16:9"
+              alt="Scenario con Edilizia in Cloud"
+              className="w-full h-40 object-cover mb-5"
+            />
             <ul className="space-y-4">
               {scenarioB.map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
