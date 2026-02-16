@@ -438,8 +438,6 @@ export function TreasuryTab({
       buildMonthlyMap(forecastCostItems),
     );
 
-    // Forecast cumulative: starts from actual last cumulative, then adds forecast net
-    const lastActualTreasury = monthKeys.length > 0 ? treeData.netMonthly[monthKeys[monthKeys.length - 1]] || 0 : 0;
     const forecastNetMonthly: Record<string, number> = {};
     let forecastCum = 0;
     monthKeys.forEach((k) => {
