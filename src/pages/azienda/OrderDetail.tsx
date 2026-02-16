@@ -358,55 +358,6 @@ export default function OrderDetail() {
     },
   });
 
-  // Update order items mutation
-  const updateOrderItemsMutation = useMutation({
-    mutationFn: async (items: OrderItem[]) => {
-      // Delete existing items and recreate
-      await supabase
-        .from("order_items")
-        .delete()
-        .eq("order_id", id!);
-
-      if (items.length > 0) {
-        const itemsToInsert = items.map((item, index) => ({
-          order_id: id!,
-          name: item.name,
-          description: item.description || null,
-          quantity: item.quantity,
-          status: item.status,
-          position: index,
-          supplier_id: item.supplier_id || null,
-          purchase_price: item.purchase_price || null,
-          vat_rate: item.vat_rate ?? null,
-          stock_item_id: item.stock_item_id || null,
-          unit_price: item.unit_price || 0,
-          discount_percent: item.discount_percent || 0,
-          standard_cost: item.standard_cost || 0,
-        }));
-
-        const { error } = await supabase
-          .from("order_items")
-          .insert(itemsToInsert);
-
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-items", id] });
-      toast({
-        title: "Articoli aggiornati",
-        description: "Gli articoli dell'ordine sono stati aggiornati.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'aggiornamento degli articoli.",
-        variant: "destructive",
-      });
-    },
-  });
-
   // Update notes mutation
   const updateNotesMutation = useMutation({
     mutationFn: async (notes: string) => {
@@ -434,14 +385,26 @@ export default function OrderDetail() {
     },
   });
 
-  // Delete order mutation
+  // Delete order mutation (cascading: items, attachments, history, staff)
   const deleteOrderMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from("orders")
-        .delete()
-        .eq("id", id!);
-
+      // First get item IDs to delete their attachments
+      const { data: items } = await supabase.from("order_items").select("id").eq("order_id", id!);
+      if (items && items.length > 0) {
+        const itemIds = items.map(i => i.id);
+        await supabase.from("order_item_attachments").delete().in("order_item_id", itemIds);
+      }
+      // Delete all related records in parallel
+      await Promise.all([
+        supabase.from("order_items").delete().eq("order_id", id!),
+        supabase.from("order_status_history").delete().eq("order_id", id!),
+        supabase.from("order_employees").delete().eq("order_id", id!),
+        supabase.from("order_external_teams").delete().eq("order_id", id!),
+        supabase.from("order_salespeople").delete().eq("order_id", id!),
+        supabase.from("order_attachments").delete().eq("order_id", id!),
+      ]);
+      // Finally delete the order itself
+      const { error } = await supabase.from("orders").delete().eq("id", id!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -487,9 +450,7 @@ export default function OrderDetail() {
     updateNotesMutation.mutate(editedNotes);
   };
 
-  const handleItemsChange = (items: OrderItem[]) => {
-    updateOrderItemsMutation.mutate(items);
-  };
+  // handleItemsChange removed — use handleItemUpdate for granular updates
 
   // Single item update mutation (preserves ID, no destructive delete)
   const updateSingleItemMutation = useMutation({
@@ -737,7 +698,7 @@ export default function OrderDetail() {
           {displayItems.length > 0 && (
             <OrderItemsList
               items={displayItems}
-              onItemsChange={handleItemsChange}
+              onItemsChange={() => {}}
               editable={false}
               allowEdit={true}
               showStatusControls={true}
@@ -845,12 +806,12 @@ export default function OrderDetail() {
             deposit2PaidDate={order.deposit_2_paid_date}
             balancePaid={order.balance_paid}
             balancePaidDate={order.balance_paid_date}
-            balanceExpectedDate={(order as any).balance_expected_date}
-            financingPaid={(order as any).financing_paid}
-            financingPaidDate={(order as any).financing_paid_date}
-            financingExpectedDate={(order as any).financing_expected_date}
-            financingCost={(order as any).financing_cost}
-            hasBuildingBonus={(order as any).has_building_bonus}
+            balanceExpectedDate={order.balance_expected_date}
+            financingPaid={order.financing_paid}
+            financingPaidDate={order.financing_paid_date}
+            financingExpectedDate={order.financing_expected_date}
+            financingCost={order.financing_cost}
+            hasBuildingBonus={order.has_building_bonus}
           />
 
           {/* Order Economics */}
