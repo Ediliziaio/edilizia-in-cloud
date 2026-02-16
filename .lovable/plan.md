@@ -1,62 +1,107 @@
 
+# Redesign Previsionale: 3 Tab Pulite e Minimali
 
-# Audit Completo: Domus Group S.r.l. - Bug, Problemi e Codice Inutilizzato
+## Panoramica
 
-## Bug Identificati
+Riprogettare completamente la pagina Previsionale sostituendo il layout attuale (stat cards + riepilogo uscite + grafico Recharts + tabella unificata) con un'interfaccia a 3 tab pulita e minimale:
 
-### 1. BUG CRITICO: Banner "Rimangono null giorni"
-**File**: `src/components/layouts/SubscriptionBanner.tsx`
-**Problema**: Quando il Super Admin accede a `/azienda` senza impersonare un'azienda, `effectiveCompany` e null ma `SubscriptionBanner` viene comunque renderizzato. Il valore `trialDaysLeft` risulta `null` e il messaggio diventa "Rimangono null giorni".
-**Fix**: Aggiungere un check: se `effectiveCompany` e null, il banner non deve essere visualizzato.
+1. **Incassato** - Cosa hai incassato e cosa devi ancora ricevere
+2. **Previsionale Costi** - Tutte le uscite previste
+3. **Previsione di Cassa** - Saldo netto entrate vs uscite
 
-### 2. BUG: Warning React - forwardRef su OrdersTable
-**File**: `src/components/orders/OrdersTable.tsx`
-**Problema**: Console warning "Function components cannot be given refs" nella pagina Ordini. Il componente `OrdersTable` e `AlertDialog` annidato non supportano ref ma qualcosa tenta di passarne uno.
-**Fix**: Non critico ma da risolvere per pulizia console.
+## Struttura delle 3 Tab
 
-### 3. BUG POTENZIALE: Query `tickets` nella Dashboard
-**File**: `src/pages/azienda/CompanyDashboard.tsx`
-**Problema**: La dashboard conta i ticket con `.eq("status", "aperto")`, ma la tabella `tickets` non ha RLS policy per `company_admin` o `company_staff` (solo `super_admin` ha policy visibile nel contesto fornito). Verificare che le RLS permettano al company admin di leggere i propri ticket.
+### Tab 1: Incassato
 
-## Problemi di Qualita del Codice
+Sezione focalizzata sulle entrate dai clienti, divisa in due aree:
 
-### 4. Cast `as any` nel EditOrder.tsx e OrderDetail.tsx
-**File**: `src/pages/azienda/EditOrder.tsx` (righe 325-329, 399-403)
-**Problema**: I campi `financing_paid`, `financing_cost`, `financing_paid_date`, `financing_expected_date`, `has_building_bonus` sono accessibili tramite `(order as any)` perche l'interfaccia `OrderData` non include tutti i campi.
-**Fix**: Aggiornare l'interfaccia `OrderData` per includere `financing_paid`, `financing_paid_date`, `financing_expected_date`, `financing_cost`, `has_building_bonus`.
+**Gia Incassato (questo mese)**
+- Tabella con: Data Incasso, Ordine, Cliente, Tipo (Acconto 1/2, Saldo, Finanziamento), Importo
+- Dati da ordini con `deposit_paid = true`, `deposit_2_paid = true`, `balance_paid = true`, `financing_paid = true` dove la data di pagamento cade nel mese corrente
+- Card riepilogativa con totale incassato del mese
 
-### 5. Interfaccia `OrderDetail` incompleta in OrderDetail.tsx
-**File**: `src/pages/azienda/OrderDetail.tsx` (riga 121-155)
-**Problema**: L'interfaccia `OrderDetail` non include `deposit_expected_date`, `deposit_2_expected_date`, `financing_amount`, `financing_paid`, `financing_expected_date`, `financing_cost`, `has_building_bonus`, `payment_type`, `order_code`, `vat_rate`. Il componente usa `order` con cast impliciti che nascondono errori.
+**Da Ricevere**
+- 3 sotto-sezioni con indicatori temporali: Questo Mese, Prossimo Mese, Prossimi 3 Mesi
+- Tabella con: Data Prevista, Ordine, Cliente, Tipo, Importo
+- Dati dagli `expectedPayments` gia calcolati nel hook (pagamenti NON incassati)
+- Card riepilogative per ogni periodo
 
-## Codice Non Utilizzato da Rimuovere
+### Tab 2: Previsionale Costi
 
-### 6. NESSUN file completamente inutilizzato
-Dopo un'analisi approfondita, tutti i file presenti nel progetto sono effettivamente utilizzati:
-- `NavLink.tsx` - usato in tutti i layout
-- `ColorPicker.tsx` e `IconPicker.tsx` - usati in `StatusItem.tsx`
-- `LeadTimeStats.tsx` - usato in `CalendarGanttView.tsx`
-- `DateRangeFilter.tsx` - usato in `OrdersFilters.tsx` e `ForecastTransactionsTable.tsx`
-- `notificationSound.ts` - usato in `AdminSupportChatSheet.tsx` e `SupportChatSheet.tsx`
-- `Employees.tsx` - non ha una route dedicata ma e importato e usato come componente embedded in `Settings.tsx`
+Sezione focalizzata su tutte le uscite, organizzata per categoria:
 
-Il codebase e pulito dal punto di vista dei file inutilizzati.
+- **Squadre Esterne** - Pagamenti non effettuati
+- **Provvigioni Venditori** - Commissioni non pagate
+- **Pagamenti Fornitori** - Rate fornitori in sospeso
+- **Costi Aziendali** - Costi fissi e variabili non pagati
 
-## Piano di Implementazione
+Ogni categoria mostra una tabella con i dettagli e un totale.
+In cima, 3 card con totali per: Questo Mese, Prossimo Mese, 3 Mesi.
 
-### Modifiche da fare:
+### Tab 3: Previsione di Cassa
 
-1. **Fix SubscriptionBanner** - Aggiungere `if (!effectiveCompany) return null;` all'inizio del componente
+Vista sintetica del flusso di cassa netto:
 
-2. **Fix interfaccia OrderData in EditOrder.tsx** - Aggiungere i campi mancanti (`financing_paid`, `financing_paid_date`, `financing_expected_date`, `financing_cost`, `has_building_bonus`) e rimuovere tutti i cast `as any`
+- 3 card: Questo Mese, Prossimo Mese, 3 Mesi - ciascuna con Entrate, Uscite, Netto
+- Tabella unificata di tutti i movimenti (entrate + uscite) ordinati per data, con filtri per categoria e periodo
+- Nessun grafico Recharts (rimosso per semplicita)
 
-3. **Fix interfaccia OrderDetail in OrderDetail.tsx** - Aggiungere i campi mancanti (`deposit_expected_date`, `deposit_2_expected_date`, etc.) per type safety completa
+## Modifiche al Hook `useCashFlowData`
 
-### File da modificare:
-- `src/components/layouts/SubscriptionBanner.tsx` - Fix banner null
-- `src/pages/azienda/EditOrder.tsx` - Fix interfaccia OrderData, rimuovere cast `as any`
-- `src/pages/azienda/OrderDetail.tsx` - Fix interfaccia OrderDetail
+Aggiungere una nuova query per recuperare i **pagamenti gia incassati** (necessario per Tab 1):
 
-### Nessun file da eliminare
-L'analisi ha confermato che tutti i file del progetto sono in uso.
+```sql
+-- Ordini con pagamenti gia effettuati nel mese corrente
+SELECT id, order_code, deposit_amount, deposit_paid_date,
+       deposit_2_amount, deposit_2_paid_date,
+       balance_amount, balance_paid_date,
+       financing_amount, financing_paid_date,
+       customer:profiles(first_name, last_name)
+FROM orders
+WHERE company_id = ? AND (
+  deposit_paid = true OR deposit_2_paid = true OR 
+  balance_paid = true OR financing_paid = true
+)
+```
 
+Il hook calcolera `collectedPayments` filtrando per mese.
+
+## File da Creare
+
+- `src/components/forecast/CollectedTab.tsx` - Tab "Incassato"
+- `src/components/forecast/CostsForecastTab.tsx` - Tab "Previsionale Costi"
+- `src/components/forecast/CashForecastTab.tsx` - Tab "Previsione di Cassa"
+
+## File da Modificare
+
+- `src/pages/azienda/CashFlowForecast.tsx` - Riscrittura completa con Tabs come struttura principale
+- `src/hooks/useCashFlowData.ts` - Aggiungere query per pagamenti incassati
+
+## File da Eliminare (non piu utilizzati)
+
+Questi componenti non sono importati da nessuna parte e vengono definitivamente sostituiti:
+
+- `src/components/forecast/ForecastChart.tsx` - Grafico Recharts rimosso
+- `src/components/forecast/ForecastStatCards.tsx` - Sostituito da card nelle singole tab
+- `src/components/forecast/ForecastExpensesSummary.tsx` - Sostituito da CostsForecastTab
+- `src/components/forecast/ForecastTransactionsTable.tsx` - Sostituito da CashForecastTab
+- `src/components/forecast/ForecastCommissions.tsx` - Gia orfano, mai importato
+- `src/components/forecast/ForecastSupplierPayments.tsx` - Gia orfano, mai importato
+- `src/components/forecast/ForecastMaterialCosts.tsx` - Gia orfano, mai importato
+- `src/components/forecast/ForecastCompanyCosts.tsx` - Gia orfano, mai importato
+
+## Design Visivo
+
+- Layout minimal con sfondo bianco, bordi sottili, tipografia pulita
+- Tabs in alto con `Tabs/TabsList/TabsTrigger/TabsContent` di shadcn
+- Card con numeri grandi e colori semantici (verde per entrate, rosso per uscite)
+- Tabelle semplici senza badge colorati eccessivi
+- Nessun grafico
+- Export CSV e Stampa PDF mantenuti nell'header
+
+## Sequenza di Implementazione
+
+1. Aggiornare `useCashFlowData.ts` con la query per i pagamenti incassati
+2. Creare i 3 nuovi componenti tab
+3. Riscrivere `CashFlowForecast.tsx` con la nuova struttura a tab
+4. Eliminare i file obsoleti
