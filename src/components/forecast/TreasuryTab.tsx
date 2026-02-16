@@ -503,9 +503,11 @@ export function TreasuryTab({
     () =>
       monthKeys.map((k, i) => ({
         month: format(months[i], "MMM yy", { locale: it }),
+        monthFull: format(months[i], "MMMM yyyy", { locale: it }),
         income: treeData.entrateNode.monthlyAmounts[k] || 0,
         expenses: treeData.usciteNode.monthlyAmounts[k] || 0,
         treasury: treeData.netMonthly[k] || 0,
+        treasuryStart: treeData.startMonthly[k] || 0,
         forecastIncome: forecastData.forecastIncomeMonthly[k] || 0,
         forecastExpenses: forecastData.forecastExpensesMonthly[k] || 0,
         forecastTreasury: forecastData.forecastNetMonthly[k] || 0,
@@ -515,19 +517,41 @@ export function TreasuryTab({
 
   const lastMonthTreasury = monthKeys.length > 0 ? treeData.netMonthly[monthKeys[monthKeys.length - 1]] || 0 : 0;
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
+    const data = payload[0].payload;
+    const variation = data.income - data.expenses;
     return (
-      <div className="rounded-lg border bg-background p-3 shadow-md text-sm">
-        <p className="font-semibold mb-1.5">{label}</p>
-        {payload.map((entry: any) => (
-          <p key={entry.dataKey} style={{ color: entry.color }} className="flex justify-between gap-4">
-            <span>{entry.name}:</span>
-            <span className="font-medium tabular-nums">
-              {formatCurrency(entry.value)}
-            </span>
-          </p>
-        ))}
+      <div className="rounded-lg border bg-background p-3 shadow-md text-sm min-w-[220px]">
+        <p className="font-semibold mb-2 text-base capitalize">{data.monthFull}</p>
+        
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Tesoreria</p>
+        <div className="flex justify-between gap-4 mb-0.5">
+          <span className="text-muted-foreground">Inizio</span>
+          <span className="font-medium tabular-nums">{formatCurrency(data.treasuryStart)}</span>
+        </div>
+        <div className="flex justify-between gap-4 mb-0.5">
+          <span className="text-muted-foreground">Fine</span>
+          <span className="font-medium tabular-nums">{formatCurrency(data.treasury)}</span>
+        </div>
+        <div className="flex justify-between gap-4 mb-2">
+          <span className="text-muted-foreground">Variazione</span>
+          <span className={cn("font-medium tabular-nums", variation >= 0 ? "text-emerald-600" : "text-red-500")}>
+            {variation >= 0 ? "+" : ""}{formatCurrency(variation)}
+          </span>
+        </div>
+
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Entrate</p>
+        <div className="flex justify-between gap-4 mb-2">
+          <span className="text-muted-foreground">Realizzato</span>
+          <span className="font-medium tabular-nums text-emerald-600">{formatCurrency(data.income)}</span>
+        </div>
+
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Uscite</p>
+        <div className="flex justify-between gap-4">
+          <span className="text-muted-foreground">Realizzato</span>
+          <span className="font-medium tabular-nums text-red-500">{formatCurrency(data.expenses)}</span>
+        </div>
       </div>
     );
   };
@@ -591,7 +615,10 @@ export function TreasuryTab({
               <YAxis
                 tick={{ fontSize: 11 }}
                 className="fill-muted-foreground"
-                tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
+                tickFormatter={(v: number) => {
+                  const abs = Math.abs(v);
+                  return abs >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v);
+                }}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
