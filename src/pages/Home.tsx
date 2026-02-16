@@ -32,7 +32,7 @@ function PromoBanner() {
       <span className="absolute inset-0 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
       <span className="relative flex items-center justify-center gap-2 text-xs md:text-sm font-bold tracking-wide">
         <Gift size={16} />
-        SE NON FUNZIONA, IL PROGRAMMA È GRATIS PER SEMPRE
+        SE NON TI FA GUADAGNARE, IL PROGRAMMA È GRATIS PER SEMPRE
       </span>
     </a>
   );
