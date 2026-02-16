@@ -1,6 +1,5 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { XCircle, CheckCircle } from "lucide-react";
-import AIImage from "./AIImage";
+import { XCircle, CheckCircle, TrendingDown, TrendingUp, AlertTriangle, BarChart3 } from "lucide-react";
 
 const scenarioA = [
   "Stessa fatica, stessi problemi, stessa ansia a fine mese",
@@ -15,6 +14,53 @@ const scenarioB = [
   "Costi sotto controllo: sai dove tagliare e dove investire",
   "Prendi decisioni basate sui numeri, non sull'ansia",
 ];
+
+function ScenarioIllustrationA() {
+  return (
+    <div className="w-full h-40 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center gap-6 mb-5 overflow-hidden relative">
+      <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 10px, currentColor 10px, currentColor 11px)" }} />
+      <div className="flex flex-col items-center gap-1 z-10">
+        <AlertTriangle className="w-8 h-8 text-red-400" />
+        <span className="text-[10px] text-red-400 font-semibold">Rischi</span>
+      </div>
+      <div className="flex flex-col items-end gap-1 z-10">
+        <div className="flex items-end gap-1 h-16">
+          {[40, 32, 28, 18, 10].map((h, i) => (
+            <div key={i} className="w-3 rounded-t bg-red-300/70" style={{ height: `${h}px` }} />
+          ))}
+        </div>
+        <TrendingDown className="w-5 h-5 text-red-400" />
+      </div>
+      <div className="flex flex-col items-center gap-1 z-10">
+        <XCircle className="w-8 h-8 text-red-400" />
+        <span className="text-[10px] text-red-400 font-semibold">Perdite</span>
+      </div>
+    </div>
+  );
+}
+
+function ScenarioIllustrationB() {
+  return (
+    <div className="w-full h-40 rounded-xl bg-[#0fa68c]/10 border border-[#0fa68c]/25 flex items-center justify-center gap-6 mb-5 overflow-hidden relative">
+      <div className="flex flex-col items-center gap-1 z-10">
+        <CheckCircle className="w-8 h-8 text-[#0fa68c]" />
+        <span className="text-[10px] text-[#0fa68c] font-semibold">Controllo</span>
+      </div>
+      <div className="flex flex-col items-end gap-1 z-10">
+        <div className="flex items-end gap-1 h-16">
+          {[10, 18, 28, 36, 48].map((h, i) => (
+            <div key={i} className="w-3 rounded-t bg-[#0fa68c]/60" style={{ height: `${h}px` }} />
+          ))}
+        </div>
+        <TrendingUp className="w-5 h-5 text-[#0fa68c]" />
+      </div>
+      <div className="flex flex-col items-center gap-1 z-10">
+        <BarChart3 className="w-8 h-8 text-[#0fa68c]" />
+        <span className="text-[10px] text-[#0fa68c] font-semibold">Margini</span>
+      </div>
+    </div>
+  );
+}
 
 export default function ScenarioSection() {
   const { ref, isVisible } = useScrollAnimation();
@@ -39,7 +85,7 @@ export default function ScenarioSection() {
 
         <div className="grid md:grid-cols-2 gap-8">
           <div
-            className={`p-8 rounded-2xl border-2 border-red-200 bg-red-50/50 transition-all duration-700 ${
+            className={`p-5 md:p-8 rounded-2xl border-2 border-red-200 bg-red-50/50 transition-all duration-700 ${
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-16"
             }`}
           >
@@ -47,11 +93,7 @@ export default function ScenarioSection() {
               <XCircle className="w-6 h-6 text-red-500" />
               Scenario A — Senza controllo
             </h3>
-            <AIImage
-              prompt="Imprenditore preoccupato con espressione ansiosa che guarda fogli con numeri in rosso e conti negativi, stile illustrazione minimalista flat, toni rossi e grigi, sfondo chiaro, formato orizzontale 16:9"
-              alt="Scenario senza controllo"
-              className="w-full h-40 object-cover mb-5"
-            />
+            <ScenarioIllustrationA />
             <ul className="space-y-4">
               {scenarioA.map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
@@ -63,7 +105,7 @@ export default function ScenarioSection() {
           </div>
 
           <div
-            className={`p-8 rounded-2xl border-2 border-[#0fa68c]/30 bg-[#0fa68c]/5 transition-all duration-700 delay-200 ${
+            className={`p-5 md:p-8 rounded-2xl border-2 border-[#0fa68c]/30 bg-[#0fa68c]/5 transition-all duration-700 delay-200 ${
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-16"
             }`}
           >
@@ -71,11 +113,7 @@ export default function ScenarioSection() {
               <CheckCircle className="w-6 h-6 text-[#0fa68c]" />
               Scenario B — Con Edilizia in Cloud
             </h3>
-            <AIImage
-              prompt="Imprenditore soddisfatto e sorridente che guarda uno schermo con grafici in crescita verdi e dashboard positiva, stile illustrazione minimalista flat, toni verdi e teal, sfondo chiaro, formato orizzontale 16:9"
-              alt="Scenario con Edilizia in Cloud"
-              className="w-full h-40 object-cover mb-5"
-            />
+            <ScenarioIllustrationB />
             <ul className="space-y-4">
               {scenarioB.map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
