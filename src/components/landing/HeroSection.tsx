@@ -1,5 +1,6 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon } from "lucide-react";
+import heroMockup from "@/assets/hero-dashboard-mockup.png";
 
 const floatingIcons = [
   { Icon: HardHat, top: "10%", left: "5%", size: 48, delay: "0s", anim: "animate-float" },
@@ -91,6 +92,21 @@ export default function HeroSection() {
           >
             Scopri le Funzionalità
           </a>
+        </div>
+
+        {/* Dashboard mockup image */}
+        <div
+          className={`mt-14 max-w-4xl mx-auto transition-all duration-700 delay-700 ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+          }`}
+        >
+          <img
+            src={heroMockup}
+            alt="Dashboard Edilizia in Cloud - Gestione ordini, margini e cassa"
+            className="w-full rounded-2xl shadow-2xl shadow-black/30 border border-white/10"
+            style={{ transform: "perspective(1200px) rotateX(4deg)" }}
+            loading="lazy"
+          />
         </div>
       </div>
 
