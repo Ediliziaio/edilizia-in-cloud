@@ -1,17 +1,6 @@
 import { useState, useEffect } from "react";
 import { Gift, ArrowRight } from "lucide-react";
-
-function getTimeLeft() {
-  const now = new Date();
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-  const diff = Math.max(0, end.getTime() - now.getTime());
-  return {
-    days: Math.floor(diff / (1000 * 60 * 60 * 24)),
-    hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
-    minutes: Math.floor((diff / (1000 * 60)) % 60),
-    seconds: Math.floor((diff / 1000) % 60),
-  };
-}
+import { getTimeLeft } from "@/lib/urgencyUtils";
 
 export default function StickyBottomBar() {
   const [timeLeft, setTimeLeft] = useState(getTimeLeft);
