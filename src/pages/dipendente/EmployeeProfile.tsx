@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { User, Mail, Phone, Building2, Save } from "lucide-react";
 
@@ -19,6 +19,7 @@ export default function EmployeeProfile() {
 
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const formInitRef = useRef(false);
 
   // Fetch employee profile
   const { data: employee, isLoading } = useQuery({
@@ -31,16 +32,20 @@ export default function EmployeeProfile() {
         .single();
       
       if (error) throw error;
-      
-      // Init form
-      setEmail(data.email || "");
-      setPhone(data.phone || "");
-      
       return data;
     },
     enabled: !!user?.id,
     staleTime: 10 * 60 * 1000,
   });
+
+  // Init form only once when employee data first loads
+  useEffect(() => {
+    if (employee && !formInitRef.current) {
+      setEmail(employee.email || "");
+      setPhone(employee.phone || "");
+      formInitRef.current = true;
+    }
+  }, [employee]);
 
   // Update mutation
   const updateMutation = useMutation({
@@ -127,7 +132,9 @@ export default function EmployeeProfile() {
               Azienda
             </Label>
             <div className="p-3 bg-muted rounded-md font-medium">
-              {(employee?.company as any)?.name || "Non specificata"}
+              {employee?.company && typeof employee.company === "object" && "name" in employee.company
+                ? (employee.company as { name: string }).name
+                : "Non specificata"}
             </div>
           </div>
 
