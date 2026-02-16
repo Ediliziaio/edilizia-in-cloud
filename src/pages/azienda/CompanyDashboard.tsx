@@ -38,14 +38,14 @@ export default function CompanyDashboard() {
   const companyId = effectiveCompany?.id;
 
   // Main dashboard data query with caching
-  const { data: dashboardData, isLoading } = useQuery({
+  const { data: dashboardData, isLoading, isError } = useQuery({
     queryKey: ["dashboard-data", companyId],
     queryFn: async () => {
       const now = new Date();
       const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
-      const [ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes, cashFlowRes, urgentItemsRes, costsRes] = await Promise.all([
+      const [ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes, urgentItemsRes, costsRes] = await Promise.all([
         supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
         supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", companyId!).eq("status", "aperto"),
@@ -62,14 +62,6 @@ export default function CompanyDashboard() {
         supabase
           .from("orders")
           .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date")
-          .eq("company_id", companyId!),
-        supabase
-          .from("orders")
-          .select(`
-            deposit_amount, deposit_expected_date, deposit_paid,
-            deposit_2_amount, deposit_2_expected_date, deposit_2_paid,
-            balance_amount, balance_expected_date, balance_paid
-          `)
           .eq("company_id", companyId!),
         supabase
           .from("order_items")
@@ -136,11 +128,11 @@ export default function CompanyDashboard() {
         }
       });
 
-      // Calculate cash flow preview
+      // Calculate cash flow preview (reuse pendingRevenueRes data)
       let thisMonthTotal = 0;
       let nextMonthTotal = 0;
 
-      cashFlowRes.data?.forEach((order) => {
+      pendingRevenueRes.data?.forEach((order) => {
         if (!order.deposit_paid && order.deposit_expected_date) {
           const depositDate = new Date(order.deposit_expected_date);
           if (depositDate <= thisMonthEnd) {
@@ -286,6 +278,16 @@ export default function CompanyDashboard() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-destructive opacity-70" />
+        <p className="font-medium text-foreground">Errore nel caricamento della dashboard</p>
+        <p className="text-sm mt-1">Riprova aggiornando la pagina</p>
       </div>
     );
   }
