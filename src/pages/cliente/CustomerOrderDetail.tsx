@@ -10,7 +10,7 @@ import { OrderProgressTracker } from "@/components/orders/OrderProgressTracker";
 import { CustomerFinancialSummary } from "@/components/orders/CustomerFinancialSummary";
 import { CustomerDatesCard } from "@/components/orders/CustomerDatesCard";
 import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
-import { ArrowLeft, Clock, CheckCircle2, MessageSquare, FileText } from "lucide-react";
+import { ArrowLeft, Clock, CheckCircle2, MessageSquare, FileText, AlertCircle } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 
 export default function CustomerOrderDetail() {
@@ -19,7 +19,7 @@ export default function CustomerOrderDetail() {
   const { user } = useAuth();
 
   // Fetch order details
-  const { data: order, isLoading: orderLoading } = useQuery({
+  const { data: order, isLoading: orderLoading, isError: orderError, refetch: refetchOrder } = useQuery({
     queryKey: ["customer-order", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -84,6 +84,16 @@ export default function CustomerOrderDetail() {
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  if (orderError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-4">
+        <AlertCircle className="h-10 w-10 text-destructive" />
+        <p className="text-muted-foreground">Impossibile caricare l'ordine.</p>
+        <Button variant="outline" onClick={() => refetchOrder()}>Riprova</Button>
       </div>
     );
   }

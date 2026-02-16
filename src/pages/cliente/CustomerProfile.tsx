@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,39 +22,9 @@ export default function CustomerProfile() {
   const [address, setAddress] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (profile) {
-      setFirstName(profile.first_name || "");
-      setLastName(profile.last_name || "");
-      setPhone(profile.phone || "");
-      setFiscalCode(profile.fiscal_code || "");
-      setAddress(profile.address || "");
-      setSiteAddress(profile.site_address || "");
-      setNotes(profile.notes || "");
-    }
-  }, [profile]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
-    if (!firstName.trim() || !lastName.trim()) {
-      toast({ title: "Errore", description: "Nome e cognome sono obbligatori", variant: "destructive" });
-      return;
-    }
-    if (firstName.trim().length > 50 || lastName.trim().length > 50) {
-      toast({ title: "Errore", description: "Nome e cognome devono essere inferiori a 50 caratteri", variant: "destructive" });
-      return;
-    }
-    if (phone.trim().length > 20) {
-      toast({ title: "Errore", description: "Il numero di telefono deve essere inferiore a 20 caratteri", variant: "destructive" });
-      return;
-    }
-
-    setIsSaving(true);
-    try {
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Utente non autenticato");
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -66,16 +37,33 @@ export default function CustomerProfile() {
           notes: notes.trim() || null,
         })
         .eq("id", user.id);
-
       if (error) throw error;
+    },
+    onSuccess: async () => {
       await refreshAuth();
       toast({ title: "Profilo aggiornato", description: "Le tue informazioni sono state salvate con successo" });
-    } catch (error) {
+    },
+    onError: (error: Error) => {
       console.error("Error updating profile:", error);
       toast({ title: "Errore", description: "Impossibile aggiornare il profilo. Riprova più tardi.", variant: "destructive" });
-    } finally {
-      setIsSaving(false);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!firstName.trim() || !lastName.trim()) {
+      toast({ title: "Errore", description: "Nome e cognome sono obbligatori", variant: "destructive" });
+      return;
     }
+    if (firstName.trim().length > 50 || lastName.trim().length > 50) {
+      toast({ title: "Errore", description: "Nome e cognome devono essere inferiori a 50 caratteri", variant: "destructive" });
+      return;
+    }
+    if (phone.trim().length > 20) {
+      toast({ title: "Errore", description: "Il numero di telefono deve essere inferiore a 20 caratteri", variant: "destructive" });
+      return;
+    }
+    updateMutation.mutate();
   };
 
   if (!profile) {
@@ -158,8 +146,8 @@ export default function CustomerProfile() {
 
             {/* Submit Button */}
             <div className="flex justify-end pt-4">
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? (
+              <Button type="submit" disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio...</>
                 ) : (
                   <><Save className="mr-2 h-4 w-4" />Salva Modifiche</>
