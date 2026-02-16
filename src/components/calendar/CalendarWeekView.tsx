@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   startOfWeek,
   endOfWeek,
@@ -19,6 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown, CalendarClock, Search, Truck, UserCheck } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { hasLogisticRisk, getEmployeeInitials } from "@/lib/calendarUtils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
@@ -29,19 +29,6 @@ interface CalendarWeekViewProps {
   appointments?: CalendarAppointment[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
-}
-
-function getEmployeeInitials(order: CalendarOrder): string {
-  if (!order.assigned_employees || order.assigned_employees.length === 0) return "";
-  return order.assigned_employees
-    .map((ae) => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`)
-    .join(", ");
-}
-
-function hasLogisticRisk(order: CalendarOrder): boolean {
-  if (!order.expected_date) return false;
-  if (!order.warehouse_arrival_date) return true;
-  return order.warehouse_arrival_date > order.expected_date;
 }
 
 interface WeekEvent {
@@ -64,7 +51,6 @@ export function CalendarWeekView({
   currentDate,
   onDateChange,
 }: CalendarWeekViewProps) {
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);

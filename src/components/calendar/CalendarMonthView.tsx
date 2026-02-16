@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   format,
   startOfMonth,
@@ -24,6 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { hasLogisticRisk, getEmployeeInitials } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
@@ -33,19 +33,6 @@ interface CalendarEvent {
   order?: CalendarOrder;
   appointment?: CalendarAppointment;
   color: string;
-}
-
-function getEmployeeInitials(order: CalendarOrder): string {
-  if (!order.assigned_employees || order.assigned_employees.length === 0) return "";
-  return order.assigned_employees
-    .map((ae) => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`)
-    .join(", ");
-}
-
-function hasLogisticRisk(order: CalendarOrder): boolean {
-  if (!order.expected_date) return false;
-  if (!order.warehouse_arrival_date) return true;
-  return order.warehouse_arrival_date > order.expected_date;
 }
 
 const APPOINTMENT_ICONS: Record<string, typeof CalendarClock> = {
@@ -69,7 +56,6 @@ export function CalendarMonthView({
   currentDate,
   onDateChange,
 }: CalendarMonthViewProps) {
-  const navigate = useNavigate();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
