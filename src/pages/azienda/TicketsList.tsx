@@ -8,13 +8,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   MessageSquare, 
   Search,
   Filter,
   ChevronRight,
   User,
-  Package
+  Package,
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
 import { 
   formatRelativeTime, 
@@ -36,32 +39,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-type TicketStatus = "aperto" | "in_lavorazione" | "risolto";
-
-interface Ticket {
-  id: string;
-  subject: string;
-  status: TicketStatus;
-  created_at: string;
-  updated_at: string;
-  order_id: string | null;
-  customer: {
-    first_name: string;
-    last_name: string;
-    email: string;
-  } | null;
-  order?: {
-    description: string;
-  } | null;
-}
+import type { TicketListItem } from "@/types/tickets";
 
 const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { effectiveCompany } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const { data: tickets = [], isLoading } = useQuery({
+  const { data: tickets = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["company-tickets", effectiveCompany?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -80,10 +65,10 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
-      return data as unknown as Ticket[];
+      return data as unknown as TicketListItem[];
     },
     enabled: !!effectiveCompany?.id,
-    staleTime: 2 * 60 * 1000, // 2 minuti
+    staleTime: 2 * 60 * 1000,
   });
 
   const filteredTickets = tickets.filter((ticket) => {
@@ -98,7 +83,6 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
     return matchesSearch && matchesStatus;
   });
 
-  // Count by status
   const statusCounts = {
     all: tickets.length,
     aperto: tickets.filter((t) => t.status === "aperto").length,
@@ -112,6 +96,26 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-12 w-full" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Assistenza</h1>
+          <p className="text-muted-foreground">Gestisci i ticket di supporto dei clienti</p>
+        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            Errore nel caricamento dei ticket.
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" /> Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }

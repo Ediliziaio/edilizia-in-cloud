@@ -46,6 +46,7 @@ export default function CreateTicket() {
       return data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   const createTicketMutation = useMutation({
