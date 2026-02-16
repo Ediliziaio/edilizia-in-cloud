@@ -1,8 +1,14 @@
-import { useMemo } from "react";
-import { format, startOfMonth, endOfMonth, addMonths, isWithinInterval } from "date-fns";
+import { useMemo, useState } from "react";
+import { format, startOfMonth, endOfMonth, addMonths, isWithinInterval, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
+import { CalendarIcon, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import type { ExpectedPayment } from "@/lib/forecastTypes";
 
@@ -22,72 +28,92 @@ interface CollectedTabProps {
 
 export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
   const now = new Date();
+  const [customMonths, setCustomMonths] = useState(3);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+
   const thisMonthStart = startOfMonth(now);
   const thisMonthEnd = endOfMonth(now);
 
-  // Pagamenti già incassati questo mese
-  const collectedThisMonth = useMemo<CollectedPayment[]>(() => {
+  // All collected payments (not limited to this month)
+  const allCollected = useMemo<CollectedPayment[]>(() => {
     const collected: CollectedPayment[] = [];
-    const interval = { start: thisMonthStart, end: thisMonthEnd };
 
     orders.forEach((order: any) => {
       const customerName = order.customer
         ? `${order.customer.first_name} ${order.customer.last_name}`
         : "Cliente sconosciuto";
 
-      if (order.deposit_paid && order.deposit_paid_date) {
-        const d = new Date(order.deposit_paid_date);
-        if (isWithinInterval(d, interval) && order.deposit_amount > 0) {
-          collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Acconto 1", amount: Number(order.deposit_amount), paidDate: d });
-        }
+      if (order.deposit_paid && order.deposit_paid_date && order.deposit_amount > 0) {
+        collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Acconto 1", amount: Number(order.deposit_amount), paidDate: new Date(order.deposit_paid_date) });
       }
-      if (order.deposit_2_paid && order.deposit_2_paid_date) {
-        const d = new Date(order.deposit_2_paid_date);
-        if (isWithinInterval(d, interval) && order.deposit_2_amount > 0) {
-          collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Acconto 2", amount: Number(order.deposit_2_amount), paidDate: d });
-        }
+      if (order.deposit_2_paid && order.deposit_2_paid_date && order.deposit_2_amount > 0) {
+        collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Acconto 2", amount: Number(order.deposit_2_amount), paidDate: new Date(order.deposit_2_paid_date) });
       }
-      if (order.balance_paid && order.balance_paid_date) {
-        const d = new Date(order.balance_paid_date);
-        if (isWithinInterval(d, interval) && order.balance_amount > 0) {
-          collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Saldo", amount: Number(order.balance_amount), paidDate: d });
-        }
+      if (order.balance_paid && order.balance_paid_date && order.balance_amount > 0) {
+        collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Saldo", amount: Number(order.balance_amount), paidDate: new Date(order.balance_paid_date) });
       }
-      if (order.financing_paid && order.financing_paid_date) {
-        const d = new Date(order.financing_paid_date);
-        if (isWithinInterval(d, interval) && order.financing_amount > 0) {
-          collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Finanziamento", amount: Number(order.financing_amount), paidDate: d });
-        }
+      if (order.financing_paid && order.financing_paid_date && order.financing_amount > 0) {
+        collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Finanziamento", amount: Number(order.financing_amount), paidDate: new Date(order.financing_paid_date) });
       }
     });
 
     return collected.sort((a, b) => b.paidDate.getTime() - a.paidDate.getTime());
-  }, [orders, thisMonthStart, thisMonthEnd]);
+  }, [orders]);
+
+  // Collected this month (for card)
+  const collectedThisMonth = useMemo(() => {
+    const interval = { start: thisMonthStart, end: thisMonthEnd };
+    return allCollected.filter(p => isWithinInterval(p.paidDate, interval));
+  }, [allCollected, thisMonthStart, thisMonthEnd]);
+
+  // Filtered collected for table
+  const filteredCollected = useMemo(() => {
+    if (!dateFrom && !dateTo) return collectedThisMonth;
+    return allCollected.filter(p => {
+      if (dateFrom && p.paidDate < startOfDay(dateFrom)) return false;
+      if (dateTo && p.paidDate > endOfMonth(dateTo)) return false;
+      return true;
+    });
+  }, [allCollected, collectedThisMonth, dateFrom, dateTo]);
 
   const collectedTotal = collectedThisMonth.reduce((s, p) => s + p.amount, 0);
+  const filteredCollectedTotal = filteredCollected.reduce((s, p) => s + p.amount, 0);
 
-  // Da ricevere per periodo
+  // Custom period stats for expected payments
+  const customPeriodStats = useMemo(() => {
+    const start = startOfMonth(addMonths(now, 1));
+    const end = endOfMonth(addMonths(now, customMonths));
+    const inRange = (d: Date | null) => d && isWithinInterval(d, { start, end });
+    const payments = expectedPayments.filter(p => inRange(p.expectedDate));
+    return {
+      total: payments.reduce((s, p) => s + p.amount, 0),
+      count: payments.length,
+    };
+  }, [customMonths, expectedPayments, now]);
+
+  // Period payments for cards
   const periodPayments = useMemo(() => {
     const nextMonthStart = startOfMonth(addMonths(now, 1));
     const nextMonthEnd = endOfMonth(addMonths(now, 1));
-    const next3End = endOfMonth(addMonths(now, 2));
 
     const thisMonth = expectedPayments.filter(p => p.expectedDate && isWithinInterval(p.expectedDate, { start: thisMonthStart, end: thisMonthEnd }));
     const nextMonth = expectedPayments.filter(p => p.expectedDate && isWithinInterval(p.expectedDate, { start: nextMonthStart, end: nextMonthEnd }));
-    const next3Months = expectedPayments.filter(p => p.expectedDate && isWithinInterval(p.expectedDate, { start: thisMonthStart, end: next3End }));
     const noDate = expectedPayments.filter(p => !p.expectedDate);
 
     return {
       thisMonth,
       nextMonth,
-      next3Months,
       noDate,
       thisMonthTotal: thisMonth.reduce((s, p) => s + p.amount, 0),
       nextMonthTotal: nextMonth.reduce((s, p) => s + p.amount, 0),
-      next3MonthsTotal: next3Months.reduce((s, p) => s + p.amount, 0),
       noDateTotal: noDate.reduce((s, p) => s + p.amount, 0),
     };
   }, [expectedPayments, thisMonthStart, thisMonthEnd, now]);
+
+  const clearDates = () => { setDateFrom(undefined); setDateTo(undefined); };
+  const hasDates = dateFrom || dateTo;
+  const showingFiltered = hasDates;
 
   return (
     <div className="space-y-6">
@@ -116,9 +142,23 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Prossimi 3 mesi</p>
-            <p className="text-2xl font-bold">{formatCurrency(periodPayments.next3MonthsTotal)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{periodPayments.next3Months.length} pagamenti</p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                {customMonths === 1 ? "Prossimo mese" : `Prossimi ${customMonths} mesi`}
+              </p>
+              <Select value={String(customMonths)} onValueChange={(v) => setCustomMonths(Number(v))}>
+                <SelectTrigger className="w-[80px] h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
+                    <SelectItem key={n} value={String(n)}>{n} {n === 1 ? "mese" : "mesi"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-2xl font-bold mt-1">{formatCurrency(customPeriodStats.total)}</p>
+            <p className="text-xs text-muted-foreground mt-1">{customPeriodStats.count} pagamenti</p>
           </CardContent>
         </Card>
       </div>
@@ -126,34 +166,54 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
       {/* Già Incassato */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Già incassato — {format(now, "MMMM yyyy", { locale: it })}</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <CardTitle className="text-lg">
+              {showingFiltered ? "Già incassato — Periodo personalizzato" : `Già incassato — ${format(now, "MMMM yyyy", { locale: it })}`}
+            </CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <DatePickerButton label="Da" date={dateFrom} onSelect={setDateFrom} />
+              <DatePickerButton label="A" date={dateTo} onSelect={setDateTo} />
+              {hasDates && (
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={clearDates}>
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {collectedThisMonth.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Nessun incasso registrato questo mese</p>
+          {filteredCollected.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Nessun incasso registrato{showingFiltered ? " nel periodo selezionato" : " questo mese"}</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Ordine</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="text-right">Importo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {collectedThisMonth.map((p, i) => (
-                  <TableRow key={`${p.orderId}-${p.type}-${i}`}>
-                    <TableCell className="text-sm">{format(p.paidDate, "dd/MM/yyyy")}</TableCell>
-                    <TableCell className="text-sm font-medium">{p.orderCode || "—"}</TableCell>
-                    <TableCell className="text-sm">{p.customerName}</TableCell>
-                    <TableCell className="text-sm">{p.type}</TableCell>
-                    <TableCell className="text-right text-sm font-medium text-emerald-600">{formatCurrency(p.amount)}</TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Ordine</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead className="text-right">Importo</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredCollected.map((p, i) => (
+                    <TableRow key={`${p.orderId}-${p.type}-${i}`}>
+                      <TableCell className="text-sm">{format(p.paidDate, "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="text-sm font-medium">{p.orderCode || "—"}</TableCell>
+                      <TableCell className="text-sm">{p.customerName}</TableCell>
+                      <TableCell className="text-sm">{p.type}</TableCell>
+                      <TableCell className="text-right text-sm font-medium text-emerald-600">{formatCurrency(p.amount)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {showingFiltered && (
+                <div className="flex justify-end mt-3 pt-3 border-t">
+                  <span className="text-sm font-semibold text-emerald-600">Totale: {formatCurrency(filteredCollectedTotal)}</span>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -205,5 +265,27 @@ function PaymentPeriodSection({ title, payments }: { title: string; payments: Ex
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+function DatePickerButton({ label, date, onSelect }: { label: string; date: Date | undefined; onSelect: (d: Date | undefined) => void }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className={cn("h-9 gap-2", date && "border-primary")}>
+          <CalendarIcon className="h-3.5 w-3.5" />
+          {date ? format(date, "dd/MM/yy", { locale: it }) : label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={date}
+          onSelect={onSelect}
+          locale={it}
+          className="p-3 pointer-events-auto"
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
