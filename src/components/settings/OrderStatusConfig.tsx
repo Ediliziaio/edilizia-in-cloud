@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   DndContext,
   closestCenter,
@@ -28,9 +29,25 @@ export function OrderStatusConfig() {
   const company = effectiveCompany;
   const { toast } = useToast();
   const [statuses, setStatuses] = useState<OrderStatus[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+
+  const { isLoading } = useQuery({
+    queryKey: ["order-statuses-config", company?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_statuses")
+        .select("*")
+        .eq("company_id", company!.id)
+        .order("position");
+
+      if (error) throw error;
+      setStatuses(data as OrderStatus[]);
+      return data;
+    },
+    enabled: !!company?.id,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -38,26 +55,6 @@ export function OrderStatusConfig() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
-  // Fetch statuses
-  useEffect(() => {
-    async function fetchStatuses() {
-      if (!company?.id) return;
-
-      const { data, error } = await supabase
-        .from("order_statuses")
-        .select("*")
-        .eq("company_id", company.id)
-        .order("position");
-
-      if (!error && data) {
-        setStatuses(data as OrderStatus[]);
-      }
-      setIsLoading(false);
-    }
-
-    fetchStatuses();
-  }, [company?.id]);
 
   // Handle drag end
   function handleDragEnd(event: DragEndEvent) {
@@ -150,15 +147,15 @@ export function OrderStatusConfig() {
         title: "Salvato",
         description: "Gli stati ordine sono stati aggiornati",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle specific error for status in use
-      let errorMessage = error.message || "Impossibile salvare le modifiche";
-      if (errorMessage.includes("stato usato") || errorMessage.includes("storico ordini")) {
-        errorMessage = "Impossibile eliminare uno stato già in uso. Alcuni stati sono associati a ordini esistenti o presenti nello storico.";
+      let errorMsg = error instanceof Error ? error.message : "Impossibile salvare le modifiche";
+      if (errorMsg.includes("stato usato") || errorMsg.includes("storico ordini")) {
+        errorMsg = "Impossibile eliminare uno stato già in uso. Alcuni stati sono associati a ordini esistenti o presenti nello storico.";
       }
       toast({
         title: "Errore",
-        description: errorMessage,
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {

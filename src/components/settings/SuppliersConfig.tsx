@@ -194,6 +194,7 @@ export function SuppliersConfig() {
       return data as Supplier[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const existingCategories = useMemo(() => {
