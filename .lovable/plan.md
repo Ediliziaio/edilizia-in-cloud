@@ -1,106 +1,134 @@
 
+# Stabilizzazione e Pulizia Tesoreria + Prompt di Analisi Completa
 
-# Fix Tesoreria: Logica Finanziaria Corretta + Tooltip Agicap-Style
+## Analisi dello stato attuale
 
-## Concetto Chiave
+Dopo un'analisi approfondita del codice, la Tesoreria e il modulo Previsionale sono funzionalmente corretti:
+- La linea tesoreria usa gia `Math.max(0, cumulative)` (riga 388) -- il grafico non scende mai sotto zero
+- Le barre entrate/uscite sono entrambe positive (fix precedente applicato)
+- Il tooltip Agicap-style e implementato correttamente
+- La griglia mostra i flussi netti mensili che possono essere negativi (comportamento corretto)
+- Il toggle "Mostra Previsionale" funziona con overlay semi-trasparente
 
-La **Tesoreria** rappresenta il saldo del conto corrente bancario. E' un valore cumulativo: Entrate - Uscite mese per mese. Il grafico (la linea blu) non puo MAI scendere sotto zero perche rappresenta quanto c'e in banca. La griglia sottostante invece mostra i flussi netti mensili che POSSONO essere negativi (mese in cui si e speso piu di quanto incassato).
+## Problemi identificati e correzioni
 
-## Stato Attuale
+### 1. Bug nel tooltip con forecast attivo
+Quando il toggle "Mostra Previsionale" e attivo, il tooltip NON mostra i dati previsionali (entrate/uscite previste, tesoreria prevista). Va aggiornato per includere anche queste informazioni quando `showForecast = true`.
 
-Il codice gia implementa `Math.max(0, cumulative)` alla riga 388, quindi la linea tesoreria non scende sotto zero. Le barre sono gia positive (fix precedente). Il problema principale e:
+### 2. Variabile `lastMonthTreasury` potenzialmente confusa
+La variabile `lastMonthTreasury` (riga 518) e corretta e usata nel badge "Saldo", ma il suo nome potrebbe confondere. Nessuna modifica necessaria, solo annotazione.
 
-1. **Tooltip troppo semplice** -- non mostra Inizio/Fine/Variazione come nell'immagine di riferimento (stile Agicap)
-2. **Y-axis tickFormatter** non gestisce valori negativi (se la tesoreria e 0 e expenses > income, il net puo essere negativo nella griglia ma il formatter usa `v >= 1000` che ignora negativi)
+### 3. Forecast cumulative senza floor a zero
+Il calcolo del `forecastNetMonthly` (riga 451) NON applica `Math.max(0, ...)`. In una proiezione previsionale, potrebbe avere senso mostrare scenari negativi per evidenziare rischi. Tuttavia, per coerenza con la linea sostenuta, conviene applicare lo stesso floor: `forecastNetMonthly[k] = Math.max(0, forecastCum)`.
 
-## Correzioni
+### 4. Pulizia codice
+- Nessun import inutilizzato trovato nei file forecast
+- Nessuna variabile morta
+- Il codice e ben organizzato con la strategia di refactoring modulare gia in uso
+
+## Piano di implementazione
 
 ### File: `src/components/forecast/TreasuryTab.tsx`
 
-**1. Tooltip stile Agicap (righe 518-533)**
-
-Riscrivere il `CustomTooltip` per mostrare la struttura dell'immagine di riferimento:
-
+**A. Fix forecast cumulative (riga 451)**
+Aggiungere `Math.max(0, ...)` anche per la linea previsionale:
+```typescript
+forecastNetMonthly[k] = Math.max(0, forecastCum);
 ```
-Maggio 2024
----------------------
+
+**B. Tooltip con dati previsionali (righe 520-557)**
+Quando `showForecast = true`, aggiungere sotto ogni sezione i valori previsionali:
+```
 TESORERIA
-  Inizio      27.659,75 euro
-  Fine        55.113,19 euro
-  Variazione  +27.453,44 euro
+  Inizio      27.659 euro
+  Fine        55.113 euro
+  Variazione  +27.453 euro
 
 ENTRATE
   Realizzato  62.305 euro
+  Previsto    18.200 euro    <-- solo se showForecast
 
 USCITE
   Realizzato  34.851 euro
+  Previsto    12.500 euro    <-- solo se showForecast
 ```
 
-Per fare questo, il tooltip deve accedere ai dati `startMonthly[k]` (saldo inizio mese) e `netMonthly[k]` (saldo fine mese) che sono gia calcolati nel `treeData`. Bisogna aggiungerli al `chartData`:
-- `treasuryStart`: saldo inizio mese (calcolato come saldo fine mese precedente)
-- `treasuryEnd`: saldo fine mese (gia presente come `treasury`)
-- `variation`: entrate - uscite del mese
+Il tooltip deve ricevere lo stato `showForecast`. Dato che `CustomTooltip` e definito dentro il componente, ha gia accesso alla closure.
 
-**2. Fix tickFormatter Y-axis (riga 594)**
+**C. Nessun file/componente/funzione da rimuovere**
+L'analisi ha confermato che tutto il codice nel modulo forecast e utilizzato. Non ci sono import inutili, funzioni morte o componenti orfani.
 
-Gestire anche valori negativi:
-```typescript
-tickFormatter={(v: number) => {
-  const abs = Math.abs(v);
-  return abs >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v);
-}}
+## Prompt di Analisi Completa del Software
+
+Come richiesto, ecco il prompt riutilizzabile per future analisi:
+
+---
+
+**PROMPT DA SALVARE:**
+
+```
+Agisci come Senior Full-Stack Engineer + QA Lead + UX Specialist.
+
+OBIETTIVO: Analisi completa del software per identificare blocchi, errori e codice morto.
+
+CHECKLIST DI ANALISI:
+
+1. ERRORI CRITICI (Blocchi)
+- Verifica che tutte le route siano raggiungibili e non restituiscano schermo bianco
+- Controlla che le query Supabase abbiano gestione errori (try/catch o .error)
+- Verifica che i form salvino correttamente (INSERT/UPDATE vanno a buon fine)
+- Controlla loading state: nessun spinner infinito, nessun freeze UI
+- Verifica che i ruoli (company_admin, company_staff, customer, employee, salesperson) accedano solo alle loro sezioni
+
+2. ERRORI LIEVI (Warning/UX)
+- Controlla la console per warning React (key mancanti, useEffect dependency, ecc.)
+- Verifica che i toast di errore/successo appaiano correttamente
+- Controlla che i dialog si chiudano dopo il salvataggio
+- Verifica che le tabelle vuote mostrino un empty state chiaro
+- Controlla che i filtri/ricerca funzionino senza lag
+
+3. CODICE MORTO (Da rimuovere)
+- Import non utilizzati in ogni file
+- Variabili/costanti dichiarate ma mai lette
+- Componenti definiti ma mai renderizzati
+- Funzioni helper mai chiamate
+- File .tsx/.ts non importati da nessun altro file
+- Props passate ma mai usate nel componente figlio
+- State (useState) dichiarati ma mai usati
+
+4. PERFORMANCE
+- Query Supabase senza staleTime (richieste duplicate)
+- Re-render inutili (componenti grandi senza memo/useMemo)
+- useEffect con dependency array sbagliata (loop infiniti)
+- Immagini/asset non ottimizzati
+
+5. SICUREZZA
+- RLS policy mancanti su tabelle sensibili
+- Dati sensibili esposti in console.log
+- Token/chiavi hardcoded nel frontend
+
+OUTPUT RICHIESTO:
+- Lista errori critici con file e riga
+- Lista errori lievi con severita (bassa/media)
+- Lista codice morto da rimuovere (file, riga, motivo)
+- Lista miglioramenti performance suggeriti
+- Conferma "TUTTO OK" solo se zero errori critici
 ```
 
-**3. Aggiungere campi al chartData (righe 502-513)**
+---
 
-Aggiungere `treasuryStart` (saldo inizio mese) a chartData per il tooltip ricco:
-```typescript
-monthKeys.map((k, i) => ({
-  month: format(months[i], "MMM yy", { locale: it }),
-  monthFull: format(months[i], "MMMM yyyy", { locale: it }),
-  income: treeData.entrateNode.monthlyAmounts[k] || 0,
-  expenses: treeData.usciteNode.monthlyAmounts[k] || 0,
-  treasury: treeData.netMonthly[k] || 0,
-  treasuryStart: treeData.startMonthly[k] || 0,
-  forecastIncome: forecastData.forecastIncomeMonthly[k] || 0,
-  forecastExpenses: forecastData.forecastExpensesMonthly[k] || 0,
-  forecastTreasury: forecastData.forecastNetMonthly[k] || 0,
-}))
-```
-
-## Dettagli tecnici
-
-### Tooltip Custom (nuovo)
-
-Il tooltip NON usa piu il generico `payload.map()` ma costruisce una struttura dedicata leggendo direttamente i campi dal `payload[0].payload` (l'oggetto chartData del mese):
-
-```typescript
-const CustomTooltip = ({ active, payload }: any) => {
-  if (!active || !payload?.length) return null;
-  const data = payload[0].payload;
-  const variation = data.income - data.expenses;
-  return (
-    <div>
-      <p>{data.monthFull}</p>
-      <section>TESORERIA</section>
-      <p>Inizio: {formatCurrency(data.treasuryStart)}</p>
-      <p>Fine: {formatCurrency(data.treasury)}</p>
-      <p>Variazione: {formatCurrency(variation)}</p>
-      <section>ENTRATE</section>
-      <p>Realizzato: {formatCurrency(data.income)}</p>
-      <section>USCITE</section>
-      <p>Realizzato: {formatCurrency(data.expenses)}</p>
-    </div>
-  );
-};
-```
+## Riepilogo modifiche
 
 ### File da modificare:
 - `src/components/forecast/TreasuryTab.tsx`
 
-### Sequenza:
-1. Aggiungere `monthFull` e `treasuryStart` al chartData
-2. Riscrivere CustomTooltip con struttura Agicap
-3. Fix tickFormatter per valori negativi
-4. Pulizia finale
+### Cosa viene fatto:
+1. **Fix**: Forecast cumulative con `Math.max(0, ...)` per coerenza
+2. **UX**: Tooltip arricchito con dati previsionali quando toggle e attivo
+3. **Nessuna rimozione**: tutto il codice attuale e utilizzato
 
+### Cosa NON cambia:
+- Logica sostenuto (gia corretta)
+- Barre sempre positive (gia corretto)
+- Griglia con valori negativi possibili (comportamento voluto)
+- Struttura file e architettura modulare
