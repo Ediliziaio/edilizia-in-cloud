@@ -1,5 +1,5 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon, LayoutDashboard, ShoppingBag, Package, Calendar, Users, Settings, TrendingUp, Euro, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon, LayoutDashboard, ShoppingBag, Package, Calendar, Users, Settings, TrendingUp, Euro, AlertCircle, CheckCircle2, Star, Headphones } from "lucide-react";
 
 const floatingIcons = [
   { Icon: HardHat, top: "10%", left: "5%", size: 48, delay: "0s", anim: "animate-float" },
@@ -47,12 +47,14 @@ const chartBars = [
 function DashboardMockup({ isVisible }: { isVisible: boolean }) {
   return (
     <div
-      className={`mt-10 mb-8 max-w-4xl mx-auto transition-all duration-700 delay-200 ${
+      className={`relative mt-10 mb-8 max-w-4xl mx-auto transition-all duration-700 delay-200 ${
         isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
       }`}
     >
+      {/* Glow effect behind mockup */}
+      <div className="absolute -inset-8 bg-[#0fa68c]/15 rounded-full blur-[80px] animate-pulse-glow pointer-events-none" />
       <div
-        className="rounded-2xl border border-white/15 shadow-2xl shadow-black/40 overflow-hidden"
+        className="relative rounded-2xl border border-white/15 shadow-2xl shadow-black/40 overflow-hidden"
         style={{ transform: "perspective(1200px) rotateX(4deg)" }}
       >
         <div className="flex bg-[#0f1a2e]">
@@ -192,8 +194,11 @@ export default function HeroSection() {
         <div
           className={`transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <span className="inline-block mb-6 px-5 py-2 rounded-full border border-[#0fa68c]/40 bg-[#0fa68c]/10 text-[#0fa68c] text-xs font-semibold uppercase tracking-widest">
-            Il Software #1 in Italia per Imprenditori Edili
+          <span
+            className="inline-block mb-6 px-5 py-2 rounded-full border border-[#0fa68c]/40 bg-[#0fa68c]/10 text-[#0fa68c] text-xs font-semibold uppercase tracking-widest relative overflow-hidden"
+          >
+            <span className="absolute inset-0 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(15,166,140,0.15) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
+            <span className="relative">Il Software #1 in Italia per Imprenditori Edili</span>
           </span>
         </div>
 
@@ -218,7 +223,7 @@ export default function HeroSection() {
           }`}
         >
           Il primo software gestionale progettato da imprenditori edili, per imprenditori edili.
-          Controlla margini, cassa e commesse in tempo reale — senza fogli Excel, senza sorprese.
+          Controlla <span className="text-white font-semibold">margini</span>, <span className="text-white font-semibold">cassa</span> e <span className="text-white font-semibold">commesse</span> in tempo reale — senza fogli Excel, senza sorprese.
         </p>
 
         {/* 5. CTA Buttons */}
@@ -242,10 +247,34 @@ export default function HeroSection() {
             Scopri le Funzionalità
           </a>
         </div>
+
+        {/* Social Proof */}
+        <div
+          className={`flex flex-col sm:flex-row items-center justify-center gap-6 mt-8 transition-all duration-700 delay-700 ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+          }`}
+        >
+          <div className="flex items-center gap-2 text-white/50 text-sm">
+            <Users size={16} className="text-[#0fa68c]" />
+            <span>150+ Imprese Edili</span>
+          </div>
+          <div className="hidden sm:block w-px h-4 bg-white/20" />
+          <div className="flex items-center gap-1.5 text-white/50 text-sm">
+            {[...Array(5)].map((_, i) => (
+              <Star key={i} size={14} className="text-[#0fa68c] fill-[#0fa68c]" />
+            ))}
+            <span className="ml-1">4.9/5 Soddisfazione</span>
+          </div>
+          <div className="hidden sm:block w-px h-4 bg-white/20" />
+          <div className="flex items-center gap-2 text-white/50 text-sm">
+            <Headphones size={16} className="text-[#0fa68c]" />
+            <span>Supporto Italiano</span>
+          </div>
+        </div>
       </div>
 
       {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-white to-transparent" />
     </section>
   );
 }

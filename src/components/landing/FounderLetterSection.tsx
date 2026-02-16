@@ -91,10 +91,15 @@ export default function FounderLetterSection() {
               <div className="border-t border-[#1a2744]/10 my-8" />
 
               <p>Un saluto da imprenditore a imprenditore,</p>
-              <div className="mt-4">
-                <p className="text-xl font-bold text-[#1a2744]">Florin</p>
-                <p className="text-[#0fa68c] font-semibold">Fondatore di Edilizia in Cloud</p>
-                <p className="text-sm text-[#1a2744]/60">Imprenditore nel settore serramenti — Lombardia</p>
+              <div className="mt-4 flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-[#0fa68c] flex items-center justify-center shrink-0 shadow-lg shadow-[#0fa68c]/20">
+                  <span className="text-white text-xl font-bold">F</span>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-[#1a2744]">Florin</p>
+                  <p className="text-[#0fa68c] font-semibold">Fondatore di Edilizia in Cloud</p>
+                  <p className="text-sm text-[#1a2744]/60">Imprenditore nel settore serramenti — Lombardia</p>
+                </div>
               </div>
 
               <div className="mt-10 space-y-6 bg-[#f8f9fb] rounded-xl p-6">
