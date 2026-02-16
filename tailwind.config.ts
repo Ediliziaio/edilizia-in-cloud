@@ -101,8 +101,8 @@ export default {
           "50%": { transform: "translateY(-15px) rotate(3deg)" },
         },
         "pulse-glow": {
-          "0%, 100%": { boxShadow: "0 0 20px rgba(200,238,68,0.3)" },
-          "50%": { boxShadow: "0 0 50px rgba(200,238,68,0.6)" },
+          "0%, 100%": { boxShadow: "0 0 20px rgba(15,166,140,0.3)" },
+          "50%": { boxShadow: "0 0 50px rgba(15,166,140,0.6)" },
         },
         "slide-in-left": {
           "0%": { opacity: "0", transform: "translateX(-60px)" },

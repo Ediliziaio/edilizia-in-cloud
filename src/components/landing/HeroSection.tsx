@@ -20,11 +20,11 @@ export default function HeroSection() {
       ref={ref}
       className="relative min-h-screen flex items-center justify-center overflow-hidden"
       style={{
-        background: "radial-gradient(ellipse at 50% 0%, #1a2a1a 0%, #0a0a0a 60%)",
+        background: "linear-gradient(135deg, #1a2744 0%, #0f1d35 50%, #1a2744 100%)",
       }}
     >
       {/* Grid overlay */}
-      <div className="absolute inset-0 opacity-[0.03]" style={{
+      <div className="absolute inset-0 opacity-[0.04]" style={{
         backgroundImage: "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
         backgroundSize: "60px 60px",
       }} />
@@ -33,7 +33,7 @@ export default function HeroSection() {
       {floatingIcons.map(({ Icon, top, left, right, size, delay, anim }, i) => (
         <div
           key={i}
-          className={`absolute opacity-[0.04] text-[#c8ee44] ${anim}`}
+          className={`absolute opacity-[0.06] text-[#0fa68c] ${anim}`}
           style={{ top, left, right, animationDelay: delay }}
         >
           <Icon size={size} strokeWidth={1} />
@@ -41,15 +41,15 @@ export default function HeroSection() {
       ))}
 
       {/* Gradient orbs */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#c8ee44]/[0.03] rounded-full blur-[120px]" />
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-emerald-500/[0.03] rounded-full blur-[100px]" />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#0fa68c]/[0.06] rounded-full blur-[120px]" />
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-[#0fa68c]/[0.04] rounded-full blur-[100px]" />
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
         <div
           className={`transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
-          <span className="inline-block mb-6 px-4 py-2 rounded-full border border-[#c8ee44]/30 bg-[#c8ee44]/10 text-[#c8ee44] text-xs font-semibold uppercase tracking-widest">
-            Il #1 Software in Italia per Imprenditori Edili
+          <span className="inline-block mb-6 px-5 py-2 rounded-full border border-[#0fa68c]/40 bg-[#0fa68c]/10 text-[#0fa68c] text-xs font-semibold uppercase tracking-widest">
+            Il Software #1 in Italia per Imprenditori Edili
           </span>
         </div>
 
@@ -60,11 +60,11 @@ export default function HeroSection() {
         >
           Smetti di Fatturare al Buio.
           <br />
-          <span className="text-[#c8ee44]">Inizia a Guadagnare con i Numeri.</span>
+          <span className="text-[#0fa68c]">Inizia a Guadagnare con i Numeri.</span>
         </h1>
 
         <p
-          className={`text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 transition-all duration-700 delay-300 ${
+          className={`text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-10 transition-all duration-700 delay-300 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
@@ -80,14 +80,14 @@ export default function HeroSection() {
           <a
             href="#cta-finale"
             onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
-            className="px-8 py-4 rounded-lg bg-[#c8ee44] text-[#0a0a0a] font-bold text-lg hover:bg-[#d4f55a] hover:scale-105 transition-all duration-200 animate-pulse-glow"
+            className="px-8 py-4 rounded-full bg-[#0fa68c] text-white font-bold text-lg hover:bg-[#0d9079] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-[#0fa68c]/30"
           >
             Richiedi Demo Gratuita
           </a>
           <a
             href="#moduli"
             onClick={(e) => { e.preventDefault(); document.querySelector("#moduli")?.scrollIntoView({ behavior: "smooth" }); }}
-            className="px-8 py-4 rounded-lg border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all duration-200"
+            className="px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all duration-200"
           >
             Scopri le Funzionalità
           </a>
@@ -95,7 +95,7 @@ export default function HeroSection() {
       </div>
 
       {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#0a0a0a] to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white to-transparent" />
     </section>
   );
 }
