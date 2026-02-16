@@ -1,5 +1,5 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { ShieldCheck, Wrench, TrendingUp, Check, ArrowRight } from "lucide-react";
+import { ShieldCheck, Wrench, TrendingUp, Check, ArrowRight, Gift } from "lucide-react";
 
 const guarantees = [
   {
@@ -28,11 +28,11 @@ const guarantees = [
     icon: TrendingUp,
     title: 'ROI Garantito',
     days: "90",
-    description: "Se in 90 giorni non hai recuperato almeno 3x il costo dell'abbonamento, ti rimborsiamo la differenza.",
+    description: "Se in 90 giorni non hai recuperato almeno 3x il costo dell'abbonamento in efficienza e margini recuperati, ti REGALO il software a vita. Gratis. Per sempre.",
     points: [
       "Tracciamento ROI integrato nella dashboard",
       "Report automatici di efficienza",
-      "Rimborso proporzionale garantito",
+      "Nessun ROI? Il software è tuo, per sempre",
     ],
   },
 ];
@@ -63,62 +63,52 @@ export default function GuaranteeSection() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           {guarantees.map((g, i) => {
             const Icon = g.icon;
+            const isROI = i === 2;
             return (
               <div
                 key={i}
-                className={`relative p-[2px] rounded-3xl transition-all duration-700 ${
-                  isVisible ? "opacity-100 scale-100" : "opacity-0 scale-90"
-                }`}
+                className={`relative rounded-3xl bg-[#1a2744] p-8 text-center h-full flex flex-col transition-all duration-500 group
+                  ${isROI
+                    ? "border-2 border-[#0fa68c] shadow-[0_0_25px_rgba(15,166,140,0.15)] hover:shadow-[0_0_40px_rgba(15,166,140,0.3)] hover:scale-[1.03]"
+                    : "border border-[#0fa68c]/25 hover:border-[#0fa68c]/60 hover:shadow-[0_0_30px_rgba(15,166,140,0.12)] hover:scale-[1.02]"
+                  }
+                  ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}
+                `}
                 style={{ transitionDelay: isVisible ? `${300 + i * 150}ms` : "0ms" }}
               >
-                {/* Rotating border */}
-                <div
-                  className="absolute inset-0 rounded-3xl"
-                  style={{
-                    background: "conic-gradient(from 0deg, #0fa68c, #0fa68c33, #0fa68c, #0fa68c33, #0fa68c)",
-                    animation: `rotateBorder ${4 + i}s linear infinite`,
-                  }}
-                />
+                {/* Badge giorni */}
+                <span className="inline-flex items-center justify-center px-5 py-1.5 rounded-full text-xs font-bold text-[#0fa68c] mx-auto mb-6 border border-[#0fa68c]/50 bg-[#0fa68c]/10">
+                  ⏱ {g.days} GIORNI
+                </span>
 
-                <div className="relative rounded-[22px] bg-[#1a2744] p-8 text-center h-full flex flex-col">
-                  {/* Badge */}
-                  <span className="relative inline-flex items-center justify-center px-5 py-1.5 rounded-full text-xs font-bold text-[#0fa68c] mx-auto mb-6 overflow-hidden">
-                    <span
-                      className="absolute inset-0 rounded-full"
-                      style={{
-                        background: "conic-gradient(from 0deg, #0fa68c, transparent, #0fa68c, transparent, #0fa68c)",
-                        animation: `rotateBorder 3s linear infinite`,
-                      }}
-                    />
-                    <span className="absolute inset-[1px] rounded-full bg-[#1a2744]" />
-                    <span className="relative">⏱ {g.days} GIORNI</span>
-                  </span>
-
-                  {/* Icon with rings */}
-                  <div className="relative mx-auto w-20 h-20 mb-6">
-                    <div className="absolute inset-0 rounded-full border border-[#0fa68c]/20" />
-                    <div className="absolute inset-2 rounded-full border border-[#0fa68c]/30" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-12 h-12 rounded-full bg-[#0fa68c]/20 flex items-center justify-center">
-                        <Icon className="w-6 h-6 text-[#0fa68c] drop-shadow-[0_0_10px_rgba(15,166,140,0.5)]" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <h3 className="text-xl font-bold text-white mb-3">"{g.title}"</h3>
-                  <p className="text-white/50 text-sm mb-6 leading-relaxed">{g.description}</p>
-
-                  <div className="space-y-2.5 text-left mt-auto">
-                    {g.points.map((point, j) => (
-                      <div key={j} className="flex items-center gap-2.5">
-                        <div className="w-5 h-5 rounded-full bg-[#0fa68c]/20 flex items-center justify-center flex-shrink-0">
-                          <Check className="w-3 h-3 text-[#0fa68c]" />
-                        </div>
-                        <span className="text-white/70 text-xs">{point}</span>
-                      </div>
-                    ))}
+                {/* Icona con pulse glow */}
+                <div className="relative mx-auto w-16 h-16 mb-6 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-[#0fa68c]/15 flex items-center justify-center animate-pulse-glow">
+                    <Icon className="w-7 h-7 text-[#0fa68c] drop-shadow-[0_0_10px_rgba(15,166,140,0.5)]" />
                   </div>
                 </div>
+
+                <h3 className="text-xl font-bold text-white mb-3">"{g.title}"</h3>
+                <p className="text-white/50 text-sm mb-6 leading-relaxed">{g.description}</p>
+
+                <div className="space-y-2.5 text-left mt-auto">
+                  {g.points.map((point, j) => (
+                    <div key={j} className="flex items-center gap-2.5">
+                      <div className="w-5 h-5 rounded-full bg-[#0fa68c]/20 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-3 h-3 text-[#0fa68c]" />
+                      </div>
+                      <span className="text-white/70 text-xs">{point}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Badge REGALO A VITA per card ROI */}
+                {isROI && (
+                  <div className="mt-6 inline-flex items-center justify-center gap-1.5 mx-auto px-4 py-2 rounded-full bg-[#0fa68c]/15 border border-[#0fa68c]/60">
+                    <Gift className="w-4 h-4 text-[#0fa68c]" />
+                    <span className="text-[#0fa68c] text-xs font-bold tracking-wide">REGALO A VITA</span>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -141,13 +131,6 @@ export default function GuaranteeSection() {
           </a>
         </div>
       </div>
-
-      <style>{`
-        @keyframes rotateBorder {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </section>
   );
 }
