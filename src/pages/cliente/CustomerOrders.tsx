@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, Loader2, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ClipboardList, Loader2, ChevronRight, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -25,7 +26,7 @@ interface Order {
 export default function CustomerOrders() {
   const { user, company } = useAuth();
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["customer-orders", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -54,6 +55,16 @@ export default function CustomerOrders() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-4">
+        <AlertCircle className="h-10 w-10 text-destructive" />
+        <p className="text-muted-foreground">Impossibile caricare gli ordini.</p>
+        <Button variant="outline" onClick={() => refetch()}>Riprova</Button>
       </div>
     );
   }
