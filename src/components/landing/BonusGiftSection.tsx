@@ -2,20 +2,7 @@ import { useState, useEffect } from "react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { BookOpen, ArrowRight } from "lucide-react";
 import AIImage from "@/components/landing/AIImage";
-
-const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
-
-function getTimeLeft() {
-  const now = new Date();
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-  const diff = Math.max(0, end.getTime() - now.getTime());
-  return {
-    days: Math.floor(diff / (1000 * 60 * 60 * 24)),
-    hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
-    minutes: Math.floor((diff / (1000 * 60)) % 60),
-    seconds: Math.floor((diff / 1000) % 60),
-  };
-}
+import { getTimeLeft, MESI } from "@/lib/urgencyUtils";
 
 export default function BonusGiftSection() {
   const { ref, isVisible } = useScrollAnimation();

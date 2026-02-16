@@ -2,6 +2,9 @@ import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Target, TrendingUp, Shield, PieChart, BarChart3, ArrowUpRight } from "lucide-react";
 import AIImage from "./AIImage";
 
+// Pre-calculated bar heights to avoid Math.random() in render
+const BAR_HEIGHTS = [32, 48, 25, 55, 38, 42, 28, 52, 35, 45, 30, 58, 40, 22, 50, 36, 46, 33];
+
 const questions = [
   { icon: Target, q: "Qual è il margine REALE di ogni commessa?", desc: "Non il margine stimato. Quello vero, aggiornato in tempo reale con costi effettivi." },
   { icon: TrendingUp, q: "Quanta cassa avrò tra 30, 60, 90 giorni?", desc: "Previsione automatica basata su incassi attesi, scadenze fornitori e costi fissi." },
@@ -87,11 +90,11 @@ export default function SolutionSection() {
             ))}
           </div>
           <div className="grid grid-cols-6 gap-2">
-            {Array.from({ length: 18 }).map((_, i) => (
+            {BAR_HEIGHTS.map((h, i) => (
               <div
                 key={i}
                 className="rounded bg-white/[0.04] border border-white/[0.06]"
-                style={{ height: `${20 + Math.random() * 40}px` }}
+                style={{ height: `${h}px` }}
               />
             ))}
           </div>
