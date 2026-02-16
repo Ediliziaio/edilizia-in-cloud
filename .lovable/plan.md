@@ -1,68 +1,88 @@
 
-# Sezione Recensioni / Casi Studio
+# 3 Piani di Pricing + 3 Garanzie Forti
 
-## Posizione
-Nuova sezione `TestimonialsSection.tsx` inserita tra `PricingSection` e `GuaranteeSection` in `Home.tsx` -- subito dopo il prezzo, per rafforzare la decisione d'acquisto con prove sociali concrete.
+## 1. Redesign PricingSection con 3 Piani
 
-## Contenuto: 4 Aziende con Risultati
+**File: `src/components/landing/PricingSection.tsx`**
 
-### 1. Costruzioni Rossi S.r.l. - Roma
-- **Settore**: Ristrutturazioni residenziali
-- **Fatturato**: 1.2M euro
-- **Prima**: 80.000 euro di utile (6.7% margine)
-- **Dopo**: 360.000 euro di utile (30% margine)
-- **Citazione**: "In 8 mesi abbiamo scoperto che 3 cantieri su 10 erano in perdita. Ora ogni commessa e sotto controllo."
-- **Persona**: Marco Rossi, Titolare
+Sostituire il layout attuale (lista confronto + singola riga "da 99 euro") con una struttura a **3 card affiancate** (griglia 1 colonna mobile, 3 colonne desktop).
 
-### 2. Edil Progetti S.r.l. - Milano
-- **Settore**: Impiantistica e manutenzioni
-- **Fatturato**: 800K euro
-- **Prima**: Ritardi di incasso medi di 90 giorni
-- **Dopo**: Incassi medi a 35 giorni, cassa sempre positiva
-- **Citazione**: "Prima rincorrevamo i pagamenti. Ora il forecast ci dice esattamente quando e quanto incasseremo."
-- **Persona**: Laura Bianchi, Amministratrice
+### I 3 Piani:
 
-### 3. Fratelli Conti Costruzioni - Napoli
-- **Settore**: Edilizia civile e appalti pubblici
-- **Fatturato**: 3.5M euro
-- **Prima**: 2 giorni/settimana su fogli Excel per i report
-- **Dopo**: Report automatici in tempo reale, 12 ore/settimana risparmiate
-- **Citazione**: "Ho eliminato Excel dalla mia vita. Dashboard, margini, stato cantieri: tutto in un click."
-- **Persona**: Giuseppe Conti, Direttore Tecnico
+| | Starter | Professional (Consigliato) | Enterprise |
+|---|---|---|---|
+| **Prezzo** | 99 euro/mese | 199 euro/mese | 399 euro/mese |
+| **Target** | Imprese fino a 500K | Imprese da 500K a 2M | Imprese oltre 2M |
+| **Ordini** | Fino a 50 commesse | Commesse illimitate | Commesse illimitate |
+| **Utenti** | 3 utenti | 10 utenti | Utenti illimitati |
+| **Moduli** | 4 moduli base (Ordini, Clienti, Calendario, Dashboard) | Tutti i 7 moduli | Tutti i 7 moduli + API |
+| **Supporto** | Email | Prioritario (chat + email) | Dedicato (telefono + onboarding) |
+| **Forecast** | No | Si | Si |
+| **Magazzino** | No | Si | Si |
+| **Report** | Base | Avanzati | Custom |
 
-### 4. GreenBuild Italia - Torino
-- **Settore**: Costruzioni sostenibili
-- **Fatturato**: 600K euro (startup)
-- **Prima**: Nessun controllo su costi materiali, margine stimato "a occhio"
-- **Dopo**: Margine reale tracciato per ogni commessa, +22% di redditivita in 6 mesi
-- **Citazione**: "Come startup non potevamo permetterci errori. Edilizia in Cloud ci ha dato il controllo dal giorno uno."
-- **Persona**: Alessia Verde, Co-fondatrice
+### Design delle card:
+- Card **Starter** e **Enterprise**: bordo grigio, sfondo bianco
+- Card **Professional**: bordo teal `border-[#0fa68c]`, badge "Piu Popolare" in alto, scala leggermente piu grande (`scale-105`), ombra teal
+- Ogni card ha: nome piano, prezzo grande, descrizione target, lista feature con icone Check (verde) o X (grigio), bottone CTA
+- CTA Starter: "Inizia Gratis" (outline), Professional: "Scegli Professional" (filled teal), Enterprise: "Contattaci" (outline)
+- La tabella di confronto con le alternative resta sopra le card come contesto
 
-## Layout e Design
+### Animazioni:
+- Scroll animation con stagger: card centrale appare per prima, poi le laterali
 
-- **Titolo**: "I Risultati Parlano Chiaro" con sottotitolo "Ecco cosa hanno ottenuto le imprese che hanno scelto Edilizia in Cloud"
-- **Card layout**: Griglia 2x2 su desktop, 1 colonna su mobile
-- Ogni card include:
-  - Avatar con iniziali (cerchio colorato stile teal/navy)
-  - Nome azienda, citta, ruolo persona
-  - Citazione in corsivo tra virgolette
-  - **Risultato chiave** evidenziato: box con "Prima -> Dopo" usando colori rosso/verde
-  - 5 stelline dorate
-- Scroll animation con stagger (ogni card appare con un delay progressivo)
-- Background: `bg-[#f8fafb]` per staccare dalla sezione bianca sopra
+---
+
+## 2. Redesign GuaranteeSection con 3 Garanzie
+
+**File: `src/components/landing/GuaranteeSection.tsx`**
+
+Trasformare la singola garanzia in **3 garanzie forti** disposte in griglia (1 colonna mobile, 3 desktop).
+
+### Le 3 Garanzie:
+
+**Garanzia 1 - "Margine o Rimborsato" (30 giorni)**
+- Icona: ShieldCheck
+- Testo: Se nei primi 30 giorni non identifichi almeno un'area dove perdi margine, rimborso totale senza domande
+- Badge: "30 GIORNI"
+
+**Garanzia 2 - "Setup Garantito" (60 giorni)**
+- Icona: Settings/Wrench
+- Testo: Se in 60 giorni il tuo team non e operativo sulla piattaforma, ti estendiamo gratis fino a quando non lo sei
+- Badge: "60 GIORNI"
+
+**Garanzia 3 - "ROI Garantito" (90 giorni)**
+- Icona: TrendingUp
+- Testo: Se in 90 giorni non hai recuperato almeno 3x il costo dell'abbonamento in efficienza e margini recuperati, ti rimborsiamo la differenza
+- Badge: "90 GIORNI"
+
+### Design:
+- Titolo sezione: "3 Garanzie. Zero Rischi."
+- 3 card con bordo animato (rotating conic-gradient come gia presente)
+- Ogni card ha: badge giorni, icona grande con anelli concentrici, titolo garanzia, descrizione, 2-3 bullet point specifici
+- Sfondo resta navy `bg-[#1a2744]` con glow effect
+- CTA finale sotto le 3 card: "Prova Senza Rischi"
+
+---
 
 ## Dettagli Tecnici
 
-### Nuovo file: `src/components/landing/TestimonialsSection.tsx`
-- Importa `useScrollAnimation` per animazioni scroll-based
-- Array statico di 4 testimonianze con tutti i dati
-- Card con `rounded-2xl`, bordo sottile, ombra leggera
-- Box "Prima/Dopo" con icona ArrowRight, numeri in rosso (prima) e verde (dopo)
-- Stelline con icona Star di lucide-react in `text-amber-400`
-- Avatar circolare con iniziali (`bg-[#0fa68c]` o `bg-[#1a2744]` alternati)
+### PricingSection.tsx - Struttura:
+- Array `plans` con 3 oggetti contenenti: name, price, period, description, features (array di {text, included}), highlighted (boolean), cta
+- Griglia `grid grid-cols-1 lg:grid-cols-3 gap-6 items-center`
+- Card centrale con `lg:scale-105` e `z-10`
+- Badge "Piu Popolare" posizionato absolute `-top-4`
+- Feature list con icone Check (teal) per incluse, X (gray-300) per escluse
 
-### File modificato: `src/pages/Home.tsx`
-- Import e inserimento di `TestimonialsSection` tra `PricingSection` e `GuaranteeSection`
+### GuaranteeSection.tsx - Struttura:
+- Array `guarantees` con 3 oggetti contenenti: icon, title, days, description, points (array)
+- Griglia `grid grid-cols-1 md:grid-cols-3 gap-6`
+- Ogni card mantiene il rotating border gia implementato
+- Sigillo con anelli concentrici per ogni icona
 
-### Nessuna dipendenza aggiuntiva
-Usa solo lucide-react (gia installato) e hook esistente useScrollAnimation.
+### File modificati:
+
+| File | Azione |
+|---|---|
+| `PricingSection.tsx` | Riscrittura con 3 piani pricing |
+| `GuaranteeSection.tsx` | Riscrittura con 3 garanzie |
