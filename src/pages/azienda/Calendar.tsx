@@ -33,7 +33,7 @@ export default function Calendar() {
   const [externalTeamFilter, setExternalTeamFilter] = useState<string>("all");
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -80,7 +80,7 @@ export default function Calendar() {
         .eq("company_id", effectiveCompany.id)
         .order("appointment_date", { ascending: true });
       if (error) throw error;
-      return (data || []) as unknown as CalendarAppointment[];
+      return (data || []) as CalendarAppointment[];
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
@@ -327,6 +327,14 @@ export default function Calendar() {
       {isLoading ? (
         <div className="flex items-center justify-center h-96">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center h-96 gap-4 text-muted-foreground">
+          <AlertTriangle className="h-10 w-10 text-destructive" />
+          <p>Errore nel caricamento dei dati del calendario</p>
+          <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["calendar-orders"] })}>
+            Riprova
+          </Button>
         </div>
       ) : view === "month" ? (
         <CalendarMonthView

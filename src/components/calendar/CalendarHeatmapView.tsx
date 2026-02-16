@@ -27,20 +27,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Hammer, Package, Wrench, Users, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { hasLogisticRisk, getEmployeeInitials } from "@/lib/calendarUtils";
 import type { CalendarOrder } from "@/types/calendar";
-
-function hasLogisticRisk(order: CalendarOrder): boolean {
-  if (!order.expected_date) return false;
-  if (!order.warehouse_arrival_date) return true;
-  return order.warehouse_arrival_date > order.expected_date;
-}
-
-function getEmployeeInitials(order: CalendarOrder): string {
-  if (!order.assigned_employees || order.assigned_employees.length === 0) return "";
-  return order.assigned_employees
-    .map((ae) => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`)
-    .join(", ");
-}
 
 interface CalendarHeatmapViewProps {
   orders: CalendarOrder[];

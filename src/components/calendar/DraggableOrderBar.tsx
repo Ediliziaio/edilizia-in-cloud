@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { UsersRound } from "lucide-react";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
+import { hasLogisticRisk } from "@/lib/calendarUtils";
 import type { CalendarOrder } from "@/types/calendar";
 
 function darkenColor(hex: string): string {
@@ -17,13 +18,6 @@ function darkenColor(hex: string): string {
   const g = Math.max(0, parseInt(hex.slice(3, 5), 16) - 40);
   const b = Math.max(0, parseInt(hex.slice(5, 7), 16) - 40);
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-
-}
-
-function hasLogisticRisk(order: CalendarOrder): boolean {
-  if (!order.expected_date) return false;
-  if (!order.warehouse_arrival_date) return true;
-  return order.warehouse_arrival_date > order.expected_date;
 }
 
 interface BarInfo {
