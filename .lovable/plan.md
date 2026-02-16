@@ -1,34 +1,64 @@
 
-# Fix Hero Section: Immagine + Layout
+# Miglioramenti Grafici Completi della Landing Page
 
-## Problemi da risolvere
+## 1. Shimmer Effect sul Badge Hero
 
-1. **Posizione immagine**: Spostare l'immagine del dashboard subito dopo il titolo "Smetti di Fatturare al Buio / Inizia a Guadagnare con i Numeri", PRIMA del sottotitolo e dei bottoni CTA
-2. **Qualità immagine**: L'attuale mockup generato non è convincente. Creare un render HTML/CSS di una dashboard realistica direttamente nel componente (senza immagine esterna), con dati finti che rappresentano la piattaforma vera (Order Pipeline, grafici, statistiche)
-3. **Spaziatura navbar**: Aggiungere `pt-24` o simile alla sezione Hero per evitare che il contenuto venga coperto dalla navbar fissa
+**File: `src/components/landing/HeroSection.tsx`**
 
-## Dettagli tecnici
+Applicare un effetto shimmer animato sul badge "Il Software #1 in Italia" per attirare l'attenzione. Il keyframe `shimmer` e l'animazione `animate-shimmer` sono gia configurati in `tailwind.config.ts`. Si aggiungera un background gradient trasparente che scorre da sinistra a destra.
 
-### File: `src/components/landing/HeroSection.tsx`
+---
 
-**Cambiamento struttura** - il nuovo ordine degli elementi nella Hero:
-1. Badge pill "Il Software #1..."
-2. Titolo H1 "Smetti di Fatturare al Buio..."
-3. **Mockup Dashboard** (spostato qui - render HTML con card, grafici stilizzati, sidebar)
-4. Sottotitolo paragrafo
-5. Bottoni CTA
-6. Gradiente di chiusura
+## 2. Glow Effect dietro il Dashboard Mockup
 
-**Render dashboard in HTML/CSS**: Invece di un'immagine esterna, creare un componente "finto dashboard" con:
-- Una mini sidebar a sinistra con icone menu (Dashboard, Ordini, Magazzino, ecc.)
-- Area principale con:
-  - 4 stat cards in riga (Fatturato, Margine, Incassato, Da Incassare) con numeri finti
-  - Un grafico a barre stilizzato (barre CSS colorate)
-  - Una tabella ordini stilizzata con 3-4 righe
-- Tutto dentro un contenitore con `rounded-2xl`, bordo bianco semi-trasparente, ombra, e effetto prospettiva 3D
-- Dimensioni ridotte (max-w-4xl) per sembrare un "preview" della piattaforma
+**File: `src/components/landing/HeroSection.tsx`**
 
-**Fix spaziatura**: Cambiare da `min-h-screen flex items-center` a layout con padding top esplicito (`pt-28 pb-20`) per lasciare spazio alla navbar fissa.
+Aggiungere un elemento `div` posizionato `absolute` dietro il mockup dashboard con un grande blur teal (`bg-[#0fa68c]/15 blur-[80px]`) per creare un effetto "glow" che dia profondita e risalto al mockup. Si animera con un leggero pulsare.
 
-### Nessun nuovo file necessario
-Il render HTML del dashboard sostituisce l'immagine PNG attuale. Il file `hero-dashboard-mockup.png` non verrà piu utilizzato.
+---
+
+## 3. Social Proof sotto i CTA
+
+**File: `src/components/landing/HeroSection.tsx`**
+
+Aggiungere sotto i bottoni CTA una riga di social proof con:
+- "150+ Imprese Edili" con icona Users
+- "4.9/5 Soddisfazione" con 5 stelline (Star icon)
+- "Supporto Italiano" con icona Shield/HeadphonesIcon
+
+Testi in `text-white/50`, piccoli (`text-sm`), con icone `text-[#0fa68c]`. Separati da un trattino verticale o spazio. Animazione fade-in con delay.
+
+---
+
+## 4. Highlight Tipografici nel Sottotitolo
+
+**File: `src/components/landing/HeroSection.tsx`**
+
+Evidenziare le parole chiave "margini", "cassa" e "commesse" nel sottotitolo con colore `text-white` (invece di `text-white/60`) e `font-semibold` per farle risaltare dal resto del testo.
+
+---
+
+## 5. Avatar/Foto Fondatore nella Lettera
+
+**File: `src/components/landing/FounderLetterSection.tsx`**
+
+Aggiungere un avatar placeholder circolare accanto alla firma di Florin. Si usera un cerchio con le iniziali "F" in stile teal (`bg-[#0fa68c]`, testo bianco, `w-14 h-14 rounded-full`), affiancato al nome e titolo con layout `flex items-center gap-4`.
+
+---
+
+## 6. Transizione Fluida Hero-Lettera
+
+**File: `src/components/landing/HeroSection.tsx`**
+
+Il gradiente di chiusura in fondo alla Hero (`from-white to-transparent`) e gia presente. Verificare che la `FounderLetterSection` abbia `bg-white` e aumentare l'altezza del gradiente da `h-32` a `h-40` per una transizione piu morbida.
+
+---
+
+## Riepilogo modifiche per file
+
+| File | Cosa cambia |
+|------|-------------|
+| `HeroSection.tsx` | Shimmer badge, glow mockup, social proof, highlight sottotitolo, gradiente piu alto |
+| `FounderLetterSection.tsx` | Avatar fondatore nella firma |
+
+Nessun nuovo file da creare. Nessuna dipendenza aggiuntiva.
