@@ -1,5 +1,6 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Check, X } from "lucide-react";
+import AIImage from "./AIImage";
 
 const forYou = [
   "Sei il titolare o il socio decisore di un'azienda edile (serramenti, fotovoltaico, ristrutturazioni, impiantistica, coperture…)",
@@ -22,12 +23,25 @@ export default function TargetSection() {
     <section className="py-24 md:py-32 bg-[#f8f9fa]">
       <div ref={ref} className="max-w-5xl mx-auto px-6">
         <h2
-          className={`text-3xl md:text-5xl font-extrabold text-[#1a2744] text-center mb-14 transition-all duration-700 ${
+          className={`text-3xl md:text-5xl font-extrabold text-[#1a2744] text-center mb-6 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
           Per Chi È <span className="text-[#0fa68c]">Edilizia in Cloud</span>?
         </h2>
+
+        {/* AI Image hero */}
+        <div
+          className={`mb-12 transition-all duration-700 delay-200 ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+          }`}
+        >
+          <AIImage
+            prompt="Gruppo di imprenditori edili italiani sorridenti in un cantiere moderno, uno tiene un tablet con grafici, casco protettivo, stile illustrazione moderna professionale flat, palette navy blue e teal, formato panoramico 16:9"
+            alt="Imprenditori edili con tablet in cantiere"
+            className="w-full max-h-64 object-cover"
+          />
+        </div>
 
         <div className="grid md:grid-cols-2 gap-8">
           <div

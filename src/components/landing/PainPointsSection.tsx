@@ -1,5 +1,6 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { AlertTriangle, TrendingDown, Clock, FileQuestion, Users, Wallet, BarChart3 } from "lucide-react";
+import AIImage from "./AIImage";
 
 const painPoints = [
   { icon: TrendingDown, text: "Fatturi 500.000€, 1 milione, anche 2 milioni… ma a fine anno sul conto non resta quasi nulla." },
@@ -16,7 +17,7 @@ export default function PainPointsSection() {
 
   return (
     <section id="vantaggi" className="py-24 md:py-32 bg-white">
-      <div ref={ref} className="max-w-4xl mx-auto px-6">
+      <div ref={ref} className="max-w-6xl mx-auto px-6">
         <h2
           className={`text-3xl md:text-5xl font-extrabold text-[#1a2744] text-center mb-4 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
@@ -32,21 +33,31 @@ export default function PainPointsSection() {
           Se sì, stai perdendo soldi ogni mese. Non è colpa tua — nessuno ti ha mai dato gli strumenti giusti.
         </p>
 
-        <div className="space-y-4">
-          {painPoints.map((p, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-4 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md border-l-4 border-l-[#0fa68c] transition-all duration-500 group ${
-                isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-              }`}
-              style={{ transitionDelay: isVisible ? `${200 + i * 80}ms` : "0ms" }}
-            >
-              <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#0fa68c]/10 flex items-center justify-center group-hover:rotate-6 transition-transform duration-300">
-                <p.icon className="w-5 h-5 text-[#0fa68c]" />
+        <div className="grid md:grid-cols-[1fr_320px] gap-10 items-start">
+          <div className="space-y-4">
+            {painPoints.map((p, i) => (
+              <div
+                key={i}
+                className={`flex items-start gap-4 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md border-l-4 border-l-[#0fa68c] transition-all duration-500 group ${
+                  isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+                }`}
+                style={{ transitionDelay: isVisible ? `${200 + i * 80}ms` : "0ms" }}
+              >
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#0fa68c]/10 flex items-center justify-center group-hover:rotate-6 transition-transform duration-300">
+                  <p.icon className="w-5 h-5 text-[#0fa68c]" />
+                </div>
+                <p className="text-[#1a2744]/80 text-base md:text-lg leading-relaxed">{p.text}</p>
               </div>
-              <p className="text-[#1a2744]/80 text-base md:text-lg leading-relaxed">{p.text}</p>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          <div className="hidden md:block sticky top-24">
+            <AIImage
+              prompt="Imprenditore edile italiano stressato seduto alla scrivania piena di fogli, fatture e calcolatrice, stile illustrazione moderna minimalista flat, palette navy blue e teal, sfondo bianco pulito, aspetto professionale"
+              alt="Imprenditore stressato dai conti"
+              className="w-full rounded-2xl"
+            />
+          </div>
         </div>
 
         <p
