@@ -130,9 +130,10 @@ export function WorkLogsAdminTab() {
         .from("work_logs")
         .select(`
           *,
-          employee:employees!inner(id, first_name, last_name, gross_salary, monthly_hours, company_id),
+          employee:employees!inner(id, first_name, last_name, gross_salary, monthly_hours),
           order:orders(order_code, description)
         `)
+        .eq("employee.company_id", companyId!)
         .gte("work_date", format(monthStart, "yyyy-MM-dd"))
         .lte("work_date", format(monthEnd, "yyyy-MM-dd"))
         .order("work_date", { ascending: false });
@@ -144,8 +145,7 @@ export function WorkLogsAdminTab() {
       const { data, error } = await query;
       if (error) throw error;
       
-      // Filter by company
-      return (data as any[]).filter(log => log.employee.company_id === companyId) as WorkLog[];
+      return data as unknown as WorkLog[];
     },
     enabled: !!companyId,
     staleTime: 1 * 60 * 1000,

@@ -24,31 +24,7 @@ import { ExternalTeamAttachments } from "@/components/employees/ExternalTeamAtta
 import { WorkLogsAdminTab } from "@/components/employees/WorkLogsAdminTab";
 import { EmployeesTab } from "@/components/employees/EmployeesTab";
 import { ExternalTeamsTab } from "@/components/employees/ExternalTeamsTab";
-
-interface Employee {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string | null;
-  phone: string | null;
-  gross_salary: number;
-  net_salary: number;
-  monthly_hours: number;
-  is_active: boolean;
-  user_id: string | null;
-  role_type?: string;
-}
-
-interface ExternalTeam {
-  id: string;
-  name: string;
-  contact_name: string | null;
-  phone: string | null;
-  email: string | null;
-  notes: string | null;
-  is_active: boolean;
-  vat_rate: number;
-}
+import type { Employee, ExternalTeam } from "@/types/employees";
 
 export default function Employees() {
   const { effectiveCompany } = useAuth();
@@ -118,7 +94,7 @@ export default function Employees() {
           email: data.email || null, phone: data.phone || null,
           gross_salary: data.gross_salary, net_salary: data.net_salary,
           monthly_hours: data.monthly_hours, is_active: data.is_active,
-          role_type: (data as any).role_type || 'operaio',
+          role_type: data.role_type || 'operaio',
         });
         if (error) throw error;
       }
@@ -224,7 +200,7 @@ export default function Employees() {
   };
 
   const handleSaveEmployee = (data: EmployeeFormData) => {
-    saveEmployeeMutation.mutate({ ...data, id: editingEmployee?.id, role_type: editingEmployee ? editingEmployee.role_type : activeRoleType });
+    saveEmployeeMutation.mutate({ ...data, id: editingEmployee?.id, role_type: editingEmployee?.role_type ?? activeRoleType });
   };
 
   const operai = employees.filter(e => (e.role_type || 'operaio') === 'operaio');
