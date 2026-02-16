@@ -1,10 +1,8 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import {
   format,
-  addMonths,
   startOfMonth,
   endOfMonth,
-  isSameMonth,
   subMonths,
   eachMonthOfInterval,
 } from "date-fns";
@@ -18,6 +16,17 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 interface TreasuryTabProps {
   orders: any[];
@@ -36,7 +45,7 @@ interface TreeNode {
   level: number;
   isExpandable: boolean;
   isIncome?: boolean;
-  isSummaryRow?: boolean;
+  
   monthlyAmounts: Record<string, number>;
   children: TreeNode[];
 }
@@ -138,11 +147,11 @@ export function TreasuryTab({
   }, [companyId, treasuryCategories.length, isInitializing, queryClient]);
 
   // Auto-init
-  useMemo(() => {
+  useEffect(() => {
     if (companyId && treasuryCategories.length === 0 && !isInitializing) {
       initializeDefaultCategories();
     }
-  }, [companyId, treasuryCategories.length, isInitializing]);
+  }, [companyId, treasuryCategories.length, isInitializing, initializeDefaultCategories]);
 
   // Generate month columns
   const months = useMemo(() => {
@@ -595,6 +604,37 @@ export function TreasuryTab({
     return "";
   };
 
+  // Chart data
+  const chartData = useMemo(
+    () =>
+      monthKeys.map((k, i) => ({
+        month: format(months[i], "MMM yy", { locale: it }),
+        income: treeData.entrateNode.monthlyAmounts[k] || 0,
+        expenses: -(treeData.usciteNode.monthlyAmounts[k] || 0),
+        treasury: treeData.netMonthly[k] || 0,
+      })),
+    [monthKeys, months, treeData]
+  );
+
+  const lastMonthTreasury = monthKeys.length > 0 ? treeData.netMonthly[monthKeys[monthKeys.length - 1]] || 0 : 0;
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="rounded-lg border bg-background p-3 shadow-md text-sm">
+        <p className="font-semibold mb-1.5">{label}</p>
+        {payload.map((entry: any) => (
+          <p key={entry.dataKey} style={{ color: entry.color }} className="flex justify-between gap-4">
+            <span>{entry.name}:</span>
+            <span className="font-medium tabular-nums">
+              {formatCurrency(Math.abs(entry.value))}
+            </span>
+          </p>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Period selector */}
@@ -614,6 +654,51 @@ export function TreasuryTab({
           placeholder="A"
         />
       </div>
+
+      {/* Treasury chart */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Andamento Tesoreria</h3>
+            <div className={cn(
+              "px-3 py-1.5 rounded-lg text-sm font-bold tabular-nums",
+              lastMonthTreasury >= 0
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+            )}>
+              Saldo: {formatCurrency(lastMonthTreasury)}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="month" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+              <YAxis
+                tick={{ fontSize: 11 }}
+                className="fill-muted-foreground"
+                tickFormatter={(v: number) => {
+                  const abs = Math.abs(v);
+                  return abs >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v);
+                }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend
+                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+              />
+              <Bar dataKey="income" name="Entrate" fill="hsl(160, 84%, 39%)" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="expenses" name="Uscite" fill="hsl(0, 84%, 60%)" radius={[3, 3, 0, 0]} />
+              <Line
+                type="monotone"
+                dataKey="treasury"
+                name="Tesoreria"
+                stroke="hsl(217, 91%, 60%)"
+                strokeWidth={2.5}
+                dot={{ r: 4, fill: "hsl(217, 91%, 60%)" }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
       {/* Treasury grid */}
       <Card>
