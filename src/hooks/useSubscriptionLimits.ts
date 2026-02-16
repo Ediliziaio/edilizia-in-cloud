@@ -28,6 +28,7 @@ export function useSubscriptionLimits() {
       return data;
     },
     enabled: !!planId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Count orders
@@ -42,6 +43,7 @@ export function useSubscriptionLimits() {
       return count || 0;
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Count users
@@ -56,6 +58,7 @@ export function useSubscriptionLimits() {
       return count || 0;
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Trial days
@@ -66,9 +69,10 @@ export function useSubscriptionLimits() {
   const trialExpired = companyStatus === "trial" && trialDaysLeft !== null && trialDaysLeft <= 0;
 
   // Modules from plan
+  const rawModules = currentPlan?.included_modules;
   const includedModules: string[] = currentPlan
-    ? (Array.isArray((currentPlan as any).included_modules) ? (currentPlan as any).included_modules : ALL_MODULES as unknown as string[])
-    : ALL_MODULES as unknown as string[];
+    ? (Array.isArray(rawModules) ? (rawModules as string[]) : [...ALL_MODULES])
+    : [...ALL_MODULES];
 
   // Super admin bypass
   const isSuperAdmin = role === "super_admin";

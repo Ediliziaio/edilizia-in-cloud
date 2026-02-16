@@ -83,7 +83,7 @@ function EmployeeSidebar() {
                   {employee?.first_name} {employee?.last_name}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {(employee?.company as any)?.name || "Dipendente"}
+                  {(employee?.company && typeof employee.company === "object" && "name" in employee.company ? (employee.company as { name: string }).name : "Dipendente")}
                 </span>
               </div>
             )}

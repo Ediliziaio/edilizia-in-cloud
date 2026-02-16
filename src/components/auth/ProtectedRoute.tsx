@@ -29,11 +29,15 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   if (allowedRoles && role && !allowedRoles.includes(role)) {
     // Redirect to the appropriate dashboard based on role
-    const redirectPath = role === "super_admin" 
-      ? "/admin" 
-      : role === "company_admin" 
-        ? "/azienda" 
-        : "/cliente";
+    const roleRedirects: Record<string, string> = {
+      super_admin: "/admin",
+      company_admin: "/azienda",
+      company_staff: "/azienda",
+      customer: "/cliente",
+      employee: "/dipendente",
+      salesperson: "/venditore",
+    };
+    const redirectPath = roleRedirects[role] || "/login";
     return <Navigate to={redirectPath} replace />;
   }
 
