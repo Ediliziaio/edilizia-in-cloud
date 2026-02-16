@@ -1,59 +1,39 @@
 
-# Nuova Sezione "Bonus Regalo" nella Landing Page
+# Spostamento Sezione Bonus e Immagine AI
 
-## Cosa cambia
+## Modifiche
 
-Aggiungere una nuova sezione tra GuaranteeSection e FinalCtaSection che evidenzia il bonus gratuito legato alla richiesta demo: il **Corso Metodo Vendita Edile**.
+### 1. Spostare BonusGiftSection dopo FounderLetterSection
 
-## Contenuto della sezione
+Nel file `src/pages/Home.tsx`, la sezione `<BonusGiftSection />` viene spostata dalla riga 60 (dopo GuaranteeSection) alla riga 49 (subito dopo `<FounderLetterSection />`).
 
-- **Titolo:** "Se richiedi ora la tua Dimostrazione riceverai subito questo regalo:"
-- **Card regalo:**
-  - Icona regalo animata
-  - **Nome:** "Corso Metodo Vendita Edile"
-  - **Descrizione:** "4 lezioni in cui ho racchiuso il metodo di vendita per il Settore Edile, come aumentare del 40% le vendite in Edilizia"
-  - CTA che rimanda alla sezione finale (#cta-finale)
+Ordine risultante:
+```text
+HeroSection
+FounderLetterSection
+BonusGiftSection        <-- spostata qui
+PainPointsSection
+CostTableSection
+...
+```
 
-## Design
+### 2. Sostituire l'icona Gift con un'immagine AI
 
-- Sfondo bianco (coerente con le sezioni alternate della landing)
-- Card centrale con bordo teal, icona Gift animata con glow
-- Badge "+40% vendite" in evidenza
-- Stile coerente con il resto della landing (rounded-2xl, palette navy/teal)
+Nel file `src/components/landing/BonusGiftSection.tsx`, il blocco con l'icona `Gift` animata (righe 25-29) viene sostituito con il componente `AIImage` gia esistente nel progetto (`src/components/landing/AIImage.tsx`).
+
+- Rimuovere il cerchio con icona `Gift` e `animate-pulse`
+- Inserire `<AIImage>` con un prompt descrittivo, ad esempio: "A professional flat illustration of a golden gift box opening with light rays, representing a free bonus sales course for construction industry, teal and navy color scheme, clean modern style, white background"
+- L'immagine verra generata automaticamente e cachata in localStorage
+- Dimensioni: `w-40 h-40 mx-auto mb-5 rounded-xl`
 
 ## Dettagli Tecnici
 
-### Nuovo file: `src/components/landing/BonusGiftSection.tsx`
-- Componente standalone con `useScrollAnimation` per le animazioni on-scroll
-- Card con icona `Gift` e `BookOpen` da lucide-react
-- Badge "+40% VENDITE" con sfondo teal
-- CTA "Richiedi la Demo e Ricevi il Corso" che scrolla a #cta-finale
-- Responsive: testo e padding ridotti su mobile
+### File: `src/pages/Home.tsx`
+- Rimuovere `<BonusGiftSection />` dalla riga 60
+- Aggiungerlo dopo `<FounderLetterSection />` alla riga 49
 
-### File modificato: `src/pages/Home.tsx`
-- Import del nuovo componente `BonusGiftSection`
-- Inserimento tra `<GuaranteeSection />` e `<FinalCtaSection />`
-
-### Struttura della sezione
-
-```text
-+--------------------------------------------------+
-|  Se richiedi ora la tua Dimostrazione             |
-|  riceverai subito questo regalo:                  |
-|                                                   |
-|  +--------------------------------------------+  |
-|  |  [Gift icon]                                |  |
-|  |  BONUS GRATUITO                             |  |
-|  |                                             |  |
-|  |  Corso Metodo Vendita Edile                 |  |
-|  |                                             |  |
-|  |  4 lezioni in cui ho racchiuso il metodo    |  |
-|  |  di vendita per il Settore Edile, come      |  |
-|  |  aumentare del 40% le vendite in Edilizia   |  |
-|  |                                             |  |
-|  |  [+40% VENDITE]                             |  |
-|  +--------------------------------------------+  |
-|                                                   |
-|  [ Richiedi la Demo e Ricevi il Corso ]           |
-+--------------------------------------------------+
-```
+### File: `src/components/landing/BonusGiftSection.tsx`
+- Aggiungere import di `AIImage` da `@/components/landing/AIImage`
+- Rimuovere import di `Gift` da lucide-react (non piu usato nella card)
+- Sostituire il div con l'icona Gift (righe 25-29) con il componente `AIImage`
+- Mantenere tutto il resto invariato (badge, titolo, descrizione, CTA)
