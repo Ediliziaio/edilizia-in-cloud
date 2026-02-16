@@ -504,10 +504,10 @@ export function TreasuryTab({
       monthKeys.map((k, i) => ({
         month: format(months[i], "MMM yy", { locale: it }),
         income: treeData.entrateNode.monthlyAmounts[k] || 0,
-        expenses: -(treeData.usciteNode.monthlyAmounts[k] || 0),
+        expenses: treeData.usciteNode.monthlyAmounts[k] || 0,
         treasury: treeData.netMonthly[k] || 0,
         forecastIncome: forecastData.forecastIncomeMonthly[k] || 0,
-        forecastExpenses: -(forecastData.forecastExpensesMonthly[k] || 0),
+        forecastExpenses: forecastData.forecastExpensesMonthly[k] || 0,
         forecastTreasury: forecastData.forecastNetMonthly[k] || 0,
       })),
     [monthKeys, months, treeData, forecastData]
@@ -524,7 +524,7 @@ export function TreasuryTab({
           <p key={entry.dataKey} style={{ color: entry.color }} className="flex justify-between gap-4">
             <span>{entry.name}:</span>
             <span className="font-medium tabular-nums">
-              {formatCurrency(Math.abs(entry.value))}
+              {formatCurrency(entry.value)}
             </span>
           </p>
         ))}
@@ -591,10 +591,7 @@ export function TreasuryTab({
               <YAxis
                 tick={{ fontSize: 11 }}
                 className="fill-muted-foreground"
-                tickFormatter={(v: number) => {
-                  const abs = Math.abs(v);
-                  return abs >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v);
-                }}
+                tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
