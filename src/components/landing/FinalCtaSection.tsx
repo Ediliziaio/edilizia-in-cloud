@@ -30,7 +30,7 @@ export default function FinalCtaSection() {
           href="https://calendly.com"
           target="_blank"
           rel="noopener noreferrer"
-          className={`inline-block px-12 py-5 rounded-xl bg-[#c8ee44] text-[#0a0a0a] font-extrabold text-xl hover:bg-[#d4f55a] hover:scale-105 transition-all duration-300 shadow-[0_0_40px_rgba(200,238,68,0.4)] ${
+          className={`inline-block px-12 py-5 rounded-xl bg-[#c8ee44] text-[#0a0a0a] font-extrabold text-xl hover:bg-[#d4f55a] hover:scale-105 transition-all duration-300 animate-pulse-glow ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
           style={{ transitionDelay: isVisible ? "300ms" : "0ms" }}

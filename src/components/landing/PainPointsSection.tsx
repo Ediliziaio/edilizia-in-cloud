@@ -32,16 +32,16 @@ export default function PainPointsSection() {
           Se ti riconosci in almeno 3 di questi punti, stai perdendo soldi ogni mese.
         </p>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           {painPoints.map((p, i) => (
             <div
               key={i}
-              className={`flex items-start gap-4 p-5 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-[#c8ee44]/20 hover:bg-white/[0.05] transition-all duration-500 ${
+              className={`flex items-start gap-4 p-5 rounded-xl bg-white/[0.03] border-l-4 border-l-[#c8ee44]/60 border border-l-0 border-white/[0.04] hover:bg-white/[0.06] transition-all duration-500 group ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
               }`}
               style={{ transitionDelay: isVisible ? `${200 + i * 80}ms` : "0ms" }}
             >
-              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#c8ee44]/10 flex items-center justify-center">
+              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-[#c8ee44]/20 to-[#c8ee44]/5 flex items-center justify-center group-hover:rotate-6 transition-transform duration-300">
                 <p.icon className="w-5 h-5 text-[#c8ee44]" />
               </div>
               <p className="text-gray-200 text-base md:text-lg leading-relaxed">{p.text}</p>

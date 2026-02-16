@@ -15,17 +15,17 @@ export default function ModulesSection() {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section id="moduli" className="py-24 md:py-32 bg-[#060606]">
+    <section id="moduli" className="py-24 md:py-32 bg-[#f8f9fa]">
       <div ref={ref} className="max-w-6xl mx-auto px-6">
         <h2
-          className={`text-3xl md:text-5xl font-extrabold text-white text-center mb-4 transition-all duration-700 ${
+          className={`text-3xl md:text-5xl font-extrabold text-gray-900 text-center mb-4 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          7 Strumenti Integrati. <span className="text-[#c8ee44]">Zero Complicazioni.</span>
+          7 Strumenti Integrati. <span className="text-[#7ab800]">Zero Complicazioni.</span>
         </h2>
         <p
-          className={`text-gray-400 text-center mb-16 text-lg transition-all duration-700 delay-150 ${
+          className={`text-gray-500 text-center mb-16 text-lg transition-all duration-700 delay-150 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
@@ -36,20 +36,20 @@ export default function ModulesSection() {
           {modules.map((m, i) => (
             <div
               key={i}
-              className={`group p-7 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-[#c8ee44]/30 hover:bg-white/[0.06] transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(200,238,68,0.08)] ${
+              className={`group p-7 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-500 border-t-4 border-t-[#c8ee44] ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
               }`}
               style={{ transitionDelay: isVisible ? `${200 + i * 80}ms` : "0ms" }}
             >
-              <div className="w-12 h-12 rounded-xl bg-[#c8ee44]/10 flex items-center justify-center mb-5 group-hover:bg-[#c8ee44]/20 transition-colors">
-                <m.icon className="w-6 h-6 text-[#c8ee44]" />
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#c8ee44]/30 to-[#7ab800]/10 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                <m.icon className="w-6 h-6 text-[#7ab800]" />
               </div>
-              <h3 className="text-white font-bold text-lg mb-2">{m.name}</h3>
-              <p className="text-gray-400 text-sm leading-relaxed mb-4">{m.desc}</p>
+              <h3 className="text-gray-900 font-bold text-lg mb-2">{m.name}</h3>
+              <p className="text-gray-500 text-sm leading-relaxed mb-4">{m.desc}</p>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-[#c8ee44]/80 font-medium">{m.goal}</span>
+                <span className="text-[#7ab800] font-medium">{m.goal}</span>
               </div>
-              <p className="text-emerald-400/70 text-xs mt-2 font-medium">{m.saving}</p>
+              <p className="text-emerald-600/70 text-xs mt-2 font-medium">{m.saving}</p>
             </div>
           ))}
         </div>
