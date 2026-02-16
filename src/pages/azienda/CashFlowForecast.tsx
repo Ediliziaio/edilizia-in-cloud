@@ -175,6 +175,11 @@ export default function CashFlowForecast() {
             activeEmployees={activeEmployees}
             treasuryCategories={treasuryCategories}
             companyId={companyId}
+            expectedPayments={expectedPayments}
+            expectedExpenses={expectedExpenses}
+            expectedCommissions={expectedCommissions}
+            expectedSupplierPayments={expectedSupplierPayments}
+            expectedCompanyCosts={expectedCompanyCosts}
           />
         </TabsContent>
       </Tabs>

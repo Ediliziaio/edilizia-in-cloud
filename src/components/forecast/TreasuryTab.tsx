@@ -7,7 +7,7 @@ import {
   eachMonthOfInterval,
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { ChevronRight, ChevronDown, CalendarIcon, X } from "lucide-react";
+import { ChevronRight, ChevronDown, CalendarIcon, X, Eye, EyeOff } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -27,6 +27,13 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import type {
+  ExpectedPayment,
+  ExpectedExpense,
+  ExpectedCommission,
+  ExpectedSupplierPayment,
+  CompanyCostEntry,
+} from "@/lib/forecastTypes";
 
 interface TreasuryTabProps {
   orders: any[];
@@ -37,6 +44,12 @@ interface TreasuryTabProps {
   activeEmployees: any[];
   treasuryCategories: any[];
   companyId: string | undefined;
+  // Forecast data
+  expectedPayments: ExpectedPayment[];
+  expectedExpenses: ExpectedExpense[];
+  expectedCommissions: ExpectedCommission[];
+  expectedSupplierPayments: ExpectedSupplierPayment[];
+  expectedCompanyCosts: CompanyCostEntry[];
 }
 
 interface TreeNode {
@@ -45,7 +58,6 @@ interface TreeNode {
   level: number;
   isExpandable: boolean;
   isIncome?: boolean;
-  
   monthlyAmounts: Record<string, number>;
   children: TreeNode[];
 }
@@ -105,6 +117,11 @@ export function TreasuryTab({
   activeEmployees,
   treasuryCategories,
   companyId,
+  expectedPayments,
+  expectedExpenses,
+  expectedCommissions,
+  expectedSupplierPayments,
+  expectedCompanyCosts,
 }: TreasuryTabProps) {
   const queryClient = useQueryClient();
   const [dateFrom, setDateFrom] = useState<Date | undefined>(() => subMonths(startOfMonth(new Date()), 5));
@@ -113,6 +130,7 @@ export function TreasuryTab({
     new Set(["entrate", "uscite", "area-operativa"])
   );
   const [isInitializing, setIsInitializing] = useState(false);
+  const [showForecast, setShowForecast] = useState(false);
 
   // Initialize default categories if none exist
   const initializeDefaultCategories = useCallback(async () => {
@@ -120,21 +138,14 @@ export function TreasuryTab({
     setIsInitializing(true);
     try {
       const defaults = [
-        // Entrate
         { area: "entrate", name: "Da Incassi Ordini", is_income: true, position: 0 },
-        // Uscite - Area Operativa
         { area: "operativa", name: "Costi Variabili", is_income: false, position: 0 },
         { area: "operativa", name: "Costi Fissi", is_income: false, position: 1 },
-        // Uscite - Area Finanziaria
         { area: "finanziaria", name: "Oneri Finanziari", is_income: false, position: 0 },
-        // Uscite - Area Fiscale
         { area: "fiscale", name: "Imposte e Tasse", is_income: false, position: 0 },
-        // Uscite - Area Investimenti
         { area: "investimenti", name: "Investimenti", is_income: false, position: 0 },
-        // Uscite - Area Equity
         { area: "equity", name: "Equity", is_income: false, position: 0 },
       ];
-
       const { error } = await supabase.from("treasury_categories").insert(
         defaults.map((d) => ({ ...d, company_id: companyId }))
       );
@@ -146,7 +157,6 @@ export function TreasuryTab({
     }
   }, [companyId, treasuryCategories.length, isInitializing, queryClient]);
 
-  // Auto-init
   useEffect(() => {
     if (companyId && treasuryCategories.length === 0 && !isInitializing) {
       initializeDefaultCategories();
@@ -165,14 +175,12 @@ export function TreasuryTab({
     [months]
   );
 
-  // Helper: assign amount to month key
   const toMonthKey = (date: string | Date | null): string | null => {
     if (!date) return null;
     const d = typeof date === "string" ? new Date(date) : date;
     return format(d, "yyyy-MM");
   };
 
-  // Build monthly amounts for a set of items
   const buildMonthlyMap = (
     items: { date: string | Date | null; amount: number }[]
   ): Record<string, number> => {
@@ -187,7 +195,6 @@ export function TreasuryTab({
     return map;
   };
 
-  // Merge two monthly maps
   const mergeMonthly = (
     ...maps: Record<string, number>[]
   ): Record<string, number> => {
@@ -198,43 +205,26 @@ export function TreasuryTab({
     return result;
   };
 
-  // === BUILD TREE DATA ===
+  // === BUILD ACTUAL (SOSTENUTO) TREE DATA ===
   const treeData = useMemo(() => {
     // --- ENTRATE: pagamenti ordini già incassati ---
     const incomeItems: { date: string | Date | null; amount: number; label: string }[] = [];
 
     orders.forEach((order: any) => {
       if (order.deposit_paid && order.deposit_amount > 0) {
-        incomeItems.push({
-          date: order.deposit_paid_date,
-          amount: Number(order.deposit_amount),
-          label: "Acconto 1",
-        });
+        incomeItems.push({ date: order.deposit_paid_date, amount: Number(order.deposit_amount), label: "Acconto 1" });
       }
       if (order.deposit_2_paid && order.deposit_2_amount > 0) {
-        incomeItems.push({
-          date: order.deposit_2_paid_date,
-          amount: Number(order.deposit_2_amount),
-          label: "Acconto 2",
-        });
+        incomeItems.push({ date: order.deposit_2_paid_date, amount: Number(order.deposit_2_amount), label: "Acconto 2" });
       }
       if (order.balance_paid && order.balance_amount > 0) {
-        incomeItems.push({
-          date: order.balance_paid_date,
-          amount: Number(order.balance_amount),
-          label: "Saldo",
-        });
+        incomeItems.push({ date: order.balance_paid_date, amount: Number(order.balance_amount), label: "Saldo" });
       }
       if (order.financing_paid && order.financing_amount > 0) {
-        incomeItems.push({
-          date: order.financing_paid_date,
-          amount: Number(order.financing_amount),
-          label: "Finanziamento",
-        });
+        incomeItems.push({ date: order.financing_paid_date, amount: Number(order.financing_amount), label: "Finanziamento" });
       }
     });
 
-    // Group income by type
     const incomeByType: Record<string, { date: string | Date | null; amount: number }[]> = {};
     incomeItems.forEach((item) => {
       if (!incomeByType[item.label]) incomeByType[item.label] = [];
@@ -276,8 +266,6 @@ export function TreasuryTab({
     };
 
     // --- USCITE ---
-
-    // Fornitori pagati (italiani vs esteri)
     const supplierItemsItalian: { date: string | Date | null; amount: number }[] = [];
     const supplierItemsForeign: { date: string | Date | null; amount: number }[] = [];
 
@@ -298,66 +286,29 @@ export function TreasuryTab({
       }
     });
 
-    // Manodopera esterna pagata
     const externalTeamItems = paidExternalTeams.map((t: any) => ({
       date: t.paid_date,
       amount: Number(t.total_cost),
     }));
 
-    // Provvigioni pagate
     const commissionItems = paidCommissions.map((c: any) => ({
       date: c.paid_date,
       amount: Number(c.commission_amount),
     }));
 
-    // Costi Variabili children
     const costiVariabiliChildren: TreeNode[] = [
-      {
-        id: "fornitori-italiani",
-        label: "Fornitori Italia",
-        level: 3,
-        isExpandable: false,
-        monthlyAmounts: buildMonthlyMap(supplierItemsItalian),
-        children: [],
-      },
-      {
-        id: "fornitori-esteri",
-        label: "Fornitori Esteri",
-        level: 3,
-        isExpandable: false,
-        monthlyAmounts: buildMonthlyMap(supplierItemsForeign),
-        children: [],
-      },
-      {
-        id: "manodopera-esterna",
-        label: "Manodopera Esterna",
-        level: 3,
-        isExpandable: false,
-        monthlyAmounts: buildMonthlyMap(externalTeamItems),
-        children: [],
-      },
-      {
-        id: "provvigioni",
-        label: "Provvigioni",
-        level: 3,
-        isExpandable: false,
-        monthlyAmounts: buildMonthlyMap(commissionItems),
-        children: [],
-      },
+      { id: "fornitori-italiani", label: "Fornitori Italia", level: 3, isExpandable: false, monthlyAmounts: buildMonthlyMap(supplierItemsItalian), children: [] },
+      { id: "fornitori-esteri", label: "Fornitori Esteri", level: 3, isExpandable: false, monthlyAmounts: buildMonthlyMap(supplierItemsForeign), children: [] },
+      { id: "manodopera-esterna", label: "Manodopera Esterna", level: 3, isExpandable: false, monthlyAmounts: buildMonthlyMap(externalTeamItems), children: [] },
+      { id: "provvigioni", label: "Provvigioni", level: 3, isExpandable: false, monthlyAmounts: buildMonthlyMap(commissionItems), children: [] },
     ].filter((n) => Object.values(n.monthlyAmounts).some((v) => v > 0));
 
-    const costiVariabiliMonthly = mergeMonthly(
-      ...costiVariabiliChildren.map((c) => c.monthlyAmounts)
-    );
+    const costiVariabiliMonthly = mergeMonthly(...costiVariabiliChildren.map((c) => c.monthlyAmounts));
 
-    // Costi Fissi: stipendi + company_costs fissi pagati
     const salaryItems = activeEmployees.map((emp: any) => {
-      // Each employee generates a monthly cost
       const monthlySalary = Number(emp.gross_salary) || 0;
       const items: { date: string | Date | null; amount: number }[] = [];
-      months.forEach((m) => {
-        items.push({ date: m, amount: monthlySalary });
-      });
+      months.forEach((m) => { items.push({ date: m, amount: monthlySalary }); });
       return { name: `${emp.first_name} ${emp.last_name}`, items };
     });
 
@@ -366,143 +317,51 @@ export function TreasuryTab({
     salaryItems.forEach((emp) => {
       emp.items.forEach((item) => {
         const key = toMonthKey(item.date);
-        if (key && key in stipendiMonthly) {
-          stipendiMonthly[key] += item.amount;
-        }
+        if (key && key in stipendiMonthly) stipendiMonthly[key] += item.amount;
       });
     });
 
-    const paidFixedCosts = paidCompanyCosts.filter(
-      (c: any) => c.cost_type === "fixed"
-    );
-    const paidFixedItems = paidFixedCosts.map((c: any) => ({
-      date: c.paid_date || c.due_date,
-      amount: Number(c.amount),
-    }));
+    const paidFixedCosts = paidCompanyCosts.filter((c: any) => c.cost_type === "fixed");
+    const paidFixedItems = paidFixedCosts.map((c: any) => ({ date: c.paid_date || c.due_date, amount: Number(c.amount) }));
 
     const costiFissiChildren: TreeNode[] = [
-      {
-        id: "stipendi",
-        label: "Stipendi Lordi",
-        level: 3,
-        isExpandable: false,
-        monthlyAmounts: stipendiMonthly,
-        children: [],
-      },
-      {
-        id: "costi-fissi-pagati",
-        label: "Altri Costi Fissi",
-        level: 3,
-        isExpandable: false,
-        monthlyAmounts: buildMonthlyMap(paidFixedItems),
-        children: [],
-      },
+      { id: "stipendi", label: "Stipendi Lordi", level: 3, isExpandable: false, monthlyAmounts: stipendiMonthly, children: [] },
+      { id: "costi-fissi-pagati", label: "Altri Costi Fissi", level: 3, isExpandable: false, monthlyAmounts: buildMonthlyMap(paidFixedItems), children: [] },
     ].filter((n) => Object.values(n.monthlyAmounts).some((v) => v > 0));
 
-    const costiFissiMonthly = mergeMonthly(
-      ...costiFissiChildren.map((c) => c.monthlyAmounts)
-    );
+    const costiFissiMonthly = mergeMonthly(...costiFissiChildren.map((c) => c.monthlyAmounts));
 
     const areaOperativaChildren: TreeNode[] = [
-      {
-        id: "costi-variabili",
-        label: "Costi Variabili",
-        level: 2,
-        isExpandable: true,
-        monthlyAmounts: costiVariabiliMonthly,
-        children: costiVariabiliChildren,
-      },
-      {
-        id: "costi-fissi",
-        label: "Costi Fissi",
-        level: 2,
-        isExpandable: true,
-        monthlyAmounts: costiFissiMonthly,
-        children: costiFissiChildren,
-      },
+      { id: "costi-variabili", label: "Costi Variabili", level: 2, isExpandable: true, monthlyAmounts: costiVariabiliMonthly, children: costiVariabiliChildren },
+      { id: "costi-fissi", label: "Costi Fissi", level: 2, isExpandable: true, monthlyAmounts: costiFissiMonthly, children: costiFissiChildren },
     ];
 
     const areaOperativaMonthly = mergeMonthly(costiVariabiliMonthly, costiFissiMonthly);
 
-    // Area Finanziaria, Fiscale, Investimenti, Equity from company_costs
-    const buildAreaFromCosts = (
-      areaId: string,
-      areaLabel: string,
-      filterFn: (c: any) => boolean
-    ): TreeNode => {
+    const buildAreaFromCosts = (areaId: string, areaLabel: string, filterFn: (c: any) => boolean): TreeNode => {
       const filtered = paidCompanyCosts.filter(filterFn);
-      const items = filtered.map((c: any) => ({
-        date: c.paid_date || c.due_date,
-        amount: Number(c.amount),
-      }));
+      const items = filtered.map((c: any) => ({ date: c.paid_date || c.due_date, amount: Number(c.amount) }));
       return {
-        id: `area-${areaId}`,
-        label: areaLabel,
-        level: 1,
-        isExpandable: true,
+        id: `area-${areaId}`, label: areaLabel, level: 1, isExpandable: true,
         monthlyAmounts: buildMonthlyMap(items),
         children: filtered.length > 0
-          ? [
-              {
-                id: `${areaId}-detail`,
-                label: `Dettaglio ${areaLabel}`,
-                level: 2,
-                isExpandable: false,
-                monthlyAmounts: buildMonthlyMap(items),
-                children: [],
-              },
-            ]
+          ? [{ id: `${areaId}-detail`, label: `Dettaglio ${areaLabel}`, level: 2, isExpandable: false, monthlyAmounts: buildMonthlyMap(items), children: [] }]
           : [],
       };
     };
 
-    const areaFinanziaria = buildAreaFromCosts(
-      "finanziaria",
-      "AREA FINANZIARIA",
-      (c: any) => c.category === "finanziaria" || c.category === "bancarie" || c.category === "commissioni"
-    );
+    const areaFinanziaria = buildAreaFromCosts("finanziaria", "AREA FINANZIARIA", (c: any) => c.category === "finanziaria" || c.category === "bancarie" || c.category === "commissioni");
+    const areaFiscale = buildAreaFromCosts("fiscale", "AREA FISCALE", (c: any) => c.category === "fiscale" || c.category === "iva" || c.category === "tasse");
+    const areaInvestimenti = buildAreaFromCosts("investimenti", "AREA INVESTIMENTI", (c: any) => c.category === "investimenti");
+    const areaEquity = buildAreaFromCosts("equity", "AREA EQUITY", (c: any) => c.category === "equity");
 
-    const areaFiscale = buildAreaFromCosts(
-      "fiscale",
-      "AREA FISCALE",
-      (c: any) => c.category === "fiscale" || c.category === "iva" || c.category === "tasse"
-    );
-
-    const areaInvestimenti = buildAreaFromCosts(
-      "investimenti",
-      "AREA INVESTIMENTI",
-      (c: any) => c.category === "investimenti"
-    );
-
-    const areaEquity = buildAreaFromCosts(
-      "equity",
-      "AREA EQUITY",
-      (c: any) => c.category === "equity"
-    );
-
-    // Remaining paid variable costs not already categorized
     const paidVariableCosts = paidCompanyCosts.filter(
-      (c: any) =>
-        c.cost_type === "variable" &&
-        !["finanziaria", "bancarie", "commissioni", "fiscale", "iva", "tasse", "investimenti", "equity"].includes(
-          c.category || ""
-        )
+      (c: any) => c.cost_type === "variable" && !["finanziaria", "bancarie", "commissioni", "fiscale", "iva", "tasse", "investimenti", "equity"].includes(c.category || "")
     );
     if (paidVariableCosts.length > 0) {
-      const items = paidVariableCosts.map((c: any) => ({
-        date: c.paid_date || c.due_date,
-        amount: Number(c.amount),
-      }));
-      const altriVariabili: TreeNode = {
-        id: "altri-variabili",
-        label: "Altri Costi Variabili",
-        level: 3,
-        isExpandable: false,
-        monthlyAmounts: buildMonthlyMap(items),
-        children: [],
-      };
+      const items = paidVariableCosts.map((c: any) => ({ date: c.paid_date || c.due_date, amount: Number(c.amount) }));
+      const altriVariabili: TreeNode = { id: "altri-variabili", label: "Altri Costi Variabili", level: 3, isExpandable: false, monthlyAmounts: buildMonthlyMap(items), children: [] };
       costiVariabiliChildren.push(altriVariabili);
-      // Recalculate
       Object.keys(costiVariabiliMonthly).forEach((k) => {
         costiVariabiliMonthly[k] += altriVariabili.monthlyAmounts[k] || 0;
         areaOperativaMonthly[k] += altriVariabili.monthlyAmounts[k] || 0;
@@ -510,41 +369,23 @@ export function TreasuryTab({
     }
 
     const totalExpensesMonthly = mergeMonthly(
-      areaOperativaMonthly,
-      areaFinanziaria.monthlyAmounts,
-      areaFiscale.monthlyAmounts,
-      areaInvestimenti.monthlyAmounts,
-      areaEquity.monthlyAmounts
+      areaOperativaMonthly, areaFinanziaria.monthlyAmounts, areaFiscale.monthlyAmounts, areaInvestimenti.monthlyAmounts, areaEquity.monthlyAmounts
     );
 
     const usciteNode: TreeNode = {
-      id: "uscite",
-      label: "Uscite",
-      level: 0,
-      isExpandable: true,
-      monthlyAmounts: totalExpensesMonthly,
+      id: "uscite", label: "Uscite", level: 0, isExpandable: true, monthlyAmounts: totalExpensesMonthly,
       children: [
-        {
-          id: "area-operativa",
-          label: "AREA OPERATIVA",
-          level: 1,
-          isExpandable: true,
-          monthlyAmounts: areaOperativaMonthly,
-          children: areaOperativaChildren,
-        },
-        areaFinanziaria,
-        areaFiscale,
-        areaInvestimenti,
-        areaEquity,
+        { id: "area-operativa", label: "AREA OPERATIVA", level: 1, isExpandable: true, monthlyAmounts: areaOperativaMonthly, children: areaOperativaChildren },
+        areaFinanziaria, areaFiscale, areaInvestimenti, areaEquity,
       ],
     };
 
-    // Tesoreria a fine mese (cumulativo)
+    // Cumulative treasury (actual)
     const netMonthly: Record<string, number> = {};
     let cumulative = 0;
     monthKeys.forEach((k) => {
       cumulative += (totalIncomeMonthly[k] || 0) - (totalExpensesMonthly[k] || 0);
-      netMonthly[k] = cumulative;
+      netMonthly[k] = Math.max(0, cumulative); // never below 0 for actual
     });
 
     const startMonthly: Record<string, number> = {};
@@ -554,8 +395,64 @@ export function TreasuryTab({
       prevCumulative = netMonthly[k];
     });
 
-    return { entrateNode, usciteNode, netMonthly, startMonthly };
+    return { entrateNode, usciteNode, netMonthly, startMonthly, totalIncomeMonthly, totalExpensesMonthly };
   }, [orders, paidCompanyCosts, paidExternalTeams, paidCommissions, paidSupplierItems, activeEmployees, months, monthKeys]);
+
+  // === BUILD FORECAST TREE DATA ===
+  const forecastData = useMemo(() => {
+    // Forecast income: expected payments not yet collected
+    const forecastIncomeItems = expectedPayments.map((p) => ({
+      date: p.expectedDate,
+      amount: p.amount,
+    }));
+    const forecastIncomeMonthly = buildMonthlyMap(forecastIncomeItems);
+
+    // Forecast expenses: unpaid external teams
+    const forecastExtTeamItems = expectedExpenses.filter((e) => !e.isPaid).map((e) => ({
+      date: e.expectedDate,
+      amount: e.amount,
+    }));
+
+    // Forecast commissions (unpaid)
+    const forecastCommissionItems = expectedCommissions.map((c) => ({
+      date: c.expectedDate,
+      amount: c.amount,
+    }));
+
+    // Forecast supplier payments (unpaid)
+    const forecastSupplierItems = expectedSupplierPayments.filter((s) => !s.isPaid).map((s) => ({
+      date: s.expectedDate,
+      amount: s.amount,
+    }));
+
+    // Forecast company costs (unpaid)
+    const forecastCostItems = expectedCompanyCosts.map((c) => ({
+      date: c.expectedDate,
+      amount: c.amount,
+    }));
+
+    const forecastExpensesMonthly = mergeMonthly(
+      buildMonthlyMap(forecastExtTeamItems),
+      buildMonthlyMap(forecastCommissionItems),
+      buildMonthlyMap(forecastSupplierItems),
+      buildMonthlyMap(forecastCostItems),
+    );
+
+    // Forecast cumulative: starts from actual last cumulative, then adds forecast net
+    const lastActualTreasury = monthKeys.length > 0 ? treeData.netMonthly[monthKeys[monthKeys.length - 1]] || 0 : 0;
+    const forecastNetMonthly: Record<string, number> = {};
+    let forecastCum = 0;
+    monthKeys.forEach((k) => {
+      const actualIncome = treeData.totalIncomeMonthly[k] || 0;
+      const actualExpenses = treeData.totalExpensesMonthly[k] || 0;
+      const fIncome = forecastIncomeMonthly[k] || 0;
+      const fExpenses = forecastExpensesMonthly[k] || 0;
+      forecastCum += (actualIncome + fIncome) - (actualExpenses + fExpenses);
+      forecastNetMonthly[k] = forecastCum;
+    });
+
+    return { forecastIncomeMonthly, forecastExpensesMonthly, forecastNetMonthly };
+  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, monthKeys, treeData]);
 
   // Toggle expand/collapse
   const toggleRow = (id: string) => {
@@ -588,11 +485,8 @@ export function TreasuryTab({
   const getRowStyle = (node: TreeNode) => {
     const isTopLevel = node.level === 0;
     const isArea = node.level === 1;
-
-    if (isTopLevel && node.id === "entrate")
-      return "bg-emerald-50 dark:bg-emerald-950/30 font-bold text-emerald-700 dark:text-emerald-400";
-    if (isTopLevel && node.id === "uscite")
-      return "bg-red-50 dark:bg-red-950/30 font-bold text-red-700 dark:text-red-400";
+    if (isTopLevel && node.id === "entrate") return "bg-emerald-50 dark:bg-emerald-950/30 font-bold text-emerald-700 dark:text-emerald-400";
+    if (isTopLevel && node.id === "uscite") return "bg-red-50 dark:bg-red-950/30 font-bold text-red-700 dark:text-red-400";
     if (isArea) return "bg-muted/50 font-semibold";
     if (node.level === 2) return "font-medium";
     return "";
@@ -604,7 +498,7 @@ export function TreasuryTab({
     return "";
   };
 
-  // Chart data
+  // Chart data with optional forecast overlay
   const chartData = useMemo(
     () =>
       monthKeys.map((k, i) => ({
@@ -612,8 +506,11 @@ export function TreasuryTab({
         income: treeData.entrateNode.monthlyAmounts[k] || 0,
         expenses: -(treeData.usciteNode.monthlyAmounts[k] || 0),
         treasury: treeData.netMonthly[k] || 0,
+        forecastIncome: forecastData.forecastIncomeMonthly[k] || 0,
+        forecastExpenses: -(forecastData.forecastExpensesMonthly[k] || 0),
+        forecastTreasury: forecastData.forecastNetMonthly[k] || 0,
       })),
-    [monthKeys, months, treeData]
+    [monthKeys, months, treeData, forecastData]
   );
 
   const lastMonthTreasury = monthKeys.length > 0 ? treeData.netMonthly[monthKeys[monthKeys.length - 1]] || 0 : 0;
@@ -637,7 +534,7 @@ export function TreasuryTab({
 
   return (
     <div className="space-y-4">
-      {/* Period selector */}
+      {/* Period selector + Forecast toggle */}
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm font-medium">Periodo:</span>
         <DatePickerButton
@@ -653,6 +550,17 @@ export function TreasuryTab({
           onClear={() => setDateTo(undefined)}
           placeholder="A"
         />
+        <div className="ml-auto">
+          <Button
+            variant={showForecast ? "default" : "outline"}
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={() => setShowForecast(!showForecast)}
+          >
+            {showForecast ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showForecast ? "Nascondi Previsionale" : "Mostra Previsionale"}
+          </Button>
+        </div>
       </div>
 
       {/* Treasury chart */}
@@ -660,13 +568,20 @@ export function TreasuryTab({
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Andamento Tesoreria</h3>
-            <div className={cn(
-              "px-3 py-1.5 rounded-lg text-sm font-bold tabular-nums",
-              lastMonthTreasury >= 0
-                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
-                : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
-            )}>
-              Saldo: {formatCurrency(lastMonthTreasury)}
+            <div className="flex items-center gap-2">
+              {showForecast && (
+                <div className="px-3 py-1.5 rounded-lg text-sm font-bold tabular-nums bg-blue-50 text-blue-500 dark:bg-blue-950/30 dark:text-blue-300 border border-dashed border-blue-300 dark:border-blue-700">
+                  Prev: {formatCurrency(monthKeys.length > 0 ? forecastData.forecastNetMonthly[monthKeys[monthKeys.length - 1]] || 0 : 0)}
+                </div>
+              )}
+              <div className={cn(
+                "px-3 py-1.5 rounded-lg text-sm font-bold tabular-nums",
+                lastMonthTreasury >= 0
+                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                  : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+              )}>
+                Saldo: {formatCurrency(lastMonthTreasury)}
+              </div>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={280}>
@@ -682,11 +597,18 @@ export function TreasuryTab({
                 }}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Legend
-                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-              />
+              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+              {/* Actual bars */}
               <Bar dataKey="income" name="Entrate" fill="hsl(160, 84%, 39%)" radius={[3, 3, 0, 0]} />
               <Bar dataKey="expenses" name="Uscite" fill="hsl(0, 84%, 60%)" radius={[3, 3, 0, 0]} />
+              {/* Forecast bars (semi-transparent) */}
+              {showForecast && (
+                <Bar dataKey="forecastIncome" name="Entrate Prev." fill="hsl(160, 84%, 39%)" fillOpacity={0.3} radius={[3, 3, 0, 0]} />
+              )}
+              {showForecast && (
+                <Bar dataKey="forecastExpenses" name="Uscite Prev." fill="hsl(0, 84%, 60%)" fillOpacity={0.3} radius={[3, 3, 0, 0]} />
+              )}
+              {/* Actual treasury line */}
               <Line
                 type="monotone"
                 dataKey="treasury"
@@ -695,6 +617,19 @@ export function TreasuryTab({
                 strokeWidth={2.5}
                 dot={{ r: 4, fill: "hsl(217, 91%, 60%)" }}
               />
+              {/* Forecast treasury line (dashed) */}
+              {showForecast && (
+                <Line
+                  type="monotone"
+                  dataKey="forecastTreasury"
+                  name="Tesoreria Prev."
+                  stroke="hsl(217, 91%, 60%)"
+                  strokeWidth={2}
+                  strokeDasharray="6 3"
+                  dot={{ r: 3, fill: "hsl(217, 91%, 60%)", strokeDasharray: "0" }}
+                  strokeOpacity={0.5}
+                />
+              )}
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
@@ -727,15 +662,7 @@ export function TreasuryTab({
                     Tesoreria a inizio mese
                   </td>
                   {monthKeys.map((k) => (
-                    <td
-                      key={k}
-                      className={cn(
-                        "text-right p-3 tabular-nums",
-                        treeData.startMonthly[k] >= 0
-                          ? "text-blue-600 dark:text-blue-400"
-                          : "text-red-600 dark:text-red-400"
-                      )}
-                    >
+                    <td key={k} className="text-right p-3 tabular-nums text-blue-600 dark:text-blue-400">
                       {formatCurrency(treeData.startMonthly[k] || 0)}
                     </td>
                   ))}
@@ -743,29 +670,15 @@ export function TreasuryTab({
 
                 {/* Rows */}
                 {visibleRows.map((node) => (
-                  <tr
-                    key={node.id}
-                    className={cn("border-b transition-colors", getRowStyle(node))}
-                  >
+                  <tr key={node.id} className={cn("border-b transition-colors", getRowStyle(node))}>
                     <td
-                      className={cn(
-                        "p-3 sticky left-0 z-10 cursor-default",
-                        getRowStyle(node),
-                        !getRowStyle(node) && "bg-background"
-                      )}
+                      className={cn("p-3 sticky left-0 z-10 cursor-default", getRowStyle(node), !getRowStyle(node) && "bg-background")}
                       style={{ paddingLeft: `${12 + node.level * 20}px` }}
                     >
                       <div className="flex items-center gap-1.5">
                         {node.isExpandable ? (
-                          <button
-                            onClick={() => toggleRow(node.id)}
-                            className="p-0.5 rounded hover:bg-accent transition-colors"
-                          >
-                            {expandedRows.has(node.id) ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
+                          <button onClick={() => toggleRow(node.id)} className="p-0.5 rounded hover:bg-accent transition-colors">
+                            {expandedRows.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </button>
                         ) : (
                           <span className="w-5" />
@@ -773,19 +686,29 @@ export function TreasuryTab({
                         <span>{node.label}</span>
                       </div>
                     </td>
-                    {monthKeys.map((k) => (
-                      <td
-                        key={k}
-                        className={cn(
-                          "text-right p-3 tabular-nums",
-                          getAmountColor(node.monthlyAmounts[k] || 0, node.isIncome)
-                        )}
-                      >
-                        {(node.monthlyAmounts[k] || 0) !== 0
-                          ? formatCurrency(node.monthlyAmounts[k])
-                          : "—"}
-                      </td>
-                    ))}
+                    {monthKeys.map((k) => {
+                      const actual = node.monthlyAmounts[k] || 0;
+                      // For forecast: show forecast amount for income/expense top-level nodes
+                      const hasForecast = showForecast && (node.id === "entrate" || node.id === "uscite");
+                      const forecastVal = hasForecast
+                        ? node.id === "entrate"
+                          ? forecastData.forecastIncomeMonthly[k] || 0
+                          : forecastData.forecastExpensesMonthly[k] || 0
+                        : 0;
+
+                      return (
+                        <td key={k} className={cn("text-right p-3 tabular-nums", getAmountColor(actual, node.isIncome))}>
+                          <div>
+                            {actual !== 0 ? formatCurrency(actual) : "—"}
+                            {hasForecast && forecastVal > 0 && (
+                              <div className="text-xs text-muted-foreground italic mt-0.5">
+                                Prev. {formatCurrency(forecastVal)}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
 
@@ -795,16 +718,15 @@ export function TreasuryTab({
                     Tesoreria a fine mese
                   </td>
                   {monthKeys.map((k) => (
-                    <td
-                      key={k}
-                      className={cn(
-                        "text-right p-3 tabular-nums",
-                        (treeData.netMonthly[k] || 0) >= 0
-                          ? "text-blue-600 dark:text-blue-400"
-                          : "text-red-600 dark:text-red-400"
-                      )}
-                    >
-                      {formatCurrency(treeData.netMonthly[k] || 0)}
+                    <td key={k} className="text-right p-3 tabular-nums text-blue-600 dark:text-blue-400">
+                      <div>
+                        {formatCurrency(treeData.netMonthly[k] || 0)}
+                        {showForecast && (
+                          <div className="text-xs italic mt-0.5 text-blue-400 dark:text-blue-300">
+                            Prev. {formatCurrency(forecastData.forecastNetMonthly[k] || 0)}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   ))}
                 </tr>
