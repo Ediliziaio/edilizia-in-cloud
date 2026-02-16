@@ -67,3 +67,77 @@ Il flusso e gia fluido:
 
 ### Conferma test: **TUTTO OK**
 
+---
+
+## 5. Refactoring: CompanyCostsManager (2032 righe) — ATTIVITÀ SEPARATA
+
+### Obiettivo
+Scomporre il monolite `src/components/forecast/CompanyCostsManager.tsx` in moduli più piccoli e manutenibili, seguendo il pattern già adottato nel progetto (es. CashFlowForecast → hook + tab components).
+
+### Analisi della struttura attuale
+
+Il file contiene 5 blocchi logici distinti mescolati insieme:
+
+| Blocco | Righe (circa) | Responsabilità |
+|--------|---------------|----------------|
+| **Data Fetching** | 1–302 | 6 query Supabase (costs, suppliers, orderItems, externalTeams, employees, commissions) |
+| **Data Transformation** | 304–500 | 4 useMemo per trasformare dati da ordini in `UnifiedCost[]` + filtri combinati |
+| **Mutations** | 502–1032 | 10+ mutazioni (CRUD costi, mark paid/unpaid per 4 entità diverse, bulk ops, CSV import/export) |
+| **Stats & Helpers** | 1107–1140 | Calcoli statistiche, badge renderer, VAT preview |
+| **UI/JSX** | 1141–2032 | Tabella con selezione multipla, 5 stat cards, grafico recharts, 6 dialogs (form, delete, group delete, bulk delete, payment, tasks, CSV import) |
+
+### Piano di Refactoring (6 task)
+
+#### Task 1: Estrarre hook `useCompanyCostsData.ts`
+- Spostare le 6 query + i 4 useMemo di trasformazione + i filtri combinati
+- Esporre: `costs`, `filteredCosts`, `filteredOrderItemCosts`, `allOrderDerivedCosts`, `suppliers`, `dynamicCategories`, `monthlyDistribution`, `vatStats`, `isLoading`
+- **Input**: `companyId`, filtri (period, status, search, supplier, category, origin)
+- ~500 righe → hook dedicato
+
+#### Task 2: Estrarre hook `useCompanyCostsMutations.ts`
+- Spostare tutte le 10+ mutazioni (save, delete, markPaid/Unpaid per costs, orderItems, extTeams, commissions, bulk ops)
+- Esporre oggetti mutation pronti all'uso
+- **Input**: `companyId`, `queryClient`
+- ~530 righe → hook dedicato
+
+#### Task 3: Estrarre `CostsStatsCards.tsx`
+- Le 5 stat cards (da pagare, pagato, scaduti, IVA a debito, fornitori) + il mini-chart recharts
+- **Props**: stats calcolati dal hook
+- ~100 righe
+
+#### Task 4: Estrarre `CostsTable.tsx`
+- La funzione `renderCostsTable` (righe 1141-1482) con selezione multipla, bulk action bar, badge renderer
+- **Props**: items, type, selectedIds, callbacks
+- ~340 righe
+
+#### Task 5: Estrarre `CostFormDialog.tsx`
+- Il Dialog di creazione/modifica (righe 1662-1929) con sezioni Basic Info, Fiscal, Planning
+- Include: category combobox, VAT preview, periods preview
+- **Props**: formData, suppliers, orders, categories, callbacks
+- ~270 righe
+
+#### Task 6: Estrarre `CostsDialogs.tsx`
+- I 4 dialogs ausiliari: delete confirm, group delete, bulk delete, payment dialog
+- **Props**: state + callbacks
+- ~100 righe
+
+### Risultato atteso
+
+```
+src/components/forecast/
+├── CompanyCostsManager.tsx   (~150 righe, orchestratore)
+├── CostsStatsCards.tsx        (~100 righe)
+├── CostsTable.tsx             (~340 righe)
+├── CostFormDialog.tsx         (~270 righe)
+├── CostsDialogs.tsx           (~100 righe)
+└── ...
+
+src/hooks/
+├── useCompanyCostsData.ts     (~500 righe)
+├── useCompanyCostsMutations.ts (~530 righe)
+└── ...
+```
+
+**Rischio**: Basso. Nessuna modifica funzionale, solo riorganizzazione strutturale.
+**Priorità**: Media. Il componente funziona correttamente ma è difficile da manutenere.
+**Stima**: 2-3 sessioni di lavoro.
