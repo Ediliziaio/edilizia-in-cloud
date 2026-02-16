@@ -198,7 +198,7 @@ export default function HeroSection() {
             className="inline-block mb-6 px-5 py-2 rounded-full border border-[#0fa68c]/40 bg-[#0fa68c]/10 text-[#0fa68c] text-xs font-semibold uppercase tracking-widest relative overflow-hidden"
           >
             <span className="absolute inset-0 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(15,166,140,0.15) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
-            <span className="relative">Il Software #1 in Italia per Imprenditori Edili</span>
+            <span className="relative">Il sistema di controllo per l'impresa edile che vuole crescere davvero.</span>
           </span>
         </div>
 
@@ -208,9 +208,9 @@ export default function HeroSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Smetti di Fatturare al Buio.
+          Aumenta margini, utili aziendali e compensi
           <br />
-          <span className="text-[#0fa68c]">Inizia a Guadagnare con i Numeri.</span>
+          <span className="text-[#0fa68c]">grazie al controllo dei numeri</span>
         </h1>
 
         {/* 3. Dashboard Mockup */}
@@ -223,7 +223,7 @@ export default function HeroSection() {
           }`}
         >
           Il primo software gestionale progettato da imprenditori edili, per imprenditori edili.
-          Controlla <span className="text-white font-semibold">margini</span>, <span className="text-white font-semibold">cassa</span> e <span className="text-white font-semibold">commesse</span> in tempo reale — senza fogli Excel, senza sorprese.
+          Controlla <span className="text-white font-semibold">margini</span>, <span className="text-white font-semibold">cassa</span>, <span className="text-white font-semibold">dipendenti</span> e <span className="text-white font-semibold">commesse</span> in tempo reale — senza fogli Excel, senza sorprese — affiancato da un <span className="text-white font-semibold">Consulente del Controllo dedicato</span> che ti aiuta a leggere i numeri e proteggere i margini.
         </p>
 
         {/* 5. CTA Buttons */}
