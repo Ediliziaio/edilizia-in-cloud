@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil, Trash2, Download, Upload, MoreVertical } from "lucide-react";
+import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil, Trash2, Download, Upload, MoreVertical, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -72,17 +72,18 @@ export default function CustomersList() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: customers = [], isLoading } = useQuery({
+  const { data: customers = [], isLoading, isError } = useQuery({
     queryKey: ["customers-list", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       
-      const { data: customerRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "customer");
+      // Fetch roles and order counts in parallel
+      const [rolesRes, ordersRes] = await Promise.all([
+        supabase.from("user_roles").select("user_id").eq("role", "customer"),
+        supabase.from("orders").select("customer_id").eq("company_id", effectiveCompany.id),
+      ]);
 
-      const customerIds = (customerRoles || []).map(r => r.user_id);
+      const customerIds = (rolesRes.data || []).map(r => r.user_id);
       if (customerIds.length === 0) return [];
 
       const { data: customerProfiles, error: profilesError } = await supabase
@@ -93,15 +94,8 @@ export default function CustomersList() {
 
       if (profilesError) throw profilesError;
 
-      const { data: orderCounts, error: ordersError } = await supabase
-        .from("orders")
-        .select("customer_id")
-        .eq("company_id", effectiveCompany.id);
-
-      if (ordersError) throw ordersError;
-
       const orderCountMap = new Map<string, number>();
-      orderCounts.forEach((order) => {
+      (ordersRes.data || []).forEach((order) => {
         orderCountMap.set(order.customer_id, (orderCountMap.get(order.customer_id) || 0) + 1);
       });
 
@@ -165,10 +159,16 @@ export default function CustomersList() {
   });
 
   const filteredCustomers = customers.filter(
-    (customer) =>
-      customer.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (customer) => {
+      const q = searchQuery.toLowerCase();
+      return (
+        customer.first_name.toLowerCase().includes(q) ||
+        customer.last_name.toLowerCase().includes(q) ||
+        customer.email.toLowerCase().includes(q) ||
+        (customer.phone?.toLowerCase().includes(q) ?? false) ||
+        (customer.fiscal_code?.toLowerCase().includes(q) ?? false)
+      );
+    }
   );
 
   // Export CSV
@@ -194,10 +194,6 @@ export default function CustomersList() {
   // Import handler
   const handleCustomersImport = useCallback(async (rows: Record<string, string>[]) => {
     if (!effectiveCompany?.id) return { success: 0, errors: ["Azienda non trovata"] };
-    
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-    if (!token) return { success: 0, errors: ["Non autenticato"] };
 
     let success = 0;
     const errors: string[] = [];
@@ -209,26 +205,21 @@ export default function CustomersList() {
         if (!row.last_name?.trim()) { errors.push(`Riga ${i + 1}: Cognome mancante`); continue; }
         if (!row.email?.trim()) { errors.push(`Riga ${i + 1}: Email mancante`); continue; }
 
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-customer`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({
-              first_name: row.first_name.trim(),
-              last_name: row.last_name.trim(),
-              email: row.email.trim().toLowerCase(),
-              phone: row.phone?.trim() || null,
-              fiscal_code: row.fiscal_code?.trim() || null,
-              address: row.address?.trim() || null,
-              site_address: row.site_address?.trim() || null,
-              notes: row.notes?.trim() || null,
-              company_id: effectiveCompany.id,
-            }),
-          }
-        );
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Errore");
+        const { data, error: fnError } = await supabase.functions.invoke("create-customer", {
+          body: {
+            first_name: row.first_name.trim(),
+            last_name: row.last_name.trim(),
+            email: row.email.trim().toLowerCase(),
+            phone: row.phone?.trim() || null,
+            fiscal_code: row.fiscal_code?.trim() || null,
+            address: row.address?.trim() || null,
+            site_address: row.site_address?.trim() || null,
+            notes: row.notes?.trim() || null,
+            company_id: effectiveCompany.id,
+          },
+        });
+        if (fnError) throw fnError;
+        if (data?.error) throw new Error(data.error);
         success++;
       } catch (err: any) {
         errors.push(`Riga ${i + 1} (${row.email || ""}): ${err?.message || "Errore"}`);
@@ -286,7 +277,17 @@ export default function CustomersList() {
       </div>
 
       {/* Content */}
-      {isLoading ? (
+      {isError ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+            <h3 className="text-lg font-medium">Errore nel caricamento</h3>
+            <p className="text-muted-foreground text-center mt-2">
+              Impossibile caricare la lista clienti. Riprova più tardi.
+            </p>
+          </CardContent>
+        </Card>
+      ) : isLoading ? (
         <Card>
           <CardContent className="py-6 space-y-4">
             {[...Array(5)].map((_, i) => (
