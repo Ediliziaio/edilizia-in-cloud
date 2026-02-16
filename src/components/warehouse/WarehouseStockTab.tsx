@@ -57,7 +57,7 @@ export default function WarehouseStockTab() {
     enabled: !!companyId,
   });
 
-  // Fetch suppliers for display
+  // Fetch suppliers for display (shared queryKey with useWarehouseData)
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers", companyId],
     queryFn: async () => {
@@ -71,6 +71,7 @@ export default function WarehouseStockTab() {
       return data;
     },
     enabled: !!companyId,
+    staleTime: 10 * 60 * 1000,
   });
 
   const getSupplierName = (id: string | null) => {
