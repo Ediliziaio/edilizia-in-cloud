@@ -17,6 +17,7 @@ import BonusGiftSection from "@/components/landing/BonusGiftSection";
 import FinalCtaSection from "@/components/landing/FinalCtaSection";
 import FounderLetterBottom from "@/components/landing/FounderLetterBottom";
 import LandingFooter from "@/components/landing/LandingFooter";
+import StickyBottomBar from "@/components/landing/StickyBottomBar";
 
 function PromoBanner() {
   const handleClick = (e: React.MouseEvent) => {
@@ -61,6 +62,7 @@ export default function Home() {
       <FinalCtaSection />
       <FounderLetterBottom />
       <LandingFooter />
+      <StickyBottomBar />
     </div>
   );
 }
