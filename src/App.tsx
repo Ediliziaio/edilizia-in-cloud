@@ -17,6 +17,7 @@ import { SalespersonLayout } from "@/components/layouts/SalespersonLayout";
 // Pages
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
+import Home from "@/pages/Home";
 
 // Admin Pages
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -83,6 +84,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             {/* Public Routes */}
+            <Route path="/home" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/cambia-password" element={<ChangePassword />} />
             
