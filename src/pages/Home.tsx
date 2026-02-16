@@ -46,6 +46,7 @@ export default function Home() {
       <LandingNavbar />
       <HeroSection />
       <FounderLetterSection />
+      <BonusGiftSection />
       <PainPointsSection />
       <CostTableSection />
       <SolutionSection />
@@ -57,7 +58,6 @@ export default function Home() {
       <PricingSection />
       <TestimonialsSection />
       <GuaranteeSection />
-      <BonusGiftSection />
       <FinalCtaSection />
       <FounderLetterBottom />
       <LandingFooter />

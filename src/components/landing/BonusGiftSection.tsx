@@ -1,5 +1,6 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { Gift, BookOpen, ArrowRight } from "lucide-react";
+import { BookOpen, ArrowRight } from "lucide-react";
+import AIImage from "@/components/landing/AIImage";
 
 export default function BonusGiftSection() {
   const { ref, isVisible } = useScrollAnimation();
@@ -22,11 +23,11 @@ export default function BonusGiftSection() {
           }`}
         >
           {/* Icon */}
-          <div className="relative mx-auto w-16 h-16 mb-5 flex items-center justify-center">
-            <div className="w-16 h-16 rounded-full bg-[#0fa68c]/15 flex items-center justify-center animate-pulse">
-              <Gift className="w-7 h-7 text-[#0fa68c] drop-shadow-[0_0_10px_rgba(15,166,140,0.5)]" />
-            </div>
-          </div>
+          <AIImage
+            prompt="A professional flat illustration of a golden gift box opening with light rays, representing a free bonus sales course for construction industry, teal and navy color scheme, clean modern style, white background"
+            alt="Corso Metodo Vendita Edile - Regalo gratuito"
+            className="w-40 h-40 mx-auto mb-5 rounded-xl"
+          />
 
           <span className="inline-block px-4 py-1 rounded-full text-[10px] font-bold tracking-widest text-[#0fa68c] border border-[#0fa68c]/40 bg-[#0fa68c]/10 mb-5">
             BONUS GRATUITO
