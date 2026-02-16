@@ -448,7 +448,7 @@ export function TreasuryTab({
       const fIncome = forecastIncomeMonthly[k] || 0;
       const fExpenses = forecastExpensesMonthly[k] || 0;
       forecastCum += (actualIncome + fIncome) - (actualExpenses + fExpenses);
-      forecastNetMonthly[k] = forecastCum;
+      forecastNetMonthly[k] = Math.max(0, forecastCum);
     });
 
     return { forecastIncomeMonthly, forecastExpensesMonthly, forecastNetMonthly };
@@ -542,16 +542,37 @@ export function TreasuryTab({
         </div>
 
         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Entrate</p>
-        <div className="flex justify-between gap-4 mb-2">
+        <div className="flex justify-between gap-4 mb-0.5">
           <span className="text-muted-foreground">Realizzato</span>
           <span className="font-medium tabular-nums text-emerald-600">{formatCurrency(data.income)}</span>
         </div>
+        {showForecast && (
+          <div className="flex justify-between gap-4 mb-0.5">
+            <span className="text-muted-foreground">Previsto</span>
+            <span className="font-medium tabular-nums text-emerald-400">{formatCurrency(data.forecastIncome)}</span>
+          </div>
+        )}
 
-        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Uscite</p>
-        <div className="flex justify-between gap-4">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 mt-2">Uscite</p>
+        <div className="flex justify-between gap-4 mb-0.5">
           <span className="text-muted-foreground">Realizzato</span>
           <span className="font-medium tabular-nums text-red-500">{formatCurrency(data.expenses)}</span>
         </div>
+        {showForecast && (
+          <div className="flex justify-between gap-4 mb-0.5">
+            <span className="text-muted-foreground">Previsto</span>
+            <span className="font-medium tabular-nums text-red-400">{formatCurrency(data.forecastExpenses)}</span>
+          </div>
+        )}
+        {showForecast && (
+          <>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 mt-2">Tesoreria Prevista</p>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Saldo</span>
+              <span className="font-medium tabular-nums text-blue-400">{formatCurrency(data.forecastTreasury)}</span>
+            </div>
+          </>
+        )}
       </div>
     );
   };
