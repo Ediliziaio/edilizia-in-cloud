@@ -33,6 +33,7 @@ export default function MyOrders() {
       return data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch orders for this salesperson
@@ -56,12 +57,13 @@ export default function MyOrders() {
       return data;
     },
     enabled: !!salesperson?.id,
+    staleTime: 5 * 60 * 1000,
   });
 
   const isLoading = loadingSalesperson || loadingOrders;
 
   // Calculate payment status
-  const getPaymentStatus = (order: any) => {
+  const getPaymentStatus = (order: { deposit_paid: boolean | null; deposit_2_paid: boolean | null; balance_paid: boolean | null }) => {
     const depositPaid = order.deposit_paid;
     const deposit2Paid = order.deposit_2_paid;
     const balancePaid = order.balance_paid;

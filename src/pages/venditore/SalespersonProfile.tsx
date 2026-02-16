@@ -24,6 +24,7 @@ export default function SalespersonProfile() {
       return data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   if (isLoading) {

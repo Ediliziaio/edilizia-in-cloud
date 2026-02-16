@@ -43,6 +43,7 @@ export default function MyEarnings() {
       return data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch all commissions for this salesperson
@@ -63,6 +64,7 @@ export default function MyEarnings() {
       return data;
     },
     enabled: !!salesperson?.id,
+    staleTime: 5 * 60 * 1000,
   });
 
   const isLoading = loadingSalesperson || loadingCommissions;
