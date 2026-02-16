@@ -1,38 +1,41 @@
 
-# Miglioramento Tab "Previsione di Cassa"
+
+# Aggiunta Filtri Date a Tab "Incassato" e "Previsionale Costi"
 
 ## Cosa cambia
 
-### 1. Filtro per date nella tabella movimenti
-Aggiungere un filtro con date range (Da / A) nella sezione "Tutti i movimenti previsti" per filtrare le transazioni per periodo specifico. Il filtro si aggiunge accanto al filtro categoria gia esistente (Tutti / Solo entrate / Solo uscite).
+Aggiungere gli stessi filtri per date (Da / A) gia presenti nella tab "Previsione di Cassa" anche alle altre due tab, con la stessa card personalizzabile per il periodo.
 
-### 2. Card "Prossimi 3 mesi" diventa personalizzabile
-La terza card attualmente mostra un periodo fisso di 3 mesi. Verra aggiunto un selettore numerico (dropdown) che permette di scegliere il numero di mesi da visualizzare: da 1 a 12 mesi. Il titolo della card si aggiornera di conseguenza (es. "Prossimi 6 mesi").
+### Tab "Incassato" (`CollectedTab.tsx`)
+- Aggiungere filtri data (Da / A) nella sezione "Gia incassato" per filtrare i pagamenti ricevuti per periodo (non piu solo mese corrente)
+- Rendere la card "Prossimi 3 mesi" personalizzabile con dropdown 1-12 mesi (come nella tab Cassa)
+- Aggiornare le tabelle "Da ricevere" per rispettare il periodo personalizzato
+
+### Tab "Previsionale Costi" (`CostsForecastTab.tsx`)
+- Aggiungere filtri data (Da / A) per filtrare tutte le tabelle costi per periodo specifico
+- Rendere la terza card ("Prossimi 3 mesi") personalizzabile con dropdown 1-12 mesi
+- Aggiornare i totali delle card in base ai filtri selezionati
 
 ## Dettagli tecnici
 
-### File: `src/components/forecast/CashForecastTab.tsx`
+### `src/components/forecast/CollectedTab.tsx`
+- Aggiungere stati: `dateFrom`, `dateTo`, `customMonths`
+- Riutilizzare il pattern `DatePickerButton` dalla tab Cassa (componente inline)
+- Filtrare `collectedThisMonth` e `expectedPayments` in base al range selezionato
+- La quarta card diventa dinamica: mostra il totale da ricevere nei prossimi X mesi scelti dall'utente
 
-**Filtro date:**
-- Aggiungere due Popover con Calendar (datepicker) per selezionare "Da" e "A"
-- I movimenti nella tabella verranno filtrati anche per il range di date selezionato
-- Se nessuna data selezionata, mostra tutto (comportamento attuale)
+### `src/components/forecast/CostsForecastTab.tsx`
+- Aggiungere stati: `dateFrom`, `dateTo`, `customMonths`
+- Filtrare tutte le categorie di costi (squadre, provvigioni, fornitori, costi aziendali) per il range selezionato
+- La terza card diventa dinamica con dropdown 1-12 mesi
+- I filtri date si applicano alle tabelle dettaglio sotto le card
 
-**Card personalizzabile:**
-- Aggiungere uno state `customMonths` (default: 3)
-- Aggiungere un Select dropdown nella terza card con opzioni 1-12 mesi
-- Il calcolo entrate/uscite/netto della terza card si basera sul periodo personalizzato
+### Componente `DatePickerButton`
+- Ricreare lo stesso componente helper gia usato in `CashForecastTab.tsx` come funzione locale in ogni file (per mantenere i componenti autonomi)
 
-### File: `src/hooks/useCashFlowData.ts`
+## File da modificare
+- `src/components/forecast/CollectedTab.tsx`
+- `src/components/forecast/CostsForecastTab.tsx`
 
-- Attualmente `stats.next3Months` e calcolato con un intervallo fisso di 3 mesi
-- Il calcolo del periodo personalizzato verra fatto direttamente nel componente `CashForecastTab` usando i dati grezzi (`expectedPayments`, `expectedExpenses`, ecc.) e le funzioni di date-fns, senza modificare il hook. Questo mantiene il hook semplice e sposta la logica di personalizzazione nel componente.
+Nessun file da creare o eliminare.
 
-### File: `src/lib/forecastTypes.ts`
-- Nessuna modifica necessaria
-
-## Risultato visivo
-
-La tab "Previsione di Cassa" avra:
-- 3 card in alto: "Questo mese", "Prossimo mese", "Prossimi X mesi" (con dropdown per scegliere X)
-- Sotto: tabella movimenti con filtri per categoria E per range di date
