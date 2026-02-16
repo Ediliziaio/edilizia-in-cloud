@@ -153,7 +153,7 @@ export default function TimeEntry() {
       });
       navigate("/dipendente");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Errore",
         description: error.message || "Impossibile salvare il rapportino.",
