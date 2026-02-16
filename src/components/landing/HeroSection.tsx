@@ -163,7 +163,7 @@ export default function HeroSection() {
   return (
     <section
       ref={ref}
-      className="relative overflow-hidden pt-28 pb-20"
+      className="relative overflow-hidden pt-36 pb-20"
       style={{
         background: "linear-gradient(135deg, #1a2744 0%, #0f1d35 50%, #1a2744 100%)",
       }}
