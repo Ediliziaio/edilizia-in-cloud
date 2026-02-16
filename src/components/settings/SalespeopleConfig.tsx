@@ -95,6 +95,7 @@ export function SalespeopleConfig() {
       return data as Salesperson[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Create/Update mutation

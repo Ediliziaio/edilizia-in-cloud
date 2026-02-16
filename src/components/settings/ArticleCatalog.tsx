@@ -96,6 +96,7 @@ export function ArticleCatalog() {
       return data as ArticleTemplate[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const saveMutation = useMutation({

@@ -63,7 +63,6 @@ export function UsersConfig() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [permissionsUser, setPermissionsUser] = useState<StaffUser | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
 
   // Fetch staff users with their permissions
   const { data: staffUsers = [], isLoading } = useQuery({
@@ -108,6 +107,7 @@ export function UsersConfig() {
       return result;
     },
     enabled: !!effectiveCompanyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Create staff user
@@ -151,35 +151,31 @@ export function UsersConfig() {
     }
   };
 
-  // Save permissions
-  const handleSavePermissions = async (permissions: StaffPermissions) => {
-    if (!permissionsUser) return;
-    
-    setIsSavingPermissions(true);
-    try {
+  // Save permissions mutation
+  const savePermissionsMutation = useMutation({
+    mutationFn: async (permissions: StaffPermissions) => {
+      if (!permissionsUser) throw new Error("No user selected");
       const { error } = await supabase
         .from("staff_permissions")
         .update(permissions)
         .eq("user_id", permissionsUser.id);
-
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-users"] });
-      
       toast({
         title: "Permessi salvati",
         description: "I permessi sono stati aggiornati con successo.",
       });
-    } catch (error) {
+    },
+    onError: () => {
       toast({
         title: "Errore",
         description: "Errore durante il salvataggio dei permessi",
         variant: "destructive",
       });
-    } finally {
-      setIsSavingPermissions(false);
-    }
-  };
+    },
+  });
 
   // Delete user mutation
   const deleteUserMutation = useMutation({
@@ -339,8 +335,8 @@ export function UsersConfig() {
           onOpenChange={(open) => !open && setPermissionsUser(null)}
           userName={`${permissionsUser.first_name} ${permissionsUser.last_name}`}
           currentPermissions={permissionsUser.permissions || DEFAULT_PERMISSIONS}
-          onSave={handleSavePermissions}
-          isLoading={isSavingPermissions}
+          onSave={async (perms) => { savePermissionsMutation.mutate(perms); }}
+          isLoading={savePermissionsMutation.isPending}
         />
       )}
     </Card>
