@@ -20,40 +20,40 @@ export default function TargetSection() {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section className="py-24 md:py-32 bg-[#060606]">
+    <section className="py-24 md:py-32 bg-[#f8f9fa]">
       <div ref={ref} className="max-w-5xl mx-auto px-6">
         <div className="grid md:grid-cols-2 gap-8">
           <div
-            className={`p-8 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.03] transition-all duration-700 ${
-              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+            className={`p-8 rounded-2xl border-2 border-emerald-200 bg-emerald-50/80 shadow-sm transition-all duration-700 ${
+              isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-16"
             }`}
           >
-            <h3 className="text-2xl font-bold text-white mb-6">
+            <h3 className="text-2xl font-bold text-gray-900 mb-6">
               ✅ Perfetto per te se...
             </h3>
             <ul className="space-y-4">
               {forYou.map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-300 text-sm">{item}</span>
+                  <Check className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700 text-sm">{item}</span>
                 </li>
               ))}
             </ul>
           </div>
 
           <div
-            className={`p-8 rounded-2xl border border-red-500/20 bg-red-500/[0.03] transition-all duration-700 delay-200 ${
-              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+            className={`p-8 rounded-2xl border-2 border-red-200 bg-red-50/80 shadow-sm transition-all duration-700 delay-200 ${
+              isVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-16"
             }`}
           >
-            <h3 className="text-2xl font-bold text-white mb-6">
+            <h3 className="text-2xl font-bold text-gray-900 mb-6">
               ❌ NON è per te se...
             </h3>
             <ul className="space-y-4">
               {notForYou.map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <X className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-300 text-sm">{item}</span>
+                  <X className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700 text-sm">{item}</span>
                 </li>
               ))}
             </ul>

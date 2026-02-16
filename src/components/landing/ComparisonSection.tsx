@@ -43,18 +43,26 @@ export default function ComparisonSection() {
               <tr className="bg-white/[0.05]">
                 <th className="text-left text-gray-400 text-sm font-medium px-6 py-4">Funzionalità</th>
                 <th className="text-center text-gray-400 text-sm font-medium px-4 py-4">Gli Altri</th>
-                <th className="text-center text-sm font-medium px-4 py-4 text-[#c8ee44]">Edilizia in Cloud</th>
+                <th className="text-center text-sm font-medium px-4 py-4 text-[#c8ee44] bg-[#c8ee44]/[0.06]">Edilizia in Cloud</th>
               </tr>
             </thead>
             <tbody>
               {features.map((f, i) => (
-                <tr key={i} className="border-t border-white/[0.06]">
+                <tr
+                  key={i}
+                  className={`border-t border-white/[0.06] transition-all duration-500 ${
+                    isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4"
+                  }`}
+                  style={{ transitionDelay: isVisible ? `${400 + i * 60}ms` : "0ms" }}
+                >
                   <td className="px-6 py-4 text-gray-300 text-sm">{f}</td>
                   <td className="px-4 py-4 text-center">
                     <X className="w-5 h-5 text-red-400/60 mx-auto" />
                   </td>
                   <td className="px-4 py-4 text-center bg-[#c8ee44]/[0.04]">
-                    <Check className="w-5 h-5 text-[#c8ee44] mx-auto" />
+                    <div className={`transition-all duration-300 ${isVisible ? "scale-100" : "scale-0"}`} style={{ transitionDelay: isVisible ? `${500 + i * 60}ms` : "0ms" }}>
+                      <Check className="w-5 h-5 text-[#c8ee44] mx-auto" />
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -26,12 +26,16 @@ export default function CriteriaSection() {
           {criteria.map((c, i) => (
             <div
               key={i}
-              className={`flex gap-6 p-6 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-[#c8ee44]/20 transition-all duration-500 ${
+              className={`flex gap-6 p-6 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-[#c8ee44]/20 hover:bg-white/[0.05] transition-all duration-500 group ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
               }`}
               style={{ transitionDelay: isVisible ? `${200 + i * 100}ms` : "0ms" }}
             >
-              <span className="text-[#c8ee44] font-extrabold text-3xl opacity-40 flex-shrink-0">{c.n}</span>
+              <span
+                className="font-extrabold text-4xl flex-shrink-0 bg-gradient-to-b from-[#c8ee44] to-[#c8ee44]/30 bg-clip-text text-transparent group-hover:from-[#d4f55a] group-hover:to-[#c8ee44]/60 transition-all"
+              >
+                {c.n}
+              </span>
               <div>
                 <h3 className="text-white font-bold text-lg mb-1">{c.title}</h3>
                 <p className="text-gray-400 text-sm leading-relaxed">{c.desc}</p>
