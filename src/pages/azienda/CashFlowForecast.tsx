@@ -1,38 +1,25 @@
-import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { Download, Printer } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/formatters";
-import type { DateRange } from "@/lib/forecastTypes";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCashFlowData } from "@/hooks/useCashFlowData";
-import { ForecastStatCards } from "@/components/forecast/ForecastStatCards";
-import { ForecastExpensesSummary } from "@/components/forecast/ForecastExpensesSummary";
-import { ForecastChart } from "@/components/forecast/ForecastChart";
-import { ForecastTransactionsTable } from "@/components/forecast/ForecastTransactionsTable";
+import { CollectedTab } from "@/components/forecast/CollectedTab";
+import { CostsForecastTab } from "@/components/forecast/CostsForecastTab";
+import { CashForecastTab } from "@/components/forecast/CashForecastTab";
+import { formatCurrency } from "@/lib/formatters";
 
 export default function CashFlowForecast() {
-  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
-  const [activeTab, setActiveTab] = useState<"all" | "income" | "expenses">("all");
-
   const {
     isLoading,
+    orders,
     expectedPayments,
     expectedExpenses,
     expectedCommissions,
     expectedSupplierPayments,
     expectedCompanyCosts,
     stats,
-    cfoKpis,
-    chartData,
-    costsSummary,
-    pendingItems,
-    getMaterialCosts,
   } = useCashFlowData();
-
-  const materialCosts = useMemo(() => getMaterialCosts("all"), [getMaterialCosts]);
-  const pendingMaterialsCount = materialCosts.toOrder.count + materialCosts.ordered.count;
-  const pendingMaterialsTotal = materialCosts.toOrder.total + materialCosts.ordered.total;
 
   // Export CSV
   const exportCSV = () => {
@@ -122,7 +109,7 @@ export default function CashFlowForecast() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Previsionale Cassa</h1>
           <p className="text-muted-foreground">
-            Analizza entrate e uscite previste, inclusi costi aziendali
+            Analizza entrate, uscite e flusso di cassa previsto
           </p>
         </div>
         <div className="flex items-center gap-2 print:hidden">
@@ -137,30 +124,38 @@ export default function CashFlowForecast() {
         </div>
       </div>
 
-      <ForecastStatCards stats={stats} />
+      {/* Tabs */}
+      <Tabs defaultValue="incassato" className="w-full">
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="incassato">Incassato</TabsTrigger>
+          <TabsTrigger value="costi">Previsionale Costi</TabsTrigger>
+          <TabsTrigger value="cassa">Previsione di Cassa</TabsTrigger>
+        </TabsList>
 
-      <ForecastExpensesSummary
-        stats={stats}
-        cfoKpis={cfoKpis}
-        costsSummary={costsSummary}
-        hasPendingMaterials={pendingMaterialsCount > 0}
-        pendingMaterialsCount={pendingMaterialsCount}
-        pendingMaterialsTotal={pendingMaterialsTotal}
-      />
+        <TabsContent value="incassato" className="mt-6">
+          <CollectedTab orders={orders} expectedPayments={expectedPayments} />
+        </TabsContent>
 
-      <ForecastChart chartData={chartData} />
+        <TabsContent value="costi" className="mt-6">
+          <CostsForecastTab
+            expectedExpenses={expectedExpenses}
+            expectedCommissions={expectedCommissions}
+            expectedSupplierPayments={expectedSupplierPayments}
+            expectedCompanyCosts={expectedCompanyCosts}
+          />
+        </TabsContent>
 
-      <ForecastTransactionsTable
-        expectedPayments={expectedPayments}
-        expectedExpenses={expectedExpenses}
-        expectedCompanyCosts={expectedCompanyCosts}
-        expectedSupplierPayments={expectedSupplierPayments}
-        expectedCommissions={expectedCommissions}
-        activeTab={activeTab}
-        onActiveTabChange={setActiveTab}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-      />
+        <TabsContent value="cassa" className="mt-6">
+          <CashForecastTab
+            stats={stats}
+            expectedPayments={expectedPayments}
+            expectedExpenses={expectedExpenses}
+            expectedCommissions={expectedCommissions}
+            expectedSupplierPayments={expectedSupplierPayments}
+            expectedCompanyCosts={expectedCompanyCosts}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -30,7 +30,7 @@ export function useCashFlowData() {
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  // Query ordini con pagamenti non incassati
+  // Query ordini (tutti, per calcolare sia incassati che da ricevere)
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ["forecast-orders", companyId],
     queryFn: async () => {
@@ -38,10 +38,10 @@ export function useCashFlowData() {
         .from("orders")
         .select(`
           id, order_code,
-          deposit_amount, deposit_paid, deposit_expected_date,
-          deposit_2_amount, deposit_2_paid, deposit_2_expected_date,
-          balance_amount, balance_paid, balance_expected_date,
-          financing_amount, financing_paid, financing_expected_date,
+          deposit_amount, deposit_paid, deposit_expected_date, deposit_paid_date,
+          deposit_2_amount, deposit_2_paid, deposit_2_expected_date, deposit_2_paid_date,
+          balance_amount, balance_paid, balance_expected_date, balance_paid_date,
+          financing_amount, financing_paid, financing_expected_date, financing_paid_date,
           financing_cost, payment_type,
           customer:profiles!orders_customer_id_fkey(first_name, last_name)
         `)
@@ -571,6 +571,7 @@ export function useCashFlowData() {
 
   return {
     isLoading,
+    orders,
     expectedPayments,
     expectedExpenses,
     expectedCommissions,
