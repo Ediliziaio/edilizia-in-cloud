@@ -1,112 +1,68 @@
 
-# Miglioramento Garanzia + Immagini AI per le Sezioni
+# Sezione Recensioni / Casi Studio
 
-## 1. Sezione Garanzia - Redesign Completo
+## Posizione
+Nuova sezione `TestimonialsSection.tsx` inserita tra `PricingSection` e `GuaranteeSection` in `Home.tsx` -- subito dopo il prezzo, per rafforzare la decisione d'acquisto con prove sociali concrete.
 
-**File: `src/components/landing/GuaranteeSection.tsx`**
+## Contenuto: 4 Aziende con Risultati
 
-La sezione attuale e troppo semplice (solo icona + testo). Il redesign include:
+### 1. Costruzioni Rossi S.r.l. - Roma
+- **Settore**: Ristrutturazioni residenziali
+- **Fatturato**: 1.2M euro
+- **Prima**: 80.000 euro di utile (6.7% margine)
+- **Dopo**: 360.000 euro di utile (30% margine)
+- **Citazione**: "In 8 mesi abbiamo scoperto che 3 cantieri su 10 erano in perdita. Ora ogni commessa e sotto controllo."
+- **Persona**: Marco Rossi, Titolare
 
-- **Sigillo visivo**: Un cerchio decorativo con bordo dorato/teal animato che fa da "timbro di garanzia" attorno all'icona ShieldCheck, con anelli concentrici
-- **3 bullet point** sotto il titolo per specificare cosa copre la garanzia:
-  - "Identifica dove perdi margine nei tuoi cantieri"
-  - "Setup completo e supporto dedicato inclusi"
-  - "Rimborso totale, zero domande, zero complicazioni"
-- **Badge "30 GIORNI"** stilizzato come un sigillo circolare con bordo animato (rotating border gradient)
-- **CTA nella garanzia**: Bottone "Prova Senza Rischi" sotto i bullet point
-- **Glow effect** piu pronunciato dietro il card, con pulsazione
-- **Border animato**: Il bordo del card avra un gradiente che ruota (conic-gradient animato)
+### 2. Edil Progetti S.r.l. - Milano
+- **Settore**: Impiantistica e manutenzioni
+- **Fatturato**: 800K euro
+- **Prima**: Ritardi di incasso medi di 90 giorni
+- **Dopo**: Incassi medi a 35 giorni, cassa sempre positiva
+- **Citazione**: "Prima rincorrevamo i pagamenti. Ora il forecast ci dice esattamente quando e quanto incasseremo."
+- **Persona**: Laura Bianchi, Amministratrice
 
----
+### 3. Fratelli Conti Costruzioni - Napoli
+- **Settore**: Edilizia civile e appalti pubblici
+- **Fatturato**: 3.5M euro
+- **Prima**: 2 giorni/settimana su fogli Excel per i report
+- **Dopo**: Report automatici in tempo reale, 12 ore/settimana risparmiate
+- **Citazione**: "Ho eliminato Excel dalla mia vita. Dashboard, margini, stato cantieri: tutto in un click."
+- **Persona**: Giuseppe Conti, Direttore Tecnico
 
-## 2. Edge Function per Generare Immagini AI
+### 4. GreenBuild Italia - Torino
+- **Settore**: Costruzioni sostenibili
+- **Fatturato**: 600K euro (startup)
+- **Prima**: Nessun controllo su costi materiali, margine stimato "a occhio"
+- **Dopo**: Margine reale tracciato per ogni commessa, +22% di redditivita in 6 mesi
+- **Citazione**: "Come startup non potevamo permetterci errori. Edilizia in Cloud ci ha dato il controllo dal giorno uno."
+- **Persona**: Alessia Verde, Co-fondatrice
 
-**Nuovo file: `supabase/functions/generate-landing-image/index.ts`**
+## Layout e Design
 
-Edge function che usa Lovable AI (modello `google/gemini-2.5-flash-image`) per generare immagini. Riceve un prompt, restituisce l'immagine base64.
-
----
-
-## 3. Componente per Caricare e Mostrare Immagini AI
-
-**Nuovo file: `src/components/landing/AIImage.tsx`**
-
-Componente riutilizzabile che:
-- Chiama l'edge function con un prompt specifico
-- Mostra uno skeleton/placeholder durante il caricamento
-- Salva l'immagine in cache (localStorage) per non rigenerarla ogni volta
-- Mostra l'immagine generata con bordi arrotondati e ombra
-
----
-
-## 4. Immagini AI nelle Sezioni
-
-Aggiungere immagini generate dall'AI nelle seguenti sezioni:
-
-### PainPointsSection.tsx
-- Immagine laterale: "Imprenditore edile stressato alla scrivania con fogli e fatture sparsi, stile illustrazione moderna minimalista, palette navy e teal"
-- Posizionata a destra del testo su desktop, sopra su mobile
-
-### SolutionSection.tsx
-- Immagine decorativa: "Dashboard digitale moderna con grafici su tablet, cantiere edile sullo sfondo sfocato, stile illustrazione flat professionale"
-- Posizionata accanto alle 3 card domande
-
-### ScenarioSection.tsx
-- Due immagini piccole, una per scenario:
-  - Scenario A: "Imprenditore preoccupato con conti in rosso, stile illustrazione minimalista, toni rossi e grigi"
-  - Scenario B: "Imprenditore soddisfatto che guarda grafici in crescita su schermo, stile illustrazione, toni verdi e teal"
-
-### TargetSection.tsx
-- Immagine hero in cima alla sezione: "Gruppo di imprenditori edili italiani sorridenti in cantiere con tablet, stile illustrazione moderna professionale"
-
----
-
-## 5. Aggiornamento config.toml
-
-**File: `supabase/config.toml`**
-
-Aggiungere la configurazione per la nuova edge function:
-```
-[functions.generate-landing-image]
-verify_jwt = false
-```
-
----
+- **Titolo**: "I Risultati Parlano Chiaro" con sottotitolo "Ecco cosa hanno ottenuto le imprese che hanno scelto Edilizia in Cloud"
+- **Card layout**: Griglia 2x2 su desktop, 1 colonna su mobile
+- Ogni card include:
+  - Avatar con iniziali (cerchio colorato stile teal/navy)
+  - Nome azienda, citta, ruolo persona
+  - Citazione in corsivo tra virgolette
+  - **Risultato chiave** evidenziato: box con "Prima -> Dopo" usando colori rosso/verde
+  - 5 stelline dorate
+- Scroll animation con stagger (ogni card appare con un delay progressivo)
+- Background: `bg-[#f8fafb]` per staccare dalla sezione bianca sopra
 
 ## Dettagli Tecnici
 
-### Edge Function (generate-landing-image):
-```text
-- Riceve: { prompt: string }
-- Chiama Lovable AI con modello google/gemini-2.5-flash-image
-- Modalities: ["image", "text"]
-- Restituisce: { imageUrl: "data:image/png;base64,..." }
-```
+### Nuovo file: `src/components/landing/TestimonialsSection.tsx`
+- Importa `useScrollAnimation` per animazioni scroll-based
+- Array statico di 4 testimonianze con tutti i dati
+- Card con `rounded-2xl`, bordo sottile, ombra leggera
+- Box "Prima/Dopo" con icona ArrowRight, numeri in rosso (prima) e verde (dopo)
+- Stelline con icona Star di lucide-react in `text-amber-400`
+- Avatar circolare con iniziali (`bg-[#0fa68c]` o `bg-[#1a2744]` alternati)
 
-### Componente AIImage:
-```text
-- Props: prompt (string), alt (string), className (string)
-- Caching: localStorage con chiave basata su hash del prompt
-- Stati: loading (skeleton), loaded (immagine), error (placeholder)
-- Skeleton: div animato con pulse che occupa lo spazio
-```
+### File modificato: `src/pages/Home.tsx`
+- Import e inserimento di `TestimonialsSection` tra `PricingSection` e `GuaranteeSection`
 
-### Garanzia - Border animato:
-```text
-- Usa @keyframes rotate per ruotare un conic-gradient sul bordo
-- Pseudo-elemento ::before con gradient conico che ruota
-- Implementato con un wrapper div e overflow hidden
-```
-
-### Riepilogo file:
-
-| File | Azione |
-|------|--------|
-| `GuaranteeSection.tsx` | Redesign completo |
-| `supabase/functions/generate-landing-image/index.ts` | Nuova edge function |
-| `src/components/landing/AIImage.tsx` | Nuovo componente |
-| `PainPointsSection.tsx` | Aggiunta immagine AI |
-| `SolutionSection.tsx` | Aggiunta immagine AI |
-| `ScenarioSection.tsx` | Aggiunta 2 immagini AI |
-| `TargetSection.tsx` | Aggiunta immagine AI |
-| `supabase/config.toml` | Aggiunta funzione |
+### Nessuna dipendenza aggiuntiva
+Usa solo lucide-react (gia installato) e hook esistente useScrollAnimation.
