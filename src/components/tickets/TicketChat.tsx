@@ -81,8 +81,6 @@ export function TicketChat({
     sendMessageMutation.mutate();
   };
 
-  const isCustomerMsg = (senderId: string) =>
-    customerId ? senderId === customerId : senderId === user?.id;
 
   return (
     <Card
@@ -95,7 +93,6 @@ export function TicketChat({
       <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => {
           const isSelf = msg.sender_id === user?.id;
-          const isCustomer = isCustomerMsg(msg.sender_id);
           const senderName = msg.sender
             ? `${msg.sender.first_name} ${msg.sender.last_name}`
             : "Utente";

@@ -72,11 +72,12 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   });
 
   const filteredTickets = tickets.filter((ticket) => {
+    const query = searchQuery.toLowerCase();
     const matchesSearch = 
-      ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.customer?.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.customer?.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.customer?.email.toLowerCase().includes(searchQuery.toLowerCase());
+      ticket.subject.toLowerCase().includes(query) ||
+      ticket.customer?.first_name?.toLowerCase().includes(query) ||
+      ticket.customer?.last_name?.toLowerCase().includes(query) ||
+      ticket.customer?.email?.toLowerCase().includes(query);
     
     const matchesStatus = statusFilter === "all" || ticket.status === statusFilter;
     
