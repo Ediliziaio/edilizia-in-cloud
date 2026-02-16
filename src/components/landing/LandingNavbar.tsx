@@ -34,7 +34,7 @@ export default function LandingNavbar() {
     >
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         <a href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-          <img src={logo} alt="Edilizia in Cloud" className="h-9" />
+          <img src={logo} alt="Edilizia in Cloud" className={`h-9 transition-all duration-300 ${scrolled ? "" : "brightness-0 invert"}`} />
         </a>
 
         {/* Desktop */}
