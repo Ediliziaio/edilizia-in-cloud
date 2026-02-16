@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@/lib/formatters";
-import { Truck, CheckCircle, Clock } from "lucide-react";
+import { Truck, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
 
 interface SupplierSummary {
@@ -24,24 +24,27 @@ export function SupplierPaymentsSummary() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const { data: supplierSummaries = [], isLoading } = useQuery({
+  const { data: supplierSummaries = [], isLoading, isError } = useQuery({
     queryKey: ["supplier-payments-summary", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_items")
-        .select(`
-          purchase_price, quantity, is_paid, payment_method, supplier_id,
-          order:orders!inner(company_id)
-        `)
-        .eq("order.company_id", companyId!);
+      const [itemsRes, suppliersRes] = await Promise.all([
+        supabase
+          .from("order_items")
+          .select(`
+            purchase_price, quantity, is_paid, payment_method, supplier_id,
+            order:orders!inner(company_id)
+          `)
+          .eq("order.company_id", companyId!),
+        supabase
+          .from("suppliers")
+          .select("id, name")
+          .eq("company_id", companyId!),
+      ]);
 
-      if (error) throw error;
+      if (itemsRes.error) throw itemsRes.error;
 
-      // Fetch suppliers
-      const { data: suppliers } = await supabase
-        .from("suppliers")
-        .select("id, name")
-        .eq("company_id", companyId!);
+      const data = itemsRes.data;
+      const suppliers = suppliersRes.data;
 
       const supplierMap = new Map(
         (suppliers || []).map((s) => [s.id, s.name])
@@ -119,6 +122,25 @@ export function SupplierPaymentsSummary() {
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Truck className="h-5 w-5 text-primary" />
+            Pagamenti Fornitori
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-6 text-muted-foreground">
+            <AlertTriangle className="h-10 w-10 mx-auto mb-2 text-destructive opacity-50" />
+            <p className="text-sm">Errore nel caricamento</p>
+          </div>
         </CardContent>
       </Card>
     );
