@@ -24,19 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-interface Employee {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string | null;
-  phone: string | null;
-  gross_salary: number;
-  net_salary: number;
-  monthly_hours: number;
-  is_active: boolean;
-  user_id: string | null;
-  role_type?: string;
-}
+import type { Employee } from "@/types/employees";
 
 interface EmployeesTabProps {
   employees: Employee[];

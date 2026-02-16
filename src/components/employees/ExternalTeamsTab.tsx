@@ -23,16 +23,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-interface ExternalTeam {
-  id: string;
-  name: string;
-  contact_name: string | null;
-  phone: string | null;
-  email: string | null;
-  notes: string | null;
-  is_active: boolean;
-  vat_rate: number;
-}
+import type { ExternalTeam } from "@/types/employees";
 
 interface ExternalTeamsTabProps {
   teams: ExternalTeam[];
