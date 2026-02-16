@@ -97,14 +97,25 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
     if (!newMessage.trim() || !user || !companyId) return;
 
     setSending(true);
-    await supabase.from("support_messages").insert({
-      company_id: companyId,
-      sender_id: user.id,
-      sender_role: "company",
-      message: newMessage.trim(),
-    });
-    setNewMessage("");
-    setSending(false);
+    try {
+      const { error } = await supabase.from("support_messages").insert({
+        company_id: companyId,
+        sender_id: user.id,
+        sender_role: "company",
+        message: newMessage.trim(),
+      });
+      if (error) {
+        console.error("Error sending message:", error);
+        toast.error("Errore nell'invio del messaggio");
+        return;
+      }
+      setNewMessage("");
+    } catch (err) {
+      console.error("Error sending message:", err);
+      toast.error("Errore nell'invio del messaggio");
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
