@@ -163,7 +163,7 @@ export default function HeroSection() {
   return (
     <section
       ref={ref}
-      className="relative overflow-hidden pt-36 pb-20"
+      className="relative overflow-hidden pt-28 md:pt-36 pb-14 md:pb-20"
       style={{
         background: "linear-gradient(135deg, #1a2744 0%, #0f1d35 50%, #1a2744 100%)",
       }}
@@ -195,7 +195,7 @@ export default function HeroSection() {
           className={`transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
         >
           <span
-            className="inline-block mb-6 px-5 py-2 rounded-full border border-[#0fa68c]/40 bg-[#0fa68c]/10 text-[#0fa68c] text-xs font-semibold uppercase tracking-widest relative overflow-hidden"
+            className="inline-block mb-6 px-3 md:px-5 py-2 rounded-full border border-[#0fa68c]/40 bg-[#0fa68c]/10 text-[#0fa68c] text-[10px] md:text-xs font-semibold uppercase tracking-wider md:tracking-widest relative overflow-hidden"
           >
             <span className="absolute inset-0 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(15,166,140,0.15) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
             <span className="relative">Il sistema di controllo per l'impresa edile che vuole crescere davvero.</span>
@@ -204,7 +204,7 @@ export default function HeroSection() {
 
         {/* 2. Title */}
         <h1
-          className={`text-4xl md:text-6xl lg:text-7xl font-extrabold text-white leading-tight mb-2 transition-all duration-700 delay-150 ${
+          className={`text-3xl md:text-6xl lg:text-7xl font-extrabold text-white leading-tight mb-0 md:mb-2 transition-all duration-700 delay-150 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
@@ -218,7 +218,7 @@ export default function HeroSection() {
 
         {/* 4. Subtitle */}
         <p
-          className={`text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-10 transition-all duration-700 delay-300 ${
+          className={`text-base md:text-xl text-white/60 max-w-sm md:max-w-2xl mx-auto mb-10 transition-all duration-700 delay-300 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
@@ -235,14 +235,14 @@ export default function HeroSection() {
           <a
             href="#cta-finale"
             onClick={(e) => { e.preventDefault(); document.querySelector("#cta-finale")?.scrollIntoView({ behavior: "smooth" }); }}
-            className="px-8 py-4 rounded-full bg-[#0fa68c] text-white font-bold text-lg hover:bg-[#0d9079] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-[#0fa68c]/30"
+            className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full bg-[#0fa68c] text-white font-bold text-base md:text-lg hover:bg-[#0d9079] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-[#0fa68c]/30"
           >
             Richiedi Demo Gratuita
           </a>
           <a
             href="#moduli"
             onClick={(e) => { e.preventDefault(); document.querySelector("#moduli")?.scrollIntoView({ behavior: "smooth" }); }}
-            className="px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all duration-200"
+            className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all duration-200"
           >
             Scopri le Funzionalità
           </a>
@@ -250,23 +250,23 @@ export default function HeroSection() {
 
         {/* Social Proof */}
         <div
-          className={`flex flex-col sm:flex-row items-center justify-center gap-6 mt-8 transition-all duration-700 delay-700 ${
+          className={`flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-6 mt-6 md:mt-8 transition-all duration-700 delay-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          <div className="flex items-center gap-2 text-white/50 text-sm">
+          <div className="flex items-center gap-2 text-white/50 text-xs md:text-sm">
             <Users size={16} className="text-[#0fa68c]" />
             <span>150+ Imprese Edili</span>
           </div>
           <div className="hidden sm:block w-px h-4 bg-white/20" />
-          <div className="flex items-center gap-1.5 text-white/50 text-sm">
+          <div className="flex items-center gap-1.5 text-white/50 text-xs md:text-sm">
             {[...Array(5)].map((_, i) => (
               <Star key={i} size={14} className="text-[#0fa68c] fill-[#0fa68c]" />
             ))}
             <span className="ml-1">4.9/5 Soddisfazione</span>
           </div>
           <div className="hidden sm:block w-px h-4 bg-white/20" />
-          <div className="flex items-center gap-2 text-white/50 text-sm">
+          <div className="flex items-center gap-2 text-white/50 text-xs md:text-sm">
             <Headphones size={16} className="text-[#0fa68c]" />
             <span>Supporto Italiano</span>
           </div>
@@ -274,7 +274,7 @@ export default function HeroSection() {
 
         {/* Partner Logos Marquee */}
         <div
-          className={`mt-10 transition-all duration-700 delay-[900ms] ${
+          className={`mt-6 md:mt-10 transition-all duration-700 delay-[900ms] ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
@@ -290,7 +290,7 @@ export default function HeroSection() {
               {[...Array(2)].map((_, copy) => (
                 <div key={copy} className="flex items-center shrink-0">
                   {["ANCE", "Confindustria Edilizia", "Cassa Edile", "Edilportale", "Federcostruzioni", "Ordine Ingegneri", "Collegio Geometri", "ANIEM"].map((name) => (
-                    <span key={`${copy}-${name}`} className="mx-6 text-white/30 text-sm font-bold uppercase tracking-widest shrink-0">
+                    <span key={`${copy}-${name}`} className="mx-4 md:mx-6 text-white/30 text-xs md:text-sm font-bold uppercase tracking-widest shrink-0">
                       {name}
                     </span>
                   ))}
