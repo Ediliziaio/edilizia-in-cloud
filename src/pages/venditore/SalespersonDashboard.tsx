@@ -10,7 +10,7 @@ export default function SalespersonDashboard() {
 
   // Fetch salesperson data
   const { data: salesperson } = useQuery({
-    queryKey: ["salesperson-profile", user?.id],
+    queryKey: ["my-salesperson-record", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("salespeople")
@@ -22,6 +22,7 @@ export default function SalespersonDashboard() {
       return data;
     },
     enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch order commissions
@@ -40,6 +41,7 @@ export default function SalespersonDashboard() {
       return data;
     },
     enabled: !!salesperson?.id,
+    staleTime: 5 * 60 * 1000,
   });
 
   const totalOrders = commissions.length;
