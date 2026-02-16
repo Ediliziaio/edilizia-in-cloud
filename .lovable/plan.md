@@ -1,43 +1,78 @@
 
 
-# Aggiunta prezzo futuro (497€) e Countdown nella sezione Regalo
+# Audit Completo: Pulizia, Bug Fix, UX e Stabilizzazione
 
-## Modifiche
+## 1. Bug Critici Trovati
 
-### 1. BonusGiftSection.tsx - Aggiungere prezzo futuro e countdown
+### BUG-1: PromoBanner linka a `#garanzie` che NON ESISTE
+- In `Home.tsx`, il `PromoBanner` ha `document.querySelector("#garanzie")` ma nessuna sezione ha `id="garanzie"`
+- Il click non fa nulla -- utente clicca e niente succede
+- **Fix**: La sezione Garanzie (`GuaranteeSection.tsx`) non ha un id. Aggiungere `id="garanzie"` al tag `<section>` di GuaranteeSection
 
-- Importare e riutilizzare la funzione `getTimeLeft()` gia presente in `StickyBottomBar.tsx` (copiarla o estrarla)
-- Aggiungere un `useState` + `useEffect` con `setInterval` ogni secondo per il countdown
-- Sotto il badge "+40% VENDITE", aggiungere:
-  - Un testo di scarsita: "Dopo il [ultimo giorno del mese], il corso tornera in vendita a ~~497€~~"
-  - Un countdown visivo con i 4 box (giorni, ore, minuti, secondi) in stile coerente con la sticky bar
-- Il countdown usa la stessa logica di fine mese gia implementata
+### BUG-2: `Math.random()` nel render causa re-render instabili
+- In `SolutionSection.tsx` (riga 94): `style={{ height: '${20 + Math.random() * 40}px' }}` viene ricalcolato ad ogni render
+- Causa layout shift e barre di altezza diversa ogni volta che il componente re-renderizza
+- **Fix**: Pre-calcolare le altezze come costante fuori dal componente con un seed deterministico
 
-### 2. StickyBottomBar.tsx - Aggiungere nota sul prezzo 497€
+### BUG-3: `getTimeLeft()` duplicata in 2 file
+- Stessa identica funzione in `StickyBottomBar.tsx` e `BonusGiftSection.tsx`
+- Non e un bug funzionale, ma viola DRY e crea rischio di desincronizzazione
+- **Fix**: Estrarre `getTimeLeft()` e la costante `MESI` in `src/lib/urgencyUtils.ts` e importare in entrambi i file
 
-- Nel testo della barra, aggiungere un riferimento al valore del corso: "...aumentare del 40% le vendite in Edilizia (valore 497€)"
+### BUG-4: StickyBottomBar copre il contenuto del Footer
+- La barra fissa in basso (z-50, ~80px di altezza) copre le ultime righe del footer e la sezione FinalCTA
+- **Fix**: Aggiungere un `pb-24` (padding-bottom) al container principale in `Home.tsx` per compensare l'altezza della barra
 
-## Dettagli Tecnici
+### BUG-5: FinalCtaSection linka a `https://calendly.com` generico
+- Il CTA principale finale punta a `https://calendly.com` come placeholder -- non e un link funzionale
+- **Fix**: Nota al proprietario. Per ora, almeno aggiungere un attributo `aria-label` e mantenere il target blank. Non possiamo cambiare il comportamento desiderato
 
-### File: src/components/landing/BonusGiftSection.tsx
+## 2. Pulizia Codice
 
-- Aggiungere import di `useState, useEffect` da react
-- Copiare la funzione `getTimeLeft()` (calcolo fine mese) dentro il file
-- Dentro il componente, aggiungere stato e interval per il countdown
-- Dopo lo `<span>` con "+40% VENDITE" (circa riga 50), inserire:
-  - Un div con il countdown (4 box stile navy/teal)
-  - Un paragrafo con testo barrato "497€" e data di scadenza (nome mese italiano + anno)
-- Per il nome del mese usare un array di mesi italiani: ["Gennaio", "Febbraio", ...]
+### CLEAN-1: Import `Gift` non usato in `Home.tsx`
+- Riga 1: `import { Gift } from "lucide-react"` -- usato solo dentro `PromoBanner` che e definito nello stesso file
+- In realta `Gift` E usato in `PromoBanner` (riga 36), quindi questo import e corretto. Nessuna azione.
 
-### File: src/components/landing/StickyBottomBar.tsx
+### CLEAN-2: Estrazione `getTimeLeft` e `MESI` in utility condivisa
+- Creare `src/lib/urgencyUtils.ts` con:
+  - `getTimeLeft()` -- calcolo countdown fine mese
+  - `MESI` -- array mesi italiani
+  - `getEndOfMonth()` -- data fine mese corrente
+- Aggiornare `StickyBottomBar.tsx` e `BonusGiftSection.tsx` per importare da utility
 
-- Aggiornare il testo del paragrafo aggiungendo "(valore 497€)" alla fine della frase
+### CLEAN-3: Nessun file/componente morto trovato nella landing
+- Tutti i componenti in `src/components/landing/` sono importati e usati in `Home.tsx`
+- Tutti gli import interni sono utilizzati
+- Nessuna variabile orfana trovata
 
-### Struttura visiva nella card regalo (dopo il badge +40%):
+## 3. Miglioramenti UX
 
-```
-[  12g  08h  45m  32s  ]
+### UX-1: Aggiungere `id="garanzie"` per navigazione fluida dal PromoBanner
+- Quando l'utente clicca il banner "SE NON TI FA GUADAGNARE..." deve scorrere alla sezione Garanzie
 
-Dopo il 28 Febbraio 2026, il corso tornera in vendita a 497€
-```
+### UX-2: Aggiungere padding-bottom per compensare la sticky bar
+- Evita che il contenuto in fondo alla pagina sia coperto dalla barra fissa
+
+### UX-3: Stabilizzare le barre decorative nella SolutionSection
+- Le altezze random causano "flicker" visivo ad ogni re-render
+
+## 4. Riepilogo Modifiche per File
+
+### File NUOVO: `src/lib/urgencyUtils.ts`
+- Esporta `getTimeLeft()`, `MESI`, `getEndOfMonth()`
+
+### File MODIFICATI:
+1. **`src/components/landing/GuaranteeSection.tsx`** -- Aggiungere `id="garanzie"` al `<section>`
+2. **`src/components/landing/SolutionSection.tsx`** -- Sostituire `Math.random()` con altezze pre-calcolate statiche
+3. **`src/components/landing/StickyBottomBar.tsx`** -- Importare `getTimeLeft` da urgencyUtils, rimuovere funzione locale
+4. **`src/components/landing/BonusGiftSection.tsx`** -- Importare `getTimeLeft` e `MESI` da urgencyUtils, rimuovere duplicati locali
+5. **`src/pages/Home.tsx`** -- Aggiungere `pb-24` al container principale per compensare la sticky bar
+
+## 5. Checklist Verifica Finale
+
+- Smoke test: Landing caricamento completo, scroll fluido, tutti gli anchor link funzionanti (#moduli, #confronto, #prezzi, #cta-finale, #garanzie)
+- Countdown: timer aggiornato ogni secondo, coerente tra BonusGiftSection e StickyBottomBar
+- Responsive: barra sticky leggibile su mobile, layout colonna corretto
+- Performance: nessun Math.random() nel render, nessun re-render inutile
+- Console: nessun errore, nessun warning critico
 
