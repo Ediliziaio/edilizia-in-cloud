@@ -110,6 +110,26 @@ export default function CashFlowForecast() {
     );
   }
 
+  if (!orders && !isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Previsionale Cassa</h1>
+          <p className="text-muted-foreground">
+            Analizza entrate, uscite e flusso di cassa previsto
+          </p>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-center text-muted-foreground py-8">
+              Errore nel caricamento dei dati. Riprova aggiornando la pagina.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}

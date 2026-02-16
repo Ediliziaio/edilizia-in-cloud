@@ -218,6 +218,7 @@ export default function CompanyCostsManager() {
       return data || [];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Query suppliers for the form
@@ -233,6 +234,7 @@ export default function CompanyCostsManager() {
       return data || [];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Query ALL order items with supplier (for split payments)
@@ -249,6 +251,7 @@ export default function CompanyCostsManager() {
       return (data || []) as any[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Query external teams from orders
@@ -263,6 +266,7 @@ export default function CompanyCostsManager() {
       return (data || []) as any[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Query all active employees for monthly salary costs
@@ -279,6 +283,7 @@ export default function CompanyCostsManager() {
       return data || [];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Query commissions from orders
@@ -293,6 +298,7 @@ export default function CompanyCostsManager() {
       return (data || []) as any[];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Transform order items into unified cost format (split installments)
