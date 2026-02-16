@@ -7,6 +7,7 @@ import { useCashFlowData } from "@/hooks/useCashFlowData";
 import { CollectedTab } from "@/components/forecast/CollectedTab";
 import { CostsForecastTab } from "@/components/forecast/CostsForecastTab";
 import { CashForecastTab } from "@/components/forecast/CashForecastTab";
+import { TreasuryTab } from "@/components/forecast/TreasuryTab";
 import { formatCurrency } from "@/lib/formatters";
 
 export default function CashFlowForecast() {
@@ -19,6 +20,13 @@ export default function CashFlowForecast() {
     expectedSupplierPayments,
     expectedCompanyCosts,
     stats,
+    paidCompanyCosts,
+    paidExternalTeams,
+    paidCommissions,
+    paidSupplierItems,
+    activeEmployees,
+    treasuryCategories,
+    companyId,
   } = useCashFlowData();
 
   // Export CSV
@@ -130,6 +138,7 @@ export default function CashFlowForecast() {
           <TabsTrigger value="incassato">Incassato</TabsTrigger>
           <TabsTrigger value="costi">Previsionale Costi</TabsTrigger>
           <TabsTrigger value="cassa">Previsione di Cassa</TabsTrigger>
+          <TabsTrigger value="tesoreria">Tesoreria</TabsTrigger>
         </TabsList>
 
         <TabsContent value="incassato" className="mt-6">
@@ -153,6 +162,19 @@ export default function CashFlowForecast() {
             expectedCommissions={expectedCommissions}
             expectedSupplierPayments={expectedSupplierPayments}
             expectedCompanyCosts={expectedCompanyCosts}
+          />
+        </TabsContent>
+
+        <TabsContent value="tesoreria" className="mt-6">
+          <TreasuryTab
+            orders={orders}
+            paidCompanyCosts={paidCompanyCosts}
+            paidExternalTeams={paidExternalTeams}
+            paidCommissions={paidCommissions}
+            paidSupplierItems={paidSupplierItems}
+            activeEmployees={activeEmployees}
+            treasuryCategories={treasuryCategories}
+            companyId={companyId}
           />
         </TabsContent>
       </Tabs>

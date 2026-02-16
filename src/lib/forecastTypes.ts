@@ -131,3 +131,25 @@ export interface Supplier {
   id: string;
   name: string;
 }
+
+export interface TreasuryCategory {
+  id: string;
+  company_id: string;
+  area: string;
+  parent_id: string | null;
+  name: string;
+  position: number;
+  is_income: boolean;
+  created_at: string;
+}
+
+export interface TreasuryRow {
+  id: string;
+  label: string;
+  level: number;
+  isExpandable: boolean;
+  isIncome?: boolean;
+  isSummary?: boolean;
+  monthlyAmounts: Record<string, number>;
+  children?: TreasuryRow[];
+}
