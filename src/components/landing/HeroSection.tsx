@@ -271,6 +271,34 @@ export default function HeroSection() {
             <span>Supporto Italiano</span>
           </div>
         </div>
+
+        {/* Partner Logos Marquee */}
+        <div
+          className={`mt-10 transition-all duration-700 delay-[900ms] ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+          }`}
+        >
+          <p className="text-white/40 text-xs mb-4">Scelto da aziende che collaborano con</p>
+          <div
+            className="overflow-hidden"
+            style={{
+              maskImage: "linear-gradient(90deg, transparent 0%, black 15%, black 85%, transparent 100%)",
+              WebkitMaskImage: "linear-gradient(90deg, transparent 0%, black 15%, black 85%, transparent 100%)",
+            }}
+          >
+            <div className="flex animate-marquee whitespace-nowrap">
+              {[...Array(2)].map((_, copy) => (
+                <div key={copy} className="flex items-center shrink-0">
+                  {["ANCE", "Confindustria Edilizia", "Cassa Edile", "Edilportale", "Federcostruzioni", "Ordine Ingegneri", "Collegio Geometri", "ANIEM"].map((name) => (
+                    <span key={`${copy}-${name}`} className="mx-6 text-white/30 text-sm font-bold uppercase tracking-widest shrink-0">
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Bottom gradient fade */}
