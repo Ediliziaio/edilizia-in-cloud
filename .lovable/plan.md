@@ -1,39 +1,55 @@
 
-# Spostamento Sezione Bonus e Immagine AI
+# Barra Fissa in Basso con Countdown e CTA
 
-## Modifiche
+## Cosa viene creato
 
-### 1. Spostare BonusGiftSection dopo FounderLetterSection
+Una barra fissa ("sticky bar") ancorata al fondo della pagina, visibile solo sulla landing page, che contiene:
 
-Nel file `src/pages/Home.tsx`, la sezione `<BonusGiftSection />` viene spostata dalla riga 60 (dopo GuaranteeSection) alla riga 49 (subito dopo `<FounderLetterSection />`).
+1. **Countdown** che scade sempre a fine mese corrente e si rigenera automaticamente il 1 del mese successivo
+2. **Testo bonus**: "In regalo: Corso Vendita Edile (4 lezioni, +40% vendite)"
+3. **CTA**: bottone "Richiedi la Demo Gratuita" che scrolla a `#cta-finale`
 
-Ordine risultante:
-```text
-HeroSection
-FounderLetterSection
-BonusGiftSection        <-- spostata qui
-PainPointsSection
-CostTableSection
-...
-```
+La barra appare dopo un leggero scroll (circa 300px) per non coprire subito il contenuto hero.
 
-### 2. Sostituire l'icona Gift con un'immagine AI
+## Design
 
-Nel file `src/components/landing/BonusGiftSection.tsx`, il blocco con l'icona `Gift` animata (righe 25-29) viene sostituito con il componente `AIImage` gia esistente nel progetto (`src/components/landing/AIImage.tsx`).
+- Sfondo scuro navy (`#1a2744`) con bordo superiore teal
+- Layout compatto: su desktop testo a sinistra, countdown al centro, CTA a destra
+- Su mobile: countdown sopra, testo + CTA sotto in colonna
+- Countdown con 4 box (giorni, ore, minuti, secondi) stile "flip clock" minimal
+- Z-index alto (z-50) per stare sopra tutto tranne il promo banner
 
-- Rimuovere il cerchio con icona `Gift` e `animate-pulse`
-- Inserire `<AIImage>` con un prompt descrittivo, ad esempio: "A professional flat illustration of a golden gift box opening with light rays, representing a free bonus sales course for construction industry, teal and navy color scheme, clean modern style, white background"
-- L'immagine verra generata automaticamente e cachata in localStorage
-- Dimensioni: `w-40 h-40 mx-auto mb-5 rounded-xl`
+## Countdown
+
+Il timer calcola automaticamente la fine del mese corrente (`new Date(year, month + 1, 0, 23, 59, 59)`). Quando scade, si rigenera per il mese successivo. Usa `setInterval` ogni secondo per aggiornare.
 
 ## Dettagli Tecnici
 
-### File: `src/pages/Home.tsx`
-- Rimuovere `<BonusGiftSection />` dalla riga 60
-- Aggiungerlo dopo `<FounderLetterSection />` alla riga 49
+### Nuovo file: `src/components/landing/StickyBottomBar.tsx`
 
-### File: `src/components/landing/BonusGiftSection.tsx`
-- Aggiungere import di `AIImage` da `@/components/landing/AIImage`
-- Rimuovere import di `Gift` da lucide-react (non piu usato nella card)
-- Sostituire il div con l'icona Gift (righe 25-29) con il componente `AIImage`
-- Mantenere tutto il resto invariato (badge, titolo, descrizione, CTA)
+- Componente React con stato per il countdown (giorni, ore, minuti, secondi)
+- `useEffect` con `setInterval` ogni 1s per aggiornare il timer
+- `useEffect` con scroll listener per mostrare/nascondere la barra (visibile dopo 300px di scroll)
+- Calcolo fine mese: `new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)`
+- Animazione di entrata dal basso con `translate-y` + `transition`
+- Layout responsive con Tailwind (`flex-col` su mobile, `flex-row` su desktop)
+
+### File modificato: `src/pages/Home.tsx`
+
+- Import e aggiunta di `<StickyBottomBar />` nel componente Home, fuori dal flusso principale (posizionato fixed)
+
+### Struttura visiva
+
+```text
+Desktop:
++------------------------------------------------------------------------+
+| [In regalo: Corso Vendita Edile]  [02g 14h 32m 18s]  [RICHIEDI DEMO] |
++------------------------------------------------------------------------+
+
+Mobile:
++----------------------------------+
+|     02g  14h  32m  18s           |
+|  In regalo: Corso Vendita Edile  |
+|     [ RICHIEDI LA DEMO ]         |
++----------------------------------+
+```
