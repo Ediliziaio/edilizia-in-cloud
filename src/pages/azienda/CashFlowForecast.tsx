@@ -31,44 +31,29 @@ export default function CashFlowForecast() {
 
   // Export CSV
   const exportCSV = () => {
-    const allTransactions = [
-      ...expectedPayments.map((p) => ({ ...p, direction: "in" as const })),
-      ...expectedExpenses.map((e) => ({ ...e, type: "Squadra Esterna" as const, direction: "out" as const })),
-      ...expectedCommissions.map((c) => ({
-        expectedDate: c.expectedDate,
-        amount: c.amount,
-        direction: "out" as const,
-        type: "Provvigione",
-        customerName: c.salespersonName,
-        teamName: c.salespersonName,
-        orderCode: c.orderCode,
-      })),
-      ...expectedCompanyCosts.map((c) => ({
-        expectedDate: c.expectedDate,
-        amount: c.amount,
-        direction: "out" as const,
-        type: c.type,
-        customerName: c.name,
-        teamName: c.name,
-        orderCode: null,
-      })),
-      ...expectedSupplierPayments.filter(p => !p.isPaid).map((s) => ({
-        expectedDate: s.expectedDate,
-        amount: s.amount,
-        direction: "out" as const,
-        type: s.type,
-        customerName: s.supplierName,
-        teamName: s.supplierName,
-        orderCode: s.orderCode,
-      })),
+    interface CsvTransaction {
+      expectedDate: Date | null;
+      amount: number;
+      direction: "in" | "out";
+      type: string;
+      label: string;
+      orderCode: string | null;
+    }
+
+    const allTransactions: CsvTransaction[] = [
+      ...expectedPayments.map((p) => ({ expectedDate: p.expectedDate, amount: p.amount, direction: "in" as const, type: p.type, label: p.customerName, orderCode: p.orderCode })),
+      ...expectedExpenses.map((e) => ({ expectedDate: e.expectedDate, amount: e.amount, direction: "out" as const, type: "Squadra Esterna", label: e.teamName, orderCode: e.orderCode })),
+      ...expectedCommissions.map((c) => ({ expectedDate: c.expectedDate, amount: c.amount, direction: "out" as const, type: "Provvigione", label: c.salespersonName, orderCode: c.orderCode })),
+      ...expectedCompanyCosts.map((c) => ({ expectedDate: c.expectedDate, amount: c.amount, direction: "out" as const, type: c.type, label: c.name, orderCode: null })),
+      ...expectedSupplierPayments.filter(p => !p.isPaid).map((s) => ({ expectedDate: s.expectedDate, amount: s.amount, direction: "out" as const, type: s.type, label: s.supplierName, orderCode: s.orderCode })),
     ];
 
     const rows = [["Data", "Tipo", "Descrizione", "Ordine", "Direzione", "Importo"]];
-    allTransactions.forEach((t: any) => {
+    allTransactions.forEach((t) => {
       rows.push([
         t.expectedDate ? format(t.expectedDate, "dd/MM/yyyy") : "",
-        t.type || (t.direction === "in" ? "Pagamento" : "Uscita"),
-        t.customerName || t.teamName || t.name || "",
+        t.type,
+        t.label,
         t.orderCode || "",
         t.direction === "in" ? "Entrata" : "Uscita",
         String(t.amount),

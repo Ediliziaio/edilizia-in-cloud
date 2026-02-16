@@ -27,7 +27,7 @@ import type {
 } from "@/lib/forecastTypes";
 
 export function useCashFlowData() {
-  const { user, effectiveCompany } = useAuth();
+  const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   // Query ordini (tutti, per calcolare sia incassati che da ricevere)
@@ -275,9 +275,6 @@ export function useCashFlowData() {
 
   const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories;
 
-  // Error state aggregation
-  const isError = false; // Queries use throwOnError by default, errors surface via React Query error boundary
-
   // Fornitori unici
   const suppliers = useMemo<Supplier[]>(() => {
     const supplierMap = new Map<string, string>();
@@ -333,15 +330,14 @@ export function useCashFlowData() {
         });
       }
       // Financing income
-      const o = order as any;
-      if (!o.financing_paid && o.financing_amount && o.financing_amount > 0) {
+      if (!order.financing_paid && order.financing_amount && order.financing_amount > 0) {
         payments.push({
           orderId: order.id,
           orderCode: order.order_code,
           customerName,
           type: "Finanziamento",
-          amount: Number(o.financing_amount),
-          expectedDate: o.financing_expected_date ? new Date(o.financing_expected_date) : null,
+          amount: Number(order.financing_amount),
+          expectedDate: order.financing_expected_date ? new Date(order.financing_expected_date) : null,
           direction: "in",
         });
       }
@@ -594,10 +590,21 @@ export function useCashFlowData() {
   }, [stats, expectedCompanyCosts, companyCosts]);
 
   // Chart data (6 mesi)
-  const chartData = useMemo(() => {
+  interface ChartDataPoint {
+    month: string;
+    Entrate: number;
+    "Squadre Esterne": number;
+    Provvigioni: number;
+    "Costi Fissi": number;
+    "Costi Variabili": number;
+    Fornitori: number;
+    Cumulativo: number;
+  }
+
+  const chartData = useMemo<ChartDataPoint[]>(() => {
     const now = new Date();
     let cumulative = 0;
-    const months: any[] = [];
+    const months: ChartDataPoint[] = [];
 
     for (let i = 0; i < 6; i++) {
       const monthDate = addMonths(now, i);
