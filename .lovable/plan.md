@@ -1,107 +1,38 @@
 
-# Redesign Previsionale: 3 Tab Pulite e Minimali
+# Miglioramento Tab "Previsione di Cassa"
 
-## Panoramica
+## Cosa cambia
 
-Riprogettare completamente la pagina Previsionale sostituendo il layout attuale (stat cards + riepilogo uscite + grafico Recharts + tabella unificata) con un'interfaccia a 3 tab pulita e minimale:
+### 1. Filtro per date nella tabella movimenti
+Aggiungere un filtro con date range (Da / A) nella sezione "Tutti i movimenti previsti" per filtrare le transazioni per periodo specifico. Il filtro si aggiunge accanto al filtro categoria gia esistente (Tutti / Solo entrate / Solo uscite).
 
-1. **Incassato** - Cosa hai incassato e cosa devi ancora ricevere
-2. **Previsionale Costi** - Tutte le uscite previste
-3. **Previsione di Cassa** - Saldo netto entrate vs uscite
+### 2. Card "Prossimi 3 mesi" diventa personalizzabile
+La terza card attualmente mostra un periodo fisso di 3 mesi. Verra aggiunto un selettore numerico (dropdown) che permette di scegliere il numero di mesi da visualizzare: da 1 a 12 mesi. Il titolo della card si aggiornera di conseguenza (es. "Prossimi 6 mesi").
 
-## Struttura delle 3 Tab
+## Dettagli tecnici
 
-### Tab 1: Incassato
+### File: `src/components/forecast/CashForecastTab.tsx`
 
-Sezione focalizzata sulle entrate dai clienti, divisa in due aree:
+**Filtro date:**
+- Aggiungere due Popover con Calendar (datepicker) per selezionare "Da" e "A"
+- I movimenti nella tabella verranno filtrati anche per il range di date selezionato
+- Se nessuna data selezionata, mostra tutto (comportamento attuale)
 
-**Gia Incassato (questo mese)**
-- Tabella con: Data Incasso, Ordine, Cliente, Tipo (Acconto 1/2, Saldo, Finanziamento), Importo
-- Dati da ordini con `deposit_paid = true`, `deposit_2_paid = true`, `balance_paid = true`, `financing_paid = true` dove la data di pagamento cade nel mese corrente
-- Card riepilogativa con totale incassato del mese
+**Card personalizzabile:**
+- Aggiungere uno state `customMonths` (default: 3)
+- Aggiungere un Select dropdown nella terza card con opzioni 1-12 mesi
+- Il calcolo entrate/uscite/netto della terza card si basera sul periodo personalizzato
 
-**Da Ricevere**
-- 3 sotto-sezioni con indicatori temporali: Questo Mese, Prossimo Mese, Prossimi 3 Mesi
-- Tabella con: Data Prevista, Ordine, Cliente, Tipo, Importo
-- Dati dagli `expectedPayments` gia calcolati nel hook (pagamenti NON incassati)
-- Card riepilogative per ogni periodo
+### File: `src/hooks/useCashFlowData.ts`
 
-### Tab 2: Previsionale Costi
+- Attualmente `stats.next3Months` e calcolato con un intervallo fisso di 3 mesi
+- Il calcolo del periodo personalizzato verra fatto direttamente nel componente `CashForecastTab` usando i dati grezzi (`expectedPayments`, `expectedExpenses`, ecc.) e le funzioni di date-fns, senza modificare il hook. Questo mantiene il hook semplice e sposta la logica di personalizzazione nel componente.
 
-Sezione focalizzata su tutte le uscite, organizzata per categoria:
+### File: `src/lib/forecastTypes.ts`
+- Nessuna modifica necessaria
 
-- **Squadre Esterne** - Pagamenti non effettuati
-- **Provvigioni Venditori** - Commissioni non pagate
-- **Pagamenti Fornitori** - Rate fornitori in sospeso
-- **Costi Aziendali** - Costi fissi e variabili non pagati
+## Risultato visivo
 
-Ogni categoria mostra una tabella con i dettagli e un totale.
-In cima, 3 card con totali per: Questo Mese, Prossimo Mese, 3 Mesi.
-
-### Tab 3: Previsione di Cassa
-
-Vista sintetica del flusso di cassa netto:
-
-- 3 card: Questo Mese, Prossimo Mese, 3 Mesi - ciascuna con Entrate, Uscite, Netto
-- Tabella unificata di tutti i movimenti (entrate + uscite) ordinati per data, con filtri per categoria e periodo
-- Nessun grafico Recharts (rimosso per semplicita)
-
-## Modifiche al Hook `useCashFlowData`
-
-Aggiungere una nuova query per recuperare i **pagamenti gia incassati** (necessario per Tab 1):
-
-```sql
--- Ordini con pagamenti gia effettuati nel mese corrente
-SELECT id, order_code, deposit_amount, deposit_paid_date,
-       deposit_2_amount, deposit_2_paid_date,
-       balance_amount, balance_paid_date,
-       financing_amount, financing_paid_date,
-       customer:profiles(first_name, last_name)
-FROM orders
-WHERE company_id = ? AND (
-  deposit_paid = true OR deposit_2_paid = true OR 
-  balance_paid = true OR financing_paid = true
-)
-```
-
-Il hook calcolera `collectedPayments` filtrando per mese.
-
-## File da Creare
-
-- `src/components/forecast/CollectedTab.tsx` - Tab "Incassato"
-- `src/components/forecast/CostsForecastTab.tsx` - Tab "Previsionale Costi"
-- `src/components/forecast/CashForecastTab.tsx` - Tab "Previsione di Cassa"
-
-## File da Modificare
-
-- `src/pages/azienda/CashFlowForecast.tsx` - Riscrittura completa con Tabs come struttura principale
-- `src/hooks/useCashFlowData.ts` - Aggiungere query per pagamenti incassati
-
-## File da Eliminare (non piu utilizzati)
-
-Questi componenti non sono importati da nessuna parte e vengono definitivamente sostituiti:
-
-- `src/components/forecast/ForecastChart.tsx` - Grafico Recharts rimosso
-- `src/components/forecast/ForecastStatCards.tsx` - Sostituito da card nelle singole tab
-- `src/components/forecast/ForecastExpensesSummary.tsx` - Sostituito da CostsForecastTab
-- `src/components/forecast/ForecastTransactionsTable.tsx` - Sostituito da CashForecastTab
-- `src/components/forecast/ForecastCommissions.tsx` - Gia orfano, mai importato
-- `src/components/forecast/ForecastSupplierPayments.tsx` - Gia orfano, mai importato
-- `src/components/forecast/ForecastMaterialCosts.tsx` - Gia orfano, mai importato
-- `src/components/forecast/ForecastCompanyCosts.tsx` - Gia orfano, mai importato
-
-## Design Visivo
-
-- Layout minimal con sfondo bianco, bordi sottili, tipografia pulita
-- Tabs in alto con `Tabs/TabsList/TabsTrigger/TabsContent` di shadcn
-- Card con numeri grandi e colori semantici (verde per entrate, rosso per uscite)
-- Tabelle semplici senza badge colorati eccessivi
-- Nessun grafico
-- Export CSV e Stampa PDF mantenuti nell'header
-
-## Sequenza di Implementazione
-
-1. Aggiornare `useCashFlowData.ts` con la query per i pagamenti incassati
-2. Creare i 3 nuovi componenti tab
-3. Riscrivere `CashFlowForecast.tsx` con la nuova struttura a tab
-4. Eliminare i file obsoleti
+La tab "Previsione di Cassa" avra:
+- 3 card in alto: "Questo mese", "Prossimo mese", "Prossimi X mesi" (con dropdown per scegliere X)
+- Sotto: tabella movimenti con filtri per categoria E per range di date
