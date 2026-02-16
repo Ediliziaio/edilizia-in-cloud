@@ -1,8 +1,14 @@
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, addMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay } from "date-fns";
+import { it } from "date-fns/locale";
+import { CalendarIcon, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import type { ForecastStats, ExpectedPayment, ExpectedExpense, ExpectedCommission, ExpectedSupplierPayment, CompanyCostEntry } from "@/lib/forecastTypes";
 
@@ -28,6 +34,28 @@ interface UnifiedTransaction {
 
 export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts }: CashForecastTabProps) {
   const [filter, setFilter] = useState<FilterCategory>("all");
+  const [customMonths, setCustomMonths] = useState(3);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+
+  // Calculate custom period stats from raw data
+  const customPeriodStats = useMemo(() => {
+    const now = new Date();
+    const start = startOfMonth(addMonths(now, 1));
+    const end = endOfMonth(addMonths(now, customMonths));
+
+    const inRange = (d: Date | null) => d && isWithinInterval(d, { start, end });
+
+    const income = expectedPayments.filter(p => inRange(p.expectedDate)).reduce((s, p) => s + p.amount, 0);
+
+    const expExternal = expectedExpenses.filter(e => !e.isPaid && inRange(e.expectedDate)).reduce((s, e) => s + e.amount, 0);
+    const expCommissions = expectedCommissions.filter(c => inRange(c.expectedDate)).reduce((s, c) => s + c.amount, 0);
+    const expSupplier = expectedSupplierPayments.filter(p => !p.isPaid && inRange(p.expectedDate)).reduce((s, p) => s + p.amount, 0);
+    const expCosts = expectedCompanyCosts.filter(c => inRange(c.expectedDate)).reduce((s, c) => s + c.amount, 0);
+
+    const expenses = expExternal + expCommissions + expSupplier + expCosts;
+    return { income, expenses, net: income - expenses };
+  }, [customMonths, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts]);
 
   const transactions = useMemo<UnifiedTransaction[]>(() => {
     const items: UnifiedTransaction[] = [];
@@ -40,13 +68,23 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
 
     return items
       .filter(t => filter === "all" || (filter === "income" ? t.direction === "in" : t.direction === "out"))
+      .filter(t => {
+        if (!dateFrom && !dateTo) return true;
+        if (!t.date) return !dateFrom && !dateTo;
+        if (dateFrom && t.date < startOfDay(dateFrom)) return false;
+        if (dateTo && t.date > endOfMonth(dateTo)) return false;
+        return true;
+      })
       .sort((a, b) => {
         if (!a.date && !b.date) return 0;
         if (!a.date) return 1;
         if (!b.date) return -1;
         return a.date.getTime() - b.date.getTime();
       });
-  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, filter]);
+  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, filter, dateFrom, dateTo]);
+
+  const clearDates = () => { setDateFrom(undefined); setDateTo(undefined); };
+  const hasDates = dateFrom || dateTo;
 
   return (
     <div className="space-y-6">
@@ -54,24 +92,68 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <NetCard title="Questo mese" income={stats.thisMonth.income} expenses={stats.thisMonth.expenses} net={stats.thisMonth.net} />
         <NetCard title="Prossimo mese" income={stats.nextMonth.income} expenses={stats.nextMonth.expenses} net={stats.nextMonth.net} />
-        <NetCard title="Prossimi 3 mesi" income={stats.next3Months.income} expenses={stats.next3Months.expenses} net={stats.next3Months.net} />
+        <Card>
+          <CardContent className="pt-6 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">
+                {customMonths === 1 ? "Prossimo mese" : `Prossimi ${customMonths} mesi`}
+              </p>
+              <Select value={String(customMonths)} onValueChange={(v) => setCustomMonths(Number(v))}>
+                <SelectTrigger className="w-[80px] h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
+                    <SelectItem key={n} value={String(n)}>{n} {n === 1 ? "mese" : "mesi"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Entrate</span>
+              <span className="text-emerald-600 font-medium">{formatCurrency(customPeriodStats.income)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Uscite</span>
+              <span className="text-red-600 font-medium">{formatCurrency(customPeriodStats.expenses)}</span>
+            </div>
+            <div className="border-t pt-2 flex justify-between">
+              <span className="text-sm font-medium">Netto</span>
+              <span className={`text-lg font-bold ${customPeriodStats.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                {formatCurrency(customPeriodStats.net)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Unified Transactions */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <CardTitle className="text-lg">Tutti i movimenti previsti</CardTitle>
-            <Select value={filter} onValueChange={(v) => setFilter(v as FilterCategory)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
-                <SelectItem value="income">Solo entrate</SelectItem>
-                <SelectItem value="expenses">Solo uscite</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Date From */}
+              <DatePickerButton label="Da" date={dateFrom} onSelect={setDateFrom} />
+              {/* Date To */}
+              <DatePickerButton label="A" date={dateTo} onSelect={setDateTo} />
+              {hasDates && (
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={clearDates}>
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+              {/* Category filter */}
+              <Select value={filter} onValueChange={(v) => setFilter(v as FilterCategory)}>
+                <SelectTrigger className="w-[140px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti</SelectItem>
+                  <SelectItem value="income">Solo entrate</SelectItem>
+                  <SelectItem value="expenses">Solo uscite</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -130,5 +212,27 @@ function NetCard({ title, income, expenses, net }: { title: string; income: numb
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function DatePickerButton({ label, date, onSelect }: { label: string; date: Date | undefined; onSelect: (d: Date | undefined) => void }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className={cn("h-9 gap-2", date && "border-primary")}>
+          <CalendarIcon className="h-3.5 w-3.5" />
+          {date ? format(date, "dd/MM/yy", { locale: it }) : label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={date}
+          onSelect={onSelect}
+          locale={it}
+          className="p-3 pointer-events-auto"
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
