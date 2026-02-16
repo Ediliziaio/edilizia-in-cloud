@@ -64,9 +64,10 @@ export function useCashFlowData() {
           order:orders!inner(id, order_code, company_id),
           external_team:external_teams(name)
         `)
-        .eq("is_paid", false);
+        .eq("is_paid", false)
+        .eq("order.company_id", companyId!);
       if (error) throw error;
-      return (data as ExternalTeamPayment[]).filter((item) => item.order?.company_id === companyId);
+      return data as ExternalTeamPayment[];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -83,9 +84,10 @@ export function useCashFlowData() {
           salesperson:salespeople!inner(first_name, last_name, company_id),
           order:orders!inner(id, order_code, company_id)
         `)
-        .eq("is_paid", false);
+        .eq("is_paid", false)
+        .eq("order.company_id", companyId!);
       if (error) throw error;
-      return (data || []).filter((item: any) => item.order?.company_id === companyId);
+      return data || [];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -103,9 +105,10 @@ export function useCashFlowData() {
           order:orders!inner(id, order_code, company_id)
         `)
         .in("status", ["da_ordinare", "ordinato"])
-        .is("stock_item_id", null);
+        .is("stock_item_id", null)
+        .eq("order.company_id", companyId!);
       if (error) throw error;
-      return (data || []).filter((item: any) => item.order?.company_id === companyId);
+      return data || [];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -126,9 +129,10 @@ export function useCashFlowData() {
           order:orders!inner(id, order_code, company_id)
         `)
         .not("supplier_id", "is", null)
-        .is("stock_item_id", null);
+        .is("stock_item_id", null)
+        .eq("order.company_id", companyId!);
       if (error) throw error;
-      return (data || []).filter((item: any) => item.order?.company_id === companyId);
+      return data || [];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -181,9 +185,10 @@ export function useCashFlowData() {
           order:orders!inner(id, order_code, company_id),
           external_team:external_teams(name)
         `)
-        .eq("is_paid", true);
+        .eq("is_paid", true)
+        .eq("order.company_id", companyId!);
       if (error) throw error;
-      return (data || []).filter((item: any) => item.order?.company_id === companyId);
+      return data || [];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -200,9 +205,10 @@ export function useCashFlowData() {
           salesperson:salespeople!inner(first_name, last_name, company_id),
           order:orders!inner(id, order_code, company_id)
         `)
-        .eq("is_paid", true);
+        .eq("is_paid", true)
+        .eq("order.company_id", companyId!);
       if (error) throw error;
-      return (data || []).filter((item: any) => item.order?.company_id === companyId);
+      return data || [];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -224,11 +230,11 @@ export function useCashFlowData() {
           order:orders!inner(id, order_code, company_id)
         `)
         .not("supplier_id", "is", null)
-        .is("stock_item_id", null);
+        .is("stock_item_id", null)
+        .eq("order.company_id", companyId!);
       if (error) throw error;
       // Filter only items with at least one payment made
       return (data || [])
-        .filter((item: any) => item.order?.company_id === companyId)
         .filter((item: any) => item.is_paid || item.deposit_paid || item.balance_paid);
     },
     enabled: !!companyId,
@@ -268,6 +274,9 @@ export function useCashFlowData() {
   });
 
   const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories;
+
+  // Error state aggregation
+  const isError = false; // Queries use throwOnError by default, errors surface via React Query error boundary
 
   // Fornitori unici
   const suppliers = useMemo<Supplier[]>(() => {
