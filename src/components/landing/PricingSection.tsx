@@ -93,7 +93,7 @@ export default function PricingSection() {
           }`}
         >
           {comparisons.map((c, i) => (
-            <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-[#f8f9fa] border border-gray-200">
+            <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 p-4 rounded-2xl bg-[#f8f9fa] border border-gray-200">
               <span className="text-[#1a2744]/80 text-sm">{c.item}</span>
               <span className="text-red-500 font-semibold whitespace-nowrap text-sm">{c.cost}</span>
             </div>
@@ -107,7 +107,7 @@ export default function PricingSection() {
             return (
               <div
                 key={plan.name}
-                className={`relative rounded-2xl border p-8 transition-all duration-700 ${
+                className={`relative rounded-2xl border p-5 md:p-8 transition-all duration-700 ${
                   isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
                 } ${
                   plan.highlighted

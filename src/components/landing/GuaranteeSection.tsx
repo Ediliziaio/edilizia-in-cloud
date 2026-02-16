@@ -67,7 +67,7 @@ export default function GuaranteeSection() {
             return (
               <div
                 key={i}
-                className={`relative rounded-3xl bg-[#1a2744] p-8 text-center h-full flex flex-col transition-all duration-500 group
+                className={`relative rounded-3xl bg-[#1a2744] p-5 md:p-8 text-center h-full flex flex-col transition-all duration-500 group
                   ${isROI
                     ? "border-2 border-[#0fa68c] shadow-[0_0_25px_rgba(15,166,140,0.15)] hover:shadow-[0_0_40px_rgba(15,166,140,0.3)] hover:scale-[1.03]"
                     : "border border-[#0fa68c]/25 hover:border-[#0fa68c]/60 hover:shadow-[0_0_30px_rgba(15,166,140,0.12)] hover:scale-[1.02]"
