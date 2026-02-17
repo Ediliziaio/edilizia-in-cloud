@@ -9,9 +9,14 @@ import { AdminTrialFunnel } from "@/components/admin/dashboard/AdminTrialFunnel"
 import { AdminRecentCompanies } from "@/components/admin/dashboard/AdminRecentCompanies";
 import { AdminRecentActivity } from "@/components/admin/dashboard/AdminRecentActivity";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 
 export default function AdminDashboard() {
+  const { permissions } = useSuperAdminPermissions();
   const { data: dashboardData, isLoading, isError, refetch } = useAdminDashboardData();
+
+  if (!permissions.can_view_platform_stats) return <AccessDenied />;
 
   const stats = dashboardData?.stats ?? { totalCompanies: 0, totalOrders: 0, totalOrdersValue: 0, totalCustomers: 0, openSupportConversations: 0 };
   const mrrStats = dashboardData?.mrrStats ?? { mrr: 0, trialCount: 0, trialExpiringSoon: 0, churnRate: 0, activeCount: 0, expiredCount: 0 };

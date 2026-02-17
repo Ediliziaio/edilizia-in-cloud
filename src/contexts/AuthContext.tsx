@@ -194,6 +194,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     sessionStorage.setItem(IMPERSONATION_KEY, companyId);
     setImpersonatedCompanyId(companyId);
+
+    // Log impersonation audit event (fire-and-forget)
+    try {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("name")
+        .eq("id", companyId)
+        .maybeSingle();
+
+      supabase.functions.invoke("manage-super-admins", {
+        body: {
+          action: "log-impersonation",
+          companyId,
+          companyName: company?.name || companyId,
+        },
+      });
+    } catch {
+      // Non-blocking
+    }
   };
 
   const exitImpersonation = () => {

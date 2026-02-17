@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro, RefreshCw, AlertCircle, Building2, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 
 interface PlanForm {
   name: string;
@@ -52,6 +54,7 @@ const emptyForm: PlanForm = {
 };
 
 export default function SubscriptionPlans() {
+  const { permissions: saPermissions } = useSuperAdminPermissions();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -192,6 +195,8 @@ export default function SubscriptionPlans() {
   };
 
   const formatLimit = (value: number) => (value === -1 ? "Illimitati" : value.toString());
+
+  if (!saPermissions.can_manage_plans) return <AccessDenied />;
 
   if (isLoading) {
     return (
