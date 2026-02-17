@@ -133,6 +133,10 @@ export function AutomationDialog({ open, onOpenChange, automation, onSaved }: Pr
       toast({ title: "Compila tutti i campi obbligatori", description: "Nome, trigger e almeno un'azione sono richiesti.", variant: "destructive" });
       return;
     }
+    if (!effectiveCompany?.id || !user?.id) {
+      toast({ title: "Errore", description: "Seleziona un'azienda prima di creare un'automazione.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -142,8 +146,8 @@ export function AutomationDialog({ open, onOpenChange, automation, onSaved }: Pr
         trigger_config: form.trigger_config as Json,
         conditions: form.conditions as unknown as Json,
         actions: form.actions as unknown as Json,
-        company_id: effectiveCompany!.id,
-        created_by: user!.id,
+        company_id: effectiveCompany.id,
+        created_by: user.id,
       };
 
       if (form.id) {
