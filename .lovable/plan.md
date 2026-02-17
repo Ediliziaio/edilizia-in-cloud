@@ -1,61 +1,62 @@
 
-# Audit e Miglioramento Dashboard Super Admin
+
+# Audit e Miglioramento Sezione Aziende (`/admin/aziende`)
 
 ## Problemi Trovati
 
-### 1. BUG: Mancanza gestione errore
-La dashboard usa solo `isLoading` ma non `isError`. Se una query fallisce, la pagina resta bloccata sul loader o mostra dati vuoti senza feedback.
+### 1. BUG: Nessuna gestione errore
+Come la dashboard, manca `isError`. Se la query fallisce, l'utente vede solo il loader infinito o una lista vuota senza feedback.
 
-### 2. BUG: Query "Ticket Aperti" poco rilevante
-La stat card "Ticket Aperti" conta i ticket dei clienti finali (tabella `tickets`), ma l'assistenza Super Admin usa `support_conversations`. Le due metriche sono disallineate: il Super Admin dovrebbe vedere le conversazioni di supporto aperte, non i ticket cliente.
+### 2. BUG: Query ordini scarica TUTTI i record
+`supabase.from("orders").select("company_id")` scarica ogni singolo ordine solo per contare. Con migliaia di ordini diventa pesante. Soluzione: usare `select("company_id", { count: "exact" })` non funziona per raggruppamenti, ma possiamo almeno aggiungere `.select("company_id")` con un commento di ottimizzazione futura (RPC). Per ora il trade-off e accettabile, ma aggiungiamo un `.limit(50000)` come guardia.
 
-### 3. BUG: Query `ordersValueRes` scarica TUTTI gli ordini
-La query `supabase.from("orders").select("total_amount")` scarica tutti i record solo per sommare i valori. Questo diventa lento con migliaia di ordini. Meglio usare `count: "exact"` gia disponibile e calcolare il totale lato DB o usare una query piu leggera.
+### 3. MANCANZA: Scadenza trial non visibile
+Il campo `trial_ends_at` esiste nel DB ma non viene mostrato. Il Super Admin non sa quali trial stanno per scadere senza aprire il dettaglio di ogni azienda.
 
-### 4. CODICE MORTO: AdminQuickActions ridondante
-Il componente `AdminQuickActions` replica link gia presenti nella sidebar e nell'header ("Nuova Azienda", "Gestisci Aziende", "Gestisci Ticket"). Occupa spazio senza aggiungere valore.
+### 4. UX: Riga espansa duplica dati
+La riga espandibile mostra gli stessi dati gia visibili nella tabella (ordini, MRR, stato, data). Non aggiunge valore. Meglio mostrare dati utili che NON sono nella tabella: P.IVA, telefono, scadenza trial, indirizzo.
 
-### 5. MANCANZA: Nessuno stato di errore visuale
-Nessun widget mostra un messaggio di errore o un tasto "Riprova" in caso di fallimento.
-
-### 6. MANCANZA: Contatore supporto aperto
-Non c'e visibilita sulle conversazioni di supporto aperte (`support_conversations` con status `open` o `in_progress`).
+### 5. MANCANZA: Contatore totale aziende
+Non c'e un contatore visibile con il totale e il totale filtrato (es. "12 di 45 aziende").
 
 ## Piano di Intervento
 
-### File: `src/hooks/useAdminDashboardData.ts`
-- Sostituire la query "tickets aperti" (`tickets` table) con una query su `support_conversations` dove `status NOT IN ('resolved', 'closed')` -- allineata al modulo assistenza Super Admin
-- Aggiungere la query di conteggio supporto aperto nel `Promise.all`
-- Rinominare `openTickets` in `openSupportConversations` per chiarezza
-- Ottimizzare la query `ordersValueRes`: usare `.select("total_amount")` ma con `.limit(10000)` come guardia, oppure lasciare com'e visto che per un SaaS giovane i numeri sono gestibili (trade-off accettabile per ora)
+### File: `src/pages/admin/CompaniesList.tsx`
 
-### File: `src/components/admin/dashboard/AdminStatCards.tsx`
-- Cambiare la card "Ticket Aperti" in "Supporto Aperto" con icona `MessageSquare` al posto di `AlertCircle`
-- Aggiornare la descrizione da "Richieste in attesa" a "Conversazioni da gestire"
-- Aggiornare l'interfaccia `AdminDashboardStats` per riflettere il nuovo campo
+**Gestione errore:**
+- Aggiungere `isError` e `refetch` dalla query companies
+- Mostrare Alert con tasto "Riprova" in caso di errore (stesso pattern della dashboard)
 
-### File: `src/pages/admin/AdminDashboard.tsx`
-- Aggiungere gestione `isError` con stato di errore visuale + tasto "Riprova" (`refetch`)
-- Rimuovere il componente `AdminQuickActions` dal render (codice morto)
-- Rimuovere l'import di `AdminQuickActions`
-- Aggiornare il fallback di `stats` con il nuovo campo `openSupportConversations`
+**Contatore risultati:**
+- Aggiungere sotto i filtri un testo tipo "Visualizzando X di Y aziende" quando ci sono filtri attivi
 
-### File: `src/components/admin/dashboard/AdminQuickActions.tsx`
-- Eliminare il file (non piu utilizzato)
+**Colonna Trial:**
+- Sostituire la colonna "Creata il" con "Trial / Scadenza" che mostra:
+  - Per aziende in trial: giorni rimanenti con colore (verde > 7gg, giallo 3-7gg, rosso < 3gg)
+  - Per aziende attive: data di creazione come fallback
+
+**Riga espansa migliorata:**
+- Sostituire i dati duplicati con informazioni utili non presenti in tabella:
+  - P.IVA (`vat_number`)
+  - Telefono (`phone`)
+  - Scadenza trial (`trial_ends_at`) con data precisa
+  - Ragione sociale (`business_name`)
+  - PEC (`pec`)
+  - Note (`notes`) se presenti
+
+**Guardia query ordini:**
+- Aggiungere `.limit(50000)` alla query ordini come protezione
 
 ### Riepilogo modifiche
 
 | File | Azione |
 |------|--------|
-| `useAdminDashboardData.ts` | Fix query supporto, rinomina campo |
-| `AdminStatCards.tsx` | Nuova label/icona per supporto |
-| `AdminDashboard.tsx` | Stato errore, rimozione QuickActions |
-| `AdminQuickActions.tsx` | Eliminazione file |
+| `CompaniesList.tsx` | Error handling, trial info, expanded row migliorata, contatore |
 
 ### Cosa rimane invariato (gia OK)
-- MRR Chart con Recharts -- ben implementato
-- Trial Funnel -- logica corretta
-- Recent Companies con link navigabili
-- Recent Activity con merge ordini/ticket ordinati per data
-- `staleTime: 5 min` -- appropriato per dashboard admin
-- `Promise.all` per parallelizzazione query -- gia ottimale
+- Filtri (ricerca, stato, settore, piano) -- ben implementati
+- Export CSV -- funzionale
+- Impersonificazione -- corretta
+- Join con `subscription_plans` -- efficiente
+- `staleTime: 5 min` -- appropriato
+
