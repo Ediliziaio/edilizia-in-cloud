@@ -12,7 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+  Tooltip, TooltipContent, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -212,23 +212,21 @@ export function CostsTable({
                     </TableCell>
                     <TableCell>{cost.category || "—"}</TableCell>
                     <TableCell className="text-right">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="font-medium cursor-help">{formatCurrency(cost.amount)}</span>
-                          </TooltipTrigger>
-                          {vatRate > 0 && (
-                            <TooltipContent>
-                              <div className="text-xs space-y-0.5">
-                                <p>Imponibile: {formatCurrency(cost.amount)}</p>
-                                <p>IVA ({vatRate}%): {formatCurrency(vatAmount)}</p>
-                                <Separator className="my-1" />
-                                <p className="font-semibold">Totale: {formatCurrency(grossAmount)}</p>
-                              </div>
-                            </TooltipContent>
-                          )}
-                        </Tooltip>
-                      </TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="font-medium cursor-help">{formatCurrency(cost.amount)}</span>
+                        </TooltipTrigger>
+                        {vatRate > 0 && (
+                          <TooltipContent>
+                            <div className="text-xs space-y-0.5">
+                              <p>Imponibile: {formatCurrency(cost.amount)}</p>
+                              <p>IVA ({vatRate}%): {formatCurrency(vatAmount)}</p>
+                              <Separator className="my-1" />
+                              <p className="font-semibold">Totale: {formatCurrency(grossAmount)}</p>
+                            </div>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
                     </TableCell>
                     <TableCell>
                       {vatRate > 0 ? (
@@ -266,38 +264,32 @@ export function CostsTable({
                         {!cost.isFromOrder && (
                           <>
                             {!cost.is_paid ? (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)}>
-                                      <CheckSquare className="h-3.5 w-3.5 text-green-600" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Segna come pagato</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkUnpaid(cost.id)}>
-                                      <Undo2 className="h-3.5 w-3.5 text-orange-600" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Riporta a non pagato</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
-                            <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenTasks(cost.id)}>
-                                    <AlertCircle className="h-3.5 w-3.5" />
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)}>
+                                    <CheckSquare className="h-3.5 w-3.5 text-green-600" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Task collegate</TooltipContent>
+                                <TooltipContent>Segna come pagato</TooltipContent>
                               </Tooltip>
-                            </TooltipProvider>
+                            ) : (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkUnpaid(cost.id)}>
+                                    <Undo2 className="h-3.5 w-3.5 text-orange-600" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Riporta a non pagato</TooltipContent>
+                              </Tooltip>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenTasks(cost.id)}>
+                                  <AlertCircle className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Task collegate</TooltipContent>
+                            </Tooltip>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenEdit(cost)}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -326,41 +318,35 @@ export function CostsTable({
                         {cost.isFromOrder && (
                           <>
                             {!cost.is_paid ? (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)}>
-                                      <CheckSquare className="h-3.5 w-3.5 text-green-600" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Segna come pagato</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)}>
+                                    <CheckSquare className="h-3.5 w-3.5 text-green-600" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Segna come pagato</TooltipContent>
+                              </Tooltip>
                             ) : (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkOrderItemUnpaid(cost)}>
-                                      <Undo2 className="h-3.5 w-3.5 text-orange-600" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Riporta a non pagato</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkOrderItemUnpaid(cost)}>
+                                    <Undo2 className="h-3.5 w-3.5 text-orange-600" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Riporta a non pagato</TooltipContent>
+                              </Tooltip>
                             )}
                             {cost.order && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                                      <Link to={`/azienda/ordini/${cost.order.id}`}>
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                      </Link>
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Vai all'ordine</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                                    <Link to={`/azienda/ordini/${cost.order.id}`}>
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </Link>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Vai all'ordine</TooltipContent>
+                              </Tooltip>
                             )}
                           </>
                         )}
