@@ -149,8 +149,8 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : (
-          <ScrollArea className="flex-1 -mx-6 px-6">
-            <div className="space-y-4">
+          <ScrollArea className="flex-1 -mx-6 px-6 max-h-[55vh]">
+            <div className="space-y-4 pb-6">
               <p className="text-sm font-medium text-muted-foreground">Azioni consentite</p>
               {permItems.map(({ key, icon: Icon, label, desc }) => (
                 <div key={key} className="flex items-center justify-between gap-3 rounded-lg border p-3">
