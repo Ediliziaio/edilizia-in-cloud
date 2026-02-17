@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.manage-super-admins]
 verify_jwt = false
+
+[functions.sign-in-as-user]
+verify_jwt = false
