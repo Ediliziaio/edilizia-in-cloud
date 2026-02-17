@@ -7,12 +7,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ShieldCheck, Plus, Trash2, KeyRound, Loader2 } from "lucide-react";
+import { ShieldCheck, Plus, Trash2, KeyRound, Loader2, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { SUPER_ADMIN_PERMISSION_LABELS } from "@/lib/adminConstants";
 import CreateSuperAdminDialog from "./CreateSuperAdminDialog";
 import ResetPasswordDialog from "./ResetPasswordDialog";
+import SuperAdminPermissionsDialog from "./SuperAdminPermissionsDialog";
+
+interface AdminPermissions {
+  can_manage_companies: boolean;
+  can_manage_plans: boolean;
+  can_manage_tickets: boolean;
+  can_manage_referrals: boolean;
+  can_manage_admins: boolean;
+  can_view_platform_stats: boolean;
+  allowed_company_ids: string[] | null;
+}
 
 interface AdminUser {
   id: string;
@@ -20,6 +32,7 @@ interface AdminUser {
   last_name: string;
   email: string;
   created_at: string;
+  permissions: AdminPermissions | null;
 }
 
 export default function SuperAdminUsersTab() {
@@ -28,6 +41,7 @@ export default function SuperAdminUsersTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
   const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
+  const [permsTarget, setPermsTarget] = useState<AdminUser | null>(null);
 
   const { data: admins = [], isLoading } = useQuery({
     queryKey: ["super-admins"],
@@ -95,6 +109,21 @@ export default function SuperAdminUsersTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const getActivePermsBadges = (perms: AdminPermissions | null) => {
+    if (!perms) return null;
+    const keys = Object.keys(SUPER_ADMIN_PERMISSION_LABELS) as (keyof typeof SUPER_ADMIN_PERMISSION_LABELS)[];
+    const disabled = keys.filter((k) => perms[k as keyof AdminPermissions] === false);
+    if (disabled.length === 0) return <Badge variant="secondary" className="text-xs">Accesso completo</Badge>;
+    const enabled = keys.filter((k) => perms[k as keyof AdminPermissions] !== false);
+    return (
+      <div className="flex flex-wrap gap-1">
+        {enabled.map((k) => (
+          <Badge key={k} variant="outline" className="text-xs">{SUPER_ADMIN_PERMISSION_LABELS[k]}</Badge>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -116,8 +145,9 @@ export default function SuperAdminUsersTab() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Permessi</TableHead>
                   <TableHead>Creato il</TableHead>
-                  <TableHead className="w-[120px]"></TableHead>
+                  <TableHead className="w-[150px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -128,10 +158,14 @@ export default function SuperAdminUsersTab() {
                       {a.id === user?.id && <Badge variant="secondary" className="ml-2">Tu</Badge>}
                     </TableCell>
                     <TableCell>{a.email}</TableCell>
+                    <TableCell>{getActivePermsBadges(a.permissions)}</TableCell>
                     <TableCell>{format(new Date(a.created_at), "dd MMM yyyy", { locale: it })}</TableCell>
                     <TableCell className="flex gap-1">
                       {a.id !== user?.id && (
                         <>
+                          <Button variant="ghost" size="icon" onClick={() => setPermsTarget(a)} title="Permessi">
+                            <Shield className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" onClick={() => setResetTarget(a)} title="Reset password">
                             <KeyRound className="h-4 w-4" />
                           </Button>
@@ -158,6 +192,15 @@ export default function SuperAdminUsersTab() {
         isPending={resetMutation.isPending}
         userName={resetTarget ? `${resetTarget.first_name} ${resetTarget.last_name}` : ""}
       />
+
+      {permsTarget && (
+        <SuperAdminPermissionsDialog
+          open={!!permsTarget}
+          onOpenChange={(o) => !o && setPermsTarget(null)}
+          adminId={permsTarget.id}
+          adminName={`${permsTarget.first_name} ${permsTarget.last_name}`}
+        />
+      )}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>

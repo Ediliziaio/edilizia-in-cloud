@@ -64,6 +64,15 @@ export const eventTypeIcons: Record<string, typeof Play> = {
   status_change: RefreshCw,
 };
 
+export const SUPER_ADMIN_PERMISSION_LABELS: Record<string, string> = {
+  can_manage_companies: "Gestione Aziende",
+  can_manage_plans: "Gestione Piani",
+  can_manage_tickets: "Assistenza",
+  can_manage_referrals: "Referral",
+  can_manage_admins: "Gestione Admin",
+  can_view_platform_stats: "Statistiche Piattaforma",
+};
+
 export const commissionTypeLabels: Record<string, string> = {
   percentage_sold: "% sul venduto",
   percentage_margin: "% sul margine",

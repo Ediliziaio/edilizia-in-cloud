@@ -1639,6 +1639,48 @@ export type Database = {
         }
         Relationships: []
       }
+      super_admin_permissions: {
+        Row: {
+          allowed_company_ids: string[] | null
+          can_manage_admins: boolean
+          can_manage_companies: boolean
+          can_manage_plans: boolean
+          can_manage_referrals: boolean
+          can_manage_tickets: boolean
+          can_view_platform_stats: boolean
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allowed_company_ids?: string[] | null
+          can_manage_admins?: boolean
+          can_manage_companies?: boolean
+          can_manage_plans?: boolean
+          can_manage_referrals?: boolean
+          can_manage_tickets?: boolean
+          can_view_platform_stats?: boolean
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allowed_company_ids?: string[] | null
+          can_manage_admins?: boolean
+          can_manage_companies?: boolean
+          can_manage_plans?: boolean
+          can_manage_referrals?: boolean
+          can_manage_tickets?: boolean
+          can_view_platform_stats?: boolean
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       suppliers: {
         Row: {
           address: string | null
