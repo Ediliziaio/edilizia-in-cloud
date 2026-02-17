@@ -74,14 +74,28 @@ Deno.serve(async (req) => {
         });
       }
 
-      const { data: profiles, error: profilesError } = await supabaseAdmin
-        .from("profiles")
-        .select("id, first_name, last_name, email, created_at")
-        .in("id", userIds);
+      const [profilesRes, permsRes] = await Promise.all([
+        supabaseAdmin
+          .from("profiles")
+          .select("id, first_name, last_name, email, created_at")
+          .in("id", userIds),
+        supabaseAdmin
+          .from("super_admin_permissions")
+          .select("*")
+          .in("user_id", userIds),
+      ]);
 
-      if (profilesError) throw new Error(profilesError.message);
+      if (profilesRes.error) throw new Error(profilesRes.error.message);
 
-      return new Response(JSON.stringify({ admins: profiles || [] }), {
+      const permsMap: Record<string, any> = {};
+      (permsRes.data || []).forEach((p: any) => { permsMap[p.user_id] = p; });
+
+      const admins = (profilesRes.data || []).map((profile: any) => ({
+        ...profile,
+        permissions: permsMap[profile.id] || null,
+      }));
+
+      return new Response(JSON.stringify({ admins }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -124,6 +138,9 @@ Deno.serve(async (req) => {
         throw new Error(roleError.message);
       }
 
+      // Create default permissions
+      await supabaseAdmin.from("super_admin_permissions").insert({ user_id: userId });
+
       return new Response(JSON.stringify({ success: true, userId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -156,6 +173,63 @@ Deno.serve(async (req) => {
       });
     }
 
+    // === GET PERMISSIONS ===
+    if (action === "get-permissions") {
+      const { userId } = body;
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "userId obbligatorio" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from("super_admin_permissions")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (error) throw new Error(error.message);
+
+      return new Response(JSON.stringify({ permissions: data }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // === UPDATE PERMISSIONS ===
+    if (action === "update-permissions") {
+      const { userId, permissions } = body;
+      if (!userId || !permissions) {
+        return new Response(JSON.stringify({ error: "userId e permissions obbligatori" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (userId === callerId) {
+        return new Response(JSON.stringify({ error: "Non puoi modificare i tuoi stessi permessi" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error } = await supabaseAdmin
+        .from("super_admin_permissions")
+        .upsert({
+          user_id: userId,
+          can_manage_companies: permissions.can_manage_companies ?? true,
+          can_manage_plans: permissions.can_manage_plans ?? true,
+          can_manage_tickets: permissions.can_manage_tickets ?? true,
+          can_manage_referrals: permissions.can_manage_referrals ?? true,
+          can_manage_admins: permissions.can_manage_admins ?? true,
+          can_view_platform_stats: permissions.can_view_platform_stats ?? true,
+          allowed_company_ids: permissions.allowed_company_ids ?? null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id" });
+
+      if (error) throw new Error(error.message);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // === DELETE ===
     if (action === "delete") {
       const { userId } = body;
@@ -182,6 +256,7 @@ Deno.serve(async (req) => {
         });
       }
 
+      await supabaseAdmin.from("super_admin_permissions").delete().eq("user_id", userId);
       await supabaseAdmin.from("user_roles").delete().eq("user_id", userId).eq("role", "super_admin");
       await supabaseAdmin.from("profiles").delete().eq("id", userId);
       await supabaseAdmin.auth.admin.deleteUser(userId);
