@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Separator } from "@/components/ui/separator";
 import { Building2, CreditCard, HeadphonesIcon, Users, ShieldCheck, BarChart3, Loader2, Globe } from "lucide-react";
 import { toast } from "sonner";
@@ -149,7 +149,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : (
-          <ScrollArea className="flex-1 -mx-6 px-6 max-h-[60vh]">
+          <div className="flex-1 -mx-6 px-6 overflow-y-auto" style={{ maxHeight: "60vh" }}>
             <div className="space-y-4 pb-6">
               <p className="text-sm font-medium text-muted-foreground">Azioni consentite</p>
               {permItems.map(({ key, icon: Icon, label, desc }) => (
@@ -200,7 +200,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         )}
 
         <DialogFooter>
