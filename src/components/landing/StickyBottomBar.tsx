@@ -69,8 +69,11 @@ export default function StickyBottomBar() {
         {/* Text */}
         <p className="flex items-center gap-2 text-center text-xs font-medium leading-snug md:text-sm">
           <Gift size={18} className="shrink-0 text-[#0fa68c]" />
-          <span className="line-clamp-2 md:line-clamp-none">
-            In regalo: <strong>4 lezioni</strong> in cui ho racchiuso il metodo di vendita per il Settore Edile, come aumentare del <strong>40% le vendite</strong> in Edilizia <strong>(valore 497€)</strong>
+          <span className="md:hidden">
+            In regalo: Corso Vendita Edile — <strong>+40% vendite</strong> <strong>(val. 497€)</strong>
+          </span>
+          <span className="hidden md:inline">
+            In regalo: <strong>4 lezioni</strong> sul Metodo Vendita Edile — <strong>+40% vendite</strong> in Edilizia <strong>(valore 497€)</strong>
           </span>
         </p>
 

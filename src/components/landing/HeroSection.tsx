@@ -178,7 +178,7 @@ export default function HeroSection() {
       {floatingIcons.map(({ Icon, top, left, right, size, delay, anim }, i) => (
         <div
           key={i}
-          className={`absolute opacity-[0.06] text-[#0fa68c] ${anim}`}
+          className={`absolute opacity-[0.06] text-[#0fa68c] ${anim} hidden md:block`}
           style={{ top, left, right, animationDelay: delay }}
         >
           <Icon size={size} strokeWidth={1} />
@@ -186,8 +186,8 @@ export default function HeroSection() {
       ))}
 
       {/* Gradient orbs */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#0fa68c]/[0.06] rounded-full blur-[120px]" />
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-[#0fa68c]/[0.04] rounded-full blur-[100px]" />
+      <div className="absolute top-1/4 left-1/4 w-48 h-48 md:w-96 md:h-96 bg-[#0fa68c]/[0.06] rounded-full blur-[120px]" />
+      <div className="absolute bottom-1/4 right-1/4 w-40 h-40 md:w-80 md:h-80 bg-[#0fa68c]/[0.04] rounded-full blur-[100px]" />
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
         {/* 1. Badge */}

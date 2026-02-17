@@ -30,9 +30,10 @@ export default function CostTableSection() {
         </p>
 
         <div
-          className={`overflow-hidden rounded-2xl border border-gray-200 shadow-xl bg-white transition-all duration-700 delay-300 ${
+          className={`rounded-2xl border border-gray-200 shadow-xl bg-white transition-all duration-700 delay-300 overflow-x-auto ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
+          style={{ WebkitOverflowScrolling: "touch" }}
         >
           <table className="w-full">
             <thead>
