@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, ListOrdered, Truck, Key, Users, UserCheck, HardHat, Package, ScrollText } from "lucide-react";
+import { Building2, ListOrdered, Truck, Key, Users, UserCheck, HardHat, Package, ScrollText, Zap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { CompanyProfileForm } from "@/components/settings/CompanyProfileForm";
 import { ArticleCatalog } from "@/components/settings/ArticleCatalog";
 import Employees from "@/pages/azienda/Employees";
 import CompanyActivityLogTab from "@/components/settings/CompanyActivityLogTab";
+import { AutomationsConfig } from "@/components/settings/AutomationsConfig";
 
 export default function Settings() {
   const { effectiveCompany, refreshAuth, role } = useAuth();
@@ -33,7 +34,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-9' : 'grid-cols-5'} lg:w-[${isAdmin ? '1200' : '750'}px]`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-10' : 'grid-cols-5'} lg:w-[${isAdmin ? '1300' : '750'}px]`}>
           <TabsTrigger value="profilo" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Profilo</span>
@@ -67,6 +68,10 @@ export default function Settings() {
               <TabsTrigger value="attivita" className="flex items-center gap-2">
                 <ScrollText className="h-4 w-4" />
                 <span className="hidden sm:inline">Attività</span>
+              </TabsTrigger>
+              <TabsTrigger value="automazioni" className="flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                <span className="hidden sm:inline">Automazioni</span>
               </TabsTrigger>
             </>
           )}
@@ -137,6 +142,9 @@ export default function Settings() {
             </TabsContent>
             <TabsContent value="attivita" className="mt-6">
               <CompanyActivityLogTab />
+            </TabsContent>
+            <TabsContent value="automazioni" className="mt-6">
+              <AutomationsConfig />
             </TabsContent>
           </>
         )}
