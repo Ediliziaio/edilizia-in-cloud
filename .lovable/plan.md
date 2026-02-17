@@ -1,54 +1,140 @@
 
 
-# Audit e Stabilizzazione del Progetto
+# Tab "Marginalita" -- Dashboard Decisionale per l'Imprenditore
 
-## 1. Pulizia Codice - Import Inutilizzati
+## Panoramica
 
-### File: `src/components/layouts/CompanyLayout.tsx`
-- Rimuovere `AvatarImage` dall'import (riga 23) -- non piu usato dopo la sostituzione del logo con `<img>`
+Nuova tab nella pagina Previsionale Cassa, posizionata dopo "Incassato", che offre una vista completa sulla marginalita aziendale: per commessa, media, copertura costi fissi, break-even e alert intelligenti con simulatore strategico.
 
-### File: `src/components/layouts/CustomerLayout.tsx`
-- Rimuovere `Avatar`, `AvatarFallback`, `AvatarImage` dall'intero import (riga 12) -- nessuno di questi componenti e' utilizzato nel corpo del componente dopo le modifiche recenti al logo
+## Dati Necessari
 
-## 2. Fix Funzionali
+La tab richiede dati che il hook `useCashFlowData` attualmente non fornisce (es. total_amount per ordine, order_items con purchase_price, order_external_teams, order_salespeople raggruppati per ordine). Serve un nuovo hook dedicato.
 
-### Console Warning: "Function components cannot be given refs" in `CostsTable.tsx`
-- **Problema**: Il componente `Tooltip` di Radix riceve un ref che non puo gestire. L'errore compare perche `TooltipProvider` wrappa ciascuna `Tooltip` inline (uno per cella della tabella), creando provider multipli annidati
-- **Soluzione**: Rimuovere tutti i `<TooltipProvider>` inline individuali nel file `CostsTable.tsx` -- il provider globale in `App.tsx` gia copre tutta l'applicazione. Questo elimina il warning in console e migliora leggermente la performance (meno componenti React nel tree)
+### Nuovo hook: `src/hooks/useMarginData.ts`
 
-### Bug tab "Stati" nelle Impostazioni (gia corretto)
-- Il fix con `useEffect` + `queryData` applicato nella conversazione precedente risolve il problema di stati che scompaiono al cambio tab
+Query Supabase necessarie:
 
-## 3. Miglioramenti UX
+1. **Ordini con dettagli finanziari** -- dalla tabella `orders`:
+   - `id, order_code, total_amount, vat_rate, description`
+   - Join su `profiles` per nome cliente
+   - Join su `order_salespeople` con `salespeople` per provvigioni
+   
+2. **Costi articoli per ordine** -- dalla tabella `order_items`:
+   - `purchase_price, quantity, vat_rate` raggruppati per `order_id`
+   
+3. **Squadre esterne per ordine** -- dalla tabella `order_external_teams`:
+   - `total_cost, vat_rate` raggruppati per `order_id`
 
-Nessun intervento UX specifico rilevato in questa analisi -- i flussi principali funzionano correttamente. Il fix dei warning in console migliora la pulizia dell'esperienza di sviluppo.
+4. **Provvigioni per ordine** -- dalla tabella `order_salespeople`:
+   - `commission_type, commission_value, deduction_amount` con join su `salespeople`
 
-## 4. Riepilogo Modifiche
+5. **Costi fissi aziendali** -- dalla tabella `company_costs`:
+   - Filtro `cost_type = 'fixed'`, aggregati per ricorrenza mensile
 
-| Tipo | File | Modifica |
-|------|------|----------|
-| Pulizia | `CompanyLayout.tsx` | Rimuovere import `AvatarImage` |
-| Pulizia | `CustomerLayout.tsx` | Rimuovere import `Avatar, AvatarFallback, AvatarImage` |
-| Bug Fix | `CostsTable.tsx` | Rimuovere tutti i `TooltipProvider` wrapper inline (circa 7 occorrenze) |
+6. **Dipendenti attivi** -- dalla tabella `employees`:
+   - `gross_salary` per calcolo costo stipendi mensile
 
-## Dettaglio tecnico
+Il hook calcolera per ogni ordine:
+- **Fatturato Imponibile** = `total_amount` (gia netto IVA come da convenzione progetto)
+- **Fatturato Lordo** = `total_amount * (1 + vat_rate/100)`
+- **Costi Variabili** = costo articoli netti + squadre esterne nette + provvigioni
+- **Margine Lordo** = Fatturato Imponibile - Costi Variabili
+- **Margine %** = Margine Lordo / Fatturato Imponibile * 100
 
-### `CostsTable.tsx`
-Rimuovere tutte le istanze di `<TooltipProvider>` e `</TooltipProvider>` che wrappano singole `<Tooltip>`. Rimuovere anche `TooltipProvider` dall'import in cima al file. Il `TooltipProvider` globale gia presente in `App.tsx` garantisce il funzionamento corretto dei tooltip.
+Il calcolo IVA usa `calculateNetFromGross` da `vatUtils.ts` (stessa logica di `OrderEconomics`).
 
-### `CompanyLayout.tsx`
-Cambiare riga 23 da:
+## Struttura Componenti
+
+### File da creare
+
 ```
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-```
-a:
-```
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+src/hooks/useMarginData.ts           -- hook per query e calcoli marginalita
+src/components/forecast/MarginTab.tsx -- componente principale della tab
 ```
 
-### `CustomerLayout.tsx`
-Rimuovere completamente riga 12:
+### File da modificare
+
 ```
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+src/pages/azienda/CashFlowForecast.tsx -- aggiunta tab "Marginalita"
 ```
+
+## Dettaglio Sezioni della Tab
+
+### 1. Marginalita per Commessa (tabella principale)
+
+Tabella con colonne:
+- Cliente | Commessa | Fatturato Imp. | Costi Variabili | Margine EUR | Margine % | Stato
+
+**Stato margine** con soglia personalizzabile (default 30%, salvata in localStorage):
+- Rosso: margine < 10%
+- Giallo: margine >= 10% e < soglia
+- Verde: margine >= soglia
+
+Ordinamento per margine % (crescente = commesse peggiori in cima).
+
+### 2. Margine Lordo Medio Aziendale (4 card KPI)
+
+- Margine Lordo Medio EUR
+- Margine Lordo Medio %
+- Margine Minimo (con nome commessa)
+- Margine Massimo (con nome commessa)
+
+Sotto le card, indicatore di deviazione standard con interpretazione:
+- Bassa deviazione = vendite coerenti
+- Alta deviazione = margini inconsistenti
+
+### 3. Costi Fissi Aziendali (card riepilogativa)
+
+Aggregazione da `company_costs` (cost_type = fixed, ricorrenza mensile) + stipendi dipendenti:
+- Totale Costi Fissi Mensili con breakdown per categoria
+
+### 4. Break Even Automatico (card visiva)
+
+Formula: `Break Even = Costi Fissi Mensili / (Margine Lordo Medio % / 100)`
+
+Output:
+- Fatturato necessario per pareggio
+- Fatturato attuale medio mensile (da somma total_amount degli ordini / mesi attivi)
+- Delta con indicatore visivo (surplus verde o deficit rosso)
+
+### 5. Alert Intelligenti (CFO Mode)
+
+Card con lista alert generati automaticamente:
+- Margine medio sotto soglia
+- Commesse in perdita (margine < 0)
+- Costi variabili > 70% del fatturato
+- Break even non coperto
+- Fatturato alto ma margine basso (> 100k EUR ma margine < 15%)
+
+Ogni alert con icona, testo e suggerimento azione.
+
+### 6. Simulatore Strategico
+
+4 input slider/number:
+- Margine target % (default = margine medio attuale)
+- Fatturato target mensile
+- Variazione costi fissi (+/-)
+- Variazione costi variabili % (+/-)
+
+3 output calcolati in tempo reale:
+- Nuovo punto di pareggio
+- Nuovo utile previsto mensile
+- Impatto su cash flow (delta vs situazione attuale)
+
+## UX
+
+- Numeri grandi e leggibili nelle card KPI (text-3xl/4xl)
+- Colori: verde per utile (emerald-600), rosso per perdita (red-600), ambra per warning (amber-600)
+- Nessun termine contabile complesso -- linguaggio imprenditoriale
+- Soglia margine personalizzabile tramite un piccolo input inline nella sezione tabella
+- Responsive: card in griglia su desktop, stack su mobile
+- Tabella commesse con scroll orizzontale su mobile
+
+## Note Tecniche
+
+- I calcoli seguono la stessa logica di `OrderEconomics.tsx` per coerenza
+- `total_amount` e' trattato come imponibile (netto IVA) come da convenzione del progetto
+- I costi articoli e squadre esterne vengono scorporati dall'IVA con `calculateNetFromGross`
+- Le provvigioni sono calcolate sull'imponibile totale dell'ordine (stessa logica di `OrderEconomics`)
+- Soglia margine salvata in `localStorage` con chiave `margin-threshold-{companyId}`
 
