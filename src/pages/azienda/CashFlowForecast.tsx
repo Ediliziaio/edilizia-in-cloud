@@ -8,6 +8,7 @@ import { CollectedTab } from "@/components/forecast/CollectedTab";
 import { CostsForecastTab } from "@/components/forecast/CostsForecastTab";
 import { CashForecastTab } from "@/components/forecast/CashForecastTab";
 import { TreasuryTab } from "@/components/forecast/TreasuryTab";
+import { MarginTab } from "@/components/forecast/MarginTab";
 import { formatCurrency } from "@/lib/formatters";
 
 export default function CashFlowForecast() {
@@ -141,6 +142,7 @@ export default function CashFlowForecast() {
       <Tabs defaultValue="incassato" className="w-full">
         <TabsList className="w-full justify-start">
           <TabsTrigger value="incassato">Incassato</TabsTrigger>
+          <TabsTrigger value="marginalita">Marginalità</TabsTrigger>
           <TabsTrigger value="costi">Previsionale Costi</TabsTrigger>
           <TabsTrigger value="cassa">Previsione di Cassa</TabsTrigger>
           <TabsTrigger value="tesoreria">Tesoreria</TabsTrigger>
@@ -148,6 +150,10 @@ export default function CashFlowForecast() {
 
         <TabsContent value="incassato" className="mt-6">
           <CollectedTab orders={orders} expectedPayments={expectedPayments} />
+        </TabsContent>
+
+        <TabsContent value="marginalita" className="mt-6">
+          <MarginTab />
         </TabsContent>
 
         <TabsContent value="costi" className="mt-6">
