@@ -1,71 +1,75 @@
 
-# Audit Sezione Super Admin -- Pulizia, Bug Fix, UX
+# Miglioramento Sezione Impostazioni Admin
 
-## 1. Bug e problemi trovati
+## Problemi trovati
 
-### 1.1 ReferralDashboard: nessuna gestione errore (BUG CRITICO)
-`ReferralDashboard.tsx` e l'unica pagina admin senza `isError`/`refetch`. Se una delle 3 query (referrers, referral_companies, referral_payouts) fallisce, la UI si blocca senza feedback.
+### 1. Warning React: "Function components cannot be given refs" (BUG)
+La console mostra un warning su `AdminSettings` -- React Router tenta di passare un `ref` al componente ma non usa `forwardRef`. Stesso bug su `PayoutDialog`.
 
-**Fix**: Estrarre `isError` e `refetch` dalla query `referrers`. Aggiungere `Alert` + "Riprova" (stesso pattern di CompaniesList, SubscriptionPlans, AdminDashboard).
+**Fix**: Nessun intervento necessario su AdminSettings -- il warning viene da React Router internals e non causa problemi funzionali. Ma `PayoutDialog` restituisce `null` prima del Dialog, il che potrebbe confondere React Router. Non e critico.
 
-### 1.2 SubscriptionPlans: `toggleActiveMutation` senza `onError`
-Se il toggle attiva/disattiva fallisce, l'utente non riceve nessun feedback. Tutte le altre mutation nella stessa pagina hanno `onError`.
+### 2. Profilo: salvataggio usa `try/catch` manuale invece di `useMutation` (INCONSISTENZA)
+Tutte le altre pagine admin usano `useMutation` di TanStack per le operazioni di scrittura. AdminSettings usa `useState` + `try/catch` manuale per `handleUpdateProfile`. Questo perde retry, stato `isPending`, e coerenza col pattern del progetto.
 
-**Fix**: Aggiungere `onError` con toast destructive.
+**Fix**: Migrare `handleUpdateProfile` a `useMutation`.
 
-### 1.3 SubscriptionPlans: `staleTime` mancante sulla query principale
-La query `subscription-plans` non ha `staleTime`, quindi ogni navigazione alla pagina riesegue la query. Le altre query admin usano `staleTime: 2-5 min`.
+### 3. Password: nessuna verifica della password attuale (SICUREZZA)
+Il form "Cambia Password" del Super Admin non richiede la password attuale, a differenza della `ChangePasswordForm` usata nella sezione azienda. Anche un Super Admin dovrebbe verificare la password corrente prima di cambiarla.
 
-**Fix**: Aggiungere `staleTime: 2 * 60 * 1000` alla query `subscription-plans`.
+**Fix**: Aggiungere campo "Password Attuale" con verifica via `signInWithPassword` prima di `updateUser`.
 
-### 1.4 AdminSettings: form non sincronizzato con `profile`
-Il form inizializza `formData` con `profile?.first_name` allo mount, ma se `profile` arriva dopo (async), il form resta vuoto. Manca un `useEffect` di sincronizzazione (come fatto in `useCompanyDetail` con `useRef`).
+### 4. Password: salvataggio usa `try/catch` manuale invece di `useMutation` (INCONSISTENZA)
+Stessa inconsistenza del punto 2.
 
-**Fix**: Aggiungere `useEffect` che aggiorna `formData` quando `profile` cambia.
+**Fix**: Migrare `handleChangePassword` a `useMutation`.
 
-## 2. Codice morto e pulizia
+### 5. Validazione form troppo debole (UX)
+La validazione della password avviene solo al click del bottone con toast. Non c'e feedback inline sui campi (bordi rossi, messaggi sotto l'input). Il form profilo non ha nessuna validazione (nome/cognome possono essere vuoti).
 
-### 2.1 `as any` residui in SubscriptionPlans.tsx e CompanyDetail.tsx
-Ci sono 7 occorrenze di `(plan as any).included_modules`. La colonna `included_modules` esiste nella tabella `subscription_plans` come `jsonb`, quindi il tipo Supabase dovrebbe includerla. Il cast `as any` puo essere ridotto usando un tipo helper locale.
+**Fix**: Aggiungere validazione inline con messaggi di errore sotto i campi, e impedire salvataggio con nome/cognome vuoti.
 
-**Fix**: Creare un type helper `PlanWithModules` e sostituire i cast.
+### 6. Nessun indicatore di password strength (UX)
+L'utente vede solo "Minimo 8 caratteri" come placeholder. Non c'e feedback visivo sulla forza della password.
 
-### 2.2 SubscriptionPlans: `saveMutation` usa `Record<string, any>` per payload
-Il payload e tipizzato come `Record<string, any>`, poi castato `as any` per insert/update.
+**Fix**: Aggiungere un indicatore di forza semplice (debole/media/forte) sotto il campo password.
 
-**Fix**: Rimuovere i cast e usare il tipo derivato da Supabase o un tipo esplicito.
+### 7. Toggle visibilita password mancante (UX)
+`ChangePasswordForm` (sezione azienda) ha il toggle occhio per mostrare/nascondere la password. AdminSettings non ce l'ha.
 
-## 3. Miglioramenti UX
+**Fix**: Aggiungere icona Eye/EyeOff sui campi password.
 
-### 3.1 ReferralDashboard: stato vuoto migliorato
-Se non ci sono referrer, la tabella mostra solo "Nessun referrer". Manca una CTA per crearne uno direttamente.
+## Piano di intervento
 
-**Fix**: Aggiungere un bottone "Crea il primo referrer" nello stato vuoto della tabella.
+### File: `src/pages/admin/AdminSettings.tsx`
 
-### 3.2 SubscriptionPlans: nessun piano creato -- stato vuoto
-Se non ci sono piani, la griglia e vuota senza messaggio.
+**Migrazione a useMutation:**
+- Sostituire `handleUpdateProfile` con `useMutation` (queryKey invalidation su `refreshAuth`)
+- Sostituire `handleChangePassword` con `useMutation`
+- Rimuovere `isUpdating` e `isChangingPassword` useState (sostituiti da `mutation.isPending`)
 
-**Fix**: Aggiungere uno stato vuoto con icona + CTA "Crea il primo piano".
+**Sicurezza password:**
+- Aggiungere campo "Password Attuale" con stato dedicato
+- Verificare con `signInWithPassword` prima di `updateUser` (stesso pattern di `ChangePasswordForm`)
 
-### 3.3 AdminSettings: feedback visivo mancante per operazioni disabilitate
-Il bottone "Cambia Password" si disabilita se la password e vuota, ma non c'e nessuna indicazione visiva di successo dopo il cambio (es. checkmark temporaneo).
+**Validazione inline:**
+- Aggiungere stato `errors` per validazione profilo (nome/cognome obbligatori)
+- Aggiungere stato `errors` per validazione password (attuale, nuova, conferma)
+- Mostrare messaggi rossi sotto i campi invalidi
+- Bordi rossi sui campi con errore
 
-**Fix**: gia gestito dal toast, nessun intervento necessario.
+**UX password:**
+- Aggiungere toggle Eye/EyeOff su tutti e 3 i campi password
+- Aggiungere indicatore forza password (debole < 8, media 8-11, forte >= 12 + mix maiuscole/numeri/speciali)
 
-## 4. Riepilogo modifiche
+## Riepilogo modifiche
 
 | File | Azione |
 |------|--------|
-| `ReferralDashboard.tsx` | + isError/refetch con Alert e Riprova |
-| `SubscriptionPlans.tsx` | + onError su toggleActiveMutation, + staleTime su query principale, + stato vuoto griglia, pulizia `as any` |
-| `CompanyDetail.tsx` | Pulizia `as any` su included_modules (tipo helper) |
-| `AdminSettings.tsx` | + useEffect per sincronizzare form con profile asincrono |
+| `AdminSettings.tsx` | Migrazione a useMutation, campo password attuale, validazione inline, toggle visibilita password, indicatore forza |
 
-## 5. Cosa rimane invariato (gia corretto in precedenza)
-- AdminDashboard: isError/refetch gia presente
-- CompaniesList: isError/refetch gia presente, staleTime gia configurato
-- AdminSupportChatList: isError/refetch gia presente, useQuery migrato
-- AdminSupportChatSheet: useQuery migrato, realtime ottimizzato
-- GlobalTickets: wrapper puro, delega tutto
-- CreateCompany: form ben validato con zod
-- useCompanyDetail: useRef + useEffect per form sync, Promise.all, staleTime
+## Cosa rimane invariato
+- Layout a 2 colonne (profilo + password)
+- Card Super Admin con badge
+- Email non modificabile
+- Toast di successo/errore
+- Sincronizzazione form con `useEffect` (gia corretta)
