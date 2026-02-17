@@ -268,6 +268,7 @@ export type Database = {
           legal_postal_code: string | null
           legal_province: string | null
           logo_url: string | null
+          messaging_beta_enabled: boolean
           name: string
           notes: string | null
           operational_address: string | null
@@ -303,6 +304,7 @@ export type Database = {
           legal_postal_code?: string | null
           legal_province?: string | null
           logo_url?: string | null
+          messaging_beta_enabled?: boolean
           name: string
           notes?: string | null
           operational_address?: string | null
@@ -338,6 +340,7 @@ export type Database = {
           legal_postal_code?: string | null
           legal_province?: string | null
           logo_url?: string | null
+          messaging_beta_enabled?: boolean
           name?: string
           notes?: string | null
           operational_address?: string | null
@@ -762,6 +765,227 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messaging_ai_runs: {
+        Row: {
+          ai_output: Json | null
+          company_id: string
+          confidence: number | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_actions: Json | null
+          created_at: string
+          id: string
+          intent: string | null
+          message_id: string
+          raw_input: string | null
+          status: string
+        }
+        Insert: {
+          ai_output?: Json | null
+          company_id: string
+          confidence?: number | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_actions?: Json | null
+          created_at?: string
+          id?: string
+          intent?: string | null
+          message_id: string
+          raw_input?: string | null
+          status?: string
+        }
+        Update: {
+          ai_output?: Json | null
+          company_id?: string
+          confidence?: number | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_actions?: Json | null
+          created_at?: string
+          id?: string
+          intent?: string | null
+          message_id?: string
+          raw_input?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_ai_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_ai_runs_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messaging_conversations: {
+        Row: {
+          company_id: string
+          contact_name: string | null
+          contact_type: string
+          created_at: string
+          id: string
+          is_urgent: boolean
+          last_message_at: string | null
+          linked_entity_id: string | null
+          linked_entity_type: string | null
+          phone_number: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          contact_name?: string | null
+          contact_type?: string
+          created_at?: string
+          id?: string
+          is_urgent?: boolean
+          last_message_at?: string | null
+          linked_entity_id?: string | null
+          linked_entity_type?: string | null
+          phone_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          contact_name?: string | null
+          contact_type?: string
+          created_at?: string
+          id?: string
+          is_urgent?: boolean
+          last_message_at?: string | null
+          linked_entity_id?: string | null
+          linked_entity_type?: string | null
+          phone_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messaging_daily_reports: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          materials_used: Json | null
+          order_id: string | null
+          report_date: string
+          source_message_id: string | null
+          work_done: Json | null
+          work_planned: Json | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          materials_used?: Json | null
+          order_id?: string | null
+          report_date?: string
+          source_message_id?: string | null
+          work_done?: Json | null
+          work_planned?: Json | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          materials_used?: Json | null
+          order_id?: string | null
+          report_date?: string
+          source_message_id?: string | null
+          work_done?: Json | null
+          work_planned?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_daily_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_daily_reports_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_daily_reports_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messaging_messages: {
+        Row: {
+          ai_processed: boolean
+          content: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          media_url: string | null
+          message_type: string
+          sender_name: string | null
+          sender_type: string
+          transcription: string | null
+        }
+        Insert: {
+          ai_processed?: boolean
+          content?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          media_url?: string | null
+          message_type?: string
+          sender_name?: string | null
+          sender_type?: string
+          transcription?: string | null
+        }
+        Update: {
+          ai_processed?: boolean
+          content?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          media_url?: string | null
+          message_type?: string
+          sender_name?: string | null
+          sender_type?: string
+          transcription?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_conversations"
             referencedColumns: ["id"]
           },
         ]

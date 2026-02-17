@@ -17,6 +17,7 @@ import {
   Warehouse,
   CalendarDays,
   CheckSquare,
+  MessageSquare,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   permissionKey?: string;
   moduleKey?: ModuleKey;
+  isBeta?: boolean;
 }
 
 const allNavItems: NavItem[] = [
@@ -59,6 +61,7 @@ const allNavItems: NavItem[] = [
   { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
   { title: "Costi", url: "/azienda/costi", icon: Receipt, permissionKey: "canViewForecast", moduleKey: "forecast" },
   { title: "Attività", url: "/azienda/attivita", icon: CheckSquare, permissionKey: "canViewOrders", moduleKey: "orders" },
+  { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", isBeta: true },
   { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings, permissionKey: "canViewSettings" },
 ];
 
@@ -110,6 +113,7 @@ function CompanySidebar() {
 
   // Filter nav items based on permissions AND module availability
   const visibleNavItems = useMemo(() => {
+    const messagingEnabled = (effectiveCompany as any)?.messaging_beta_enabled === true;
     return allNavItems.filter((item) => {
       // Check permission
       if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
@@ -119,9 +123,13 @@ function CompanySidebar() {
       if (item.moduleKey && !isModuleEnabled(item.moduleKey)) {
         return false;
       }
+      // Check beta flag for messaging
+      if (item.isBeta && item.url.includes("messaggistica") && !messagingEnabled) {
+        return false;
+      }
       return true;
     });
-  }, [permissions, isModuleEnabled]);
+  }, [permissions, isModuleEnabled, effectiveCompany]);
 
   return (
     <Sidebar className="border-r">
@@ -150,6 +158,9 @@ function CompanySidebar() {
                     >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
+                      {item.isBeta && (
+                        <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-orange-100 text-orange-700 border-orange-200">BETA</Badge>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
