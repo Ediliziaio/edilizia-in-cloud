@@ -1,4 +1,4 @@
-import { Copy, Eye, CreditCard, Pencil, ToggleLeft, ToggleRight } from "lucide-react";
+import { Copy, Eye, CreditCard, Pencil, ToggleLeft, ToggleRight, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -52,8 +52,10 @@ export function ReferralTable({
             ))}
           </div>
         ) : referrers.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            Nessun referrer. Creane uno per iniziare.
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+            <Gift className="h-10 w-10" />
+            <p>Nessun referrer trovato.</p>
+            <p className="text-sm">Crea il primo referrer per attivare il programma di affiliazione.</p>
           </div>
         ) : (
           <Table>

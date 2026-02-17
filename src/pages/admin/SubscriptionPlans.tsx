@@ -69,6 +69,7 @@ export default function SubscriptionPlans() {
       if (error) throw error;
       return data;
     },
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: companyCounts } = useQuery({
@@ -119,7 +120,7 @@ export default function SubscriptionPlans() {
       };
 
       if (plan.id) {
-        const { error } = await supabase.from("subscription_plans").update(payload as any).eq("id", plan.id);
+        const { error } = await supabase.from("subscription_plans").update(payload).eq("id", plan.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("subscription_plans").insert(payload as any);
@@ -145,6 +146,9 @@ export default function SubscriptionPlans() {
       queryClient.invalidateQueries({ queryKey: ["subscription-plans"] });
       toast({ title: "Stato aggiornato" });
     },
+    onError: (error) => {
+      toast({ title: "Errore", description: error.message, variant: "destructive" });
+    },
   });
 
   const openCreate = () => {
@@ -169,7 +173,7 @@ export default function SubscriptionPlans() {
       features,
       is_active: plan.is_active,
       position: plan.position,
-      included_modules: Array.isArray((plan as any).included_modules) ? (plan as any).included_modules : ALL_MODULES.map(m => m.key),
+      included_modules: Array.isArray(plan.included_modules) ? (plan.included_modules as string[]) : ALL_MODULES.map(m => m.key),
       stripe_product_id: plan.stripe_product_id || "",
       stripe_price_monthly_id: plan.stripe_price_monthly_id || "",
       stripe_price_yearly_id: plan.stripe_price_yearly_id || "",
@@ -308,8 +312,9 @@ export default function SubscriptionPlans() {
 
                 {/* Included Modules */}
                 <div className="flex flex-wrap gap-1.5 pt-2 border-t">
-                  {ALL_MODULES.map((mod) => {
-                    const included = Array.isArray((plan as any).included_modules) && (plan as any).included_modules.includes(mod.key);
+                {ALL_MODULES.map((mod) => {
+                    const modules = plan.included_modules as string[] | null;
+                    const included = Array.isArray(modules) && modules.includes(mod.key);
                     return (
                       <Badge key={mod.key} variant={included ? "default" : "outline"} className="text-xs gap-1">
                         <mod.icon className="h-3 w-3" />

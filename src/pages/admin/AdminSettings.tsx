@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,15 @@ export default function AdminSettings() {
     newPassword: "",
     confirmPassword: "",
   });
+
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        firstName: profile.first_name || "",
+        lastName: profile.last_name || "",
+      });
+    }
+  }, [profile]);
 
   const handleUpdateProfile = async () => {
     if (!profile) return;
