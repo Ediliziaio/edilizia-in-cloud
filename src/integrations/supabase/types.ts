@@ -200,6 +200,59 @@ export type Database = {
           },
         ]
       }
+      automations: {
+        Row: {
+          actions: Json | null
+          company_id: string
+          conditions: Json | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          trigger_config: Json | null
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          actions?: Json | null
+          company_id: string
+          conditions?: Json | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          trigger_config?: Json | null
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          actions?: Json | null
+          company_id?: string
+          conditions?: Json | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          trigger_config?: Json | null
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           bank_account_holder: string | null
@@ -2327,6 +2380,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      execute_automation: {
+        Args: {
+          p_company_id: string
+          p_order_id: string
+          p_trigger_type: string
+        }
+        Returns: undefined
+      }
       get_user_company_id: { Args: { _user_id: string }; Returns: string }
       has_permission: {
         Args: { _permission: string; _user_id: string }
