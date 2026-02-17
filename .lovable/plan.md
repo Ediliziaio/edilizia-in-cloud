@@ -1,68 +1,42 @@
 
 
-# Riga Espansa Arricchita - Lista Aziende
+# Fix: Calcolo "Ultimo Ordine" inconsistente tra lista e dettaglio
 
-## Obiettivo
-Quando si espande la riga di un'azienda, mostrare KPI operativi immediati oltre ai dati anagrafici gia presenti: guadagno totale, numero utenti, ultimo ordine, e livello di utilizzo.
+## Problema
+La lista aziende mostra "1gg fa" mentre il dettaglio mostra "2g fa" per lo stesso ordine. Questo perche usano due metodi di calcolo diversi:
 
-## Dati da aggiungere nella riga espansa
+- **Lista** (`CompaniesList.tsx`): usa `differenceInDays()` di date-fns che tronca (1.5 giorni = 1)
+- **Dettaglio** (`useCompanyDetail.ts`): usa `Math.round()` manuale che arrotonda (1.5 giorni = 2)
 
-1. **Valore totale ordini** - somma `total_amount` per `company_id`
-2. **Ultimo ordine** - data dell'ordine piu recente, con indicatore "Health" (verde/giallo/rosso)
-3. **Numero utenti** - conteggio profili (`profiles`) associati all'azienda
-4. **MRR** - gia disponibile dal piano, mostrato in evidenza nel riquadro
+## Soluzione
+Allineare entrambi allo stesso metodo: `differenceInDays()` di date-fns, che e il piu standard e intuitivo ("quanti giorni interi sono passati").
 
-## Dati NON disponibili
-- "Ultimo accesso" non e accessibile dalla tabella `auth.users` tramite client. Si usa la data dell'ultimo ordine come proxy di attivita.
+## Modifiche
 
-## Piano Tecnico
+### File: `src/hooks/useCompanyDetail.ts` (riga 270-274)
 
-### File: `src/pages/admin/CompaniesList.tsx`
+Sostituire il calcolo manuale con `differenceInDays`:
 
-**Nuova query: dati aggregati per azienda**
-Modificare la query `admin-companies-order-counts` per estrarre anche `total_amount` e `created_at`, poi aggregare lato client:
-- `totalValue` (somma importi)
-- `count` (numero ordini)  
-- `lastOrderDate` (data piu recente)
+```typescript
+// PRIMA (Math.round - arrotonda)
+const daysSinceLastOrder = useMemo(() => {
+  if (!recentOrders || recentOrders.length === 0) return null;
+  const lastDate = new Date(recentOrders[0].created_at);
+  return Math.round((Date.now() - lastDate.getTime()) / (24 * 60 * 60 * 1000));
+}, [recentOrders]);
 
-**Nuova query: conteggio utenti per azienda**
-Aggiungere una query su `profiles` raggruppata per `company_id` per ottenere il conteggio utenti per ogni azienda.
-
-**Riga espansa ridisegnata**
-Aggiungere una riga di KPI cards sopra i dati anagrafici con:
-
-| KPI | Fonte | Icona |
-|-----|-------|-------|
-| Valore Totale Ordini | somma `total_amount` | DollarSign |
-| N. Ordini | conteggio | ClipboardList |
-| Ultimo Ordine | data + health badge | Calendar |
-| Utenti Attivi | conteggio `profiles` | Users |
-| MRR | dal piano sottoscritto | TrendingUp |
-
-Le cards saranno compatte (griglia 5 colonne su lg, 3 su md, 2 su sm), con icona, valore e label. Sotto rimangono i dati anagrafici (P.IVA, PEC, telefono, ecc.) gia presenti.
-
-### Struttura visiva della riga espansa
-
-```text
-+-------------+-------------+-------------+-------------+-------------+
-| Valore Tot. | N. Ordini   | Ultimo Ord. | Utenti      | MRR         |
-| EUR 45.200  | 12          | 3gg fa (v)  | 5           | EUR 49/mese |
-+-------------+-------------+-------------+-------------+-------------+
-
-Ragione sociale: ...  |  P.IVA: ...  |  Telefono: ...  |  PEC: ...
-Note: ...
-
-[Apri dettaglio]  [Accedi come azienda]
+// DOPO (differenceInDays - tronca, coerente con la lista)
+const daysSinceLastOrder = useMemo(() => {
+  if (!recentOrders || recentOrders.length === 0) return null;
+  return differenceInDays(new Date(), new Date(recentOrders[0].created_at));
+}, [recentOrders]);
 ```
 
-### Riepilogo modifiche
+Aggiungere l'import di `differenceInDays` da `date-fns` se non gia presente.
 
-| File | Azione |
-|------|--------|
-| `CompaniesList.tsx` | Query ordini arricchita (value + lastDate), nuova query utenti, KPI cards nella riga espansa |
+### Nessuna modifica a `CompaniesList.tsx`
+Gia usa `differenceInDays` correttamente.
 
-### Cosa rimane invariato
-- Dati anagrafici nella riga espansa (P.IVA, PEC, telefono, SDI, note)
-- Bottoni "Apri dettaglio" e "Accedi come azienda"
-- Tabella principale con tutte le colonne esistenti
-- Filtri, export CSV, impersonificazione
+| File | Modifica |
+|------|----------|
+| `useCompanyDetail.ts` | Sostituire `Math.round` con `differenceInDays` + import |
