@@ -25,7 +25,7 @@ export interface AdminDashboardStats {
   totalOrders: number;
   totalOrdersValue: number;
   totalCustomers: number;
-  openTickets: number;
+  openSupportConversations: number;
 }
 
 export interface AdminMrrStats {
@@ -60,7 +60,7 @@ export function useAdminDashboardData() {
         supabase.from("companies").select("id", { count: "exact", head: true }),
         supabase.from("orders").select("id", { count: "exact", head: true }),
         supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "customer"),
-        supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "risolto"),
+        supabase.from("support_conversations").select("id", { count: "exact", head: true }).not("status", "in", '("resolved","closed")'),
         supabase.from("orders").select("total_amount"),
         supabase.from("companies").select("*").order("created_at", { ascending: false }).limit(5),
         supabase.from("orders").select(`
@@ -151,7 +151,7 @@ export function useAdminDashboardData() {
           totalOrders: ordersRes.count || 0,
           totalOrdersValue: totalValue,
           totalCustomers: customersRes.count || 0,
-          openTickets: ticketsRes.count || 0,
+          openSupportConversations: ticketsRes.count || 0,
         } as AdminDashboardStats,
         mrrStats: {
           mrr,
