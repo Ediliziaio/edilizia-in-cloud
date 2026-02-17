@@ -6,7 +6,7 @@ import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { addDays } from "date-fns";
+import { addDays, differenceInDays } from "date-fns";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
 import type { StaffUserFormData } from "@/components/users/StaffUserDialog";
 import type { StaffPermissions } from "@/components/users/PermissionsDialog";
@@ -269,8 +269,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const daysSinceLastOrder = useMemo(() => {
     if (!recentOrders || recentOrders.length === 0) return null;
-    const lastDate = new Date(recentOrders[0].created_at);
-    return Math.round((Date.now() - lastDate.getTime()) / (24 * 60 * 60 * 1000));
+    return differenceInDays(new Date(), new Date(recentOrders[0].created_at));
   }, [recentOrders]);
 
   // ========== MUTATIONS ==========
