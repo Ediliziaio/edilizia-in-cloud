@@ -128,18 +128,10 @@ function CompanySidebar() {
       <div className="flex h-14 items-center border-b px-4">
         <Link to="/azienda" className="flex items-center gap-2">
           {effectiveCompany?.logo_url ? (
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={effectiveCompany.logo_url} alt={effectiveCompany.name} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {effectiveCompany.name.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <img src={effectiveCompany.logo_url} alt={effectiveCompany.name} className="h-8 max-h-8 object-contain" />
           ) : (
             <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
           )}
-          <span className="font-semibold text-foreground truncate max-w-[160px]">
-            {effectiveCompany?.name || "La tua azienda"}
-          </span>
         </Link>
       </div>
       <SidebarContent>
