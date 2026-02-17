@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building, Users, ClipboardList, AlertCircle } from "lucide-react";
+import { Building, Users, ClipboardList, MessageSquare } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { AdminDashboardStats } from "@/hooks/useAdminDashboardData";
 
@@ -34,12 +34,12 @@ export function AdminStatCards({ stats }: Props) {
       bgColor: "bg-purple-100",
     },
     {
-      title: "Ticket Aperti",
-      value: stats.openTickets,
-      icon: AlertCircle,
-      description: "Richieste in attesa",
-      color: stats.openTickets > 0 ? "text-orange-600" : "text-green-600",
-      bgColor: stats.openTickets > 0 ? "bg-orange-100" : "bg-green-100",
+      title: "Supporto Aperto",
+      value: stats.openSupportConversations,
+      icon: MessageSquare,
+      description: "Conversazioni da gestire",
+      color: stats.openSupportConversations > 0 ? "text-orange-600" : "text-green-600",
+      bgColor: stats.openSupportConversations > 0 ? "bg-orange-100" : "bg-green-100",
     },
   ];
 
