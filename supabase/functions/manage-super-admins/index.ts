@@ -45,15 +45,25 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Extract user ID with fallback: getClaims -> getUser
+    let callerId: string;
+    try {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: claimsData, error: claimsError } = await (callerClient.auth as any).getClaims(token);
+      if (!claimsError && claimsData?.claims?.sub) {
+        callerId = claimsData.claims.sub;
+      } else {
+        throw new Error("getClaims failed");
+      }
+    } catch {
+      const { data: userData, error: userError } = await callerClient.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      callerId = userData.user.id;
     }
-
-    const callerId = claimsData.claims.sub;
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },

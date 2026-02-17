@@ -36,15 +36,26 @@ Deno.serve(async (req) => {
     });
 
     // Verify super_admin
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Extract user ID with fallback: getClaims -> getUser
+    let userId: string;
+    try {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: claimsData, error: claimsError } = await (supabase.auth as any).getClaims(token);
+      if (!claimsError && claimsData?.claims?.sub) {
+        userId = claimsData.claims.sub;
+      } else {
+        throw new Error("getClaims failed");
+      }
+    } catch {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      userId = userData.user.id;
     }
-    const userId = claimsData.claims.sub;
 
     const { data: roleData } = await supabase
       .from("user_roles")

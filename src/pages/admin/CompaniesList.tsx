@@ -19,25 +19,28 @@ import type { CompanyStatus } from "@/types/auth";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 
-function TrialBadge({ company }: { company: { status: string; trial_ends_at: string | null; created_at: string } }) {
-  if (company.status === "trial" && company.trial_ends_at) {
-    const daysLeft = differenceInDays(new Date(company.trial_ends_at), new Date());
-    const color = daysLeft > 7 ? "text-green-600" : daysLeft >= 3 ? "text-yellow-600" : "text-red-600";
+const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
+  ({ company, ...props }, ref) => {
+    if (company.status === "trial" && company.trial_ends_at) {
+      const daysLeft = differenceInDays(new Date(company.trial_ends_at), new Date());
+      const color = daysLeft > 7 ? "text-green-600" : daysLeft >= 3 ? "text-yellow-600" : "text-red-600";
+      return (
+        <div ref={ref} {...props} className="flex items-center gap-1.5">
+          <Clock className={`h-3.5 w-3.5 ${color}`} />
+          <span className={`text-sm font-medium ${color}`}>
+            {daysLeft > 0 ? `${daysLeft}gg rimasti` : "Scaduto"}
+          </span>
+        </div>
+      );
+    }
     return (
-      <div className="flex items-center gap-1.5">
-        <Clock className={`h-3.5 w-3.5 ${color}`} />
-        <span className={`text-sm font-medium ${color}`}>
-          {daysLeft > 0 ? `${daysLeft}gg rimasti` : "Scaduto"}
-        </span>
-      </div>
+      <span ref={ref as React.Ref<HTMLSpanElement>} {...props} className="text-sm text-muted-foreground">
+        {format(new Date(company.created_at), "dd/MM/yyyy", { locale: it })}
+      </span>
     );
   }
-  return (
-    <span className="text-sm text-muted-foreground">
-      {format(new Date(company.created_at), "dd/MM/yyyy", { locale: it })}
-    </span>
-  );
-}
+);
+TrialBadge.displayName = "TrialBadge";
 
 export default function CompaniesList() {
   const { permissions } = useSuperAdminPermissions();
