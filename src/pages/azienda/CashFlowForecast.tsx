@@ -153,7 +153,9 @@ export default function CashFlowForecast() {
         </TabsContent>
 
         <TabsContent value="marginalita" className="mt-6">
-          <MarginTab />
+          <div>
+            <MarginTab />
+          </div>
         </TabsContent>
 
         <TabsContent value="costi" className="mt-6">
