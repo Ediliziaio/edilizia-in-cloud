@@ -30,6 +30,8 @@ import { useToast } from "@/hooks/use-toast";
 import { getOrderStatusTemplate } from "@/lib/orderStatusTemplates";
 import { sectors } from "@/lib/companyUtils";
 import type { CompanySector } from "@/types/auth";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 
 const formSchema = z.object({
   companyName: z.string().min(2, "Il nome deve avere almeno 2 caratteri"),
@@ -94,7 +96,11 @@ export default function CreateCompany() {
     },
   });
 
+  const { permissions: saPermissions } = useSuperAdminPermissions();
+
   const statusTemplate = selectedSector ? getOrderStatusTemplate(selectedSector) : [];
+
+  if (!saPermissions.can_manage_companies) return <AccessDenied />;
 
   async function onSubmit(data: FormData) {
     setIsSubmitting(true);

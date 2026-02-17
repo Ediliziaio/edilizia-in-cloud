@@ -19,11 +19,16 @@ import { CompanySaaSTab } from "@/components/admin/company/CompanySaaSTab";
 import { CompanySubscriptionTab } from "@/components/admin/company/CompanySubscriptionTab";
 import { CompanyOverviewTab } from "@/components/admin/company/CompanyOverviewTab";
 import { useCompanyDetail } from "@/hooks/useCompanyDetail";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 
 export default function CompanyDetail() {
+  const { permissions } = useSuperAdminPermissions();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const h = useCompanyDetail(id);
+
+  if (!permissions.can_manage_companies) return <AccessDenied />;
 
   if (h.isLoading) {
     return (

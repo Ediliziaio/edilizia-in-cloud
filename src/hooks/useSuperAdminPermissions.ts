@@ -1,0 +1,59 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+
+export interface SuperAdminPermissions {
+  can_manage_companies: boolean;
+  can_manage_plans: boolean;
+  can_manage_tickets: boolean;
+  can_manage_referrals: boolean;
+  can_manage_admins: boolean;
+  can_view_platform_stats: boolean;
+  allowed_company_ids: string[] | null;
+}
+
+const ALL_TRUE: SuperAdminPermissions = {
+  can_manage_companies: true,
+  can_manage_plans: true,
+  can_manage_tickets: true,
+  can_manage_referrals: true,
+  can_manage_admins: true,
+  can_view_platform_stats: true,
+  allowed_company_ids: null,
+};
+
+export function useSuperAdminPermissions() {
+  const { user, role } = useAuth();
+  const isSuperAdmin = role === "super_admin";
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["super-admin-permissions", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("super_admin_permissions")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: isSuperAdmin && !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // No record = full access (backward compatible)
+  const permissions: SuperAdminPermissions = data
+    ? {
+        can_manage_companies: data.can_manage_companies,
+        can_manage_plans: data.can_manage_plans,
+        can_manage_tickets: data.can_manage_tickets,
+        can_manage_referrals: data.can_manage_referrals,
+        can_manage_admins: data.can_manage_admins,
+        can_view_platform_stats: data.can_view_platform_stats,
+        allowed_company_ids: data.allowed_company_ids as string[] | null,
+      }
+    : ALL_TRUE;
+
+  return { permissions, isLoading };
+}

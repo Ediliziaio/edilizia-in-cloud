@@ -10,6 +10,8 @@ import { ReferralTable } from "@/components/admin/referral/ReferralTable";
 import { ReferrerDialog } from "@/components/admin/referral/ReferrerDialog";
 import { ReferrerDetailDialog } from "@/components/admin/referral/ReferrerDetailDialog";
 import { PayoutDialog } from "@/components/admin/referral/PayoutDialog";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 
 export interface Referrer {
   id: string;
@@ -57,6 +59,7 @@ export interface ReferralPayout {
 }
 
 export default function ReferralDashboard() {
+  const { permissions: saPermissions } = useSuperAdminPermissions();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [referrerDialogOpen, setReferrerDialogOpen] = useState(false);
@@ -162,6 +165,8 @@ export default function ReferralDashboard() {
 
   const getCompanyCount = (referrerId: string) =>
     referralCompanies.filter((rc) => rc.referrer_id === referrerId).length;
+
+  if (!saPermissions.can_manage_referrals) return <AccessDenied />;
 
   if (isLoading) {
     return (

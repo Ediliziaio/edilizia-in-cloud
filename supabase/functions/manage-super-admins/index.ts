@@ -6,6 +6,23 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function logAudit(
+  supabaseAdmin: any,
+  userId: string,
+  action: string,
+  targetType: string | null,
+  targetId: string | null,
+  details: Record<string, any> | null
+) {
+  await supabaseAdmin.from("admin_audit_log").insert({
+    user_id: userId,
+    action,
+    target_type: targetType,
+    target_id: targetId,
+    details,
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -141,6 +158,11 @@ Deno.serve(async (req) => {
       // Create default permissions
       await supabaseAdmin.from("super_admin_permissions").insert({ user_id: userId });
 
+      await logAudit(supabaseAdmin, callerId, "create_admin", "user", userId, {
+        target_name: `${firstName || "Super"} ${lastName || "Admin"}`,
+        email,
+      });
+
       return new Response(JSON.stringify({ success: true, userId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -167,6 +189,12 @@ Deno.serve(async (req) => {
 
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword });
       if (updateError) throw new Error(updateError.message);
+
+      // Get target name for audit
+      const { data: targetProfile } = await supabaseAdmin.from("profiles").select("first_name, last_name").eq("id", userId).maybeSingle();
+      await logAudit(supabaseAdmin, callerId, "reset_password", "user", userId, {
+        target_name: targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : userId,
+      });
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -225,6 +253,13 @@ Deno.serve(async (req) => {
 
       if (error) throw new Error(error.message);
 
+      // Get target name for audit
+      const { data: targetProfile } = await supabaseAdmin.from("profiles").select("first_name, last_name").eq("id", userId).maybeSingle();
+      await logAudit(supabaseAdmin, callerId, "update_permissions", "user", userId, {
+        target_name: targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : userId,
+        permissions,
+      });
+
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -256,11 +291,30 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Get target name before deleting
+      const { data: targetProfile } = await supabaseAdmin.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle();
+
       await supabaseAdmin.from("super_admin_permissions").delete().eq("user_id", userId);
       await supabaseAdmin.from("user_roles").delete().eq("user_id", userId).eq("role", "super_admin");
       await supabaseAdmin.from("profiles").delete().eq("id", userId);
       await supabaseAdmin.auth.admin.deleteUser(userId);
 
+      await logAudit(supabaseAdmin, callerId, "delete_admin", "user", userId, {
+        target_name: targetProfile ? `${targetProfile.first_name} ${targetProfile.last_name}` : userId,
+        email: targetProfile?.email,
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // === LOG IMPERSONATION ===
+    if (action === "log-impersonation") {
+      const { companyId, companyName } = body;
+      await logAudit(supabaseAdmin, callerId, "impersonate_company", "company", companyId, {
+        company_name: companyName || companyId,
+      });
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

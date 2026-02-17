@@ -16,6 +16,8 @@ import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { sectorLabels, statusConfig, sectors } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 
 function TrialBadge({ company }: { company: { status: string; trial_ends_at: string | null; created_at: string } }) {
   if (company.status === "trial" && company.trial_ends_at) {
@@ -38,6 +40,7 @@ function TrialBadge({ company }: { company: { status: string; trial_ends_at: str
 }
 
 export default function CompaniesList() {
+  const { permissions } = useSuperAdminPermissions();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("all");
@@ -141,6 +144,8 @@ export default function CompaniesList() {
     await impersonateCompany(companyId);
     navigate("/azienda");
   };
+
+  if (!permissions.can_manage_companies) return <AccessDenied />;
 
   if (isError) {
     return (
