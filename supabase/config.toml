@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.generate-landing-image]
 verify_jwt = false
+
+[functions.manage-super-admins]
+verify_jwt = false
