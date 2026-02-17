@@ -1,78 +1,109 @@
 
 
-# Audit Completo: Pulizia, Bug Fix, UX e Stabilizzazione
+# Ottimizzazione Mobile: Fix Scroll Orizzontale, Copy Corto e UX per Sezione
 
-## 1. Bug Critici Trovati
+## 1. Fix Scroll Orizzontale (BUG CRITICO)
 
-### BUG-1: PromoBanner linka a `#garanzie` che NON ESISTE
-- In `Home.tsx`, il `PromoBanner` ha `document.querySelector("#garanzie")` ma nessuna sezione ha `id="garanzie"`
-- Il click non fa nulla -- utente clicca e niente succede
-- **Fix**: La sezione Garanzie (`GuaranteeSection.tsx`) non ha un id. Aggiungere `id="garanzie"` al tag `<section>` di GuaranteeSection
+Il problema dello swipe orizzontale e causato da elementi che fuoriescono dal viewport. Fix necessari:
 
-### BUG-2: `Math.random()` nel render causa re-render instabili
-- In `SolutionSection.tsx` (riga 94): `style={{ height: '${20 + Math.random() * 40}px' }}` viene ricalcolato ad ogni render
-- Causa layout shift e barre di altezza diversa ogni volta che il componente re-renderizza
-- **Fix**: Pre-calcolare le altezze come costante fuori dal componente con un seed deterministico
+### File: `src/pages/Home.tsx`
+- Aggiungere `overflow-x-hidden` al container principale `<div>` per bloccare qualsiasi overflow orizzontale a livello root
 
-### BUG-3: `getTimeLeft()` duplicata in 2 file
-- Stessa identica funzione in `StickyBottomBar.tsx` e `BonusGiftSection.tsx`
-- Non e un bug funzionale, ma viola DRY e crea rischio di desincronizzazione
-- **Fix**: Estrarre `getTimeLeft()` e la costante `MESI` in `src/lib/urgencyUtils.ts` e importare in entrambi i file
+### File: `src/components/landing/HeroSection.tsx`
+- Le icone flottanti con posizioni `right: "5%"` e `left: "3%"` possono fuoriuscire su schermi piccoli
+- Nascondere le icone flottanti su mobile (`hidden md:block`)
+- I gradient orbs (`w-96`, `w-80`) sono troppo grandi su mobile -- ridurli o nasconderli
 
-### BUG-4: StickyBottomBar copre il contenuto del Footer
-- La barra fissa in basso (z-50, ~80px di altezza) copre le ultime righe del footer e la sezione FinalCTA
-- **Fix**: Aggiungere un `pb-24` (padding-bottom) al container principale in `Home.tsx` per compensare l'altezza della barra
+### File: `src/components/landing/SolutionSection.tsx`
+- La griglia delle barre decorative (`grid-cols-6`) puo debordare su mobile
+- Aggiungere `overflow-hidden` al container del dashboard mockup
 
-### BUG-5: FinalCtaSection linka a `https://calendly.com` generico
-- Il CTA principale finale punta a `https://calendly.com` come placeholder -- non e un link funzionale
-- **Fix**: Nota al proprietario. Per ora, almeno aggiungere un attributo `aria-label` e mantenere il target blank. Non possiamo cambiare il comportamento desiderato
+### File: `src/components/landing/ComparisonSection.tsx`
+- La tabella a 3 colonne puo debordare -- rendere scrollabile orizzontalmente con `overflow-x-auto` wrapper
+- Su mobile, ridurre il padding delle celle
 
-## 2. Pulizia Codice
+### File: `src/components/landing/CostTableSection.tsx`
+- Stessa cosa: aggiungere wrapper `overflow-x-auto` attorno alla tabella
 
-### CLEAN-1: Import `Gift` non usato in `Home.tsx`
-- Riga 1: `import { Gift } from "lucide-react"` -- usato solo dentro `PromoBanner` che e definito nello stesso file
-- In realta `Gift` E usato in `PromoBanner` (riga 36), quindi questo import e corretto. Nessuna azione.
+## 2. Accorciare il Copy della StickyBottomBar
 
-### CLEAN-2: Estrazione `getTimeLeft` e `MESI` in utility condivisa
-- Creare `src/lib/urgencyUtils.ts` con:
-  - `getTimeLeft()` -- calcolo countdown fine mese
-  - `MESI` -- array mesi italiani
-  - `getEndOfMonth()` -- data fine mese corrente
-- Aggiornare `StickyBottomBar.tsx` e `BonusGiftSection.tsx` per importare da utility
+### File: `src/components/landing/StickyBottomBar.tsx`
+- **Su mobile**: mostrare un testo piu corto tipo "In regalo: Corso Vendita Edile -- +40% vendite (val. 497EUR)"
+- **Su desktop**: mostrare la versione completa ma comunque piu concisa: "In regalo: 4 lezioni sul Metodo Vendita Edile -- +40% vendite in Edilizia (valore 497EUR)"
+- Usare classi `hidden md:inline` / `md:hidden` per differenziare mobile e desktop
 
-### CLEAN-3: Nessun file/componente morto trovato nella landing
-- Tutti i componenti in `src/components/landing/` sono importati e usati in `Home.tsx`
-- Tutti gli import interni sono utilizzati
-- Nessuna variabile orfana trovata
+## 3. Miglioramenti Mobile per Sezione
 
-## 3. Miglioramenti UX
+### HeroSection
+- Nascondere icone flottanti su mobile (occupano spazio e causano overflow)
+- Ridurre padding top da `pt-28` a `pt-24` su mobile
+- Social proof: gia responsive con `flex-col sm:flex-row`
 
-### UX-1: Aggiungere `id="garanzie"` per navigazione fluida dal PromoBanner
-- Quando l'utente clicca il banner "SE NON TI FA GUADAGNARE..." deve scorrere alla sezione Garanzie
+### FounderLetterSection
+- Gia ben ottimizzata con collapsible. Nessun intervento necessario.
 
-### UX-2: Aggiungere padding-bottom per compensare la sticky bar
-- Evita che il contenuto in fondo alla pagina sia coperto dalla barra fissa
+### BonusGiftSection
+- Ridurre il padding della card su mobile (`p-5` gia presente)
+- Countdown gia responsive con label short/long
 
-### UX-3: Stabilizzare le barre decorative nella SolutionSection
-- Le altezze random causano "flicker" visivo ad ogni re-render
+### PainPointsSection
+- L'immagine AI e gia nascosta su mobile (`hidden md:block`). OK.
 
-## 4. Riepilogo Modifiche per File
+### CostTableSection
+- Aggiungere `overflow-x-auto` con `-webkit-overflow-scrolling: touch` per la tabella
+- La colonna "Descrizione" e gia nascosta su mobile (`hidden sm:table-cell`). OK.
 
-### File NUOVO: `src/lib/urgencyUtils.ts`
-- Esporta `getTimeLeft()`, `MESI`, `getEndOfMonth()`
+### SolutionSection
+- Le 3 card delle domande: passare da `md:grid-cols-3` a un layout piu compatto su mobile (gia single-col). OK.
+- Dashboard mockup: aggiungere `overflow-hidden` per evitare debordamento delle barre
 
-### File MODIFICATI:
-1. **`src/components/landing/GuaranteeSection.tsx`** -- Aggiungere `id="garanzie"` al `<section>`
-2. **`src/components/landing/SolutionSection.tsx`** -- Sostituire `Math.random()` con altezze pre-calcolate statiche
-3. **`src/components/landing/StickyBottomBar.tsx`** -- Importare `getTimeLeft` da urgencyUtils, rimuovere funzione locale
-4. **`src/components/landing/BonusGiftSection.tsx`** -- Importare `getTimeLeft` e `MESI` da urgencyUtils, rimuovere duplicati locali
-5. **`src/pages/Home.tsx`** -- Aggiungere `pb-24` al container principale per compensare la sticky bar
+### ModulesSection
+- Gia responsive con `sm:grid-cols-2 lg:grid-cols-3`. OK.
 
-## 5. Checklist Verifica Finale
+### ComparisonSection
+- Tabella: su mobile le celle sono troppo strette. Aggiungere `overflow-x-auto` e `min-w-[600px]` sulla tabella
+- Oppure: su mobile, trasformare in card layout anziche tabella (piu complesso, opzionale)
 
-- Smoke test: Landing caricamento completo, scroll fluido, tutti gli anchor link funzionanti (#moduli, #confronto, #prezzi, #cta-finale, #garanzie)
-- Countdown: timer aggiornato ogni secondo, coerente tra BonusGiftSection e StickyBottomBar
-- Responsive: barra sticky leggibile su mobile, layout colonna corretto
-- Performance: nessun Math.random() nel render, nessun re-render inutile
-- Console: nessun errore, nessun warning critico
+### ScenarioSection
+- Gia responsive con `md:grid-cols-2`. OK.
+- Ridurre padding su mobile per le card scenario
+
+### TargetSection
+- Gia responsive. OK.
+
+### CriteriaSection
+- Gia responsive. OK.
+
+### PricingSection
+- Le 3 card pricing: gia `grid-cols-1 lg:grid-cols-3`. OK.
+- La comparison list sopra e gia responsive.
+
+### TestimonialsSection
+- Gia responsive con `md:grid-cols-2`. OK.
+
+### GuaranteeSection
+- Le 3 card garanzia: gia `grid-cols-1 md:grid-cols-3`. OK.
+
+### FinalCtaSection
+- Ridurre la dimensione del font del CTA button su mobile (text-lg su mobile e troppo grande)
+- Il bottone con `px-12 py-5` e troppo largo su mobile: ridurre a `px-8 py-4` su mobile
+
+### LandingNavbar
+- `top-9` per compensare il PromoBanner: OK
+- Menu mobile gia implementato. OK.
+
+### StickyBottomBar
+- Su mobile la barra e troppo alta con countdown + testo + CTA in colonna
+- Ricompattare: countdown e testo sulla stessa riga, CTA sotto
+- Testo piu corto su mobile (vedi punto 2)
+
+## 4. Riepilogo File da Modificare
+
+1. **`src/pages/Home.tsx`** -- Aggiungere `overflow-x-hidden`
+2. **`src/components/landing/HeroSection.tsx`** -- Nascondere icone flottanti su mobile, ridurre gradient orbs
+3. **`src/components/landing/StickyBottomBar.tsx`** -- Copy piu corto mobile/desktop, layout piu compatto
+4. **`src/components/landing/SolutionSection.tsx`** -- `overflow-hidden` sul mockup
+5. **`src/components/landing/ComparisonSection.tsx`** -- `overflow-x-auto` sulla tabella
+6. **`src/components/landing/CostTableSection.tsx`** -- `overflow-x-auto` sulla tabella
+7. **`src/components/landing/FinalCtaSection.tsx`** -- CTA button sizing responsive
 
