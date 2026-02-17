@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ShieldCheck, Plus, Trash2, Loader2 } from "lucide-react";
+import { ShieldCheck, Plus, Trash2, KeyRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import CreateSuperAdminDialog from "./CreateSuperAdminDialog";
+import ResetPasswordDialog from "./ResetPasswordDialog";
 
 interface AdminUser {
   id: string;
@@ -26,6 +27,7 @@ export default function SuperAdminUsersTab() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
 
   const { data: admins = [], isLoading } = useQuery({
     queryKey: ["super-admins"],
@@ -76,6 +78,23 @@ export default function SuperAdminUsersTab() {
     onError: (e: Error) => { setDeleteTarget(null); toast.error(e.message); },
   });
 
+  const resetMutation = useMutation({
+    mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("manage-super-admins", {
+        body: { action: "reset-password", userId, newPassword },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.error) throw new Error(res.error.message);
+      if (res.data?.error) throw new Error(res.data.error);
+    },
+    onSuccess: () => {
+      setResetTarget(null);
+      toast.success("Password reimpostata con successo");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <div className="space-y-6">
       <Card>
@@ -98,7 +117,7 @@ export default function SuperAdminUsersTab() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Creato il</TableHead>
-                  <TableHead className="w-[80px]"></TableHead>
+                  <TableHead className="w-[120px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -110,11 +129,16 @@ export default function SuperAdminUsersTab() {
                     </TableCell>
                     <TableCell>{a.email}</TableCell>
                     <TableCell>{format(new Date(a.created_at), "dd MMM yyyy", { locale: it })}</TableCell>
-                    <TableCell>
+                    <TableCell className="flex gap-1">
                       {a.id !== user?.id && (
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(a)} className="text-destructive hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <>
+                          <Button variant="ghost" size="icon" onClick={() => setResetTarget(a)} title="Reset password">
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(a)} className="text-destructive hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
                       )}
                     </TableCell>
                   </TableRow>
@@ -126,6 +150,14 @@ export default function SuperAdminUsersTab() {
       </Card>
 
       <CreateSuperAdminDialog open={createOpen} onOpenChange={setCreateOpen} onSubmit={(d) => createMutation.mutate(d)} isPending={createMutation.isPending} />
+
+      <ResetPasswordDialog
+        open={!!resetTarget}
+        onOpenChange={(o) => !o && setResetTarget(null)}
+        onSubmit={(pw) => resetTarget && resetMutation.mutate({ userId: resetTarget.id, newPassword: pw })}
+        isPending={resetMutation.isPending}
+        userName={resetTarget ? `${resetTarget.first_name} ${resetTarget.last_name}` : ""}
+      />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>

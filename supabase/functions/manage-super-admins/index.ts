@@ -129,6 +129,33 @@ Deno.serve(async (req) => {
       });
     }
 
+    // === RESET PASSWORD ===
+    if (action === "reset-password") {
+      const { userId, newPassword } = body;
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "userId obbligatorio" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (userId === callerId) {
+        return new Response(JSON.stringify({ error: "Non puoi resettare la tua password da qui. Usa il tab Profilo." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!newPassword || newPassword.length < 8) {
+        return new Response(JSON.stringify({ error: "La password deve avere almeno 8 caratteri" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword });
+      if (updateError) throw new Error(updateError.message);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // === DELETE ===
     if (action === "delete") {
       const { userId } = body;
