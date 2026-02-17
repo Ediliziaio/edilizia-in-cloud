@@ -341,22 +341,6 @@ export function CompanyDetailsTab({
               )}
             </div>
 
-            <Separator className="my-5" />
-
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <p className="text-2xl font-bold">{stats?.ordersCount || 0}</p>
-                <p className="text-xs text-muted-foreground">Ordini</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats?.customersCount || 0}</p>
-                <p className="text-xs text-muted-foreground">Clienti</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{totalTeam}</p>
-                <p className="text-xs text-muted-foreground">Team</p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>

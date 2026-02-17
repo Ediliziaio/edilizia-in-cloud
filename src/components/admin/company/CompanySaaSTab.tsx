@@ -87,25 +87,6 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
         </Card>
       </div>
 
-      {/* Storage */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base flex items-center gap-2">
-            <HardDrive className="h-4 w-4 text-primary" />
-            Storage
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <Progress value={0} className="h-3" />
-            </div>
-            <span className="text-sm font-medium whitespace-nowrap">0 / {maxStorage} MB</span>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">Spazio disponibile per allegati e documenti</p>
-        </CardContent>
-      </Card>
-
       {/* Moduli */}
       <Card>
         <CardHeader>

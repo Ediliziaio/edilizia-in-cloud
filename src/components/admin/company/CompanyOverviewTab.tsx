@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ClipboardList, Users, MessageSquare, BarChart3, LogIn, TrendingUp, Heart, DollarSign, Calendar } from "lucide-react";
+import { ClipboardList, Users, MessageSquare, BarChart3, TrendingUp, Heart, DollarSign, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
@@ -26,8 +26,6 @@ interface CompanyOverviewTabProps {
   monthlyOrders: MonthlyOrderData[];
   daysSinceLastOrder: number | null;
   companyCreatedAt: string;
-  onImpersonate: () => void;
-  onImpersonateAndNavigate: (path: string) => void;
 }
 
 function getHealthColor(days: number | null): { color: string; label: string; bgClass: string } {
@@ -40,7 +38,7 @@ function getHealthColor(days: number | null): { color: string; label: string; bg
 export function CompanyOverviewTab({
   stats, totalTeam, recentOrders, recentTickets,
   currentPlan, currentSubscription, monthlyOrders, daysSinceLastOrder,
-  companyCreatedAt, onImpersonate, onImpersonateAndNavigate,
+  companyCreatedAt,
 }: CompanyOverviewTabProps) {
   const avgOrderValue = stats && stats.ordersCount > 0 ? stats.ordersValue / stats.ordersCount : 0;
   const mrr = currentPlan?.price_monthly || 0;
@@ -58,7 +56,7 @@ export function CompanyOverviewTab({
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Valore Ordini</CardTitle>
@@ -117,6 +115,40 @@ export function CompanyOverviewTab({
             <p className="text-xs text-muted-foreground mt-1">ultimo ordine creato</p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Prossimo Rinnovo</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
+              <Calendar className="h-4 w-4 text-violet-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {currentSubscription?.current_period_end
+                ? format(new Date(currentSubscription.current_period_end), "dd MMM", { locale: it })
+                : "—"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {currentSubscription?.current_period_end
+                ? format(new Date(currentSubscription.current_period_end), "yyyy", { locale: it })
+                : "Nessun abbonamento"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Lifetime Value</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+              <TrendingUp className="h-4 w-4 text-amber-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{mrr > 0 ? formatCurrency(ltv) : "N/A"}</div>
+            <p className="text-xs text-muted-foreground mt-1">{mrr > 0 ? `${monthsActive} mesi attivi` : "Nessun piano"}</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Orders Chart */}
@@ -157,46 +189,6 @@ export function CompanyOverviewTab({
           </CardContent>
         </Card>
       )}
-
-      {/* Revenue Card */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-primary" />
-            Revenue
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Piano attuale</p>
-              <p className="text-lg font-semibold">{currentPlan?.name || "—"}</p>
-              {currentPlan && (
-                <p className="text-xs text-muted-foreground">
-                  {formatCurrency(currentPlan.price_monthly)}/mese · {formatCurrency(currentPlan.price_yearly)}/anno
-                </p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">MRR</p>
-              <p className="text-lg font-semibold">{formatCurrency(mrr)}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Prossimo rinnovo</p>
-              <p className="text-lg font-semibold">
-                {currentSubscription?.current_period_end
-                  ? format(new Date(currentSubscription.current_period_end), "dd MMM yyyy", { locale: it })
-                  : "—"}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Lifetime Value</p>
-              <p className="text-lg font-semibold">{mrr > 0 ? formatCurrency(ltv) : "N/A"}</p>
-              <p className="text-xs text-muted-foreground">{mrr > 0 ? `${monthsActive} mesi attivi` : "Nessun piano attivo"}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Recent Orders & Tickets */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -284,27 +276,6 @@ export function CompanyOverviewTab({
           </CardContent>
         </Card>
       </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Azioni Rapide</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={onImpersonate}>
-            <LogIn className="h-4 w-4 mr-2" />
-            Accedi al pannello azienda
-          </Button>
-          <Button variant="outline" onClick={() => onImpersonateAndNavigate("/azienda/ordini")}>
-            <ClipboardList className="h-4 w-4 mr-2" />
-            Visualizza ordini ({stats?.ordersCount || 0})
-          </Button>
-          <Button variant="outline" onClick={() => onImpersonateAndNavigate("/azienda/assistenza")}>
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Gestisci ticket ({stats?.ticketsCount || 0})
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }
