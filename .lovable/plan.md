@@ -1,63 +1,62 @@
 
 
-# Fix Warning Console nella Tab Marginalita
+# Audit Tab Marginalita - Fix e Stabilizzazione
 
 ## Problema Rilevato
 
-La console mostra un warning: **"Function components cannot be given refs"** su `MarginTab`. Questo accade perche `TabsContent` di Radix passa un `ref` al suo figlio diretto, ma `MarginTab` e' un componente funzione senza `forwardRef`.
+### Bug: `useMemo` con side-effect (setState) in `MarginTab.tsx` (riga 54-59)
 
-Tutte le altre tab non hanno questo problema perche i loro componenti sono wrappati in `<div>` interni che assorbono il ref.
+```tsx
+useMemo(() => {
+  if (!isLoading && avgMarginPercent > 0 && simMarginTarget === 0) {
+    setSimMarginTarget(Math.round(avgMarginPercent));
+    setSimRevenueTarget(Math.round(currentMonthlyRevenue));
+  }
+}, [isLoading, avgMarginPercent, currentMonthlyRevenue]);
+```
 
-## Soluzione
+Questo e' un anti-pattern React: `useMemo` non deve contenere side-effect (`setState`). Puo causare:
+- Warning in React StrictMode
+- Comportamento imprevedibile nei re-render
+- Il simulatore che non si inizializza correttamente in alcuni casi
 
-Wrappare `<MarginTab />` in un `<div>` dentro `TabsContent` in `CashFlowForecast.tsx`, cosi il ref di Radix atterri su un elemento DOM nativo.
+**Soluzione**: Sostituire con `useEffect`, che e' il hook corretto per side-effect di inizializzazione. Aggiungere anche un `useRef` per evitare re-inizializzazioni indesiderate.
 
 ## Dettaglio Tecnico
 
-### File: `src/pages/azienda/CashFlowForecast.tsx`
+### File: `src/components/forecast/MarginTab.tsx`
 
-Cambiare riga 155-157 da:
-
-```tsx
-<TabsContent value="marginalita" className="mt-6">
-  <MarginTab />
-</TabsContent>
-```
-
-a:
+1. Aggiungere `useEffect, useRef` all'import React (riga 1)
+2. Sostituire il blocco `useMemo` (righe 54-59) con:
 
 ```tsx
-<TabsContent value="marginalita" className="mt-6">
-  <div>
-    <MarginTab />
-  </div>
-</TabsContent>
+const initializedRef = useRef(false);
+
+useEffect(() => {
+  if (!isLoading && avgMarginPercent > 0 && !initializedRef.current) {
+    initializedRef.current = true;
+    setSimMarginTarget(Math.round(avgMarginPercent));
+    setSimRevenueTarget(Math.round(currentMonthlyRevenue));
+  }
+}, [isLoading, avgMarginPercent, currentMonthlyRevenue]);
 ```
 
-## Verifica Funzionale Completa
+Questo garantisce:
+- Side-effect eseguito nel momento corretto (dopo il render)
+- Inizializzazione una sola volta grazie al `useRef`
+- Nessun warning React
 
-Ho verificato che tutti i requisiti della specifica sono implementati:
+## Riepilogo Audit Completo
 
-| Sezione | Stato | Note |
-|---------|-------|------|
-| 1 - Marginalita per Commessa | OK | Tabella con cliente, commessa, fatt. imp., costi var., margine EUR/%, stato con soglia personalizzabile |
-| 2 - Margine Lordo Medio | OK | 4 card KPI (media EUR, media %, min, max) + deviazione standard con interpretazione |
-| 3 - Costi Fissi | OK | Breakdown per categoria + stipendi + totale mensile |
-| 4 - Break Even | OK | Formula corretta, delta visivo con colori verde/rosso |
-| 5 - Alert Intelligenti | OK | 5 tipi di alert con suggerimento azione |
-| 6 - Simulatore Strategico | OK | 4 input + 3 output calcolati in tempo reale |
-
-### Logica Finanziaria Verificata
-- `total_amount` trattato come imponibile (coerente con il progetto)
-- Costi articoli e squadre scorporati IVA con `calculateNetFromGross`
-- Provvigioni calcolate su imponibile totale (coerente con `OrderEconomics`)
-- Break Even = Costi Fissi Mensili / (Margine Medio % / 100)
-- Soglia margine salvata in `localStorage` per azienda
-
-### UX Verificata
-- Numeri grandi (text-3xl) nelle card KPI
-- Colori: emerald per utile, red per perdita, amber per warning
-- Linguaggio imprenditoriale, nessun tecnicismo contabile
-- Loading skeleton durante caricamento
-- Stato vuoto gestito ("Nessuna commessa trovata")
+| Area | Stato | Note |
+|------|-------|------|
+| Import inutilizzati | OK | Nessuno trovato |
+| Logica finanziaria | OK | Formule coerenti con OrderEconomics |
+| Query Supabase | OK | Filtro company_id, staleTime, enabled corretto |
+| Gestione null/undefined | OK | Fallback su 0 e "N/D" presenti |
+| Stato vuoto | OK | Messaggio "Nessuna commessa trovata" |
+| Loading state | OK | Skeleton durante caricamento |
+| UX colori/numeri | OK | Verde/rosso/ambra, text-3xl leggibili |
+| Anti-pattern React | FIX | useMemo con setState da correggere |
+| Console warning | OK | Wrap div gia applicato nel commit precedente |
 
