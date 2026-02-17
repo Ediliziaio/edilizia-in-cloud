@@ -35,18 +35,10 @@ export function CustomerLayout() {
         <div className="h-full max-w-4xl mx-auto px-4 flex items-center justify-between">
           <Link to="/cliente" className="flex items-center gap-2">
             {company?.logo_url ? (
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={company.logo_url} alt={company.name} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {company?.name?.slice(0, 2).toUpperCase() || "EC"}
-                </AvatarFallback>
-              </Avatar>
+              <img src={company.logo_url} alt={company.name} className="h-8 max-h-8 object-contain" />
             ) : (
               <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
             )}
-            <span className="font-semibold text-foreground hidden sm:block">
-              {company?.name || "EdiliziaInCloud"}
-            </span>
           </Link>
           
           <DropdownMenu>
