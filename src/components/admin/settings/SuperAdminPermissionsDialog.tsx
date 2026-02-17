@@ -149,7 +149,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : (
-          <ScrollArea className="flex-1 -mx-6 px-6 max-h-[55vh]">
+          <ScrollArea className="flex-1 -mx-6 px-6 max-h-[60vh]">
             <div className="space-y-4 pb-6">
               <p className="text-sm font-medium text-muted-foreground">Azioni consentite</p>
               {permItems.map(({ key, icon: Icon, label, desc }) => (
@@ -183,7 +183,7 @@ export default function SuperAdminPermissionsDialog({ open, onOpenChange, adminI
               </div>
 
               {!allCompanies && (
-                <div className="rounded-lg border p-3 space-y-2 max-h-48 overflow-y-auto">
+                <div className="rounded-lg border p-3 space-y-2">
                   {companies.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-2">Nessuna azienda trovata</p>
                   ) : (
