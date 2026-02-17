@@ -1,41 +1,50 @@
 
-# Fix Logo nella Sidebar: rimuovere cerchio e nome azienda
+# Fix bug nella tab Stati delle Impostazioni
 
 ## Problema
-1. Il logo aziendale viene mostrato dentro un componente `Avatar` che applica `rounded-full`, tagliandolo in un cerchio -- non adatto per loghi rettangolari
-2. Accanto al logo viene mostrato il nome dell'azienda (es. "Domus Group S.r.l.") che l'utente vuole rimuovere
+Quando si esce dalla tab "Stati" e si rientra, gli stati ordine scompaiono e appare il messaggio "Sono richiesti almeno 2 stati ordine". Questo succede perche:
+
+1. Il componente `OrderStatusConfig` usa `useState([])` per gli stati
+2. La query ha `staleTime: 5 * 60 * 1000` (5 minuti di cache)
+3. Quando il componente si smonta e rimonta, lo `useState` riparte da `[]`
+4. Ma la query e' ancora "fresh" grazie alla cache, quindi il `queryFn` (che contiene il `setStatuses`) non viene rieseguito
+5. Risultato: `statuses = []`, nessuno stato visibile
 
 ## Soluzione
-Sostituire il componente `Avatar` con un semplice tag `img` con bordi arrotondati (non circolari) e rimuovere lo `span` con il nome dell'azienda. Applicare la modifica in tutti i layout dove appare.
+Modificare `OrderStatusConfig` per inizializzare lo stato locale dai dati della query quando disponibili, invece di partire sempre da un array vuoto.
 
 ## Dettaglio tecnico
 
-### File da modificare
+### File: `src/components/settings/OrderStatusConfig.tsx`
 
-**1. `src/components/layouts/CompanyLayout.tsx` (righe 129-143)**
+1. Salvare il risultato di `useQuery` in una variabile `data`
+2. Usare un `useEffect` che sincronizza `statuses` con `data` quando i dati della query cambiano (e solo se non ci sono modifiche locali non salvate)
+3. Oppure, approccio piu semplice: inizializzare `statuses` dal risultato della query usando `initialData` o controllando nel render
 
-Sostituire:
-- `Avatar` + `AvatarImage` con un semplice `<img>` con classe `h-8 max-h-8 object-contain` (senza rounded-full)
-- Rimuovere lo `<span>` con il nome dell'azienda
+Approccio scelto: aggiungere un `useEffect` che imposta `statuses` dai dati query quando `hasChanges` e' `false`:
 
-Prima:
+```typescript
+const { data: queryData, isLoading } = useQuery({
+  queryKey: ["order-statuses-config", company?.id],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("order_statuses")
+      .select("*")
+      .eq("company_id", company!.id)
+      .order("position");
+    if (error) throw error;
+    return data as OrderStatus[];
+  },
+  enabled: !!company?.id,
+  staleTime: 5 * 60 * 1000,
+});
+
+// Sincronizza stato locale con dati della query
+useEffect(() => {
+  if (queryData && !hasChanges) {
+    setStatuses(queryData);
+  }
+}, [queryData, hasChanges]);
 ```
-<Avatar className="h-8 w-8">
-  <AvatarImage src={...} />
-  ...
-</Avatar>
-<span>nome azienda</span>
-```
 
-Dopo:
-```
-<img src={logo_url} alt={name} className="h-8 max-h-8 object-contain" />
-```
-
-**2. `src/components/layouts/CustomerLayout.tsx` (righe 36-49)**
-
-Stessa modifica: sostituire `Avatar` con `img` e rimuovere lo `span` con il nome.
-
-### Risultato
-- Il logo viene mostrato nella sua forma originale (rettangolare, quadrato, ecc.) senza essere ritagliato in un cerchio
-- Il nome dell'azienda non appare piu accanto al logo nella sidebar/header
+Questo rimuove il `setStatuses` dal `queryFn` e lo sposta in un `useEffect` che si attiva ogni volta che `queryData` cambia (incluso quando viene restituito dalla cache al remount).
