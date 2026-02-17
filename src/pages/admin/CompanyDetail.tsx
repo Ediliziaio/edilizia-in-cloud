@@ -72,7 +72,7 @@ export default function CompanyDetail() {
   }
 
   const includedModules: string[] = h.currentPlan
-    ? (Array.isArray((h.currentPlan as any).included_modules) ? (h.currentPlan as any).included_modules : ALL_MODULES.map((m) => m.key))
+    ? (Array.isArray(h.currentPlan.included_modules) ? (h.currentPlan.included_modules as string[]) : ALL_MODULES.map((m) => m.key))
     : [];
 
   const totalTeam = (h.teamData?.admins.length || 0) + (h.teamData?.staff.length || 0) + (h.teamData?.salespeople.length || 0) + (h.teamData?.employees.length || 0);

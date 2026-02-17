@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Gift, Plus } from "lucide-react";
+import { Gift, Plus, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { ReferralStatCards } from "@/components/admin/referral/ReferralStatCards";
 import { ReferralTable } from "@/components/admin/referral/ReferralTable";
@@ -63,7 +64,7 @@ export default function ReferralDashboard() {
   const [detailReferrer, setDetailReferrer] = useState<Referrer | null>(null);
   const [payoutReferrer, setPayoutReferrer] = useState<Referrer | null>(null);
 
-  const { data: referrers = [], isLoading } = useQuery({
+  const { data: referrers = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["referrers"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -161,6 +162,32 @@ export default function ReferralDashboard() {
 
   const getCompanyCount = (referrerId: string) =>
     referralCompanies.filter((rc) => rc.referrer_id === referrerId).length;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">Programma Referral</h1>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>Errore nel caricamento dei referrer.</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
