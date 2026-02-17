@@ -8,17 +8,19 @@ import {
   LayoutDashboard, 
   Building, 
   LogOut,
-  LogIn,
   MessageSquare,
   Settings,
   CreditCard,
   Gift,
   Search,
-  X
+  ChevronsUpDown
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
   SidebarContent,
@@ -46,12 +48,23 @@ const accountItems = [
   { title: "Impostazioni", url: "/admin/impostazioni", icon: Settings },
 ];
 
+const AVATAR_COLORS = [
+  "bg-rose-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500",
+  "bg-violet-500", "bg-cyan-500", "bg-pink-500", "bg-teal-500",
+];
+
+function getAvatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
 function AdminSidebar() {
   const { signOut, impersonateCompany } = useAuth();
   const { permissions } = useSuperAdminPermissions();
   const navigate = useNavigate();
   const [companySearch, setCompanySearch] = useState("");
-  const [showCompanyPicker, setShowCompanyPicker] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
   const filteredNavItems = allNavItems.filter(
     (item) => permissions[item.permission]
@@ -81,21 +94,85 @@ function AdminSidebar() {
       }
       return true;
     })
-    .slice(0, 10);
+    .slice(0, 20);
 
   const handleImpersonate = async (companyId: string) => {
-    await impersonateCompany(companyId);
-    setShowCompanyPicker(false);
+    setPopoverOpen(false);
     setCompanySearch("");
+    await impersonateCompany(companyId);
     navigate("/azienda");
   };
   
   return (
     <Sidebar className="border-r">
-      <div className="flex h-14 items-center border-b px-4">
-        <Link to="/admin" className="flex items-center">
-          <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
-        </Link>
+      <div className="flex flex-col border-b">
+        <div className="flex h-14 items-center px-4">
+          <Link to="/admin" className="flex items-center">
+            <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
+          </Link>
+        </div>
+        {permissions.can_manage_companies && (
+          <div className="px-3 pb-3">
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-between text-muted-foreground font-normal h-9"
+                >
+                  <span className="truncate text-sm">Accedi come azienda...</span>
+                  <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-0" align="start" sideOffset={8}>
+                <div className="p-3">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Cerca un'azienda..."
+                      value={companySearch}
+                      onChange={(e) => setCompanySearch(e.target.value)}
+                      className="pl-9 h-9 text-sm"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <Separator />
+                <div className="px-3 py-2">
+                  <p className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                    Tutte le aziende
+                  </p>
+                </div>
+                <ScrollArea className="max-h-[300px]">
+                  <div className="px-1 pb-2">
+                    {visibleCompanies.map((company) => (
+                      <button
+                        key={company.id}
+                        onClick={() => handleImpersonate(company.id)}
+                        className="w-full flex items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted transition-colors"
+                      >
+                        <Avatar className="h-8 w-8 shrink-0">
+                          {company.logo_url ? (
+                            <AvatarImage src={company.logo_url} alt={company.name} />
+                          ) : null}
+                          <AvatarFallback className={`${getAvatarColor(company.name)} text-white text-xs font-semibold`}>
+                            {company.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium truncate">{company.name}</span>
+                      </button>
+                    ))}
+                    {visibleCompanies.length === 0 && (
+                      <p className="text-xs text-muted-foreground px-2 py-4 text-center">
+                        Nessuna azienda trovata
+                      </p>
+                    )}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
       </div>
       <SidebarContent className="flex flex-col">
         <SidebarGroup>
@@ -142,68 +219,6 @@ function AdminSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {/* Quick Impersonation */}
-        {permissions.can_manage_companies && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Accesso Rapido</SidebarGroupLabel>
-            <SidebarGroupContent className="px-2">
-              {!showCompanyPicker ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start gap-2 text-muted-foreground"
-                  onClick={() => setShowCompanyPicker(true)}
-                >
-                  <LogIn className="h-4 w-4" />
-                  Accedi come azienda
-                </Button>
-              ) : (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Cerca azienda..."
-                      value={companySearch}
-                      onChange={(e) => setCompanySearch(e.target.value)}
-                      className="pl-8 pr-8 h-8 text-sm"
-                      autoFocus
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-8 w-8"
-                      onClick={() => { setShowCompanyPicker(false); setCompanySearch(""); }}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                  <ScrollArea className="max-h-[200px]">
-                    <div className="space-y-0.5">
-                      {visibleCompanies.map((company) => (
-                        <button
-                          key={company.id}
-                          onClick={() => handleImpersonate(company.id)}
-                          className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-muted transition-colors"
-                        >
-                          {company.logo_url ? (
-                            <img src={company.logo_url} alt="" className="h-5 w-5 rounded object-cover" />
-                          ) : (
-                            <Building className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          <span className="truncate">{company.name}</span>
-                        </button>
-                      ))}
-                      {visibleCompanies.length === 0 && (
-                        <p className="text-xs text-muted-foreground px-2 py-2">Nessuna azienda trovata</p>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
         
         <div className="mt-auto p-4">
           <Button 
