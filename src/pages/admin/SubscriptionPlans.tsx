@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro } from "lucide-react";
+import { Plus, Edit, Loader2, Package, Users, HardDrive, ClipboardList, Euro, RefreshCw, AlertCircle, Building2, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
 
@@ -58,7 +59,7 @@ export default function SubscriptionPlans() {
   const [form, setForm] = useState<PlanForm>(emptyForm);
   const [featuresText, setFeaturesText] = useState("");
 
-  const { data: plans, isLoading } = useQuery({
+  const { data: plans, isLoading, isError, refetch } = useQuery({
     queryKey: ["subscription-plans"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -69,6 +70,33 @@ export default function SubscriptionPlans() {
       return data;
     },
   });
+
+  const { data: companyCounts } = useQuery({
+    queryKey: ["admin-plan-usage"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("subscription_plan_id");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      data?.forEach((c) => {
+        if (c.subscription_plan_id) {
+          counts[c.subscription_plan_id] = (counts[c.subscription_plan_id] || 0) + 1;
+        }
+      });
+      return counts;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const stats = useMemo(() => {
+    if (!plans) return { activePlans: 0, subscribedCompanies: 0, estimatedMrr: 0 };
+    const activePlans = plans.filter((p) => p.is_active).length;
+    const counts = companyCounts || {};
+    const subscribedCompanies = Object.values(counts).reduce((s, n) => s + n, 0);
+    const estimatedMrr = plans.reduce((sum, p) => sum + p.price_monthly * (counts[p.id] || 0), 0);
+    return { activePlans, subscribedCompanies, estimatedMrr };
+  }, [plans, companyCounts]);
 
   const saveMutation = useMutation({
     mutationFn: async (plan: PlanForm & { id?: string }) => {
@@ -169,6 +197,24 @@ export default function SubscriptionPlans() {
     );
   }
 
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-foreground">Piani Tariffari</h1>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>Errore nel caricamento dei piani tariffari.</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -180,6 +226,37 @@ export default function SubscriptionPlans() {
           <Plus className="h-4 w-4 mr-2" />
           Nuovo Piano
         </Button>
+      </div>
+
+      {/* Stat Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Piani Attivi</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.activePlans}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Aziende Abbonate</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.subscribedCompanies}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">MRR Stimato</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(stats.estimatedMrr)}</div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -195,6 +272,12 @@ export default function SubscriptionPlans() {
                   </Badge>
                 </div>
                 <CardDescription>{plan.description || plan.slug}</CardDescription>
+                {(companyCounts?.[plan.id] ?? 0) > 0 && (
+                  <Badge variant="secondary" className="mt-1 w-fit gap-1">
+                    <Building2 className="h-3 w-3" />
+                    {companyCounts![plan.id]} aziende
+                  </Badge>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Prices */}
