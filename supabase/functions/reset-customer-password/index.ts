@@ -74,7 +74,34 @@ Deno.serve(async (req) => {
       throw new Error("Permission denied: Only admins can reset passwords");
     }
 
-    const { customer_id } = await req.json();
+    const { customer_id, new_password } = await req.json();
+
+    if (!isServiceAuth) {
+      // Standard auth flow
+      if (!authHeader) {
+        throw new Error("Missing authorization header");
+      }
+
+      const token = authHeader.replace("Bearer ", "");
+      const {
+        data: { user: caller },
+        error: authError,
+      } = await supabaseAdmin.auth.getUser(token);
+
+      if (authError || !caller) {
+        throw new Error("Unauthorized");
+      }
+
+      const { data: callerRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", caller.id)
+        .single();
+
+      if (!callerRole || (callerRole.role !== "super_admin" && callerRole.role !== "company_admin")) {
+        throw new Error("Permission denied: Only admins can reset passwords");
+      }
+    }
 
     if (!customer_id) {
       throw new Error("Missing customer_id");
@@ -116,12 +143,12 @@ Deno.serve(async (req) => {
     }
 
     // Generate new password
-    const newPassword = generateSecurePassword();
+    const finalPassword = new_password || generateSecurePassword();
 
     // Update password
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
       customer_id,
-      { password: newPassword }
+      { password: finalPassword }
     );
 
     if (updateError) {
@@ -132,7 +159,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         message: "Password reset successfully",
-        newPassword,
+        newPassword: finalPassword,
         customer: {
           id: customerProfile.id,
           email: customerProfile.email,
