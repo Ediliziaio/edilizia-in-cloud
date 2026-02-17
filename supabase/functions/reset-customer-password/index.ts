@@ -76,33 +76,6 @@ Deno.serve(async (req) => {
 
     const { customer_id, new_password } = await req.json();
 
-    if (!isServiceAuth) {
-      // Standard auth flow
-      if (!authHeader) {
-        throw new Error("Missing authorization header");
-      }
-
-      const token = authHeader.replace("Bearer ", "");
-      const {
-        data: { user: caller },
-        error: authError,
-      } = await supabaseAdmin.auth.getUser(token);
-
-      if (authError || !caller) {
-        throw new Error("Unauthorized");
-      }
-
-      const { data: callerRole } = await supabaseAdmin
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", caller.id)
-        .single();
-
-      if (!callerRole || (callerRole.role !== "super_admin" && callerRole.role !== "company_admin")) {
-        throw new Error("Permission denied: Only admins can reset passwords");
-      }
-    }
-
     if (!customer_id) {
       throw new Error("Missing customer_id");
     }
