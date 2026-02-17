@@ -1,25 +1,42 @@
 
-# Fix: Scroll nel dialog permessi Super Admin
+# Funzionalita': "Accedi come utente" nel pannello Super Admin
 
-## Problema
-Lo `ScrollArea` di Radix non sta abilitando lo scroll correttamente. Dalla screenshot si vede che il contenuto si ferma a "Statistiche Piattaforma" e la sezione "Aziende visibili" non e' raggiungibile. Il componente Radix `ScrollArea` richiede una altezza fissa esplicita per funzionare, e la combinazione `flex-1` + `max-h` dentro un dialog non gli fornisce il vincolo necessario.
+## Cosa viene aggiunto
+Un pulsante in alto a destra nell'header admin che apre un popover con la lista di tutti gli utenti del sistema (super admin, admin azienda, staff, clienti, dipendenti, venditori). Cliccando su un utente, il sistema effettua il login come quell'utente per poter vedere esattamente cosa vede lui.
 
-## Soluzione
-Sostituire il componente `ScrollArea` con un semplice `div` con `overflow-y-auto`, che funziona in modo piu affidabile in questo contesto.
+## Come funziona
 
-### Modifica in `SuperAdminPermissionsDialog.tsx`
+1. **Nuovo pulsante nell'header** (in alto a destra nella barra dell'AdminLayout)
+   - Icona utente con popover
+   - Campo di ricerca per nome/email
+   - Lista utenti raggruppati per ruolo con avatar, nome, email e badge del ruolo
+   - Scroll per liste lunghe
 
-Riga 152, cambiare da:
-```
-<ScrollArea className="flex-1 -mx-6 px-6 max-h-[60vh]">
-```
-a:
-```
-<div className="flex-1 -mx-6 px-6 overflow-y-auto" style={{ maxHeight: "60vh" }}>
-```
+2. **Edge Function `sign-in-as-user`**
+   - Riceve l'email dell'utente target
+   - Verifica che il chiamante sia un super_admin
+   - Usa l'API admin di autenticazione per generare un magic link
+   - Restituisce i dati di accesso necessari al client
 
-E il tag di chiusura corrispondente (riga ~203) da `</ScrollArea>` a `</div>`.
+3. **Flusso client**
+   - Il super admin clicca su un utente nella lista
+   - Il client chiama l'edge function
+   - Riceve il token e lo usa per autenticarsi come quell'utente
+   - Viene reindirizzato alla dashboard appropriata per il ruolo dell'utente
 
-Rimuovere anche l'import di `ScrollArea` se non piu utilizzato.
+## Dettagli tecnici
 
-Questo approccio garantisce che lo scroll nativo del browser funzioni correttamente per raggiungere la sezione "Aziende visibili" e la lista delle aziende selezionabili.
+### File modificati
+- **`src/components/layouts/AdminLayout.tsx`**: Aggiunta del componente `QuickLoginPopover` nell'header, a destra, con popover contenente ricerca e lista utenti
+
+### Nuovi file
+- **`supabase/functions/sign-in-as-user/index.ts`**: Edge function che:
+  - Verifica che il chiamante abbia ruolo `super_admin` tramite query su `user_roles`
+  - Usa `supabase.auth.admin.generateLink({ type: 'magiclink', email })` per ottenere i dati di verifica
+  - Restituisce i parametri necessari per il login lato client
+
+### Logica del componente
+- Query su `profiles` + `user_roles` per ottenere tutti gli utenti con ruolo
+- Filtro per nome/email con campo di ricerca
+- Raggruppamento visivo per ruolo (Super Admin, Admin Azienda, Staff, Clienti, Dipendenti, Venditori)
+- Al click: chiamata all'edge function, poi `supabase.auth.verifyOtp()` con i dati ricevuti, infine redirect basato sul ruolo
