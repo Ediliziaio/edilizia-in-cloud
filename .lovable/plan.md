@@ -1,81 +1,55 @@
 
-
-# Registro Attivita per le Impostazioni Azienda
+# Miglioramento UX della pagina Login
 
 ## Panoramica
-Aggiungere un tab "Registro Attivita" nelle impostazioni azienda che mostra tutte le attivita svolte dagli utenti dell'azienda (ordini creati/modificati/eliminati, clienti aggiunti, cambio stati, ecc.), con filtri per tipo di azione e paginazione.
+Riprogettare completamente la pagina di login eliminando il sistema a due card + dialog e creando un'esperienza piu diretta e moderna. Aggiungere accesso con Google e recupero password.
 
-## Cosa vedrai
-- Un nuovo tab "Attivita" nelle impostazioni azienda (visibile solo agli admin)
-- Una tabella con: data/ora, utente che ha svolto l'azione, tipo di azione, dettagli
-- Filtro per tipo di azione
-- Paginazione (20 elementi per pagina)
-- Pulsante di refresh
+## Cosa cambiera
+
+### Design attuale vs nuovo
+- **Attuale**: Due card grandi (Cliente/Azienda) che aprono un dialog con il form di login - troppi passaggi, UX frammentata
+- **Nuovo**: Una singola pagina pulita con il form di login direttamente visibile, senza dialog. Layout split-screen su desktop (branding a sinistra, form a destra), form centrato su mobile
+
+### Funzionalita
+1. **Form di login diretto** - Email + password visibili subito, niente piu selezione Cliente/Azienda (il sistema rileva il ruolo automaticamente dopo il login)
+2. **Accesso con Google** - Pulsante "Accedi con Google" tramite Lovable Cloud OAuth
+3. **Recupero password** - Link "Password dimenticata?" che mostra un form per inserire l'email e ricevere il link di reset
+4. **Pagina di reset password** - Nuova pagina `/reset-password` dove l'utente imposta la nuova password dopo aver cliccato il link nell'email
 
 ## Dettaglio Tecnico
 
-### 1. Nuova tabella database: `company_activity_log`
+### 1. Riscrittura `LoginForm.tsx`
+- Rimuovere il sistema card Cliente/Azienda e il Dialog
+- Layout split-screen: colonna sinistra con branding (logo, titolo, descrizione), colonna destra con il form
+- Form con campi email/password, pulsante "Accedi"
+- Pulsante Google OAuth sotto il form con separatore "oppure"
+- Link "Password dimenticata?" sotto il pulsante di login
+- Stato `forgotPassword` per mostrare il form di recupero (solo campo email + pulsante "Invia link di reset")
+- Su mobile: layout a colonna singola con logo sopra e form sotto
 
-Colonne:
-- `id` (uuid, PK)
-- `company_id` (uuid, FK verso companies, NOT NULL)
-- `user_id` (uuid, NOT NULL) - chi ha eseguito l'azione
-- `action` (text, NOT NULL) - tipo di azione (es. `create_order`, `update_order`, `delete_order`, `create_customer`, `update_status`, `create_employee`, `update_settings`, ecc.)
-- `target_type` (text) - tipo entita coinvolta (order, customer, employee, supplier, ecc.)
-- `target_id` (text) - ID dell'entita coinvolta
-- `details` (jsonb) - dettagli aggiuntivi (nome ordine, vecchio/nuovo stato, ecc.)
-- `created_at` (timestamptz, default now())
+### 2. Integrazione Google OAuth
+- Configurare il social login con il tool dedicato (Configure Social Login)
+- Importare `lovable` da `@/integrations/lovable/index`
+- Chiamare `lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin })` al click
+- Il sistema di autenticazione esistente gestira il redirect post-login in base al ruolo
 
-RLS Policies:
-- Company admin e super admin possono leggere i log della propria azienda
-- Solo inserimento tramite trigger/codice (nessun UPDATE/DELETE per gli utenti)
+### 3. Funzionalita "Password dimenticata"
+- Nel `LoginForm.tsx`: toggle tra form login e form recupero password
+- Form recupero: campo email + pulsante che chiama `supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/reset-password' })`
+- Messaggio di conferma dopo l'invio
 
-### 2. Trigger database per registrazione automatica
+### 4. Nuova pagina `/reset-password`
+- File: `src/pages/auth/ResetPassword.tsx`
+- Controlla il parametro `type=recovery` nell'URL hash
+- Mostra form con nuova password + conferma password
+- Chiama `supabase.auth.updateUser({ password })` per aggiornare
+- Redirect al login dopo il successo
 
-Creare trigger sulle tabelle principali per registrare automaticamente le attivita:
-- `orders` (INSERT, UPDATE, DELETE)
-- `order_status_history` (INSERT) - cambio stato ordine
-- `order_items` (INSERT, DELETE)
-- `suppliers` (INSERT, UPDATE, DELETE)
-- `employees` (INSERT, UPDATE)
-- `profiles` (INSERT, UPDATE) - per i clienti
+### 5. Aggiornamento `App.tsx`
+- Aggiungere la route `/reset-password` come route pubblica
+- Importare il nuovo componente `ResetPassword`
 
-### 3. Nuovo componente: `CompanyActivityLogTab`
-
-File: `src/components/settings/CompanyActivityLogTab.tsx`
-
-Componente simile all'`AuditLogTab` admin ma adattato per l'azienda:
-- Query sulla tabella `company_activity_log` filtrata per `company_id`
-- Labels italiane per ogni tipo di azione
-- Badge colorati per tipo di azione
-- Paginazione e filtro per azione
-- Risoluzione nomi utente tramite la tabella `profiles`
-
-Azioni tracciate con label:
-- `create_order` -> "Ordine Creato"
-- `update_order` -> "Ordine Modificato"
-- `delete_order` -> "Ordine Eliminato"
-- `update_order_status` -> "Cambio Stato Ordine"
-- `create_customer` -> "Cliente Creato"
-- `update_customer` -> "Cliente Modificato"
-- `create_supplier` -> "Fornitore Creato"
-- `update_supplier` -> "Fornitore Modificato"
-- `delete_supplier` -> "Fornitore Eliminato"
-- `create_employee` -> "Dipendente Creato"
-- `update_employee` -> "Dipendente Modificato"
-- `update_settings` -> "Impostazioni Modificate"
-
-### 4. Modifica `Settings.tsx`
-
-- Importare il nuovo componente `CompanyActivityLogTab`
-- Aggiungere l'icona `ScrollText` agli import
-- Aggiungere un nuovo `TabsTrigger` "Attivita" (visibile solo agli admin, dopo "Sicurezza")
-- Aggiungere il `TabsContent` corrispondente
-- Aggiornare il conteggio colonne della griglia (da 8 a 9 per admin)
-
-### Sequenza di implementazione
-1. Creare la tabella `company_activity_log` con RLS
-2. Creare la funzione database `log_company_activity()` e i trigger
-3. Creare il componente `CompanyActivityLogTab`
-4. Aggiornare `Settings.tsx` con il nuovo tab
-
+### File coinvolti
+- `src/components/auth/LoginForm.tsx` - Riscrittura completa
+- `src/pages/auth/ResetPassword.tsx` - Nuovo file
+- `src/App.tsx` - Aggiunta route `/reset-password`
