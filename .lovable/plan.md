@@ -1,62 +1,112 @@
 
 
-# Audit e Miglioramento Sezione Aziende (`/admin/aziende`)
+# Audit Dettaglio Azienda - Company Hub Super Admin
 
-## Problemi Trovati
+## Analisi completa dei 5 tab + hook
 
-### 1. BUG: Nessuna gestione errore
-Come la dashboard, manca `isError`. Se la query fallisce, l'utente vede solo il loader infinito o una lista vuota senza feedback.
+---
 
-### 2. BUG: Query ordini scarica TUTTI i record
-`supabase.from("orders").select("company_id")` scarica ogni singolo ordine solo per contare. Con migliaia di ordini diventa pesante. Soluzione: usare `select("company_id", { count: "exact" })` non funziona per raggruppamenti, ma possiamo almeno aggiungere `.select("company_id")` con un commento di ottimizzazione futura (RPC). Per ora il trade-off e accettabile, ma aggiungiamo un `.limit(50000)` come guardia.
+## PROBLEMI TROVATI
 
-### 3. MANCANZA: Scadenza trial non visibile
-Il campo `trial_ends_at` esiste nel DB ma non viene mostrato. Il Super Admin non sa quali trial stanno per scadere senza aprire il dettaglio di ogni azienda.
+### 1. BUG CRITICO: Nessuna gestione errore (useCompanyDetail + CompanyDetail)
+Il hook non espone `isError` ne `refetch`. Se una query fallisce, la pagina resta su loader infinito o mostra dati parziali senza feedback. Stesso bug gia corretto in Dashboard e CompaniesList.
 
-### 4. UX: Riga espansa duplica dati
-La riga espandibile mostra gli stessi dati gia visibili nella tabella (ordini, MRR, stato, data). Non aggiunge valore. Meglio mostrare dati utili che NON sono nella tabella: P.IVA, telefono, scadenza trial, indirizzo.
+### 2. CODICE MORTO: Card "Azioni Rapide" in Panoramica (righe 288-307)
+Il pulsante "Accedi al pannello azienda" duplica il bottone gia presente nell'header della pagina. "Visualizza ordini" e "Gestisci ticket" sono link navigabili tramite impersonificazione, ma il Super Admin puo gia usare il bottone header. Occupa spazio senza aggiungere valore.
 
-### 5. MANCANZA: Contatore totale aziende
-Non c'e un contatore visibile con il totale e il totale filtrato (es. "12 di 45 aziende").
+### 3. DATI DUPLICATI: Card "Revenue" in Panoramica (righe 161-199)
+La card mostra:
+- "Piano attuale" -- gia visibile nella KPI card "Entrate Mensili"
+- "MRR" -- identico alla KPI card "Entrate Mensili"
+- "Prossimo rinnovo" e "LTV" sono utili ma possono essere integrati nelle KPI cards esistenti
 
-## Piano di Intervento
+### 4. DATI FALSI: Storage in SaaS tab
+La barra mostra sempre "0 / X MB" hardcoded. Non c'e calcolo reale dello storage. E' fuorviante per il Super Admin -- meglio rimuoverla finche non c'e un calcolo effettivo.
 
-### File: `src/pages/admin/CompaniesList.tsx`
+### 5. PATTERN INCONSISTENTE: handleCreateSalesperson/handleCreateEmployee usano `.then()` 
+Le righe 392-420 nel hook usano `.then()` callback invece di `useMutation`, creando inconsistenza con tutte le altre operazioni (updateStatus, changePlan, extendTrial). Questo rende piu difficile gestire loading state e errori.
+
+### 6. CAST `as any`: updatePaymentMethodMutation (riga 496)
+`supabase.from("companies").update(data as any)` -- il cast nasconde potenziali errori di tipo. Il tipo `data` e gia correttamente definito e puo essere passato direttamente.
+
+### 7. DATI DUPLICATI: Sidebar in Dettagli tab
+La sidebar destra (righe 293-361 di CompanyDetailsTab) mostra conteggi ordini/clienti/team e info azienda gia visibili nella Panoramica. E' ridondante per il Super Admin che puo semplicemente tornare al tab Panoramica.
+
+### 8. DATI DUPLICATI: "Dati Fatturazione" in Abbonamento tab
+La card (righe 140-190 di CompanySubscriptionTab) mostra P.IVA, PEC, SDI, sede legale in sola lettura -- tutti dati editabili nel tab Dettagli. Il Super Admin deve andare comunque in Dettagli per modificarli. Duplicazione inutile.
+
+---
+
+## PIANO DI INTERVENTO
+
+### File: `src/hooks/useCompanyDetail.ts`
 
 **Gestione errore:**
-- Aggiungere `isError` e `refetch` dalla query companies
-- Mostrare Alert con tasto "Riprova" in caso di errore (stesso pattern della dashboard)
+- Esporre `isError` e `refetch` dalla query principale `company-detail`
+- Aggiungere al return: `isError`, `refetch`
 
-**Contatore risultati:**
-- Aggiungere sotto i filtri un testo tipo "Visualizzando X di Y aziende" quando ci sono filtri attivi
+**Conversione a useMutation:**
+- Convertire `handleCreateSalesperson` da `.then()` a `useMutation` 
+- Convertire `handleCreateEmployee` da `.then()` a `useMutation`
+- Rimuovere stati manuali `savingSalesperson` e `savingEmployee` (sostituiti da `mutation.isPending`)
 
-**Colonna Trial:**
-- Sostituire la colonna "Creata il" con "Trial / Scadenza" che mostra:
-  - Per aziende in trial: giorni rimanenti con colore (verde > 7gg, giallo 3-7gg, rosso < 3gg)
-  - Per aziende attive: data di creazione come fallback
+**Rimozione cast:**
+- Rimuovere `as any` su riga 496, tipizzare correttamente l'update
 
-**Riga espansa migliorata:**
-- Sostituire i dati duplicati con informazioni utili non presenti in tabella:
-  - P.IVA (`vat_number`)
-  - Telefono (`phone`)
-  - Scadenza trial (`trial_ends_at`) con data precisa
-  - Ragione sociale (`business_name`)
-  - PEC (`pec`)
-  - Note (`notes`) se presenti
+### File: `src/pages/admin/CompanyDetail.tsx`
 
-**Guardia query ordini:**
-- Aggiungere `.limit(50000)` alla query ordini come protezione
+**Gestione errore:**
+- Aggiungere stato `isError` con Alert e tasto "Riprova" (stesso pattern di Dashboard e CompaniesList)
+- Importare `Alert`, `AlertTitle`, `AlertDescription` e `RefreshCw`
 
-### Riepilogo modifiche
+### File: `src/components/admin/company/CompanyOverviewTab.tsx`
+
+**Rimozione duplicati:**
+- Eliminare card "Revenue" (righe 161-199) -- MRR e Piano gia nelle KPI cards
+- Spostare "Prossimo rinnovo" e "LTV" come 5a e 6a KPI card (griglia da 4 a 6 colonne su lg, 3 su md)
+- Eliminare card "Azioni Rapide" (righe 288-307) -- duplica header
+
+### File: `src/components/admin/company/CompanySaaSTab.tsx`
+
+**Rimozione dati falsi:**
+- Eliminare card "Storage" (righe 86-104) -- mostra sempre 0, dato finto
+
+### File: `src/components/admin/company/CompanyDetailsTab.tsx`
+
+**Snellimento sidebar:**
+- Rimuovere i contatori ordini/clienti/team dalla sidebar (righe 346-359) -- duplicano Panoramica
+- Mantenere solo: logo, nome, stato, settore, date, P.IVA (info contestuale utile durante l'editing)
+
+### File: `src/components/admin/company/CompanySubscriptionTab.tsx`
+
+**Rimozione duplicato:**
+- Eliminare card "Dati Fatturazione" (righe 140-190) -- dati gia in tab Dettagli
+- Cambiare layout da `lg:grid-cols-2` a layout singolo per lo Storico, o riorganizzare in modo che Stato + Pagamento occupino la riga superiore e Storico la riga inferiore (gia presente)
+
+---
+
+## Riepilogo modifiche
 
 | File | Azione |
 |------|--------|
-| `CompaniesList.tsx` | Error handling, trial info, expanded row migliorata, contatore |
+| `useCompanyDetail.ts` | + isError/refetch, useMutation per salesperson/employee, rimozione `as any` |
+| `CompanyDetail.tsx` | + stato errore con Alert e Riprova |
+| `CompanyOverviewTab.tsx` | Rimozione Revenue card e Azioni Rapide, LTV/Rinnovo nelle KPI |
+| `CompanySaaSTab.tsx` | Rimozione card Storage finta |
+| `CompanyDetailsTab.tsx` | Snellimento sidebar (rimozione contatori duplicati) |
+| `CompanySubscriptionTab.tsx` | Rimozione card Dati Fatturazione duplicata |
 
-### Cosa rimane invariato (gia OK)
-- Filtri (ricerca, stato, settore, piano) -- ben implementati
-- Export CSV -- funzionale
-- Impersonificazione -- corretta
-- Join con `subscription_plans` -- efficiente
-- `staleTime: 5 min` -- appropriato
+## Cosa rimane invariato (gia OK)
+
+- Header con logo, stato e impersonificazione -- ben fatto
+- KPI cards Panoramica (Valore Ordini, Valore Medio, Entrate, Salute) -- ottime
+- Grafico ordini ultimi 6 mesi -- ben implementato con Recharts
+- Tabelle Ultimi Ordini / Ultimi Ticket -- corrette
+- Tab Dettagli: form completo con sedi legale/operativa e sincronizzazione -- solido
+- Tab Team: 4 sezioni (Admin, Staff, Venditori, Dipendenti) con permessi e creazione account -- completo
+- Tab SaaS: cards limiti (ordini/utenti) e griglia moduli -- funzionali
+- Tab Abbonamento: stato, azioni (sospendi/riattiva/estendi), pagamento, storico -- completo
+- `staleTime: 2 min` -- appropriato
+- `Promise.all` per parallelizzazione -- ottimale
+- Pattern `useRef` + `useEffect` per form reset -- corretto
 
