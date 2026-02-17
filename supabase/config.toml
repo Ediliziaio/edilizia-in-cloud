@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.sign-in-as-user]
 verify_jwt = false
+
+[functions.analyze-message]
+verify_jwt = false
