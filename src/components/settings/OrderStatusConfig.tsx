@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   DndContext,
@@ -32,7 +32,7 @@ export function OrderStatusConfig() {
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  const { isLoading } = useQuery({
+  const { data: queryData, isLoading } = useQuery({
     queryKey: ["order-statuses-config", company?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -42,12 +42,17 @@ export function OrderStatusConfig() {
         .order("position");
 
       if (error) throw error;
-      setStatuses(data as OrderStatus[]);
-      return data;
+      return data as OrderStatus[];
     },
     enabled: !!company?.id,
     staleTime: 5 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (queryData && !hasChanges) {
+      setStatuses(queryData);
+    }
+  }, [queryData, hasChanges]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
