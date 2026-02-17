@@ -1,40 +1,25 @@
 
-
-# Fix: Scroll del dialog permessi Super Admin
+# Fix: Scroll nel dialog permessi Super Admin
 
 ## Problema
-Il dialog dei permessi Super Admin non permette di scorrere correttamente la lista delle aziende. Ci sono due problemi principali:
-
-1. **ScrollArea nidificata**: la lista aziende ha un proprio `overflow-y-auto` con `max-h-48` all'interno di un `ScrollArea` esterno, creando un conflitto di scroll
-2. **Altezza insufficiente**: su schermi piu piccoli, il contenuto viene tagliato e la barra di scorrimento non funziona correttamente
+Lo `ScrollArea` di Radix non sta abilitando lo scroll correttamente. Dalla screenshot si vede che il contenuto si ferma a "Statistiche Piattaforma" e la sezione "Aziende visibili" non e' raggiungibile. Il componente Radix `ScrollArea` richiede una altezza fissa esplicita per funzionare, e la combinazione `flex-1` + `max-h` dentro un dialog non gli fornisce il vincolo necessario.
 
 ## Soluzione
+Sostituire il componente `ScrollArea` con un semplice `div` con `overflow-y-auto`, che funziona in modo piu affidabile in questo contesto.
 
-### Modifiche a `src/components/admin/settings/SuperAdminPermissionsDialog.tsx`
+### Modifica in `SuperAdminPermissionsDialog.tsx`
 
-- Rimuovere il `max-h-48` dalla lista aziende interna, lasciando che il `ScrollArea` esterno gestisca tutto lo scroll
-- Aumentare il `max-h` del `ScrollArea` principale da `55vh` a `60vh` per dare piu spazio
-- Rimuovere `overflow-y-auto` dalla lista aziende per evitare lo scroll nidificato
-
-### Dettagli tecnici
-
-Riga ~193, la classe della lista aziende cambia da:
-```
-className="rounded-lg border p-3 space-y-2 max-h-48 overflow-y-auto"
-```
-a:
-```
-className="rounded-lg border p-3 space-y-2"
-```
-
-Riga ~152, il ScrollArea cambia da:
-```
-<ScrollArea className="flex-1 -mx-6 px-6 max-h-[55vh]">
-```
-a:
+Riga 152, cambiare da:
 ```
 <ScrollArea className="flex-1 -mx-6 px-6 max-h-[60vh]">
 ```
+a:
+```
+<div className="flex-1 -mx-6 px-6 overflow-y-auto" style={{ maxHeight: "60vh" }}>
+```
 
-Questo permette allo `ScrollArea` principale di gestire lo scroll di tutto il contenuto, inclusa la lista aziende, senza conflitti.
+E il tag di chiusura corrispondente (riga ~203) da `</ScrollArea>` a `</div>`.
 
+Rimuovere anche l'import di `ScrollArea` se non piu utilizzato.
+
+Questo approccio garantisce che lo scroll nativo del browser funzioni correttamente per raggiungere la sezione "Aziende visibili" e la lista delle aziende selezionabili.
