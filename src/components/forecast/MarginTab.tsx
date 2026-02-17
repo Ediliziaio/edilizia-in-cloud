@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -51,8 +51,11 @@ export function MarginTab() {
   const [simVarDelta, setSimVarDelta] = useState<number>(0);
 
   // Initialize simulator defaults when data loads
-  useMemo(() => {
-    if (!isLoading && avgMarginPercent > 0 && simMarginTarget === 0) {
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isLoading && avgMarginPercent > 0 && !initializedRef.current) {
+      initializedRef.current = true;
       setSimMarginTarget(Math.round(avgMarginPercent));
       setSimRevenueTarget(Math.round(currentMonthlyRevenue));
     }
