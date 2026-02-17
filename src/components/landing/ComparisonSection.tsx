@@ -31,11 +31,12 @@ export default function ComparisonSection() {
         </p>
 
         <div
-          className={`overflow-hidden rounded-2xl border border-gray-200 shadow-xl bg-white transition-all duration-700 delay-300 ${
+          className={`rounded-2xl border border-gray-200 shadow-xl bg-white transition-all duration-700 delay-300 overflow-x-auto ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
+          style={{ WebkitOverflowScrolling: "touch" }}
         >
-          <table className="w-full">
+          <table className="w-full min-w-[600px]">
             <thead>
               <tr className="bg-[#1a2744]">
                 <th className="text-left text-white/80 text-sm font-medium px-6 py-4">Aspetto</th>
@@ -52,9 +53,9 @@ export default function ComparisonSection() {
                   }`}
                   style={{ transitionDelay: isVisible ? `${400 + i * 60}ms` : "0ms" }}
                 >
-                  <td className="px-6 py-4 text-[#1a2744] font-medium text-sm">{r.aspect}</td>
-                  <td className="px-4 py-4 text-center text-gray-400 text-sm">{r.others}</td>
-                  <td className="px-4 py-4 text-center text-[#0fa68c] font-medium text-sm bg-[#0fa68c]/[0.03]">{r.us}</td>
+                  <td className="px-3 md:px-6 py-3 md:py-4 text-[#1a2744] font-medium text-xs md:text-sm">{r.aspect}</td>
+                  <td className="px-3 md:px-4 py-3 md:py-4 text-center text-gray-400 text-xs md:text-sm">{r.others}</td>
+                  <td className="px-3 md:px-4 py-3 md:py-4 text-center text-[#0fa68c] font-medium text-xs md:text-sm bg-[#0fa68c]/[0.03]">{r.us}</td>
                 </tr>
               ))}
             </tbody>
