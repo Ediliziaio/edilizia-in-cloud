@@ -60,9 +60,7 @@ export function useCompanyDetail(id: string | undefined) {
   const [createStaffOpen, setCreateStaffOpen] = useState(false);
   const [createStaffLoading, setCreateStaffLoading] = useState(false);
   const [createSalespersonOpen, setCreateSalespersonOpen] = useState(false);
-  const [savingSalesperson, setSavingSalesperson] = useState(false);
   const [createEmployeeOpen, setCreateEmployeeOpen] = useState(false);
-  const [savingEmployee, setSavingEmployee] = useState(false);
   const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string; permissions: StaffPermissions } | null>(null);
   const [savingPermissions, setSavingPermissions] = useState(false);
   const [passwordDialog, setPasswordDialog] = useState<{ open: boolean; password: string; name: string; email: string } | null>(null);
@@ -82,7 +80,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   // ========== QUERIES ==========
 
-  const { data: companyData, isLoading } = useQuery({
+  const { data: companyData, isLoading, isError, refetch } = useQuery({
     queryKey: ["company-detail", id],
     queryFn: async () => {
       if (!id) return null;
@@ -389,34 +387,50 @@ export function useCompanyDetail(id: string | undefined) {
     }
   };
 
-  const handleCreateSalesperson = (data: any) => {
-    setSavingSalesperson(true);
-    supabase.from("salespeople").insert({
-      company_id: id!, first_name: data.first_name, last_name: data.last_name,
-      email: data.email || null, phone: data.phone || null,
-      commission_type: data.commission_type, commission_value: data.commission_value, is_active: data.is_active ?? true,
-    }).then(({ error }) => {
-      setSavingSalesperson(false);
-      if (error) { toast({ title: "Errore", description: error.message, variant: "destructive" }); return; }
+  const createSalespersonMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const { error } = await supabase.from("salespeople").insert({
+        company_id: id!, first_name: data.first_name, last_name: data.last_name,
+        email: data.email || null, phone: data.phone || null,
+        commission_type: data.commission_type, commission_value: data.commission_value, is_active: data.is_active ?? true,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
       setCreateSalespersonOpen(false);
       queryClient.invalidateQueries({ queryKey: ["company-team", id] });
       toast({ title: "Venditore creato" });
-    });
+    },
+    onError: (err: any) => {
+      toast({ title: "Errore", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleCreateSalesperson = (data: any) => {
+    createSalespersonMutation.mutate(data);
   };
 
-  const handleCreateEmployee = (data: EmployeeFormData) => {
-    setSavingEmployee(true);
-    supabase.from("employees").insert({
-      company_id: id!, first_name: data.first_name, last_name: data.last_name,
-      email: data.email || null, phone: data.phone || null,
-      gross_salary: data.gross_salary, net_salary: data.net_salary, monthly_hours: data.monthly_hours, is_active: data.is_active,
-    }).then(({ error }) => {
-      setSavingEmployee(false);
-      if (error) { toast({ title: "Errore", description: error.message, variant: "destructive" }); return; }
+  const createEmployeeMutation = useMutation({
+    mutationFn: async (data: EmployeeFormData) => {
+      const { error } = await supabase.from("employees").insert({
+        company_id: id!, first_name: data.first_name, last_name: data.last_name,
+        email: data.email || null, phone: data.phone || null,
+        gross_salary: data.gross_salary, net_salary: data.net_salary, monthly_hours: data.monthly_hours, is_active: data.is_active,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
       setCreateEmployeeOpen(false);
       queryClient.invalidateQueries({ queryKey: ["company-team", id] });
       toast({ title: "Dipendente creato" });
-    });
+    },
+    onError: (err: any) => {
+      toast({ title: "Errore", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleCreateEmployee = (data: EmployeeFormData) => {
+    createEmployeeMutation.mutate(data);
   };
 
   const handleCreateAccount = async (type: "salesperson" | "employee", entityId: string, email: string, name: string) => {
@@ -492,7 +506,13 @@ export function useCompanyDetail(id: string | undefined) {
       payment_notes: string | null;
     }) => {
       if (!id) return;
-      const { error } = await supabase.from("companies").update(data as any).eq("id", id);
+      const { error } = await supabase.from("companies").update({
+        payment_method: data.payment_method,
+        bank_iban: data.bank_iban,
+        bank_account_holder: data.bank_account_holder,
+        bank_name: data.bank_name,
+        payment_notes: data.payment_notes,
+      }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -543,13 +563,13 @@ export function useCompanyDetail(id: string | undefined) {
 
   return {
     // Data
-    company, stats, isLoading, teamData, currentPlan, subscriptionLogs, currentSubscription, plans, recentOrders, recentTickets, monthlyOrders, daysSinceLastOrder, form,
+    company, stats, isLoading, isError, refetch, teamData, currentPlan, subscriptionLogs, currentSubscription, plans, recentOrders, recentTickets, monthlyOrders, daysSinceLastOrder, form,
     checkoutUrl,
     // UI state
     changePlanDialog, setChangePlanDialog, selectedPlanId, setSelectedPlanId, isSaving, sameAsLegal, setSameAsLegal,
     createStaffOpen, setCreateStaffOpen, createStaffLoading,
-    createSalespersonOpen, setCreateSalespersonOpen, savingSalesperson,
-    createEmployeeOpen, setCreateEmployeeOpen, savingEmployee,
+    createSalespersonOpen, setCreateSalespersonOpen, savingSalesperson: createSalespersonMutation.isPending,
+    createEmployeeOpen, setCreateEmployeeOpen, savingEmployee: createEmployeeMutation.isPending,
     permissionsUser, setPermissionsUser, savingPermissions,
     passwordDialog, setPasswordDialog, copiedPassword, setCopiedPassword, creatingAccountFor,
     // Mutations

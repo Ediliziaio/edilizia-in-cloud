@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Building2, Loader2, Users, Copy, Check } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, Users, Copy, Check, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
 import { StaffUserDialog } from "@/components/users/StaffUserDialog";
@@ -28,6 +29,27 @@ export default function CompanyDetail() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (h.isError) {
+    return (
+      <div className="space-y-6">
+        <Button variant="ghost" onClick={() => navigate("/admin/aziende")}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Torna alle aziende
+        </Button>
+        <Alert variant="destructive">
+          <RefreshCw className="h-4 w-4" />
+          <AlertTitle>Errore di caricamento</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>Impossibile caricare i dati dell'azienda.</span>
+            <Button variant="outline" size="sm" onClick={() => h.refetch()}>
+              <RefreshCw className="h-3 w-3 mr-1" /> Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -60,11 +82,6 @@ export default function CompanyDetail() {
     navigate("/azienda");
   };
 
-  const handleImpersonateAndNavigate = async (path: string) => {
-    await h.handleImpersonate();
-    navigate(path);
-  };
-
   return (
     <div className="space-y-6">
       <CompanyDetailHeader
@@ -89,8 +106,6 @@ export default function CompanyDetail() {
             currentPlan={h.currentPlan} currentSubscription={h.currentSubscription}
             monthlyOrders={h.monthlyOrders} daysSinceLastOrder={h.daysSinceLastOrder}
             companyCreatedAt={h.company.created_at}
-            onImpersonate={handleImpersonate}
-            onImpersonateAndNavigate={handleImpersonateAndNavigate}
           />
         </TabsContent>
 

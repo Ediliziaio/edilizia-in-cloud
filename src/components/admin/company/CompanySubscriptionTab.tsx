@@ -137,58 +137,6 @@ export function CompanySubscriptionTab({
         checkoutUrl={checkoutUrl}
       />
 
-      {/* Dati Fatturazione */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Banknote className="h-5 w-5" />
-            Dati Fatturazione
-          </CardTitle>
-          <CardDescription>Dati aziendali per la fatturazione</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between py-2 border-b text-sm">
-            <span className="text-muted-foreground">Ragione Sociale</span>
-            <span className="font-medium">{company.business_name || company.name}</span>
-          </div>
-          {company.vat_number && (
-            <div className="flex justify-between py-2 border-b text-sm">
-              <span className="text-muted-foreground">Partita IVA</span>
-              <span className="font-medium font-mono">{company.vat_number}</span>
-            </div>
-          )}
-          {company.fiscal_code && (
-            <div className="flex justify-between py-2 border-b text-sm">
-              <span className="text-muted-foreground">Codice Fiscale</span>
-              <span className="font-medium font-mono">{company.fiscal_code}</span>
-            </div>
-          )}
-          {company.pec && (
-            <div className="flex justify-between py-2 border-b text-sm">
-              <span className="text-muted-foreground">PEC</span>
-              <span className="font-medium">{company.pec}</span>
-            </div>
-          )}
-          {company.sdi_code && (
-            <div className="flex justify-between py-2 border-b text-sm">
-              <span className="text-muted-foreground">Codice SDI</span>
-              <span className="font-medium font-mono">{company.sdi_code}</span>
-            </div>
-          )}
-          {company.legal_address && (
-            <div className="flex justify-between py-2 border-b text-sm">
-              <span className="text-muted-foreground">Sede Legale</span>
-              <span className="font-medium text-right">
-                {company.legal_address}{company.legal_city ? `, ${company.legal_city}` : ""}{company.legal_province ? ` (${company.legal_province})` : ""}{company.legal_postal_code ? ` - ${company.legal_postal_code}` : ""}
-              </span>
-            </div>
-          )}
-          {!company.vat_number && !company.pec && !company.sdi_code && (
-            <p className="text-sm text-muted-foreground text-center py-4">Nessun dato fiscale inserito. Compilali nel tab "Dettagli".</p>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Storico */}
       <Card className="lg:col-span-2">
         <CardHeader>
