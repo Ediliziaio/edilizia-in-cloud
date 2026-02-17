@@ -120,10 +120,10 @@ export function LoginForm() {
             className="h-14 mx-auto brightness-0 invert"
           />
           <h1 className="text-3xl font-bold text-primary-foreground">
-            Gestisci la tua azienda edile in modo semplice e veloce
+            La piattaforma per l'edilizia moderna
           </h1>
           <p className="text-primary-foreground/70 text-lg leading-relaxed">
-            Ordini, clienti, dipendenti, magazzino e previsionale — tutto in un'unica piattaforma.
+            Accedi per gestire i tuoi progetti, ordini e molto altro — tutto in un unico posto.
           </p>
         </div>
       </div>
