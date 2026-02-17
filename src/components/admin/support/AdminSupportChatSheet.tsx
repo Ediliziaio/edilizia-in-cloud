@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,53 +32,48 @@ interface AdminSupportChatSheetProps {
 
 export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyName }: AdminSupportChatSheetProps) {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<SupportMessage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Conversation state
-  const [convStatus, setConvStatus] = useState("open");
-  const [convPriority, setConvPriority] = useState("normal");
-  const [convNotes, setConvNotes] = useState<string | null>(null);
-  const [convLoading, setConvLoading] = useState(true);
-
-  // Fetch conversation metadata
-  useEffect(() => {
-    if (!open || !companyId) return;
-    const fetchConv = async () => {
-      setConvLoading(true);
-      const { data } = await supabase
-        .from("support_conversations")
-        .select("*")
-        .eq("company_id", companyId)
-        .maybeSingle();
-      if (data) {
-        setConvStatus(data.status);
-        setConvPriority(data.priority);
-        setConvNotes(data.internal_notes);
-      }
-      setConvLoading(false);
-    };
-    fetchConv();
-  }, [open, companyId]);
-
-  useEffect(() => {
-    if (!open || !companyId) return;
-    const fetchMessages = async () => {
-      setLoading(true);
-      const { data } = await supabase
+  // Fetch messages via useQuery
+  const { data: messages = [], isLoading: loadingMessages } = useQuery({
+    queryKey: ["admin-support-chat", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("support_messages")
         .select("*")
         .eq("company_id", companyId)
         .order("created_at", { ascending: true });
-      setMessages((data as SupportMessage[]) || []);
-      setLoading(false);
-    };
-    fetchMessages();
-  }, [open, companyId]);
+      if (error) throw error;
+      return (data ?? []) as SupportMessage[];
+    },
+    enabled: open && !!companyId,
+    staleTime: 30 * 1000,
+  });
 
+  // Fetch conversation metadata via useQuery
+  const { data: convData, isLoading: convLoading } = useQuery({
+    queryKey: ["admin-support-conv", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("support_conversations")
+        .select("*")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!companyId,
+    staleTime: 30 * 1000,
+  });
+
+  const convStatus = convData?.status ?? "open";
+  const convPriority = convData?.priority ?? "normal";
+  const convNotes = convData?.internal_notes ?? null;
+
+  // Realtime subscription
   useEffect(() => {
     if (!open || !companyId) return;
     const channel = supabase
@@ -89,10 +85,14 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
         filter: `company_id=eq.${companyId}`,
       }, (payload) => {
         const newMsg = payload.new as SupportMessage;
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === newMsg.id)) return prev;
-          return [...prev, newMsg];
-        });
+        queryClient.setQueryData<SupportMessage[]>(
+          ["admin-support-chat", companyId],
+          (old) => {
+            if (!old) return [newMsg];
+            if (old.some((m) => m.id === newMsg.id)) return old;
+            return [...old, newMsg];
+          }
+        );
         if (newMsg.sender_role === "company") {
           playNotificationSound();
           toast("Nuovo messaggio da " + companyName, {
@@ -102,8 +102,9 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [open, companyId, companyName]);
+  }, [open, companyId, companyName, queryClient]);
 
+  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -113,10 +114,10 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
       .from("support_conversations")
       .update(updates)
       .eq("company_id", companyId);
+    queryClient.invalidateQueries({ queryKey: ["admin-support-conv", companyId] });
   };
 
   const handleStatusChange = async (status: string) => {
-    setConvStatus(status);
     const updates: Record<string, unknown> = { status };
     if (status === "resolved") {
       updates.resolved_at = new Date().toISOString();
@@ -134,12 +135,10 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
   };
 
   const handlePriorityChange = async (priority: string) => {
-    setConvPriority(priority);
     await updateConversation({ priority });
   };
 
   const handleNotesChange = async (notes: string) => {
-    setConvNotes(notes);
     await updateConversation({ internal_notes: notes || null });
     toast.success("Note salvate");
   };
@@ -149,13 +148,17 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
   const handleSend = async () => {
     if (!newMessage.trim() || !user) return;
     setSending(true);
-    await supabase.from("support_messages").insert({
+    const { error } = await supabase.from("support_messages").insert({
       company_id: companyId,
       sender_id: user.id,
       sender_role: "super_admin",
       message: newMessage.trim(),
     });
-    setNewMessage("");
+    if (error) {
+      toast.error("Errore nell'invio del messaggio");
+    } else {
+      setNewMessage("");
+    }
     setSending(false);
   };
 
@@ -186,7 +189,7 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
           />
         )}
 
-        {loading ? (
+        {loadingMessages ? (
           <div className="flex-1 p-6 space-y-4">
             <Skeleton className="h-12 w-3/4" />
             <Skeleton className="h-12 w-1/2 ml-auto" />

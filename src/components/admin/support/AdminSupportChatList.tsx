@@ -3,9 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, MessageSquare, Search, Building, Clock, Flame, AlertTriangle, CheckCircle } from "lucide-react";
+import { Loader2, MessageSquare, Search, Building, Clock, Flame, AlertTriangle, CheckCircle, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -103,7 +105,7 @@ export function AdminSupportChatList() {
     }
   };
 
-  const { data: messages = [], isLoading: loadingMessages } = useQuery({
+  const { data: messages = [], isLoading: loadingMessages, isError: isErrorMessages, refetch: refetchMessages } = useQuery({
     queryKey: ["admin-support-messages"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -117,7 +119,7 @@ export function AdminSupportChatList() {
     refetchInterval: 30 * 1000,
   });
 
-  const { data: companies = [] } = useQuery({
+  const { data: companies = [], isError: isErrorCompanies } = useQuery({
     queryKey: ["admin-companies-for-support"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -130,7 +132,7 @@ export function AdminSupportChatList() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const { data: conversationsData = [] } = useQuery({
+  const { data: conversationsData = [], isError: isErrorConversations } = useQuery({
     queryKey: ["admin-support-conversations"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -246,7 +248,17 @@ export function AdminSupportChatList() {
         onSortChange={setSortBy}
       />
 
-      {loadingMessages ? (
+      {(isErrorMessages || isErrorCompanies || isErrorConversations) ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>Errore nel caricamento dei dati di assistenza.</span>
+            <Button variant="outline" size="sm" onClick={() => refetchMessages()} className="ml-2 gap-1">
+              <RefreshCw className="h-3 w-3" /> Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : loadingMessages ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
