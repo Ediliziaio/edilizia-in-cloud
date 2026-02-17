@@ -106,8 +106,10 @@ export default function AuditLogTab() {
             <Button variant="link" onClick={() => refetch()}>Riprova</Button>
           </div>
         ) : data?.logs.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            Nessuna attività registrata.
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <ScrollText className="h-10 w-10 mb-3 opacity-40" />
+            <p className="font-medium">Nessuna attività registrata</p>
+            <p className="text-sm mt-1">Le azioni dei Super Admin appariranno qui.</p>
           </div>
         ) : (
           <>
