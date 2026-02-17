@@ -1,69 +1,40 @@
 
-# Piano: Stabilizzazione, Pulizia e Fix - Sezione Admin
 
-## 1. Bug da correggere
+# Fix: Scroll del dialog permessi Super Admin
 
-### 1.1 Console Warning: `TrialBadge` e `Select` ref (CompaniesList.tsx)
-- Il componente `TrialBadge` (riga 22) viene renderizzato dentro una `TableCell` che tenta di passare un ref. React avvisa che le function component non accettano ref.
-- **Fix**: Wrappare `TrialBadge` con `React.forwardRef` oppure trasformarlo in un semplice `<span>` inline senza componente separato.
+## Problema
+Il dialog dei permessi Super Admin non permette di scorrere correttamente la lista delle aziende. Ci sono due problemi principali:
 
-### 1.2 Edge Function `getClaims` potenzialmente instabile
-- In `manage-super-admins/index.ts` (riga 49) e `create-checkout-session/index.ts` (riga 40) viene usato `callerClient.auth.getClaims(token)`.
-- Questo metodo non e presente in tutte le versioni della libreria Supabase JS.
-- **Fix**: Aggiungere fallback a `getUser()` se `getClaims` fallisce, per garantire compatibilita.
+1. **ScrollArea nidificata**: la lista aziende ha un proprio `overflow-y-auto` con `max-h-48` all'interno di un `ScrollArea` esterno, creando un conflitto di scroll
+2. **Altezza insufficiente**: su schermi piu piccoli, il contenuto viene tagliato e la barra di scorrimento non funziona correttamente
 
-```text
-Logica proposta:
-1. Provare getClaims(token)
-2. Se fallisce, usare getUser() con il token nell'header
-3. Estrarre l'user ID da uno dei due risultati
+## Soluzione
+
+### Modifiche a `src/components/admin/settings/SuperAdminPermissionsDialog.tsx`
+
+- Rimuovere il `max-h-48` dalla lista aziende interna, lasciando che il `ScrollArea` esterno gestisca tutto lo scroll
+- Aumentare il `max-h` del `ScrollArea` principale da `55vh` a `60vh` per dare piu spazio
+- Rimuovere `overflow-y-auto` dalla lista aziende per evitare lo scroll nidificato
+
+### Dettagli tecnici
+
+Riga ~193, la classe della lista aziende cambia da:
+```
+className="rounded-lg border p-3 space-y-2 max-h-48 overflow-y-auto"
+```
+a:
+```
+className="rounded-lg border p-3 space-y-2"
 ```
 
-## 2. Pulizia codice
+Riga ~152, il ScrollArea cambia da:
+```
+<ScrollArea className="flex-1 -mx-6 px-6 max-h-[55vh]">
+```
+a:
+```
+<ScrollArea className="flex-1 -mx-6 px-6 max-h-[60vh]">
+```
 
-### 2.1 Import non utilizzati in CompaniesList.tsx
-- `Building2` usato, `Plus` usato, `Search` usato, `LogIn` usato, `ExternalLink` usato, `Loader2` usato, `Download` usato, `ChevronDown` usato, `RefreshCw` usato, `AlertCircle` usato, `Clock` usato, `DollarSign` usato, `ClipboardList` usato, `Calendar` usato, `Users` usato, `TrendingUp` usato
-- Tutti gli import risultano utilizzati. Nessuna rimozione necessaria.
+Questo permette allo `ScrollArea` principale di gestire lo scroll di tutto il contenuto, inclusa la lista aziende, senza conflitti.
 
-### 2.2 Pattern insolito: Employees importato in Settings.tsx
-- `Settings.tsx` (riga 15) importa `Employees` come pagina intera usata come tab.
-- Non e un bug ma un pattern atipico. Non tocchiamo per evitare regressioni.
-
-## 3. Miglioramenti UX
-
-### 3.1 AccessDenied: aggiungere CTA per tornare indietro
-- Il componente `AccessDenied.tsx` attualmente mostra solo un messaggio statico senza via d'uscita.
-- **Fix**: Aggiungere un bottone "Torna alla Dashboard" che naviga a `/admin`.
-
-### 3.2 AuditLogTab: stato vuoto piu descrittivo
-- Quando non ci sono log, il messaggio e generico. Aggiungere un'icona e testo piu chiaro.
-
-### 3.3 Quick Impersonation: reset ricerca alla chiusura
-- Quando il popover si chiude, la ricerca viene gia resettata (riga 101). OK, nessun fix necessario.
-
-## 4. Riepilogo file da modificare
-
-| File | Modifica |
-|------|----------|
-| `src/pages/admin/CompaniesList.tsx` | Wrappare `TrialBadge` con `forwardRef` per eliminare il warning console |
-| `supabase/functions/manage-super-admins/index.ts` | Aggiungere fallback `getUser()` se `getClaims` non disponibile |
-| `supabase/functions/create-checkout-session/index.ts` | Stesso fallback `getUser()` |
-| `src/components/admin/AccessDenied.tsx` | Aggiungere bottone "Torna alla Dashboard" |
-| `src/components/admin/settings/AuditLogTab.tsx` | Migliorare stato vuoto con icona |
-
-## 5. Cosa NON viene toccato (gia funzionante)
-
-- Permessi granulari: hook `useSuperAdminPermissions` corretto, backward compatible
-- Filtro navigazione sidebar: `filteredNavItems` funzionante
-- Guard su tutte le pagine admin: verificati e presenti
-- Audit log: tabella, edge function e UI funzionanti
-- Quick impersonation: popover, ricerca, navigazione funzionanti
-- Impersonation audit logging in `AuthContext.tsx`: presente e funzionante
-
-## 6. Conferma test
-
-Dopo l'implementazione:
-- Verifica console pulita (zero warning ref)
-- Verifica che le edge function rispondano correttamente con il fallback
-- Verifica che AccessDenied mostri il bottone di ritorno
-- Verifica navigazione completa admin con permessi attivi e disattivi
