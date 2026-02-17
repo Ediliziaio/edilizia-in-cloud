@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { QuickLoginPopover } from "@/components/admin/QuickLoginPopover";
 
 const allNavItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard, permission: "can_view_platform_stats" as const },
@@ -244,6 +245,9 @@ export function AdminLayout() {
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
             <span className="text-sm text-muted-foreground">Super Admin</span>
+            <div className="ml-auto">
+              <QuickLoginPopover />
+            </div>
           </header>
           <main className="flex-1 p-6 bg-muted/30">
             <Outlet />
