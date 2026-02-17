@@ -1,70 +1,83 @@
 
-# Nuove funzionalita Impostazioni Admin
+# Permessi Granulari per Super Admin
 
-## Risultati test edge function
-- **create**: OK (utente creato, profilo e ruolo assegnati correttamente)
-- **list**: OK (nuovo admin visibile nella lista)
-- **delete**: OK (admin rimosso con protezioni attive)
+## Situazione attuale
+- Il reset password e gia implementato (icona KeyRound nella lista)
+- Tutti i super admin hanno accesso completo e identico a tutta la piattaforma
+- Non esiste alcun sistema di permessi granulari per i super admin
 
-Tutte le operazioni CRUD del tab Super Admin funzionano correttamente.
+## Interventi
 
-## 1. Reset password di un Super Admin dalla lista
+### 1. Nuova tabella `super_admin_permissions`
 
-### Cosa cambia
-Aggiungere un bottone "Reset Password" (icona KeyRound) accanto al bottone elimina nella tabella Super Admin. Cliccando si apre un dialog dove il chiamante inserisce la nuova password per quell'admin.
-
-### Dettaglio tecnico
-
-**Edge function `manage-super-admins`**: aggiungere `action: "reset-password"`
-- Riceve `userId` e `newPassword`
-- Validazione: password >= 8 caratteri, userId presente
-- Usa `supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword })`
-- Non puo resettare la propria password (per quello c'e il tab Profilo)
-
-**Nuovo componente**: `ResetPasswordDialog.tsx`
-- Dialog con campo password + toggle visibilita + indicatore forza
-- Stesso pattern di `CreateSuperAdminDialog`
-
-**Modifica**: `SuperAdminUsersTab.tsx`
-- Aggiungere icona KeyRound nella colonna azioni
-- Stato `resetTarget` per gestire quale admin resettare
-
-## 2. Notifiche salvate nel database
-
-### Cosa cambia
-Migrare le preferenze notifiche da localStorage a una nuova tabella `admin_notification_prefs` nel database, cosi sono persistenti e sincronizzate su ogni dispositivo.
-
-### Nuova tabella: `admin_notification_prefs`
+Tabella per gestire cosa ogni super admin puo fare/vedere:
 
 ```text
-+---------------------+------+---------+----------+
-| Colonna             | Tipo | Default | Nullable |
-+---------------------+------+---------+----------+
-| id                  | uuid | random  | No       |
-| user_id             | uuid | -       | No (FK)  |
-| new_company         | bool | true    | No       |
-| trial_expiring      | bool | true    | No       |
-| new_ticket          | bool | true    | No       |
-| created_at          | tstz | now()   | No       |
-| updated_at          | tstz | now()   | No       |
-+---------------------+------+---------+----------+
++---------------------------+--------+---------+
+| Colonna                   | Tipo   | Default |
++---------------------------+--------+---------+
+| id                        | uuid   | random  |
+| user_id                   | uuid   | FK      |
+| can_manage_companies      | bool   | true    |
+| can_manage_plans          | bool   | true    |
+| can_manage_tickets        | bool   | true    |
+| can_manage_referrals      | bool   | true    |
+| can_manage_admins         | bool   | true    |
+| can_view_platform_stats   | bool   | true    |
+| allowed_company_ids       | uuid[] | NULL    |
+| created_at                | tstz   | now()   |
+| updated_at                | tstz   | now()   |
++---------------------------+--------+---------+
 ```
 
-- `user_id` UNIQUE (un record per utente)
-- RLS: solo super_admin puo leggere/scrivere le proprie preferenze
+- `allowed_company_ids`: se NULL = tutte le aziende; se array = solo quelle specificate
+- RLS: solo super_admin puo leggere/scrivere (tramite `has_role`)
 
-### Modifica: `NotificationsTab.tsx`
-- Sostituire localStorage con `useQuery` per caricare le prefs dal DB
-- Usare `useMutation` con upsert per salvare i toggle
-- Fallback ai defaults se non esiste ancora un record
-- Rimuovere la description "salvate localmente"
+### 2. Nuovo componente: `SuperAdminPermissionsDialog`
 
-## Riepilogo modifiche
+Dialog simile a `PermissionsDialog` (usato per lo staff) ma adattato al contesto super admin:
+
+**Sezioni permessi:**
+- Gestione Aziende (creare, modificare, eliminare aziende)
+- Gestione Piani (modificare piani di abbonamento)
+- Assistenza (gestire ticket di supporto)
+- Referral (gestire programma referral)
+- Gestione Admin (creare/eliminare altri super admin)
+- Statistiche Piattaforma (visualizzare dati globali)
+
+**Sezione aziende visibili:**
+- Toggle "Tutte le aziende" / "Solo aziende selezionate"
+- Se selezionato "Solo aziende selezionate", mostra lista con checkbox delle aziende esistenti
+
+### 3. Aggiornamento `SuperAdminUsersTab`
+
+- Aggiungere icona Shield (permessi) nella colonna azioni di ogni admin
+- Non mostrarla per se stessi (i permessi propri non si possono limitare)
+- Mostrare i permessi attivi come badge nella tabella (come fa CompanyTeamTab)
+
+### 4. Edge function: nuova action `update-permissions`
+
+Aggiungere a `manage-super-admins`:
+- `action: "get-permissions"` -- recupera permessi di un admin
+- `action: "update-permissions"` -- salva/aggiorna permessi (upsert)
+- Validazione: non puoi toglierti i propri permessi
+
+### 5. Aggiornamento action `list`
+
+Includere i permessi di ogni admin nella risposta della lista, per mostrare i badge nella tabella.
+
+## Riepilogo file
 
 | File | Azione |
 |------|--------|
-| `manage-super-admins/index.ts` | + action "reset-password" |
-| `SuperAdminUsersTab.tsx` | + bottone reset password, stato resetTarget |
-| `ResetPasswordDialog.tsx` | Nuovo componente (dialog reset password) |
-| `NotificationsTab.tsx` | Migrazione da localStorage a database |
-| Migrazione SQL | Nuova tabella `admin_notification_prefs` + RLS |
+| Migrazione SQL | Nuova tabella `super_admin_permissions` + RLS |
+| `manage-super-admins/index.ts` | + actions `get-permissions` e `update-permissions`, arricchimento `list` |
+| `SuperAdminUsersTab.tsx` | + icona permessi, badge permessi attivi, integrazione dialog |
+| `SuperAdminPermissionsDialog.tsx` | Nuovo componente (dialog permessi con sezione aziende) |
+| `adminConstants.ts` | + costanti label permessi super admin |
+
+## Cosa rimane invariato
+- Reset password (gia funzionante)
+- Creazione e eliminazione admin
+- Tab Profilo, Piattaforma, Notifiche
+- Sistema permessi staff (separato e indipendente)
