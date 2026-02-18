@@ -990,6 +990,59 @@ export type Database = {
           },
         ]
       }
+      messaging_whatsapp_config: {
+        Row: {
+          access_token_encrypted: string | null
+          account_status: string
+          business_name: string | null
+          company_id: string
+          created_at: string
+          id: string
+          is_connected: boolean
+          phone_number: string | null
+          phone_number_id: string | null
+          quality_rating: string
+          updated_at: string
+          waba_id: string | null
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          account_status?: string
+          business_name?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          is_connected?: boolean
+          phone_number?: string | null
+          phone_number_id?: string | null
+          quality_rating?: string
+          updated_at?: string
+          waba_id?: string | null
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          account_status?: string
+          business_name?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_connected?: boolean
+          phone_number?: string | null
+          phone_number_id?: string | null
+          quality_rating?: string
+          updated_at?: string
+          waba_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_whatsapp_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_attachments: {
         Row: {
           created_at: string

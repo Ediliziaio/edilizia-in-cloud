@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 import { Mic, FileText, Image, Bot } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -49,15 +48,15 @@ export function MessageBubble({ message, isSelected, onSelect }: MessageBubblePr
     >
       <div
         className={cn(
-          "max-w-[75%] rounded-2xl px-4 py-2 relative transition-all",
+          "max-w-[75%] rounded-2xl px-4 py-2 relative transition-all shadow-sm",
           isContact
-            ? "bg-muted text-foreground rounded-bl-md"
-            : "bg-primary text-primary-foreground rounded-br-md",
-          isSelected && "ring-2 ring-ring ring-offset-2"
+            ? "bg-card text-card-foreground border rounded-bl-md"
+            : "bg-emerald-100 dark:bg-emerald-900/40 text-foreground rounded-br-md",
+          isSelected && "ring-2 ring-primary ring-offset-2"
         )}
       >
         {isContact && message.sender_name && (
-          <p className="text-xs font-semibold mb-1 opacity-70">{message.sender_name}</p>
+          <p className="text-xs font-semibold mb-1 text-primary">{message.sender_name}</p>
         )}
 
         {typeIcon && (
