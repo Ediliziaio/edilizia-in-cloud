@@ -1,145 +1,93 @@
 
-
-# WhatsApp Webhook + Embedded Signup
+# Polling stato verifica Meta Business e Quality Rating
 
 ## Panoramica
 
-Creare una edge function `whatsapp-webhook` per ricevere messaggi da Meta e modificare `MessagingSettingsTab` per implementare il flusso Facebook Embedded Signup nativo, salvando i dati nella tabella `messaging_whatsapp_config`.
+Creare una nuova Edge Function `whatsapp-status` che interroga le API di Meta per recuperare lo stato di verifica del Business Account e il quality rating del numero di telefono, aggiornando la tabella `messaging_whatsapp_config`. Il frontend eseguira' il polling automatico ogni 60 secondi quando il numero e' collegato.
 
 ---
 
-## 1. Secrets necessari
+## 1. Nuova Edge Function `whatsapp-status`
 
-Prima di procedere con il codice, servono 2 secrets:
+**File:** `supabase/functions/whatsapp-status/index.ts`
 
-| Secret | Dove si trova | Scopo |
-|--------|---------------|-------|
-| `WHATSAPP_VERIFY_TOKEN` | Stringa a scelta (es. `my-verify-token-2026`) | Meta la usa per validare il webhook |
-| `META_APP_SECRET` | Meta Developer Console > App > Settings > Basic > App Secret | Firma HMAC per verificare autenticita' dei webhook |
+### Logica
 
-**Nota:** Il `META_APP_ID` e' un valore pubblico e verra' inserito direttamente nel codice frontend come costante configurabile.
+1. Riceve `company_id` dal body della richiesta (autenticata via JWT)
+2. Recupera la configurazione WhatsApp dalla tabella (usando service role per leggere il token)
+3. Chiama due endpoint Meta Graph API:
+   - `GET /{waba_id}?fields=account_review_status,business_verification_status` per lo stato di verifica
+   - `GET /{phone_number_id}?fields=quality_rating,messaging_limit_tier,display_phone_number,verified_name` per qualita' e limiti
+4. Mappa i valori Meta ai valori del nostro schema:
+   - `account_review_status: APPROVED` -> `account_status: "verified"`
+   - `account_review_status: PENDING` -> `account_status: "pending"`
+   - `quality_rating: GREEN/YELLOW/RED` -> `quality_rating: "green"/"yellow"/"red"`
+5. Aggiorna la riga nella tabella `messaging_whatsapp_config`
+6. Ritorna i dati aggiornati al frontend
+
+### Sicurezza
+- Autenticazione JWT verificata in codice (stesso pattern di `whatsapp-connect`)
+- Verifica che l'utente appartenga alla company richiesta
+- Il token Meta e' letto server-side, mai esposto al frontend
 
 ---
 
-## 2. Edge Function `whatsapp-webhook`
+## 2. Configurazione
 
-### Funzionalita'
-
-- **GET** (verifica webhook): Meta invia una challenge con `hub.verify_token` e la funzione risponde con `hub.challenge` se il token corrisponde
-- **POST** (ricezione messaggi): Riceve i messaggi WhatsApp, verifica la firma HMAC `X-Hub-Signature-256`, e salva in DB
-
-### Flusso POST
-
-```text
-Meta Webhook POST
-    |
-    v
-Verifica firma HMAC (X-Hub-Signature-256 con META_APP_SECRET)
-    |
-    v
-Estrai messaggi da payload (entry[].changes[].value.messages[])
-    |
-    v
-Per ogni messaggio:
-  1. Cerca/crea conversazione in messaging_conversations (by phone_number + company)
-  2. Salva messaggio in messaging_messages
-  3. Aggiorna last_message_at nella conversazione
-    |
-    v
-Risposta 200 OK (Meta richiede risposta rapida)
-```
-
-### Identificazione company
-
-Il webhook riceve il `phone_number_id` del numero business destinatario. La funzione cerca nella tabella `messaging_whatsapp_config` quale company e' collegata a quel `phone_number_id`.
-
-### File
-
-`supabase/functions/whatsapp-webhook/index.ts`
-
-### Config
+**File:** `supabase/config.toml` - aggiunta:
 
 ```toml
-[functions.whatsapp-webhook]
-verify_jwt = false
-```
-
-`verify_jwt = false` e' necessario perche' Meta non invia JWT, ma firma HMAC.
-
----
-
-## 3. Edge Function `whatsapp-connect`
-
-### Funzionalita'
-
-Riceve i dati di ritorno dall'Embedded Signup (token temporaneo + codice) e:
-
-1. Scambia il codice per un token permanente via Meta Graph API
-2. Recupera `waba_id` e `phone_number_id` dal token
-3. Salva/aggiorna il record in `messaging_whatsapp_config`
-4. Registra il webhook programmaticamente (subscribe l'app al WABA)
-
-### File
-
-`supabase/functions/whatsapp-connect/index.ts`
-
-### Config
-
-```toml
-[functions.whatsapp-connect]
+[functions.whatsapp-status]
 verify_jwt = false
 ```
 
 ---
 
-## 4. Modifica `MessagingSettingsTab.tsx`
+## 3. Modifica Frontend
 
-### Embedded Signup
+**File:** `src/components/messaging/MessagingSettingsTab.tsx`
 
-Il bottone "Collega numero WhatsApp" viene sostituito con il flusso **Facebook Login for Business** (Embedded Signup):
+### Modifiche
 
-1. Carica l'SDK Facebook (`connect.facebook.net/it_IT/sdk.js`)
-2. Inizializza `FB.init()` con il `META_APP_ID`
-3. Al click del bottone, chiama `FB.login()` con config tipo `whatsapp_embedded_signup`
-4. Al completamento, l'utente autorizza e il frontend riceve un `code`
-5. Il frontend invia il `code` alla edge function `whatsapp-connect`
-6. La funzione scambia il codice per token, recupera i dati del numero e salva tutto
-7. La UI si aggiorna mostrando il numero collegato
+- Aggiungere un `useEffect` che, quando `isConnected === true`, chiama `supabase.functions.invoke("whatsapp-status", { body: { company_id } })` ogni 60 secondi
+- Al ritorno dei dati, invalidare la query `["whatsapp-config"]` per aggiornare la UI
+- Aggiungere un bottone manuale "Aggiorna stato" con icona RefreshCw per forzare il polling
+- Mostrare il `messaging_limit_tier` (limite messaggi) nella colonna "Limite" della tabella numeri, attualmente con valore "—"
+- Il polling si ferma automaticamente quando il componente viene smontato (cleanup dell'intervallo)
 
 ### Nuovi elementi UI
-
-- Indicatore di stato durante il collegamento (Loader)
-- Toast di successo/errore
-- Bottone "Disconnetti" per rimuovere il collegamento
+- Icona RefreshCw accanto allo stato dell'account con tooltip "Ultimo aggiornamento: X minuti fa"
+- La colonna "Limite" nella tabella numeri mostrera' il tier (es. "1K", "10K", "100K", "Illimitato")
 
 ---
 
-## 5. Dettaglio tecnico
+## 4. Dettaglio tecnico
+
+### Mapping Meta API -> DB
+
+| Campo Meta API | Valore Meta | Campo DB | Valore DB |
+|---------------|-------------|----------|-----------|
+| `account_review_status` | `APPROVED` | `account_status` | `verified` |
+| `account_review_status` | `PENDING` | `account_status` | `pending` |
+| `account_review_status` | altro | `account_status` | `not_verified` |
+| `quality_rating` | `GREEN` | `quality_rating` | `green` |
+| `quality_rating` | `YELLOW` | `quality_rating` | `yellow` |
+| `quality_rating` | `RED` | `quality_rating` | `red` |
+| `messaging_limit_tier` | `TIER_*` | (solo frontend) | Mostrato in UI |
 
 ### File nuovi
 
 | File | Descrizione |
 |------|-------------|
-| `supabase/functions/whatsapp-webhook/index.ts` | Webhook ricezione messaggi Meta + verifica HMAC |
-| `supabase/functions/whatsapp-connect/index.ts` | Scambio token OAuth + salvataggio config |
+| `supabase/functions/whatsapp-status/index.ts` | Edge function per polling stato Meta |
 
 ### File modificati
 
 | File | Modifica |
 |------|----------|
-| `supabase/config.toml` | Aggiunta `[functions.whatsapp-webhook]` e `[functions.whatsapp-connect]` con `verify_jwt = false` |
-| `src/components/messaging/MessagingSettingsTab.tsx` | Integrazione Facebook SDK, flusso Embedded Signup, bottone connessione nativo, stati loading/success/error, bottone disconnetti |
+| `supabase/config.toml` | Aggiunta config per `whatsapp-status` |
+| `src/components/messaging/MessagingSettingsTab.tsx` | Polling automatico 60s, bottone aggiorna, display limite messaggi |
 
 ### Nessuna modifica al database
 
-La tabella `messaging_whatsapp_config` ha gia' tutti i campi necessari (`phone_number_id`, `waba_id`, `access_token_encrypted`, `is_connected`, etc.).
-
----
-
-## 6. Sicurezza
-
-- Webhook verificato tramite firma HMAC `X-Hub-Signature-256`
-- Token Meta salvato nel campo `access_token_encrypted`
-- Edge function `whatsapp-connect` richiede autenticazione utente (verifica JWT in codice)
-- RLS gia' configurato sulla tabella `messaging_whatsapp_config`
-
+I campi `account_status` e `quality_rating` esistono gia' nella tabella `messaging_whatsapp_config`.
