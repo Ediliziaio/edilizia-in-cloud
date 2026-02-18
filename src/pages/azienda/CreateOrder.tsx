@@ -256,160 +256,102 @@ export default function CreateOrder() {
     }
   }, [statuses, statusId]);
 
-  // Create order mutation
+  // Utility: converte Date | undefined in stringa ISO o null
+  const toDateStr = (d: Date | undefined): string | null =>
+    d ? d.toISOString().split("T")[0] : null;
+
+  // Create order mutation — usa la funzione atomica lato DB:
+  // tutto avviene in una singola transazione PostgreSQL, eliminando
+  // race condition sul magazzino e stati inconsistenti in caso di errore.
   const createOrderMutation = useMutation({
     mutationFn: async () => {
       if (!effectiveCompany?.id) throw new Error("Company not found");
 
+      const vatValue  = parseFloat(vatRate) || 22;
+      const fCost     = parseFloat(financingCost) || 0;
       const financing = parseFloat(financingAmount) || 0;
-      const vatValue = parseFloat(vatRate) || 22;
-      const fCost = parseFloat(financingCost) || 0;
 
-      // Create the order
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          company_id: effectiveCompany.id,
-          customer_id: customerId,
-          order_code: orderCode.trim() || null,
-          description,
-          total_amount: total,
-          deposit_amount: deposit,
-          deposit_2_amount: deposit2,
-          financing_amount: financing,
-          payment_type: paymentType,
-          balance_amount: balance,
-          expected_date: expectedDate?.toISOString().split("T")[0] || null,
-          internal_notes: internalNotes || null,
-          current_status_id: statusId,
-          vat_rate: vatValue,
-          warehouse_arrival_date: warehouseArrivalDate?.toISOString().split("T")[0] || null,
-          work_start_date: workStartDate?.toISOString().split("T")[0] || null,
-          work_end_date: workEndDate?.toISOString().split("T")[0] || null,
-          deposit_paid: depositPaid,
-          deposit_paid_date: depositPaidDate?.toISOString().split("T")[0] || null,
-          deposit_2_paid: deposit2Paid,
-          deposit_2_paid_date: deposit2PaidDate?.toISOString().split("T")[0] || null,
-          balance_paid: balancePaid,
-          balance_paid_date: balancePaidDate?.toISOString().split("T")[0] || null,
-          balance_expected_date: balanceExpectedDate?.toISOString().split("T")[0] || null,
-          deposit_expected_date: depositExpectedDate?.toISOString().split("T")[0] || null,
-          deposit_2_expected_date: deposit2ExpectedDate?.toISOString().split("T")[0] || null,
-          financing_paid: financingPaid,
-          financing_paid_date: financingPaidDate?.toISOString().split("T")[0] || null,
-          financing_expected_date: financingExpectedDate?.toISOString().split("T")[0] || null,
-          financing_cost: fCost,
-          has_building_bonus: hasBuildingBonus,
-        })
-        .select()
-        .single();
+      const orderData = {
+        company_id:              effectiveCompany.id,
+        customer_id:             customerId,
+        order_code:              orderCode.trim() || null,
+        description,
+        total_amount:            total,
+        deposit_amount:          deposit,
+        deposit_2_amount:        deposit2,
+        financing_amount:        financing,
+        payment_type:            paymentType,
+        balance_amount:          balance,
+        expected_date:           toDateStr(expectedDate),
+        internal_notes:          internalNotes || null,
+        current_status_id:       statusId,
+        vat_rate:                vatValue,
+        warehouse_arrival_date:  toDateStr(warehouseArrivalDate),
+        work_start_date:         toDateStr(workStartDate),
+        work_end_date:           toDateStr(workEndDate),
+        deposit_paid:            depositPaid,
+        deposit_paid_date:       toDateStr(depositPaidDate),
+        deposit_2_paid:          deposit2Paid,
+        deposit_2_paid_date:     toDateStr(deposit2PaidDate),
+        balance_paid:            balancePaid,
+        balance_paid_date:       toDateStr(balancePaidDate),
+        balance_expected_date:   toDateStr(balanceExpectedDate),
+        deposit_expected_date:   toDateStr(depositExpectedDate),
+        deposit_2_expected_date: toDateStr(deposit2ExpectedDate),
+        financing_paid:          financingPaid,
+        financing_paid_date:     toDateStr(financingPaidDate),
+        financing_expected_date: toDateStr(financingExpectedDate),
+        financing_cost:          fCost,
+        has_building_bonus:      hasBuildingBonus,
+      };
 
-      if (orderError) throw orderError;
+      const itemsPayload = orderItems.map((item, index) => ({
+        name:                  item.name,
+        description:           item.description || null,
+        quantity:              item.quantity,
+        status:                item.status,
+        position:              index,
+        supplier_id:           item.supplier_id || null,
+        purchase_price:        item.purchase_price || 0,
+        vat_rate:              item.vat_rate ?? 22,
+        stock_item_id:         item.stock_item_id || null,
+        unit_price:            0,
+        discount_percent:      0,
+        standard_cost:         0,
+        is_paid:               item.is_paid || false,
+        paid_date:             item.paid_date || null,
+        payment_method:        item.payment_method || null,
+        deposit_amount:        item.deposit_amount || 0,
+        deposit_paid:          item.deposit_paid || false,
+        deposit_paid_date:     item.deposit_paid_date || null,
+        balance_amount:        item.balance_amount || 0,
+        balance_paid:          item.balance_paid || false,
+        balance_paid_date:     item.balance_paid_date || null,
+        balance_expected_date: item.balance_expected_date || null,
+        deposit_expected_date: item.deposit_expected_date || null,
+      }));
 
-      // Create initial status history entry
-      const { error: historyError } = await supabase
-        .from("order_status_history")
-        .insert({
-          order_id: order.id,
-          status_id: statusId,
-          changed_by: user!.id,
-        });
-
-      if (historyError) throw historyError;
-
-      // Create order items if any
-      if (orderItems.length > 0) {
-        const itemsToInsert = orderItems.map((item, index) => ({
-          order_id: order.id,
-          name: item.name,
-          description: item.description || null,
-          quantity: item.quantity,
-          status: item.status,
-          position: index,
-          supplier_id: item.supplier_id || null,
-          purchase_price: item.purchase_price || 0,
-          vat_rate: item.vat_rate ?? 22,
-          stock_item_id: item.stock_item_id || null,
-          unit_price: 0,
-          discount_percent: 0,
-          standard_cost: 0,
-          is_paid: item.is_paid || false,
-          paid_date: item.paid_date || null,
-          payment_method: item.payment_method || null,
-          deposit_amount: item.deposit_amount || 0,
-          deposit_paid: item.deposit_paid || false,
-          deposit_paid_date: item.deposit_paid_date || null,
-          balance_amount: item.balance_amount || 0,
-          balance_paid: item.balance_paid || false,
-          balance_paid_date: item.balance_paid_date || null,
-          balance_expected_date: item.balance_expected_date || null,
-          deposit_expected_date: item.deposit_expected_date || null,
-        }));
-
-        const { data: insertedItems, error: itemsError } = await supabase
-          .from("order_items")
-          .insert(itemsToInsert)
-          .select();
-
-        if (itemsError) throw itemsError;
-
-        // Auto stock decrement for items picked from warehouse
-        if (insertedItems) {
-          for (const inserted of insertedItems) {
-            if (inserted.stock_item_id) {
-              // Get current stock quantity
-              const { data: currentStock } = await supabase
-                .from("warehouse_stock")
-                .select("quantity")
-                .eq("id", inserted.stock_item_id)
-                .single();
-
-              if (currentStock) {
-                // Decrement stock
-                await supabase
-                  .from("warehouse_stock")
-                  .update({ quantity: Math.max(0, currentStock.quantity - (inserted.quantity || 1)) })
-                  .eq("id", inserted.stock_item_id);
-
-                // Create movement record
-                await supabase.from("warehouse_movements").insert({
-                  stock_item_id: inserted.stock_item_id,
-                  order_item_id: inserted.id,
-                  movement_type: "scarico",
-                  quantity: inserted.quantity || 1,
-                  notes: `Prelievo automatico per ordine ${orderCode.trim() || order.id.slice(0, 8)}`,
-                  performed_by: user!.id,
-                });
-              }
-            }
-          }
-        }
-      }
-
-      // Create salesperson commission if selected
-      if (salespersonId && salespersonData) {
-        let commissionAmount = 0;
-        if (salespersonData.commission_type === "fixed") {
-          commissionAmount = salespersonData.commission_value;
-        } else {
-          // percentage_sold or percentage_collected - calculate on taxable amount
-          commissionAmount = total * (salespersonData.commission_value / 100);
-        }
-
-        const { error: salespersonError } = await supabase
-          .from("order_salespeople")
-          .insert({
-            order_id: order.id,
-            salesperson_id: salespersonId,
-            commission_type: salespersonData.commission_type,
+      const salespersonPayload = (salespersonId && salespersonData)
+        ? {
+            salesperson_id:   salespersonId,
+            commission_type:  salespersonData.commission_type,
             commission_value: salespersonData.commission_value,
-            commission_amount: commissionAmount,
-          });
+          }
+        : null;
 
-        if (salespersonError) throw salespersonError;
+      const { data, error } = await supabase.rpc("create_order_atomic", {
+        p_order_data:  orderData,
+        p_items:       itemsPayload,
+        p_salesperson: salespersonPayload,
+        p_user_id:     user!.id,
+      });
+
+      if (error) throw error;
+      if (!data || !(data as { id: string }).id) {
+        throw new Error("Risposta inattesa dalla funzione atomica");
       }
 
-      return order;
+      return data as { id: string; success: boolean };
     },
     onSuccess: (order) => {
       clearDraft();

@@ -2657,6 +2657,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_order_atomic: {
+        Args: {
+          p_order_data:  Json
+          p_items:       Json
+          p_salesperson: Json | null
+          p_user_id:     string | null
+        }
+        Returns: Json
+      }
       execute_automation: {
         Args: {
           p_company_id: string
