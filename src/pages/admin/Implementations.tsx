@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { MessageSquare, Loader2, Eye, EyeOff } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { MessageSquare, Loader2, Eye, EyeOff, Search } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 
@@ -32,6 +33,7 @@ const MODULES: ModuleConfig[] = [
 export default function Implementations() {
   const queryClient = useQueryClient();
   const [dialogModule, setDialogModule] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: companies = [], isLoading } = useQuery({
     queryKey: ["impl-companies"],
@@ -53,7 +55,10 @@ export default function Implementations() {
         .eq("id", companyId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["impl-companies"] }),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["impl-companies"] });
+      toast({ title: vars.value ? "Modulo attivato" : "Modulo disattivato" });
+    },
     onError: () => toast({ title: "Errore", description: "Impossibile aggiornare il modulo.", variant: "destructive" }),
   });
 
@@ -144,12 +149,22 @@ export default function Implementations() {
             </CardContent>
 
             {/* Selection Dialog */}
-            <Dialog open={dialogModule === mod.key} onOpenChange={(open) => !open && setDialogModule(null)}>
+            <Dialog open={dialogModule === mod.key} onOpenChange={(open) => { if (!open) { setDialogModule(null); setSearchTerm(""); } }}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Seleziona aziende — {mod.title}</DialogTitle>
                   <DialogDescription>Seleziona le aziende per cui abilitare il modulo.</DialogDescription>
                 </DialogHeader>
+
+                <div className="relative mb-2">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Cerca azienda..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
 
                 <div className="flex gap-2 mb-3">
                   <Button
@@ -171,7 +186,9 @@ export default function Implementations() {
                 </div>
 
                 <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
-                  {companies.map((company: any) => (
+                  {companies
+                    .filter((c: any) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map((company: any) => (
                     <label
                       key={company.id}
                       className="flex items-center gap-2 rounded-md px-3 py-2 hover:bg-muted cursor-pointer transition-colors"
@@ -190,7 +207,7 @@ export default function Implementations() {
                       <span className="text-sm truncate">{company.name}</span>
                     </label>
                   ))}
-                  {companies.length === 0 && (
+                  {companies.filter((c: any) => c.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-4">Nessuna azienda trovata.</p>
                   )}
                 </div>

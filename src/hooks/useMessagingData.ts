@@ -52,7 +52,7 @@ export function useMessages(conversationId: string | null) {
       return data;
     },
     enabled: !!conversationId,
-    staleTime: 10_000,
+    staleTime: 30_000,
   });
 }
 
