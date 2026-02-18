@@ -339,7 +339,7 @@ export default function CreateOrder() {
           }
         : null;
 
-      const { data, error } = await supabase.rpc("create_order_atomic", {
+      const { data, error } = await supabase.rpc("create_order_atomic" as any, {
         p_order_data:  orderData,
         p_items:       itemsPayload,
         p_salesperson: salespersonPayload,
@@ -347,11 +347,12 @@ export default function CreateOrder() {
       });
 
       if (error) throw error;
-      if (!data || !(data as { id: string }).id) {
+      const result = data as unknown as { id: string; success: boolean };
+      if (!result || !result.id) {
         throw new Error("Risposta inattesa dalla funzione atomica");
       }
 
-      return data as { id: string; success: boolean };
+      return result;
     },
     onSuccess: (order) => {
       clearDraft();
