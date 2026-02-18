@@ -224,7 +224,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Transform external teams into unified cost format
   const externalTeamAsVariableCosts: UnifiedCost[] = useMemo(() => {
-    return externalTeamCosts.map((item: any) => ({
+    return externalTeamCosts.map((item: any): UnifiedCost => ({
       id: `ext-team-${item.id}`,
       name: item.external_team?.name || "Squadra Esterna",
       cost_type: "variable",
@@ -244,7 +244,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Transform active employees into fixed monthly salary costs
   const employeeAsFixedCosts: UnifiedCost[] = useMemo(() => {
-    return activeEmployees.map((emp) => ({
+    return activeEmployees.map((emp): UnifiedCost => ({
       id: `employee-salary-${emp.id}`,
       name: `${emp.first_name} ${emp.last_name} (stipendio)`,
       cost_type: "fixed",
@@ -264,7 +264,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
   // Transform commissions into unified cost format
   const commissionAsVariableCosts: UnifiedCost[] = useMemo(() => {
-    return commissionCosts.map((item: any) => ({
+    return commissionCosts.map((item: any): UnifiedCost => ({
       id: `commission-${item.id}`,
       name: `${item.salesperson?.first_name || ""} ${item.salesperson?.last_name || ""}`.trim() || "Venditore",
       cost_type: "variable",

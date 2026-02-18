@@ -239,7 +239,7 @@ export function TreasuryTab({
         isExpandable: false,
         isIncome: true,
         monthlyAmounts: buildMonthlyMap(items),
-        children: [],
+        children: [] as TreeNode[],
       })
     );
 

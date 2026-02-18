@@ -98,7 +98,7 @@ export default function ReferralDashboard() {
       const planIds = [...new Set((companies || []).filter(c => c.subscription_plan_id).map(c => c.subscription_plan_id!))];
       const { data: plans } = planIds.length > 0
         ? await supabase.from("subscription_plans").select("id, price_monthly").in("id", planIds)
-        : { data: [] };
+        : { data: [] as { id: string; price_monthly: number }[] };
 
       return data.map((rc: any) => {
         const company = companies?.find(c => c.id === rc.company_id);

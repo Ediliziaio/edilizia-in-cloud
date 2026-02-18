@@ -45,7 +45,7 @@ export default function CashFlowForecast() {
       ...expectedPayments.map((p) => ({ expectedDate: p.expectedDate, amount: p.amount, direction: "in" as const, type: p.type, label: p.customerName, orderCode: p.orderCode })),
       ...expectedExpenses.map((e) => ({ expectedDate: e.expectedDate, amount: e.amount, direction: "out" as const, type: "Squadra Esterna", label: e.teamName, orderCode: e.orderCode })),
       ...expectedCommissions.map((c) => ({ expectedDate: c.expectedDate, amount: c.amount, direction: "out" as const, type: "Provvigione", label: c.salespersonName, orderCode: c.orderCode })),
-      ...expectedCompanyCosts.map((c) => ({ expectedDate: c.expectedDate, amount: c.amount, direction: "out" as const, type: c.type, label: c.name, orderCode: null })),
+      ...expectedCompanyCosts.map((c) => ({ expectedDate: c.expectedDate, amount: c.amount, direction: "out" as const, type: c.type, label: c.name, orderCode: null as string | null })),
       ...expectedSupplierPayments.filter(p => !p.isPaid).map((s) => ({ expectedDate: s.expectedDate, amount: s.amount, direction: "out" as const, type: s.type, label: s.supplierName, orderCode: s.orderCode })),
     ];
 
