@@ -1,84 +1,127 @@
 
+# Redesign Messaggistica + Tab Impostazioni WhatsApp Business
 
-# Revisione e Stabilizzazione Modulo Messaggistica (BETA)
+## 1. Redesign grafico della pagina Messaggistica
 
-## Analisi completata
+Basandomi sugli screenshot forniti (stile "Casella di posta del team"), la pagina viene trasformata con:
 
-Ho analizzato l'intero modulo: pagina Implementazioni, MessagingBeta, ChatView, AiPanel, ConversationList, MessageBubble, SimulateMessageDialog, useMessagingData, analyze-message edge function, CompanyLayout, AdminLayout, App.tsx.
+### Layout principale con Tabs
 
-**Risultato: il modulo e' gia' ben strutturato e funzionante.** Di seguito le ottimizzazioni puntuali da applicare.
+La pagina avra' due tab principali in alto:
+- **Messaggi** (inbox attuale con conversazioni + chat + AI panel)
+- **Impostazioni** (configurazione WhatsApp Business)
+
+### Tab Messaggi - Restyling
+
+```text
++-----------------------------------------------------------------------+
+| Messaggistica [BETA]                                                   |
+| [Messaggi]  [Impostazioni]                                            |
++-----------------------------------------------------------------------+
+| Casella di posta del team                                              |
+| [Non letto] [Tutto] [Recenti]  | Nome Contatto              tel/star |
++-----------------------------------+-----------------------------------|
+| [ ] Alfina Schillaci    Feb 17 1  | Bubble messaggio ricevuto...      |
+|     Vorrei sapere dei prezzi      |                                   |
+| [ ] Manuela Berto       Feb 17 1  | Bubble risposta operatore...      |
+| [ ] Fabio M. Di Paola   Feb 17 1  |                                   |
+|                                   | [Digita un messaggio...]    [>]   |
++-----------------------------------+-----------------------------------+
+```
+
+Modifiche al ConversationList:
+- Header "Casella di posta del team" con icone toolbar
+- Filtri semplificati: "Non letto", "Tutto", "Recenti" + icona stella
+- Avatar con iniziali colorate per ogni contatto
+- Badge contatore messaggi non letti
+- Preview ultimo messaggio sotto al nome
+
+Modifiche al ChatView:
+- Header con nome contatto + icone azione (telefono, stella, etc.)
+- Input in basso con placeholder "Digita un messaggio..."
+- Stile bubble piu' simile a WhatsApp (verde chiaro per operatore, bianco per contatto)
+
+### Tab Impostazioni - WhatsApp Business
+
+Una sezione dedicata alla configurazione dell'integrazione WhatsApp Business, simile agli screenshot forniti.
+
+```text
++-----------------------------------------------------------------------+
+| WhatsApp Business                                                      |
+|                                                                        |
+| [!] Verifica di WhatsApp Business in sospeso                          |
+|     Costruisci fiducia con un nome verificato...                      |
+|     [Verifica ora ->]                                                  |
+|                                                                        |
+| Nome Azienda                                                           |
+| Stato dell'account: [Approvato] | Verifica Meta Business              |
+| +---------------------------+  +---------------------------+          |
+| | Messaggi inviati (7gg)   |  | Messaggi consegnati (7gg)|          |
+| | 232                       |  | 231                      |          |
+| +---------------------------+  +---------------------------+          |
+|                                                                        |
+| [Numeri]  [Modelli]  [Flussi]                                         |
+|                                                                        |
+| Numero di telefono  (1 Numeri)                                        |
+| +----+----------+--------+----------+--------+---------+             |
+| | Num| Nome     | Limite | Stato    | Qualita| Attivita|             |
+| | 351| BeMade   | -      | Collegato| Nessuno| Gestisci|             |
+| +----+----------+--------+----------+--------+---------+             |
+|                                                                        |
+| [Collega numero WhatsApp]  --> apre Facebook Login                    |
++-----------------------------------------------------------------------+
+```
 
 ---
 
-## 1. Pulizia codice
+## 2. Dettaglio tecnico
 
-| Cosa | Dove | Dettaglio |
-|------|------|-----------|
-| Import `Plus` non usato | `MessagingBeta.tsx` | `Plus` e' importato ma il bottone usa gia' `Plus` - OK, ma `MessageSquare` e' importato e non usato |
-| Import `Badge` non usato | `MessagingBeta.tsx` | `Lock` e' usato solo nel branch disabilitato, ok |
-| `Employees` page non importata in App.tsx | `App.tsx` | La pagina Employees esiste ma non ha una route in App.tsx - non correlato al modulo messaging, ignoro |
+### Nuova tabella database
 
-**Nessun file morto o componente inutilizzato nel modulo messaging.** Tutti i file creati sono referenziati e utilizzati.
+**`messaging_whatsapp_config`** - Salva la configurazione WhatsApp per ogni azienda
 
----
+| Colonna | Tipo | Descrizione |
+|---------|------|-------------|
+| id | uuid PK | |
+| company_id | uuid FK -> companies | Unica per azienda |
+| phone_number | text | Numero collegato |
+| phone_number_id | text | ID numero WhatsApp API |
+| waba_id | text | WhatsApp Business Account ID |
+| business_name | text | Nome business su WhatsApp |
+| account_status | text | verified/pending/not_verified |
+| quality_rating | text | green/yellow/red/none |
+| is_connected | boolean | Se il numero e' collegato |
+| access_token_encrypted | text | Token Meta (criptato) |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
 
-## 2. Fix funzionali
+RLS: solo utenti della stessa azienda con permesso `can_manage_settings` possono leggere/scrivere.
 
-### 2a. Edge function `analyze-message` - Fallback `getClaims`
-Il pattern attuale usa `getClaims()` senza fallback su `getUser()`. Va aggiunto il fallback per robustezza (pattern gia' usato nelle altre edge functions del progetto).
+### Nuovi file
 
-### 2b. `ChatView.tsx` - ScrollArea ref non funzionante
-Il componente `ScrollArea` di Radix non supporta `ref` diretto per lo scroll. Il `scrollRef` non punta al container scrollabile reale. Va usato un `div` wrapper interno.
-
-### 2c. `useMessagingData.ts` - staleTime troppo basso
-`staleTime: 10_000` su `useMessages` causa refetch frequenti non necessari. Alzare a `30_000` come le conversazioni, dato che il realtime gestisce gia' gli aggiornamenti.
-
-### 2d. `MessagingBeta.tsx` - import `MessageSquare` inutilizzato
-Importato ma mai usato nel componente. Rimuovere.
-
----
-
-## 3. Miglioramenti UX
-
-### 3a. Stato vuoto conversazione - CTA piu' chiara
-Nella ChatView, quando non c'e' una conversazione selezionata, aggiungere un testo piu' esplicativo e invitare a usare "Simula Messaggio".
-
-### 3b. Loading state nel dialog "Simula Messaggio"
-Quando si clicca "Invia e Analizza", il dialog si chiude subito. Meglio mostrare un breve feedback "Messaggio inviato" prima di chiudere.
-
-### 3c. Pagina Implementazioni - toast di successo per toggle singolo
-Il toggle singolo (`toggleMutation`) non mostra toast di conferma. Aggiungere feedback.
-
-### 3d. Pagina Implementazioni - Search nel dialog aziende
-Aggiungere un campo di ricerca nel dialog di selezione aziende, utile quando ci sono molte aziende.
-
----
-
-## Dettaglio tecnico delle modifiche
+| File | Descrizione |
+|------|-------------|
+| `src/components/messaging/MessagingSettingsTab.tsx` | Tab impostazioni WhatsApp Business con card stato account, numeri, modelli, bottone collegamento Facebook |
 
 ### File modificati
 
 | File | Modifica |
 |------|----------|
-| `src/pages/azienda/MessagingBeta.tsx` | Rimuovere import `MessageSquare` inutilizzato |
-| `src/components/messaging/ChatView.tsx` | Fix scroll con div wrapper; migliorare stato vuoto con CTA |
-| `src/hooks/useMessagingData.ts` | Alzare `staleTime` messaggi a 30s |
-| `supabase/functions/analyze-message/index.ts` | Aggiungere fallback `getUser()` su errore `getClaims()` |
-| `src/pages/admin/Implementations.tsx` | Aggiungere toast su toggle singolo + campo ricerca nel dialog |
+| `src/pages/azienda/MessagingBeta.tsx` | Aggiunta Tabs (Messaggi / Impostazioni) che wrappano il contenuto attuale e la nuova tab |
+| `src/components/messaging/ConversationList.tsx` | Restyling: header "Casella di posta del team", avatar con iniziali, filtri "Non letto/Tutto/Recenti", preview ultimo messaggio |
+| `src/components/messaging/ChatView.tsx` | Restyling header con icone azione, bubble colors piu' WhatsApp-like |
+| `src/components/messaging/MessageBubble.tsx` | Colori bubble aggiornati (verde chiaro per operatore) |
 
-### Nessun file da creare o eliminare
+### Logica collegamento WhatsApp
 
-### Nessuna modifica al database
+Il bottone "Collega numero WhatsApp" nella tab Impostazioni:
+1. Apre una finestra popup verso l'URL di Facebook Login/OAuth per WhatsApp Business
+2. L'utente completa il flusso di autorizzazione su Facebook
+3. Al ritorno, un webhook/callback salva il token e i dati nella tabella `messaging_whatsapp_config`
+4. La UI si aggiorna mostrando lo stato "Collegato" con i dati del numero
 
----
+Per ora (Fase 1), il bottone apre il link diretto a Facebook Business (`https://business.facebook.com/latest/whatsapp_manager/`) con istruzioni su come ottenere le credenziali API. L'integrazione automatica OAuth verra' completata in una fase successiva quando saranno configurate le credenziali Meta App.
 
-## Riepilogo
+### Nessuna modifica a file esistenti non elencati
 
-| Area | Stato |
-|------|-------|
-| Codice morto | 1 import inutilizzato da rimuovere |
-| Bug funzionali | 2 fix (scroll chat, auth fallback edge function) |
-| UX | 3 miglioramenti (feedback toast, search dialog, CTA stato vuoto) |
-| Performance | 1 ottimizzazione (staleTime) |
-| Sicurezza | Auth fallback allineato al pattern del progetto |
-
+Il modulo resta completamente isolato e disattivabile.
