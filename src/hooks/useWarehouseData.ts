@@ -58,7 +58,8 @@ export function useWarehouseData() {
           )
         `)
         .eq("order.company_id", companyId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(2000); // sicurezza: evita di caricare l'intera tabella a scala
       if (error) throw error;
       return (data || []) as unknown as WarehouseItem[];
     },

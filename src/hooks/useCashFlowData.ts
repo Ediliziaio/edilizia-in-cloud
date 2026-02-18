@@ -45,7 +45,9 @@ export function useCashFlowData() {
           financing_cost, payment_type,
           customer:profiles!orders_customer_id_fkey(first_name, last_name)
         `)
-        .eq("company_id", companyId!);
+        .eq("company_id", companyId!)
+        .order("created_at", { ascending: false })
+        .limit(1000); // sicurezza: previsionale usa gli ultimi 1000 ordini; TODO filtro data rolling 3 anni
       if (error) throw error;
       return data;
     },

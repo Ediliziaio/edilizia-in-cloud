@@ -49,7 +49,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
         .from("company_costs")
         .select("*, order:orders(id, order_code), supplier:suppliers(id, name, product_category, vat_rate)")
         .eq("company_id", companyId!)
-        .order("due_date", { ascending: true });
+        .order("due_date", { ascending: true })
+        .limit(5000); // sicurezza: evita full table scan; implementare range-date per date > 2 anni
       if (error) throw error;
       return data || [];
     },
