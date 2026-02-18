@@ -1,74 +1,61 @@
 
+# Redesign Pagina Implementazioni - Stile Launchpad
 
-# Implementazioni - Pannello Super Admin per Feature Flag
+## Cosa cambia
 
-## Cosa viene creato
-
-Una nuova pagina "Implementazioni" nella sidebar del Super Admin, dove puoi attivare o disattivare moduli (come "Messaggistica BETA") per tutte le aziende o solo per alcune selezionate.
+La pagina "Implementazioni" viene ridisegnata per somigliare al riferimento visivo fornito (stile Launchpad). Le aziende non sono piu' tutte visibili con checkbox, ma si accede alla selezione tramite un **dialog/popup** dedicato.
 
 ---
 
-## Come funziona
-
-### Sidebar Admin
-
-Nuova voce nella sidebar, tra "Referral" e "Impostazioni":
-- Icona: puzzle/blocchi
-- Testo: "Implementazioni"
-- Permesso: `can_manage_companies` (stesso di chi gestisce le aziende)
-
-### Pagina Implementazioni
-
-Una lista di card, ciascuna rappresenta un modulo attivabile:
+## Nuovo Layout per ogni modulo
 
 ```text
-+-------------------------------------------------------+
-| Messaggistica (BETA)                          [Badge]  |
-| Modulo di messaggistica con AI per gestire             |
-| conversazioni WhatsApp e automatizzare task.           |
-|                                                        |
-| Attivo su: 3 aziende                                  |
-|                                                        |
-| [Seleziona aziende...]              [Attiva per tutte] |
-|                                                        |
-| Aziende attive:                                        |
-| [x] Rossi Serramenti    [x] Bianchi Infissi           |
-| [x] Verdi Costruzioni                                  |
-+-------------------------------------------------------+
++------------------------------------------------------------------+
+| Messaggistica (BETA)                                              |
+| (icona occhio) Visibile per tutte le aziende / X aziende selez.  |
+|------------------------------------------------------------------|
+| Messaggistica (BETA)                                              |
+| Modulo di messaggistica con AI per gestire conversazioni e        |
+| automatizzare task.                                               |
+|                                                                    |
+|------------------------------------------------------------------|
+| [Abilitato per aziende specifiche]  [Attiva funzionalita']       |
++------------------------------------------------------------------+
 ```
 
-Per ogni modulo puoi:
-- **Attiva per tutte**: un click abilita il flag su tutte le aziende
-- **Disattiva per tutte**: rimuove il flag da tutte
-- **Seleziona singole**: checkbox per attivare/disattivare su aziende specifiche
-- Vedere quante aziende hanno il modulo attivo
+### Comportamento pulsanti
+
+- **"Attiva funzionalita'"** (primary, blu): attiva il modulo per **tutte** le aziende con un click. Diventa "Disattiva funzionalita'" se gia' attivo per tutte.
+- **"Abilitato per aziende specifiche"** (outline): apre un **Dialog** con la lista delle aziende e checkbox per selezionare/deselezionare singolarmente. Include "Seleziona tutte" / "Deseleziona tutte" nel dialog.
+
+### Sottotitolo dinamico
+
+Sotto il titolo del modulo, una riga con icona occhio mostra:
+- "Visibile per tutte le aziende" se tutte attive
+- "Attivo su X/Y aziende" se solo alcune
+- "Non attivo" se nessuna
 
 ---
 
 ## Dettaglio tecnico
 
-### Nuovi file
-
-| File | Descrizione |
-|------|-------------|
-| `src/pages/admin/Implementations.tsx` | Pagina principale con lista moduli e gestione toggle per azienda |
-
-### File modificati
+### File modificato
 
 | File | Modifica |
 |------|----------|
-| `src/components/layouts/AdminLayout.tsx` | Aggiunta voce "Implementazioni" nella sidebar con icona `Blocks` e permesso `can_manage_companies` |
-| `src/App.tsx` | Aggiunta route `/admin/implementazioni` |
+| `src/pages/admin/Implementations.tsx` | Riscrittura completa del layout card + aggiunta Dialog per selezione aziende |
 
-### Logica
+### Nessun nuovo file
 
-- Carica tutte le aziende dal DB
-- Per ogni modulo (per ora solo `messaging_beta_enabled`), mostra lo stato attuale di ogni azienda
-- Toggle singolo: `UPDATE companies SET messaging_beta_enabled = true/false WHERE id = ?`
-- Toggle globale: `UPDATE companies SET messaging_beta_enabled = true/false` (tutte)
-- La struttura e' predisposta per aggiungere futuri moduli semplicemente aggiungendo un elemento alla lista dei moduli disponibili
+Il Dialog usa i componenti `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle` gia' presenti in `src/components/ui/dialog.tsx`.
 
-### Nessuna modifica al database
+### Pulizia
 
-Il campo `messaging_beta_enabled` esiste gia' nella tabella `companies`. Non servono nuove tabelle o colonne.
+- Rimosso import `useState` inutilizzato (era importato ma non usato)
+- La griglia checkbox viene spostata dentro il Dialog, rendendo la card principale piu' pulita e leggibile
 
+### Logica invariata
+
+- Toggle singolo e bulk usano le stesse mutation gia' esistenti
+- Query dati identica
+- Nessuna modifica al database
