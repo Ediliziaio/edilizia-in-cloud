@@ -1,0 +1,200 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN")!;
+const APP_SECRET = Deno.env.get("META_APP_SECRET")!;
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+async function verifyHmac(body: string, signature: string): Promise<boolean> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(APP_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(body)
+  );
+  const expected =
+    "sha256=" +
+    Array.from(new Uint8Array(sig))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  return expected === signature;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  // GET — webhook verification
+  if (req.method === "GET") {
+    const url = new URL(req.url);
+    const mode = url.searchParams.get("hub.mode");
+    const token = url.searchParams.get("hub.verify_token");
+    const challenge = url.searchParams.get("hub.challenge");
+
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+      console.log("Webhook verified");
+      return new Response(challenge, { status: 200 });
+    }
+    return new Response("Forbidden", { status: 403 });
+  }
+
+  // POST — incoming messages
+  if (req.method === "POST") {
+    const bodyText = await req.text();
+    const signature = req.headers.get("x-hub-signature-256") || "";
+
+    if (!(await verifyHmac(bodyText, signature))) {
+      console.error("Invalid HMAC signature");
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    try {
+      const payload = JSON.parse(bodyText);
+      const entries = payload.entry || [];
+
+      for (const entry of entries) {
+        const changes = entry.changes || [];
+        for (const change of changes) {
+          if (change.field !== "messages") continue;
+          const value = change.value;
+          if (!value?.messages) continue;
+
+          const phoneNumberId = value.metadata?.phone_number_id;
+          if (!phoneNumberId) continue;
+
+          // Find company by phone_number_id
+          const { data: config } = await supabase
+            .from("messaging_whatsapp_config")
+            .select("company_id")
+            .eq("phone_number_id", phoneNumberId)
+            .eq("is_connected", true)
+            .maybeSingle();
+
+          if (!config) {
+            console.warn(`No config for phone_number_id: ${phoneNumberId}`);
+            continue;
+          }
+
+          const companyId = config.company_id;
+          const contacts = value.contacts || [];
+          const contactMap: Record<string, string> = {};
+          for (const c of contacts) {
+            contactMap[c.wa_id] = c.profile?.name || c.wa_id;
+          }
+
+          for (const msg of value.messages) {
+            const senderPhone = msg.from;
+            const senderName = contactMap[senderPhone] || senderPhone;
+            const content =
+              msg.text?.body ||
+              msg.caption ||
+              (msg.type === "image"
+                ? "[Immagine]"
+                : msg.type === "document"
+                ? "[Documento]"
+                : msg.type === "audio"
+                ? "[Audio]"
+                : msg.type === "video"
+                ? "[Video]"
+                : "[Messaggio]");
+
+            const messageType =
+              msg.type === "text"
+                ? "text"
+                : msg.type === "image"
+                ? "image"
+                : msg.type === "document"
+                ? "document"
+                : msg.type === "audio"
+                ? "audio"
+                : "text";
+
+            // Find or create conversation
+            const { data: existing } = await supabase
+              .from("messaging_conversations")
+              .select("id")
+              .eq("company_id", companyId)
+              .eq("phone_number", senderPhone)
+              .maybeSingle();
+
+            let conversationId: string;
+
+            if (existing) {
+              conversationId = existing.id;
+              await supabase
+                .from("messaging_conversations")
+                .update({
+                  last_message_at: new Date().toISOString(),
+                  contact_name: senderName,
+                  status: "da_gestire",
+                })
+                .eq("id", conversationId);
+            } else {
+              const { data: newConv, error: convErr } = await supabase
+                .from("messaging_conversations")
+                .insert({
+                  company_id: companyId,
+                  phone_number: senderPhone,
+                  contact_name: senderName,
+                  contact_type: "sconosciuto",
+                  last_message_at: new Date().toISOString(),
+                })
+                .select("id")
+                .single();
+
+              if (convErr) {
+                console.error("Error creating conversation:", convErr);
+                continue;
+              }
+              conversationId = newConv.id;
+            }
+
+            // Insert message
+            const mediaUrl =
+              msg.image?.id || msg.document?.id || msg.audio?.id || msg.video?.id
+                ? `wa-media://${msg[msg.type]?.id}`
+                : null;
+
+            const { error: msgErr } = await supabase
+              .from("messaging_messages")
+              .insert({
+                conversation_id: conversationId,
+                sender_type: "contact",
+                sender_name: senderName,
+                message_type: messageType,
+                content,
+                media_url: mediaUrl,
+              });
+
+            if (msgErr) {
+              console.error("Error inserting message:", msgErr);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error processing webhook:", err);
+    }
+
+    // Always respond 200 to Meta
+    return new Response("OK", { status: 200, headers: corsHeaders });
+  }
+
+  return new Response("Method not allowed", { status: 405 });
+});

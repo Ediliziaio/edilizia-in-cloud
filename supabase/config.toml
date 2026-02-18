@@ -38,3 +38,9 @@ verify_jwt = false
 
 [functions.analyze-message]
 verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+[functions.whatsapp-connect]
+verify_jwt = false

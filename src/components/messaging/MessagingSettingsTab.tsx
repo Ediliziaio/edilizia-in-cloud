@@ -1,11 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, CheckCircle2, ExternalLink, Phone, Send, CheckCheck, Loader2, Plus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Phone, Send, CheckCheck, Loader2, Plus, Unplug } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+
+// Public Meta App ID — configure this with your own app
+const META_APP_ID = "YOUR_META_APP_ID";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   verified: { label: "Verificato", variant: "default" },
@@ -20,9 +25,51 @@ const QUALITY_MAP: Record<string, { label: string; className: string }> = {
   none: { label: "Nessuno", className: "text-muted-foreground" },
 };
 
+declare global {
+  interface Window {
+    FB: any;
+    fbAsyncInit: () => void;
+  }
+}
+
+function useFacebookSDK() {
+  const loaded = useRef(false);
+  const [ready, setReady] = useState(!!window.FB);
+
+  useEffect(() => {
+    if (loaded.current || window.FB) {
+      if (window.FB) setReady(true);
+      return;
+    }
+    loaded.current = true;
+
+    window.fbAsyncInit = () => {
+      window.FB.init({
+        appId: META_APP_ID,
+        cookie: true,
+        xfbml: false,
+        version: "v21.0",
+      });
+      setReady(true);
+    };
+
+    const script = document.createElement("script");
+    script.src = "https://connect.facebook.net/it_IT/sdk.js";
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+  }, []);
+
+  return ready;
+}
+
 export function MessagingSettingsTab() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const queryClient = useQueryClient();
+  const fbReady = useFacebookSDK();
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const { data: config, isLoading } = useQuery({
     queryKey: ["whatsapp-config", companyId],
@@ -39,12 +86,90 @@ export function MessagingSettingsTab() {
     enabled: !!companyId,
   });
 
-  const handleConnectWhatsApp = () => {
-    window.open(
-      "https://business.facebook.com/latest/whatsapp_manager/phone_numbers/",
-      "_blank",
-      "noopener,noreferrer"
+  const handleConnectWhatsApp = useCallback(() => {
+    if (!fbReady || !window.FB || !companyId) {
+      toast({ title: "Errore", description: "SDK Facebook non ancora caricato. Riprova tra un momento.", variant: "destructive" });
+      return;
+    }
+
+    setConnecting(true);
+
+    window.FB.login(
+      async (response: any) => {
+        if (response.authResponse?.code) {
+          try {
+            const { data, error } = await supabase.functions.invoke("whatsapp-connect", {
+              body: {
+                code: response.authResponse.code,
+                company_id: companyId,
+                meta_app_id: META_APP_ID,
+              },
+            });
+
+            if (error) throw error;
+            if (data?.error) throw new Error(data.details || data.error);
+
+            toast({
+              title: "WhatsApp collegato!",
+              description: data.phone_number
+                ? `Numero ${data.phone_number} collegato con successo.`
+                : "Account collegato con successo.",
+            });
+
+            queryClient.invalidateQueries({ queryKey: ["whatsapp-config"] });
+          } catch (err: any) {
+            console.error("Connect error:", err);
+            toast({
+              title: "Errore collegamento",
+              description: err?.message || "Impossibile completare il collegamento. Riprova.",
+              variant: "destructive",
+            });
+          }
+        } else {
+          toast({ title: "Collegamento annullato", description: "Hai annullato il processo di collegamento.", variant: "destructive" });
+        }
+        setConnecting(false);
+      },
+      {
+        config_id: "",
+        response_type: "code",
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: "only_waba_sharing",
+          sessionInfoVersion: 3,
+        },
+      }
     );
+  }, [fbReady, companyId, queryClient]);
+
+  const handleDisconnect = useCallback(async () => {
+    if (!companyId || !config) return;
+    setDisconnecting(true);
+    try {
+      const { error } = await supabase
+        .from("messaging_whatsapp_config")
+        .update({
+          is_connected: false,
+          access_token_encrypted: null,
+          phone_number_id: null,
+          waba_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("company_id", companyId);
+
+      if (error) throw error;
+
+      toast({ title: "WhatsApp disconnesso", description: "Il numero è stato scollegato con successo." });
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-config"] });
+    } catch (err: any) {
+      toast({ title: "Errore", description: err?.message || "Impossibile disconnettere.", variant: "destructive" });
+    }
+    setDisconnecting(false);
+  }, [companyId, config, queryClient]);
+
+  const handleVerifyNow = () => {
+    window.open("https://business.facebook.com/settings/security/", "_blank", "noopener,noreferrer");
   };
 
   if (isLoading) {
@@ -56,6 +181,7 @@ export function MessagingSettingsTab() {
   }
 
   const hasConfig = !!config;
+  const isConnected = config?.is_connected === true;
   const accountStatus = config?.account_status || "not_verified";
   const qualityRating = config?.quality_rating || "none";
   const statusInfo = STATUS_MAP[accountStatus] || STATUS_MAP.not_verified;
@@ -74,7 +200,7 @@ export function MessagingSettingsTab() {
                 Costruisci fiducia con i tuoi clienti mostrando un nome verificato. Completa la verifica del tuo account Meta Business per sbloccare tutte le funzionalità.
               </p>
             </div>
-            <Button variant="outline" size="sm" className="gap-1.5 flex-shrink-0" onClick={handleConnectWhatsApp}>
+            <Button variant="outline" size="sm" className="gap-1.5 flex-shrink-0" onClick={handleVerifyNow}>
               Verifica ora
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
@@ -146,13 +272,25 @@ export function MessagingSettingsTab() {
             <div>
               <CardTitle className="text-base">Numeri di telefono</CardTitle>
               <CardDescription>
-                {hasConfig && config.phone_number ? "1 Numero collegato" : "Nessun numero collegato"}
+                {isConnected && config?.phone_number ? "1 Numero collegato" : "Nessun numero collegato"}
               </CardDescription>
             </div>
+            {isConnected && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDisconnect}
+                disabled={disconnecting}
+                className="gap-1.5 text-destructive hover:text-destructive"
+              >
+                {disconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unplug className="h-3.5 w-3.5" />}
+                Disconnetti
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
-          {hasConfig && config.phone_number ? (
+          {isConnected && config?.phone_number ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -170,15 +308,24 @@ export function MessagingSettingsTab() {
                   <TableCell>{config.business_name || "—"}</TableCell>
                   <TableCell>—</TableCell>
                   <TableCell>
-                    <Badge variant={config.is_connected ? "default" : "outline"}>
-                      {config.is_connected ? "Collegato" : "Disconnesso"}
-                    </Badge>
+                    <Badge variant="default">Collegato</Badge>
                   </TableCell>
                   <TableCell>
                     <span className={qualityInfo.className}>{qualityInfo.label}</span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={handleConnectWhatsApp} className="gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        window.open(
+                          "https://business.facebook.com/latest/whatsapp_manager/phone_numbers/",
+                          "_blank",
+                          "noopener,noreferrer"
+                        )
+                      }
+                      className="gap-1"
+                    >
                       Gestisci
                       <ExternalLink className="h-3 w-3" />
                     </Button>
@@ -193,12 +340,14 @@ export function MessagingSettingsTab() {
             </div>
           )}
 
-          <div className="mt-4 flex justify-center">
-            <Button onClick={handleConnectWhatsApp} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Collega numero WhatsApp
-            </Button>
-          </div>
+          {!isConnected && (
+            <div className="mt-4 flex justify-center">
+              <Button onClick={handleConnectWhatsApp} disabled={connecting || !fbReady} className="gap-2">
+                {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {connecting ? "Collegamento in corso..." : "Collega numero WhatsApp"}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
