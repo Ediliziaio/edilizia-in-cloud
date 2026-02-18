@@ -12,6 +12,7 @@ import {
   Settings,
   CreditCard,
   Gift,
+  Blocks,
   Search,
   ChevronsUpDown
 } from "lucide-react";
@@ -43,6 +44,7 @@ const allNavItems = [
   { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets" as const },
   { title: "Piani", url: "/admin/piani", icon: CreditCard, permission: "can_manage_plans" as const },
   { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals" as const },
+  { title: "Implementazioni", url: "/admin/implementazioni", icon: Blocks, permission: "can_manage_companies" as const },
 ];
 
 const accountItems = [
