@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MessageSquare, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { MessageSquare, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 
@@ -30,6 +31,7 @@ const MODULES: ModuleConfig[] = [
 
 export default function Implementations() {
   const queryClient = useQueryClient();
+  const [dialogModule, setDialogModule] = useState<string | null>(null);
 
   const { data: companies = [], isLoading } = useQuery({
     queryKey: ["impl-companies"],
@@ -60,12 +62,12 @@ export default function Implementations() {
       const { error } = await supabase
         .from("companies")
         .update({ [field]: value } as any)
-        .neq("id", "00000000-0000-0000-0000-000000000000"); // update all
+        .neq("id", "00000000-0000-0000-0000-000000000000");
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["impl-companies"] });
-      toast({ title: vars.value ? "Attivato per tutte" : "Disattivato per tutte" });
+      toast({ title: vars.value ? "Attivato per tutte le aziende" : "Disattivato per tutte le aziende" });
     },
     onError: () => toast({ title: "Errore", variant: "destructive" }),
   });
@@ -88,46 +90,87 @@ export default function Implementations() {
       {MODULES.map((mod) => {
         const activeCount = companies.filter((c: any) => c[mod.dbField]).length;
         const allActive = activeCount === companies.length && companies.length > 0;
+        const noneActive = activeCount === 0;
+
+        const statusLabel = allActive
+          ? "Visibile per tutte le aziende"
+          : noneActive
+            ? "Non attivo"
+            : `Attivo su ${activeCount}/${companies.length} aziende`;
+
+        const StatusIcon = noneActive ? EyeOff : Eye;
 
         return (
           <Card key={mod.key}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <mod.icon className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">{mod.title}</CardTitle>
-                  <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700">
-                    {mod.badgeLabel}
-                  </Badge>
-                </div>
-                <Badge variant="secondary">
-                  Attivo su {activeCount}/{companies.length} aziende
+            {/* Top banner */}
+            <div className="flex items-center justify-between px-6 py-3 border-b bg-muted/40 rounded-t-lg">
+              <div className="flex items-center gap-2">
+                <mod.icon className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-sm">{mod.title}</span>
+                <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 text-xs">
+                  {mod.badgeLabel}
                 </Badge>
               </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <StatusIcon className="h-3.5 w-3.5" />
+                <span>{statusLabel}</span>
+              </div>
+            </div>
+
+            {/* Body */}
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">{mod.title}</CardTitle>
               <CardDescription>{mod.description}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => bulkMutation.mutate({ field: mod.dbField, value: true })}
-                  disabled={allActive || bulkMutation.isPending}
-                >
-                  Attiva per tutte
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => bulkMutation.mutate({ field: mod.dbField, value: false })}
-                  disabled={activeCount === 0 || bulkMutation.isPending}
-                >
-                  Disattiva per tutte
-                </Button>
-              </div>
 
-              <div className="border rounded-lg p-4">
-                <p className="text-sm font-medium mb-3">Aziende</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {/* Actions */}
+            <CardContent className="flex items-center justify-end gap-2 pt-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDialogModule(mod.key)}
+              >
+                Abilitato per aziende specifiche
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => bulkMutation.mutate({ field: mod.dbField, value: !allActive })}
+                disabled={bulkMutation.isPending}
+                variant={allActive ? "destructive" : "default"}
+              >
+                {bulkMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {allActive ? "Disattiva funzionalità" : "Attiva funzionalità"}
+              </Button>
+            </CardContent>
+
+            {/* Selection Dialog */}
+            <Dialog open={dialogModule === mod.key} onOpenChange={(open) => !open && setDialogModule(null)}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Seleziona aziende — {mod.title}</DialogTitle>
+                  <DialogDescription>Seleziona le aziende per cui abilitare il modulo.</DialogDescription>
+                </DialogHeader>
+
+                <div className="flex gap-2 mb-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => bulkMutation.mutate({ field: mod.dbField, value: true })}
+                    disabled={allActive || bulkMutation.isPending}
+                  >
+                    Seleziona tutte
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => bulkMutation.mutate({ field: mod.dbField, value: false })}
+                    disabled={noneActive || bulkMutation.isPending}
+                  >
+                    Deseleziona tutte
+                  </Button>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
                   {companies.map((company: any) => (
                     <label
                       key={company.id}
@@ -147,9 +190,12 @@ export default function Implementations() {
                       <span className="text-sm truncate">{company.name}</span>
                     </label>
                   ))}
+                  {companies.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">Nessuna azienda trovata.</p>
+                  )}
                 </div>
-              </div>
-            </CardContent>
+              </DialogContent>
+            </Dialog>
           </Card>
         );
       })}
