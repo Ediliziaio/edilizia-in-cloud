@@ -22,14 +22,12 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
   const analyzeMessage = useAnalyzeMessage();
   const { effectiveCompany } = useAuth();
   const [replyText, setReplyText] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollEndRef = useRef<HTMLDivElement>(null);
 
   useMessagingRealtime(conversationId);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSendReply = async () => {
@@ -58,7 +56,8 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
         <div className="text-center">
           <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Seleziona una conversazione</p>
+          <p className="text-sm font-medium">Seleziona una conversazione</p>
+          <p className="text-xs mt-1 opacity-70">oppure usa "Simula Messaggio" per testare il flusso AI</p>
         </div>
       </div>
     );
@@ -77,7 +76,7 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <ScrollArea className="flex-1 p-4">
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -117,6 +116,7 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
             </div>
           ))
         )}
+        <div ref={scrollEndRef} />
       </ScrollArea>
 
       {/* Reply input */}

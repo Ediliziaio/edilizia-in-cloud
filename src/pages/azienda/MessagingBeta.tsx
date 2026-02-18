@@ -6,7 +6,7 @@ import { AiPanel } from "@/components/messaging/AiPanel";
 import { SimulateMessageDialog } from "@/components/messaging/SimulateMessageDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, MessageSquare, Lock } from "lucide-react";
+import { Plus, Lock } from "lucide-react";
 
 export default function MessagingBeta() {
   const isEnabled = useMessagingEnabled();
