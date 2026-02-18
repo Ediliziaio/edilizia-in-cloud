@@ -1,11 +1,13 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 
 // Layouts
 import { AdminLayout } from "@/components/layouts/AdminLayout";
@@ -76,9 +78,34 @@ import TicketDetail from "@/pages/azienda/TicketDetail";
 import ChangePassword from "@/pages/auth/ChangePassword";
 import ResetPassword from "@/pages/auth/ResetPassword";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  // QueryCache: gestisce gli errori dei data fetch
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      // Mostra toast solo per errori di refresh in background
+      // (non per il caricamento iniziale, già gestito dai singoli componenti)
+      if (query.state.data !== undefined) {
+        toast.error(`Errore di aggiornamento dati: ${error.message}`);
+      }
+    },
+  }),
+  // MutationCache: gestisce gli errori delle operazioni di scrittura
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      toast.error(`Operazione non riuscita: ${error.message}`);
+    },
+  }),
+  defaultOptions: {
+    queries: {
+      retry: 1,                        // Un solo retry automatico prima di mostrare errore
+      staleTime: 2 * 60 * 1000,        // Dati considerati freschi per 2 minuti
+      refetchOnWindowFocus: false,     // Evita refetch ogni volta che l'utente cambia tab
+    },
+  },
+});
 
 const App = () => (
+  <ErrorBoundary title="Errore critico dell'applicazione">
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -100,7 +127,9 @@ const App = () => (
               path="/admin"
               element={
                 <ProtectedRoute allowedRoles={["super_admin"]}>
-                  <AdminLayout />
+                  <ErrorBoundary title="Errore nel pannello di amministrazione">
+                    <AdminLayout />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             >
@@ -120,7 +149,9 @@ const App = () => (
               path="/azienda"
               element={
                 <ProtectedRoute allowedRoles={["company_admin", "company_staff", "super_admin"]}>
-                  <CompanyLayout />
+                  <ErrorBoundary title="Errore nell'area azienda">
+                    <CompanyLayout />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             >
@@ -152,7 +183,9 @@ const App = () => (
               path="/cliente"
               element={
                 <ProtectedRoute allowedRoles={["customer"]}>
-                  <CustomerLayout />
+                  <ErrorBoundary title="Errore nell'area cliente">
+                    <CustomerLayout />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             >
@@ -169,7 +202,9 @@ const App = () => (
               path="/dipendente"
               element={
                 <ProtectedRoute allowedRoles={["employee"]}>
-                  <EmployeeLayout />
+                  <ErrorBoundary title="Errore nell'area dipendente">
+                    <EmployeeLayout />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             >
@@ -184,7 +219,9 @@ const App = () => (
               path="/venditore"
               element={
                 <ProtectedRoute allowedRoles={["salesperson"]}>
-                  <SalespersonLayout />
+                  <ErrorBoundary title="Errore nell'area venditore">
+                    <SalespersonLayout />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             >
@@ -201,6 +238,7 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
