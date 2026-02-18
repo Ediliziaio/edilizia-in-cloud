@@ -1,127 +1,145 @@
 
-# Redesign Messaggistica + Tab Impostazioni WhatsApp Business
 
-## 1. Redesign grafico della pagina Messaggistica
+# WhatsApp Webhook + Embedded Signup
 
-Basandomi sugli screenshot forniti (stile "Casella di posta del team"), la pagina viene trasformata con:
+## Panoramica
 
-### Layout principale con Tabs
+Creare una edge function `whatsapp-webhook` per ricevere messaggi da Meta e modificare `MessagingSettingsTab` per implementare il flusso Facebook Embedded Signup nativo, salvando i dati nella tabella `messaging_whatsapp_config`.
 
-La pagina avra' due tab principali in alto:
-- **Messaggi** (inbox attuale con conversazioni + chat + AI panel)
-- **Impostazioni** (configurazione WhatsApp Business)
+---
 
-### Tab Messaggi - Restyling
+## 1. Secrets necessari
+
+Prima di procedere con il codice, servono 2 secrets:
+
+| Secret | Dove si trova | Scopo |
+|--------|---------------|-------|
+| `WHATSAPP_VERIFY_TOKEN` | Stringa a scelta (es. `my-verify-token-2026`) | Meta la usa per validare il webhook |
+| `META_APP_SECRET` | Meta Developer Console > App > Settings > Basic > App Secret | Firma HMAC per verificare autenticita' dei webhook |
+
+**Nota:** Il `META_APP_ID` e' un valore pubblico e verra' inserito direttamente nel codice frontend come costante configurabile.
+
+---
+
+## 2. Edge Function `whatsapp-webhook`
+
+### Funzionalita'
+
+- **GET** (verifica webhook): Meta invia una challenge con `hub.verify_token` e la funzione risponde con `hub.challenge` se il token corrisponde
+- **POST** (ricezione messaggi): Riceve i messaggi WhatsApp, verifica la firma HMAC `X-Hub-Signature-256`, e salva in DB
+
+### Flusso POST
 
 ```text
-+-----------------------------------------------------------------------+
-| Messaggistica [BETA]                                                   |
-| [Messaggi]  [Impostazioni]                                            |
-+-----------------------------------------------------------------------+
-| Casella di posta del team                                              |
-| [Non letto] [Tutto] [Recenti]  | Nome Contatto              tel/star |
-+-----------------------------------+-----------------------------------|
-| [ ] Alfina Schillaci    Feb 17 1  | Bubble messaggio ricevuto...      |
-|     Vorrei sapere dei prezzi      |                                   |
-| [ ] Manuela Berto       Feb 17 1  | Bubble risposta operatore...      |
-| [ ] Fabio M. Di Paola   Feb 17 1  |                                   |
-|                                   | [Digita un messaggio...]    [>]   |
-+-----------------------------------+-----------------------------------+
+Meta Webhook POST
+    |
+    v
+Verifica firma HMAC (X-Hub-Signature-256 con META_APP_SECRET)
+    |
+    v
+Estrai messaggi da payload (entry[].changes[].value.messages[])
+    |
+    v
+Per ogni messaggio:
+  1. Cerca/crea conversazione in messaging_conversations (by phone_number + company)
+  2. Salva messaggio in messaging_messages
+  3. Aggiorna last_message_at nella conversazione
+    |
+    v
+Risposta 200 OK (Meta richiede risposta rapida)
 ```
 
-Modifiche al ConversationList:
-- Header "Casella di posta del team" con icone toolbar
-- Filtri semplificati: "Non letto", "Tutto", "Recenti" + icona stella
-- Avatar con iniziali colorate per ogni contatto
-- Badge contatore messaggi non letti
-- Preview ultimo messaggio sotto al nome
+### Identificazione company
 
-Modifiche al ChatView:
-- Header con nome contatto + icone azione (telefono, stella, etc.)
-- Input in basso con placeholder "Digita un messaggio..."
-- Stile bubble piu' simile a WhatsApp (verde chiaro per operatore, bianco per contatto)
+Il webhook riceve il `phone_number_id` del numero business destinatario. La funzione cerca nella tabella `messaging_whatsapp_config` quale company e' collegata a quel `phone_number_id`.
 
-### Tab Impostazioni - WhatsApp Business
+### File
 
-Una sezione dedicata alla configurazione dell'integrazione WhatsApp Business, simile agli screenshot forniti.
+`supabase/functions/whatsapp-webhook/index.ts`
 
-```text
-+-----------------------------------------------------------------------+
-| WhatsApp Business                                                      |
-|                                                                        |
-| [!] Verifica di WhatsApp Business in sospeso                          |
-|     Costruisci fiducia con un nome verificato...                      |
-|     [Verifica ora ->]                                                  |
-|                                                                        |
-| Nome Azienda                                                           |
-| Stato dell'account: [Approvato] | Verifica Meta Business              |
-| +---------------------------+  +---------------------------+          |
-| | Messaggi inviati (7gg)   |  | Messaggi consegnati (7gg)|          |
-| | 232                       |  | 231                      |          |
-| +---------------------------+  +---------------------------+          |
-|                                                                        |
-| [Numeri]  [Modelli]  [Flussi]                                         |
-|                                                                        |
-| Numero di telefono  (1 Numeri)                                        |
-| +----+----------+--------+----------+--------+---------+             |
-| | Num| Nome     | Limite | Stato    | Qualita| Attivita|             |
-| | 351| BeMade   | -      | Collegato| Nessuno| Gestisci|             |
-| +----+----------+--------+----------+--------+---------+             |
-|                                                                        |
-| [Collega numero WhatsApp]  --> apre Facebook Login                    |
-+-----------------------------------------------------------------------+
+### Config
+
+```toml
+[functions.whatsapp-webhook]
+verify_jwt = false
+```
+
+`verify_jwt = false` e' necessario perche' Meta non invia JWT, ma firma HMAC.
+
+---
+
+## 3. Edge Function `whatsapp-connect`
+
+### Funzionalita'
+
+Riceve i dati di ritorno dall'Embedded Signup (token temporaneo + codice) e:
+
+1. Scambia il codice per un token permanente via Meta Graph API
+2. Recupera `waba_id` e `phone_number_id` dal token
+3. Salva/aggiorna il record in `messaging_whatsapp_config`
+4. Registra il webhook programmaticamente (subscribe l'app al WABA)
+
+### File
+
+`supabase/functions/whatsapp-connect/index.ts`
+
+### Config
+
+```toml
+[functions.whatsapp-connect]
+verify_jwt = false
 ```
 
 ---
 
-## 2. Dettaglio tecnico
+## 4. Modifica `MessagingSettingsTab.tsx`
 
-### Nuova tabella database
+### Embedded Signup
 
-**`messaging_whatsapp_config`** - Salva la configurazione WhatsApp per ogni azienda
+Il bottone "Collega numero WhatsApp" viene sostituito con il flusso **Facebook Login for Business** (Embedded Signup):
 
-| Colonna | Tipo | Descrizione |
-|---------|------|-------------|
-| id | uuid PK | |
-| company_id | uuid FK -> companies | Unica per azienda |
-| phone_number | text | Numero collegato |
-| phone_number_id | text | ID numero WhatsApp API |
-| waba_id | text | WhatsApp Business Account ID |
-| business_name | text | Nome business su WhatsApp |
-| account_status | text | verified/pending/not_verified |
-| quality_rating | text | green/yellow/red/none |
-| is_connected | boolean | Se il numero e' collegato |
-| access_token_encrypted | text | Token Meta (criptato) |
-| created_at | timestamptz | |
-| updated_at | timestamptz | |
+1. Carica l'SDK Facebook (`connect.facebook.net/it_IT/sdk.js`)
+2. Inizializza `FB.init()` con il `META_APP_ID`
+3. Al click del bottone, chiama `FB.login()` con config tipo `whatsapp_embedded_signup`
+4. Al completamento, l'utente autorizza e il frontend riceve un `code`
+5. Il frontend invia il `code` alla edge function `whatsapp-connect`
+6. La funzione scambia il codice per token, recupera i dati del numero e salva tutto
+7. La UI si aggiorna mostrando il numero collegato
 
-RLS: solo utenti della stessa azienda con permesso `can_manage_settings` possono leggere/scrivere.
+### Nuovi elementi UI
 
-### Nuovi file
+- Indicatore di stato durante il collegamento (Loader)
+- Toast di successo/errore
+- Bottone "Disconnetti" per rimuovere il collegamento
+
+---
+
+## 5. Dettaglio tecnico
+
+### File nuovi
 
 | File | Descrizione |
 |------|-------------|
-| `src/components/messaging/MessagingSettingsTab.tsx` | Tab impostazioni WhatsApp Business con card stato account, numeri, modelli, bottone collegamento Facebook |
+| `supabase/functions/whatsapp-webhook/index.ts` | Webhook ricezione messaggi Meta + verifica HMAC |
+| `supabase/functions/whatsapp-connect/index.ts` | Scambio token OAuth + salvataggio config |
 
 ### File modificati
 
 | File | Modifica |
 |------|----------|
-| `src/pages/azienda/MessagingBeta.tsx` | Aggiunta Tabs (Messaggi / Impostazioni) che wrappano il contenuto attuale e la nuova tab |
-| `src/components/messaging/ConversationList.tsx` | Restyling: header "Casella di posta del team", avatar con iniziali, filtri "Non letto/Tutto/Recenti", preview ultimo messaggio |
-| `src/components/messaging/ChatView.tsx` | Restyling header con icone azione, bubble colors piu' WhatsApp-like |
-| `src/components/messaging/MessageBubble.tsx` | Colori bubble aggiornati (verde chiaro per operatore) |
+| `supabase/config.toml` | Aggiunta `[functions.whatsapp-webhook]` e `[functions.whatsapp-connect]` con `verify_jwt = false` |
+| `src/components/messaging/MessagingSettingsTab.tsx` | Integrazione Facebook SDK, flusso Embedded Signup, bottone connessione nativo, stati loading/success/error, bottone disconnetti |
 
-### Logica collegamento WhatsApp
+### Nessuna modifica al database
 
-Il bottone "Collega numero WhatsApp" nella tab Impostazioni:
-1. Apre una finestra popup verso l'URL di Facebook Login/OAuth per WhatsApp Business
-2. L'utente completa il flusso di autorizzazione su Facebook
-3. Al ritorno, un webhook/callback salva il token e i dati nella tabella `messaging_whatsapp_config`
-4. La UI si aggiorna mostrando lo stato "Collegato" con i dati del numero
+La tabella `messaging_whatsapp_config` ha gia' tutti i campi necessari (`phone_number_id`, `waba_id`, `access_token_encrypted`, `is_connected`, etc.).
 
-Per ora (Fase 1), il bottone apre il link diretto a Facebook Business (`https://business.facebook.com/latest/whatsapp_manager/`) con istruzioni su come ottenere le credenziali API. L'integrazione automatica OAuth verra' completata in una fase successiva quando saranno configurate le credenziali Meta App.
+---
 
-### Nessuna modifica a file esistenti non elencati
+## 6. Sicurezza
 
-Il modulo resta completamente isolato e disattivabile.
+- Webhook verificato tramite firma HMAC `X-Hub-Signature-256`
+- Token Meta salvato nel campo `access_token_encrypted`
+- Edge function `whatsapp-connect` richiede autenticazione utente (verifica JWT in codice)
+- RLS gia' configurato sulla tabella `messaging_whatsapp_config`
+
