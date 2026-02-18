@@ -1,93 +1,69 @@
 
-# Polling stato verifica Meta Business e Quality Rating
+
+# Fix integrazione WhatsApp - 3 Correzioni necessarie
 
 ## Panoramica
 
-Creare una nuova Edge Function `whatsapp-status` che interroga le API di Meta per recuperare lo stato di verifica del Business Account e il quality rating del numero di telefono, aggiornando la tabella `messaging_whatsapp_config`. Il frontend eseguira' il polling automatico ogni 60 secondi quando il numero e' collegato.
+L'integrazione e' quasi completa. Servono 3 correzioni per renderla funzionante.
 
 ---
 
-## 1. Nuova Edge Function `whatsapp-status`
+## 1. META_APP_ID — Configurazione richiesta dall'utente
 
-**File:** `supabase/functions/whatsapp-status/index.ts`
+**File:** `src/components/messaging/MessagingSettingsTab.tsx` (riga 14)
 
-### Logica
+Il valore `"YOUR_META_APP_ID"` deve essere sostituito con l'ID reale della Meta App.
 
-1. Riceve `company_id` dal body della richiesta (autenticata via JWT)
-2. Recupera la configurazione WhatsApp dalla tabella (usando service role per leggere il token)
-3. Chiama due endpoint Meta Graph API:
-   - `GET /{waba_id}?fields=account_review_status,business_verification_status` per lo stato di verifica
-   - `GET /{phone_number_id}?fields=quality_rating,messaging_limit_tier,display_phone_number,verified_name` per qualita' e limiti
-4. Mappa i valori Meta ai valori del nostro schema:
-   - `account_review_status: APPROVED` -> `account_status: "verified"`
-   - `account_review_status: PENDING` -> `account_status: "pending"`
-   - `quality_rating: GREEN/YELLOW/RED` -> `quality_rating: "green"/"yellow"/"red"`
-5. Aggiorna la riga nella tabella `messaging_whatsapp_config`
-6. Ritorna i dati aggiornati al frontend
+**Dove trovarlo:** Meta Developer Console > La tua App > Settings > Basic > App ID (es. `"123456789012345"`)
 
-### Sicurezza
-- Autenticazione JWT verificata in codice (stesso pattern di `whatsapp-connect`)
-- Verifica che l'utente appartenga alla company richiesta
-- Il token Meta e' letto server-side, mai esposto al frontend
+L'utente dovra' fornire questo valore. Una volta ottenuto, verra' inserito come costante nel codice (e' un valore pubblico, non un secret).
 
 ---
 
-## 2. Configurazione
+## 2. config_id per Embedded Signup
 
-**File:** `supabase/config.toml` - aggiunta:
+**File:** `src/components/messaging/MessagingSettingsTab.tsx` (riga 193)
 
-```toml
-[functions.whatsapp-status]
-verify_jwt = false
+Attualmente `config_id: ""` e' vuoto. Meta richiede un config_id valido per il flusso di WhatsApp Embedded Signup.
+
+**Dove crearlo:**
+1. Meta Developer Console > La tua App > WhatsApp > Getting Started
+2. Creare una "Login Configuration" per l'Embedded Signup
+3. Copiare il config_id generato
+
+Anche questo valore e' pubblico e verra' inserito come costante nel codice accanto al META_APP_ID.
+
+---
+
+## 3. CORS Headers completi
+
+**File da modificare:**
+- `supabase/functions/whatsapp-connect/index.ts`
+- `supabase/functions/whatsapp-status/index.ts`
+- `supabase/functions/whatsapp-webhook/index.ts`
+
+Aggiornare `corsHeaders` in tutte e 3 le funzioni per includere gli header completi:
+
+```
+"authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version"
 ```
 
 ---
 
-## 3. Modifica Frontend
-
-**File:** `src/components/messaging/MessagingSettingsTab.tsx`
-
-### Modifiche
-
-- Aggiungere un `useEffect` che, quando `isConnected === true`, chiama `supabase.functions.invoke("whatsapp-status", { body: { company_id } })` ogni 60 secondi
-- Al ritorno dei dati, invalidare la query `["whatsapp-config"]` per aggiornare la UI
-- Aggiungere un bottone manuale "Aggiorna stato" con icona RefreshCw per forzare il polling
-- Mostrare il `messaging_limit_tier` (limite messaggi) nella colonna "Limite" della tabella numeri, attualmente con valore "—"
-- Il polling si ferma automaticamente quando il componente viene smontato (cleanup dell'intervallo)
-
-### Nuovi elementi UI
-- Icona RefreshCw accanto allo stato dell'account con tooltip "Ultimo aggiornamento: X minuti fa"
-- La colonna "Limite" nella tabella numeri mostrera' il tier (es. "1K", "10K", "100K", "Illimitato")
-
----
-
-## 4. Dettaglio tecnico
-
-### Mapping Meta API -> DB
-
-| Campo Meta API | Valore Meta | Campo DB | Valore DB |
-|---------------|-------------|----------|-----------|
-| `account_review_status` | `APPROVED` | `account_status` | `verified` |
-| `account_review_status` | `PENDING` | `account_status` | `pending` |
-| `account_review_status` | altro | `account_status` | `not_verified` |
-| `quality_rating` | `GREEN` | `quality_rating` | `green` |
-| `quality_rating` | `YELLOW` | `quality_rating` | `yellow` |
-| `quality_rating` | `RED` | `quality_rating` | `red` |
-| `messaging_limit_tier` | `TIER_*` | (solo frontend) | Mostrato in UI |
-
-### File nuovi
-
-| File | Descrizione |
-|------|-------------|
-| `supabase/functions/whatsapp-status/index.ts` | Edge function per polling stato Meta |
+## Dettaglio tecnico
 
 ### File modificati
 
 | File | Modifica |
 |------|----------|
-| `supabase/config.toml` | Aggiunta config per `whatsapp-status` |
-| `src/components/messaging/MessagingSettingsTab.tsx` | Polling automatico 60s, bottone aggiorna, display limite messaggi |
+| `src/components/messaging/MessagingSettingsTab.tsx` | Inserire `META_APP_ID` e `config_id` reali (forniti dall'utente) |
+| `supabase/functions/whatsapp-connect/index.ts` | CORS headers completi |
+| `supabase/functions/whatsapp-status/index.ts` | CORS headers completi |
+| `supabase/functions/whatsapp-webhook/index.ts` | CORS headers completi |
 
-### Nessuna modifica al database
+### Azione richiesta all'utente
 
-I campi `account_status` e `quality_rating` esistono gia' nella tabella `messaging_whatsapp_config`.
+Prima di procedere con le modifiche, servono 2 valori dall'utente:
+1. **Meta App ID** (dalla Meta Developer Console)
+2. **Config ID** per l'Embedded Signup (dalla configurazione WhatsApp nella Meta Developer Console)
+
