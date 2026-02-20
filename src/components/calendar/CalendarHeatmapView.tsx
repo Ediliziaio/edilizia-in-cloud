@@ -245,7 +245,7 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
                                 </p>
                                 {(() => {
                                   const initials = getEmployeeInitials(order);
-                                  const extTeam = order.assigned_external_teams?.map(aet => aet.external_team.name).join(", ");
+                                  const extTeam = order.order_external_teams?.map(aet => aet.external_team.name).join(", ");
                                   const risk = isPosa && hasLogisticRisk(order);
                                   return (
                                     <div className="flex items-center gap-2 mt-0.5">

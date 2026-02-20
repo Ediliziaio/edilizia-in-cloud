@@ -172,13 +172,13 @@ export default function Calendar() {
           return false;
         }
         if (employeeFilter !== "all") {
-          const hasEmployee = order.assigned_employees?.some(
+          const hasEmployee = order.order_employees?.some(
             ae => ae.employee.id === employeeFilter
           );
           if (!hasEmployee) return false;
         }
         if (externalTeamFilter !== "all") {
-          const hasTeam = order.assigned_external_teams?.some(
+          const hasTeam = order.order_external_teams?.some(
             aet => aet.external_team.id === externalTeamFilter
           );
           if (!hasTeam) return false;

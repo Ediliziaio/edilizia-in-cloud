@@ -210,7 +210,7 @@ export function CalendarMonthView({
                               <div className="flex items-center gap-1 text-xs text-amber-500"><Users className="h-3 w-3" /><span>Nessuna squadra</span></div>
                             )}
                             {(() => {
-                              const extNames = event.order!.assigned_external_teams?.map((aet) => aet.external_team.name).join(", ");
+                              const extNames = event.order!.order_external_teams?.map((aet) => aet.external_team.name).join(", ");
                               return extNames ? (<div className="flex items-center gap-1 text-xs"><UsersRound className="h-3 w-3" /><span>{extNames}</span></div>) : null;
                             })()}
                             {logisticRisk && (

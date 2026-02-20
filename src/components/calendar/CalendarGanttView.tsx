@@ -306,10 +306,10 @@ export function CalendarGanttView({
               </div>
               {orders.map((order, idx) => {
                 const leadTime = calculateLeadTime(order);
-                const initials = order.assigned_employees
+                const initials = order.order_employees
                   ?.map((ae) => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`)
                   .join(", ");
-                const extTeam = order.assigned_external_teams
+                const extTeam = order.order_external_teams
                   ?.map((aet) => aet.external_team.name)
                   .join(", ");
                 return (

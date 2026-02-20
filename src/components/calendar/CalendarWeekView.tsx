@@ -166,7 +166,7 @@ export function CalendarWeekView({
     const Icon = style.icon;
     const logisticRisk = event.type === "posa" && hasLogisticRisk(event.order);
     const initials = getEmployeeInitials(event.order);
-    const externalTeamName = event.order.assigned_external_teams
+    const externalTeamName = event.order.order_external_teams
       ?.map((aet) => aet.external_team.name)
       .join(", ");
 
