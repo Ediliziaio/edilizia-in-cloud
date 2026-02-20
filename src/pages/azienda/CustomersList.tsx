@@ -68,7 +68,7 @@ export default function CustomersList() {
     copied: boolean;
   }>({ open: false, customer: null, newPassword: null, copied: false });
   
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
