@@ -404,6 +404,8 @@ export default function OrderDetail() {
         supabase.from("order_salespeople").delete().eq("order_id", id!),
         supabase.from("order_attachments").delete().eq("order_id", id!),
         supabase.from("order_errors").delete().eq("order_id", id!),
+        supabase.from("tasks").delete().eq("order_id", id!),
+        supabase.from("appointments").delete().eq("order_id", id!),
       ]);
       // Finally delete the order itself
       const { error } = await supabase.from("orders").delete().eq("id", id!);
