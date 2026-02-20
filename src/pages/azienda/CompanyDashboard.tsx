@@ -47,7 +47,7 @@ export default function CompanyDashboard() {
 
       const [ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes, urgentItemsRes, costsRes] = await Promise.all([
         supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
+        supabase.from("orders").select("customer_id").eq("company_id", companyId!),
         supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", companyId!).eq("status", "aperto"),
         supabase
           .from("orders")
@@ -61,7 +61,7 @@ export default function CompanyDashboard() {
           .limit(5),
         supabase
           .from("orders")
-          .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date")
+          .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date")
           .eq("company_id", companyId!),
         supabase
           .from("order_items")
@@ -114,6 +114,13 @@ export default function CompanyDashboard() {
             overdueCount++;
           }
         }
+        if (!(order as any).financing_paid && Number((order as any).financing_amount) > 0) {
+          orderPending += Number((order as any).financing_amount);
+          if ((order as any).financing_expected_date && (order as any).financing_expected_date < todayStr) {
+            overduePayments += Number((order as any).financing_amount);
+            overdueCount++;
+          }
+        }
         if (orderPending > 0) {
           pendingRevenue += orderPending;
           pendingOrdersCount++;
@@ -155,6 +162,14 @@ export default function CompanyDashboard() {
             thisMonthTotal += Number(order.balance_amount) || 0;
           } else if (balanceDate <= nextMonthEnd) {
             nextMonthTotal += Number(order.balance_amount) || 0;
+          }
+        }
+        if (!(order as any).financing_paid && (order as any).financing_expected_date) {
+          const financingDate = new Date((order as any).financing_expected_date);
+          if (financingDate <= thisMonthEnd) {
+            thisMonthTotal += Number((order as any).financing_amount) || 0;
+          } else if (financingDate <= nextMonthEnd) {
+            nextMonthTotal += Number((order as any).financing_amount) || 0;
           }
         }
       });
@@ -209,7 +224,7 @@ export default function CompanyDashboard() {
       return {
         stats: {
           totalOrders: ordersRes.count || 0,
-          totalCustomers: customersRes.count || 0,
+          totalCustomers: new Set(customersRes.data?.map((o: any) => o.customer_id) || []).size,
           openTickets: ticketsRes.count || 0,
           pendingRevenue,
           pendingOrdersCount,
