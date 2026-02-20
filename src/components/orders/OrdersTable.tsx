@@ -178,10 +178,7 @@ export function OrdersTable({
             <TableRow>
               <TableHead className="w-[40px]">
                 <Checkbox
-                  checked={allSelected}
-                  ref={(el) => {
-                    if (el) (el as any).indeterminate = someSelected;
-                  }}
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
                   onCheckedChange={toggleAll}
                   aria-label="Seleziona tutti"
                 />

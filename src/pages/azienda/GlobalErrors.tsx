@@ -95,7 +95,7 @@ export default function GlobalErrors() {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("order_errors")
-        .select("*, orders!inner(order_code, description)")
+        .select("*, orders(order_code, description)")
         .eq("company_id", companyId)
         .order("error_date", { ascending: false });
       if (error) throw error;
