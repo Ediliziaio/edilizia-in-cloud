@@ -8,7 +8,7 @@ import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
 export type ViewMode = "list" | "kanban" | "calendar" | "stock";
-export type GroupBy = "order" | "supplier" | "date" | "status";
+export type GroupBy = "order" | "date" | "status";
 export type QuickFilter = "all" | "urgent" | "thisWeek" | "nextWeek";
 
 export function useWarehouseData() {
