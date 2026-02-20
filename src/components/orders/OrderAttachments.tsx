@@ -471,6 +471,7 @@ export function CustomerOrderAttachments({ orderId }: { orderId: string }) {
         .from("order_attachments")
         .select("*")
         .eq("order_id", orderId)
+        .eq("visible_to_customer", true)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
