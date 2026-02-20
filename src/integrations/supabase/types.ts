@@ -1148,6 +1148,7 @@ export type Database = {
           created_at: string
           created_by: string
           description: string
+          error_category: string
           error_date: string
           error_type: string
           id: string
@@ -1159,6 +1160,7 @@ export type Database = {
           created_at?: string
           created_by: string
           description: string
+          error_category?: string
           error_date?: string
           error_type?: string
           id?: string
@@ -1170,6 +1172,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           description?: string
+          error_category?: string
           error_date?: string
           error_type?: string
           id?: string

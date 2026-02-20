@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, AlertTriangle, Package, Wrench } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, Package, Wrench, Truck, Ruler, Hash, MessageSquare, HelpCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -9,37 +9,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 interface OrderError {
   id: string;
   error_type: string;
+  error_category: string;
   amount: number;
   description: string;
   error_date: string;
@@ -55,6 +41,15 @@ const ERROR_TYPES = [
   { value: "manodopera", label: "Manodopera", icon: Wrench, description: "Errore lavorazione" },
 ];
 
+const ERROR_CATEGORIES = [
+  { value: "fornitore", label: "Errore fornitore", icon: Truck, color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
+  { value: "misura", label: "Errore misura", icon: Ruler, color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" },
+  { value: "quantita", label: "Errore quantità", icon: Hash, color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300" },
+  { value: "lavorazione", label: "Errore lavorazione", icon: Wrench, color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+  { value: "comunicazione", label: "Errore comunicazione", icon: MessageSquare, color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300" },
+  { value: "altro", label: "Altro", icon: HelpCircle, color: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300" },
+];
+
 export function OrderErrors({ orderId }: OrderErrorsProps) {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
@@ -62,6 +57,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [errorType, setErrorType] = useState("merce");
+  const [errorCategory, setErrorCategory] = useState("altro");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [errorDate, setErrorDate] = useState(new Date().toISOString().split("T")[0]);
@@ -86,6 +82,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
         order_id: orderId,
         company_id: effectiveCompany!.id,
         error_type: errorType,
+        error_category: errorCategory,
         amount: parseFloat(amount) || 0,
         description: description.trim(),
         error_date: errorDate,
@@ -120,6 +117,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
   const resetForm = () => {
     setDialogOpen(false);
     setErrorType("merce");
+    setErrorCategory("altro");
     setAmount("");
     setDescription("");
     setErrorDate(new Date().toISOString().split("T")[0]);
@@ -141,6 +139,15 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
   const totalMerce = errors.filter(e => e.error_type === "merce").reduce((sum, e) => sum + e.amount, 0);
   const totalManodopera = errors.filter(e => e.error_type === "manodopera").reduce((sum, e) => sum + e.amount, 0);
 
+  // Category breakdown sorted by frequency
+  const categoryBreakdown = ERROR_CATEGORIES
+    .map(cat => {
+      const catErrors = errors.filter(e => e.error_category === cat.value);
+      return { ...cat, count: catErrors.length, total: catErrors.reduce((s, e) => s + e.amount, 0) };
+    })
+    .filter(c => c.count > 0)
+    .sort((a, b) => b.count - a.count);
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -160,6 +167,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
           <>
             {errors.map((err) => {
               const typeConfig = ERROR_TYPES.find(t => t.value === err.error_type);
+              const catConfig = ERROR_CATEGORIES.find(c => c.value === err.error_category);
               const Icon = typeConfig?.icon || Package;
               return (
                 <div key={err.id} className="flex items-start justify-between gap-2 p-3 rounded-lg border bg-muted/30">
@@ -170,6 +178,11 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-destructive/10 text-destructive">
                           {typeConfig?.label || err.error_type}
                         </span>
+                        {catConfig && (
+                          <Badge variant="outline" className={`text-xs ${catConfig.color}`}>
+                            {catConfig.label}
+                          </Badge>
+                        )}
                         <span className="text-xs text-muted-foreground">{formatDate(err.error_date)}</span>
                       </div>
                       <p className="text-sm mt-1 break-words">{err.description}</p>
@@ -203,7 +216,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
               );
             })}
 
-            {/* Summary */}
+            {/* Summary by type */}
             <div className="pt-2 border-t space-y-1">
               {totalMerce > 0 && (
                 <div className="flex justify-between text-sm">
@@ -222,6 +235,24 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                 <span className="text-destructive">-{formatCurrency(totalErrors)}</span>
               </div>
             </div>
+
+            {/* Summary by category */}
+            {categoryBreakdown.length > 0 && (
+              <div className="pt-2 border-t space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Frequenza per categoria</p>
+                {categoryBreakdown.map(cat => (
+                  <div key={cat.value} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={`text-xs ${cat.color}`}>
+                        {cat.label}
+                      </Badge>
+                      <span className="text-muted-foreground">× {cat.count}</span>
+                    </div>
+                    <span className="text-destructive">{formatCurrency(cat.total)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </CardContent>
@@ -245,6 +276,22 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                         <t.icon className="h-4 w-4" />
                         <span>{t.label}</span>
                         <span className="text-xs text-muted-foreground">- {t.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Categoria Errore</Label>
+              <Select value={errorCategory} onValueChange={setErrorCategory}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ERROR_CATEGORIES.map(c => (
+                    <SelectItem key={c.value} value={c.value}>
+                      <div className="flex items-center gap-2">
+                        <c.icon className="h-4 w-4" />
+                        <span>{c.label}</span>
                       </div>
                     </SelectItem>
                   ))}
