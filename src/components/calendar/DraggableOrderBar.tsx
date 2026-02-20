@@ -51,7 +51,7 @@ export function DraggableOrderBar({
   const leadTime = calculateLeadTime(order);
 
   const logisticRisk = hasLogisticRisk(order);
-  const externalTeamNames = order.assigned_external_teams
+  const externalTeamNames = order.order_external_teams
     ?.map((aet) => aet.external_team.name)
     .join(", ");
 
@@ -118,9 +118,9 @@ export function DraggableOrderBar({
                 Stato: <span style={{ color: order.status.color }}>{order.status.name}</span>
               </p>
             )}
-            {order.assigned_employees && order.assigned_employees.length > 0 ? (
+            {order.order_employees && order.order_employees.length > 0 ? (
               <p className="text-xs">
-                Squadra: {order.assigned_employees.map(ae => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`).join(", ")}
+                Squadra: {order.order_employees.map(ae => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`).join(", ")}
               </p>
             ) : (
               <p className="text-xs text-amber-500">Nessuna squadra assegnata</p>

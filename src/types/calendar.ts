@@ -17,14 +17,14 @@ export interface CalendarOrder {
     name: string;
     color: string;
   } | null;
-  assigned_employees?: Array<{
+  order_employees?: Array<{
     employee: {
       id: string;
       first_name: string;
       last_name: string;
     };
   }>;
-  assigned_external_teams?: Array<{
+  order_external_teams?: Array<{
     external_team: {
       id: string;
       name: string;
