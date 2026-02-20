@@ -34,13 +34,12 @@ import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Calendar } from "lucide-react";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Calendar, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { CalendarOrder, GanttZoom, OrderStatus } from "@/types/calendar";
 import { DraggableOrderBar } from "./DraggableOrderBar";
 import { LeadTimeStats, calculateLeadTime, getLeadTimeColor } from "./LeadTimeStats";
-import { AlertTriangle } from "lucide-react";
 
 interface CalendarGanttViewProps {
   orders: CalendarOrder[];
