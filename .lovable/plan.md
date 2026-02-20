@@ -1,51 +1,47 @@
 
-# Analisi Dashboard Azienda
+# Analisi Sezione Magazzino
 
-## Stato Generale: Funzionante con 2 bug significativi
+## Stato Generale: Funzionante, ben strutturato
 
-La dashboard e ben strutturata con query parallele (`Promise.all` con 7 query), gestione completa degli stati (loading, errore, vuoto), alert finanziari intelligenti e widget informativi. Nessun dead code trovato. Tutti gli import sono utilizzati.
-
----
-
-## BUG TROVATI
-
-### 1. Conteggio "Clienti" errato (Priorita: Alta)
-
-**Il problema**: La query conta TUTTI i profili con `company_id` corrispondente:
-```typescript
-supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", companyId!)
-```
-
-Ma la tabella `profiles` contiene anche admin e staff dell'azienda, non solo clienti. Verificato nel database:
-- company `728fc9cf...` ha 4 profili: 1 admin + 2 clienti + 1 altro
-- Il numero mostrato nella stat card "Clienti" e quindi gonfiato
-
-**Fix**: Filtrare solo gli utenti con ruolo `customer` tramite join con `user_roles`:
-```typescript
-supabase.from("user_roles").select("id", { count: "exact", head: true })
-  .eq("role", "customer")
-```
-E poi filtrare per company_id tramite join con profiles. Oppure contare direttamente dagli ordini i customer_id distinti.
-
-### 2. Finanziamento escluso dal calcolo incassi (Priorita: Media)
-
-**Il problema**: Gli ordini possono avere un `financing_amount` con `financing_paid`, `financing_expected_date`. Ma il calcolo "Da Incassare" e "Previsionale Incassi" considera solo:
-- Acconto (`deposit`)
-- Secondo acconto (`deposit_2`)
-- Saldo (`balance`)
-
-Il finanziamento viene completamente ignorato, sottostimando gli incassi previsti.
-
-**Fix**: Aggiungere il blocco finanziamento nel calcolo `pendingRevenue` e nel calcolo `cashFlow`.
+La sezione Magazzino comprende 10 file (1 pagina + 1 hook + 8 componenti) con 4 viste (Lista, Kanban, Calendario, Giacenze), sistema di alert urgenze, filtri avanzati, drag-and-drop, esportazione CSV/stampa, gestione movimenti con integrazione Costi Aziendali. Tutto funzionante correttamente.
 
 ---
 
-## NESSUN DEAD CODE
+## DEAD CODE TROVATO
 
-- Tutti gli import sono utilizzati nel JSX
-- Le interfacce `RecentOrder` e `UrgentItem` sono entrambe utilizzate
-- I componenti `LaborCostsStats` e `SupplierPaymentsSummary` sono entrambi renderizzati
-- Le variabili `thisMonthEnd` e `nextMonthEnd` sono entrambe usate nei calcoli
+### 1. `forwardRef` inutile in WarehouseListView (Priorita: Bassa)
+**File**: `src/components/warehouse/WarehouseListView.tsx`
+
+Il componente e wrappato con `forwardRef` e accetta un parametro `ref`, ma il genitore (`Warehouse.tsx`, riga 325) non passa mai un ref:
+```tsx
+<WarehouseListView orderGroups={filteredGroups} ... />
+// Nessun ref={...} passato
+```
+**Fix**: Rimuovere `forwardRef`, convertire in componente funzionale standard. Rimuovere l'import `forwardRef` dalla riga 1.
+
+### 2. Tipo `GroupBy = "supplier"` mai usato (Priorita: Bassa)
+**File**: `src/hooks/useWarehouseData.ts` (riga 13)
+
+Il tipo `GroupBy` include `"supplier"` ma:
+- Il selettore nel UI (`Warehouse.tsx` riga 186-195) offre solo "order", "date", "status"
+- La logica in `filteredGroups` non ha un caso specifico per "supplier" (raggruppa sempre per ordine)
+- Nessun altro file lo usa
+
+**Fix**: Rimuovere `"supplier"` dal tipo `GroupBy`.
+
+---
+
+## NESSUN BUG TROVATO
+
+- Query con `.limit(2000)` per sicurezza: OK
+- Drag-and-drop Kanban con `dnd-kit`: corretto, `PointerSensor` con distance threshold
+- Movimenti magazzino: logica carico/scarico con `Math.max(0, newQty)` per evitare negativi
+- Integrazione Costi Aziendali: registra correttamente il costo su `company_costs` al carico
+- Filtri rapidi (urgenti, settimana corrente, prossima): logica date corretta con `differenceInDays`
+- Alert ordini urgenti: logica coerente con i filtri
+- StockMovementHistoryDialog: join corretto con `order_items` per mostrare codice ordine
+- Export CSV: esporta tutti i filteredItems (non solo la pagina visibile)
+- Tutti gli import sono utilizzati in ogni file
 
 ---
 
@@ -53,7 +49,7 @@ Il finanziamento viene completamente ignorato, sottostimando gli incassi previst
 
 | File | Intervento | Priorita |
 |------|-----------|----------|
-| `CompanyDashboard.tsx` | Fix query clienti: contare solo ruolo "customer" | Alta |
-| `CompanyDashboard.tsx` | Aggiungere finanziamento nei calcoli pendingRevenue e cashFlow | Media |
+| `src/components/warehouse/WarehouseListView.tsx` | Rimuovere `forwardRef` wrapper e import (ref mai passato) | Bassa |
+| `src/hooks/useWarehouseData.ts` | Rimuovere `"supplier"` dal tipo `GroupBy` | Bassa |
 
-Nessun file da eliminare, nessun dead code da rimuovere.
+Nessun file da eliminare, nessun bug funzionale.
