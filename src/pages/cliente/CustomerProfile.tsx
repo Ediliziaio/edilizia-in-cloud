@@ -22,6 +22,19 @@ export default function CustomerProfile() {
   const [address, setAddress] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
+  // Initialize form fields from profile
+  useEffect(() => {
+    if (profile) {
+      setFirstName(profile.first_name || "");
+      setLastName(profile.last_name || "");
+      setPhone(profile.phone || "");
+      setFiscalCode(profile.fiscal_code || "");
+      setAddress(profile.address || "");
+      setSiteAddress(profile.site_address || "");
+      setNotes(profile.notes || "");
+    }
+  }, [profile]);
+
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Utente non autenticato");
