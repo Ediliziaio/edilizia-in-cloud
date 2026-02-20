@@ -1,8 +1,10 @@
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2, X, ChevronDown } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -22,6 +24,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Card } from "@/components/ui/card";
 import { type OrderWithDetails, getPendingPayments, getAmountDue, getAmountCollected } from "@/lib/orderUtils";
 
@@ -30,20 +38,154 @@ export interface OrderCosts {
   grossMargin: number;
 }
 
+interface OrderStatus {
+  id: string;
+  name: string;
+  color: string;
+  position: number;
+}
+
 interface OrdersTableProps {
   orders: OrderWithDetails[];
   onDelete: (orderId: string) => void;
   isDeleting: boolean;
   orderCosts: Map<string, OrderCosts>;
+  statuses?: OrderStatus[];
+  onBulkStatusChange?: (orderIds: string[], statusId: string) => void;
+  onBulkDelete?: (orderIds: string[]) => void;
+  isBulkUpdating?: boolean;
 }
 
-export function OrdersTable({ orders, onDelete, isDeleting, orderCosts }: OrdersTableProps) {
+export function OrdersTable({
+  orders,
+  onDelete,
+  isDeleting,
+  orderCosts,
+  statuses = [],
+  onBulkStatusChange,
+  onBulkDelete,
+  isBulkUpdating = false,
+}: OrdersTableProps) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const allSelected = orders.length > 0 && selectedIds.size === orders.length;
+  const someSelected = selectedIds.size > 0 && selectedIds.size < orders.length;
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(orders.map((o) => o.id)));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkStatusChange = (statusId: string) => {
+    if (onBulkStatusChange && selectedIds.size > 0) {
+      onBulkStatusChange(Array.from(selectedIds), statusId);
+      clearSelection();
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (onBulkDelete && selectedIds.size > 0) {
+      onBulkDelete(Array.from(selectedIds));
+      clearSelection();
+    }
+  };
+
   return (
     <Card>
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3 bg-primary/10 border-b rounded-t-lg flex-wrap">
+          <Badge variant="secondary" className="text-sm font-medium">
+            {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
+          </Badge>
+
+          {statuses.length > 0 && onBulkStatusChange && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isBulkUpdating}>
+                  Cambia stato
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {statuses.map((s) => (
+                  <DropdownMenuItem key={s.id} onClick={() => handleBulkStatusChange(s.id)}>
+                    <span
+                      className="inline-block h-3 w-3 rounded-full mr-2 shrink-0"
+                      style={{ backgroundColor: s.color }}
+                    />
+                    {s.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {onBulkDelete && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={isBulkUpdating}>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Elimina
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Elimina {selectedIds.size} ordin{selectedIds.size === 1 ? "e" : "i"}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Sei sicuro di voler eliminare <strong>{selectedIds.size}</strong> ordin{selectedIds.size === 1 ? "e" : "i"}?
+                    <br />
+                    Verranno eliminati anche tutti i dati collegati. Questa azione non può essere annullata.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={handleBulkDelete}
+                  >
+                    Elimina {selectedIds.size} ordin{selectedIds.size === 1 ? "e" : "i"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          <Button variant="ghost" size="sm" onClick={clearSelection} className="ml-auto">
+            <X className="h-4 w-4 mr-1" />
+            Deseleziona
+          </Button>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) (el as any).indeterminate = someSelected;
+                  }}
+                  onCheckedChange={toggleAll}
+                  aria-label="Seleziona tutti"
+                />
+              </TableHead>
               <TableHead>Codice</TableHead>
               <TableHead>Descrizione</TableHead>
               <TableHead>Cliente</TableHead>
@@ -68,12 +210,20 @@ export function OrdersTable({ orders, onDelete, isDeleting, orderCosts }: Orders
               const costs = orderCosts.get(order.id);
               const variableCosts = costs?.variableCosts ?? 0;
               const grossMargin = costs?.grossMargin ?? order.total_amount;
-              const marginPercent = order.total_amount > 0 
-                ? (grossMargin / order.total_amount) * 100 
+              const marginPercent = order.total_amount > 0
+                ? (grossMargin / order.total_amount) * 100
                 : 0;
+              const isSelected = selectedIds.has(order.id);
 
               return (
-                <TableRow key={order.id}>
+                <TableRow key={order.id} data-state={isSelected ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => toggleOne(order.id)}
+                      aria-label={`Seleziona ordine ${order.order_code || order.description}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                     {order.order_code || "—"}
                   </TableCell>

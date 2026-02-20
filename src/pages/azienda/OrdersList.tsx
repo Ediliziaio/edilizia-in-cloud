@@ -235,24 +235,26 @@ export default function OrdersList() {
     },
   });
 
+  const deleteOneOrder = async (orderId: string) => {
+    const { data: items } = await supabase.from("order_items").select("id").eq("order_id", orderId);
+    if (items && items.length > 0) {
+      const itemIds = items.map(i => i.id);
+      await supabase.from("order_item_attachments").delete().in("order_item_id", itemIds);
+    }
+    await Promise.all([
+      supabase.from("order_items").delete().eq("order_id", orderId),
+      supabase.from("order_status_history").delete().eq("order_id", orderId),
+      supabase.from("order_employees").delete().eq("order_id", orderId),
+      supabase.from("order_external_teams").delete().eq("order_id", orderId),
+      supabase.from("order_salespeople").delete().eq("order_id", orderId),
+      supabase.from("order_attachments").delete().eq("order_id", orderId),
+    ]);
+    const { error } = await supabase.from("orders").delete().eq("id", orderId);
+    if (error) throw error;
+  };
+
   const deleteOrderMutation = useMutation({
-    mutationFn: async (orderId: string) => {
-      const { data: items } = await supabase.from("order_items").select("id").eq("order_id", orderId);
-      if (items && items.length > 0) {
-        const itemIds = items.map(i => i.id);
-        await supabase.from("order_item_attachments").delete().in("order_item_id", itemIds);
-      }
-      await Promise.all([
-        supabase.from("order_items").delete().eq("order_id", orderId),
-        supabase.from("order_status_history").delete().eq("order_id", orderId),
-        supabase.from("order_employees").delete().eq("order_id", orderId),
-        supabase.from("order_external_teams").delete().eq("order_id", orderId),
-        supabase.from("order_salespeople").delete().eq("order_id", orderId),
-        supabase.from("order_attachments").delete().eq("order_id", orderId),
-      ]);
-      const { error } = await supabase.from("orders").delete().eq("id", orderId);
-      if (error) throw error;
-    },
+    mutationFn: deleteOneOrder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({ title: "Ordine eliminato", description: "L'ordine è stato eliminato con successo" });
@@ -261,6 +263,41 @@ export default function OrdersList() {
       toast({ title: "Errore", description: "Impossibile eliminare l'ordine", variant: "destructive" });
     },
   });
+
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+
+  const handleBulkStatusChange = async (orderIds: string[], statusId: string) => {
+    setIsBulkUpdating(true);
+    try {
+      await Promise.all(
+        orderIds.map((orderId) => updateOrderStatus({ orderId, statusId }))
+      );
+      toast({
+        title: "Stato aggiornato",
+        description: `${orderIds.length} ordin${orderIds.length === 1 ? "e aggiornato" : "i aggiornati"}`,
+      });
+    } catch {
+      toast({ title: "Errore", description: "Impossibile aggiornare alcuni ordini", variant: "destructive" });
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkDelete = async (orderIds: string[]) => {
+    setIsBulkUpdating(true);
+    try {
+      await Promise.all(orderIds.map(deleteOneOrder));
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast({
+        title: "Ordini eliminati",
+        description: `${orderIds.length} ordin${orderIds.length === 1 ? "e eliminato" : "i eliminati"} con successo`,
+      });
+    } catch {
+      toast({ title: "Errore", description: "Impossibile eliminare alcuni ordini", variant: "destructive" });
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
 
   const handleStatusChange = async (orderId: string, newStatusId: string) => {
     await updateOrderStatus({ orderId, statusId: newStatusId });
@@ -598,6 +635,10 @@ export default function OrdersList() {
           onDelete={(id) => deleteOrderMutation.mutate(id)}
           isDeleting={deleteOrderMutation.isPending}
           orderCosts={orderCostsMap}
+          statuses={statuses}
+          onBulkStatusChange={handleBulkStatusChange}
+          onBulkDelete={handleBulkDelete}
+          isBulkUpdating={isBulkUpdating}
         />
       )}
 
