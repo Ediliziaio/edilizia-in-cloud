@@ -39,6 +39,7 @@ import { OrderEconomics } from "@/components/orders/OrderEconomics";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { OrderCommissions } from "@/components/orders/OrderCommissions";
+import { OrderErrors } from "@/components/orders/OrderErrors";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
@@ -402,6 +403,7 @@ export default function OrderDetail() {
         supabase.from("order_external_teams").delete().eq("order_id", id!),
         supabase.from("order_salespeople").delete().eq("order_id", id!),
         supabase.from("order_attachments").delete().eq("order_id", id!),
+        supabase.from("order_errors").delete().eq("order_id", id!),
       ]);
       // Finally delete the order itself
       const { error } = await supabase.from("orders").delete().eq("id", id!);
@@ -500,6 +502,42 @@ export default function OrderDetail() {
   const handleItemUpdate = (item: OrderItem) => {
     updateSingleItemMutation.mutate(item);
   };
+
+  // Add new item mutation (for adding from preview)
+  const addItemMutation = useMutation({
+    mutationFn: async (item: OrderItem) => {
+      const { error } = await supabase.from("order_items").insert({
+        order_id: id!,
+        name: item.name,
+        description: item.description || null,
+        quantity: item.quantity,
+        status: item.status,
+        position: item.position,
+        supplier_id: item.supplier_id || null,
+        purchase_price: item.purchase_price ?? 0,
+        vat_rate: item.vat_rate ?? 22,
+        is_paid: item.is_paid ?? false,
+        paid_date: item.paid_date || null,
+        payment_method: item.payment_method || null,
+        deposit_amount: item.deposit_amount ?? 0,
+        deposit_paid: item.deposit_paid ?? false,
+        deposit_paid_date: item.deposit_paid_date || null,
+        balance_amount: item.balance_amount ?? 0,
+        balance_paid: item.balance_paid ?? false,
+        balance_paid_date: item.balance_paid_date || null,
+        balance_expected_date: item.balance_expected_date || null,
+        deposit_expected_date: item.deposit_expected_date || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-items", id] });
+      toast({ title: "Articolo aggiunto", description: "L'articolo è stato aggiunto all'ordine." });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile aggiungere l'articolo.", variant: "destructive" });
+    },
+  });
 
   // Convert status history for progress tracker
   const progressHistory: StatusHistoryItem[] = statusHistory.map((h) => ({
@@ -695,17 +733,21 @@ export default function OrderDetail() {
           </Card>
 
           {/* Order Items */}
-          {displayItems.length > 0 && (
-            <OrderItemsList
-              items={displayItems}
-              onItemsChange={() => {}}
-              editable={false}
-              allowEdit={true}
-              showStatusControls={true}
-              onAttachmentsRefresh={handleAttachmentsRefresh}
-              onItemUpdate={handleItemUpdate}
-            />
-          )}
+          <OrderItemsList
+            items={displayItems}
+            onItemsChange={(newItems) => {
+              // Handle new item added from preview
+              const newItem = newItems.find(ni => !ni.id);
+              if (newItem) {
+                addItemMutation.mutate(newItem);
+              }
+            }}
+            editable={true}
+            allowEdit={true}
+            showStatusControls={true}
+            onAttachmentsRefresh={handleAttachmentsRefresh}
+            onItemUpdate={handleItemUpdate}
+          />
 
           {/* Order Documents */}
           <OrderAttachments orderId={id!} editable={true} />
@@ -839,6 +881,9 @@ export default function OrderDetail() {
             }
             vatRate={order.vat_rate || 22}
           />
+
+          {/* Order Errors */}
+          <OrderErrors orderId={id!} />
 
           {/* Expected Date */}
           {order.expected_date && (

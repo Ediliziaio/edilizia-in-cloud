@@ -1141,6 +1141,50 @@ export type Database = {
           },
         ]
       }
+      order_errors: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string
+          error_date: string
+          error_type: string
+          id: string
+          order_id: string
+        }
+        Insert: {
+          amount?: number
+          company_id: string
+          created_at?: string
+          created_by: string
+          description: string
+          error_date?: string
+          error_type?: string
+          id?: string
+          order_id: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string
+          error_date?: string
+          error_type?: string
+          id?: string
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_errors_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_external_teams: {
         Row: {
           created_at: string

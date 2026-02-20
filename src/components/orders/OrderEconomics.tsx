@@ -99,6 +99,21 @@ export function OrderEconomics({
     staleTime: 2 * 60 * 1000,
   });
 
+  // Fetch order errors
+  const { data: orderErrors = [] } = useQuery({
+    queryKey: ["order-errors", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_errors")
+        .select("amount, error_type")
+        .eq("order_id", orderId);
+      if (error) throw error;
+      return data as { amount: number; error_type: string }[];
+    },
+    enabled: !!orderId,
+    staleTime: 2 * 60 * 1000,
+  });
+
   // Calculate sale totals
   const saleVatAmount = totalAmount * (vatRate / 100);
   const saleGross = totalAmount + saleVatAmount;
@@ -171,8 +186,11 @@ export function OrderEconomics({
   const vatCredit = totalItemsVat + totalTeamsVat;
   const vatBalance = vatDebit - vatCredit;
 
-  // Calculate margin based on net costs INCLUDING commissions
-  const totalCostsNet = totalItemsNet + totalLaborNet + totalCommissions;
+  // Calculate errors/losses
+  const totalErrors = orderErrors.reduce((sum, e) => sum + e.amount, 0);
+
+  // Calculate margin based on net costs INCLUDING commissions AND errors
+  const totalCostsNet = totalItemsNet + totalLaborNet + totalCommissions + totalErrors;
   const grossMargin = totalAmount - totalCostsNet;
   const marginPercentage = totalAmount > 0 ? (grossMargin / totalAmount) * 100 : 0;
 
@@ -318,6 +336,22 @@ export function OrderEconomics({
               <div className="flex justify-between font-medium">
                 <span>Totale Provvigioni</span>
                 <span className="text-destructive">{formatCurrency(totalCommissions)}</span>
+              </div>
+            </div>
+          </>
+        )}
+        {/* Errors/Losses Section */}
+        {totalErrors > 0 && (
+          <>
+            <Separator />
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                ERRORI / PERDITE
+              </h4>
+              <div className="flex justify-between font-medium">
+                <span>Totale Errori</span>
+                <span className="text-destructive">{formatCurrency(totalErrors)}</span>
               </div>
             </div>
           </>
