@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -56,6 +56,8 @@ export default function OrdersList() {
   const [amountMax, setAmountMax] = useState<string>("");
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [importOpen, setImportOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ORDERS_PER_PAGE = 20;
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders", effectiveCompany?.id],
@@ -335,6 +337,7 @@ export default function OrdersList() {
     setContractDateRange({ from: undefined, to: undefined });
     setWarehouseDateRange({ from: undefined, to: undefined });
     setExpectedDateRange({ from: undefined, to: undefined });
+    setCurrentPage(1);
   };
 
   const handleMonthChange = (value: string) => {
@@ -408,6 +411,17 @@ export default function OrdersList() {
     return matchesSearch && matchesStatus && matchesPayment && matchesCustomer && matchesAmount &&
       matchesContractDate && matchesWarehouseDate && matchesExpectedDate;
   });
+
+  // Reset page when filters change
+  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${amountMin}|${amountMax}|${monthFilter}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}`;
+  useMemo(() => { setCurrentPage(1); }, [filterKey]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ORDERS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedOrders = filteredOrders.slice((safePage - 1) * ORDERS_PER_PAGE, safePage * ORDERS_PER_PAGE);
+  const showingFrom = filteredOrders.length === 0 ? 0 : (safePage - 1) * ORDERS_PER_PAGE + 1;
+  const showingTo = Math.min(safePage * ORDERS_PER_PAGE, filteredOrders.length);
 
   const stats = useMemo(() => {
     const totalOrders = filteredOrders.length;
@@ -633,16 +647,48 @@ export default function OrdersList() {
           onStatusChange={handleStatusChange}
         />
       ) : (
-        <OrdersTable
-          orders={filteredOrders}
-          onDelete={(id) => deleteOrderMutation.mutate(id)}
-          isDeleting={deleteOrderMutation.isPending}
-          orderCosts={orderCostsMap}
-          statuses={statuses}
-          onBulkStatusChange={handleBulkStatusChange}
-          onBulkDelete={handleBulkDelete}
-          isBulkUpdating={isBulkUpdating}
-        />
+        <div className="space-y-4">
+          <OrdersTable
+            orders={paginatedOrders}
+            onDelete={(id) => deleteOrderMutation.mutate(id)}
+            isDeleting={deleteOrderMutation.isPending}
+            orderCosts={orderCostsMap}
+            statuses={statuses}
+            onBulkStatusChange={handleBulkStatusChange}
+            onBulkDelete={handleBulkDelete}
+            isBulkUpdating={isBulkUpdating}
+          />
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-2">
+              <p className="text-sm text-muted-foreground">
+                Mostrando {showingFrom}–{showingTo} di {filteredOrders.length} ordini
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Precedente
+                </Button>
+                <span className="text-sm font-medium px-2">
+                  Pagina {safePage} di {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                >
+                  Successivo
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <CSVImportDialog
