@@ -164,8 +164,6 @@ const App = () => (
               <Route path="ordini/:id/modifica" element={<EditOrder />} />
               <Route path="magazzino" element={<Warehouse />} />
               <Route path="calendario" element={<Calendar />} />
-              
-              
               <Route path="clienti" element={<CustomersList />} />
               <Route path="clienti/nuovo" element={<CreateCustomer />} />
               <Route path="clienti/:id" element={<CompanyCustomerDetail />} />
