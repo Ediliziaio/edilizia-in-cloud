@@ -248,6 +248,9 @@ export default function OrdersList() {
       supabase.from("order_external_teams").delete().eq("order_id", orderId),
       supabase.from("order_salespeople").delete().eq("order_id", orderId),
       supabase.from("order_attachments").delete().eq("order_id", orderId),
+      supabase.from("order_errors").delete().eq("order_id", orderId),
+      supabase.from("tasks").delete().eq("order_id", orderId),
+      supabase.from("appointments").delete().eq("order_id", orderId),
     ]);
     const { error } = await supabase.from("orders").delete().eq("id", orderId);
     if (error) throw error;

@@ -34,7 +34,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-10' : 'grid-cols-5'} lg:w-[${isAdmin ? '1300' : '750'}px]`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-10' : 'grid-cols-5'}`} style={{ maxWidth: isAdmin ? 1300 : 750 }}>
           <TabsTrigger value="profilo" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Profilo</span>
