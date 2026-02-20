@@ -1,55 +1,74 @@
 
-
-# Analisi Sezione Dipendenti (Gestione Staff)
+# Analisi Sezione Ordini
 
 ## Stato Generale: Funzionante, ben strutturato
 
-La sezione comprende 10 file (1 pagina + 9 componenti): gestione operai e staff interno con CRUD completo, squadre esterne con IVA e referenti, rapportini ore con approvazione singola/batch, allegati documenti con scadenze, assegnazione dipendenti/squadre agli ordini. Tutto funzionante.
+La sezione e la piu complessa del progetto: 26 file (4 pagine + 22 componenti + 1 libreria utility), con gestione completa ordini CRUD, pipeline drag-and-drop, articoli con fornitori e magazzino, riepilogo finanziario (acconti/finanziamento/bonus edilizio), conto economico per ordine, provvigioni venditori, errori/perdite, allegati ordine e articoli, manodopera (dipendenti + squadre esterne), import/export CSV, filtri avanzati, paginazione, azioni bulk.
+
+---
+
+## BUG TROVATO
+
+### 1. Eliminazione ordine dal dettaglio NON cancella tasks e appuntamenti collegati (Priorita: Media)
+**File**: `src/pages/azienda/OrderDetail.tsx` (righe 389-427)
+
+La funzione `deleteOrderMutation` nel dettaglio ordine elimina correttamente: order_item_attachments, order_items, order_status_history, order_employees, order_external_teams, order_salespeople, order_attachments, order_errors.
+
+Tuttavia **NON elimina `tasks` e `appointments`** collegati all'ordine tramite `order_id`.
+
+La stessa operazione nella lista ordini (`OrdersList.tsx`, righe 240-258) li elimina correttamente:
+```
+await supabase.from("tasks").delete().eq("order_id", orderId),
+await supabase.from("appointments").delete().eq("order_id", orderId),
+```
+
+Questo causa record orfani nel database quando un ordine viene eliminato dalla pagina di dettaglio.
+
+**Fix**: Aggiungere le due righe mancanti nel `Promise.all` della `deleteOrderMutation` in `OrderDetail.tsx`.
+
+### 2. CustomerOrderAttachments mostra TUTTI gli allegati al cliente, inclusi quelli interni (Priorita: Alta)
+**File**: `src/components/orders/OrderAttachments.tsx` (righe 466-525)
+
+Il componente `CustomerOrderAttachments` (usato nel portale cliente) esegue una query senza filtrare per `visible_to_customer = true`. Il componente lato azienda (`OrderAttachments`) gestisce correttamente la distinzione "visibile al cliente" vs "solo uso interno" (righe 226-227), ma il componente cliente non applica il filtro.
+
+Se le RLS policies non filtrano automaticamente per `visible_to_customer`, tutti i documenti interni (preventivi, note riservate, documenti gestionali) sarebbero visibili ai clienti.
+
+**Fix**: Aggiungere `.eq("visible_to_customer", true)` alla query nella riga 474 di `CustomerOrderAttachments`.
 
 ---
 
 ## DEAD CODE TROVATO
 
-### 1. Import `Input` non utilizzato in EmployeeAttachments (Priorita: Bassa)
-**File**: `src/components/employees/EmployeeAttachments.tsx` (riga 29)
-
-Il componente `Input` e importato da `@/components/ui/input` ma non viene mai usato come componente JSX. Il file usa un elemento nativo `<input type="file">` (riga 303), non il componente `<Input>`.
-
-**Fix**: Rimuovere `import { Input } from "@/components/ui/input";` dalla riga 29.
-
-### 2. Forte duplicazione di codice tra EmployeeAttachments e ExternalTeamAttachments (Priorita: Media)
-**File**: `src/components/employees/EmployeeAttachments.tsx` (510 righe) e `src/components/employees/ExternalTeamAttachments.tsx` (508 righe)
-
-I due componenti condividono circa l'85% del codice: stessa logica di upload/download/delete, stesse costanti (`MAX_FILE_SIZE`, `ALLOWED_TYPES`), stesse funzioni helper (`formatFileSize`, `isExpired`, `isExpiringSoon`, `getFileIcon`, `resetUploadForm`, `handleFileChange`, `handleUpload`), stesso layout UI.
-
-Le uniche differenze sono:
-- Tabella database: `employee_attachments` vs `external_team_attachments`
-- Campo FK: `employee_id` vs `external_team_id`
-- Path storage: `employees/` vs `external-teams/`
-- Tipi documento: `EMPLOYEE_DOCUMENT_TYPES` vs `EXTERNAL_TEAM_DOCUMENT_TYPES`
-- Titolo dialog
-
-**Nota**: Questo e un refactoring di media complessita. Lo segnalo per completezza ma non lo includo negli interventi immediati per mantenere il rischio basso. Si potra affrontare in un secondo momento creando un componente generico `PersonnelAttachments`.
+Nessun dead code significativo trovato nella sezione Ordini. Tutti gli import sono utilizzati, tutte le variabili destructurate sono usate, nessun componente orfano.
 
 ---
 
-## NESSUN BUG TROVATO
+## NOTE DI DEBITO TECNICO
 
-- Employees CRUD: insert con `role_type` corretto (operaio/staff_interno), update non sovrascrive `role_type`
-- Filtro operai/staff interno: `employees.filter(e => e.role_type === ...)` coerente con i tab
-- Stipendio: costo orario calcolato correttamente come `gross_salary / monthly_hours` (con guard `> 0`)
-- ExternalTeamDialog: IVA selezionabile con `VAT_RATES`, default 22%
-- WorkLogsAdminTab: `user` e correttamente usato per `approved_by` nelle mutation
-- Batch approve: `supabase.update().in("id", logIds)` corretto
-- Filtri rapportini: mese, dipendente, stato tutti funzionanti
-- Costo stimato: somma `ore * costo_orario` per ogni log
-- AssignEmployeeDialog: filtra dipendenti gia assegnati con `existingEmployeeIds`
-- AssignExternalTeamDialog: eredita aliquota IVA dalla squadra selezionata
-- Upload allegati: validazione tipo file e dimensione (10MB), sanitizzazione nome file
-- Delete allegati: rimuove sia da storage che da database
-- Alert scadenza documenti: calcolo corretto (scaduto vs in scadenza entro 30 giorni)
-- Creazione account dipendente: usa edge function `create-employee-user` con password temporanea
-- Tutti gli import sono utilizzati (tranne `Input` sopra indicato)
+### Duplicazione logica di eliminazione ordine
+La logica di cascade delete degli ordini e duplicata tra `OrdersList.tsx` (funzione `deleteOneOrder`) e `OrderDetail.tsx` (funzione `deleteOrderMutation`). Idealmente andrebbe estratta in un hook condiviso `useDeleteOrder` per evitare la divergenza che ha causato il bug #1. Segnalato come refactoring futuro.
+
+---
+
+## NESSUN ALTRO BUG TROVATO
+
+- Query ordini con join corretti (customer, status) e filtro company_id
+- Calcolo costi variabili: scorporo IVA corretto per articoli e squadre esterne, dipendenti gia netti
+- Provvigioni: calcolo corretto per tipo (fisso, % venduto, % incassato) con decurtazioni
+- Pipeline drag-and-drop: aggiornamento stato + storico coerente
+- Creazione ordine: funzione atomica `create_order_atomic` con transazione PostgreSQL
+- Modifica ordine: upsert articoli granulare (non distruttivo), draft auto-save con localStorage
+- Filtri: ricerca testuale + stato + pagamento + cliente + importo + date + mese tutti funzionanti
+- Paginazione: 20 ordini/pagina, reset automatico su cambio filtri
+- Export CSV: formato corretto con BOM UTF-8
+- Import CSV: validazione campi, match cliente per email, stato default
+- Articoli ordine: CRUD con catalogo, fornitore, magazzino, pagamenti a rate
+- Allegati ordine e articoli: upload/delete con storage, visibilita cliente gestita
+- Riepilogo finanziario: standard/finanziamento, bonus edilizio, input netto/lordo
+- Conto economico: vendita + costi articoli + manodopera + provvigioni + errori = margine
+- Pagamenti fornitori: raggruppamento per fornitore, tracking rate, scadenze
+- Alert ordine: posa imminente con articoli non pronti, merce in ritardo
+- Azioni bulk: cambio stato multiplo, eliminazione multipla con conferma
 
 ---
 
@@ -57,7 +76,5 @@ Le uniche differenze sono:
 
 | File | Intervento | Priorita |
 |------|-----------|----------|
-| `src/components/employees/EmployeeAttachments.tsx` | Rimuovere import `Input` non utilizzato | Bassa |
-
-Nessun file da eliminare, nessun bug funzionale. La duplicazione EmployeeAttachments/ExternalTeamAttachments e segnalata come debito tecnico da affrontare in futuro.
-
+| `src/pages/azienda/OrderDetail.tsx` | Aggiungere delete di `tasks` e `appointments` nella cascade delete | Media |
+| `src/components/orders/OrderAttachments.tsx` | Filtrare `visible_to_customer = true` nel componente cliente | Alta |
