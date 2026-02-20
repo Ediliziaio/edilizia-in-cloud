@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
-import { format, isSameDay, differenceInDays, parseISO } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Tooltip,
@@ -11,6 +11,7 @@ import {
 import { UsersRound } from "lucide-react";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { hasLogisticRisk } from "@/lib/calendarUtils";
+import { calculateLeadTime } from "./LeadTimeStats";
 import type { CalendarOrder } from "@/types/calendar";
 
 function darkenColor(hex: string): string {
@@ -47,14 +48,7 @@ export function DraggableOrderBar({
     data: { order, bar },
   });
 
-  const calculateLeadTime = () => {
-    if (!order.work_end_date) return null;
-    const contractDate = new Date(order.created_at);
-    const endDate = parseISO(order.work_end_date);
-    return differenceInDays(endDate, contractDate);
-  };
-
-  const leadTime = calculateLeadTime();
+  const leadTime = calculateLeadTime(order);
 
   const logisticRisk = hasLogisticRisk(order);
   const externalTeamNames = order.assigned_external_teams
