@@ -49,6 +49,7 @@ import Calendar from "@/pages/azienda/Calendar";
 import Employees from "@/pages/azienda/Employees";
 
 import Tasks from "@/pages/azienda/Tasks";
+import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MessagingBeta from "@/pages/azienda/MessagingBeta";
 
 // Customer Pages
@@ -175,6 +176,7 @@ const App = () => (
               <Route path="costi" element={<CompanyCosts />} />
               
               <Route path="attivita" element={<Tasks />} />
+              <Route path="errori" element={<GlobalErrors />} />
               <Route path="messaggistica-beta" element={<MessagingBeta />} />
               
               <Route path="impostazioni" element={<Settings />} />
