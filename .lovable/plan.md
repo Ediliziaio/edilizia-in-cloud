@@ -1,60 +1,59 @@
 
+# Analisi Dashboard Azienda
 
-# Audit Completo Area Azienda + Pulizia Codice Morto
+## Stato Generale: Funzionante con 2 bug significativi
 
-## Analisi Funzionamento
+La dashboard e ben strutturata con query parallele (`Promise.all` con 7 query), gestione completa degli stati (loading, errore, vuoto), alert finanziari intelligenti e widget informativi. Nessun dead code trovato. Tutti gli import sono utilizzati.
 
-Tutte le sezioni della sidebar sono state analizzate e risultano funzionanti:
-- **Dashboard**: query parallele, stat cards, alert finanziari, quick actions -- OK
-- **Ordini**: tabella paginata (20/pagina), pipeline kanban, filtri, bulk actions, CSV import/export -- OK
-- **Magazzino**: 3 viste + tab giacenze, filtri, export -- OK
-- **Calendario**: 4 viste (mese, gantt, settimana, heatmap), appuntamenti -- OK
-- **Clienti**: CRUD, reset password, dettaglio con ordini collegati -- OK
-- **Ticket Clienti**: lista con filtri, badge priorita -- OK
-- **Previsionale**: 5 tab (incassi, costi, cash flow, tesoreria, marginalita) -- OK
-- **Costi**: wrapper su CompanyCostsManager -- OK
-- **Attivita**: filtri, stat cards, link ordini -- OK
-- **Errori**: stat cards, grafici Recharts, tabella -- OK
-- **Messaggistica**: gate beta con flag company -- OK
-- **Impostazioni**: 10 tab admin, 5 staff -- OK
+---
 
-## Problemi Trovati e Fix
+## BUG TROVATI
 
-### 1. Antipattern: `useMemo` con side effect (Priorita: Alta)
-**File**: `src/pages/azienda/OrdersList.tsx` (riga ~417)
+### 1. Conteggio "Clienti" errato (Priorita: Alta)
+
+**Il problema**: La query conta TUTTI i profili con `company_id` corrispondente:
 ```typescript
-// SBAGLIATO: setState dentro useMemo (side effect in fase render)
-useMemo(() => { setCurrentPage(1); }, [filterKey]);
+supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", companyId!)
 ```
-**Fix**: sostituire con `useEffect` che e il hook corretto per side effects.
 
-### 2. Import morto: `Separator` in Settings (Priorita: Bassa)
-**File**: `src/pages/azienda/Settings.tsx` (riga 6)
-`Separator` e importato ma mai usato nel JSX.
-**Fix**: rimuovere l'import.
+Ma la tabella `profiles` contiene anche admin e staff dell'azienda, non solo clienti. Verificato nel database:
+- company `728fc9cf...` ha 4 profili: 1 admin + 2 clienti + 1 altro
+- Il numero mostrato nella stat card "Clienti" e quindi gonfiato
 
-### 3. Import morto: `CardContent, CardDescription` in Settings (Priorita: Bassa)
-**File**: `src/pages/azienda/Settings.tsx` (riga 5)
-`CardContent` e `CardDescription` sono importati da `@/components/ui/card` ma usati solo dentro il tab "profilo". Verifico che siano effettivamente usati... Si, sono usati nelle Card del profilo. Non sono dead code.
+**Fix**: Filtrare solo gli utenti con ruolo `customer` tramite join con `user_roles`:
+```typescript
+supabase.from("user_roles").select("id", { count: "exact", head: true })
+  .eq("role", "customer")
+```
+E poi filtrare per company_id tramite join con profiles. Oppure contare direttamente dagli ordini i customer_id distinti.
 
-### 4. Righe vuote doppie in CompanyLayout (Priorita: Bassa)
-**File**: `src/components/layouts/CompanyLayout.tsx`
-Ci sono righe vuote consecutive nell'array `allNavItems` (residuo della rimozione di "Personale").
-**Fix**: rimuovere le righe vuote extra.
+### 2. Finanziamento escluso dal calcolo incassi (Priorita: Media)
 
-### 5. Righe vuote doppie in App.tsx (Priorita: Bassa)
-**File**: `src/App.tsx` (righe 167-168)
-Righe vuote consecutive residue dalla rimozione della rotta "personale".
-**Fix**: rimuovere la riga vuota extra.
+**Il problema**: Gli ordini possono avere un `financing_amount` con `financing_paid`, `financing_expected_date`. Ma il calcolo "Da Incassare" e "Previsionale Incassi" considera solo:
+- Acconto (`deposit`)
+- Secondo acconto (`deposit_2`)
+- Saldo (`balance`)
 
-## Riepilogo Interventi
+Il finanziamento viene completamente ignorato, sottostimando gli incassi previsti.
 
-| File | Intervento |
-|------|-----------|
-| `src/pages/azienda/OrdersList.tsx` | Sostituire `useMemo` con `useEffect` per reset pagina |
-| `src/pages/azienda/Settings.tsx` | Rimuovere import `Separator` non usato |
-| `src/components/layouts/CompanyLayout.tsx` | Pulire righe vuote doppie in `allNavItems` |
-| `src/App.tsx` | Pulire righe vuote doppie nelle rotte |
+**Fix**: Aggiungere il blocco finanziamento nel calcolo `pendingRevenue` e nel calcolo `cashFlow`.
 
-Nessun file da eliminare. Nessuna modifica funzionale, solo pulizia codice e fix di un antipattern React.
+---
 
+## NESSUN DEAD CODE
+
+- Tutti gli import sono utilizzati nel JSX
+- Le interfacce `RecentOrder` e `UrgentItem` sono entrambe utilizzate
+- I componenti `LaborCostsStats` e `SupplierPaymentsSummary` sono entrambi renderizzati
+- Le variabili `thisMonthEnd` e `nextMonthEnd` sono entrambe usate nei calcoli
+
+---
+
+## RIEPILOGO INTERVENTI
+
+| File | Intervento | Priorita |
+|------|-----------|----------|
+| `CompanyDashboard.tsx` | Fix query clienti: contare solo ruolo "customer" | Alta |
+| `CompanyDashboard.tsx` | Aggiungere finanziamento nei calcoli pendingRevenue e cashFlow | Media |
+
+Nessun file da eliminare, nessun dead code da rimuovere.
