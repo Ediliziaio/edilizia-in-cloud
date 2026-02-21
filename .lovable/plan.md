@@ -1,51 +1,58 @@
 
+# Ritorno alla Sessione Originale dopo Quick Login
 
-# Test Auto-Assegnazione Staff con Visibilita Limitata
+## Problema
+Quando un Super Admin usa il "Quick Login" per accedere come un altro utente, la sessione originale viene completamente sostituita. Non c'e modo di tornare indietro senza fare logout e ri-autenticarsi manualmente.
 
-## Stato Attuale
+## Soluzione
+Salvare l'email del Super Admin in `sessionStorage` prima del cambio sessione, poi mostrare un banner fisso in tutti i layout con un pulsante "Torna a [Nome Admin]" che riutilizza la stessa Edge Function `sign-in-as-user` per ri-autenticarsi.
 
-L'unico staff nella tua azienda e **Enrico Goldoni** (`flo.andrihvhhhciuc@gmail.com`) con:
-- `only_assigned = false`
-- Tutti i permessi disattivati
+## Modifiche
 
-## Passaggi per il Test
+### 1. QuickLoginPopover.tsx
+- Prima di eseguire il `signOut`, salvare in `sessionStorage` l'email e il nome del Super Admin corrente:
+  - Chiave: `quick_login_original_email`
+  - Chiave: `quick_login_original_name`
 
-### Step 1: Preparare l'utente staff
-Aggiornare i permessi di Enrico Goldoni nel database:
-- Attivare `only_assigned = true`
-- Attivare i permessi: `can_view_orders`, `can_edit_orders`, `can_view_calendar`, `can_view_dashboard`, `can_view_customers`
+### 2. Nuovo componente: `QuickLoginReturnBanner.tsx`
+- Legge da `sessionStorage` se esiste una sessione originale salvata
+- Mostra un banner colorato (blu/viola) con il testo: "Hai effettuato l'accesso rapido. Torna come [Nome Admin]"
+- Il pulsante "Torna indietro" esegue:
+  1. Chiama `sign-in-as-user` con l'email originale
+  2. Pulisce le chiavi da `sessionStorage`
+  3. Redirige a `/admin`
+- Se il ritorno fallisce (es. sessione scaduta), pulisce comunque `sessionStorage` e mostra un messaggio di errore
 
-SQL da eseguire:
+### 3. Integrazione nei Layout
+Aggiungere `QuickLoginReturnBanner` in cima a tutti e 4 i layout dove l'utente impersonato potrebbe trovarsi:
+- **CompanyLayout.tsx** (staff/admin azienda)
+- **CustomerLayout.tsx** (cliente)
+- **EmployeeLayout.tsx** (dipendente)
+- **SalespersonLayout.tsx** (venditore)
+
+### 4. Pulizia automatica
+- Al logout normale (`signOut`), pulire le chiavi `quick_login_*` da `sessionStorage` in `AuthContext.tsx`
+
+## Dettagli Tecnici
+
 ```text
-UPDATE staff_permissions 
-SET only_assigned = true,
-    can_view_dashboard = true,
-    can_view_orders = true,
-    can_edit_orders = true,
-    can_view_calendar = true,
-    can_view_customers = true
-WHERE user_id = '1ce18771-a9dd-4a1d-84af-4b0d59961238';
+Flusso:
+1. Super Admin clicca "Accedi come utente" su Enrico Goldoni
+2. Sistema salva in sessionStorage: email e nome del Super Admin
+3. Sistema esegue signOut + verifyOtp come Enrico
+4. Enrico vede il banner: "Sessione Quick Login attiva - Torna come Mario Rossi"
+5. Enrico clicca "Torna indietro"
+6. Sistema chiama sign-in-as-user con email originale
+7. Sistema pulisce sessionStorage e redirige a /admin
 ```
 
-### Step 2: Accedere come Enrico Goldoni
-- Usare la funzione "Quick Login" dal pannello admin oppure fare login con le credenziali di questo utente
-- Nota: l'utente ha `must_change_password = true`, quindi potrebbe essere reindirizzato al cambio password
-
-### Step 3: Verificare il comportamento
-Una volta loggato come staff con visibilita limitata:
-
-1. **Creare un ordine**: il campo "Assegnato a" deve essere pre-compilato con "Enrico Goldoni" e disabilitato
-2. **Creare un'attivita**: il campo assegnatario deve essere pre-compilato e disabilitato
-3. **Creare un appuntamento**: il campo assegnatario deve essere pre-compilato e disabilitato
-4. **Verificare che i record creati siano visibili** nella lista ordini/attivita
-5. **Verificare che gli ordini di altri utenti NON siano visibili**
-
-### Step 4: Verificare in modifica
-- Aprire un ordine creato: il campo "Assegnato a" deve essere disabilitato per impedire la de-assegnazione
-
-## Implementazione
-
-Per procedere servono due operazioni:
-1. Una migration SQL per aggiornare i permessi dello staff user
-2. Il test manuale accedendo come quell'utente
-
+### File coinvolti
+| File | Azione |
+|------|--------|
+| `src/components/admin/QuickLoginPopover.tsx` | Salva email/nome admin prima dello swap |
+| `src/components/admin/QuickLoginReturnBanner.tsx` | Nuovo - banner con pulsante ritorno |
+| `src/components/layouts/CompanyLayout.tsx` | Aggiunge banner |
+| `src/components/layouts/CustomerLayout.tsx` | Aggiunge banner |
+| `src/components/layouts/EmployeeLayout.tsx` | Aggiunge banner |
+| `src/components/layouts/SalespersonLayout.tsx` | Aggiunge banner |
+| `src/contexts/AuthContext.tsx` | Pulizia sessionStorage al signOut |
