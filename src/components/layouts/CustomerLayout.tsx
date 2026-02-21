@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NavLink } from "@/components/NavLink";
+import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 
 const navItems = [
   { title: "I Miei Ordini", url: "/cliente", icon: ClipboardList },
@@ -30,6 +31,7 @@ export function CustomerLayout() {
   
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
+      <QuickLoginReturnBanner />
       {/* Header */}
       <header className="h-14 border-b bg-background sticky top-0 z-50">
         <div className="h-full max-w-4xl mx-auto px-4 flex items-center justify-between">

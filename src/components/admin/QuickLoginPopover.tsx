@@ -11,6 +11,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { AppRole } from "@/types/auth";
+import { useAuth } from "@/contexts/AuthContext";
+import { saveQuickLoginSession } from "@/components/admin/QuickLoginReturnBanner";
 
 const ROLE_LABELS: Record<AppRole, string> = {
   super_admin: "Super Admin",
@@ -73,6 +75,7 @@ export function QuickLoginPopover() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const { profile: currentProfile } = useAuth();
 
   const { data: users = [] } = useQuery({
     queryKey: ["admin-all-users-for-login"],
@@ -139,8 +142,11 @@ export function QuickLoginPopover() {
         body: { email: user.email },
       });
 
-      if (error) throw error;
-      if (!data?.hashed_token) throw new Error("No token received");
+      // Save current admin session info before swapping
+      if (currentProfile?.email) {
+        const adminName = `${currentProfile.first_name || ""} ${currentProfile.last_name || ""}`.trim();
+        saveQuickLoginSession(currentProfile.email, adminName || currentProfile.email);
+      }
 
       // Sign out current session first
       await supabase.auth.signOut();

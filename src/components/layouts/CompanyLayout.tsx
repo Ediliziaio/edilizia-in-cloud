@@ -40,6 +40,7 @@ import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
 import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
 import { Badge } from "@/components/ui/badge";
+import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 
 interface NavItem {
   title: string;
@@ -220,6 +221,7 @@ export function CompanyLayout() {
       <div className="min-h-screen flex w-full">
         <CompanySidebar />
         <div className="flex-1 flex flex-col">
+          <QuickLoginReturnBanner />
           <ImpersonationBanner />
           <SubscriptionBanner />
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
