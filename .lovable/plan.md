@@ -1,58 +1,51 @@
 
-# Ritorno alla Sessione Originale dopo Quick Login
+
+# Rendere il Quick Login Fluido (Senza Logout Visibile)
 
 ## Problema
-Quando un Super Admin usa il "Quick Login" per accedere come un altro utente, la sessione originale viene completamente sostituita. Non c'e modo di tornare indietro senza fare logout e ri-autenticarsi manualmente.
+Attualmente il flusso Quick Login esegue 3 passaggi visibili all'utente:
+1. `signOut()` -- causa la perdita della sessione, ProtectedRoute vede "utente non autenticato" e mostra brevemente la pagina di login
+2. `verifyOtp()` -- ri-autentica con il nuovo utente
+3. `window.location.href` -- forza un reload completo della pagina
+
+Questo crea un effetto "flash" dove l'utente vede la pagina di login per un istante prima di essere rediretto alla dashboard del nuovo utente.
 
 ## Soluzione
-Salvare l'email del Super Admin in `sessionStorage` prima del cambio sessione, poi mostrare un banner fisso in tutti i layout con un pulsante "Torna a [Nome Admin]" che riutilizza la stessa Edge Function `sign-in-as-user` per ri-autenticarsi.
+Eliminare il `signOut()` intermedio e il reload forzato. Supabase sostituisce automaticamente la sessione corrente quando si chiama `verifyOtp()`, quindi il logout esplicito non e necessario. In piu, mostrare un overlay di caricamento a schermo intero durante la transizione per coprire il breve momento di aggiornamento del contesto.
 
 ## Modifiche
 
 ### 1. QuickLoginPopover.tsx
-- Prima di eseguire il `signOut`, salvare in `sessionStorage` l'email e il nome del Super Admin corrente:
-  - Chiave: `quick_login_original_email`
-  - Chiave: `quick_login_original_name`
+- Rimuovere la chiamata `await supabase.auth.signOut()` 
+- Rimuovere `window.location.href = target` (il reload forzato)
+- Dopo `verifyOtp`, chiamare `refreshAuth()` dal contesto di autenticazione per aggiornare il profilo e il ruolo
+- Usare `navigate(target, { replace: true })` per la navigazione senza reload
 
-### 2. Nuovo componente: `QuickLoginReturnBanner.tsx`
-- Legge da `sessionStorage` se esiste una sessione originale salvata
-- Mostra un banner colorato (blu/viola) con il testo: "Hai effettuato l'accesso rapido. Torna come [Nome Admin]"
-- Il pulsante "Torna indietro" esegue:
-  1. Chiama `sign-in-as-user` con l'email originale
-  2. Pulisce le chiavi da `sessionStorage`
-  3. Redirige a `/admin`
-- Se il ritorno fallisce (es. sessione scaduta), pulisce comunque `sessionStorage` e mostra un messaggio di errore
+### 2. QuickLoginReturnBanner.tsx
+- Stessa logica: rimuovere `signOut()` prima di `verifyOtp`
+- Rimuovere `window.location.href = "/admin"`
+- Dopo `verifyOtp`, chiamare `refreshAuth()` e poi `navigate("/admin", { replace: true })`
 
-### 3. Integrazione nei Layout
-Aggiungere `QuickLoginReturnBanner` in cima a tutti e 4 i layout dove l'utente impersonato potrebbe trovarsi:
-- **CompanyLayout.tsx** (staff/admin azienda)
-- **CustomerLayout.tsx** (cliente)
-- **EmployeeLayout.tsx** (dipendente)
-- **SalespersonLayout.tsx** (venditore)
+### 3. AuthContext.tsx
+- Aggiungere gestione dell'evento `TOKEN_REFRESHED` in `onAuthStateChange` per supportare il cambio sessione senza logout
+- L'evento `SIGNED_IN` gia esistente gestira il nuovo token da `verifyOtp`
 
-### 4. Pulizia automatica
-- Al logout normale (`signOut`), pulire le chiavi `quick_login_*` da `sessionStorage` in `AuthContext.tsx`
+### Risultato
+La transizione avverra in circa 1 secondo senza nessun flash visibile: l'utente vedra solo un breve spinner di caricamento sovrapposto alla pagina corrente, poi verra portato direttamente alla nuova dashboard.
 
 ## Dettagli Tecnici
 
 ```text
-Flusso:
-1. Super Admin clicca "Accedi come utente" su Enrico Goldoni
-2. Sistema salva in sessionStorage: email e nome del Super Admin
-3. Sistema esegue signOut + verifyOtp come Enrico
-4. Enrico vede il banner: "Sessione Quick Login attiva - Torna come Mario Rossi"
-5. Enrico clicca "Torna indietro"
-6. Sistema chiama sign-in-as-user con email originale
-7. Sistema pulisce sessionStorage e redirige a /admin
+Flusso attuale (con flash):
+  Admin Dashboard --> signOut() --> Flash pagina login --> verifyOtp() --> Reload pagina --> Dashboard utente
+
+Nuovo flusso (fluido):
+  Admin Dashboard --> Overlay caricamento --> verifyOtp() --> refreshAuth() --> navigate() --> Dashboard utente
 ```
 
 ### File coinvolti
-| File | Azione |
-|------|--------|
-| `src/components/admin/QuickLoginPopover.tsx` | Salva email/nome admin prima dello swap |
-| `src/components/admin/QuickLoginReturnBanner.tsx` | Nuovo - banner con pulsante ritorno |
-| `src/components/layouts/CompanyLayout.tsx` | Aggiunge banner |
-| `src/components/layouts/CustomerLayout.tsx` | Aggiunge banner |
-| `src/components/layouts/EmployeeLayout.tsx` | Aggiunge banner |
-| `src/components/layouts/SalespersonLayout.tsx` | Aggiunge banner |
-| `src/contexts/AuthContext.tsx` | Pulizia sessionStorage al signOut |
+| File | Modifica |
+|------|----------|
+| `src/components/admin/QuickLoginPopover.tsx` | Rimuovere signOut e window.location.href, usare refreshAuth + navigate |
+| `src/components/admin/QuickLoginReturnBanner.tsx` | Stessa modifica: rimuovere signOut, usare refreshAuth + navigate |
+
