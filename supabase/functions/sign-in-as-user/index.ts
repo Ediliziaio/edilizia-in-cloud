@@ -52,7 +52,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check super_admin role
+    const { email, return_to_admin } = await req.json();
+    if (!email) {
+      return new Response(JSON.stringify({ error: "Email is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Check super_admin role of caller
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
     const { data: roleData } = await adminClient
       .from("user_roles")
@@ -62,18 +70,39 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!roleData) {
-      return new Response(JSON.stringify({ error: "Only super admins can use this feature" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+      // If not super_admin, only allow return_to_admin flow
+      // where target email must belong to a super_admin
+      if (!return_to_admin) {
+        return new Response(JSON.stringify({ error: "Only super admins can use this feature" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    const { email } = await req.json();
-    if (!email) {
-      return new Response(JSON.stringify({ error: "Email is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // Verify the target email belongs to a super_admin
+      const { data: targetUser } = await adminClient.auth.admin.listUsers();
+      const targetUserId = targetUser?.users?.find((u: any) => u.email === email)?.id;
+      
+      if (!targetUserId) {
+        return new Response(JSON.stringify({ error: "Target user not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: targetRole } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", targetUserId)
+        .eq("role", "super_admin")
+        .maybeSingle();
+
+      if (!targetRole) {
+        return new Response(JSON.stringify({ error: "Can only return to a super admin account" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Generate magic link
