@@ -769,6 +769,62 @@ export type Database = {
           },
         ]
       }
+      marketing_contacts: {
+        Row: {
+          company_id: string
+          company_name: string | null
+          created_at: string
+          email: string | null
+          first_name: string
+          id: string
+          last_activity_at: string | null
+          last_name: string | null
+          notes: string | null
+          phone: string | null
+          source: string | null
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          company_name?: string | null
+          created_at?: string
+          email?: string | null
+          first_name: string
+          id?: string
+          last_activity_at?: string | null
+          last_name?: string | null
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          company_name?: string | null
+          created_at?: string
+          email?: string | null
+          first_name?: string
+          id?: string
+          last_activity_at?: string | null
+          last_name?: string | null
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messaging_ai_runs: {
         Row: {
           ai_output: Json | null
