@@ -1,82 +1,101 @@
 
+# Gestione Ruoli Utente: Admin vs Staff con Visibilita Limitata
 
-# Analisi Sezione Calendario e Appuntamenti
+## Situazione Attuale
 
-## Stato Generale: Funzionante con un bug significativo nei filtri
+Analizzando il codice, ho trovato queste lacune:
 
-La sezione comprende 9 file (1 pagina + 7 componenti + 1 utility + 1 tipo): calendario lavori con 4 viste (mese, settimana, heatmap, Gantt), appuntamenti con CRUD completo, dialog modifica date ordine, drag-and-drop nel Gantt, statistiche lead time e carico lavoro, filtri per stato/cliente/operaio/squadra.
+1. **Creazione utente**: il dialog crea SOLO utenti `company_staff`. Non c'e scelta tra Admin e Staff.
+2. **Utenti Staff**: vedono TUTTI i dati dell'azienda (ordini, attivita, appuntamenti) filtrati solo per `company_id`, non per assegnazione personale.
+3. **Ordini**: non hanno un campo `assigned_to` per assegnare un ordine a un utente staff specifico.
+4. **Admin aggiuntivi**: non e possibile creare altri utenti `company_admin`.
 
----
+## Piano di Implementazione
 
-## BUG TROVATO
+### Fase 1 - Scelta Ruolo nella Creazione Utente
 
-### 1. Filtri dipendente e squadra esterna NON funzionano - mismatch nomi campo (Priorita: Alta)
+Modificare `StaffUserDialog.tsx` per aggiungere un selettore "Tipo utente":
+- **Amministratore** (company_admin): accesso completo, puo creare altri utenti
+- **Operatore** (company_staff): accesso limitato ai permessi configurati
 
-**File**: `src/pages/azienda/Calendar.tsx` (righe 54-63 e 174-185)
+Aggiornare la Edge Function `create-company-staff` per accettare un parametro `role_type` ("company_admin" o "company_staff"). Se admin, non creare il record `staff_permissions`. Se staff, creare i permessi come oggi.
 
-La query Supabase alla riga 56-57 fetcha i dati con i nomi di relazione:
-- `order_employees(employee:employees(id, first_name, last_name))`
-- `order_external_teams(external_team:external_teams(id, name))`
+### Fase 2 - Visualizzare Admin e Staff insieme
 
-Supabase restituisce i dati sotto le chiavi `order_employees` e `order_external_teams`.
+Aggiornare `UsersConfig.tsx` per:
+- Caricare sia utenti `company_admin` che `company_staff` (escluso l'admin principale che si sta usando)
+- Mostrare un badge "Admin" o "Staff" accanto a ogni utente
+- Nascondere il pulsante permessi per gli admin (hanno gia accesso a tutto)
+- Permettere la cancellazione di admin secondari
 
-Tuttavia, il tipo `CalendarOrder` (in `src/types/calendar.ts`, righe 20-32) definisce i campi come:
-- `assigned_employees`
-- `assigned_external_teams`
+### Fase 3 - Campo `assigned_to` sugli Ordini
 
-Il cast `as CalendarOrder[]` alla riga 63 non trasforma i dati, cambia solo il tipo TypeScript. A runtime, `order.assigned_employees` e sempre `undefined`.
+Aggiungere colonna `assigned_to UUID REFERENCES profiles(id)` alla tabella `orders` tramite migrazione SQL. Questo permette di assegnare ordini a utenti specifici.
 
-**Conseguenze**:
-1. **Filtro dipendente**: quando attivo, filtra via TUTTI gli ordini (perche `order.assigned_employees?.some(...)` restituisce `undefined`, che e falsy, quindi `!hasEmployee` e `true` e l'ordine viene escluso)
-2. **Filtro squadra esterna**: stesso problema, filtra via tutti gli ordini
-3. **Iniziali dipendenti** in CalendarMonthView, CalendarWeekView e DraggableOrderBar: non mostrano mai le iniziali (funzione `getEmployeeInitials` accede a `order.assigned_employees` che e `undefined`)
-4. **Nomi squadre esterne** nei tooltip: non vengono mai mostrati
+### Fase 4 - Visibilita Limitata per Staff
 
-**Impatto**: le 4 viste calendario non mostrano MAI i nomi dei dipendenti/squadre assegnate, e i filtri per operaio/squadra sono completamente non funzionanti.
+Aggiungere un flag `only_assigned` (boolean, default false) alla tabella `staff_permissions`. Quando attivo, lo staff vede solo:
 
-**Fix**: Rinominare i campi nel tipo `CalendarOrder` da `assigned_employees`/`assigned_external_teams` a `order_employees`/`order_external_teams`, e aggiornare tutti i riferimenti in:
-- `src/types/calendar.ts` (definizione tipo)
-- `src/pages/azienda/Calendar.tsx` (filtri)
-- `src/lib/calendarUtils.ts` (funzioni helper)
-- `src/components/calendar/CalendarMonthView.tsx` (tooltip)
-- `src/components/calendar/CalendarWeekView.tsx` (card eventi)
-- `src/components/calendar/CalendarHeatmapView.tsx` (popover dettaglio)
-- `src/components/calendar/CalendarGanttView.tsx` (sidebar + barra)
-- `src/components/calendar/DraggableOrderBar.tsx` (tooltip)
+- **Ordini**: dove `assigned_to = user_id`
+- **Attivita**: dove `assigned_to = user_id`
+- **Appuntamenti**: dove `assigned_to = user_id`
 
----
+Implementazione lato frontend:
+- Nel hook di caricamento ordini, aggiungere filtro `.eq("assigned_to", user.id)` se il permesso `only_assigned` e attivo
+- Stessa logica per attivita e appuntamenti
+- Aggiungere il campo "Assegnato a" nel form ordine (select con lista utenti staff/admin)
 
-## DEAD CODE TROVATO
+Aggiornare `PermissionsDialog.tsx` per includere il toggle "Mostra solo elementi assegnati".
 
-Nessun dead code trovato. Tutti gli import e le variabili sono utilizzati.
+### Fase 5 - Protezione RLS
 
----
+Aggiornare le policy RLS per gli staff:
+- Ordini: aggiungere policy che permette allo staff di vedere solo ordini assegnati (se `only_assigned = true`)
+- Attivita e Appuntamenti: stessa logica
 
-## NESSUN ALTRO BUG TROVATO
+Creare una nuova funzione database `is_assigned_or_full_access(user_id, record_assigned_to)` che ritorna true se l'utente ha accesso completo oppure se il record e assegnato a lui.
 
-- Vista Mese: rendering giorni, eventi posa/merce/appuntamenti, navigazione mese corretti
-- Vista Settimana: responsive mobile (Collapsible) e desktop (griglia 7 colonne), progress bar carico
-- Vista Heatmap: calcolo carico lavoro, statistiche mensili (media, picco, giorni vuoti, critici), popover dettaglio con navigazione ordine
-- Vista Gantt: zoom 4 livelli (settimana/mese/trimestre/anno), drag-and-drop date con salvataggio, today indicator, milestone (posa + merce), lead time, ordini non pianificati
-- EditOrderDatesDialog: salvataggio 4 date (inizio/fine lavori, posa, merce) con date picker
-- AppointmentDialog: CRUD completo, assegnazione utente, collegamento ordine, eliminazione
-- LinkedAppointments: lista appuntamenti ordine con checkbox completamento
-- LeadTimeStats: calcolo lead time medio/min/max con colorazione
-- calendarUtils: `hasLogisticRisk` confronta date stringa (funziona perche formato ISO yyyy-MM-dd e ordinabile lessicograficamente)
-- Filtri stato e cliente: funzionano correttamente
+### Fase 6 - Selettore "Assegnato a" nel Form Ordine
+
+Aggiungere un campo select in `CreateOrder.tsx` e `EditOrder.tsx` per scegliere a chi assegnare l'ordine. La lista mostra tutti gli utenti admin e staff dell'azienda.
 
 ---
 
-## RIEPILOGO INTERVENTI
+## Dettagli Tecnici
 
-| File | Intervento | Priorita |
-|------|-----------|----------|
-| `src/types/calendar.ts` | Rinominare `assigned_employees` -> `order_employees` e `assigned_external_teams` -> `order_external_teams` | Alta |
-| `src/pages/azienda/Calendar.tsx` | Aggiornare riferimenti ai nuovi nomi campo nei filtri | Alta |
-| `src/lib/calendarUtils.ts` | Aggiornare `getEmployeeInitials` e `hasLogisticRisk` (gia ok) | Alta |
-| `src/components/calendar/CalendarMonthView.tsx` | Aggiornare accessi tooltip | Alta |
-| `src/components/calendar/CalendarWeekView.tsx` | Aggiornare accessi card evento | Alta |
-| `src/components/calendar/CalendarHeatmapView.tsx` | Aggiornare accessi popover | Alta |
-| `src/components/calendar/CalendarGanttView.tsx` | Aggiornare accessi sidebar | Alta |
-| `src/components/calendar/DraggableOrderBar.tsx` | Aggiornare accessi tooltip | Alta |
+### Migrazione Database
 
+```text
+-- Colonna assigned_to su orders
+ALTER TABLE orders ADD COLUMN assigned_to UUID REFERENCES profiles(id);
+
+-- Flag only_assigned su staff_permissions
+ALTER TABLE staff_permissions ADD COLUMN only_assigned BOOLEAN DEFAULT false;
+
+-- Funzione helper per visibilita
+CREATE FUNCTION check_staff_visibility(user_id, assigned_to) ...
+```
+
+### File da Modificare
+
+| File | Modifica |
+|------|----------|
+| `StaffUserDialog.tsx` | Aggiunta selettore ruolo (Admin/Staff) |
+| `create-company-staff/index.ts` | Supporto parametro `role_type` |
+| `UsersConfig.tsx` | Caricamento admin + staff, badge ruolo |
+| `PermissionsDialog.tsx` | Toggle "Solo elementi assegnati" |
+| `usePermissions.ts` | Esporre flag `onlyAssigned` |
+| `OrdersList.tsx` | Filtro per assegnazione |
+| `Tasks.tsx` | Filtro per assegnazione |
+| `CreateOrder.tsx` / `EditOrder.tsx` | Campo "Assegnato a" |
+| `CompanyLayout.tsx` | Nessuna modifica (gia filtra per permessi) |
+
+### Ordine di Esecuzione
+
+1. Migrazione DB (colonne + funzioni)
+2. Edge Function aggiornata
+3. Dialog creazione con scelta ruolo
+4. Lista utenti con badge
+5. Toggle "solo assegnati" nei permessi
+6. Campo assegnazione ordini
+7. Filtri frontend per visibilita limitata
