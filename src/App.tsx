@@ -62,6 +62,14 @@ import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MessagingBeta from "@/pages/azienda/MessagingBeta";
 import Automations from "@/pages/azienda/Automations";
 
+// Marketing Pages
+import MarketingDashboard from "@/pages/azienda/marketing/MarketingDashboard";
+import MarketingContacts from "@/pages/azienda/marketing/MarketingContacts";
+import MarketingOpportunities from "@/pages/azienda/marketing/MarketingOpportunities";
+import MarketingCalendar from "@/pages/azienda/marketing/MarketingCalendar";
+import MarketingAutomations from "@/pages/azienda/marketing/MarketingAutomations";
+import MarketingAiAgent from "@/pages/azienda/marketing/MarketingAiAgent";
+
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
 import CustomerOrderDetail from "@/pages/cliente/CustomerOrderDetail";
@@ -187,6 +195,14 @@ const App = () => (
               <Route path="errori" element={<GlobalErrors />} />
               <Route path="messaggistica-beta" element={<MessagingBeta />} />
               <Route path="automazioni" element={<Automations />} />
+
+              {/* Marketing Routes */}
+              <Route path="marketing" element={<MarketingDashboard />} />
+              <Route path="marketing/contatti" element={<MarketingContacts />} />
+              <Route path="marketing/opportunita" element={<MarketingOpportunities />} />
+              <Route path="marketing/calendario" element={<MarketingCalendar />} />
+              <Route path="marketing/automazioni" element={<MarketingAutomations />} />
+              <Route path="marketing/agente-ai" element={<MarketingAiAgent />} />
               
               <Route path="impostazioni" element={<SettingsLayout />}>
                 <Route index element={<Navigate to="profilo" replace />} />
