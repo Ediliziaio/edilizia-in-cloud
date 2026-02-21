@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { LayoutDashboard, ShoppingBag, Wallet, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -17,6 +18,7 @@ export function SalespersonLayout() {
 
   return (
     <div className="min-h-screen bg-background">
+      <QuickLoginReturnBanner />
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
         <div className="container flex h-14 items-center justify-between">

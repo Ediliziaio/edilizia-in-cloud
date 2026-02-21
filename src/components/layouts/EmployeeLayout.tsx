@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NavLink } from "@/components/NavLink";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 
 const navigationItems = [
   { title: "Dashboard", url: "/dipendente", icon: Home },
@@ -187,6 +188,7 @@ export function EmployeeLayout() {
       <div className="min-h-screen flex w-full">
         <EmployeeSidebar />
         <main className="flex-1 flex flex-col">
+          <QuickLoginReturnBanner />
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background sticky top-0 z-10">
             <SidebarTrigger />
             <span className="font-medium">Area Dipendente</span>

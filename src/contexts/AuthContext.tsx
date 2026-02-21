@@ -182,6 +182,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // Clear quick login session data
+    sessionStorage.removeItem("quick_login_original_email");
+    sessionStorage.removeItem("quick_login_original_name");
     await supabase.auth.signOut();
   };
 
