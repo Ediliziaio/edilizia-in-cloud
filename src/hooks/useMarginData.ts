@@ -245,7 +245,9 @@ export function useMarginData(): MarginData {
 
   const fixedCostsByCategory = new Map<string, number>();
   (fixedCostsRaw || []).forEach(cost => {
-    const monthly = cost.amount * recurrenceMultiplier(cost.recurrence);
+    const costVat = cost.vat_rate ?? 22;
+    const { netAmount } = calculateNetFromGross(cost.amount, costVat);
+    const monthly = netAmount * recurrenceMultiplier(cost.recurrence);
     const cat = cost.category || "Altro";
     fixedCostsByCategory.set(cat, (fixedCostsByCategory.get(cat) || 0) + monthly);
   });
