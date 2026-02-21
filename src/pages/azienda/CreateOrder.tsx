@@ -521,7 +521,7 @@ export default function CreateOrder() {
               <div className="space-y-2">
                 <Label htmlFor="customer">Cliente *</Label>
                 <div className="flex gap-2">
-                  <Select value={customerId} onValueChange={setCustomerId}>
+              <Select value={customerId || undefined} onValueChange={setCustomerId}>
                     <SelectTrigger className="flex-1">
                       <SelectValue placeholder="Seleziona un cliente" />
                     </SelectTrigger>
@@ -560,7 +560,7 @@ export default function CreateOrder() {
               {/* Status */}
               <div className="space-y-2">
                 <Label>Stato Iniziale</Label>
-                <Select value={statusId} onValueChange={setStatusId}>
+              <Select value={statusId || undefined} onValueChange={setStatusId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleziona stato" />
                   </SelectTrigger>
