@@ -1,34 +1,36 @@
 
 
-# Sidebar Dinamica per Impostazioni (stile GoHighLevel)
+# Pulizia Codice Morto - Impostazioni
 
-## Problema attuale
-Quando si clicca "Impostazioni", si apre un layout con una **seconda sidebar separata** accanto a quella principale. L'utente vuole invece che la **sidebar principale cambi contenuto**, mostrando le voci delle impostazioni al posto del menu normale, con un pulsante "Torna indietro" in alto.
+## Analisi completata
 
-## Soluzione
-La `CompanySidebar` rileva la rotta corrente: se siamo su `/azienda/impostazioni/*`, mostra il menu impostazioni; altrimenti mostra il menu principale.
+Tutte le 9 sezioni delle impostazioni sono state verificate e funzionano correttamente:
 
-## Modifiche
+| Sezione | Componente interno | Stato |
+|---------|-------------------|-------|
+| Profilo aziendale | LogoUploader + CompanyProfileForm | OK - salva su database e storage |
+| Catalogo articoli | ArticleCatalog | OK - CRUD articoli |
+| Stati ordine | OrderStatusConfig | OK - drag and drop con riordinamento |
+| Fornitori | SuppliersConfig | OK - CRUD fornitori |
+| Utenti | UsersConfig | OK - gestione staff (solo admin) |
+| Venditori | SalespeopleConfig | OK - gestione venditori (solo admin) |
+| Staff / Operai | Employees (pagina riusata) | OK - gestione dipendenti (solo admin) |
+| Cambio password | ChangePasswordForm | OK - cambio password via auth |
+| Registro attivita | CompanyActivityLogTab | OK - log azioni (solo admin) |
 
-### 1. `src/components/layouts/CompanyLayout.tsx` (CompanySidebar)
-- Importare `useLocation` da react-router-dom
-- Rilevare se la rotta corrente inizia con `/azienda/impostazioni`
-- Se si: mostrare nella sidebar:
-  - Pulsante "Torna indietro" (naviga a `/azienda`) con icona freccia
-  - Titolo "Impostazioni"
-  - Le voci raggruppate per categoria (Profilo, Catalogo, Stati ordine, Fornitori, Utenti, Venditori, Staff, Sicurezza, Registro) con le stesse icone e logica admin-only gia presente in `SettingsLayout.tsx`
-- Se no: mostrare il menu principale come adesso
+La sidebar dinamica in `CompanyLayout.tsx` gestisce correttamente la visibilita condizionale (admin-only per Team e Registro) e il pulsante "Torna indietro".
 
-### 2. `src/components/layouts/SettingsLayout.tsx`
-- Rimuovere tutta la sidebar laterale (`<aside>`)
-- Mantenere solo il div con `<Outlet />` per renderizzare il contenuto delle sotto-pagine
-- Diventa un semplice wrapper senza sidebar propria
+## Codice morto trovato
 
-### File coinvolti
-| File | Modifica |
-|------|----------|
-| `src/components/layouts/CompanyLayout.tsx` | Logica condizionale nella sidebar per mostrare menu impostazioni o menu principale |
-| `src/components/layouts/SettingsLayout.tsx` | Rimuovere la sidebar interna, tenere solo l'Outlet |
+Un solo file morto da eliminare:
 
-Nessun altro file cambia: le route in `App.tsx` e le pagine wrapper restano identiche.
+- **`src/pages/azienda/Settings.tsx`** - Contiene solo un redirect (`Navigate to /azienda/impostazioni/profilo`), ma non e importato da nessun file. Il routing in `App.tsx` usa direttamente `SettingsLayout` con le sotto-route. Questo file e un residuo della migrazione dalle tab alla sidebar e puo essere eliminato.
+
+## Azione
+
+| File | Azione |
+|------|--------|
+| `src/pages/azienda/Settings.tsx` | Eliminare - non importato da nessuna parte |
+
+Nessun'altra modifica necessaria. Il resto del codice e pulito e tutte le integrazioni sono corrette.
 
