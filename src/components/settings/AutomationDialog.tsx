@@ -36,6 +36,13 @@ const TRIGGER_TYPES = [
   { value: "work_start_date_set", label: "Data inizio lavori impostata" },
   { value: "work_end_date_set", label: "Data fine lavori impostata" },
   { value: "payment_received", label: "Pagamento ricevuto" },
+  { value: "due_date_approaching", label: "Scadenza in avvicinamento" },
+];
+
+const DATE_FIELD_OPTIONS = [
+  { value: "expected_date", label: "Data consegna prevista" },
+  { value: "work_start_date", label: "Data inizio lavori" },
+  { value: "work_end_date", label: "Data fine lavori" },
 ];
 
 const CONDITION_FIELDS = [
@@ -213,6 +220,29 @@ export function AutomationDialog({ open, onOpenChange, automation, onSaved }: Pr
                       {orderStatuses.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+              {form.trigger_type === "due_date_approaching" && (
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs">Data da monitorare</Label>
+                    <Select value={form.trigger_config.date_field || "expected_date"} onValueChange={v => setForm(f => ({ ...f, trigger_config: { ...f.trigger_config, date_field: v } }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {DATE_FIELD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Giorni prima della scadenza</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={form.trigger_config.days_before ?? 3}
+                      onChange={e => setForm(f => ({ ...f, trigger_config: { ...f.trigger_config, days_before: parseInt(e.target.value) || 3 } }))}
+                    />
+                  </div>
                 </div>
               )}
             </CardContent>
