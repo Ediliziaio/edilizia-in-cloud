@@ -284,7 +284,7 @@ function CompanySidebar() {
 
             {/* Marketing e Vendita */}
             <Collapsible defaultOpen={isMarketingRoute}>
-              <SidebarGroup>
+              <SidebarGroup className="pt-0">
                 <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
                   <span className="flex items-center gap-2">
                     <Megaphone className="h-3.5 w-3.5" />
