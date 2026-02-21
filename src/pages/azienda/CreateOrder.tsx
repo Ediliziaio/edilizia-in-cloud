@@ -117,13 +117,6 @@ export default function CreateOrder() {
     }
   }, [onlyAssigned, user?.id]);
 
-  // Auto-assign for staff with onlyAssigned
-  useEffect(() => {
-    if (onlyAssigned && user?.id) {
-      setAssignedTo(user.id);
-    }
-  }, [onlyAssigned, user?.id]);
-
   // Draft auto-save
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id);
 
