@@ -1,101 +1,51 @@
 
-# Gestione Ruoli Utente: Admin vs Staff con Visibilita Limitata
+# Permessi inline nella creazione Operatore
 
-## Situazione Attuale
+## Cosa cambia
 
-Analizzando il codice, ho trovato queste lacune:
+Quando si seleziona "Operatore" nel dialog di creazione utente, il form mostrera direttamente la sezione permessi (checkbox per ogni modulo + toggle "Solo elementi assegnati") prima di cliccare "Crea Utente". Cosi non serve creare l'utente e poi andare a configurare i permessi separatamente.
 
-1. **Creazione utente**: il dialog crea SOLO utenti `company_staff`. Non c'e scelta tra Admin e Staff.
-2. **Utenti Staff**: vedono TUTTI i dati dell'azienda (ordini, attivita, appuntamenti) filtrati solo per `company_id`, non per assegnazione personale.
-3. **Ordini**: non hanno un campo `assigned_to` per assegnare un ordine a un utente staff specifico.
-4. **Admin aggiuntivi**: non e possibile creare altri utenti `company_admin`.
+## Modifiche
 
-## Piano di Implementazione
+### 1. StaffUserDialog.tsx
+- Aggiungere lo state `permissions` con i valori di default (tutto false)
+- Quando `roleType === "company_staff"`, mostrare inline la sezione permessi (stessa UI del PermissionsDialog: checkbox per Dashboard, Ordini, Magazzino, ecc. con sotto-checkbox "Puo modificare" e toggle "Solo elementi assegnati")
+- Aggiungere `permissions` al tipo `StaffUserFormData`
+- Il dialog usera `max-h` e scroll per gestire l'altezza aggiuntiva
 
-### Fase 1 - Scelta Ruolo nella Creazione Utente
+### 2. UsersConfig.tsx (handleCreateUser)
+- Dopo la creazione dell'utente (se `company_staff`), inviare un update alla tabella `staff_permissions` con i permessi scelti nel dialog
+- Usare `supabase.from("staff_permissions").update(data.permissions).eq("user_id", response.data.user_id)`
 
-Modificare `StaffUserDialog.tsx` per aggiungere un selettore "Tipo utente":
-- **Amministratore** (company_admin): accesso completo, puo creare altri utenti
-- **Operatore** (company_staff): accesso limitato ai permessi configurati
-
-Aggiornare la Edge Function `create-company-staff` per accettare un parametro `role_type` ("company_admin" o "company_staff"). Se admin, non creare il record `staff_permissions`. Se staff, creare i permessi come oggi.
-
-### Fase 2 - Visualizzare Admin e Staff insieme
-
-Aggiornare `UsersConfig.tsx` per:
-- Caricare sia utenti `company_admin` che `company_staff` (escluso l'admin principale che si sta usando)
-- Mostrare un badge "Admin" o "Staff" accanto a ogni utente
-- Nascondere il pulsante permessi per gli admin (hanno gia accesso a tutto)
-- Permettere la cancellazione di admin secondari
-
-### Fase 3 - Campo `assigned_to` sugli Ordini
-
-Aggiungere colonna `assigned_to UUID REFERENCES profiles(id)` alla tabella `orders` tramite migrazione SQL. Questo permette di assegnare ordini a utenti specifici.
-
-### Fase 4 - Visibilita Limitata per Staff
-
-Aggiungere un flag `only_assigned` (boolean, default false) alla tabella `staff_permissions`. Quando attivo, lo staff vede solo:
-
-- **Ordini**: dove `assigned_to = user_id`
-- **Attivita**: dove `assigned_to = user_id`
-- **Appuntamenti**: dove `assigned_to = user_id`
-
-Implementazione lato frontend:
-- Nel hook di caricamento ordini, aggiungere filtro `.eq("assigned_to", user.id)` se il permesso `only_assigned` e attivo
-- Stessa logica per attivita e appuntamenti
-- Aggiungere il campo "Assegnato a" nel form ordine (select con lista utenti staff/admin)
-
-Aggiornare `PermissionsDialog.tsx` per includere il toggle "Mostra solo elementi assegnati".
-
-### Fase 5 - Protezione RLS
-
-Aggiornare le policy RLS per gli staff:
-- Ordini: aggiungere policy che permette allo staff di vedere solo ordini assegnati (se `only_assigned = true`)
-- Attivita e Appuntamenti: stessa logica
-
-Creare una nuova funzione database `is_assigned_or_full_access(user_id, record_assigned_to)` che ritorna true se l'utente ha accesso completo oppure se il record e assegnato a lui.
-
-### Fase 6 - Selettore "Assegnato a" nel Form Ordine
-
-Aggiungere un campo select in `CreateOrder.tsx` e `EditOrder.tsx` per scegliere a chi assegnare l'ordine. La lista mostra tutti gli utenti admin e staff dell'azienda.
-
----
+### 3. Edge Function (nessuna modifica)
+- La Edge Function gia crea il record `staff_permissions` vuoto per gli staff. I permessi verranno aggiornati subito dopo dal frontend.
 
 ## Dettagli Tecnici
 
-### Migrazione Database
-
+### StaffUserFormData aggiornato
 ```text
--- Colonna assigned_to su orders
-ALTER TABLE orders ADD COLUMN assigned_to UUID REFERENCES profiles(id);
-
--- Flag only_assigned su staff_permissions
-ALTER TABLE staff_permissions ADD COLUMN only_assigned BOOLEAN DEFAULT false;
-
--- Funzione helper per visibilita
-CREATE FUNCTION check_staff_visibility(user_id, assigned_to) ...
+interface StaffUserFormData {
+  first_name: string;
+  last_name: string;
+  email: string;
+  role_type: "company_admin" | "company_staff";
+  permissions?: StaffPermissions; // nuovo campo, solo per company_staff
+}
 ```
 
-### File da Modificare
+### UI del form (quando Operatore selezionato)
+Sotto i campi Nome/Cognome/Email apparira:
+- Separatore con titolo "Permessi"
+- Pulsanti "Seleziona tutti" / "Deseleziona tutti"
+- Lista checkbox identica al PermissionsDialog
+- Toggle "Solo elementi assegnati"
+- Il DialogContent avra `className="max-w-lg"` per avere piu spazio
 
-| File | Modifica |
-|------|----------|
-| `StaffUserDialog.tsx` | Aggiunta selettore ruolo (Admin/Staff) |
-| `create-company-staff/index.ts` | Supporto parametro `role_type` |
-| `UsersConfig.tsx` | Caricamento admin + staff, badge ruolo |
-| `PermissionsDialog.tsx` | Toggle "Solo elementi assegnati" |
-| `usePermissions.ts` | Esporre flag `onlyAssigned` |
-| `OrdersList.tsx` | Filtro per assegnazione |
-| `Tasks.tsx` | Filtro per assegnazione |
-| `CreateOrder.tsx` / `EditOrder.tsx` | Campo "Assegnato a" |
-| `CompanyLayout.tsx` | Nessuna modifica (gia filtra per permessi) |
-
-### Ordine di Esecuzione
-
-1. Migrazione DB (colonne + funzioni)
-2. Edge Function aggiornata
-3. Dialog creazione con scelta ruolo
-4. Lista utenti con badge
-5. Toggle "solo assegnati" nei permessi
-6. Campo assegnazione ordini
-7. Filtri frontend per visibilita limitata
+### Flusso
+1. Utente seleziona "Operatore"
+2. Compila nome, email
+3. Configura permessi inline
+4. Clicca "Crea Utente"
+5. Edge Function crea utente + record permessi vuoto
+6. Frontend aggiorna immediatamente i permessi con i valori scelti
+7. Mostra password temporanea
