@@ -133,6 +133,15 @@ export function UsersConfig() {
       if (response.error) throw new Error(response.error.message || "Errore durante la creazione");
       if (response.data?.error) throw new Error(response.data.error);
 
+      // Update permissions right after creation for staff users
+      if (data.role_type === "company_staff" && data.permissions && response.data?.user_id) {
+        const { only_assigned, ...permFields } = data.permissions;
+        await supabase
+          .from("staff_permissions")
+          .update({ ...permFields, only_assigned: only_assigned || false })
+          .eq("user_id", response.data.user_id);
+      }
+
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
       
       toast({
