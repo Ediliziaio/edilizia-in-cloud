@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -34,7 +34,16 @@ import Implementations from "@/pages/admin/Implementations";
 
 // Company Pages  
 import CompanyDashboard from "@/pages/azienda/CompanyDashboard";
-import Settings from "@/pages/azienda/Settings";
+import { SettingsLayout } from "@/components/layouts/SettingsLayout";
+import SettingsProfile from "@/pages/azienda/settings/SettingsProfile";
+import SettingsCatalog from "@/pages/azienda/settings/SettingsCatalog";
+import SettingsOrderStatus from "@/pages/azienda/settings/SettingsOrderStatus";
+import SettingsSuppliers from "@/pages/azienda/settings/SettingsSuppliers";
+import SettingsUsers from "@/pages/azienda/settings/SettingsUsers";
+import SettingsSalespeople from "@/pages/azienda/settings/SettingsSalespeople";
+import SettingsStaff from "@/pages/azienda/settings/SettingsStaff";
+import SettingsSecurity from "@/pages/azienda/settings/SettingsSecurity";
+import SettingsActivityLog from "@/pages/azienda/settings/SettingsActivityLog";
 import OrdersList from "@/pages/azienda/OrdersList";
 import CreateOrder from "@/pages/azienda/CreateOrder";
 import OrderDetail from "@/pages/azienda/OrderDetail";
@@ -179,7 +188,18 @@ const App = () => (
               <Route path="messaggistica-beta" element={<MessagingBeta />} />
               <Route path="automazioni" element={<Automations />} />
               
-              <Route path="impostazioni" element={<Settings />} />
+              <Route path="impostazioni" element={<SettingsLayout />}>
+                <Route index element={<Navigate to="profilo" replace />} />
+                <Route path="profilo" element={<SettingsProfile />} />
+                <Route path="catalogo" element={<SettingsCatalog />} />
+                <Route path="stati-ordine" element={<SettingsOrderStatus />} />
+                <Route path="fornitori" element={<SettingsSuppliers />} />
+                <Route path="utenti" element={<SettingsUsers />} />
+                <Route path="venditori" element={<SettingsSalespeople />} />
+                <Route path="staff" element={<SettingsStaff />} />
+                <Route path="sicurezza" element={<SettingsSecurity />} />
+                <Route path="attivita" element={<SettingsActivityLog />} />
+              </Route>
             </Route>
 
             {/* Customer Routes */}
