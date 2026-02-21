@@ -35,7 +35,7 @@ export function QuickLoginReturnBanner() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("sign-in-as-user", {
-        body: { email: originalEmail },
+        body: { email: originalEmail, return_to_admin: true },
       });
 
       if (error) throw error;
