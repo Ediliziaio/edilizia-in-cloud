@@ -1,51 +1,71 @@
 
-# Permessi inline nella creazione Operatore
 
-## Cosa cambia
+# Fix Visibilita Limitata: Bug nella Creazione Record
 
-Quando si seleziona "Operatore" nel dialog di creazione utente, il form mostrera direttamente la sezione permessi (checkbox per ogni modulo + toggle "Solo elementi assegnati") prima di cliccare "Crea Utente". Cosi non serve creare l'utente e poi andare a configurare i permessi separatamente.
+## Bug Trovato
 
-## Modifiche
+### Problema Critico: Staff con "Solo elementi assegnati" non puo creare nulla
 
-### 1. StaffUserDialog.tsx
-- Aggiungere lo state `permissions` con i valori di default (tutto false)
-- Quando `roleType === "company_staff"`, mostrare inline la sezione permessi (stessa UI del PermissionsDialog: checkbox per Dashboard, Ordini, Magazzino, ecc. con sotto-checkbox "Puo modificare" e toggle "Solo elementi assegnati")
-- Aggiungere `permissions` al tipo `StaffUserFormData`
-- Il dialog usera `max-h` e scroll per gestire l'altezza aggiuntiva
+La funzione RLS `check_staff_visibility` verifica che `assigned_to = user_id` quando `only_assigned` e attivo. Ma nei form di creazione (ordini, attivita, appuntamenti), il campo `assigned_to` di default e vuoto/null. Questo significa:
 
-### 2. UsersConfig.tsx (handleCreateUser)
-- Dopo la creazione dell'utente (se `company_staff`), inviare un update alla tabella `staff_permissions` con i permessi scelti nel dialog
-- Usare `supabase.from("staff_permissions").update(data.permissions).eq("user_id", response.data.user_id)`
+- `NULL = user_id` restituisce `NULL` (falsy) in PostgreSQL
+- L'INSERT viene **bloccato** dalla policy RLS
+- Lo staff con visibilita limitata non puo creare ordini, attivita o appuntamenti
 
-### 3. Edge Function (nessuna modifica)
-- La Edge Function gia crea il record `staff_permissions` vuoto per gli staff. I permessi verranno aggiornati subito dopo dal frontend.
+### Verifica RLS (tutto corretto a livello DB)
+
+| Tabella | Policy SELECT | Policy ALL (INSERT/UPDATE/DELETE) |
+|---------|---------------|-----------------------------------|
+| orders | `check_staff_visibility` applicato | `check_staff_visibility` applicato |
+| tasks | `check_staff_visibility` applicato | `check_staff_visibility` applicato |
+| appointments | `check_staff_visibility` applicato | `check_staff_visibility` applicato |
+
+Le policy RLS funzionano correttamente per filtrare i dati in lettura. Il problema e solo nella creazione.
+
+## Fix Necessari
+
+### 1. CreateOrder.tsx - Auto-assegnazione
+
+Importare `usePermissions` e, se `onlyAssigned` e true, pre-impostare `assignedTo` all'ID dell'utente corrente e rendere il campo non modificabile (o nasconderlo).
+
+### 2. TaskDialog.tsx - Auto-assegnazione
+
+Stesso approccio: se `onlyAssigned` e true, impostare `assignedTo = user.id` nel `useEffect` di reset e disabilitare il campo select dell'assegnatario.
+
+### 3. AppointmentDialog.tsx - Auto-assegnazione
+
+Stesso approccio: pre-impostare `assignedTo = user.id` quando `onlyAssigned` e true.
+
+### 4. EditOrder.tsx - Protezione modifica assegnazione
+
+Se `onlyAssigned` e true, il campo "Assegnato a" deve essere read-only per evitare che lo staff si de-assegni da un ordine (perdendo accesso).
 
 ## Dettagli Tecnici
 
-### StaffUserFormData aggiornato
+In ciascun file, la modifica e minima:
+
 ```text
-interface StaffUserFormData {
-  first_name: string;
-  last_name: string;
-  email: string;
-  role_type: "company_admin" | "company_staff";
-  permissions?: StaffPermissions; // nuovo campo, solo per company_staff
+// In ogni form di creazione:
+import { usePermissions } from "@/hooks/usePermissions";
+
+const { onlyAssigned } = usePermissions();
+
+// Nel useEffect di reset (quando non si sta editando):
+if (onlyAssigned && user?.id) {
+  setAssignedTo(user.id);
 }
+
+// Nel JSX del campo AssignedTo / Select assegnatario:
+disabled={onlyAssigned}
 ```
 
-### UI del form (quando Operatore selezionato)
-Sotto i campi Nome/Cognome/Email apparira:
-- Separatore con titolo "Permessi"
-- Pulsanti "Seleziona tutti" / "Deseleziona tutti"
-- Lista checkbox identica al PermissionsDialog
-- Toggle "Solo elementi assegnati"
-- Il DialogContent avra `className="max-w-lg"` per avere piu spazio
+### File da Modificare
 
-### Flusso
-1. Utente seleziona "Operatore"
-2. Compila nome, email
-3. Configura permessi inline
-4. Clicca "Crea Utente"
-5. Edge Function crea utente + record permessi vuoto
-6. Frontend aggiorna immediatamente i permessi con i valori scelti
-7. Mostra password temporanea
+| File | Modifica |
+|------|----------|
+| `src/pages/azienda/CreateOrder.tsx` | Auto-set `assignedTo = user.id` se `onlyAssigned`, campo disabilitato |
+| `src/pages/azienda/EditOrder.tsx` | Campo `assignedTo` read-only se `onlyAssigned` |
+| `src/components/tasks/TaskDialog.tsx` | Auto-set `assignedTo = user.id` se `onlyAssigned`, campo disabilitato |
+| `src/components/appointments/AppointmentDialog.tsx` | Auto-set `assignedTo = user.id` se `onlyAssigned`, campo disabilitato |
+
+Nessuna modifica al database o alle RLS policies -- sono gia corrette.
