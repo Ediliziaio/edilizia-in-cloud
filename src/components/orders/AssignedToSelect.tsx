@@ -55,12 +55,12 @@ export function AssignedToSelect({ value, onChange, disabled }: AssignedToSelect
   return (
     <div className="space-y-2">
       <Label>Assegnato a</Label>
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <Select value={value || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)} disabled={disabled}>
         <SelectTrigger>
           <SelectValue placeholder="Nessuna assegnazione" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Nessuna assegnazione</SelectItem>
+          <SelectItem value="none">Nessuna assegnazione</SelectItem>
           {users.map((u) => (
             <SelectItem key={u.id} value={u.id}>
               {u.name}
