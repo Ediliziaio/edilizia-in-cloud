@@ -1,32 +1,26 @@
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useSubscriptionLimits, type ModuleKey } from "@/hooks/useSubscriptionLimits";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { 
-  LayoutDashboard, 
-  ClipboardList, 
-  Users,
   HeadphonesIcon,
   Settings,
   LogOut,
-  TrendingUp,
-  Receipt,
   AlertTriangle,
   ArrowLeft,
-  Warehouse,
-  CalendarDays,
-  CheckSquare,
-  MessageSquare,
-  Zap,
   Building2,
   Package,
   ListOrdered,
   Truck,
+  Users,
   UserCheck,
   HardHat,
   Key,
   ScrollText,
+  ChevronDown,
+  Briefcase,
+  Megaphone,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -50,30 +44,8 @@ import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog"
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
 import { Badge } from "@/components/ui/badge";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
-
-interface NavItem {
-  title: string;
-  url: string;
-  icon: React.ComponentType<{ className?: string }>;
-  permissionKey?: string;
-  moduleKey?: ModuleKey;
-  isBeta?: boolean;
-}
-
-const allNavItems: NavItem[] = [
-  { title: "Dashboard", url: "/azienda", icon: LayoutDashboard, permissionKey: "canViewDashboard" },
-  { title: "Ordini", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
-  { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
-  { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
-  { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
-  { title: "Ticket Clienti", url: "/azienda/assistenza", icon: HeadphonesIcon, permissionKey: "canViewTickets", moduleKey: "tickets" },
-  { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
-  { title: "Costi", url: "/azienda/costi", icon: Receipt, permissionKey: "canViewForecast", moduleKey: "forecast" },
-  { title: "Attività", url: "/azienda/attivita", icon: CheckSquare, permissionKey: "canViewOrders", moduleKey: "orders" },
-  { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders" },
-  { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", isBeta: true },
-  { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewSettings" },
-];
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { internalNavItems, marketingNavItems, type NavItem } from "@/lib/sidebarConfig";
 
 function ImpersonationBanner() {
   const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
@@ -124,25 +96,26 @@ function CompanySidebar() {
     }
   };
 
-  // Filter nav items based on permissions AND module availability
-  const visibleNavItems = useMemo(() => {
+  const isMarketingRoute = location.pathname.startsWith("/azienda/marketing");
+
+  const filterNavItems = (items: NavItem[]) => {
     const messagingEnabled = (effectiveCompany as any)?.messaging_beta_enabled === true;
-    return allNavItems.filter((item) => {
-      // Check permission
+    return items.filter((item) => {
       if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
         return false;
       }
-      // Check module enabled in plan
       if (item.moduleKey && !isModuleEnabled(item.moduleKey)) {
         return false;
       }
-      // Check beta flag for messaging
       if (item.isBeta && item.url.includes("messaggistica") && !messagingEnabled) {
         return false;
       }
       return true;
     });
-  }, [permissions, isModuleEnabled, effectiveCompany]);
+  };
+
+  const visibleInternalItems = useMemo(() => filterNavItems(internalNavItems), [permissions, isModuleEnabled, effectiveCompany]);
+  const visibleMarketingItems = useMemo(() => filterNavItems(marketingNavItems), [permissions, isModuleEnabled, effectiveCompany]);
 
   return (
     <Sidebar className="border-r">
@@ -272,31 +245,76 @@ function CompanySidebar() {
           </>
         ) : (
           <>
-            <SidebarGroup>
-              <SidebarGroupLabel>Menu</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {visibleNavItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild>
-                        <NavLink 
-                          to={item.url} 
-                          end={item.url === "/azienda"}
-                          className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          activeClassName="bg-muted text-foreground font-medium"
-                        >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                          {item.isBeta && (
-                            <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-orange-100 text-orange-700 border-orange-200">BETA</Badge>
-                          )}
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {/* Gestione Interna */}
+            <Collapsible defaultOpen={!isMarketingRoute}>
+              <SidebarGroup>
+                <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
+                  <span className="flex items-center gap-2">
+                    <Briefcase className="h-3.5 w-3.5" />
+                    Gestione Interna
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {visibleInternalItems.map((item) => (
+                        <SidebarMenuItem key={item.title}>
+                          <SidebarMenuButton asChild>
+                            <NavLink 
+                              to={item.url} 
+                              end={item.url === "/azienda"}
+                              className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              activeClassName="bg-muted text-foreground font-medium"
+                            >
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.title}</span>
+                              {item.isBeta && (
+                                <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
+                              )}
+                            </NavLink>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </SidebarGroup>
+            </Collapsible>
+
+            {/* Marketing e Vendita */}
+            <Collapsible defaultOpen={isMarketingRoute}>
+              <SidebarGroup>
+                <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
+                  <span className="flex items-center gap-2">
+                    <Megaphone className="h-3.5 w-3.5" />
+                    Marketing e Vendita
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {visibleMarketingItems.map((item) => (
+                        <SidebarMenuItem key={item.title}>
+                          <SidebarMenuButton asChild>
+                            <NavLink 
+                              to={item.url} 
+                              end={item.url === "/azienda/marketing"}
+                              className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              activeClassName="bg-muted text-foreground font-medium"
+                            >
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.title}</span>
+                            </NavLink>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </SidebarGroup>
+            </Collapsible>
             
             <div className="mt-auto border-t">
               {permissions.canViewSettings && (
