@@ -1,86 +1,72 @@
 
 
-# Sezione Contatti Marketing - Implementazione Completa
+# Sezione Tag nelle Impostazioni + Selettore Tag Riutilizzabile
 
 ## Panoramica
-Creare una pagina Contatti completa per la sezione Marketing e Vendita, ispirata allo screenshot di riferimento: tabella con avatar, nome, telefono, email, azienda, data creazione, ultima attivita, tag, ricerca, importazione CSV, aggiunta manuale e paginazione.
+Creare una nuova pagina "Tag" nelle impostazioni azienda per gestire centralmente i tag utilizzati in Contatti e Opportunita. Aggiornare il dialog dei contatti con un selettore a tendina che mostra i tag esistenti e permette di crearne di nuovi al volo.
 
 ---
 
-## 1. Database - Nuova tabella `marketing_contacts`
-
-Creare la tabella con i seguenti campi:
+## 1. Database - Nuova tabella `marketing_tags`
 
 | Colonna | Tipo | Note |
 |---------|------|------|
 | id | uuid PK | default gen_random_uuid() |
 | company_id | uuid FK companies(id) ON DELETE CASCADE | NOT NULL |
-| first_name | text | NOT NULL |
-| last_name | text | nullable |
-| phone | text | nullable |
-| email | text | nullable |
-| company_name | text | nullable (nome azienda del contatto) |
-| tags | text[] | default '{}' (es: "lead", "energiapiu", "facebook") |
-| notes | text | nullable |
-| source | text | nullable (es: "manuale", "importazione", "facebook") |
-| last_activity_at | timestamptz | nullable |
+| name | text | NOT NULL, lowercase |
+| color | text | nullable (colore opzionale per il badge) |
 | created_at | timestamptz | default now() |
-| updated_at | timestamptz | default now() |
 
-**RLS Policies:**
-- SELECT/INSERT/UPDATE/DELETE: solo utenti la cui company_id nel profilo corrisponde a quella del contatto (stesso pattern usato per `orders`, `customers`, ecc.)
-
-**Indici:**
-- `company_id` per le query filtrate
-- `created_at` per ordinamento
+- Vincolo UNIQUE su (company_id, name) per evitare duplicati
+- RLS: stesse policy degli altri dati azienda (company_admin full, staff read, super_admin full)
 
 ---
 
-## 2. Frontend - Pagina Contatti
+## 2. Pagina Impostazioni Tag
 
-### File: `src/pages/azienda/marketing/MarketingContacts.tsx`
+### Nuovo file: `src/pages/azienda/settings/SettingsTags.tsx`
+Pagina wrapper che importa il componente dedicato.
 
-Riscrittura completa del placeholder. Struttura della pagina:
-
-**Header:**
-- Titolo "Contatti" con conteggio totale (es. "324 Contatti" in badge blu)
-- Bottone "Importa" (outline) e bottone "+ Aggiungi Contatto" (primary)
-
-**Barra filtri:**
-- Input di ricerca con icona lente
-- Ricerca su nome, telefono, email, azienda
-
-**Tabella:**
-- Colonne: Checkbox, Nome del Contatto (con avatar iniziali colorato), Telefono, Email, Nome dell'azienda, Creato, Ultima attivita, Tag
-- Ogni riga ha checkbox per selezione multipla
-- Avatar con iniziali colorate (stile screenshot: cerchio con 2 lettere)
-- Tag mostrati come badge
-- Azioni su hover o tramite bulk actions bar (elimina selezionati)
-
-**Paginazione:**
-- Select per numero righe per pagina (25, 50, 100)
-- Navigazione pagine (Prev/Next + indicatore pagina corrente)
-
-### File: `src/components/marketing/ContactDialog.tsx` (nuovo)
-
-Dialog per aggiungere/modificare un contatto con i campi:
-- Nome (required), Cognome, Telefono, Email, Nome azienda, Tag (input con chips), Note, Fonte
-
-### File: `src/components/marketing/ContactsTable.tsx` (nuovo)
-
-Componente tabella dedicato con:
-- Checkbox select-all / select-singolo
-- Avatar con iniziali colorate
-- Rendering tag come badge
-- Bulk actions bar (elimina selezionati)
-- Paginazione integrata
+### Nuovo file: `src/components/settings/TagsConfig.tsx`
+Componente con:
+- Titolo "Tag" + descrizione
+- Input per aggiungere nuovo tag + bottone "Aggiungi"
+- Lista/tabella dei tag esistenti con nome e bottone elimina
+- Conferma eliminazione
 
 ---
 
-## 3. Import CSV
+## 3. Componente Selettore Tag Riutilizzabile
 
-Riutilizzare il componente `CSVImportDialog` gia esistente, configurandolo con i campi del contatto marketing:
-- first_name (required), last_name, phone, email, company_name, tags, notes, source
+### Nuovo file: `src/components/marketing/TagSelector.tsx`
+
+Componente basato su Popover + Command (cmdk) che:
+- Mostra un campo input / bottone che apre un menu a tendina
+- Lista i tag gia salvati nel database, filtrabili tramite ricerca
+- Permette selezione multipla (checkbox accanto a ogni tag)
+- Se il testo digitato non corrisponde a nessun tag esistente, mostra l'opzione "Crea [nuovo tag]" che lo salva nel database e lo seleziona
+- Mostra i tag selezionati come badge rimovibili sopra l'input
+
+---
+
+## 4. Aggiornamento ContactDialog
+
+### File: `src/components/marketing/ContactDialog.tsx`
+- Sostituire l'attuale input manuale dei tag con il nuovo `TagSelector`
+- Il selettore carichera i tag dalla tabella `marketing_tags` e permettera di crearne di nuovi inline
+
+---
+
+## 5. Routing e Sidebar Impostazioni
+
+### File: `src/App.tsx`
+- Aggiungere la route `tag` dentro il blocco `impostazioni`:
+```
+<Route path="tag" element={<SettingsTags />} />
+```
+
+### File: `src/components/layouts/CompanyLayout.tsx`
+- Aggiungere la voce "Tag" nella sidebar impostazioni, dopo "Fornitori", con icona `Tag` di lucide-react
 
 ---
 
@@ -88,13 +74,16 @@ Riutilizzare il componente `CSVImportDialog` gia esistente, configurandolo con i
 
 | File | Azione |
 |------|--------|
-| Database migration | Nuova tabella `marketing_contacts` + RLS |
-| `src/pages/azienda/marketing/MarketingContacts.tsx` | Riscrittura - pagina completa |
-| `src/components/marketing/ContactDialog.tsx` | Nuovo - dialog aggiungi/modifica |
-| `src/components/marketing/ContactsTable.tsx` | Nuovo - tabella con avatar, tag, paginazione |
+| Database migration | Nuova tabella `marketing_tags` + RLS + unique constraint |
+| `src/pages/azienda/settings/SettingsTags.tsx` | Nuovo - pagina wrapper |
+| `src/components/settings/TagsConfig.tsx` | Nuovo - gestione CRUD tag |
+| `src/components/marketing/TagSelector.tsx` | Nuovo - selettore riutilizzabile con creazione inline |
+| `src/components/marketing/ContactDialog.tsx` | Modifica - usa TagSelector al posto dell'input manuale |
+| `src/App.tsx` | Modifica - aggiunta route `tag` |
+| `src/components/layouts/CompanyLayout.tsx` | Modifica - aggiunta voce sidebar impostazioni |
 
 ## Cosa NON cambia
-- Nessuna modifica a pagine o componenti esistenti
-- Nessuna modifica al routing (route gia configurata)
-- Nessuna modifica alla sidebar
+- Nessuna modifica alle altre pagine impostazioni
+- Nessuna modifica alla tabella `marketing_contacts` (continua a salvare i tag come text[])
+- I tag esistenti nei contatti rimangono funzionanti
 
