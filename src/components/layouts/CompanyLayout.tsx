@@ -65,7 +65,6 @@ const allNavItems: NavItem[] = [
   { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders" },
   { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", isBeta: true },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewSettings" },
-  { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings, permissionKey: "canViewSettings" },
 ];
 
 function ImpersonationBanner() {
@@ -172,30 +171,51 @@ function CompanySidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         
-        <div className="mt-auto p-4 border-t">
-          <div className="flex items-center gap-3 mb-4 px-2">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-muted text-xs">
-                {profile?.first_name?.[0]}{profile?.last_name?.[0]}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">
-                {profile?.first_name} {profile?.last_name}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {isImpersonating ? "Super Admin (Impersonando)" : "Admin"}
-              </p>
+        <div className="mt-auto border-t">
+          {/* Settings link at bottom */}
+          {permissions.canViewSettings && (
+            <div className="px-2 pt-3">
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/azienda/impostazioni"
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      activeClassName="bg-muted text-foreground font-medium"
+                    >
+                      <Settings className="h-4 w-4" />
+                      <span>Impostazioni</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
             </div>
+          )}
+          <div className="p-4">
+            <div className="flex items-center gap-3 mb-4 px-2">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-muted text-xs">
+                  {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {profile?.first_name} {profile?.last_name}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {isImpersonating ? "Super Admin (Impersonando)" : "Admin"}
+                </p>
+              </div>
+            </div>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+              onClick={handleLogoutOrExit}
+            >
+              <LogOut className="h-4 w-4" />
+              {isImpersonating ? "Torna a Admin" : "Esci"}
+            </Button>
           </div>
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-            onClick={handleLogoutOrExit}
-          >
-            <LogOut className="h-4 w-4" />
-            {isImpersonating ? "Torna a Admin" : "Esci"}
-          </Button>
         </div>
       </SidebarContent>
     </Sidebar>
