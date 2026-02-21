@@ -44,6 +44,7 @@ import SettingsSalespeople from "@/pages/azienda/settings/SettingsSalespeople";
 import SettingsStaff from "@/pages/azienda/settings/SettingsStaff";
 import SettingsSecurity from "@/pages/azienda/settings/SettingsSecurity";
 import SettingsActivityLog from "@/pages/azienda/settings/SettingsActivityLog";
+import SettingsTags from "@/pages/azienda/settings/SettingsTags";
 import OrdersList from "@/pages/azienda/OrdersList";
 import CreateOrder from "@/pages/azienda/CreateOrder";
 import OrderDetail from "@/pages/azienda/OrderDetail";
@@ -210,6 +211,7 @@ const App = () => (
                 <Route path="catalogo" element={<SettingsCatalog />} />
                 <Route path="stati-ordine" element={<SettingsOrderStatus />} />
                 <Route path="fornitori" element={<SettingsSuppliers />} />
+                <Route path="tag" element={<SettingsTags />} />
                 <Route path="utenti" element={<SettingsUsers />} />
                 <Route path="venditori" element={<SettingsSalespeople />} />
                 <Route path="staff" element={<SettingsStaff />} />
