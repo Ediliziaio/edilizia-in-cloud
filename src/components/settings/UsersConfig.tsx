@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Shield, Trash2, Loader2 } from "lucide-react";
+import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -30,11 +30,12 @@ import {
 import { StaffUserDialog, StaffUserFormData } from "@/components/users/StaffUserDialog";
 import { PermissionsDialog, StaffPermissions } from "@/components/users/PermissionsDialog";
 
-interface StaffUser {
+interface CompanyUser {
   id: string;
   first_name: string;
   last_name: string;
   email: string;
+  role: "company_admin" | "company_staff";
   permissions: StaffPermissions | null;
 }
 
@@ -55,20 +56,19 @@ const DEFAULT_PERMISSIONS: StaffPermissions = {
 };
 
 export function UsersConfig() {
-  const { effectiveCompany } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const effectiveCompanyId = effectiveCompany?.id;
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [permissionsUser, setPermissionsUser] = useState<StaffUser | null>(null);
+  const [permissionsUser, setPermissionsUser] = useState<CompanyUser | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Fetch staff users with their permissions
-  const { data: staffUsers = [], isLoading } = useQuery({
-    queryKey: ["staff-users", effectiveCompanyId],
+  // Fetch all company users (admin + staff) excluding current user
+  const { data: companyUsers = [], isLoading } = useQuery({
+    queryKey: ["company-users", effectiveCompanyId],
     queryFn: async () => {
-      // First get all staff users in this company
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, email")
@@ -76,33 +76,39 @@ export function UsersConfig() {
 
       if (profilesError) throw profilesError;
 
-      // Get their roles
       const userIds = profiles.map((p) => p.id);
       const { data: roles } = await supabase
         .from("user_roles")
         .select("user_id, role")
         .in("user_id", userIds);
 
-      // Filter only company_staff
-      const staffUserIds = roles
-        ?.filter((r) => r.role === "company_staff")
-        .map((r) => r.user_id) || [];
+      // Filter company_admin and company_staff, exclude current user
+      const companyRoles = roles?.filter(
+        (r) => (r.role === "company_admin" || r.role === "company_staff") && r.user_id !== user?.id
+      ) || [];
 
-      if (staffUserIds.length === 0) return [];
+      if (companyRoles.length === 0) return [];
+
+      const staffUserIds = companyRoles.filter((r) => r.role === "company_staff").map((r) => r.user_id);
 
       // Get permissions for staff users
-      const { data: permissions } = await supabase
-        .from("staff_permissions")
-        .select("*")
-        .in("user_id", staffUserIds);
+      let permissionsMap: Record<string, any> = {};
+      if (staffUserIds.length > 0) {
+        const { data: permissions } = await supabase
+          .from("staff_permissions")
+          .select("*")
+          .in("user_id", staffUserIds);
+        permissions?.forEach((p) => { permissionsMap[p.user_id] = p; });
+      }
 
-      // Build result
-      const result: StaffUser[] = profiles
-        .filter((p) => staffUserIds.includes(p.id))
-        .map((p) => ({
-          ...p,
-          permissions: permissions?.find((perm) => perm.user_id === p.id) || null,
-        }));
+      const result: CompanyUser[] = companyRoles.map((r) => {
+        const profile = profiles.find((p) => p.id === r.user_id)!;
+        return {
+          ...profile,
+          role: r.role as "company_admin" | "company_staff",
+          permissions: permissionsMap[r.user_id] || null,
+        };
+      });
 
       return result;
     },
@@ -110,7 +116,7 @@ export function UsersConfig() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Create staff user
+  // Create user
   const handleCreateUser = async (data: StaffUserFormData): Promise<{ temporaryPassword?: string }> => {
     setIsCreating(true);
     try {
@@ -120,22 +126,18 @@ export function UsersConfig() {
           last_name: data.last_name,
           email: data.email,
           company_id: effectiveCompanyId,
+          role_type: data.role_type,
         },
       });
 
-      if (response.error) {
-        throw new Error(response.error.message || "Errore durante la creazione");
-      }
+      if (response.error) throw new Error(response.error.message || "Errore durante la creazione");
+      if (response.data?.error) throw new Error(response.data.error);
 
-      if (response.data?.error) {
-        throw new Error(response.data.error);
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["staff-users"] });
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
       
       toast({
         title: "Utente creato",
-        description: `${data.first_name} ${data.last_name} è stato creato con successo.`,
+        description: `${data.first_name} ${data.last_name} è stato creato come ${data.role_type === "company_admin" ? "Amministratore" : "Operatore"}.`,
       });
 
       return { temporaryPassword: response.data.temporary_password };
@@ -151,7 +153,7 @@ export function UsersConfig() {
     }
   };
 
-  // Save permissions mutation
+  // Save permissions
   const savePermissionsMutation = useMutation({
     mutationFn: async (permissions: StaffPermissions) => {
       if (!permissionsUser) throw new Error("No user selected");
@@ -162,62 +164,45 @@ export function UsersConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["staff-users"] });
-      toast({
-        title: "Permessi salvati",
-        description: "I permessi sono stati aggiornati con successo.",
-      });
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati con successo." });
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Errore durante il salvataggio dei permessi",
-        variant: "destructive",
-      });
+      toast({ title: "Errore", description: "Errore durante il salvataggio dei permessi", variant: "destructive" });
     },
   });
 
-  // Delete user mutation
+  // Delete user
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      // Delete permissions first
       await supabase.from("staff_permissions").delete().eq("user_id", userId);
-      // Delete role
       await supabase.from("user_roles").delete().eq("user_id", userId);
-      // Delete profile
       const { error } = await supabase.from("profiles").delete().eq("id", userId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["staff-users"] });
-      toast({
-        title: "Utente eliminato",
-        description: "L'utente è stato rimosso.",
-      });
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      toast({ title: "Utente eliminato", description: "L'utente è stato rimosso." });
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Impossibile eliminare l'utente.",
-        variant: "destructive",
-      });
+      toast({ title: "Errore", description: "Impossibile eliminare l'utente.", variant: "destructive" });
     },
   });
 
-  // Helper to summarize permissions
-  const getPermissionsSummary = (permissions: StaffPermissions | null): string => {
-    if (!permissions) return "Nessun permesso";
+  const getPermissionsSummary = (u: CompanyUser): string => {
+    if (u.role === "company_admin") return "Accesso completo";
+    if (!u.permissions) return "Nessun permesso";
     
     const labels: string[] = [];
-    if (permissions.can_view_dashboard) labels.push("Dashboard");
-    if (permissions.can_view_orders) labels.push("Ordini");
-    if (permissions.can_view_warehouse) labels.push("Magazzino");
-    if (permissions.can_view_calendar) labels.push("Calendario");
-    if (permissions.can_view_customers) labels.push("Clienti");
-    if (permissions.can_view_employees) labels.push("Dipendenti");
-    if (permissions.can_view_tickets) labels.push("Assistenza");
-    if (permissions.can_view_forecast) labels.push("Previsionale");
-    if (permissions.can_view_settings) labels.push("Impostazioni");
+    if (u.permissions.can_view_dashboard) labels.push("Dashboard");
+    if (u.permissions.can_view_orders) labels.push("Ordini");
+    if (u.permissions.can_view_warehouse) labels.push("Magazzino");
+    if (u.permissions.can_view_calendar) labels.push("Calendario");
+    if (u.permissions.can_view_customers) labels.push("Clienti");
+    if (u.permissions.can_view_employees) labels.push("Dipendenti");
+    if (u.permissions.can_view_tickets) labels.push("Assistenza");
+    if (u.permissions.can_view_forecast) labels.push("Previsionale");
+    if (u.permissions.can_view_settings) labels.push("Impostazioni");
     
     if (labels.length === 0) return "Nessun permesso";
     if (labels.length > 3) return `${labels.slice(0, 3).join(", ")} +${labels.length - 3}`;
@@ -231,10 +216,10 @@ export function UsersConfig() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Utenti Staff
+              Utenti Aziendali
             </CardTitle>
             <CardDescription>
-              Gestisci gli accessi del tuo team
+              Gestisci gli accessi del tuo team (admin e operatori)
             </CardDescription>
           </div>
           <Button onClick={() => setCreateDialogOpen(true)} size="sm">
@@ -248,10 +233,10 @@ export function UsersConfig() {
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : staffUsers.length === 0 ? (
+        ) : companyUsers.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground border rounded-lg">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Nessun utente staff creato.</p>
+            <p>Nessun altro utente creato.</p>
             <p className="text-sm">Crea il primo utente per dare accesso al tuo team.</p>
           </div>
         ) : (
@@ -260,34 +245,48 @@ export function UsersConfig() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Ruolo</TableHead>
                 <TableHead>Permessi</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {staffUsers.map((user) => (
-                <TableRow key={user.id}>
+              {companyUsers.map((u) => (
+                <TableRow key={u.id}>
                   <TableCell className="font-medium">
-                    {user.first_name} {user.last_name}
+                    {u.first_name} {u.last_name}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {user.email}
+                    {u.email}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="font-normal">
-                      {getPermissionsSummary(user.permissions)}
+                    {u.role === "company_admin" ? (
+                      <Badge className="bg-primary/10 text-primary border-primary/20">
+                        <ShieldCheck className="h-3 w-3 mr-1" />
+                        Admin
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">Operatore</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="font-normal">
+                      {getPermissionsSummary(u)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setPermissionsUser(user)}
-                        title="Gestisci permessi"
-                      >
-                        <Shield className="h-4 w-4" />
-                      </Button>
+                      {/* Only show permissions button for staff */}
+                      {u.role === "company_staff" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setPermissionsUser(u)}
+                          title="Gestisci permessi"
+                        >
+                          <Shield className="h-4 w-4" />
+                        </Button>
+                      )}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="icon" title="Elimina">
@@ -298,14 +297,14 @@ export function UsersConfig() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Eliminare l'utente?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              L'utente {user.first_name} {user.last_name} non potrà più accedere al sistema.
+                              L'utente {u.first_name} {u.last_name} non potrà più accedere al sistema.
                               Questa azione è irreversibile.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Annulla</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => deleteUserMutation.mutate(user.id)}
+                              onClick={() => deleteUserMutation.mutate(u.id)}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               Elimina

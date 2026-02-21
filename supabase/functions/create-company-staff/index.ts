@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
       .eq("id", callerId)
       .single();
 
-    const { first_name, last_name, email, company_id } = await req.json();
+    const { first_name, last_name, email, company_id, role_type } = await req.json();
 
     // If super_admin, use provided company_id; otherwise use caller's company_id
     const targetCompanyId = callerRole.role === "super_admin" && company_id 
@@ -92,6 +92,9 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Validate role_type
+    const effectiveRole = role_type === "company_admin" ? "company_admin" : "company_staff";
 
     // Check if email already exists
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
@@ -136,7 +139,6 @@ Deno.serve(async (req) => {
 
     if (profileError) {
       console.error("Error creating profile:", profileError);
-      // Rollback: delete the auth user
       await supabaseAdmin.auth.admin.deleteUser(userId);
       return new Response(
         JSON.stringify({ error: "Errore durante la creazione del profilo" }),
@@ -144,15 +146,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create user role as company_staff
+    // Create user role
     const { error: roleError } = await supabaseAdmin.from("user_roles").insert({
       user_id: userId,
-      role: "company_staff",
+      role: effectiveRole,
     });
 
     if (roleError) {
       console.error("Error creating user role:", roleError);
-      // Rollback
       await supabaseAdmin.from("profiles").delete().eq("id", userId);
       await supabaseAdmin.auth.admin.deleteUser(userId);
       return new Response(
@@ -161,23 +162,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create empty permissions record
-    const { error: permError } = await supabaseAdmin.from("staff_permissions").insert({
-      user_id: userId,
-      company_id: targetCompanyId,
-      // All permissions default to false
-    });
+    // Create empty permissions record only for company_staff
+    if (effectiveRole === "company_staff") {
+      const { error: permError } = await supabaseAdmin.from("staff_permissions").insert({
+        user_id: userId,
+        company_id: targetCompanyId,
+      });
 
-    if (permError) {
-      console.error("Error creating permissions:", permError);
-      // Rollback
-      await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
-      await supabaseAdmin.from("profiles").delete().eq("id", userId);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      return new Response(
-        JSON.stringify({ error: "Errore durante la creazione dei permessi" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (permError) {
+        console.error("Error creating permissions:", permError);
+        await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
+        await supabaseAdmin.from("profiles").delete().eq("id", userId);
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+        return new Response(
+          JSON.stringify({ error: "Errore durante la creazione dei permessi" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     return new Response(
@@ -185,6 +186,7 @@ Deno.serve(async (req) => {
         success: true,
         user_id: userId,
         temporary_password: temporaryPassword,
+        role: effectiveRole,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

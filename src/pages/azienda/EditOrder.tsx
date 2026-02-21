@@ -33,6 +33,7 @@ import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
+import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 
 interface Customer {
   id: string;
@@ -72,6 +73,7 @@ interface OrderData {
   financing_expected_date: string | null;
   financing_cost: number | null;
   has_building_bonus: boolean;
+  assigned_to: string | null;
 }
 
 interface OrderItemData {
@@ -180,6 +182,9 @@ export default function EditOrder() {
     commission_value: number;
   } | null>(null);
   const [existingSalespersonRecordId, setExistingSalespersonRecordId] = useState<string | null>(null);
+
+  // Assigned to state
+  const [assignedTo, setAssignedTo] = useState("");
 
   // Draft auto-save for edit
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id, id);
@@ -332,6 +337,7 @@ export default function EditOrder() {
     if (order.financing_paid_date) setFinancingPaidDate(new Date(order.financing_paid_date));
     if (order.financing_expected_date) setFinancingExpectedDate(new Date(order.financing_expected_date));
     setHasBuildingBonus(order.has_building_bonus || false);
+    setAssignedTo(order.assigned_to || "");
     setDataLoaded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order]);
@@ -503,6 +509,7 @@ export default function EditOrder() {
           financing_expected_date: financingExpectedDate?.toISOString().split("T")[0] || null,
           financing_cost: parseFloat(financingCost) || 0,
           has_building_bonus: hasBuildingBonus,
+          assigned_to: assignedTo || null,
         })
         .eq("id", id!);
 
@@ -920,6 +927,9 @@ export default function EditOrder() {
                   } : null);
                 }}
               />
+
+              {/* Assigned To Select */}
+              <AssignedToSelect value={assignedTo} onChange={setAssignedTo} />
             </CardContent>
           </Card>
 

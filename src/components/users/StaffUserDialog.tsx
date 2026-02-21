@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Copy, Check } from "lucide-react";
+import { Loader2, Copy, Check, ShieldCheck, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface StaffUserDialogProps {
@@ -24,6 +24,7 @@ export interface StaffUserFormData {
   first_name: string;
   last_name: string;
   email: string;
+  role_type: "company_admin" | "company_staff";
 }
 
 export function StaffUserDialog({
@@ -36,6 +37,7 @@ export function StaffUserDialog({
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [roleType, setRoleType] = useState<"company_admin" | "company_staff">("company_staff");
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -56,6 +58,7 @@ export function StaffUserDialog({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim().toLowerCase(),
+        role_type: roleType,
       });
       
       if (result.temporaryPassword) {
@@ -82,6 +85,7 @@ export function StaffUserDialog({
     setFirstName("");
     setLastName("");
     setEmail("");
+    setRoleType("company_staff");
     setTemporaryPassword(null);
     setCopied(false);
     onOpenChange(false);
@@ -95,7 +99,7 @@ export function StaffUserDialog({
           <DialogHeader>
             <DialogTitle>Utente Creato con Successo! 🎉</DialogTitle>
             <DialogDescription>
-              L'utente {firstName} {lastName} è stato creato. Comunica la password temporanea all'utente.
+              L'utente {firstName} {lastName} è stato creato come {roleType === "company_admin" ? "Amministratore" : "Operatore"}. Comunica la password temporanea all'utente.
             </DialogDescription>
           </DialogHeader>
 
@@ -145,11 +149,50 @@ export function StaffUserDialog({
         <DialogHeader>
           <DialogTitle>Nuovo Utente Aziendale</DialogTitle>
           <DialogDescription>
-            Crea un nuovo utente per la tua azienda. Dopo la creazione, configura i permessi di accesso.
+            Crea un nuovo utente per la tua azienda. Scegli il tipo di ruolo e compila i dati.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Role Type Selector */}
+          <div className="space-y-2">
+            <Label>Tipo utente *</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setRoleType("company_admin")}
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${
+                  roleType === "company_admin"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/30"
+                }`}
+                disabled={isLoading}
+              >
+                <ShieldCheck className={`h-5 w-5 shrink-0 ${roleType === "company_admin" ? "text-primary" : "text-muted-foreground"}`} />
+                <div>
+                  <p className="font-medium text-sm">Amministratore</p>
+                  <p className="text-xs text-muted-foreground">Accesso completo, può gestire utenti</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRoleType("company_staff")}
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${
+                  roleType === "company_staff"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/30"
+                }`}
+                disabled={isLoading}
+              >
+                <User className={`h-5 w-5 shrink-0 ${roleType === "company_staff" ? "text-primary" : "text-muted-foreground"}`} />
+                <div>
+                  <p className="font-medium text-sm">Operatore</p>
+                  <p className="text-xs text-muted-foreground">Accesso limitato ai permessi configurati</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

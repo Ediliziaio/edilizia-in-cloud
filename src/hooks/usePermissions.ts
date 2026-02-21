@@ -19,6 +19,7 @@ export interface Permissions {
   canViewUsers: boolean;
   isAdmin: boolean;
   isLoading: boolean;
+  onlyAssigned: boolean;
 }
 
 const ALL_PERMISSIONS: Permissions = {
@@ -38,6 +39,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewUsers: true,
   isAdmin: true,
   isLoading: false,
+  onlyAssigned: false,
 };
 
 const NO_PERMISSIONS: Permissions = {
@@ -57,6 +59,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewUsers: false,
   isAdmin: false,
   isLoading: false,
+  onlyAssigned: false,
 };
 
 export function usePermissions(): Permissions {
@@ -106,9 +109,10 @@ export function usePermissions(): Permissions {
       canEditTickets: permissions?.can_edit_tickets ?? false,
       canViewForecast: permissions?.can_view_forecast ?? false,
       canViewSettings: permissions?.can_view_settings ?? false,
-      canViewUsers: false, // Staff never manages users
+      canViewUsers: false,
       isAdmin: false,
       isLoading: false,
+      onlyAssigned: permissions?.only_assigned ?? false,
     };
   }
 
