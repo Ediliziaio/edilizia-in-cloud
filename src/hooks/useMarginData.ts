@@ -55,7 +55,7 @@ export function useMarginData(): MarginData {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_code, total_amount, vat_rate, description, created_at, customer:profiles(first_name, last_name)")
+        .select("id, order_code, total_amount, vat_rate, description, created_at, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(500); // sicurezza: margini calcolati sugli ultimi 500 ordini; TODO filtro data rolling 24 mesi

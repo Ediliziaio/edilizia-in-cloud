@@ -91,7 +91,7 @@ export default function TimeEntry() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_code, description, customer:profiles(first_name, last_name)")
+        .select("id, order_code, description, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
         .eq("company_id", employee!.company_id)
         .order("created_at", { ascending: false })
         .limit(50);

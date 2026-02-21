@@ -1537,6 +1537,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          assigned_to: string | null
           balance_amount: number
           balance_expected_date: string | null
           balance_paid: boolean | null
@@ -1573,6 +1574,7 @@ export type Database = {
           work_start_date: string | null
         }
         Insert: {
+          assigned_to?: string | null
           balance_amount?: number
           balance_expected_date?: string | null
           balance_paid?: boolean | null
@@ -1609,6 +1611,7 @@ export type Database = {
           work_start_date?: string | null
         }
         Update: {
+          assigned_to?: string | null
           balance_amount?: number
           balance_expected_date?: string | null
           balance_paid?: boolean | null
@@ -1645,6 +1648,13 @@ export type Database = {
           work_start_date?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_company_id_fkey"
             columns: ["company_id"]
@@ -1924,6 +1934,7 @@ export type Database = {
           created_at: string | null
           id: string
           must_change_password: boolean | null
+          only_assigned: boolean
           updated_at: string | null
           user_id: string
         }
@@ -1945,6 +1956,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           must_change_password?: boolean | null
+          only_assigned?: boolean
           updated_at?: string | null
           user_id: string
         }
@@ -1966,6 +1978,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           must_change_password?: boolean | null
+          only_assigned?: boolean
           updated_at?: string | null
           user_id?: string
         }
@@ -2704,6 +2717,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_staff_visibility: {
+        Args: { _assigned_to: string; _user_id: string }
+        Returns: boolean
+      }
       execute_automation: {
         Args: {
           p_company_id: string

@@ -27,6 +27,7 @@ export interface StaffPermissions {
   can_edit_tickets: boolean;
   can_view_forecast: boolean;
   can_view_settings: boolean;
+  only_assigned?: boolean;
 }
 
 interface PermissionsDialogProps {
@@ -134,6 +135,7 @@ export function PermissionsDialog({
       can_edit_tickets: true,
       can_view_forecast: true,
       can_view_settings: true,
+      only_assigned: permissions.only_assigned,
     });
   };
 
@@ -152,6 +154,7 @@ export function PermissionsDialog({
       can_edit_tickets: false,
       can_view_forecast: false,
       can_view_settings: false,
+      only_assigned: permissions.only_assigned,
     });
   };
 
@@ -212,6 +215,26 @@ export function PermissionsDialog({
                 )}
               </div>
             ))}
+
+            <Separator />
+
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="only_assigned"
+                  checked={permissions.only_assigned || false}
+                  onCheckedChange={(checked) =>
+                    setPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))
+                  }
+                />
+                <Label htmlFor="only_assigned" className="font-medium">
+                  Solo elementi assegnati
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground ml-6">
+                Se attivo, l'utente vedrà solo ordini, attività e appuntamenti assegnati a lui
+              </p>
+            </div>
           </div>
         </div>
 

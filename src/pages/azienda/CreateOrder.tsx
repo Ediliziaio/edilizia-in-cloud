@@ -33,6 +33,7 @@ import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
+import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 
 interface Customer {
   id: string;
@@ -103,6 +104,9 @@ export default function CreateOrder() {
     commission_type: string;
     commission_value: number;
   } | null>(null);
+
+  // Assigned to state
+  const [assignedTo, setAssignedTo] = useState("");
 
   // Draft auto-save
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id);
@@ -303,6 +307,7 @@ export default function CreateOrder() {
         financing_expected_date: toDateStr(financingExpectedDate),
         financing_cost:          fCost,
         has_building_bonus:      hasBuildingBonus,
+        assigned_to:             assignedTo || null,
       };
 
       const itemsPayload = orderItems.map((item, index) => ({
@@ -583,6 +588,9 @@ export default function CreateOrder() {
                   } : null);
                 }}
               />
+
+              {/* Assigned To Select */}
+              <AssignedToSelect value={assignedTo} onChange={setAssignedTo} />
             </CardContent>
           </Card>
 
