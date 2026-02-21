@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
+import { TagSelector } from "@/components/marketing/TagSelector";
 
 export interface ContactFormData {
   first_name: string;
@@ -41,30 +40,13 @@ const emptyForm: ContactFormData = {
 
 export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditing }: ContactDialogProps) {
   const [form, setForm] = useState<ContactFormData>(emptyForm);
-  const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       setForm({ ...emptyForm, ...initialData });
-      setTagInput("");
     }
   }, [open, initialData]);
-
-  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) {
-      e.preventDefault();
-      const tag = tagInput.trim().toLowerCase();
-      if (!form.tags.includes(tag)) {
-        setForm((f) => ({ ...f, tags: [...f.tags, tag] }));
-      }
-      setTagInput("");
-    }
-  };
-
-  const removeTag = (tag: string) => {
-    setForm((f) => ({ ...f, tags: f.tags.filter((t) => t !== tag) }));
-  };
 
   const handleSubmit = async () => {
     if (!form.first_name.trim()) return;
@@ -110,19 +92,9 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
           </div>
           <div className="space-y-1.5">
             <Label>Tag</Label>
-            <div className="flex flex-wrap gap-1.5 mb-1.5">
-              {form.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="gap-1">
-                  {tag}
-                  <X className="h-3 w-3 cursor-pointer" onClick={() => removeTag(tag)} />
-                </Badge>
-              ))}
-            </div>
-            <Input
-              placeholder="Aggiungi tag e premi Invio"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={handleTagKeyDown}
+            <TagSelector
+              selectedTags={form.tags}
+              onTagsChange={(tags) => setForm((f) => ({ ...f, tags }))}
             />
           </div>
           <div className="space-y-1.5">
