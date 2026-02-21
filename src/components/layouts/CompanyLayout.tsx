@@ -1,4 +1,4 @@
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits, type ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -19,6 +19,14 @@ import {
   CheckSquare,
   MessageSquare,
   Zap,
+  Building2,
+  Package,
+  ListOrdered,
+  Truck,
+  UserCheck,
+  HardHat,
+  Key,
+  ScrollText,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -99,10 +107,13 @@ function ImpersonationBanner() {
 }
 
 function CompanySidebar() {
-  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation } = useAuth();
+  const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
+  const isAdmin = role === "company_admin" || role === "super_admin";
   
   const handleLogoutOrExit = () => {
     if (isImpersonating) {
@@ -145,78 +156,195 @@ function CompanySidebar() {
         </Link>
       </div>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      end={item.url === "/azienda"}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      activeClassName="bg-muted text-foreground font-medium"
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                      {item.isBeta && (
-                        <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-orange-100 text-orange-700 border-orange-200">BETA</Badge>
-                      )}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        
-        <div className="mt-auto border-t">
-          {/* Settings link at bottom */}
-          {permissions.canViewSettings && (
-            <div className="px-2 pt-3">
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to="/azienda/impostazioni"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      activeClassName="bg-muted text-foreground font-medium"
-                    >
-                      <Settings className="h-4 w-4" />
-                      <span>Impostazioni</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
+        {isSettingsRoute ? (
+          <>
+            <div className="px-3 pt-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start gap-2 mb-2 text-muted-foreground hover:text-foreground w-full"
+                onClick={() => navigate("/azienda")}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Torna indietro
+              </Button>
+              <h2 className="text-lg font-semibold px-3 mb-4">Impostazioni</h2>
             </div>
-          )}
-          <div className="p-4">
-            <div className="flex items-center gap-3 mb-4 px-2">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-muted text-xs">
-                  {profile?.first_name?.[0]}{profile?.last_name?.[0]}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {profile?.first_name} {profile?.last_name}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {isImpersonating ? "Super Admin (Impersonando)" : "Admin"}
-                </p>
+
+            <SidebarGroup>
+              <SidebarGroupLabel>La mia azienda</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/azienda/impostazioni/profilo" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <Building2 className="h-4 w-4" /><span>Profilo aziendale</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/azienda/impostazioni/catalogo" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <Package className="h-4 w-4" /><span>Catalogo articoli</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup>
+              <SidebarGroupLabel>Gestione ordini</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/azienda/impostazioni/stati-ordine" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <ListOrdered className="h-4 w-4" /><span>Stati ordine</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/azienda/impostazioni/fornitori" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <Truck className="h-4 w-4" /><span>Fornitori</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {isAdmin && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Team</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/utenti" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <Users className="h-4 w-4" /><span>Utenti</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/venditori" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <UserCheck className="h-4 w-4" /><span>Venditori</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/staff" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <HardHat className="h-4 w-4" /><span>Staff / Operai</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
+
+            <SidebarGroup>
+              <SidebarGroupLabel>Sicurezza e log</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/azienda/impostazioni/sicurezza" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <Key className="h-4 w-4" /><span>Cambio password</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {isAdmin && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/attivita" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <ScrollText className="h-4 w-4" /><span>Registro attività</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        ) : (
+          <>
+            <SidebarGroup>
+              <SidebarGroupLabel>Menu</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {visibleNavItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <NavLink 
+                          to={item.url} 
+                          end={item.url === "/azienda"}
+                          className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          activeClassName="bg-muted text-foreground font-medium"
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                          {item.isBeta && (
+                            <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-orange-100 text-orange-700 border-orange-200">BETA</Badge>
+                          )}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            
+            <div className="mt-auto border-t">
+              {permissions.canViewSettings && (
+                <div className="px-2 pt-3">
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to="/azienda/impostazioni"
+                          className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          activeClassName="bg-muted text-foreground font-medium"
+                        >
+                          <Settings className="h-4 w-4" />
+                          <span>Impostazioni</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </div>
+              )}
+              <div className="p-4">
+                <div className="flex items-center gap-3 mb-4 px-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-muted text-xs">
+                      {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {profile?.first_name} {profile?.last_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {isImpersonating ? "Super Admin (Impersonando)" : "Admin"}
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+                  onClick={handleLogoutOrExit}
+                >
+                  <LogOut className="h-4 w-4" />
+                  {isImpersonating ? "Torna a Admin" : "Esci"}
+                </Button>
               </div>
             </div>
-            <Button 
-              variant="ghost" 
-              className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
-              onClick={handleLogoutOrExit}
-            >
-              <LogOut className="h-4 w-4" />
-              {isImpersonating ? "Torna a Admin" : "Esci"}
-            </Button>
-          </div>
-        </div>
+          </>
+        )}
       </SidebarContent>
     </Sidebar>
   );
