@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface TaskData {
   id?: string;
@@ -66,6 +67,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
+  const { onlyAssigned } = usePermissions();
 
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -97,13 +99,13 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       setStatus("da_fare");
       setPriority("normale");
       setDueDate(undefined);
-      setAssignedTo("");
+      setAssignedTo(onlyAssigned && user?.id ? user.id : "");
       setOrderId(defaultOrderId || "");
       setStockItemId(defaultStockItemId || "");
       setCostId(defaultCostId || "");
       setCategory(defaultCategory || "generale");
     }
-  }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId]);
+  }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, onlyAssigned, user?.id]);
 
   const { data: assignableUsers = [] } = useQuery({
     queryKey: ["assignable-users", companyId],
@@ -304,7 +306,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
 
           <div className="space-y-2">
             <Label>Assegna a</Label>
-            <Select value={assignedTo} onValueChange={setAssignedTo}>
+            <Select value={assignedTo} onValueChange={setAssignedTo} disabled={onlyAssigned}>
               <SelectTrigger><SelectValue placeholder="Nessun assegnatario" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Nessuno</SelectItem>
