@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -31,6 +32,8 @@ export function QuickLoginReturnBanner() {
 
   if (!originalEmail || !originalName) return null;
 
+  const { refreshAuth } = useAuth();
+
   const handleReturn = async () => {
     setLoading(true);
     try {
@@ -41,8 +44,7 @@ export function QuickLoginReturnBanner() {
       if (error) throw error;
       if (!data?.hashed_token) throw new Error("No token received");
 
-      await supabase.auth.signOut();
-
+      // Verify OTP — no signOut needed, Supabase replaces session
       const { error: otpError } = await supabase.auth.verifyOtp({
         type: "magiclink",
         token_hash: data.hashed_token,
@@ -51,8 +53,9 @@ export function QuickLoginReturnBanner() {
       if (otpError) throw otpError;
 
       clearQuickLoginSession();
+      await refreshAuth();
       toast.success(`Bentornato, ${originalName}`);
-      window.location.href = "/admin";
+      navigate("/admin", { replace: true });
     } catch (err: any) {
       console.error("Return to admin error:", err);
       clearQuickLoginSession();
