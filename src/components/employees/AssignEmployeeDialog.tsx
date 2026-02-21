@@ -78,7 +78,7 @@ export function AssignEmployeeDialog({
   );
 
   const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
-  const hourlyRate = selectedEmployee
+  const hourlyRate = selectedEmployee && selectedEmployee.monthly_hours > 0
     ? selectedEmployee.gross_salary / selectedEmployee.monthly_hours
     : 0;
   const totalCost = hourlyRate * (parseFloat(hoursWorked) || 0);
@@ -157,7 +157,7 @@ export function AssignEmployeeDialog({
                     <SelectItem key={employee.id} value={employee.id}>
                       {employee.first_name} {employee.last_name} (
                       {formatCurrency(
-                        employee.gross_salary / employee.monthly_hours
+                        employee.monthly_hours > 0 ? employee.gross_salary / employee.monthly_hours : 0
                       )}
                       /h)
                     </SelectItem>
