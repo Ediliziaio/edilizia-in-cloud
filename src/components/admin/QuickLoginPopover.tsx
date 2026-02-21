@@ -135,6 +135,8 @@ export function QuickLoginPopover() {
     users: filtered.filter((u) => u.role === role),
   })).filter((g) => g.users.length > 0);
 
+  const { refreshAuth } = useAuth();
+
   const handleSignInAs = async (user: UserWithRole) => {
     setLoading(true);
     try {
@@ -142,16 +144,15 @@ export function QuickLoginPopover() {
         body: { email: user.email },
       });
 
+      if (error) throw error;
+
       // Save current admin session info before swapping
       if (currentProfile?.email) {
         const adminName = `${currentProfile.first_name || ""} ${currentProfile.last_name || ""}`.trim();
         saveQuickLoginSession(currentProfile.email, adminName || currentProfile.email);
       }
 
-      // Sign out current session first
-      await supabase.auth.signOut();
-
-      // Verify OTP with the hashed token
+      // Verify OTP — Supabase replaces the session automatically, no signOut needed
       const { error: otpError } = await supabase.auth.verifyOtp({
         type: "magiclink",
         token_hash: data.hashed_token,
@@ -159,15 +160,16 @@ export function QuickLoginPopover() {
 
       if (otpError) throw otpError;
 
+      // Refresh auth context with new user data
+      await refreshAuth();
+
       setOpen(false);
       setSearch("");
       toast.success(`Accesso effettuato come ${user.first_name} ${user.last_name}`);
 
-      // Redirect based on role
+      // Navigate without reload
       const target = REDIRECT_MAP[user.role] || "/";
-      navigate(target);
-      // Force full reload so AuthContext picks up new session
-      window.location.href = target;
+      navigate(target, { replace: true });
     } catch (err: any) {
       console.error("Sign in as user error:", err);
       toast.error(`Errore: ${err.message || "Impossibile accedere come utente"}`);
