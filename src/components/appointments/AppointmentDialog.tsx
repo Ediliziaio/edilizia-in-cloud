@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export interface AppointmentData {
   id?: string;
@@ -56,6 +57,7 @@ export function AppointmentDialog({
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const isEditing = !!appointment?.id;
+  const { onlyAssigned } = usePermissions();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -81,10 +83,10 @@ export function AppointmentDialog({
       setAppointmentDate(undefined);
       setAppointmentTime("");
       setAppointmentType("generico");
-      setAssignedTo("");
+      setAssignedTo(onlyAssigned && user?.id ? user.id : "");
       setOrderId(defaultOrderId || "");
     }
-  }, [appointment, open, defaultOrderId]);
+  }, [appointment, open, defaultOrderId, onlyAssigned, user?.id]);
 
   const { data: assignableUsers = [] } = useQuery({
     queryKey: ["assignable-users", companyId],
@@ -228,7 +230,7 @@ export function AppointmentDialog({
 
             <div className="space-y-2">
               <Label>Assegna a</Label>
-              <Select value={assignedTo} onValueChange={setAssignedTo}>
+              <Select value={assignedTo} onValueChange={setAssignedTo} disabled={onlyAssigned}>
                 <SelectTrigger><SelectValue placeholder="Nessun assegnatario" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nessuno</SelectItem>

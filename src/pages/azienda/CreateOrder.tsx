@@ -34,6 +34,7 @@ import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSumm
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Customer {
   id: string;
@@ -53,6 +54,7 @@ export default function CreateOrder() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { onlyAssigned } = usePermissions();
 
   const [customerId, setCustomerId] = useState("");
   const [orderCode, setOrderCode] = useState("");
@@ -107,6 +109,20 @@ export default function CreateOrder() {
 
   // Assigned to state
   const [assignedTo, setAssignedTo] = useState("");
+
+  // Auto-assign for staff with onlyAssigned
+  useEffect(() => {
+    if (onlyAssigned && user?.id) {
+      setAssignedTo(user.id);
+    }
+  }, [onlyAssigned, user?.id]);
+
+  // Auto-assign for staff with onlyAssigned
+  useEffect(() => {
+    if (onlyAssigned && user?.id) {
+      setAssignedTo(user.id);
+    }
+  }, [onlyAssigned, user?.id]);
 
   // Draft auto-save
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id);
@@ -590,7 +606,7 @@ export default function CreateOrder() {
               />
 
               {/* Assigned To Select */}
-              <AssignedToSelect value={assignedTo} onChange={setAssignedTo} />
+              <AssignedToSelect value={assignedTo} onChange={setAssignedTo} disabled={onlyAssigned} />
             </CardContent>
           </Card>
 
