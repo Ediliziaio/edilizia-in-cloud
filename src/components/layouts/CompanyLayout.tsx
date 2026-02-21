@@ -18,6 +18,7 @@ import {
   CalendarDays,
   CheckSquare,
   MessageSquare,
+  Zap,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ const allNavItems: NavItem[] = [
   { title: "Attività", url: "/azienda/attivita", icon: CheckSquare, permissionKey: "canViewOrders", moduleKey: "orders" },
   { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders" },
   { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", isBeta: true },
+  { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewSettings" },
   { title: "Impostazioni", url: "/azienda/impostazioni", icon: Settings, permissionKey: "canViewSettings" },
 ];
 
