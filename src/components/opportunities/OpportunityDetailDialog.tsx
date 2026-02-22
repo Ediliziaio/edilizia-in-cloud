@@ -30,7 +30,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { syncTagsToContact } from "@/hooks/useTagSync";
+import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 
 interface Props {
   opportunity: any;
@@ -254,9 +254,16 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
       contact_id: finalContactId,
     }, {
       onSuccess: async () => {
-        // Sync tags to the linked contact
-        if (oppTags.length > 0) {
-          await syncTagsToContact(finalContactId, oppTags);
+        // Bidirectional tag sync: added tags → contact, removed tags → contact
+        const originalTags: string[] = opportunity.tags || [];
+        const addedTags = oppTags.filter((t: string) => !originalTags.includes(t));
+        const removedTags = originalTags.filter((t: string) => !oppTags.includes(t));
+
+        if (addedTags.length > 0) {
+          await syncTagsToContact(finalContactId, addedTags);
+        }
+        for (const tag of removedTags) {
+          await removeTagFromContact(finalContactId, tag);
         }
         toast.success("Opportunità aggiornata con successo");
         onOpenChange(false);
