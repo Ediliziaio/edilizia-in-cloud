@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -16,19 +16,55 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, GripVertical } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Trash2, Search, Copy, FolderPlus, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
 
-interface CustomField {
+/* ───── types ───── */
+interface UnifiedField {
   id: string;
-  company_id: string;
   name: string;
-  field_type: string;
-  options: string[];
-  section: string;
-  position: number;
-  created_at: string;
+  object: string;
+  folder: string;
+  folderColor: string;
+  uniqueKey: string;
+  createdAt: string;
+  isSystem: boolean;
+  fieldType?: string;
+  options?: string[];
+  section?: string;
 }
+
+/* ───── built-in fields ───── */
+const FOLDER_COLORS: Record<string, string> = {
+  contact: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  general_info: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  additional_info: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+};
+const FOLDER_LABELS: Record<string, string> = {
+  contact: "Contatto",
+  general_info: "General Info",
+  additional_info: "Additional Info",
+};
+
+const BUILTIN_FIELDS: UnifiedField[] = [
+  { id: "sys_first_name", name: "First Name", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.first_name }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_last_name", name: "Last Name", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.last_name }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_email", name: "Email", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.email }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_phone", name: "Phone", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.phone }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_dob", name: "Date Of Birth", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.date_of_birth }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_source", name: "Contact Source", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.source }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_type", name: "Contact Type", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.type }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_company_name", name: "Business Name", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.company_name }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_address", name: "Street Address", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.address }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_city", name: "City", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.city }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_province", name: "State", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.province }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_postal_code", name: "Postal Code", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.postal_code }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_country", name: "Country", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.country }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_website", name: "Website", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.website }}", createdAt: "2024-01-01", isSystem: true },
+];
 
 const FIELD_TYPES = [
   { value: "text", label: "Testo" },
@@ -36,13 +72,17 @@ const FIELD_TYPES = [
   { value: "date", label: "Data" },
   { value: "select", label: "Selezione" },
 ];
-
 const SECTIONS = [
   { value: "contact", label: "Contatto" },
   { value: "general_info", label: "Informazioni generali" },
   { value: "additional_info", label: "Informazioni aggiuntive" },
 ];
 
+function toSnakeCase(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+/* ───── component ───── */
 export function CustomFieldsConfig() {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
@@ -53,8 +93,11 @@ export function CustomFieldsConfig() {
   const [fieldType, setFieldType] = useState("text");
   const [section, setSection] = useState("general_info");
   const [optionsInput, setOptionsInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
+  const [pageSize, setPageSize] = useState(200);
 
-  const { data: fields = [], isLoading } = useQuery({
+  const { data: customFields = [], isLoading } = useQuery({
     queryKey: ["marketing_custom_fields", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -65,24 +108,53 @@ export function CustomFieldsConfig() {
         .order("section")
         .order("position");
       if (error) throw error;
-      return data as CustomField[];
+      return data;
     },
     enabled: !!companyId,
   });
 
+  const allFields = useMemo<UnifiedField[]>(() => {
+    const custom: UnifiedField[] = customFields.map((f) => ({
+      id: f.id,
+      name: f.name,
+      object: "Contatto",
+      folder: f.section,
+      folderColor: FOLDER_COLORS[f.section] || FOLDER_COLORS.additional_info,
+      uniqueKey: `{{ contact.${toSnakeCase(f.name)} }}`,
+      createdAt: f.created_at,
+      isSystem: false,
+      fieldType: f.field_type,
+      options: f.options ?? [],
+      section: f.section,
+    }));
+    return [...BUILTIN_FIELDS, ...custom];
+  }, [customFields]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return allFields;
+    const q = search.toLowerCase();
+    return allFields.filter(
+      (f) =>
+        f.name.toLowerCase().includes(q) ||
+        f.uniqueKey.toLowerCase().includes(q) ||
+        (FOLDER_LABELS[f.folder] || f.folder).toLowerCase().includes(q)
+    );
+  }, [allFields, search]);
+
   const addMutation = useMutation({
     mutationFn: async () => {
       if (!companyId || !name.trim()) return;
-      const options = fieldType === "select"
-        ? optionsInput.split(",").map((o) => o.trim()).filter(Boolean)
-        : [];
+      const options =
+        fieldType === "select"
+          ? optionsInput.split(",").map((o) => o.trim()).filter(Boolean)
+          : [];
       const { error } = await supabase.from("marketing_custom_fields").insert({
         company_id: companyId,
         name: name.trim(),
         field_type: fieldType,
         options,
         section,
-        position: fields.length,
+        position: customFields.length,
       });
       if (error) throw error;
     },
@@ -110,78 +182,163 @@ export function CustomFieldsConfig() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const getTypeLabel = (t: string) => FIELD_TYPES.find((f) => f.value === t)?.label || t;
-  const getSectionLabel = (s: string) => SECTIONS.find((sec) => sec.value === s)?.label || s;
+  const copyKey = (key: string) => {
+    navigator.clipboard.writeText(key);
+    toast.success("Chiave copiata");
+  };
+
+  const startIdx = 0;
+  const visibleFields = filtered.slice(startIdx, startIdx + pageSize);
+  const total = filtered.length;
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Campi Personalizzati</CardTitle>
-            <CardDescription>
-              Definisci i campi personalizzati che appariranno nella scheda dei contatti marketing.
-            </CardDescription>
-          </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" /> Nuovo campo
+    <div className="space-y-0">
+      {/* ── Header tabs + buttons ── */}
+      <div className="flex items-center justify-between border-b pb-0 mb-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="bg-transparent h-auto p-0 gap-0">
+            <TabsTrigger value="all" className="rounded-none border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1">
+              Tutti i campi
+            </TabsTrigger>
+            <TabsTrigger value="folders" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1" disabled>
+              Cartelle
+            </TabsTrigger>
+            <TabsTrigger value="deleted" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1" disabled>
+              Campi eliminati
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="flex items-center gap-2 pb-1">
+          <Button variant="outline" size="sm" disabled>
+            <FolderPlus className="h-4 w-4 mr-1.5" /> Aggiungi cartella
           </Button>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-muted-foreground text-sm py-8 text-center">Caricamento...</p>
-          ) : fields.length === 0 ? (
-            <p className="text-muted-foreground text-sm py-8 text-center">
-              Nessun campo personalizzato definito. Clicca "Nuovo campo" per iniziare.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Search bar ── */}
+      <div className="flex items-center justify-between gap-3 py-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Cerca"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 h-9"
+          />
+        </div>
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <span>Raggruppa per:</span>
+          <Select defaultValue="all">
+            <SelectTrigger className="h-8 w-[100px] text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutto</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* ── Table ── */}
+      {isLoading ? (
+        <p className="text-muted-foreground text-sm py-12 text-center">Caricamento...</p>
+      ) : (
+        <div className="border rounded-md">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40">
+                <TableHead className="w-10 px-3"><Checkbox disabled /></TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">Nome Del Campo</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">Oggetto</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">Cartella</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">Chiave Univoca</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">Creato Il</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleFields.length === 0 ? (
                 <TableRow>
-                  <TableHead className="w-10" />
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Sezione</TableHead>
-                  <TableHead>Opzioni</TableHead>
-                  <TableHead className="w-10" />
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
+                    Nessun campo trovato.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {fields.map((f) => (
-                  <TableRow key={f.id}>
-                    <TableCell>
-                      <GripVertical className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                visibleFields.map((f) => (
+                  <TableRow key={f.id} className="group">
+                    <TableCell className="px-3">
+                      {f.isSystem ? (
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />
+                      ) : (
+                        <Checkbox />
+                      )}
                     </TableCell>
-                    <TableCell className="font-medium">{f.name}</TableCell>
+                    <TableCell className="font-medium text-sm">{f.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{f.object}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{getTypeLabel(f.field_type)}</Badge>
+                      <Badge variant="secondary" className={`text-xs font-normal ${f.folderColor}`}>
+                        {FOLDER_LABELS[f.folder] || f.folder}
+                      </Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {getSectionLabel(f.section)}
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{f.uniqueKey}</code>
+                        <button
+                          onClick={() => copyKey(f.uniqueKey)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {f.field_type === "select" && f.options?.length > 0
-                        ? f.options.join(", ")
-                        : "—"}
+                      {format(new Date(f.createdAt), "dd MMM yyyy", { locale: it })}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-destructive"
-                        onClick={() => deleteMutation.mutate(f.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {!f.isSystem && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => deleteMutation.mutate(f.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
+      {/* ── Footer ── */}
+      <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+        <span>
+          Presentazione 1 a {Math.min(pageSize, total)} di {total} risultati
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span>Dimensione pagina:</span>
+          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+            <SelectTrigger className="h-8 w-[80px] text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+              <SelectItem value="200">200</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* ── Add field dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
