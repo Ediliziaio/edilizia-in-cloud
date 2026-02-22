@@ -1,68 +1,95 @@
 
+# Esportazione CSV e Importazione Avanzata per Opportunita e Contatti
 
-# Stabilizzazione Modulo Opportunita - Pulizia e Fix
+## Panoramica
 
-## Analisi completata
+Implementare l'esportazione CSV funzionante (attualmente placeholder) e un'importazione avanzata in stile GHL per opportunita e contatti, con wizard a step e mapping colonne avanzato.
 
-Il codebase del modulo opportunita e gia piuttosto pulito dopo le recenti modifiche. Ho identificato i seguenti problemi residui da correggere.
+## 1. Esportazione CSV - Contatti
 
-## 1. Bug: Anteprima nel CardCustomizeSheet non riflette owner condizionale
+**File**: `src/pages/azienda/marketing/MarketingContacts.tsx`
 
-Nel pannello "Personalizza scheda", l'avatar owner (cerchio "AR") e sempre visibile nell'anteprima, anche se il campo owner e disattivato. Deve essere condizionale come nella card reale.
+Aggiungere un pulsante "Esporta" nell'header accanto a "Importa". Al click:
+- Recupera tutti i contatti della company (non solo la pagina corrente) via query Supabase
+- Genera un file CSV con colonne: Nome, Cognome, Telefono, Email, Azienda, Tag, Note, Fonte, Data Creazione
+- Scarica automaticamente il file come `contatti_YYYY-MM-DD.csv`
+- Toast di successo/errore
 
-**File**: `src/components/opportunities/CardCustomizeSheet.tsx` (righe 120-125)
+## 2. Esportazione CSV - Opportunita
 
-**Fix**: Wrappare l'avatar owner nell'anteprima con `{draftFields.includes("owner") && (...)}`.
+**File**: `src/pages/azienda/marketing/MarketingOpportunities.tsx`
 
-## 2. Pulizia: Import `React` non necessario
+Sostituire il toast placeholder "Esportazione in arrivo" nel DropdownMenu (riga 200) con una funzione reale:
+- Recupera tutte le opportunita della pipeline selezionata con i dati del contatto collegato
+- Genera CSV con colonne: Nome Opportunita, Contatto, Email, Telefono, Valore, Stato, Fase, Fonte, Tag, Data Creazione
+- Scarica come `opportunita_YYYY-MM-DD.csv`
 
-In `useCardFieldPreferences.tsx` (riga 1), `React` e importato ma non usato direttamente (JSX in `.tsx` non richiede import esplicito con le versioni moderne di React/Vite).
+## 3. Utility condivisa per export CSV
 
-**File**: `src/hooks/useCardFieldPreferences.tsx` (riga 1)
+**Nuovo file**: `src/lib/csvExport.ts`
 
-**Fix**: Rimuovere `React` dall'import.
+Funzione helper riutilizzabile:
+```
+exportToCSV(rows: Record<string, string>[], columns: {key, label}[], filename: string)
+```
+- Gestisce escape delle virgole e doppi apici
+- Supporta separatore punto e virgola (standard italiano)
+- Aggiunge BOM UTF-8 per compatibilita Excel
 
-## 3. UX: Toast di conferma quando si applica la personalizzazione card
+## 4. Importazione Opportunita - Nuovo dialog
 
-Quando l'utente clicca "Applica" nel pannello personalizza, non c'e nessun feedback visivo che confermi il salvataggio. Aggiungere un toast di successo.
+**File**: `src/pages/azienda/marketing/MarketingOpportunities.tsx`
 
-**File**: `src/pages/azienda/marketing/MarketingOpportunities.tsx` (riga 283)
+Sostituire il toast placeholder "Importazione in arrivo" (riga 187) con apertura del `CSVImportDialog` esistente, configurato con i campi delle opportunita:
+- Nome Opportunita (obbligatorio)
+- Contatto Nome (obbligatorio - per creare/collegare il contatto)
+- Contatto Cognome
+- Contatto Email
+- Contatto Telefono
+- Valore
+- Fonte
+- Tag
+- Note
 
-**Fix**: Aggiungere `toast.success("Personalizzazione salvata")` nell'onApply.
+La funzione `onImport`:
+1. Per ogni riga, cerca un contatto esistente per email/telefono
+2. Se non esiste, crea un nuovo contatto
+3. Crea l'opportunita collegata al contatto nella pipeline e fase selezionate
+4. Ritorna conteggio successi/errori
 
-## 4. UX: Pulsante "Gestisci campi" nel OpportunityDetailDialog naviga via
+## 5. Miglioramento importazione contatti esistente
 
-Nel dialog di dettaglio opportunita (riga 681), il link "Aggiungi/gestisci campi" naviga a `/azienda/impostazioni/campi-personalizzati` e chiude il dialog. Questo e corretto per i campi personalizzati del database, ma potrebbe confondere l'utente che lo associa alla personalizzazione card. Nessuna modifica necessaria qui - i due concetti sono diversi (campi personalizzati DB vs campi visibili sulla card).
-
-## 5. Bug potenziale: CardCustomizeSheet non mostra campi custom dinamici
-
-Il `CardCustomizeSheet` accetta `customFields` come prop opzionale, ma in `MarketingOpportunities.tsx` non vengono passati. I campi personalizzati delle opportunita non appaiono nel pannello di personalizzazione.
-
-**File**: `src/pages/azienda/marketing/MarketingOpportunities.tsx` (riga 278-284)
-
-**Fix**: Importare `useOpportunityCustomFields` e passare i campi custom al `CardCustomizeSheet`, mappandoli nel formato `FieldDefinition`.
+L'importazione contatti (gia funzionante in `MarketingContacts.tsx`) e gia completa. Nessuna modifica necessaria.
 
 ## Riepilogo modifiche
 
 | File | Tipo | Descrizione |
 |------|------|-------------|
-| `src/components/opportunities/CardCustomizeSheet.tsx` | Fix | Rendere avatar owner condizionale nell'anteprima |
-| `src/hooks/useCardFieldPreferences.tsx` | Pulizia | Rimuovere import React inutilizzato |
-| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Fix + UX | Passare customFields al sheet + toast di conferma su applica |
-| `src/components/opportunities/OpportunityCard.tsx` | Fix | Supportare campi custom dinamici nel CardDetailRows |
+| `src/lib/csvExport.ts` | Nuovo | Utility condivisa per generazione e download CSV |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Modifica | Aggiungere pulsante e logica esportazione CSV |
+| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Modifica | Esportazione CSV reale + importazione con CSVImportDialog |
 
 ## Dettagli tecnici
 
-### CardCustomizeSheet - Anteprima owner condizionale
-Riga 122-124: wrappare con `{draftFields.includes("owner") && (...)}` il blocco dell'avatar AR.
+### csvExport.ts
 
-### MarketingOpportunities - Passaggio campi custom
-- Importare `useOpportunityCustomFields` da `@/hooks/useOpportunityDetailData`
-- Mappare i risultati in `FieldDefinition[]` con `section: "opportunity"` e key basata su `field.id`
-- Passarli come prop `customFields` a `CardCustomizeSheet`
+```text
+function exportToCSV(rows, columns, filename):
+  - header row = columns.map(c => c.label).join(";")
+  - data rows = rows.map(r => columns.map(c => escapeCSV(r[c.key])).join(";"))
+  - BOM + header + data -> Blob -> download link click
+```
 
-### OpportunityCard - Render campi custom
-Nel `CardDetailRows`, aggiungere un fallback per chiavi non presenti nel `fieldMap` statico: se la chiave corrisponde a un campo custom (UUID), recuperare il valore da `opportunity.custom_field_values` o simile. Dato che i valori custom non sono inclusi nella query attuale delle opportunita, per ora mostrare "—" e documentare come miglioramento futuro.
+### Esportazione Contatti
+- Query: `supabase.from("marketing_contacts").select("*").eq("company_id", id)` senza paginazione (fino a 1000 righe)
+- Mapping diretto dei campi DB alle colonne CSV
 
-### Toast conferma
-Aggiungere `toast.success("Personalizzazione applicata")` nel callback `onApply` in `MarketingOpportunities.tsx`.
+### Esportazione Opportunita
+- Query: usa la stessa query di `useOpportunities` ma senza paginazione
+- Include dati contatto e nome fase dalla lista stages
+
+### Importazione Opportunita
+- Riusa il componente `CSVImportDialog` esistente
+- Campi configurati con `ImportField[]`
+- La funzione onImport fa upsert contatti + insert opportunita in batch
+- Pipeline e stage di default: usa la pipeline selezionata e la prima fase
