@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, X } from "lucide-react";
+import { Search, Upload, Plus, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -56,34 +56,27 @@ export default function MarketingContacts() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<MarketingContact | null>(null);
-  const [filterListId, setFilterListId] = useState<string | null>(null);
-  const [filterListName, setFilterListName] = useState<string | null>(null);
 
-  // Get contact IDs belonging to filtered list
-  const { data: listMemberIds } = useQuery({
-    queryKey: ["list-member-ids", filterListId],
+  // List count for tab badge
+  const { data: listCount = 0 } = useQuery({
+    queryKey: ["marketing-contact-lists-count", companyId],
     queryFn: async () => {
-      if (!filterListId) return null;
-      const { data, error } = await supabase
-        .from("marketing_contact_list_members")
-        .select("contact_id")
-        .eq("list_id", filterListId);
+      if (!companyId) return 0;
+      const { count, error } = await supabase
+        .from("marketing_contact_lists")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId);
       if (error) throw error;
-      return (data || []).map(d => d.contact_id);
+      return count || 0;
     },
-    enabled: !!filterListId,
+    enabled: !!companyId,
   });
 
   // Fetch contacts
   const { data, isLoading } = useQuery({
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize, filterListId, listMemberIds],
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
-
-      // If filtering by list but no members, return empty
-      if (filterListId && listMemberIds && listMemberIds.length === 0) {
-        return { contacts: [] as MarketingContact[], count: 0 };
-      }
 
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -100,15 +93,11 @@ export default function MarketingContacts() {
         query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
       }
 
-      if (filterListId && listMemberIds && listMemberIds.length > 0) {
-        query = query.in("id", listMemberIds);
-      }
-
       const { data: contacts, count, error } = await query;
       if (error) throw error;
       return { contacts: (contacts || []) as MarketingContact[], count: count || 0 };
     },
-    enabled: !!companyId && (filterListId ? listMemberIds !== undefined : true),
+    enabled: !!companyId,
   });
 
   const contacts = data?.contacts || [];
@@ -185,13 +174,6 @@ export default function MarketingContacts() {
   const handleEdit = (contact: MarketingContact) => {
     setEditingContact(contact);
     setDialogOpen(true);
-  };
-
-  const handleSelectList = (listId: string, listName: string) => {
-    setFilterListId(listId);
-    setFilterListName(listName);
-    setActiveTab("all");
-    setPage(1);
   };
 
   const handleImport = async (rows: Record<string, string>[]) => {
@@ -328,26 +310,17 @@ export default function MarketingContacts() {
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "all" | "lists")}>
         <TabsList>
           <TabsTrigger value="all">Tutti</TabsTrigger>
-          <TabsTrigger value="lists">Liste</TabsTrigger>
+          <TabsTrigger value="lists" className="gap-1.5">
+            Liste
+            {listCount > 0 && <Badge variant="secondary" className="text-xs h-5 px-1.5">{listCount}</Badge>}
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
       {activeTab === "lists" ? (
-        <ContactListsView onSelectList={handleSelectList} />
+        <ContactListsView />
       ) : (
         <>
-          {/* List filter badge */}
-          {filterListId && filterListName && (
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-sm flex items-center gap-1.5">
-                Lista: {filterListName}
-                <button onClick={() => { setFilterListId(null); setFilterListName(null); setPage(1); }}>
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            </div>
-          )}
-
           {/* Search */}
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
