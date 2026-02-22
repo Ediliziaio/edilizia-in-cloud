@@ -1,46 +1,51 @@
 
-# Fix Assegnazione Utenti nei Contatti Marketing
+# Fix Filtro Assegnazione in Appuntamenti, Attività e Automazioni
 
 ## Problema
-Nella scheda dettaglio contatto marketing, i selettori **Titolare** e **Follower** mostrano **tutti i profili** dell'azienda (inclusi clienti, dipendenti, venditori) invece di mostrare solo gli **utenti** della sezione "Utenti" (company_admin e company_staff).
+Tre componenti caricano TUTTI i profili dell'azienda (inclusi clienti, dipendenti, venditori) nei selettori di assegnazione, invece di mostrare solo gli utenti aziendali (company_admin e company_staff).
 
-La causa e nella query a riga 191-203 di `MarketingContactDetail.tsx`:
-```typescript
-// ATTUALE - SBAGLIATO: prende TUTTI i profili
-const { data, error } = await supabase
-  .from("profiles")
-  .select("id, first_name, last_name")
-  .eq("company_id", companyId);
-```
+## Componenti da correggere
 
-Non filtra per ruolo, quindi include clienti, dipendenti, venditori.
+### 1. AppointmentDialog.tsx (righe 91-103)
+Query `assignable-users`: recupera tutti i profili con `company_id` senza filtrare per ruolo.
+
+### 2. TaskDialog.tsx (righe 110-120)
+Query `assignable-users`: stesso problema, prende tutti i profili.
+
+### 3. AutomationDialog.tsx (righe 104-109)
+Fetch utenti nella `useEffect`: prende tutti i profili senza filtrare.
 
 ## Soluzione
-Applicare lo stesso pattern gia usato in `AssignedToSelect.tsx`: dopo aver recuperato i profili, fare una seconda query su `user_roles` per filtrare solo `company_admin` e `company_staff`.
+Applicare a tutti e 3 lo stesso pattern gia presente in `AssignedToSelect.tsx`:
+1. Recuperare i profili con `company_id`
+2. Recuperare i ruoli da `user_roles` per quegli utenti
+3. Filtrare solo `company_admin` e `company_staff`
+4. Restituire solo quei profili
+
+## Componenti gia corretti (nessuna modifica necessaria)
+- `AssignedToSelect.tsx` - usato negli ordini, gia filtra per ruolo
+- `MarketingContactDetail.tsx` - appena corretto nel messaggio precedente
 
 ## Dettaglio tecnico
 
-### File: `src/pages/azienda/marketing/MarketingContactDetail.tsx`
-Modificare la query `company_staff` (righe 191-203):
-1. Recuperare i profili con `company_id`
-2. Recuperare i ruoli da `user_roles` per quegli utenti
-3. Filtrare solo quelli con ruolo `company_admin` o `company_staff`
-4. Restituire solo quei profili
+### File: `src/components/appointments/AppointmentDialog.tsx`
+Modificare la query `assignable-users` (righe 93-100): dopo il fetch dei profili, fare una seconda query su `user_roles` e filtrare per `company_admin`/`company_staff`.
 
-La logica sara identica a quella di `AssignedToSelect.tsx` (righe 24-48).
+### File: `src/components/tasks/TaskDialog.tsx`
+Modificare la query `assignable-users` (righe 112-119): stessa logica, aggiungere filtro per ruolo.
 
-## Altre pagine verificate
-- `TaskDialog.tsx` usa gia `AssignedToSelect` che filtra correttamente
-- `AssignedToSelect.tsx` e gia corretto
-- Il problema e isolato a `MarketingContactDetail.tsx`
+### File: `src/components/settings/AutomationDialog.tsx`
+Modificare il fetch utenti nella `useEffect` (righe 104-109): dopo aver recuperato i profili, filtrare tramite `user_roles`.
 
 ## File coinvolti
 
 | File | Azione |
 |---|---|
-| `src/pages/azienda/marketing/MarketingContactDetail.tsx` | Fix query staff: aggiungere filtro per ruolo |
+| `src/components/appointments/AppointmentDialog.tsx` | Aggiungere filtro ruolo alla query assegnazione |
+| `src/components/tasks/TaskDialog.tsx` | Aggiungere filtro ruolo alla query assegnazione |
+| `src/components/settings/AutomationDialog.tsx` | Aggiungere filtro ruolo al fetch utenti |
 
 ## Cosa NON cambia
 - Nessuna modifica al database
-- Nessuna modifica a componenti condivisi
-- Routing e sidebar invariati
+- Nessuna modifica al routing
+- `AssignedToSelect.tsx` e `MarketingContactDetail.tsx` restano invariati
