@@ -1,139 +1,51 @@
 
 
-# Impostazioni Calendario Marketing (stile GHL)
+# Redesign Dialog "Nuovo Calendario" (stile GHL)
 
 ## Panoramica
 
-Creare una nuova pagina di impostazioni "Calendari" nella categoria "Marketing e Vendita" della sidebar impostazioni. La pagina sara ispirata a GoHighLevel con 4 tab principali: Calendari, Preferenze, Disponibilita e Collegamenti. Sara collegata esclusivamente al calendario Marketing (non a quello di Gestione Interna).
+Ricostruire il dialog `CalendarDialog.tsx` per replicare fedelmente il layout di GoHighLevel, senza il campo "URL personalizzato" come richiesto.
 
 ---
 
-## Struttura a Tab (da GHL)
+## Layout del nuovo dialog (dall'alto in basso)
 
-### Tab 1: Calendari
-- Lista dei calendari marketing configurati in una tabella
-- Colonne: Nome calendario, Gruppo, Durata, Tipo (Personale/Team), Stato (Attivo/Inattivo), Data aggiornamento, Azioni (modifica, condividi, impostazioni, menu)
-- Filtri in alto: Stato, Tipo, Proprietario
-- Barra di ricerca
-- Pulsante "+ Nuovo calendario"
-- Sezione "Gruppi" nella sidebar sinistra con "Non raggruppato" e "+ Nuovo gruppo"
-
-### Tab 2: Preferenze
-- Preferenze dell'app: giorno di inizio settimana (select)
-- Toggle servizi: Menu dei servizi, Stanze, Attrezzature
-- Preferenze widget: Lingua, Formato ora, Giorno inizio settimana
-
-### Tab 3: Disponibilita
-- Selezione utente (select)
-- Ore lavorative settimanali: 7 righe (Lun-Dom) con checkbox attivo, ora inizio, ora fine, azioni (+, copia, elimina)
-- Ore specifiche per data: lista override con "+ Aggiungi ore specifiche per data"
-
-### Tab 4: Collegamenti
-- Placeholder per futura integrazione Google Calendar / altri calendari esterni
-- Sezione "Calendari collegati" e "Configurazione del calendario" (calendario collegato + calendari dei conflitti)
+1. **Titolo**: "Nuovo calendario" (o "Modifica calendario")
+2. **Nome del calendario** - Input con label + icona info tooltip, placeholder "(es.) Portata in uscita"
+3. **"— Rimuovi descrizione" / "+ Aggiungi descrizione"** - Link toggle per mostrare/nascondere il campo descrizione
+4. **Descrizione** (collassabile) - Textarea con placeholder "Scrivi descrizione" (niente rich text editor per semplicita)
+5. **Seleziona membro del team** - Select con label + icona info tooltip, lista dei membri admin/staff della company
+6. **Durata dell'incontro** - Input numerico + Select unita (Minuti/Ore), con icona info tooltip
+7. **Nota informativa**: "Per personalizzare ulteriormente il tuo orario di lavoro, vai alle impostazioni avanzate."
+8. **Footer**: Link "Impostazioni avanzate" a sinistra, bottoni "Annulla" e "Conferma" a destra
 
 ---
 
-## Modifiche al Database
+## Modifiche tecniche
 
-### Nuova tabella: `marketing_calendars`
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | uuid | PK |
-| company_id | uuid | FK -> companies |
-| name | text | Nome calendario |
-| group_name | text | Gruppo (nullable) |
-| duration_minutes | integer | Durata default (30, 60, etc.) |
-| calendar_type | text | 'personal' o 'team' |
-| is_active | boolean | Stato attivo/inattivo |
-| owner_id | uuid | Proprietario (nullable) |
-| description | text | Descrizione (nullable) |
-| created_by | uuid | Chi l'ha creato |
-| created_at | timestamptz | Default now() |
-| updated_at | timestamptz | Default now() |
+### File: `src/components/settings/CalendarDialog.tsx` (riscrittura)
 
-RLS: company_admin e super_admin possono gestire, staff con permesso can_view_marketing possono visualizzare.
+| Elemento | Dettaglio |
+|----------|-----------|
+| Campo "Nome del calendario" | Label con Tooltip info icon, placeholder "(es.) Portata in uscita" |
+| Descrizione collapsabile | State `showDescription`, toggle con link "— Rimuovi descrizione" / "+ Aggiungi descrizione" |
+| Team member select | Query `profiles` filtrata per `company_id`, solo ruoli `company_admin` e `company_staff`. Usa pattern simile a `AssignedToSelect` |
+| Durata | Input numerico (default 30) + Select per unita ("Minuti" / "Ore") |
+| Impostazioni avanzate | Link che porta al tab Disponibilita nella stessa pagina |
+| Footer layout | `justify-between` con link a sinistra e bottoni a destra |
+| Rimuovere | Campi "Gruppo" e "Tipo" dal dialog principale (restano gestibili dalla tabella) |
 
-### Nuova tabella: `marketing_calendar_availability`
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | uuid | PK |
-| company_id | uuid | FK -> companies |
-| calendar_id | uuid | FK -> marketing_calendars |
-| day_of_week | integer | 0=Dom, 1=Lun... 6=Sab (nullable per override date) |
-| start_time | time | Ora inizio |
-| end_time | time | Ora fine |
-| is_enabled | boolean | Giorno attivo |
-| specific_date | date | Per override specifiche (nullable) |
-| created_at | timestamptz | Default now() |
+### Aggiornamento interfaccia `CalendarFormData`
 
-RLS: stesse policy di marketing_calendars.
+Aggiungere `owner_id: string` per il membro del team selezionato. Rimuovere `group_name` e `calendar_type` dal dialog (verranno impostati con valori default).
 
-### Nuova tabella: `marketing_calendar_preferences`
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | uuid | PK |
-| company_id | uuid | FK -> companies (unique) |
-| week_start_day | text | Default 'monday' |
-| time_format | text | Default '24h' |
-| language | text | Default 'it' |
-| show_services_menu | boolean | Default true |
-| show_rooms | boolean | Default true |
-| show_equipment | boolean | Default true |
-| created_at | timestamptz | Default now() |
-| updated_at | timestamptz | Default now() |
+### File: `src/components/settings/MarketingCalendarsConfig.tsx`
 
-RLS: company_admin puo gestire, staff con permesso can_view_marketing possono visualizzare.
+Aggiornare la chiamata al dialog per passare/ricevere `owner_id` e gestire i valori default per `group_name` e `calendar_type`.
 
 ---
 
-## Nuovi File
+## Nessuna modifica al database
 
-### 1. `src/pages/azienda/settings/SettingsMarketingCalendars.tsx`
-- Pagina wrapper che renderizza il componente principale
+Le colonne esistenti supportano gia tutti i campi. `owner_id` e gia presente nella tabella `marketing_calendars`.
 
-### 2. `src/components/settings/MarketingCalendarsConfig.tsx`
-- Componente principale con 4 tab (Calendari, Preferenze, Disponibilita, Collegamenti)
-- **Tab Calendari**: tabella con filtri, CRUD calendari, dialog creazione/modifica
-- **Tab Preferenze**: form con select e toggle, salvataggio preferenze
-- **Tab Disponibilita**: griglia 7 giorni con orari, override per date specifiche
-- **Tab Collegamenti**: placeholder per integrazioni future
-
-### 3. `src/components/settings/CalendarDialog.tsx`
-- Dialog per creare/modificare un calendario marketing
-- Campi: nome, gruppo, durata, tipo, descrizione, proprietario
-
----
-
-## Modifiche a File Esistenti
-
-### `src/App.tsx`
-- Aggiungere import di `SettingsMarketingCalendars`
-- Aggiungere route: `<Route path="calendari" element={<SettingsMarketingCalendars />} />`
-
-### `src/components/layouts/CompanyLayout.tsx`
-- Aggiungere voce "Calendari" nella sezione "Marketing e Vendita" delle impostazioni (dopo "Sequenze")
-- Import dell'icona `CalendarDays` (gia importata nel file sidebarConfig)
-- Nuova `NavLink` verso `/azienda/impostazioni/calendari`
-
----
-
-## Dettaglio Tecnico
-
-### Flusso dati
-1. I calendari creati nelle impostazioni saranno visibili SOLO nella pagina Marketing Calendar (`/azienda/marketing/calendario`)
-2. Il calendario di Gestione Interna (`/azienda/calendario`) continua a funzionare indipendentemente con le date degli ordini
-3. Le disponibilita definite nelle impostazioni determineranno gli slot disponibili nel calendario marketing
-
-### Query e Hook
-- `useMarketingCalendars()` - lista calendari con filtri
-- `useMarketingCalendarPreferences()` - preferenze salvate per company
-- `useMarketingCalendarAvailability(calendarId)` - disponibilita per calendario
-- Tutte le mutazioni con toast di feedback
-
-### UX
-- Skeleton loading durante il caricamento
-- Toast di conferma per ogni operazione CRUD
-- Empty state con CTA per creare il primo calendario
-- Dialog di conferma per eliminazione
-- Responsive: tabella scrollabile su mobile
