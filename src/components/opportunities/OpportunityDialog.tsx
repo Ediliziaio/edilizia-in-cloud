@@ -198,7 +198,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-bold">Aggiungi Nuovo opportunità</h2>
@@ -240,7 +240,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                         }
                       }}
                       onFocus={() => setShowDropdown(true)}
-                      onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                      onBlur={() => setTimeout(() => setShowDropdown(false), 300)}
                       className="h-9 text-sm"
                     />
                     {showDropdown && !showNewContact && (
