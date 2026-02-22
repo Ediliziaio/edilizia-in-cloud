@@ -432,7 +432,7 @@ export default function MarketingContactDetail() {
                   <Label className="text-[10px] text-muted-foreground">Titolare</Label>
                 </div>
                 <Select
-                  value={(contact as any).assigned_to || ""}
+                  value={contact.assigned_to || ""}
                   onValueChange={(v) => updateField.mutate({ field: "assigned_to", value: v || null })}
                 >
                   <SelectTrigger className="h-7 text-[11px] border-dashed"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
@@ -449,7 +449,7 @@ export default function MarketingContactDetail() {
                   <Label className="text-[10px] text-muted-foreground">Follower</Label>
                 </div>
                 <Select
-                  value={(contact as any).follower_id || ""}
+                  value={contact.follower_id || ""}
                   onValueChange={(v) => updateField.mutate({ field: "follower_id", value: v || null })}
                 >
                   <SelectTrigger className="h-7 text-[11px] border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
@@ -532,11 +532,11 @@ export default function MarketingContactDetail() {
                     <InlineField label="Cognome" value={contact.last_name || ""} onSave={(v) => updateField.mutate({ field: "last_name", value: v })} />
                     <InlineField label="Email" value={contact.email || ""} onSave={(v) => updateField.mutate({ field: "email", value: v })} type="email" />
                     <InlineField label="Telefono" value={contact.phone || ""} onSave={(v) => updateField.mutate({ field: "phone", value: v })} type="tel" />
-                    <InlineField label="Data di nascita" value={(contact as any).date_of_birth || ""} onSave={(v) => updateField.mutate({ field: "date_of_birth", value: v || null })} type="date" />
+                    <InlineField label="Data di nascita" value={contact.date_of_birth || ""} onSave={(v) => updateField.mutate({ field: "date_of_birth", value: v || null })} type="date" />
                     <InlineField label="Fonte" value={contact.source || ""} onSave={(v) => updateField.mutate({ field: "source", value: v })} />
                     <InlineField
                       label="Tipo contatto"
-                      value={(contact as any).contact_type || "lead"}
+                      value={contact.contact_type || "lead"}
                       onSave={(v) => updateField.mutate({ field: "contact_type", value: v })}
                       type="select"
                       options={["lead", "cliente", "partner", "fornitore", "altro"]}
@@ -552,12 +552,12 @@ export default function MarketingContactDetail() {
                   </CollapsibleTrigger>
                   <CollapsibleContent className="px-1 space-y-0">
                     <InlineField label="Azienda" value={contact.company_name || ""} onSave={(v) => updateField.mutate({ field: "company_name", value: v })} />
-                    <InlineField label="Indirizzo" value={(contact as any).address || ""} onSave={(v) => updateField.mutate({ field: "address", value: v })} />
-                    <InlineField label="Città" value={(contact as any).city || ""} onSave={(v) => updateField.mutate({ field: "city", value: v })} />
-                    <InlineField label="Provincia" value={(contact as any).province || ""} onSave={(v) => updateField.mutate({ field: "province", value: v })} />
-                    <InlineField label="CAP" value={(contact as any).postal_code || ""} onSave={(v) => updateField.mutate({ field: "postal_code", value: v })} />
-                    <InlineField label="Paese" value={(contact as any).country || ""} onSave={(v) => updateField.mutate({ field: "country", value: v })} />
-                    <InlineField label="Sito web" value={(contact as any).website || ""} onSave={(v) => updateField.mutate({ field: "website", value: v })} />
+                    <InlineField label="Indirizzo" value={contact.address || ""} onSave={(v) => updateField.mutate({ field: "address", value: v })} />
+                    <InlineField label="Città" value={contact.city || ""} onSave={(v) => updateField.mutate({ field: "city", value: v })} />
+                    <InlineField label="Provincia" value={contact.province || ""} onSave={(v) => updateField.mutate({ field: "province", value: v })} />
+                    <InlineField label="CAP" value={contact.postal_code || ""} onSave={(v) => updateField.mutate({ field: "postal_code", value: v })} />
+                    <InlineField label="Paese" value={contact.country || ""} onSave={(v) => updateField.mutate({ field: "country", value: v })} />
+                    <InlineField label="Sito web" value={contact.website || ""} onSave={(v) => updateField.mutate({ field: "website", value: v })} />
                   </CollapsibleContent>
                 </Collapsible>
 
