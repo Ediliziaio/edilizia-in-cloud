@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ContactsTable, type MarketingContact } from "@/components/marketing/ContactsTable";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
-import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+import { ImportWizard } from "@/components/shared/ImportWizard";
+import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { exportToCSV } from "@/lib/csvExport";
 
@@ -264,12 +265,14 @@ export default function MarketingContacts() {
         isEditing={!!editingContact}
       />
 
-      <CSVImportDialog
+      <ImportWizard
         open={importOpen}
-        onOpenChange={setImportOpen}
-        title="Importa Contatti"
-        fields={CSV_FIELDS}
-        onImport={handleImport}
+        onClose={() => setImportOpen(false)}
+        defaultObjectType="contacts"
+        contactFields={CSV_FIELDS}
+        opportunityFields={[]}
+        onImportContacts={async (rows, options) => handleImport(rows)}
+        onImportOpportunities={async () => ({ success: 0, errors: [] })}
       />
     </div>
   );
