@@ -141,6 +141,25 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
     }
   }, [opportunity]);
 
+  // Auto-sync: merge contact tags into opportunity if missing (safety net)
+  useEffect(() => {
+    if (!opportunity || !open) return;
+    const contact = opportunity.marketing_contacts;
+    if (!contact?.tags?.length) return;
+    const oppTagsCurrent: string[] = opportunity.tags || [];
+    const missing = contact.tags.filter((t: string) => !oppTagsCurrent.includes(t));
+    if (missing.length > 0) {
+      const merged = [...new Set([...oppTagsCurrent, ...contact.tags])];
+      setOppTags(merged);
+      // Persist to DB silently
+      supabase
+        .from("marketing_opportunities")
+        .update({ tags: merged, updated_at: new Date().toISOString() })
+        .eq("id", opportunity.id)
+        .then();
+    }
+  }, [opportunity?.id, open]);
+
   // Sync contact custom field values - with guard to prevent infinite loop
   useEffect(() => {
     const serialized = JSON.stringify(contactFieldValues);
