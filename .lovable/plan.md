@@ -2,56 +2,67 @@
 
 # Stabilizzazione Modulo Opportunita - Pulizia e Fix
 
-## Bug principali
+## Analisi completata
 
-### 1. Campi "tags" e "owner" non reagiscono alla personalizzazione
+Il codebase del modulo opportunita e gia piuttosto pulito dopo le recenti modifiche. Ho identificato i seguenti problemi residui da correggere.
 
-Nel componente `OpportunityCard.tsx`, la funzione `CardDetailRows` (riga 240) salta i campi `opp_name`, `tags` e `owner` perche sono gestiti "a parte" nell'header della card. Ma il problema e che:
-- Le **etichette (tags)** non vengono mai mostrate come badge sulla card, solo come icona nella barra azioni in basso. Se l'utente disattiva "tags" nel pannello personalizza, non cambia nulla visivamente.
-- Il **titolare (owner)** e l'avatar sono sempre visibili nell'header, anche se disattivato.
+## 1. Bug: Anteprima nel CardCustomizeSheet non riflette owner condizionale
 
-**Fix**: Rendere condizionale la visualizzazione dei tag (come badge sotto il nome) e dell'avatar owner nell'header della card, basandosi su `isFieldActive("tags")` e `isFieldActive("owner")`.
+Nel pannello "Personalizza scheda", l'avatar owner (cerchio "AR") e sempre visibile nell'anteprima, anche se il campo owner e disattivato. Deve essere condizionale come nella card reale.
 
-**File**: `src/components/opportunities/OpportunityCard.tsx`
+**File**: `src/components/opportunities/CardCustomizeSheet.tsx` (righe 120-125)
 
-### 2. Variabile `filteredContacts` non utilizzata
+**Fix**: Wrappare l'avatar owner nell'anteprima con `{draftFields.includes("owner") && (...)}`.
 
-In `OpportunityDialog.tsx` riga 191, `filteredContacts` e assegnata ma mai usata.
+## 2. Pulizia: Import `React` non necessario
 
-**Fix**: Rimuoverla.
+In `useCardFieldPreferences.tsx` (riga 1), `React` e importato ma non usato direttamente (JSX in `.tsx` non richiede import esplicito con le versioni moderne di React/Vite).
 
-**File**: `src/components/opportunities/OpportunityDialog.tsx`
+**File**: `src/hooks/useCardFieldPreferences.tsx` (riga 1)
 
-## Miglioramenti UX
+**Fix**: Rimuovere `React` dall'import.
 
-### 3. Aggiungere badge tag visibili sulla card
+## 3. UX: Toast di conferma quando si applica la personalizzazione card
 
-Attualmente i tag sono visibili solo come numero sull'icona nella barra azioni. Per coerenza con l'anteprima nel pannello "Personalizza scheda" (che mostra badge "facebook", "google"), aggiungere una riga di badge tag nella card quando il campo `tags` e attivo.
+Quando l'utente clicca "Applica" nel pannello personalizza, non c'e nessun feedback visivo che confermi il salvataggio. Aggiungere un toast di successo.
 
-**File**: `src/components/opportunities/OpportunityCard.tsx`
+**File**: `src/pages/azienda/marketing/MarketingOpportunities.tsx` (riga 283)
 
-### 4. Anteprima nel pannello personalizza: sincronizzare con il rendering reale
+**Fix**: Aggiungere `toast.success("Personalizzazione salvata")` nell'onApply.
 
-L'anteprima nella `CardCustomizeSheet` mostra i tag come badge colorati, ma la card reale non li mostra. Dopo il fix al punto 3, saranno allineati.
+## 4. UX: Pulsante "Gestisci campi" nel OpportunityDetailDialog naviga via
+
+Nel dialog di dettaglio opportunita (riga 681), il link "Aggiungi/gestisci campi" naviga a `/azienda/impostazioni/campi-personalizzati` e chiude il dialog. Questo e corretto per i campi personalizzati del database, ma potrebbe confondere l'utente che lo associa alla personalizzazione card. Nessuna modifica necessaria qui - i due concetti sono diversi (campi personalizzati DB vs campi visibili sulla card).
+
+## 5. Bug potenziale: CardCustomizeSheet non mostra campi custom dinamici
+
+Il `CardCustomizeSheet` accetta `customFields` come prop opzionale, ma in `MarketingOpportunities.tsx` non vengono passati. I campi personalizzati delle opportunita non appaiono nel pannello di personalizzazione.
+
+**File**: `src/pages/azienda/marketing/MarketingOpportunities.tsx` (riga 278-284)
+
+**Fix**: Importare `useOpportunityCustomFields` e passare i campi custom al `CardCustomizeSheet`, mappandoli nel formato `FieldDefinition`.
 
 ## Riepilogo modifiche
 
-| File | Modifica |
-|------|----------|
-| `src/components/opportunities/OpportunityCard.tsx` | Rendere tags e owner condizionali tramite `isFieldActive`, aggiungere badge tag visibili |
-| `src/components/opportunities/OpportunityDialog.tsx` | Rimuovere variabile `filteredContacts` inutilizzata (riga 191) |
+| File | Tipo | Descrizione |
+|------|------|-------------|
+| `src/components/opportunities/CardCustomizeSheet.tsx` | Fix | Rendere avatar owner condizionale nell'anteprima |
+| `src/hooks/useCardFieldPreferences.tsx` | Pulizia | Rimuovere import React inutilizzato |
+| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Fix + UX | Passare customFields al sheet + toast di conferma su applica |
+| `src/components/opportunities/OpportunityCard.tsx` | Fix | Supportare campi custom dinamici nel CardDetailRows |
 
 ## Dettagli tecnici
 
-### OpportunityCard - Modifiche specifiche
+### CardCustomizeSheet - Anteprima owner condizionale
+Riga 122-124: wrappare con `{draftFields.includes("owner") && (...)}` il blocco dell'avatar AR.
 
-1. **Tag badge condizionali** (dopo il nome, prima dei detail rows):
-   - Se `isFieldActive("tags")` e `tags.length > 0`, mostrare una riga con badge colorati (max 3 visibili + "+N")
-   - Se disattivato, non mostrare nulla
+### MarketingOpportunities - Passaggio campi custom
+- Importare `useOpportunityCustomFields` da `@/hooks/useOpportunityDetailData`
+- Mappare i risultati in `FieldDefinition[]` con `section: "opportunity"` e key basata su `field.id`
+- Passarli come prop `customFields` a `CardCustomizeSheet`
 
-2. **Owner avatar condizionale**:
-   - L'avatar nel corner superiore destro viene mostrato solo se `isFieldActive("owner")`
-   - Se disattivato, non mostrare l'avatar
+### OpportunityCard - Render campi custom
+Nel `CardDetailRows`, aggiungere un fallback per chiavi non presenti nel `fieldMap` statico: se la chiave corrisponde a un campo custom (UUID), recuperare il valore da `opportunity.custom_field_values` o simile. Dato che i valori custom non sono inclusi nella query attuale delle opportunita, per ora mostrare "—" e documentare come miglioramento futuro.
 
-3. **Nessuna modifica alla barra azioni**: le icone in basso restano sempre visibili (sono azioni, non campi dati)
-
+### Toast conferma
+Aggiungere `toast.success("Personalizzazione applicata")` nel callback `onApply` in `MarketingOpportunities.tsx`.
