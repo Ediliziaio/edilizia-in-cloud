@@ -312,6 +312,8 @@ export default function MarketingContacts() {
           source: editingContact.source || "",
         } : undefined}
         isEditing={!!editingContact}
+        companyId={companyId}
+        editingContactId={editingContact?.id}
       />
 
     </div>
