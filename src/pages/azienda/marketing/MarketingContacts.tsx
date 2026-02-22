@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { ContactsTable, type MarketingContact } from "@/components/marketing/ContactsTable";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+import { syncTagsToOpportunities } from "@/hooks/useTagSync";
 
 const CSV_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true },
@@ -84,8 +85,13 @@ export default function MarketingContacts() {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: async (_, formData) => {
       toast.success(editingContact ? "Contatto aggiornato" : "Contatto aggiunto");
+      // Sync tags to linked opportunities when editing
+      if (editingContact && formData.tags.length > 0) {
+        await syncTagsToOpportunities(editingContact.id, formData.tags);
+        queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
+      }
       invalidate();
       setEditingContact(null);
     },

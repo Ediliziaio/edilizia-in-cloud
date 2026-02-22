@@ -31,6 +31,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 
 // ── Inline editable field ──
 function InlineField({ label, value, onSave, type = "text", options }: {
@@ -530,12 +531,17 @@ export default function MarketingContactDetail() {
                   </PopoverTrigger>
                   <PopoverContent className="w-64 p-0" align="end">
                     <div className="p-2">
-                      <TagSelector
-                        selectedTags={contact.tags || []}
-                        onTagsChange={(tags) => {
-                          updateField.mutate({ field: "tags", value: tags });
-                        }}
-                      />
+                    <TagSelector
+                      selectedTags={contact.tags || []}
+                      onTagsChange={async (tags) => {
+                        updateField.mutate({ field: "tags", value: tags });
+                        // Sync new tags to linked opportunities
+                        if (tags.length > 0 && id) {
+                          await syncTagsToOpportunities(id, tags);
+                          queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
+                        }
+                      }}
+                    />
                     </div>
                   </PopoverContent>
                 </Popover>
@@ -545,8 +551,13 @@ export default function MarketingContactDetail() {
                   {contact.tags.map((tag: string) => (
                     <Badge key={tag} variant="secondary" className="text-[11px] px-1.5 py-0 gap-1 h-5">
                       {tag}
-                      <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => {
+                      <X className="h-2.5 w-2.5 cursor-pointer" onClick={async () => {
                         updateField.mutate({ field: "tags", value: contact.tags.filter((t: string) => t !== tag) });
+                        // Remove tag from linked opportunities too
+                        if (id) {
+                          await removeTagFromOpportunities(id, tag);
+                          queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
+                        }
                       }} />
                     </Badge>
                   ))}

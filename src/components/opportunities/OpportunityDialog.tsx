@@ -14,6 +14,7 @@ import { Loader2, User, UserPlus, FileText, Settings2, DatabaseZap } from "lucid
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { useNavigate } from "react-router-dom";
+import { syncTagsToContact } from "@/hooks/useTagSync";
 
 interface Props {
   open: boolean;
@@ -163,9 +164,10 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         onSuccess: async (data: any) => {
           const oppId = data?.id;
           if (oppId) {
-            // Save tags
+            // Save tags and sync to contact
             if (tags.length > 0) {
               await supabase.from("marketing_opportunities").update({ tags }).eq("id", oppId);
+              await syncTagsToContact(contactId, tags);
             }
             // Save custom field values
             if (Object.keys(customFieldValues).length > 0) {
