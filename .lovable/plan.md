@@ -1,66 +1,77 @@
 
 
-# Vista Lista + Miglioramento Selezione Opportunita
+# Sincronizzazione Tag tra Contatti e Opportunita
 
-## 1. Nuova Vista Lista (come GHL)
+## Problema attuale
 
-Creare un nuovo componente `OpportunityListView` che replica la tabella vista nello screenshot GHL:
+I tag dei contatti (`marketing_contacts.tags`) e delle opportunita (`marketing_opportunities.tags`) sono completamente indipendenti. Se aggiungo un tag "caldo" a un contatto, l'opportunita collegata non lo mostra, e viceversa.
 
-**Colonne**:
-| Colonna | Contenuto |
-|---------|-----------|
-| Checkbox | Selezione multipla |
-| Nome opportunita | Nome contatto + citta |
-| Contatto | Avatar (iniziali colorate) + nome |
-| Fase | Nome della fase corrente |
-| Valore | EUR formattato |
-| Stato | Badge (aperta/vinta/persa/abbandonata) |
-| Titolare | Nome del profilo assegnato |
-| Etichette | Badge tag con "+N" se piu di uno |
-| Fonte | Sorgente lead |
-| Creato il | Data formattata |
-| Aggiornato il | Data formattata |
+## Strategia di sincronizzazione
 
-- Click su riga apre `OpportunityDetailDialog`
-- Checkbox per selezione (condivide lo stesso `selectedIds` della vista Kanban)
-- Header checkbox per "seleziona tutti visibili"
-
-**Nuovo file**: `src/components/opportunities/OpportunityListView.tsx`
+La logica e: quando si salvano i tag su un'opportunita, i tag vengono **uniti** (merge) a quelli del contatto collegato. Quando si salvano i tag su un contatto, i tag vengono uniti a tutte le opportunita collegate a quel contatto. In questo modo nessun tag viene perso.
 
 ---
 
-## 2. Toggle Vista Griglia/Lista
+## Modifiche
 
-Aggiungere stato `viewMode: "kanban" | "list"` in `MarketingOpportunities.tsx`:
-- Bottone `LayoutGrid` attiva kanban (default)
-- Bottone `List` attiva lista
-- Evidenziare il bottone attivo con `variant="default"` o `bg-muted`
-- Rendering condizionale: se `viewMode === "list"` mostra `OpportunityListView`, altrimenti `OpportunityKanbanView`
+### 1. OpportunityDetailDialog - Sync opp -> contatto
 
-**File modificato**: `src/pages/azienda/marketing/MarketingOpportunities.tsx`
+Quando si salva un'opportunita con tag modificati, dopo l'update dell'opportunita, aggiornare anche il contatto collegato unendo i tag:
 
----
+```
+contatto.tags = [...new Set([...contatto.tags_attuali, ...opp.tags_nuovi])]
+```
 
-## 3. Miglioramento Selezione
+**File**: `src/components/opportunities/OpportunityDetailDialog.tsx` - nel `handleSave`, dopo `updateOpp.mutate`, aggiungere update del contatto con tag merged.
 
-- Aggiungere checkbox "seleziona tutti" nell'header della lista
-- In kanban: migliorare la visibilita del checkbox (renderlo sempre visibile, non solo su hover)
-- La barra bulk actions gia esistente funziona con entrambe le viste perche condividono `selectedIds`
-- Quando si cambia vista, mantenere la selezione attiva
+### 2. OpportunityDialog (creazione) - Sync opp -> contatto
+
+Quando si crea un'opportunita con tag, aggiornare anche il contatto collegato con i tag uniti.
+
+**File**: `src/components/opportunities/OpportunityDialog.tsx` - nel `onSuccess` di `createOpportunity`, dopo il save dei tag, fare merge con il contatto.
+
+### 3. MarketingContactDetail - Sync contatto -> opportunita
+
+Quando si modificano i tag di un contatto dalla pagina dettaglio contatto, aggiornare tutte le opportunita collegate unendo i tag.
+
+**File**: `src/pages/azienda/marketing/MarketingContactDetail.tsx` - nella `onTagsChange` e nella rimozione tag, dopo l'update del contatto, aggiornare le opportunita collegate.
+
+### 4. MarketingContacts (lista contatti) - Sync contatto -> opportunita
+
+Quando si salvano i tag dal dialog di modifica contatto nella lista, sincronizzare anche verso le opportunita.
+
+**File**: `src/pages/azienda/marketing/MarketingContacts.tsx` - nella callback `onSave` del `ContactDialog`, aggiungere sync.
+
+### 5. Hook di utilita per la sync
+
+Creare una funzione riutilizzabile per la sincronizzazione bidirezionale dei tag:
+
+```typescript
+// Merge tags from opportunity to contact
+async function syncTagsToContact(contactId: string, newTags: string[])
+
+// Merge tags from contact to all linked opportunities  
+async function syncTagsToOpportunities(contactId: string, newTags: string[])
+```
+
+**Nuovo file**: `src/hooks/useTagSync.ts`
 
 ---
 
 ## Riepilogo file
 
-| File | Tipo |
-|------|------|
-| `src/components/opportunities/OpportunityListView.tsx` | Nuovo |
-| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Modifica: stato viewMode, toggle, rendering condizionale |
+| File | Tipo | Modifica |
+|------|------|----------|
+| `src/hooks/useTagSync.ts` | Nuovo | Hook con funzioni `syncTagsToContact` e `syncTagsToOpportunities` |
+| `src/components/opportunities/OpportunityDetailDialog.tsx` | Modifica | Chiamare `syncTagsToContact` nel `handleSave` |
+| `src/components/opportunities/OpportunityDialog.tsx` | Modifica | Chiamare `syncTagsToContact` nella creazione |
+| `src/pages/azienda/marketing/MarketingContactDetail.tsx` | Modifica | Chiamare `syncTagsToOpportunities` quando cambiano i tag contatto |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Modifica | Chiamare `syncTagsToOpportunities` nel salvataggio contatto |
 
 ## Dettagli tecnici
 
-- `OpportunityListView` riceve le stesse props di `OpportunityKanbanView`: `stages`, `opportunities`, `selectedIds`, `onSelect`
-- Usa i componenti `Table` di shadcn/ui gia presenti nel progetto
-- Il formato date usa `date-fns` (gia installato) con locale italiano
-- Avatar contatto: cerchio colorato con iniziale (colore derivato dal nome tramite hash semplice)
-- La tabella e scrollabile orizzontalmente su mobile
+- La sync usa un **merge** (unione) dei tag, non una sovrascrittura. Se il contatto ha `["caldo"]` e l'opportunita aggiunge `["urgente"]`, il contatto avra `["caldo", "urgente"]`
+- La rimozione di un tag da un contatto lo rimuove anche dalle opportunita collegate
+- La rimozione di un tag da un'opportunita lo rimuove solo dall'opportunita, non dal contatto (il contatto potrebbe avere quel tag per altre ragioni)
+- Le query di sync usano il Supabase client standard con filtro `contact_id`
+- Dopo la sync, `queryClient.invalidateQueries` aggiorna entrambe le cache
