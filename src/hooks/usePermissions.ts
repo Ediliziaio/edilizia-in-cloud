@@ -17,6 +17,8 @@ export interface Permissions {
   canViewForecast: boolean;
   canViewSettings: boolean;
   canViewUsers: boolean;
+  canViewMarketing: boolean;
+  canEditMarketing: boolean;
   isAdmin: boolean;
   isLoading: boolean;
   onlyAssigned: boolean;
@@ -37,6 +39,8 @@ const ALL_PERMISSIONS: Permissions = {
   canViewForecast: true,
   canViewSettings: true,
   canViewUsers: true,
+  canViewMarketing: true,
+  canEditMarketing: true,
   isAdmin: true,
   isLoading: false,
   onlyAssigned: false,
@@ -57,6 +61,8 @@ const NO_PERMISSIONS: Permissions = {
   canViewForecast: false,
   canViewSettings: false,
   canViewUsers: false,
+  canViewMarketing: false,
+  canEditMarketing: false,
   isAdmin: false,
   isLoading: false,
   onlyAssigned: false,
@@ -110,6 +116,8 @@ export function usePermissions(): Permissions {
       canViewForecast: permissions?.can_view_forecast ?? false,
       canViewSettings: permissions?.can_view_settings ?? false,
       canViewUsers: false,
+      canViewMarketing: (permissions as any)?.can_view_marketing ?? false,
+      canEditMarketing: (permissions as any)?.can_edit_marketing ?? false,
       isAdmin: false,
       isLoading: false,
       onlyAssigned: permissions?.only_assigned ?? false,
