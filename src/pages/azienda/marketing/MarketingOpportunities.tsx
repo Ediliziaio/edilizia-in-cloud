@@ -14,7 +14,8 @@ import { OpportunityFiltersSheet, OpportunityFilters, EMPTY_FILTERS, countActive
 import { BulkEditSheet } from "@/components/opportunities/BulkEditSheet";
 import { usePipelines, useOpportunities, useCompanyStaff, useBulkDeleteOpportunities } from "@/hooks/useOpportunitiesData";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
-import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+import { ImportWizard } from "@/components/shared/ImportWizard";
+import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { exportToCSV } from "@/lib/csvExport";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -362,19 +363,20 @@ function MarketingOpportunitiesContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <CSVImportDialog
+      <ImportWizard
         open={importOpen}
-        onOpenChange={setImportOpen}
-        title="Importa Opportunità"
-        fields={OPP_IMPORT_FIELDS}
-        onImport={async (rows) => {
+        onClose={() => setImportOpen(false)}
+        defaultObjectType="opportunities"
+        contactFields={[]}
+        opportunityFields={OPP_IMPORT_FIELDS}
+        onImportContacts={async () => ({ success: 0, errors: [] })}
+        onImportOpportunities={async (rows) => {
           if (!companyId || !selectedPipelineId || stages.length === 0) {
             return { success: 0, errors: ["Seleziona una pipeline con almeno una fase"] };
           }
           const defaultStageId = stages.sort((a: any, b: any) => a.position - b.position)[0].id;
           let success = 0;
           const errors: string[] = [];
-
           for (let i = 0; i < rows.length; i++) {
             const r = rows[i];
             try {
@@ -382,56 +384,26 @@ function MarketingOpportunitiesContent() {
               const lastName = r.contact_last_name?.trim() || null;
               const email = r.contact_email?.trim() || null;
               const phone = r.contact_phone?.trim() || null;
-
-              // Try find existing contact by email or phone
               let contactId: string | null = null;
               if (email) {
-                const { data: found } = await supabase
-                  .from("marketing_contacts")
-                  .select("id")
-                  .eq("company_id", companyId)
-                  .eq("email", email)
-                  .limit(1)
-                  .single();
+                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("email", email).limit(1).single();
                 if (found) contactId = found.id;
               }
               if (!contactId && phone) {
-                const { data: found } = await supabase
-                  .from("marketing_contacts")
-                  .select("id")
-                  .eq("company_id", companyId)
-                  .eq("phone", phone)
-                  .limit(1)
-                  .single();
+                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("phone", phone).limit(1).single();
                 if (found) contactId = found.id;
               }
-
-              // Create contact if not found
               if (!contactId) {
-                const { data: newContact, error: cErr } = await supabase
-                  .from("marketing_contacts")
-                  .insert({ company_id: companyId, first_name: firstName, last_name: lastName, email, phone })
-                  .select("id")
-                  .single();
+                const { data: newContact, error: cErr } = await supabase.from("marketing_contacts").insert({ company_id: companyId, first_name: firstName, last_name: lastName, email, phone }).select("id").single();
                 if (cErr) throw cErr;
                 contactId = newContact!.id;
               }
-
-              // Create opportunity
               const tags = r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [];
-              const { error: oErr } = await supabase
-                .from("marketing_opportunities")
-                .insert({
-                  company_id: companyId,
-                  pipeline_id: selectedPipelineId,
-                  stage_id: defaultStageId,
-                  contact_id: contactId!,
-                  name: r.name?.trim() || `Opportunità ${i + 1}`,
-                  value: parseFloat(r.value) || 0,
-                  source: r.source?.trim() || "importazione",
-                  tags,
-                  notes: r.notes?.trim() || null,
-                });
+              const { error: oErr } = await supabase.from("marketing_opportunities").insert({
+                company_id: companyId, pipeline_id: selectedPipelineId, stage_id: defaultStageId,
+                contact_id: contactId!, name: r.name?.trim() || `Opportunità ${i + 1}`,
+                value: parseFloat(r.value) || 0, source: r.source?.trim() || "importazione", tags, notes: r.notes?.trim() || null,
+              });
               if (oErr) throw oErr;
               success++;
             } catch (err: any) {
