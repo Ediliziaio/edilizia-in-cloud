@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +13,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import type { CustomFieldDef } from "./ContactFieldsSheet";
 
 export interface MarketingContact {
   id: string;
@@ -76,15 +77,15 @@ export const DEFAULT_VISIBLE: ColumnKey[] = ["name", "phone", "email", "company_
 
 const STORAGE_KEY = "contacts-visible-columns";
 
-export function loadVisibleColumns(): Set<ColumnKey> {
+export function loadVisibleColumns(): Set<string> {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return new Set(JSON.parse(stored) as ColumnKey[]);
+    if (stored) return new Set(JSON.parse(stored) as string[]);
   } catch {}
   return new Set(DEFAULT_VISIBLE);
 }
 
-export function saveVisibleColumns(cols: Set<ColumnKey>) {
+export function saveVisibleColumns(cols: Set<string>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(cols)));
 }
 
@@ -104,7 +105,9 @@ interface ContactsTableProps {
   sortDirection: SortDirection;
   onSort: (field: SortField, direction: SortDirection) => void;
   bulkActions?: React.ReactNode;
-  visibleColumns: Set<ColumnKey>;
+  visibleColumns: Set<string>;
+  customFields?: CustomFieldDef[];
+  customFieldValues?: Record<string, Record<string, string>>;
 }
 
 const AVATAR_COLORS = [
@@ -143,19 +146,105 @@ function SortIcon({ field, currentField, direction }: { field: string; currentFi
   );
 }
 
+function renderStaticCell(col: { key: string; label: string }, c: MarketingContact, cls: string, navigate: ReturnType<typeof useNavigate>) {
+  const fullName = `${c.first_name} ${c.last_name || ""}`.trim();
+  switch (col.key) {
+    case "name":
+      return (
+        <TableCell key={col.key} className={cls}>
+          <div className="flex items-center gap-2">
+            <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0 ${getAvatarColor(fullName)}`}>
+              {getInitials(c.first_name, c.last_name)}
+            </div>
+            <span className="font-medium text-sm text-primary hover:underline cursor-pointer" onClick={() => navigate(`/azienda/marketing/contatti/${c.id}`)}>
+              {fullName}
+            </span>
+          </div>
+        </TableCell>
+      );
+    case "phone":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.phone || "—"}</TableCell>;
+    case "email":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.email || "—"}</TableCell>;
+    case "company_name":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.company_name || "—"}</TableCell>;
+    case "created_at":
+      return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.created_at)}</TableCell>;
+    case "last_activity_at":
+      return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.last_activity_at)}</TableCell>;
+    case "tags":
+      return (
+        <TableCell key={col.key} className={cls}>
+          <div className="flex flex-wrap gap-1">
+            {c.tags.map((tag) => (
+              <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
+            ))}
+          </div>
+        </TableCell>
+      );
+    case "source":
+      return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{c.source || "—"}</TableCell>;
+    case "city":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.city || "—"}</TableCell>;
+    case "province":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.province || "—"}</TableCell>;
+    case "address":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.address || "—"}</TableCell>;
+    case "postal_code":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.postal_code || "—"}</TableCell>;
+    case "country":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.country || "—"}</TableCell>;
+    case "contact_type":
+      return (
+        <TableCell key={col.key} className={cls}>
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.contact_type || "lead"}</Badge>
+        </TableCell>
+      );
+    case "date_of_birth":
+      return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.date_of_birth)}</TableCell>;
+    case "website":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.website || "—"}</TableCell>;
+    case "notes_col":
+      return <TableCell key={col.key} className={`text-muted-foreground text-xs max-w-[150px] truncate ${cls}`}>{c.notes || "—"}</TableCell>;
+    case "opp_name":
+      return <TableCell key={col.key} className={`text-sm ${cls}`}>{c.opp_name || "—"}</TableCell>;
+    case "opp_value":
+      return <TableCell key={col.key} className={`text-sm ${cls}`}>{c.opp_value != null ? formatCurrency(c.opp_value) : "—"}</TableCell>;
+    case "opp_status":
+      return (
+        <TableCell key={col.key} className={cls}>
+          {c.opp_status ? <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.opp_status}</Badge> : "—"}
+        </TableCell>
+      );
+    case "opp_pipeline":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.opp_pipeline || "—"}</TableCell>;
+    case "opp_stage":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.opp_stage || "—"}</TableCell>;
+    default:
+      return null;
+  }
+}
+
 export function ContactsTable({
   contacts, totalCount, selectedIds, onToggleSelect, onToggleAll,
   onEdit, onDelete, page, pageSize, onPageChange, onPageSizeChange,
   sortField, sortDirection, onSort, bulkActions, visibleColumns,
+  customFields = [], customFieldValues = {},
 }: ContactsTableProps) {
   const navigate = useNavigate();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const allSelected = contacts.length > 0 && contacts.every((c) => selectedIds.has(c.id));
 
-  const isVisible = (key: ColumnKey) => key === "name" || visibleColumns.has(key);
+  const isVisible = (key: string) => key === "name" || visibleColumns.has(key);
 
-  const handleSort = (col: typeof COLUMNS[number]) => {
-    if (!("sortField" in col) || !col.sortField) return;
+  const allCols = useMemo(() => {
+    const staticCols = COLUMNS.map(c => ({ key: c.key as string, label: c.label, sortField: "sortField" in c ? c.sortField : undefined }));
+    const cfCols = customFields.map(f => ({ key: `cf_${f.id}`, label: f.name, sortField: undefined as SortField | undefined }));
+    return [...staticCols, ...cfCols];
+  }, [customFields]);
+
+  const handleSort = (col: { key: string; sortField?: SortField }) => {
+    if (!col.sortField) return;
     const sf = col.sortField;
     if (sortField === sf) {
       onSort(sf, sortDirection === "asc" ? "desc" : "asc");
@@ -164,12 +253,11 @@ export function ContactsTable({
     }
   };
 
-  const visibleCols = COLUMNS.filter((c) => isVisible(c.key));
+  const visibleCols = allCols.filter((c) => isVisible(c.key));
   const borderClass = "border-r border-border/30";
 
   return (
     <div className="space-y-3">
-      {/* Bulk actions */}
       {selectedIds.size > 0 && (
         <div className="flex items-center gap-3 bg-muted/50 rounded-lg px-4 py-2 text-sm">
           <span className="font-medium">{selectedIds.size} selezionati</span>
@@ -189,7 +277,7 @@ export function ContactsTable({
               </TableHead>
               {visibleCols.map((col, i) => {
                 const isLast = i === visibleCols.length - 1;
-                const sortable = "sortField" in col && !!col.sortField;
+                const sortable = !!col.sortField;
                 return (
                   <TableHead
                     key={col.key}
@@ -216,100 +304,31 @@ export function ContactsTable({
                 </TableCell>
               </TableRow>
             ) : (
-              contacts.map((c) => {
-                const fullName = `${c.first_name} ${c.last_name || ""}`.trim();
-                return (
-                  <TableRow key={c.id} className="group">
-                    <TableCell className={`py-1.5 ${borderClass}`}>
-                      <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => onToggleSelect(c.id)} />
-                    </TableCell>
-                    {visibleCols.map((col, i) => {
-                      const isLast = i === visibleCols.length - 1;
-                      const cls = `py-1.5 ${!isLast ? borderClass : ""}`;
-                      switch (col.key) {
-                        case "name":
-                          return (
-                            <TableCell key={col.key} className={cls}>
-                              <div className="flex items-center gap-2">
-                                <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0 ${getAvatarColor(fullName)}`}>
-                                  {getInitials(c.first_name, c.last_name)}
-                                </div>
-                                <span className="font-medium text-sm text-primary hover:underline cursor-pointer" onClick={() => navigate(`/azienda/marketing/contatti/${c.id}`)}>
-                                  {fullName}
-                                </span>
-                              </div>
-                            </TableCell>
-                          );
-                        case "phone":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.phone || "—"}</TableCell>;
-                        case "email":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.email || "—"}</TableCell>;
-                        case "company_name":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.company_name || "—"}</TableCell>;
-                        case "created_at":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.created_at)}</TableCell>;
-                        case "last_activity_at":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.last_activity_at)}</TableCell>;
-                        case "tags":
-                          return (
-                            <TableCell key={col.key} className={cls}>
-                              <div className="flex flex-wrap gap-1">
-                                {c.tags.map((tag) => (
-                                  <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
-                                ))}
-                              </div>
-                            </TableCell>
-                          );
-                        case "source":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{c.source || "—"}</TableCell>;
-                        case "city":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.city || "—"}</TableCell>;
-                        case "province":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.province || "—"}</TableCell>;
-                        case "address":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.address || "—"}</TableCell>;
-                        case "postal_code":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.postal_code || "—"}</TableCell>;
-                        case "country":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.country || "—"}</TableCell>;
-                        case "contact_type":
-                          return (
-                            <TableCell key={col.key} className={cls}>
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.contact_type || "lead"}</Badge>
-                            </TableCell>
-                          );
-                        case "date_of_birth":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.date_of_birth)}</TableCell>;
-                        case "website":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.website || "—"}</TableCell>;
-                        case "notes_col":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-xs max-w-[150px] truncate ${cls}`}>{c.notes || "—"}</TableCell>;
-                        case "opp_name":
-                          return <TableCell key={col.key} className={`text-sm ${cls}`}>{c.opp_name || "—"}</TableCell>;
-                        case "opp_value":
-                          return <TableCell key={col.key} className={`text-sm ${cls}`}>{c.opp_value != null ? formatCurrency(c.opp_value) : "—"}</TableCell>;
-                        case "opp_status":
-                          return (
-                            <TableCell key={col.key} className={cls}>
-                              {c.opp_status ? <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.opp_status}</Badge> : "—"}
-                            </TableCell>
-                          );
-                        case "opp_pipeline":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.opp_pipeline || "—"}</TableCell>;
-                        case "opp_stage":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.opp_stage || "—"}</TableCell>;
-                        default:
-                          return null;
-                      }
-                    })}
-                    <TableCell className="py-1.5">
-                      <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => onEdit(c)}>
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              contacts.map((c) => (
+                <TableRow key={c.id} className="group">
+                  <TableCell className={`py-1.5 ${borderClass}`}>
+                    <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => onToggleSelect(c.id)} />
+                  </TableCell>
+                  {visibleCols.map((col, i) => {
+                    const isLast = i === visibleCols.length - 1;
+                    const cls = `py-1.5 ${!isLast ? borderClass : ""}`;
+
+                    // Custom field
+                    if (col.key.startsWith("cf_")) {
+                      const fieldId = col.key.replace("cf_", "");
+                      const val = customFieldValues[c.id]?.[fieldId] || "—";
+                      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{val}</TableCell>;
+                    }
+
+                    return renderStaticCell(col, c, cls, navigate);
+                  })}
+                  <TableCell className="py-1.5">
+                    <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => onEdit(c)}>
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
