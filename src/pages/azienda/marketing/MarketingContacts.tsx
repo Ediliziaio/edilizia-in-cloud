@@ -175,7 +175,7 @@ export default function MarketingContacts() {
 
     for (const rule of rules) {
       if (rule.field === "tags") tagRules.push(rule);
-      else if (rule.field.startsWith("opp_") || rule.field === "opp_status" || rule.field === "opp_stage") oppRules.push(rule);
+      else if (rule.field.startsWith("opp_")) oppRules.push(rule);
       else if (rule.field.startsWith("cf_")) cfRules.push(rule);
       else if (FIELD_TO_COLUMN[rule.field]) standardRules.push(rule);
     }
