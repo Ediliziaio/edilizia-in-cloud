@@ -1,57 +1,45 @@
 
-# Fix Tag Badge e Sincronizzazione Tag Bidirezionale
+# Stabilizzazione e Fix Sincronizzazione Tag Bidirezionale
 
-## Problema 1: Badge tag visibili sotto il nome della card
+## Analisi completata
 
-Nella card opportunita (screenshot dell'utente), i tag come "facebook" appaiono come badge sotto il nome. L'utente non li vuole li - devono essere visibili solo tramite l'icona etichetta nella barra azioni in basso (che gia mostra il conteggio).
+Il codebase e stato analizzato in dettaglio. Console pulita, nessun errore runtime. I moduli principali (Contatti, Opportunita, Card, Import/Export) sono stabili. Un solo bug funzionale residuo identificato.
 
-**File**: `src/components/opportunities/OpportunityCard.tsx` (righe 165-179)
+## Bug: Rimozione tag da contatto (lista) non sincronizzata alle opportunita
 
-**Fix**: Rimuovere completamente il blocco che renderizza i badge tag sotto il nome. I tag resteranno visibili solo tramite l'icona Tag nella action bar con il badge numerico.
+**Scenario**: L'utente modifica un contatto dalla pagina Contatti (`MarketingContacts.tsx`), rimuove un tag, salva. Il tag viene rimosso dal contatto ma resta nelle opportunita collegate.
 
-## Problema 2: Rimozione tag non sincronizzata tra opportunita e contatti
+**Causa**: In `MarketingContacts.tsx` riga 89-95, il callback `onSuccess` della mutation di salvataggio chiama solo `syncTagsToOpportunities(editingContact.id, formData.tags)` che aggiunge tag mancanti alle opportunita, ma non rimuove quelli eliminati dal contatto.
 
-Attualmente:
-- Quando si aggiunge un tag a un'opportunita, viene sincronizzato al contatto (solo aggiunta)
-- Quando si aggiunge un tag a un contatto, viene sincronizzato alle opportunita (solo aggiunta)
-- Quando si rimuove un tag da un contatto, viene rimosso dalle opportunita collegate (funziona)
-- Quando si rimuove un tag da un'opportunita, NON viene rimosso dal contatto (manca)
+La pagina dettaglio contatto (`MarketingContactDetail.tsx`) gestisce correttamente questo caso usando `removeTagFromOpportunities`.
 
-**File**: `src/hooks/useTagSync.ts`
+**File**: `src/pages/azienda/marketing/MarketingContacts.tsx` (righe 89-96)
 
-**Fix**: Aggiungere una nuova funzione `removeTagFromContact` che, dato un contactId e un tag rimosso, lo rimuove dal contatto collegato. Inoltre, modificare `syncTagsToContact` per gestire anche le rimozioni (non solo le aggiunte).
-
-**File**: `src/components/opportunities/OpportunityDetailDialog.tsx` (righe 256-260)
-
-**Fix**: Dopo il salvataggio dell'opportunita, confrontare i tag precedenti con quelli nuovi. Per i tag rimossi, chiamare `removeTagFromContact`. Per i tag aggiunti, chiamare `syncTagsToContact` (gia esistente).
-
-## Problema 3: Pulizia import Badge inutilizzato
-
-Dopo la rimozione dei badge tag dalla card, l'import di `Badge` in `OpportunityCard.tsx` non sara piu necessario e verra rimosso.
+**Fix**: Nel callback `onSuccess`, confrontare i tag originali del contatto (`editingContact.tags`) con quelli nuovi (`formData.tags`). Per i tag rimossi, chiamare `removeTagFromOpportunities`. Per i tag aggiunti, mantenere la chiamata esistente a `syncTagsToOpportunities`.
 
 ## Riepilogo modifiche
 
 | File | Tipo | Descrizione |
 |------|------|-------------|
-| `src/components/opportunities/OpportunityCard.tsx` | UX Fix | Rimuovere badge tag sotto il nome + rimuovere import Badge |
-| `src/hooks/useTagSync.ts` | Bug Fix | Aggiungere funzione `removeTagFromContact` per sincronizzazione bidirezionale |
-| `src/components/opportunities/OpportunityDetailDialog.tsx` | Bug Fix | Chiamare `removeTagFromContact` quando un tag viene rimosso dall'opportunita |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Bug Fix | Sincronizzare rimozione tag dal contatto alle opportunita collegate |
 
 ## Dettagli tecnici
 
-### useTagSync.ts - Nuova funzione
+### MarketingContacts.tsx - Fix onSuccess
 
-```text
-removeTagFromContact(contactId, removedTag):
-  1. Recupera i tag attuali del contatto
-  2. Se il tag e presente, lo rimuove
-  3. Aggiorna il contatto con i tag filtrati
-```
+Importare `removeTagFromOpportunities` da `@/hooks/useTagSync` (gia importato `syncTagsToOpportunities`).
 
-### OpportunityDetailDialog.tsx - Logica di confronto
+Nel callback `onSuccess` della `saveMutation`:
+1. Calcolare `originalTags = editingContact.tags || []`
+2. Calcolare `addedTags = formData.tags.filter(t => !originalTags.includes(t))`
+3. Calcolare `removedTags = originalTags.filter(t => !formData.tags.includes(t))`
+4. Per i tag aggiunti: chiamare `syncTagsToOpportunities(editingContact.id, addedTags)`
+5. Per i tag rimossi: chiamare `removeTagFromOpportunities(editingContact.id, removedTag)` per ciascuno
+6. Invalidare la query delle opportunita
 
-Nella funzione `handleSave`, prima del salvataggio:
-1. Salvare i tag originali dell'opportunita (`opportunity.tags`)
-2. Dopo il successo, confrontare tag vecchi vs nuovi
-3. Per ogni tag rimosso (presente nei vecchi ma non nei nuovi), chiamare `removeTagFromContact(contactId, removedTag)`
-4. Per i tag aggiunti, mantenere la chiamata a `syncTagsToContact` esistente
+### Risultato verifiche
+
+- Console pulita: nessun errore
+- Nessun codice morto o import inutilizzato identificato nei file modificati di recente
+- Flussi contatti/opportunita/import/export funzionanti
+- UX coerente con feedback toast su tutte le azioni
