@@ -43,10 +43,10 @@ export const internalNavItems: NavItem[] = [
 ];
 
 export const marketingNavItems: NavItem[] = [
-  { title: "Dashboard", url: "/azienda/marketing", icon: LayoutDashboard, category: "marketing" },
-  { title: "Contatti", url: "/azienda/marketing/contatti", icon: Contact, category: "marketing" },
-  { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, category: "marketing" },
-  { title: "Calendario", url: "/azienda/marketing/calendario", icon: CalendarDays, category: "marketing" },
-  { title: "Automazioni", url: "/azienda/marketing/automazioni", icon: Zap, category: "marketing" },
-  { title: "Agente AI", url: "/azienda/marketing/agente-ai", icon: Bot, category: "marketing" },
+  { title: "Dashboard", url: "/azienda/marketing", icon: LayoutDashboard, permissionKey: "canViewMarketing", category: "marketing" },
+  { title: "Contatti", url: "/azienda/marketing/contatti", icon: Contact, permissionKey: "canViewMarketing", category: "marketing" },
+  { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketing", category: "marketing" },
+  { title: "Calendario", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketing", category: "marketing" },
+  { title: "Automazioni", url: "/azienda/marketing/automazioni", icon: Zap, permissionKey: "canViewMarketing", category: "marketing" },
+  { title: "Agente AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketing", category: "marketing" },
 ];
