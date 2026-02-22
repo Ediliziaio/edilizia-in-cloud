@@ -14,19 +14,30 @@ import { PipelineStagesConfig } from "./PipelineStagesConfig";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
-const DEFAULT_STAGES = [
-  "Nuovo Lead",
-  "Contattato",
-  "Qualificato",
-  "Proposta",
-  "Negoziazione",
-  "Chiuso Vinto",
-  "Chiuso Perso",
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const AUTO_STATUS_OPTIONS = [
+  { value: "none", label: "Nessuno" },
+  { value: "open", label: "Aperta" },
+  { value: "won", label: "Vinta" },
+  { value: "lost", label: "Persa" },
+  { value: "abandoned", label: "Abbandonata" },
+];
+
+const DEFAULT_STAGES: CreateStage[] = [
+  { id: "s-0", name: "Nuovo Lead", auto_status: null },
+  { id: "s-1", name: "Contattato", auto_status: null },
+  { id: "s-2", name: "Qualificato", auto_status: null },
+  { id: "s-3", name: "Proposta", auto_status: null },
+  { id: "s-4", name: "Negoziazione", auto_status: null },
+  { id: "s-5", name: "Chiuso Vinto", auto_status: "won" },
+  { id: "s-6", name: "Chiuso Perso", auto_status: "lost" },
 ];
 
 interface CreateStage {
   id: string;
   name: string;
+  auto_status: string | null;
 }
 
 export function PipelinesConfig() {
@@ -60,12 +71,12 @@ export function PipelinesConfig() {
 
   function openCreateDialog() {
     setNewName("");
-    setCreateStages(DEFAULT_STAGES.map((name, i) => ({ id: `s-${i}-${Date.now()}`, name })));
+    setCreateStages(DEFAULT_STAGES.map((s, i) => ({ ...s, id: `s-${i}-${Date.now()}` })));
     setCreateOpen(true);
   }
 
   function handleAddCreateStage() {
-    setCreateStages((prev) => [...prev, { id: `s-${Date.now()}`, name: "Nuova fase" }]);
+    setCreateStages((prev) => [...prev, { id: `s-${Date.now()}`, name: "Nuova fase", auto_status: null }]);
   }
 
   function handleUpdateCreateStage(id: string, name: string) {
@@ -77,8 +88,7 @@ export function PipelinesConfig() {
   }
 
   const createPipeline = useMutation({
-    mutationFn: async ({ name, stages }: { name: string; stages: string[] }) => {
-      // Create pipeline
+    mutationFn: async ({ name, stages }: { name: string; stages: CreateStage[] }) => {
       const { data: pipeline, error: pipelineError } = await supabase
         .from("marketing_pipelines")
         .insert({ company_id: companyId!, name, position: pipelines.length })
@@ -86,13 +96,13 @@ export function PipelinesConfig() {
         .single();
       if (pipelineError) throw pipelineError;
 
-      // Create stages in batch
       if (stages.length > 0) {
-        const stagesToInsert = stages.map((stageName, idx) => ({
+        const stagesToInsert = stages.map((s, idx) => ({
           pipeline_id: pipeline.id,
           company_id: companyId!,
-          name: stageName,
+          name: s.name,
           position: idx,
+          auto_status: s.auto_status,
         }));
         const { error: stagesError } = await supabase.from("marketing_pipeline_stages").insert(stagesToInsert);
         if (stagesError) throw stagesError;
@@ -240,6 +250,19 @@ export function PipelinesConfig() {
                       onChange={(e) => handleUpdateCreateStage(stage.id, e.target.value)}
                       className="h-8 text-sm flex-1"
                     />
+                    <Select
+                      value={stage.auto_status || "none"}
+                      onValueChange={(v) => setCreateStages((prev) => prev.map((s) => s.id === stage.id ? { ...s, auto_status: v === "none" ? null : v } : s))}
+                    >
+                      <SelectTrigger className="h-8 text-xs w-[120px]">
+                        <SelectValue placeholder="Stato" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AUTO_STATUS_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     {createStages.length > 1 && (
                       <Button
                         variant="ghost"
@@ -264,7 +287,7 @@ export function PipelinesConfig() {
             <Button
               onClick={() => createPipeline.mutate({
                 name: newName,
-                stages: createStages.map((s) => s.name).filter((n) => n.trim()),
+                stages: createStages.filter((s) => s.name.trim()),
               })}
               disabled={!newName.trim() || createStages.length === 0 || createPipeline.isPending}
             >

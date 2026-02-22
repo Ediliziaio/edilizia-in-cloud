@@ -12,7 +12,7 @@ export function usePipelines() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_pipelines")
-        .select("*, marketing_pipeline_stages(id, name, position)")
+        .select("*, marketing_pipeline_stages(id, name, position, auto_status)")
         .eq("company_id", companyId!)
         .order("position");
       if (error) throw error;
@@ -105,9 +105,21 @@ export function useUpdateOpportunityStage() {
 
   return useMutation({
     mutationFn: async ({ id, stage_id }: { id: string; stage_id: string }) => {
+      // Check if the target stage has an auto_status
+      const { data: stageData } = await supabase
+        .from("marketing_pipeline_stages")
+        .select("auto_status")
+        .eq("id", stage_id)
+        .single();
+
+      const updateData: any = { stage_id };
+      if (stageData?.auto_status) {
+        updateData.status = stageData.auto_status;
+      }
+
       const { error } = await supabase
         .from("marketing_opportunities")
-        .update({ stage_id })
+        .update(updateData)
         .eq("id", id);
       if (error) throw error;
     },

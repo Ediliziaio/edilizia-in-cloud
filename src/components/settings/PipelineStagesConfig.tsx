@@ -10,19 +10,33 @@ import { CSS } from "@dnd-kit/utilities";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Loader2, GripVertical, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Loader2, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const AUTO_STATUS_OPTIONS = [
+  { value: "none", label: "Nessuno" },
+  { value: "open", label: "Aperta" },
+  { value: "won", label: "Vinta" },
+  { value: "lost", label: "Persa" },
+  { value: "abandoned", label: "Abbandonata" },
+];
 
 interface Stage {
   id: string;
   name: string;
   position: number;
+  auto_status: string | null;
 }
 
-function SortableStage({ stage, onUpdate, onDelete, canDelete }: {
-  stage: Stage; onUpdate: (id: string, name: string) => void; onDelete: (id: string) => void; canDelete: boolean;
+function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChange }: {
+  stage: Stage;
+  onUpdate: (id: string, name: string) => void;
+  onDelete: (id: string) => void;
+  canDelete: boolean;
+  onAutoStatusChange: (id: string, status: string | null) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: stage.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -37,6 +51,19 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete }: {
         onChange={(e) => onUpdate(stage.id, e.target.value)}
         className="h-8 text-sm flex-1"
       />
+      <Select
+        value={stage.auto_status || "none"}
+        onValueChange={(v) => onAutoStatusChange(stage.id, v === "none" ? null : v)}
+      >
+        <SelectTrigger className="h-8 text-xs w-[130px]">
+          <SelectValue placeholder="Stato auto" />
+        </SelectTrigger>
+        <SelectContent>
+          {AUTO_STATUS_OPTIONS.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       {canDelete && (
         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(stage.id)}>
           <Trash2 className="h-3.5 w-3.5" />
@@ -60,7 +87,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_pipeline_stages")
-        .select("id, name, position")
+        .select("id, name, position, auto_status")
         .eq("pipeline_id", pipelineId)
         .order("position");
       if (error) throw error;
@@ -98,8 +125,12 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     setHasChanges(true);
   }, []);
 
+  const handleAutoStatusChange = useCallback((id: string, auto_status: string | null) => {
+    setStages((prev) => prev.map((s) => (s.id === id ? { ...s, auto_status } : s)));
+    setHasChanges(true);
+  }, []);
+
   const handleDelete = useCallback(async (id: string) => {
-    // For existing stages (not temp), check if opportunities are linked
     if (!id.startsWith("temp-")) {
       const { count, error } = await supabase
         .from("marketing_opportunities")
@@ -117,7 +148,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   }, []);
 
   const handleAdd = useCallback(() => {
-    setStages((prev) => [...prev, { id: `temp-${Date.now()}`, name: "Nuova fase", position: prev.length }]);
+    setStages((prev) => [...prev, { id: `temp-${Date.now()}`, name: "Nuova fase", position: prev.length, auto_status: null }]);
     setHasChanges(true);
   }, []);
 
@@ -129,10 +160,8 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       const originalIds = new Set(original.map((s) => s.id));
       const currentIds = new Set(stages.map((s) => s.id));
 
-      // Stages to delete (in original but not in current)
       const toDelete = original.filter((s) => !currentIds.has(s.id));
 
-      // Check if any stage to delete has linked opportunities
       for (const stage of toDelete) {
         const { count, error } = await supabase
           .from("marketing_opportunities")
@@ -146,24 +175,21 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
         }
       }
 
-      // Delete removed stages
       for (const stage of toDelete) {
         const { error } = await supabase.from("marketing_pipeline_stages").delete().eq("id", stage.id);
         if (error) throw error;
       }
 
-      // Update existing stages (position and name)
       for (const stage of stages) {
         if (originalIds.has(stage.id)) {
           const { error } = await supabase
             .from("marketing_pipeline_stages")
-            .update({ name: stage.name, position: stage.position })
+            .update({ name: stage.name, position: stage.position, auto_status: stage.auto_status })
             .eq("id", stage.id);
           if (error) throw error;
         }
       }
 
-      // Insert new stages (temp- ids)
       const toInsert = stages
         .filter((s) => s.id.startsWith("temp-"))
         .map((s) => ({
@@ -171,6 +197,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
           company_id: companyId,
           name: s.name,
           position: s.position,
+          auto_status: s.auto_status,
         }));
 
       if (toInsert.length > 0) {
@@ -198,7 +225,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Fasi di "{pipelineName}"</CardTitle>
-          <CardDescription>Trascina per riordinare le fasi della pipeline</CardDescription>
+          <CardDescription>Trascina per riordinare. Associa uno stato automatico per aggiornare le opportunità.</CardDescription>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleAdd}>
@@ -217,7 +244,14 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
             <SortableContext items={stages.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-2">
                 {stages.map((stage) => (
-                  <SortableStage key={stage.id} stage={stage} onUpdate={handleUpdate} onDelete={handleDelete} canDelete={stages.length > 1} />
+                  <SortableStage
+                    key={stage.id}
+                    stage={stage}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDelete}
+                    canDelete={stages.length > 1}
+                    onAutoStatusChange={handleAutoStatusChange}
+                  />
                 ))}
               </div>
             </SortableContext>

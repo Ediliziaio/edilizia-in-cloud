@@ -1197,6 +1197,7 @@ export type Database = {
       }
       marketing_pipeline_stages: {
         Row: {
+          auto_status: string | null
           company_id: string
           created_at: string
           id: string
@@ -1206,6 +1207,7 @@ export type Database = {
           show_in_reports: boolean
         }
         Insert: {
+          auto_status?: string | null
           company_id: string
           created_at?: string
           id?: string
@@ -1215,6 +1217,7 @@ export type Database = {
           show_in_reports?: boolean
         }
         Update: {
+          auto_status?: string | null
           company_id?: string
           created_at?: string
           id?: string
