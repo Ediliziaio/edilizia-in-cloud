@@ -1,15 +1,15 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Mail, Phone, User, MapPin, DollarSign } from "lucide-react";
+import { Mail, Phone, User, MapPin, DollarSign, Briefcase } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface OpportunityCardProps {
   opportunity: any;
+  onClick?: () => void;
 }
 
-export function OpportunityCard({ opportunity }: OpportunityCardProps) {
+export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) {
   const contact = opportunity.marketing_contacts;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: opportunity.id,
@@ -24,67 +24,77 @@ export function OpportunityCard({ opportunity }: OpportunityCardProps) {
   const fullName = contact ? `${contact.first_name} ${contact.last_name || ""}`.trim() : opportunity.name;
   const initials = contact ? `${contact.first_name?.[0] || ""}${contact.last_name?.[0] || ""}`.toUpperCase() : opportunity.name?.[0]?.toUpperCase() || "?";
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Don't trigger click when dragging
+    if (isDragging) return;
+    onClick?.();
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
+      onClick={handleClick}
       className={cn(
-        "bg-background border rounded-lg p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-shadow space-y-2",
+        "bg-background border rounded-lg p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-2.5",
         isDragging && "opacity-50 shadow-lg"
       )}
     >
       {/* Contact name + assigned */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <Avatar className="h-7 w-7 shrink-0">
+          <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-bold">{initials}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate">{fullName}</p>
+            <p className="text-sm font-semibold truncate">{fullName}</p>
             {contact?.city && (
               <p className="text-[11px] text-muted-foreground flex items-center gap-0.5">
-                <MapPin className="h-3 w-3" /> {contact.city}
+                <MapPin className="h-3 w-3 shrink-0" /> {contact.city}
               </p>
             )}
           </div>
         </div>
         {opportunity.assigned_to && (
-          <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center shrink-0">
-            <User className="h-3 w-3 text-muted-foreground" />
+          <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <User className="h-3 w-3 text-primary" />
           </div>
         )}
       </div>
 
-      {/* Source + Value */}
-      <div className="flex items-center justify-between gap-2">
+      {/* Details with labels */}
+      <div className="space-y-1.5">
         {opportunity.source && (
-          <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{opportunity.source}</Badge>
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <Briefcase className="h-3 w-3 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground">Fonte:</span>
+            <span className="font-medium truncate">{opportunity.source}</span>
+          </div>
         )}
-        {opportunity.value > 0 && (
-          <span className="text-xs font-semibold text-emerald-600 flex items-center gap-0.5">
-            <DollarSign className="h-3 w-3" />
-            {Number(opportunity.value).toLocaleString("it-IT", { minimumFractionDigits: 0 })} €
-          </span>
+        {Number(opportunity.value) > 0 && (
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <DollarSign className="h-3 w-3 text-primary shrink-0" />
+            <span className="text-muted-foreground">Valore:</span>
+            <span className="font-semibold text-primary">
+              EUR {Number(opportunity.value).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        )}
+        {contact?.email && (
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground truncate">{contact.email}</span>
+          </div>
+        )}
+        {contact?.phone && (
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground">{contact.phone}</span>
+          </div>
         )}
       </div>
-
-      {/* Contact info */}
-      {contact && (contact.email || contact.phone) && (
-        <div className="space-y-0.5">
-          {contact.email && (
-            <p className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
-              <Mail className="h-3 w-3 shrink-0" /> {contact.email}
-            </p>
-          )}
-          {contact.phone && (
-            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <Phone className="h-3 w-3 shrink-0" /> {contact.phone}
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
