@@ -1,90 +1,123 @@
 
 
-# Pulizia e stabilizzazione Calendari Marketing
+# Sezione Calendario Marketing (stile GHL)
 
-## Bug trovati
+## Panoramica
 
-1. **Variabile inutilizzata**: `availInitialized` (riga 247) - `useState(false)` mai usato
-2. **Uso errato di useState come side-effect** (righe 270-272): `useState(() => { initAvailability(); })` non e il modo corretto per inizializzare dati. Deve essere `useEffect`
-3. **setState durante il render** (righe 275-297 e 308-322): il pattern `if (key !== prevKey) { setPrevKey(...); setLocalState(...) }` causa aggiornamenti di stato durante il rendering, potenziale fonte di loop infiniti e warning React. Va sostituito con `useEffect`
-4. **Funzione `initAvailability`** (riga 250): definita ma mai chiamata correttamente (solo dal `useState` rotto)
+Trasformare la pagina placeholder `MarketingCalendar.tsx` in una sezione completa con 3 tab nella barra superiore, ispirata a GoHighLevel:
 
-## Soluzione tecnica
-
-### File: `src/components/settings/MarketingCalendarsConfig.tsx`
-
-**Rimozioni:**
-- Variabile `availInitialized` (riga 247)
-- Funzione `initAvailability` standalone (righe 250-267)
-- Pattern `useState(() => { ... })` errato (righe 270-272)
-- Variabili `prevAvailKey` e `prevPrefsKey` con relative logiche di confronto durante il render (righe 275-297, 308-322)
-
-**Sostituzione con useEffect puliti:**
-
-```typescript
-// Sync availability from query data
-useEffect(() => {
-  if (availability.length > 0) {
-    setLocalAvail(
-      availability
-        .filter(a => a.specific_date === null)
-        .map(a => ({
-          day_of_week: a.day_of_week!,
-          start_time: a.start_time,
-          end_time: a.end_time,
-          is_enabled: a.is_enabled,
-        }))
-    );
-  } else if (selectedCalendarId) {
-    setLocalAvail(
-      DAYS.map(d => ({
-        day_of_week: d.value,
-        start_time: "09:00",
-        end_time: "18:00",
-        is_enabled: d.value >= 1 && d.value <= 5,
-      }))
-    );
-  }
-}, [availability, selectedCalendarId]);
-
-// Sync preferences from query data
-useEffect(() => {
-  if (preferences) {
-    setLocalPrefs({
-      week_start_day: preferences.week_start_day,
-      time_format: preferences.time_format,
-      language: preferences.language,
-      show_services_menu: preferences.show_services_menu,
-      show_rooms: preferences.show_rooms,
-      show_equipment: preferences.show_equipment,
-    });
-  }
-}, [preferences]);
-```
-
-**Aggiunta import `useEffect`**: gia presente nella signature ma va confermato che sia importato (attualmente importa solo `useState`; va aggiunto `useEffect`).
+1. **Visualizza calendario** - Vista settimanale con appuntamenti, pannello filtri a destra
+2. **Vista elenco Appuntamento** - Tabella appuntamenti con filtri, stato, paginazione
+3. **Impostazioni del calendario** - Link diretto che naviga a `/azienda/impostazioni/calendari`
 
 ---
 
-## Elenco rimozioni
+## Modifiche al Database
 
-| Elemento | Riga | Motivo |
-|----------|------|--------|
-| `availInitialized` | 247 | Mai usata |
-| `initAvailability()` | 250-267 | Sostituita da useEffect |
-| `useState(() => {...})` | 270-272 | Uso errato di useState |
-| `prevAvailKey` + logica render-time | 275-297 | Anti-pattern React |
-| `prevPrefsKey` + logica render-time | 308-322 | Anti-pattern React |
+### Aggiunta colonna `calendar_id` alla tabella `appointments`
 
-## Miglioramenti UX
+Per collegare appuntamenti ai calendari marketing serve una colonna opzionale:
 
-- Nessun rischio di loop di rendering
-- Stato locale sempre sincronizzato correttamente con i dati del server
-- Nessun warning React in console
+| Colonna | Tipo | Note |
+|---------|------|------|
+| calendar_id | uuid | FK -> marketing_calendars, nullable |
+| status | text | Default 'confermato', valori: confermato, annullato, riprogrammato, completato |
+| contact_id | uuid | FK -> marketing_contacts, nullable (per collegare contatti CRM) |
 
-## Nessuna modifica al database
+Queste colonne sono nullable per retrocompatibilita con gli appuntamenti esistenti (dal calendario Gestione Interna).
 
-## File modificati: 1
+---
 
-- `src/components/settings/MarketingCalendarsConfig.tsx`
+## Nuovi File
+
+### 1. `src/pages/azienda/marketing/MarketingCalendar.tsx` (riscrittura completa)
+
+Pagina con 3 tab nella barra superiore (non Tabs component, ma navigazione inline stile GHL):
+
+- **Header**: "Calendari" con 3 link tab: "Visualizza calendario" | "Vista elenco Appuntamento" | icona ingranaggio "Impostazioni del calendario"
+- Pulsante "+ Nuovo" in alto a destra
+
+**Tab "Visualizza calendario":**
+- Vista settimanale (griglia oraria 08-21, colonne Lun-Dom)
+- Navigazione data: "Oggi" + frecce + range settimana
+- Appuntamenti renderizzati come blocchi colorati nella griglia
+- Pannello laterale destro "Gestisci visualizzazione":
+  - Radio: Tutto / Appuntamenti / Fasce orarie bloccate
+  - Filtri: ricerca utenti/calendari/gruppi
+  - Sezione "Utenti" (espandibile)
+  - Sezione "Calendari" con checkbox per ogni calendario marketing
+
+**Tab "Vista elenco Appuntamento":**
+- Sotto-tab: Prossimo / Annullato / Tutti
+- Filtri avanzati + Ordina per + Cerca per titolo + Gestisci colonne
+- Tabella: #, Titolo, Contatto, Stato (select), Ora appuntamento, Calendario, Titolare
+- Paginazione: "Mostra da X a Y di Z risultati" + Precedente/Prossimo + righe per pagina
+
+**Tab "Impostazioni del calendario":**
+- Non un vero tab con contenuto: al click naviga a `/azienda/impostazioni/calendari` tramite `useNavigate`
+
+### 2. `src/components/marketing/MarketingCalendarWeekView.tsx`
+
+Vista settimanale del calendario marketing:
+- Griglia oraria con slot da 1 ora
+- Header con giorni della settimana e data
+- Blocchi appuntamenti posizionati in base a data/ora
+- Colori diversi per calendario di appartenenza
+- Click su appuntamento apre dialog di modifica
+- Click su slot vuoto apre dialog di creazione
+
+### 3. `src/components/marketing/MarketingCalendarFilters.tsx`
+
+Pannello laterale destro con filtri:
+- Toggle "Gestisci visualizzazione"
+- Filtro per tipo (Tutto/Appuntamenti/Fasce bloccate)
+- Ricerca utenti e calendari
+- Checkbox per selezionare/deselezionare calendari
+- Sezione utenti espandibile
+
+### 4. `src/components/marketing/MarketingAppointmentsList.tsx`
+
+Vista elenco appuntamenti:
+- Sotto-filtri per stato (Prossimo/Annullato/Tutti)
+- Tabella con colonne: #, Titolo, Contatto, Stato, Ora, Calendario, Titolare
+- Stato modificabile inline tramite select
+- Paginazione client-side
+- Ricerca per titolo
+
+---
+
+## Modifiche a File Esistenti
+
+### `src/App.tsx`
+- La route `marketing/calendario` punta gia a `MarketingCalendar`, nessuna modifica necessaria
+
+### `src/components/appointments/AppointmentDialog.tsx`
+- Aggiungere campo opzionale `calendar_id` per associare l'appuntamento a un calendario marketing
+- Aggiungere campo opzionale `contact_id` per collegare un contatto CRM
+- Aggiungere campo `status` con select (Confermato/Annullato/Riprogrammato)
+
+---
+
+## Dettaglio Tecnico
+
+### Query principali
+
+1. **Appuntamenti marketing**: query `appointments` filtrata per `company_id`, con join su `marketing_calendars` (via `calendar_id`) e `profiles` (via `assigned_to`) e `marketing_contacts` (via `contact_id`)
+2. **Calendari disponibili**: riusa query `marketing-calendars` gia esistente
+3. **Filtri**: stato locale per calendari selezionati, utenti selezionati, range data
+
+### Integrazione con Impostazioni
+
+- I calendari creati in Impostazioni appaiono come filtri nel pannello destro
+- La disponibilita configurata nelle impostazioni determina le fasce orarie visibili
+- Il click su "Impostazioni del calendario" naviga direttamente a `/azienda/impostazioni/calendari`
+
+### Flusso UX
+
+1. Utente apre "Calendario" dal menu Marketing e Vendita
+2. Vede la vista settimanale con gli appuntamenti
+3. Puo filtrare per calendario o utente dal pannello destro
+4. Puo passare alla vista elenco per gestire appuntamenti in tabella
+5. Puo accedere alle impostazioni calendari direttamente dal tab
+6. Il pulsante "+ Nuovo" apre il dialog di creazione appuntamento (con campi calendario e contatto)
 
