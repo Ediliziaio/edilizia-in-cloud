@@ -53,9 +53,40 @@ export function useOpportunities(pipelineId: string | null) {
         }
       }
 
+      // Fetch notes counts per opportunity
+      const oppIds = data.map((o: any) => o.id);
+      let notesCountMap: Record<string, number> = {};
+      let docsCountMap: Record<string, number> = {};
+
+      if (oppIds.length > 0) {
+        const [notesRes, docsRes] = await Promise.all([
+          supabase
+            .from("marketing_contact_notes")
+            .select("opportunity_id")
+            .in("opportunity_id", oppIds),
+          supabase
+            .from("marketing_documents")
+            .select("opportunity_id")
+            .in("opportunity_id", oppIds),
+        ]);
+
+        if (notesRes.data) {
+          notesRes.data.forEach((n: any) => {
+            if (n.opportunity_id) notesCountMap[n.opportunity_id] = (notesCountMap[n.opportunity_id] || 0) + 1;
+          });
+        }
+        if (docsRes.data) {
+          docsRes.data.forEach((d: any) => {
+            if (d.opportunity_id) docsCountMap[d.opportunity_id] = (docsCountMap[d.opportunity_id] || 0) + 1;
+          });
+        }
+      }
+
       return data.map((o: any) => ({
         ...o,
         assigned_profile: o.assigned_to ? profilesMap[o.assigned_to] || null : null,
+        notes_count: notesCountMap[o.id] || 0,
+        documents_count: docsCountMap[o.id] || 0,
       }));
     },
     enabled: !!companyId && !!pipelineId,
