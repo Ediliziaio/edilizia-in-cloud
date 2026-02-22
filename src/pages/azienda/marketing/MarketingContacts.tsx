@@ -18,7 +18,7 @@ import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/use
 import { exportToCSV } from "@/lib/csvExport";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
-import { ContactFiltersSheet, type ContactFilters, type FilterRule, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
+import { ContactFiltersSheet, type ContactFilters, type FilterRule, type FilterGroup, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
 
 // Map filter field keys to actual DB columns
 const FIELD_TO_COLUMN: Record<string, string> = {
@@ -160,119 +160,125 @@ export default function MarketingContacts() {
     enabled: !!companyId,
   });
 
-  // Fetch contacts with dynamic filter rules
+  // Helper: apply a single group's rules to get matching contact IDs
+  async function applyGroupRules(group: FilterGroup, companyId: string): Promise<string[] | null> {
+    const rules = group.rules.filter((r) => {
+      if (r.operator === "is_empty" || r.operator === "is_not_empty") return true;
+      return r.value.trim().length > 0;
+    });
+    if (rules.length === 0) return null;
+
+    const standardRules: FilterRule[] = [];
+    const tagRules: FilterRule[] = [];
+    const oppRules: FilterRule[] = [];
+    const cfRules: FilterRule[] = [];
+
+    for (const rule of rules) {
+      if (rule.field === "tags") tagRules.push(rule);
+      else if (rule.field.startsWith("opp_") || rule.field === "opp_status" || rule.field === "opp_stage") oppRules.push(rule);
+      else if (rule.field.startsWith("cf_")) cfRules.push(rule);
+      else if (FIELD_TO_COLUMN[rule.field]) standardRules.push(rule);
+    }
+
+    // Opp filter → contact_ids
+    let oppContactIds: string[] | null = null;
+    if (oppRules.length > 0) {
+      let oppQuery = supabase.from("marketing_opportunities").select("contact_id").eq("company_id", companyId);
+      for (const rule of oppRules) {
+        if (rule.field === "opp_status") {
+          if (rule.operator === "is") oppQuery = oppQuery.eq("status", rule.value);
+          else if (rule.operator === "is_not") oppQuery = oppQuery.neq("status", rule.value);
+        } else if (rule.field === "opp_stage") {
+          if (rule.operator === "is") oppQuery = oppQuery.eq("stage_id", rule.value);
+          else if (rule.operator === "is_not") oppQuery = oppQuery.neq("stage_id", rule.value);
+        } else if (rule.field.startsWith("opp_pipeline_")) {
+          const pipelineId = rule.field.replace("opp_pipeline_", "");
+          if (rule.operator === "is") oppQuery = oppQuery.eq("pipeline_id", pipelineId);
+          else if (rule.operator === "is_not") oppQuery = oppQuery.neq("pipeline_id", pipelineId);
+        }
+      }
+      const { data: oppData } = await oppQuery;
+      oppContactIds = [...new Set((oppData || []).map((o) => o.contact_id))];
+      if (oppContactIds.length === 0) return [];
+    }
+
+    // CF filter → contact_ids (AND within group)
+    let cfContactIds: string[] | null = null;
+    if (cfRules.length > 0) {
+      const sets: Set<string>[] = [];
+      for (const rule of cfRules) {
+        const fieldId = rule.field.replace("cf_", "");
+        let cfQuery = supabase.from("marketing_contact_field_values").select("contact_id").eq("field_id", fieldId);
+        switch (rule.operator) {
+          case "is": cfQuery = cfQuery.ilike("value", `%${rule.value}%`); break;
+          case "is_not": cfQuery = cfQuery.not("value", "ilike", `%${rule.value}%`); break;
+          case "is_empty": cfQuery = cfQuery.or("value.is.null,value.eq."); break;
+          case "is_not_empty": cfQuery = cfQuery.not("value", "is", null).neq("value", ""); break;
+        }
+        const { data: cfData } = await cfQuery;
+        sets.push(new Set((cfData || []).map((r) => r.contact_id)));
+      }
+      // AND: intersect all sets
+      let result = sets[0];
+      for (let i = 1; i < sets.length; i++) {
+        result = new Set([...result].filter((id) => sets[i].has(id)));
+      }
+      cfContactIds = [...result];
+      if (cfContactIds.length === 0) return [];
+    }
+
+    // Intersect opp + cf (AND)
+    let filterIds: string[] | null = null;
+    if (oppContactIds && cfContactIds) {
+      const cfSet = new Set(cfContactIds);
+      filterIds = oppContactIds.filter((id) => cfSet.has(id));
+      if (filterIds.length === 0) return [];
+    } else {
+      filterIds = oppContactIds || cfContactIds;
+    }
+
+    // Now query contacts with standard + tag rules
+    let query = supabase.from("marketing_contacts").select("id").eq("company_id", companyId);
+    if (filterIds) query = query.in("id", filterIds);
+    for (const rule of standardRules) query = applyRuleToQuery(query, rule);
+    for (const rule of tagRules) {
+      if (rule.operator === "is") query = query.overlaps("tags", [rule.value]);
+      else if (rule.operator === "is_not") query = query.not("tags", "cs", `{${rule.value}}`);
+      else if (rule.operator === "is_empty") query = query.or("tags.is.null,tags.eq.{}");
+      else if (rule.operator === "is_not_empty") query = query.not("tags", "is", null).not("tags", "eq", "{}");
+    }
+    const { data } = await query;
+    return (data || []).map((r) => r.id);
+  }
+
+  // Fetch contacts with grouped filter rules
   const { data, isLoading } = useQuery({
     queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
-      const rules = filters.rules.filter((r) => {
-        if (r.operator === "is_empty" || r.operator === "is_not_empty") return true;
-        return r.value.trim().length > 0;
-      });
+      const activeGroups = filters.groups.filter((g) => g.rules.length > 0);
 
-      // Categorize rules
-      const standardRules: FilterRule[] = [];
-      const tagRules: FilterRule[] = [];
-      const oppRules: FilterRule[] = [];
-      const cfRules: FilterRule[] = [];
-
-      for (const rule of rules) {
-        if (rule.field === "tags") {
-          tagRules.push(rule);
-        } else if (rule.field.startsWith("opp_") || rule.field === "opp_status" || rule.field === "opp_stage") {
-          oppRules.push(rule);
-        } else if (rule.field.startsWith("cf_")) {
-          cfRules.push(rule);
-        } else if (FIELD_TO_COLUMN[rule.field]) {
-          standardRules.push(rule);
-        }
-      }
-
-      // Step 1: Opportunity filter → get matching contact_ids
-      let oppContactIds: string[] | null = null;
-      if (oppRules.length > 0) {
-        let oppQuery = supabase
-          .from("marketing_opportunities")
-          .select("contact_id")
-          .eq("company_id", companyId);
-
-        for (const rule of oppRules) {
-          if (rule.field === "opp_status") {
-            if (rule.operator === "is") oppQuery = oppQuery.eq("status", rule.value);
-            else if (rule.operator === "is_not") oppQuery = oppQuery.neq("status", rule.value);
-          } else if (rule.field === "opp_stage") {
-            if (rule.operator === "is") oppQuery = oppQuery.eq("stage_id", rule.value);
-            else if (rule.operator === "is_not") oppQuery = oppQuery.neq("stage_id", rule.value);
-          } else if (rule.field.startsWith("opp_pipeline_")) {
-            const pipelineId = rule.field.replace("opp_pipeline_", "");
-            if (rule.operator === "is") oppQuery = oppQuery.eq("pipeline_id", pipelineId);
-            else if (rule.operator === "is_not") oppQuery = oppQuery.neq("pipeline_id", pipelineId);
+      // Determine filtered IDs if we have groups
+      let finalIds: string[] | null = null;
+      if (activeGroups.length > 0) {
+        if (activeGroups.length === 1) {
+          // Single group: just apply AND rules
+          const ids = await applyGroupRules(activeGroups[0], companyId);
+          if (ids !== null) {
+            if (ids.length === 0) return { contacts: [] as MarketingContact[], count: 0 };
+            finalIds = ids;
           }
-        }
-
-        const { data: oppData } = await oppQuery;
-        oppContactIds = [...new Set((oppData || []).map((o) => o.contact_id))];
-        if (oppContactIds.length === 0) return { contacts: [] as MarketingContact[], count: 0 };
-      }
-
-      // Step 2: Custom field filter → get matching contact_ids
-      let cfContactIds: string[] | null = null;
-      if (cfRules.length > 0) {
-        const sets: Set<string>[] = [];
-        for (const rule of cfRules) {
-          const fieldId = rule.field.replace("cf_", "");
-          let cfQuery = supabase
-            .from("marketing_contact_field_values")
-            .select("contact_id")
-            .eq("field_id", fieldId);
-
-          switch (rule.operator) {
-            case "is":
-              cfQuery = cfQuery.ilike("value", `%${rule.value}%`);
-              break;
-            case "is_not":
-              cfQuery = cfQuery.not("value", "ilike", `%${rule.value}%`);
-              break;
-            case "is_empty":
-              cfQuery = cfQuery.or("value.is.null,value.eq.");
-              break;
-            case "is_not_empty":
-              cfQuery = cfQuery.not("value", "is", null).neq("value", "");
-              break;
-          }
-
-          const { data: cfData } = await cfQuery;
-          sets.push(new Set((cfData || []).map((r) => r.contact_id)));
-        }
-
-        if (filters.logic === "and") {
-          let result = sets[0];
-          for (let i = 1; i < sets.length; i++) {
-            result = new Set([...result].filter((id) => sets[i].has(id)));
-          }
-          cfContactIds = [...result];
         } else {
-          const union = new Set<string>();
-          sets.forEach((s) => s.forEach((id) => union.add(id)));
-          cfContactIds = [...union];
+          // Multiple groups: OR (union) the results
+          const allIds = new Set<string>();
+          for (const group of activeGroups) {
+            const ids = await applyGroupRules(group, companyId);
+            if (ids !== null) ids.forEach((id) => allIds.add(id));
+          }
+          if (allIds.size === 0) return { contacts: [] as MarketingContact[], count: 0 };
+          finalIds = [...allIds];
         }
-
-        if (cfContactIds.length === 0) return { contacts: [] as MarketingContact[], count: 0 };
-      }
-
-      // Step 3: Intersect/union opp + cf ids based on logic
-      let filterIds: string[] | null = null;
-      if (oppContactIds && cfContactIds) {
-        if (filters.logic === "and") {
-          const cfSet = new Set(cfContactIds);
-          filterIds = oppContactIds.filter((id) => cfSet.has(id));
-        } else {
-          filterIds = [...new Set([...oppContactIds, ...cfContactIds])];
-        }
-        if (filterIds.length === 0) return { contacts: [] as MarketingContact[], count: 0 };
-      } else {
-        filterIds = oppContactIds || cfContactIds;
       }
 
       const from = (page - 1) * pageSize;
@@ -285,35 +291,11 @@ export default function MarketingContacts() {
         .order(sortField, { ascending: sortDirection === "asc" })
         .range(from, to);
 
-      if (filterIds) {
-        query = query.in("id", filterIds);
-      }
+      if (finalIds) query = query.in("id", finalIds);
 
       if (search.trim()) {
         const s = `%${search.trim()}%`;
         query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
-      }
-
-      // Apply standard rules
-      // For AND logic, just chain them (Supabase chains as AND by default)
-      // For OR logic with standard fields, we'd need .or() - but mixing OR across
-      // standard + sub-queries is complex. For now, standard fields always AND within themselves
-      // and the OR logic applies at the rule-group level (opp/cf intersection vs union).
-      for (const rule of standardRules) {
-        query = applyRuleToQuery(query, rule);
-      }
-
-      // Tags
-      for (const rule of tagRules) {
-        if (rule.operator === "is") {
-          query = query.overlaps("tags", [rule.value]);
-        } else if (rule.operator === "is_not") {
-          query = query.not("tags", "cs", `{${rule.value}}`);
-        } else if (rule.operator === "is_empty") {
-          query = query.or("tags.is.null,tags.eq.{}");
-        } else if (rule.operator === "is_not_empty") {
-          query = query.not("tags", "is", null).not("tags", "eq", "{}");
-        }
       }
 
       const { data: contacts, count, error } = await query;
