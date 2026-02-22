@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -244,57 +244,31 @@ export default function MarketingCalendarsConfig() {
 
   // ---- AVAILABILITY LOCAL STATE ----
   const [localAvail, setLocalAvail] = useState<{ day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]>([]);
-  const availInitialized = useState(false);
 
-  // Sync availability from query
-  const initAvailability = () => {
+  // Sync availability from query data
+  useEffect(() => {
     if (availability.length > 0) {
-      setLocalAvail(availability.filter(a => a.specific_date === null).map(a => ({
-        day_of_week: a.day_of_week!,
-        start_time: a.start_time,
-        end_time: a.end_time,
-        is_enabled: a.is_enabled,
-      })));
-    } else {
-      // Default: Mon-Fri 09:00-18:00
-      setLocalAvail(DAYS.map(d => ({
-        day_of_week: d.value,
-        start_time: "09:00",
-        end_time: "18:00",
-        is_enabled: d.value >= 1 && d.value <= 5,
-      })));
-    }
-  };
-
-  // Re-init when selectedCalendarId or availability changes
-  useState(() => {
-    initAvailability();
-  });
-
-  // Watch for availability data changes
-  const availKey = JSON.stringify(availability);
-  const [prevAvailKey, setPrevAvailKey] = useState("");
-  if (availKey !== prevAvailKey) {
-    setPrevAvailKey(availKey);
-    if (availability.length > 0) {
-      const newLocal = availability.filter(a => a.specific_date === null).map(a => ({
-        day_of_week: a.day_of_week!,
-        start_time: a.start_time,
-        end_time: a.end_time,
-        is_enabled: a.is_enabled,
-      }));
-      if (JSON.stringify(newLocal) !== JSON.stringify(localAvail)) {
-        setLocalAvail(newLocal);
-      }
+      setLocalAvail(
+        availability
+          .filter(a => a.specific_date === null)
+          .map(a => ({
+            day_of_week: a.day_of_week!,
+            start_time: a.start_time,
+            end_time: a.end_time,
+            is_enabled: a.is_enabled,
+          }))
+      );
     } else if (selectedCalendarId) {
-      setLocalAvail(DAYS.map(d => ({
-        day_of_week: d.value,
-        start_time: "09:00",
-        end_time: "18:00",
-        is_enabled: d.value >= 1 && d.value <= 5,
-      })));
+      setLocalAvail(
+        DAYS.map(d => ({
+          day_of_week: d.value,
+          start_time: "09:00",
+          end_time: "18:00",
+          is_enabled: d.value >= 1 && d.value <= 5,
+        }))
+      );
     }
-  }
+  }, [availability, selectedCalendarId]);
 
   // ---- PREFERENCES LOCAL STATE ----
   const [localPrefs, setLocalPrefs] = useState({
@@ -305,10 +279,9 @@ export default function MarketingCalendarsConfig() {
     show_rooms: true,
     show_equipment: true,
   });
-  const prefsKey = JSON.stringify(preferences);
-  const [prevPrefsKey, setPrevPrefsKey] = useState("");
-  if (prefsKey !== prevPrefsKey) {
-    setPrevPrefsKey(prefsKey);
+
+  // Sync preferences from query data
+  useEffect(() => {
     if (preferences) {
       setLocalPrefs({
         week_start_day: preferences.week_start_day,
@@ -319,7 +292,7 @@ export default function MarketingCalendarsConfig() {
         show_equipment: preferences.show_equipment,
       });
     }
-  }
+  }, [preferences]);
 
   return (
     <div className="space-y-6">
