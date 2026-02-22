@@ -1,44 +1,57 @@
 
-# Fix: Campi card non si aggiornano dopo modifica
 
-## Problema
+# Stabilizzazione Modulo Opportunita - Pulizia e Fix
 
-Ogni `OpportunityCard` chiama `useCardFieldPreferences()` che legge da `localStorage` solo al mount iniziale. Quando modifichi i campi nel pannello "Personalizza scheda" e clicchi "Applica", il `localStorage` viene aggiornato ma le card gia renderizzate NON si aggiornano perche `useState` con inizializzatore legge il valore solo una volta.
+## Bug principali
 
-## Soluzione
+### 1. Campi "tags" e "owner" non reagiscono alla personalizzazione
 
-Convertire `useCardFieldPreferences` in un React Context condiviso. In questo modo tutte le card leggono dallo stesso stato e si aggiornano immediatamente quando si clicca "Applica".
+Nel componente `OpportunityCard.tsx`, la funzione `CardDetailRows` (riga 240) salta i campi `opp_name`, `tags` e `owner` perche sono gestiti "a parte" nell'header della card. Ma il problema e che:
+- Le **etichette (tags)** non vengono mai mostrate come badge sulla card, solo come icona nella barra azioni in basso. Se l'utente disattiva "tags" nel pannello personalizza, non cambia nulla visivamente.
+- Il **titolare (owner)** e l'avatar sono sempre visibili nell'header, anche se disattivato.
 
-## Modifiche
+**Fix**: Rendere condizionale la visualizzazione dei tag (come badge sotto il nome) e dell'avatar owner nell'header della card, basandosi su `isFieldActive("tags")` e `isFieldActive("owner")`.
 
-### 1. Creare `CardFieldPreferencesProvider` (modifica `src/hooks/useCardFieldPreferences.ts`)
+**File**: `src/components/opportunities/OpportunityCard.tsx`
 
-- Aggiungere un `CardFieldPreferencesContext` e un `CardFieldPreferencesProvider`
-- Il Provider wrappa la pagina e gestisce lo stato centralizzato
-- L'hook `useCardFieldPreferences()` legge dal context invece che da `localStorage` direttamente
-- Il salvataggio su `localStorage` resta per persistenza tra sessioni
+### 2. Variabile `filteredContacts` non utilizzata
 
-### 2. Wrappare `MarketingOpportunities` col Provider (modifica `src/pages/azienda/marketing/MarketingOpportunities.tsx`)
+In `OpportunityDialog.tsx` riga 191, `filteredContacts` e assegnata ma mai usata.
 
-- Wrappare il contenuto con `<CardFieldPreferencesProvider>`
-- Rimuovere la chiamata diretta a `useCardFieldPreferences()` nel componente pagina (il Provider lo gestisce)
-- Semplificare il passaggio di props al `CardCustomizeSheet`
+**Fix**: Rimuoverla.
 
-### 3. `OpportunityCard` resta invariato
+**File**: `src/components/opportunities/OpportunityDialog.tsx`
 
-- Continua a usare `useCardFieldPreferences()` ma ora legge dal Context condiviso
-- Si aggiorna automaticamente quando il Provider aggiorna lo stato
+## Miglioramenti UX
+
+### 3. Aggiungere badge tag visibili sulla card
+
+Attualmente i tag sono visibili solo come numero sull'icona nella barra azioni. Per coerenza con l'anteprima nel pannello "Personalizza scheda" (che mostra badge "facebook", "google"), aggiungere una riga di badge tag nella card quando il campo `tags` e attivo.
+
+**File**: `src/components/opportunities/OpportunityCard.tsx`
+
+### 4. Anteprima nel pannello personalizza: sincronizzare con il rendering reale
+
+L'anteprima nella `CardCustomizeSheet` mostra i tag come badge colorati, ma la card reale non li mostra. Dopo il fix al punto 3, saranno allineati.
+
+## Riepilogo modifiche
+
+| File | Modifica |
+|------|----------|
+| `src/components/opportunities/OpportunityCard.tsx` | Rendere tags e owner condizionali tramite `isFieldActive`, aggiungere badge tag visibili |
+| `src/components/opportunities/OpportunityDialog.tsx` | Rimuovere variabile `filteredContacts` inutilizzata (riga 191) |
 
 ## Dettagli tecnici
 
-Il pattern e:
+### OpportunityCard - Modifiche specifiche
 
-```
-MarketingOpportunities
-  └─ CardFieldPreferencesProvider  <-- stato centralizzato
-       ├─ CardCustomizeSheet       <-- scrive nel Provider
-       └─ OpportunityKanbanView
-            └─ OpportunityCard     <-- legge dal Provider (reattivo)
-```
+1. **Tag badge condizionali** (dopo il nome, prima dei detail rows):
+   - Se `isFieldActive("tags")` e `tags.length > 0`, mostrare una riga con badge colorati (max 3 visibili + "+N")
+   - Se disattivato, non mostrare nulla
 
-Il `localStorage` viene usato solo per inizializzare il Provider e per persistere le modifiche. Tutte le letture passano dal Context React, garantendo aggiornamenti immediati.
+2. **Owner avatar condizionale**:
+   - L'avatar nel corner superiore destro viene mostrato solo se `isFieldActive("owner")`
+   - Se disattivato, non mostrare l'avatar
+
+3. **Nessuna modifica alla barra azioni**: le icone in basso restano sempre visibili (sono azioni, non campi dati)
+
