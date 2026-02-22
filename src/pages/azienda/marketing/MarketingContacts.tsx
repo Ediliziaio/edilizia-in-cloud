@@ -1,14 +1,17 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download } from "lucide-react";
+import { Search, Upload, Plus, Download, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { ContactsTable, type MarketingContact } from "@/components/marketing/ContactsTable";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
+import { ContactListsView } from "@/components/marketing/ContactListsView";
+import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
@@ -45,6 +48,7 @@ export default function MarketingContacts() {
     return [...CSV_FIELDS, ...customImportFields];
   }, [contactCustomFields]);
 
+  const [activeTab, setActiveTab] = useState<"all" | "lists">("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -52,12 +56,35 @@ export default function MarketingContacts() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<MarketingContact | null>(null);
+  const [filterListId, setFilterListId] = useState<string | null>(null);
+  const [filterListName, setFilterListName] = useState<string | null>(null);
+
+  // Get contact IDs belonging to filtered list
+  const { data: listMemberIds } = useQuery({
+    queryKey: ["list-member-ids", filterListId],
+    queryFn: async () => {
+      if (!filterListId) return null;
+      const { data, error } = await supabase
+        .from("marketing_contact_list_members")
+        .select("contact_id")
+        .eq("list_id", filterListId);
+      if (error) throw error;
+      return (data || []).map(d => d.contact_id);
+    },
+    enabled: !!filterListId,
+  });
 
   // Fetch contacts
   const { data, isLoading } = useQuery({
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize],
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize, filterListId, listMemberIds],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
+
+      // If filtering by list but no members, return empty
+      if (filterListId && listMemberIds && listMemberIds.length === 0) {
+        return { contacts: [] as MarketingContact[], count: 0 };
+      }
+
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
 
@@ -73,11 +100,15 @@ export default function MarketingContacts() {
         query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
       }
 
+      if (filterListId && listMemberIds && listMemberIds.length > 0) {
+        query = query.in("id", listMemberIds);
+      }
+
       const { data: contacts, count, error } = await query;
       if (error) throw error;
       return { contacts: (contacts || []) as MarketingContact[], count: count || 0 };
     },
-    enabled: !!companyId,
+    enabled: !!companyId && (filterListId ? listMemberIds !== undefined : true),
   });
 
   const contacts = data?.contacts || [];
@@ -104,7 +135,6 @@ export default function MarketingContacts() {
     },
     onSuccess: async (_, formData) => {
       toast.success(editingContact ? "Contatto aggiornato" : "Contatto aggiunto");
-      // Sync tags bidirectionally when editing
       if (editingContact) {
         const originalTags = editingContact.tags || [];
         const addedTags = formData.tags.filter(t => !originalTags.includes(t));
@@ -157,6 +187,13 @@ export default function MarketingContacts() {
     setDialogOpen(true);
   };
 
+  const handleSelectList = (listId: string, listName: string) => {
+    setFilterListId(listId);
+    setFilterListName(listName);
+    setActiveTab("all");
+    setPage(1);
+  };
+
   const handleImport = async (rows: Record<string, string>[]) => {
     if (!companyId) return { success: 0, errors: ["Nessuna azienda selezionata"] };
     const customKeys = contactCustomFields.map(f => `custom_${f.id}`);
@@ -186,7 +223,6 @@ export default function MarketingContacts() {
     const { error, data } = await supabase.from("marketing_contacts").insert(toInsert).select("id");
     if (error) return { success: 0, errors: [error.message] };
 
-    // Save custom field values
     if (data && customKeys.length > 0) {
       const fieldValues: { contact_id: string; field_id: string; value: string | null }[] = [];
       data.forEach((contact, idx) => {
@@ -231,7 +267,7 @@ export default function MarketingContacts() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Contatti</h1>
-          {!isLoading && (
+          {!isLoading && activeTab === "all" && (
             <Badge variant="secondary" className="text-sm">{totalCount}</Badge>
           )}
         </div>
@@ -288,31 +324,58 @@ export default function MarketingContacts() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Cerca contatti..."
-          className="pl-9"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-        />
-      </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "all" | "lists")}>
+        <TabsList>
+          <TabsTrigger value="all">Tutti</TabsTrigger>
+          <TabsTrigger value="lists">Liste</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
-      {/* Table */}
-      <ContactsTable
-        contacts={contacts}
-        totalCount={totalCount}
-        selectedIds={selectedIds}
-        onToggleSelect={handleToggleSelect}
-        onToggleAll={handleToggleAll}
-        onEdit={handleEdit}
-        onDelete={(ids) => deleteMutation.mutate(ids)}
-        page={page}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
-      />
+      {activeTab === "lists" ? (
+        <ContactListsView onSelectList={handleSelectList} />
+      ) : (
+        <>
+          {/* List filter badge */}
+          {filterListId && filterListName && (
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-sm flex items-center gap-1.5">
+                Lista: {filterListName}
+                <button onClick={() => { setFilterListId(null); setFilterListName(null); setPage(1); }}>
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca contatti..."
+              className="pl-9"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            />
+          </div>
+
+          {/* Table */}
+          <ContactsTable
+            contacts={contacts}
+            totalCount={totalCount}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
+            onToggleAll={handleToggleAll}
+            onEdit={handleEdit}
+            onDelete={(ids) => deleteMutation.mutate(ids)}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+            bulkActions={<AddToListDropdown selectedIds={selectedIds} />}
+          />
+        </>
+      )}
 
       {/* Dialogs */}
       <ContactDialog
@@ -335,7 +398,6 @@ export default function MarketingContacts() {
         companyId={companyId}
         editingContactId={editingContact?.id}
       />
-
     </div>
   );
 }

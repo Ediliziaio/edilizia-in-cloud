@@ -39,6 +39,7 @@ interface ContactsTableProps {
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  bulkActions?: React.ReactNode;
 }
 
 const AVATAR_COLORS = [
@@ -69,7 +70,7 @@ function formatDate(dateStr: string | null) {
 
 export function ContactsTable({
   contacts, totalCount, selectedIds, onToggleSelect, onToggleAll,
-  onEdit, onDelete, page, pageSize, onPageChange, onPageSizeChange,
+  onEdit, onDelete, page, pageSize, onPageChange, onPageSizeChange, bulkActions,
 }: ContactsTableProps) {
   const navigate = useNavigate();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -81,6 +82,7 @@ export function ContactsTable({
       {selectedIds.size > 0 && (
         <div className="flex items-center gap-3 bg-muted/50 rounded-lg px-4 py-2 text-sm">
           <span className="font-medium">{selectedIds.size} selezionati</span>
+          {bulkActions}
           <Button size="sm" variant="destructive" onClick={() => onDelete(Array.from(selectedIds))}>
             <Trash2 className="h-4 w-4 mr-1" /> Elimina
           </Button>
