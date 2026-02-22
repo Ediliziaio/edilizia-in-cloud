@@ -769,6 +769,157 @@ export type Database = {
           },
         ]
       }
+      marketing_calendar_availability: {
+        Row: {
+          calendar_id: string
+          company_id: string
+          created_at: string
+          day_of_week: number | null
+          end_time: string
+          id: string
+          is_enabled: boolean
+          specific_date: string | null
+          start_time: string
+        }
+        Insert: {
+          calendar_id: string
+          company_id: string
+          created_at?: string
+          day_of_week?: number | null
+          end_time?: string
+          id?: string
+          is_enabled?: boolean
+          specific_date?: string | null
+          start_time?: string
+        }
+        Update: {
+          calendar_id?: string
+          company_id?: string
+          created_at?: string
+          day_of_week?: number | null
+          end_time?: string
+          id?: string
+          is_enabled?: boolean
+          specific_date?: string | null
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_calendar_availability_calendar_id_fkey"
+            columns: ["calendar_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_calendars"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_calendar_availability_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_calendar_preferences: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          language: string
+          show_equipment: boolean
+          show_rooms: boolean
+          show_services_menu: boolean
+          time_format: string
+          updated_at: string
+          week_start_day: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          language?: string
+          show_equipment?: boolean
+          show_rooms?: boolean
+          show_services_menu?: boolean
+          time_format?: string
+          updated_at?: string
+          week_start_day?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          language?: string
+          show_equipment?: boolean
+          show_rooms?: boolean
+          show_services_menu?: boolean
+          time_format?: string
+          updated_at?: string
+          week_start_day?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_calendar_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_calendars: {
+        Row: {
+          calendar_type: string
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          duration_minutes: number
+          group_name: string | null
+          id: string
+          is_active: boolean
+          name: string
+          owner_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          calendar_type?: string
+          company_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          duration_minutes?: number
+          group_name?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          owner_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          calendar_type?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          duration_minutes?: number
+          group_name?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          owner_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_calendars_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_contact_activities: {
         Row: {
           activity_type: string

@@ -47,6 +47,7 @@ import SettingsSecurity from "@/pages/azienda/settings/SettingsSecurity";
 import SettingsActivityLog from "@/pages/azienda/settings/SettingsActivityLog";
 import SettingsTags from "@/pages/azienda/settings/SettingsTags";
 import SettingsCustomFields from "@/pages/azienda/settings/SettingsCustomFields";
+import SettingsMarketingCalendars from "@/pages/azienda/settings/SettingsMarketingCalendars";
 import OrdersList from "@/pages/azienda/OrdersList";
 import CreateOrder from "@/pages/azienda/CreateOrder";
 import OrderDetail from "@/pages/azienda/OrderDetail";
@@ -220,6 +221,7 @@ const App = () => (
                 <Route path="tag" element={<SettingsTags />} />
                 <Route path="campi-personalizzati" element={<SettingsCustomFields />} />
                 <Route path="sequenze" element={<SettingsPipelines />} />
+                <Route path="calendari" element={<SettingsMarketingCalendars />} />
                 <Route path="utenti" element={<SettingsUsers />} />
                 <Route path="venditori" element={<SettingsSalespeople />} />
                 <Route path="staff" element={<SettingsStaff />} />
