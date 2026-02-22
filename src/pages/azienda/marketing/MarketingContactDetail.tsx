@@ -10,7 +10,9 @@ import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
   FileText, Activity, StickyNote, CalendarDays, Target, Plus, Send, Search,
   Bell, User, Settings, X, Filter, UserPlus, ArrowRight, RefreshCw, UserCheck,
+  Loader2, Check, AlertCircle,
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,9 +46,15 @@ function InlineField({ label, value, onSave, type = "text", options }: {
 
   useEffect(() => { setDraft(value || ""); }, [value]);
 
+  const [saved, setSaved] = useState(false);
+
   const commit = () => {
     setEditing(false);
-    if (draft !== (value || "")) onSave(draft);
+    if (draft !== (value || "")) {
+      onSave(draft);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    }
   };
 
   if (type === "select" && options) {
@@ -77,12 +85,15 @@ function InlineField({ label, value, onSave, type = "text", options }: {
           className="h-7 text-xs px-1"
         />
       ) : (
-        <p
-          className="text-xs min-h-[32px] flex items-center cursor-pointer hover:bg-muted/50 rounded px-1"
-          onClick={() => setEditing(true)}
-        >
-          {value || <span className="text-muted-foreground">—</span>}
-        </p>
+        <div className="flex items-center gap-1">
+          <p
+            className="text-xs min-h-[32px] flex items-center cursor-pointer hover:bg-muted/50 rounded px-1 flex-1"
+            onClick={() => setEditing(true)}
+          >
+            {value || <span className="text-muted-foreground">—</span>}
+          </p>
+          {saved && <Check className="h-3 w-3 text-emerald-500 animate-in fade-in duration-200" />}
+        </div>
       )}
     </div>
   );
@@ -207,10 +218,10 @@ export default function MarketingContactDetail() {
   const [newNote, setNewNote] = useState("");
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState("");
-  const [docFilter, setDocFilter] = useState("all");
+  
 
   // ── Fetch contact ──
-  const { data: contact, isLoading } = useQuery({
+  const { data: contact, isLoading, isError, refetch } = useQuery({
     queryKey: ["marketing_contact", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -414,7 +425,26 @@ export default function MarketingContactDetail() {
   });
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Caricamento...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4 px-4">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Errore di caricamento</AlertTitle>
+          <AlertDescription>Impossibile caricare il contatto. Verifica la connessione e riprova.</AlertDescription>
+        </Alert>
+        <Button variant="outline" onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4 mr-2" /> Riprova
+        </Button>
+      </div>
+    );
   }
 
   if (!contact) {
@@ -741,7 +771,11 @@ export default function MarketingContactDetail() {
         <ScrollArea className="flex-1">
           <div className="p-4 max-w-2xl mx-auto w-full">
             {groupedActivities.length === 0 ? (
-              <p className="text-muted-foreground text-xs text-center py-12">Nessuna attività registrata</p>
+              <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
+                <Activity className="h-8 w-8 opacity-40" />
+                <p className="text-xs font-medium">Nessuna attività registrata</p>
+                <p className="text-[11px] text-center max-w-[240px]">Aggiungi una nota o modifica i dati del contatto per vedere la cronologia qui.</p>
+              </div>
             ) : (
               <div className="space-y-4">
                 {groupedActivities.map((group) => (
