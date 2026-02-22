@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, X } from "lucide-react";
@@ -77,10 +77,10 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
   });
 }
 
-export const ImportWizard = React.forwardRef<HTMLDivElement, ImportWizardProps>(function ImportWizard({
+export function ImportWizard({
   open, onClose, defaultObjectType, contactFields, opportunityFields,
   onImportContacts, onImportOpportunities,
-}: ImportWizardProps, ref) {
+}: ImportWizardProps) {
   const [step, setStep] = useState(0);
   const [objectType, setObjectType] = useState<ObjectType>(defaultObjectType);
   const [file, setFile] = useState<File | null>(null);
@@ -150,7 +150,7 @@ export const ImportWizard = React.forwardRef<HTMLDivElement, ImportWizardProps>(
   if (!open) return null;
 
   return (
-    <div ref={ref} className="flex flex-col min-h-[calc(100vh-8rem)] -m-6 bg-background">
+    <div className="flex flex-col min-h-[calc(100vh-8rem)] -m-6 bg-background">
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-3 border-b bg-background shrink-0">
         <div>
@@ -235,4 +235,4 @@ export const ImportWizard = React.forwardRef<HTMLDivElement, ImportWizardProps>(
       </div>
     </div>
   );
-});
+}

@@ -69,6 +69,15 @@ function MarketingOpportunitiesContent() {
     oppCustomFields.map((f) => ({ key: `custom_${f.id}`, label: f.name, section: "opportunity" })),
     [oppCustomFields]
   );
+  const oppImportFields = useMemo(() => {
+    const customImportFields = oppCustomFields.map(f => ({
+      key: `custom_${f.id}`,
+      label: f.name,
+      required: false,
+      type: "text" as const,
+    }));
+    return [...OPP_IMPORT_FIELDS, ...customImportFields];
+  }, [oppCustomFields]);
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -162,12 +171,13 @@ function MarketingOpportunitiesContent() {
         onClose={() => setImportOpen(false)}
         defaultObjectType="opportunities"
         contactFields={[]}
-        opportunityFields={OPP_IMPORT_FIELDS}
+        opportunityFields={oppImportFields}
         onImportContacts={async () => ({ success: 0, errors: [] })}
         onImportOpportunities={async (rows) => {
           if (!companyId || !selectedPipelineId || stages.length === 0) {
             return { success: 0, errors: ["Seleziona una pipeline con almeno una fase"] };
           }
+          const customKeys = oppCustomFields.map(f => `custom_${f.id}`);
           const defaultStageId = stages.sort((a: any, b: any) => a.position - b.position)[0].id;
           let success = 0;
           const errors: string[] = [];
@@ -193,12 +203,25 @@ function MarketingOpportunitiesContent() {
                 contactId = newContact!.id;
               }
               const tags = r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [];
-              const { error: oErr } = await supabase.from("marketing_opportunities").insert({
+              const { data: oppData, error: oErr } = await supabase.from("marketing_opportunities").insert({
                 company_id: companyId, pipeline_id: selectedPipelineId, stage_id: defaultStageId,
                 contact_id: contactId!, name: r.name?.trim() || `Opportunità ${i + 1}`,
                 value: parseFloat(r.value) || 0, source: r.source?.trim() || "importazione", tags, notes: r.notes?.trim() || null,
-              });
+              }).select("id").single();
               if (oErr) throw oErr;
+              // Save custom field values
+              if (oppData && customKeys.length > 0) {
+                const fieldValues = customKeys
+                  .filter(key => r[key]?.trim())
+                  .map(key => ({
+                    opportunity_id: oppData.id,
+                    field_id: key.replace("custom_", ""),
+                    value: r[key].trim(),
+                  }));
+                if (fieldValues.length > 0) {
+                  await supabase.from("marketing_opportunity_field_values").insert(fieldValues);
+                }
+              }
               success++;
             } catch (err: any) {
               errors.push(`Riga ${i + 2}: ${err?.message || "errore sconosciuto"}`);
