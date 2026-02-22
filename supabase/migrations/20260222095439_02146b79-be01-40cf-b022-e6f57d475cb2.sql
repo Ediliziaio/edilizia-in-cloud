@@ -1,0 +1,1 @@
+ALTER TABLE public.marketing_opportunities ADD COLUMN tags text[] NOT NULL DEFAULT '{}';
