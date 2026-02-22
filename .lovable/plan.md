@@ -1,138 +1,94 @@
 
-# Fix Import Error + Custom Fields in Import
 
-## Bug 1: "Component is not a function" quando si clicca Import
+# Validazione Contatti: Email/Telefono obbligatorio + Anti-duplicazione + Formato italiano
 
-**Causa**: Le componenti `ImportWizard`, `StepStart` e `StepIndicator` sono state wrappate con `React.forwardRef` nelle modifiche precedenti, ma nessun parent passa un ref a queste componenti. Il `forwardRef` non necessario causa problemi con l'HMR (Hot Module Replacement) di Vite e puo produrre l'errore "Component is not a function" durante il re-render.
+## Problema attuale
+1. Solo `first_name` e obbligatorio, ma email e telefono no
+2. Nessun controllo duplicati su email/telefono
+3. Nessuna validazione formato numero italiano
 
-**Fix**: Rimuovere `React.forwardRef` da tutte e tre le componenti, tornando a semplici function components. Nessuno le usa con un ref.
+## Modifiche
 
-### File modificati:
+### File: `src/components/marketing/ContactDialog.tsx`
 
-| File | Modifica |
-|------|----------|
-| `src/components/shared/ImportWizard.tsx` | Rimuovere `React.forwardRef`, tornare a semplice function export |
-| `src/components/shared/import-wizard/StepStart.tsx` | Rimuovere `React.forwardRef`, tornare a semplice function export |
-| `src/components/shared/import-wizard/StepIndicator.tsx` | Rimuovere `React.forwardRef` e `displayName`, tornare a semplice function export |
+**1. Validazione: almeno email O telefono obbligatorio**
+- Modificare `handleSubmit` per richiedere almeno uno tra email e telefono
+- Aggiornare le label per indicare "Email o Telefono obbligatorio"
+- Disabilitare il pulsante se mancano entrambi
 
-## Bug 2: Campi personalizzati mancanti nell'importazione CSV
+**2. Validazione formato telefono italiano**
+- Accettare formati: `+39 xxx xxxxxxx`, `+39xxxxxxxxxx`, `3xxxxxxxxx`, `0x xxxxxxx`
+- Regex: `/^(\+39\s?)?[03]\d{5,12}$/` (dopo aver rimosso spazi)
+- Mostrare errore inline se il formato non e valido
 
-**Causa**: Le liste `CSV_FIELDS` (contatti) e `OPP_IMPORT_FIELDS` (opportunita) sono hardcoded e non includono i campi personalizzati creati dall'utente (es. "Citta", o qualsiasi campo custom definito in Impostazioni > Campi personalizzati).
+**3. Validazione formato email**
+- Regex base per validare il formato email
+- Mostrare errore inline
 
-**Fix**: In `MarketingContacts.tsx` e `MarketingOpportunities.tsx`, usare i hook `useContactCustomFields()` e `useOpportunityCustomFields()` per recuperare i campi personalizzati dal database, e concatenarli ai campi statici prima di passarli al wizard.
+**4. Check duplicati nel database**
+- Aggiungere prop `companyId` al `ContactDialog`
+- Aggiungere prop `editingContactId` (opzionale) per escludere il contatto corrente in modifica
+- In `handleSubmit`, prima di chiamare `onSave`:
+  - Se email presente: query `marketing_contacts` per `email = X AND company_id = Y AND id != editingId`
+  - Se telefono presente: query `marketing_contacts` per `phone = X AND company_id = Y AND id != editingId`
+  - Se trovato un duplicato, mostrare errore e bloccare il salvataggio
 
-### File modificati:
+### File: `src/pages/azienda/marketing/MarketingContacts.tsx`
 
-| File | Modifica |
-|------|----------|
-| `src/pages/azienda/marketing/MarketingContacts.tsx` | Importare `useContactCustomFields`, creare lista dinamica di import fields che include i campi personalizzati |
-| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Usare il gia importato `useOpportunityCustomFields`, creare lista dinamica di import fields che include i campi personalizzati |
+- Passare `companyId` e `editingContactId` come nuove prop al `ContactDialog`
 
 ## Dettagli tecnici
 
-### ImportWizard.tsx - Rimuovere forwardRef
-
-Da:
+### Regex telefono italiano
 ```text
-export const ImportWizard = React.forwardRef<HTMLDivElement, ImportWizardProps>(function ImportWizard({
-  open, onClose, ...
-}: ImportWizardProps, ref) {
-  ...
-  return <div ref={ref} className="flex flex-col ...">
-});
+// Rimuovi spazi, trattini, punti
+const cleaned = phone.replace(/[\s\-\.]/g, "");
+// Valida: +39 seguito da 9-10 cifre, oppure numero che inizia con 0 o 3
+const isValid = /^(\+39)?[03]\d{8,10}$/.test(cleaned);
 ```
 
-A:
+### Check duplicati (dentro ContactDialog)
 ```text
-export function ImportWizard({
-  open, onClose, ...
-}: ImportWizardProps) {
-  ...
-  return <div className="flex flex-col ...">
-}
-```
-
-### StepStart.tsx - Rimuovere forwardRef
-
-Da:
-```text
-export const StepStart = React.forwardRef<HTMLDivElement, StepStartProps>(
-  function StepStart({ objectType, onObjectTypeChange }, ref) {
-    return <div ref={ref} className="max-w-xl ...">
+const checkDuplicate = async () => {
+  if (!companyId) return null;
+  const checks = [];
+  if (form.email.trim()) {
+    checks.push(
+      supabase.from("marketing_contacts")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId)
+        .eq("email", form.email.trim().toLowerCase())
+        .neq("id", editingContactId || "00000000-0000-0000-0000-000000000000")
+        .limit(1)
+    );
   }
-);
-```
-
-A:
-```text
-export function StepStart({ objectType, onObjectTypeChange }: StepStartProps) {
-  return <div className="max-w-xl ...">
-}
-```
-
-### StepIndicator.tsx - Rimuovere forwardRef
-
-Da:
-```text
-export const StepIndicator = React.forwardRef<HTMLDivElement, StepIndicatorProps>(
-  ({ currentStep }, ref) => {
-    return <div ref={ref} className="flex ...">
+  if (cleanedPhone) {
+    checks.push(
+      supabase.from("marketing_contacts")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId)
+        .eq("phone", cleanedPhone)
+        .neq("id", editingContactId || "00000000-0000-0000-0000-000000000000")
+        .limit(1)
+    );
   }
-);
-StepIndicator.displayName = "StepIndicator";
+  // Se trovato, return nome del duplicato
+};
 ```
 
-A:
-```text
-export function StepIndicator({ currentStep }: StepIndicatorProps) {
-  return <div className="flex ...">
-}
-```
-
-### MarketingContacts.tsx - Aggiungere campi personalizzati
-
-Aggiungere import e useMemo:
-```text
-import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
-
-// Dentro il componente:
-const { data: contactCustomFields = [] } = useContactCustomFields();
-
-const importFields = useMemo(() => {
-  const customImportFields = contactCustomFields.map(f => ({
-    key: `custom_${f.id}`,
-    label: f.name,
-    required: false,
-    type: "text" as const,
-  }));
-  return [...CSV_FIELDS, ...customImportFields];
-}, [contactCustomFields]);
-```
-
-Passare `importFields` al posto di `CSV_FIELDS` nel componente `ImportWizard`.
-
-Aggiornare anche `onImportContacts` per salvare i valori dei campi personalizzati in `marketing_contact_field_values`.
-
-### MarketingOpportunities.tsx - Aggiungere campi personalizzati
-
-Il hook `useOpportunityCustomFields` e gia importato (riga 16). Aggiungere un `useMemo`:
-```text
-const importFields = useMemo(() => {
-  const customImportFields = oppCustomFields.map(f => ({
-    key: `custom_${f.id}`,
-    label: f.name,
-    required: false,
-    type: "text" as const,
-  }));
-  return [...OPP_IMPORT_FIELDS, ...customImportFields];
-}, [oppCustomFields]);
-```
-
-Passare `importFields` al posto di `OPP_IMPORT_FIELDS` al wizard e aggiornare `onImportOpportunities` per salvare i valori custom in `marketing_opportunity_field_values`.
+### UI errori
+- Errori mostrati sotto ogni campo con testo rosso piccolo
+- State `errors: { phone?: string; email?: string; general?: string }`
+- Errore duplicato mostrato come toast o come messaggio sotto il form
 
 ## Riepilogo
 
-- **3 file** per fix "Component is not a function" (rimozione forwardRef inutile)
-- **2 file** per aggiungere campi personalizzati all'importazione
-- **5 file totali** modificati
-- Nessun cambiamento funzionale al comportamento esistente
+| Cosa | Dettaglio |
+|------|-----------|
+| Obbligatorieta | Almeno email O telefono (non piu solo nome) |
+| Anti-duplicazione | Check DB prima del salvataggio su email e telefono |
+| Formato telefono | Regex per numeri italiani (+39, 3xx, 0xx) |
+| Formato email | Validazione base |
+| File modificati | `ContactDialog.tsx`, `MarketingContacts.tsx` |
+| UX | Errori inline chiari, pulsante disabilitato se validazione fallisce |
+
