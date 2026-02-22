@@ -1,68 +1,71 @@
 
+# Stabilizzazione e Fix - Opportunita
 
-# Pulizia, Fix e Stabilizzazione Opportunita
+## Bug identificati e correzioni
 
-## 1. Bug Fix: Errore Console "Function components cannot be given refs"
+### 1. Doppio Toast al salvataggio (BUG CRITICO UX)
 
-**Problema**: `OpportunityCard` e wrappato con `memo` ma `@dnd-kit/sortable` v10 tenta di passare un ref al componente. Questo genera un warning ripetuto in console.
+**Problema**: Quando si salva un'opportunita dal `OpportunityDetailDialog`, appaiono DUE toast di successo:
+- `useUpdateOpportunity.onSuccess` mostra "Opportunita aggiornata" (riga 98 di `useOpportunitiesData.ts`)
+- `handleSave` inline `onSuccess` mostra "Opportunita aggiornata con successo" (riga 234 di `OpportunityDetailDialog.tsx`)
 
-**Soluzione**: Wrappare `OpportunityCard` con `React.forwardRef` oltre a `memo`, in modo che il ref venga accettato correttamente (anche se non viene utilizzato direttamente, dato che `useSortable` gestisce il proprio `setNodeRef`).
+Entrambi i callback `onSuccess` vengono eseguiti da React Query.
 
-**File**: `src/components/opportunities/OpportunityCard.tsx`
+**Soluzione**: Rimuovere il toast globale da `useUpdateOpportunity` e lasciare solo `queryClient.invalidateQueries`. I chiamanti gestiscono i propri messaggi. L'unico chiamante e `OpportunityDetailDialog`.
 
----
-
-## 2. Pulizia Import Inutilizzati
-
-**File e import da rimuovere**:
-
-- `src/components/settings/PipelinesConfig.tsx`: rimuovere `GripVertical` (importato ma mai usato)
+**File**: `src/hooks/useOpportunitiesData.ts` (riga 98: rimuovere `toast.success`)
 
 ---
 
-## 3. Fix UX: `confirm()` nativo sostituito con AlertDialog
+### 2. GripVertical importato ma non usato in PipelineStagesConfig
 
-**Problema**: In `OpportunityDetailDialog.tsx`, la funzione `handleDelete` usa `window.confirm()`, che e un popup nativo del browser, inconsistente con il resto della UI che usa `AlertDialog` di Radix.
+**Problema**: In `PipelineStagesConfig.tsx` riga 13, `GripVertical` e importato da lucide-react ED effettivamente usato nel componente `SortableStage` (riga 47). Questo e OK, nessuna azione necessaria.
 
-**Soluzione**: Aggiungere uno stato `confirmDelete` e usare `AlertDialog` come gia fatto in `OpportunityCard.tsx`.
+---
+
+### 3. Warning Console "Function components cannot be given refs"
+
+**Problema**: Il warning persiste nella console. `OpportunityCard` ha gia `forwardRef`, ma i log mostrano anche un warning per `OpportunityDetailDialog` (secondo warning nella console).
+
+**Analisi**: `OpportunityDetailDialog` e renderizzato fuori dal `DndContext` nel fragment di `OpportunityKanbanView`. Il warning per `OpportunityDetailDialog` puo provenire dal fatto che `Dialog` di Radix tenta internamente di clonare elementi e passare ref. Il fix e wrappare `OpportunityDetailDialog` con `forwardRef` per eliminare il warning.
+
+**Soluzione**: Wrappare `OpportunityDetailDialog` con `forwardRef` (accettando e ignorando il ref, dato che non serve).
 
 **File**: `src/components/opportunities/OpportunityDetailDialog.tsx`
 
 ---
 
-## 4. Fix: `handleSave` chiude il dialog prima che le mutations completino
+### 4. StageColumn dentro OpportunityKanbanView - potenziale warning ref
 
-**Problema**: In `OpportunityDetailDialog.tsx`, `handleSave` chiama `updateOpp.mutate()` (fire-and-forget) e poi subito `toast.success` + `onOpenChange(false)`. Se la mutation fallisce, l'utente vede comunque "success".
+**Problema**: `StageColumn` e wrappato con `memo` ma non `forwardRef`. Se DndContext tenta di passare un ref, genera warning.
 
-**Soluzione**: Usare il callback `onSuccess` della mutation principale per chiudere il dialog e mostrare il toast di successo.
+**Soluzione**: Wrappare `StageColumn` con `forwardRef` come fatto per `OpportunityCard`.
 
-**File**: `src/components/opportunities/OpportunityDetailDialog.tsx`
-
----
-
-## 5. Fix: OpportunityDialog - auto_status non applicato alla creazione
-
-**Problema**: Quando si crea un'opportunita e si seleziona una fase con `auto_status`, lo stato non viene aggiornato automaticamente (il campo status resta sempre "open").
-
-**Soluzione**: Aggiungere logica nel `onValueChange` del Select "Fase" per leggere l'`auto_status` e aggiornare il campo status automaticamente, come gia fatto in `OpportunityDetailDialog`.
-
-**File**: `src/components/opportunities/OpportunityDialog.tsx`
-- Le props `stages` devono includere `auto_status` (aggiornare l'interfaccia)
+**File**: `src/components/opportunities/OpportunityKanbanView.tsx`
 
 ---
 
-## Riepilogo file modificati (4)
+### 5. isSaving non riflette lo stato reale delle mutations
 
-| File | Tipo modifica |
-|------|--------------|
-| `OpportunityCard.tsx` | Fix forwardRef per eliminare warning console |
-| `PipelinesConfig.tsx` | Rimozione import `GripVertical` inutilizzato |
-| `OpportunityDetailDialog.tsx` | Fix confirm nativo -> AlertDialog, fix handleSave fire-and-forget |
-| `OpportunityDialog.tsx` | Auto-status alla creazione quando si seleziona una fase |
+**Problema**: In `OpportunityDetailDialog` riga 170:
+```
+const isSaving = updateOpp.isPending || updateContact.isPending || upsertContactFields.isPending || upsertOppFields.isPending;
+```
+Ma `handleSave` chiama `updateContact.mutate` e `upsertContactFields.mutate` in modo fire-and-forget (senza attendere). Solo `updateOpp.mutate` ha callback `onSuccess`/`onError`. Le altre mutations potrebbero fallire silenziosamente.
 
-## Cosa NON viene modificato
+**Soluzione**: Questo e accettabile per ora dato che le mutations hanno i propri `onError` con toast. Nessuna modifica necessaria, ma si documenta il comportamento.
 
-- Nessun comportamento funzionale cambiato
-- Nessun layout/design modificato
-- Nessuna tabella DB toccata
+---
 
+## Riepilogo modifiche (3 file)
+
+| File | Modifica |
+|------|----------|
+| `src/hooks/useOpportunitiesData.ts` | Rimuovere `toast.success` da `useUpdateOpportunity.onSuccess` per evitare doppio toast |
+| `src/components/opportunities/OpportunityDetailDialog.tsx` | Wrappare con `forwardRef` per eliminare warning console |
+| `src/components/opportunities/OpportunityKanbanView.tsx` | Wrappare `StageColumn` con `forwardRef` per eliminare warning console |
+
+## Cosa NON cambia
+- Nessun comportamento funzionale modificato
+- Nessun layout/design toccato
+- Nessuna tabella DB modificata
