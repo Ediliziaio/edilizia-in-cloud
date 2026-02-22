@@ -802,6 +802,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_activities_created_by"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "marketing_contact_activities_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -956,6 +963,13 @@ export type Database = {
           opportunity_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_notes_created_by"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "marketing_contact_notes_company_id_fkey"
             columns: ["company_id"]
