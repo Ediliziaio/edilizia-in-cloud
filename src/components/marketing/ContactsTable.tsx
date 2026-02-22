@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { Trash2, Pencil, ChevronUp, ChevronDown } from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,20 @@ export interface MarketingContact {
   source: string | null;
   last_activity_at: string | null;
   created_at: string;
+  city: string | null;
+  province: string | null;
+  address: string | null;
+  postal_code: string | null;
+  country: string | null;
+  contact_type: string;
+  date_of_birth: string | null;
+  website: string | null;
+  assigned_to: string | null;
+  opp_name: string | null;
+  opp_value: number | null;
+  opp_status: string | null;
+  opp_pipeline: string | null;
+  opp_stage: string | null;
 }
 
 export type SortField = "first_name" | "phone" | "email" | "company_name" | "created_at" | "last_activity_at";
@@ -39,6 +54,20 @@ export const COLUMNS = [
   { key: "last_activity_at", label: "Ultima Attività", sortField: "last_activity_at" as SortField },
   { key: "tags", label: "Tag" },
   { key: "source", label: "Fonte" },
+  { key: "city", label: "Città" },
+  { key: "province", label: "Provincia" },
+  { key: "address", label: "Indirizzo" },
+  { key: "postal_code", label: "CAP" },
+  { key: "country", label: "Paese" },
+  { key: "contact_type", label: "Tipo contatto" },
+  { key: "date_of_birth", label: "Data di nascita" },
+  { key: "website", label: "Sito web" },
+  { key: "notes_col", label: "Note" },
+  { key: "opp_name", label: "Opportunità" },
+  { key: "opp_value", label: "Valore opp." },
+  { key: "opp_status", label: "Stato opp." },
+  { key: "opp_pipeline", label: "Pipeline" },
+  { key: "opp_stage", label: "Fase pipeline" },
 ] as const;
 
 export type ColumnKey = (typeof COLUMNS)[number]["key"];
@@ -233,6 +262,42 @@ export function ContactsTable({
                           );
                         case "source":
                           return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{c.source || "—"}</TableCell>;
+                        case "city":
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.city || "—"}</TableCell>;
+                        case "province":
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.province || "—"}</TableCell>;
+                        case "address":
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.address || "—"}</TableCell>;
+                        case "postal_code":
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.postal_code || "—"}</TableCell>;
+                        case "country":
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.country || "—"}</TableCell>;
+                        case "contact_type":
+                          return (
+                            <TableCell key={col.key} className={cls}>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.contact_type || "lead"}</Badge>
+                            </TableCell>
+                          );
+                        case "date_of_birth":
+                          return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.date_of_birth)}</TableCell>;
+                        case "website":
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.website || "—"}</TableCell>;
+                        case "notes_col":
+                          return <TableCell key={col.key} className={`text-muted-foreground text-xs max-w-[150px] truncate ${cls}`}>{c.notes || "—"}</TableCell>;
+                        case "opp_name":
+                          return <TableCell key={col.key} className={`text-sm ${cls}`}>{c.opp_name || "—"}</TableCell>;
+                        case "opp_value":
+                          return <TableCell key={col.key} className={`text-sm ${cls}`}>{c.opp_value != null ? formatCurrency(c.opp_value) : "—"}</TableCell>;
+                        case "opp_status":
+                          return (
+                            <TableCell key={col.key} className={cls}>
+                              {c.opp_status ? <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.opp_status}</Badge> : "—"}
+                            </TableCell>
+                          );
+                        case "opp_pipeline":
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.opp_pipeline || "—"}</TableCell>;
+                        case "opp_stage":
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.opp_stage || "—"}</TableCell>;
                         default:
                           return null;
                       }

@@ -298,13 +298,52 @@ export default function MarketingContacts() {
         query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
       }
 
-      const { data: contacts, count, error } = await query;
+      const { data: contactsRaw, count, error } = await query;
       if (error) throw error;
-      return { contacts: (contacts || []) as MarketingContact[], count: count || 0 };
+
+      const contactIds = (contactsRaw || []).map((c: any) => c.id);
+
+      // Fetch first opportunity per contact
+      let oppMap: Record<string, { name: string; value: number; status: string; pipeline_name: string; stage_name: string }> = {};
+      if (contactIds.length > 0) {
+        const { data: opps } = await supabase
+          .from("marketing_opportunities")
+          .select("contact_id, name, value, status, marketing_pipelines(name), marketing_pipeline_stages(name)")
+          .in("contact_id", contactIds)
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false });
+
+        if (opps) {
+          for (const opp of opps) {
+            if (!oppMap[opp.contact_id]) {
+              oppMap[opp.contact_id] = {
+                name: opp.name,
+                value: opp.value,
+                status: opp.status,
+                pipeline_name: (opp.marketing_pipelines as any)?.name || "",
+                stage_name: (opp.marketing_pipeline_stages as any)?.name || "",
+              };
+            }
+          }
+        }
+      }
+
+      const contacts: MarketingContact[] = (contactsRaw || []).map((c: any) => {
+        const opp = oppMap[c.id];
+        return {
+          ...c,
+          opp_name: opp?.name || null,
+          opp_value: opp?.value ?? null,
+          opp_status: opp?.status || null,
+          opp_pipeline: opp?.pipeline_name || null,
+          opp_stage: opp?.stage_name || null,
+        };
+      });
+
+      return { contacts, count: count || 0 };
     },
     enabled: !!companyId,
   });
-
   const contacts = data?.contacts || [];
   const totalCount = data?.count || 0;
 
