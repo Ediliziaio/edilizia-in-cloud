@@ -63,11 +63,13 @@ export function useOpportunities(pipelineId: string | null) {
           supabase
             .from("marketing_contact_notes")
             .select("opportunity_id")
-            .in("opportunity_id", oppIds),
+            .in("opportunity_id", oppIds)
+            .limit(5000),
           supabase
             .from("marketing_documents")
             .select("opportunity_id")
-            .in("opportunity_id", oppIds),
+            .in("opportunity_id", oppIds)
+            .limit(5000),
         ]);
 
         if (notesRes.data) {
