@@ -1,113 +1,66 @@
 
-# Completare "Gestisci Campi" con tutti i campi contatto + campi opportunita
+# Aggiungere Custom Fields dinamici a "Gestisci campi" e tabella contatti
 
 ## Problema
 
-Il pannello "Gestisci campi" mostra solo 8 colonne (Nome, Telefono, Email, Azienda, Creato, Ultima Attivita, Tag, Fonte) ma mancano molti campi del contatto presenti nel database e non ci sono campi relativi alle opportunita.
+Il pannello "Gestisci campi" mostra solo colonne statiche hardcoded. I custom fields creati dall'utente in Impostazioni > Campi personalizzati non compaiono, quindi non possono essere attivati come colonne nella tabella contatti.
 
-## Campi mancanti da aggiungere
+## Soluzione
 
-### Campi contatto
-| Campo DB | Label | Tipo rendering |
-|----------|-------|----------------|
-| `city` | Citta | testo |
-| `province` | Provincia | testo |
-| `address` | Indirizzo | testo |
-| `postal_code` | CAP | testo |
-| `country` | Paese | testo |
-| `contact_type` | Tipo contatto | badge (lead/cliente/etc) |
-| `date_of_birth` | Data di nascita | data |
-| `website` | Sito web | testo |
-| `notes` | Note | testo troncato |
-| `assigned_to` | Assegnato a | testo (nome utente) |
-
-### Campi opportunita (nuovi, richiedono join)
-| Campo | Label | Tipo rendering |
-|-------|-------|----------------|
-| `opp_name` | Opportunita | testo (nome prima opp) |
-| `opp_value` | Valore opportunita | valuta |
-| `opp_status` | Stato opportunita | badge |
-| `opp_pipeline` | Pipeline | testo |
-| `opp_stage` | Fase pipeline | testo |
+Rendere `ContactFieldsSheet` e `ContactsTable` consapevoli dei custom fields, passandoli dinamicamente da `MarketingContacts.tsx`.
 
 ## File da modificare
 
 | File | Modifica |
 |------|----------|
-| `src/components/marketing/ContactsTable.tsx` | Aggiungere nuove colonne a COLUMNS, estendere MarketingContact interface, aggiungere rendering per ogni nuovo campo nel switch/case |
-| `src/pages/azienda/marketing/MarketingContacts.tsx` | Aggiornare la query per fetchare i nuovi campi contatto + fare un join/lookup delle opportunita per ogni contatto |
+| `src/components/marketing/ContactFieldsSheet.tsx` | Accettare prop `customFields`, unire ai COLUMNS statici per mostrare anche i custom fields |
+| `src/components/marketing/ContactsTable.tsx` | Accettare prop `customFields` e `customFieldValues`, renderizzare celle per colonne custom (`cf_*`) |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Fetchare i valori dei custom fields per i contatti visibili, passarli a tabella e sheet |
 
 ## Dettagli tecnici
 
-### 1. ContactsTable.tsx - Estendere COLUMNS
+### 1. ContactFieldsSheet.tsx
 
-Aggiungere tutte le colonne mancanti all'array `COLUMNS`:
+- Aggiungere prop `customFields: { id: string; name: string; field_type: string }[]`
+- Calcolare `allColumns` = `COLUMNS` statici + custom fields mappati come `{ key: "cf_<id>", label: nome_campo }`
+- Usare `allColumns` invece di `COLUMNS` per filtrare campi attivi/inattivi
+- Il tipo `ColumnKey` deve accettare stringhe custom (`cf_*`), quindi il draft usera `Set<string>` internamente
+
+### 2. ContactsTable.tsx
+
+- Aggiungere prop `customFields` e `customFieldValues: Record<string, Record<string, string>>` (mappa `contact_id -> field_id -> value`)
+- Nel rendering delle celle, gestire il caso `default` nel switch: se `col.key` inizia con `cf_`, estrarre il valore da `customFieldValues[contact.id][fieldId]`
+- Estendere il tipo `ColumnKey` per accettare stringhe generiche o mantenere la union + aggiungere i custom come stringhe
+
+### 3. MarketingContacts.tsx
+
+- Dopo aver fetchato i contatti, fetchare anche `marketing_contact_field_values` per i `contact_id` visibili
+- Costruire la mappa `customFieldValues: Record<string, Record<string, string>>`
+- Passare `customFields` e `customFieldValues` sia a `ContactsTable` che a `ContactFieldsSheet`
+- Passare `customFields` anche a `ContactFieldsSheet`
+
+### 4. Gestione tipo ColumnKey
+
+Attualmente `ColumnKey` e una union type stretta derivata da `COLUMNS as const`. Per supportare chiavi dinamiche (`cf_<uuid>`):
+- Cambiare `visibleColumns` da `Set<ColumnKey>` a `Set<string>`
+- `ContactFieldsSheet` lavora con `Set<string>` internamente
+- `ContactsTable` accetta `visibleColumns: Set<string>` e i `customFields` per sapere quali colonne custom renderizzare
+
+### 5. Flusso dati
 
 ```text
-// Campi contatto aggiuntivi
-{ key: "city", label: "Citta" },
-{ key: "province", label: "Provincia" },
-{ key: "address", label: "Indirizzo" },
-{ key: "postal_code", label: "CAP" },
-{ key: "country", label: "Paese" },
-{ key: "contact_type", label: "Tipo contatto" },
-{ key: "date_of_birth", label: "Data di nascita" },
-{ key: "website", label: "Sito web" },
-{ key: "notes", label: "Note" },
-
-// Campi opportunita
-{ key: "opp_name", label: "Opportunita" },
-{ key: "opp_value", label: "Valore opp." },
-{ key: "opp_status", label: "Stato opp." },
-{ key: "opp_pipeline", label: "Pipeline" },
-{ key: "opp_stage", label: "Fase pipeline" },
+MarketingContacts
+  |-- useContactCustomFields() -> customFields[]
+  |-- query contatti -> contactIds[]
+  |-- query marketing_contact_field_values WHERE contact_id IN contactIds -> customFieldValues map
+  |
+  |-- ContactFieldsSheet(customFields) -> mostra COLUMNS + cf_* nel pannello
+  |-- ContactsTable(customFields, customFieldValues) -> renderizza celle cf_*
 ```
-
-### 2. ContactsTable.tsx - Estendere MarketingContact
-
-Aggiungere i nuovi campi all'interfaccia:
-
-```text
-// Campi contatto aggiuntivi
-city: string | null;
-province: string | null;
-address: string | null;
-postal_code: string | null;
-country: string | null;
-contact_type: string;
-date_of_birth: string | null;
-website: string | null;
-
-// Campi opportunita (calcolati lato query)
-opp_name: string | null;
-opp_value: number | null;
-opp_status: string | null;
-opp_pipeline: string | null;
-opp_stage: string | null;
-```
-
-### 3. ContactsTable.tsx - Aggiungere rendering nel switch
-
-Per ogni nuovo campo, aggiungere il case nel switch di rendering delle celle:
-- Testo semplice per city, province, address, postal_code, country, website
-- Badge colorato per contact_type e opp_status
-- Data formattata per date_of_birth
-- Testo troncato per notes
-- Valuta formattata per opp_value
-
-### 4. MarketingContacts.tsx - Aggiornare query
-
-- Aggiungere i nuovi campi alla select del contatto: `city, province, address, postal_code, country, contact_type, date_of_birth, website`
-- Fare una query separata per le opportunita raggruppate per contact_id (prendendo la prima/piu recente per ogni contatto)
-- Unire i dati opportunita ai contatti prima di passarli alla tabella
-
-### 5. DEFAULT_VISIBLE resta invariato
-
-I nuovi campi non saranno visibili di default. Appariranno nella sezione "Aggiungi campi" del pannello "Gestisci campi" e l'utente potra attivarli.
 
 ## Risultato atteso
 
-- Il pannello "Gestisci campi" mostra tutti i campi contatto + i campi opportunita
-- L'utente puo attivare/disattivare qualsiasi colonna
-- Le colonne opportunita mostrano i dati della prima opportunita associata al contatto
-- Nessun impatto sulle colonne visibili di default
+- Ogni custom field creato in Impostazioni appare automaticamente nel pannello "Gestisci campi"
+- L'utente puo attivare/disattivare i custom fields come colonne
+- I valori dei custom fields vengono mostrati nella tabella quando la colonna e attiva
+- Nessun custom field e visibile di default (appare in "Aggiungi campi")
