@@ -48,8 +48,8 @@ function InlineField({ label, value, onSave, type = "text", options }: {
 
   if (type === "select" && options) {
     return (
-      <div className="grid grid-cols-[110px_1fr] items-center gap-1 py-0.5">
-        <Label className="text-[11px] text-muted-foreground truncate">{label}</Label>
+      <div className="grid grid-cols-[120px_1fr] items-center gap-1 py-0.5">
+        <Label className="text-xs text-muted-foreground truncate">{label}</Label>
         <Select value={value || ""} onValueChange={onSave}>
           <SelectTrigger className="h-7 text-xs border-0 bg-transparent shadow-none px-1 hover:bg-muted/50"><SelectValue placeholder="—" /></SelectTrigger>
           <SelectContent>
@@ -61,8 +61,8 @@ function InlineField({ label, value, onSave, type = "text", options }: {
   }
 
   return (
-    <div className="grid grid-cols-[110px_1fr] items-center gap-1 py-0.5">
-      <Label className="text-[11px] text-muted-foreground truncate">{label}</Label>
+    <div className="grid grid-cols-[120px_1fr] items-center gap-1 py-0.5">
+      <Label className="text-xs text-muted-foreground truncate">{label}</Label>
       {editing ? (
         <Input
           autoFocus
@@ -75,7 +75,7 @@ function InlineField({ label, value, onSave, type = "text", options }: {
         />
       ) : (
         <p
-          className="text-xs min-h-[28px] flex items-center cursor-pointer hover:bg-muted/50 rounded px-1"
+          className="text-xs min-h-[32px] flex items-center cursor-pointer hover:bg-muted/50 rounded px-1"
           onClick={() => setEditing(true)}
         >
           {value || <span className="text-muted-foreground">—</span>}
@@ -398,7 +398,7 @@ export default function MarketingContactDetail() {
   return (
     <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
       {/* ══════════ LEFT COLUMN ══════════ */}
-      <div className="w-[300px] min-w-[300px] border-r flex flex-col">
+      <div className="w-[340px] min-w-[340px] border-r flex flex-col">
         {/* Header */}
         <div className="h-11 border-b flex items-center justify-between px-2 shrink-0">
           <div className="flex items-center gap-1">
@@ -423,15 +423,15 @@ export default function MarketingContactDetail() {
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-3 space-y-3">
+          <div className="p-4 space-y-4">
             {/* Avatar + Name + Delete */}
             <div className="flex items-center gap-2.5">
-              <Avatar className="h-10 w-10 shrink-0">
+              <Avatar className="h-12 w-12 shrink-0">
                 <AvatarFallback className={cn("text-sm font-bold text-white", getAvatarColor(fullName))}>
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <h2 className="font-semibold text-sm flex-1 truncate">{fullName}</h2>
+              <h2 className="font-semibold text-base flex-1 truncate">{fullName}</h2>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => setDeleteOpen(true)}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -442,13 +442,13 @@ export default function MarketingContactDetail() {
               <div>
                 <div className="flex items-center gap-1 mb-0.5">
                   <User className="h-3 w-3 text-muted-foreground" />
-                  <Label className="text-[10px] text-muted-foreground">Titolare</Label>
+                  <Label className="text-xs text-muted-foreground">Titolare</Label>
                 </div>
                 <Select
                   value={contact.assigned_to || ""}
                   onValueChange={(v) => updateField.mutate({ field: "assigned_to", value: v || null })}
                 >
-                  <SelectTrigger className="h-7 text-[11px] border-dashed"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                   <SelectContent>
                     {staff.map((s: any) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
@@ -459,13 +459,13 @@ export default function MarketingContactDetail() {
               <div>
                 <div className="flex items-center gap-1 mb-0.5">
                   <User className="h-3 w-3 text-muted-foreground" />
-                  <Label className="text-[10px] text-muted-foreground">Follower</Label>
+                  <Label className="text-xs text-muted-foreground">Follower</Label>
                 </div>
                 <Select
                   value={contact.follower_id || ""}
                   onValueChange={(v) => updateField.mutate({ field: "follower_id", value: v || null })}
                 >
-                  <SelectTrigger className="h-7 text-[11px] border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                   <SelectContent>
                     {staff.map((s: any) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
@@ -478,7 +478,7 @@ export default function MarketingContactDetail() {
             {/* Tags / Etichette */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <Label className="text-[11px] text-muted-foreground">
+                <Label className="text-xs text-muted-foreground">
                   Etichette ({(contact.tags || []).length})
                 </Label>
                 <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
@@ -502,7 +502,7 @@ export default function MarketingContactDetail() {
               {(contact.tags || []).length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {contact.tags.map((tag: string) => (
-                    <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 h-5">
+                    <Badge key={tag} variant="secondary" className="text-[11px] px-1.5 py-0 gap-1 h-5">
                       {tag}
                       <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => {
                         updateField.mutate({ field: "tags", value: contact.tags.filter((t: string) => t !== tag) });
@@ -516,9 +516,9 @@ export default function MarketingContactDetail() {
             {/* Left column tabs */}
             <Tabs defaultValue="all_fields" className="w-full">
               <TabsList className="w-full h-8 p-0.5">
-                <TabsTrigger value="all_fields" className="flex-1 text-[11px] h-7">Tutti i campi</TabsTrigger>
-                <TabsTrigger value="dnd" className="flex-1 text-[11px] h-7">DND</TabsTrigger>
-                <TabsTrigger value="actions" className="flex-1 text-[11px] h-7">Azioni</TabsTrigger>
+                <TabsTrigger value="all_fields" className="flex-1 text-xs h-7">Tutti i campi</TabsTrigger>
+                <TabsTrigger value="dnd" className="flex-1 text-xs h-7">DND</TabsTrigger>
+                <TabsTrigger value="actions" className="flex-1 text-xs h-7">Azioni</TabsTrigger>
               </TabsList>
 
               <TabsContent value="all_fields" className="mt-2 space-y-2">
@@ -658,7 +658,7 @@ export default function MarketingContactDetail() {
 
         {/* Timeline */}
         <ScrollArea className="flex-1">
-          <div className="p-4">
+          <div className="p-4 max-w-2xl mx-auto w-full">
             {groupedActivities.length === 0 ? (
               <p className="text-muted-foreground text-xs text-center py-12">Nessuna attività registrata</p>
             ) : (
