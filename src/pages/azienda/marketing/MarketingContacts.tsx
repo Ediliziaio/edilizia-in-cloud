@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Upload, Plus } from "lucide-react";
+import { Search, Upload, Plus, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { ContactsTable, type MarketingContact } from "@/components/marketing/Con
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities } from "@/hooks/useTagSync";
+import { exportToCSV } from "@/lib/csvExport";
 
 const CSV_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true },
@@ -161,6 +162,45 @@ export default function MarketingContacts() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={async () => {
+            if (!companyId) return;
+            try {
+              const { data: all, error } = await supabase
+                .from("marketing_contacts")
+                .select("*")
+                .eq("company_id", companyId)
+                .order("created_at", { ascending: false });
+              if (error) throw error;
+              const rows = (all || []).map((c: any) => ({
+                first_name: c.first_name || "",
+                last_name: c.last_name || "",
+                phone: c.phone || "",
+                email: c.email || "",
+                company_name: c.company_name || "",
+                tags: (c.tags || []).join(", "),
+                notes: c.notes || "",
+                source: c.source || "",
+                created_at: c.created_at ? new Date(c.created_at).toLocaleDateString("it-IT") : "",
+              }));
+              const today = new Date().toISOString().slice(0, 10);
+              exportToCSV(rows, [
+                { key: "first_name", label: "Nome" },
+                { key: "last_name", label: "Cognome" },
+                { key: "phone", label: "Telefono" },
+                { key: "email", label: "Email" },
+                { key: "company_name", label: "Azienda" },
+                { key: "tags", label: "Tag" },
+                { key: "notes", label: "Note" },
+                { key: "source", label: "Fonte" },
+                { key: "created_at", label: "Data Creazione" },
+              ], `contatti_${today}.csv`);
+              toast.success(`${rows.length} contatti esportati`);
+            } catch {
+              toast.error("Errore durante l'esportazione");
+            }
+          }}>
+            <Download className="h-4 w-4 mr-2" /> Esporta
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-2" /> Importa
           </Button>

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil } from "lucide-react";
+import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download } from "lucide-react";
 import { CardCustomizeSheet } from "@/components/opportunities/CardCustomizeSheet";
 import { useCardFieldPreferences, CardFieldPreferencesProvider } from "@/hooks/useCardFieldPreferences";
+import type { FieldDefinition } from "@/hooks/useCardFieldPreferences";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,10 @@ import { OpportunityFiltersSheet, OpportunityFilters, EMPTY_FILTERS, countActive
 import { BulkEditSheet } from "@/components/opportunities/BulkEditSheet";
 import { usePipelines, useOpportunities, useCompanyStaff, useBulkDeleteOpportunities } from "@/hooks/useOpportunitiesData";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
-import type { FieldDefinition } from "@/hooks/useCardFieldPreferences";
+import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+import { exportToCSV } from "@/lib/csvExport";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -32,10 +36,25 @@ export default function MarketingOpportunities() {
   );
 }
 
+const OPP_IMPORT_FIELDS: ImportField[] = [
+  { key: "name", label: "Nome Opportunità", required: true },
+  { key: "contact_first_name", label: "Contatto Nome", required: true },
+  { key: "contact_last_name", label: "Contatto Cognome", required: false },
+  { key: "contact_email", label: "Email Contatto", required: false, type: "email" },
+  { key: "contact_phone", label: "Telefono Contatto", required: false },
+  { key: "value", label: "Valore", required: false, type: "number" },
+  { key: "source", label: "Fonte", required: false },
+  { key: "tags", label: "Tag", required: false },
+  { key: "notes", label: "Note", required: false },
+];
+
 function MarketingOpportunitiesContent() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines();
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -184,7 +203,7 @@ function MarketingOpportunitiesContent() {
             </TooltipTrigger>
             <TooltipContent>Vista lista</TooltipContent>
           </Tooltip>
-          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => toast.info("Importazione in arrivo")}>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setImportOpen(true)} disabled={stages.length === 0}>
             <Upload className="mr-1.5 h-3.5 w-3.5" /> Importa
           </Button>
           <Button size="sm" className="h-8 text-xs" onClick={() => setDialogOpen(true)} disabled={stages.length === 0}>
@@ -197,7 +216,44 @@ function MarketingOpportunitiesContent() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => toast.info("Esportazione in arrivo")}>Esporta</DropdownMenuItem>
+              <DropdownMenuItem onClick={async () => {
+                try {
+                  const stageMap = Object.fromEntries(stages.map((s: any) => [s.id, s.name]));
+                  const rows = filteredOpportunities.map((o: any) => {
+                    const c = o.marketing_contacts || {};
+                    return {
+                      name: o.name || "",
+                      contact: [c.first_name, c.last_name].filter(Boolean).join(" "),
+                      email: c.email || "",
+                      phone: c.phone || "",
+                      value: String(o.value || 0),
+                      status: o.status || "",
+                      stage: stageMap[o.stage_id] || "",
+                      source: o.source || "",
+                      tags: (o.tags || []).join(", "),
+                      created_at: o.created_at ? new Date(o.created_at).toLocaleDateString("it-IT") : "",
+                    };
+                  });
+                  const today = new Date().toISOString().slice(0, 10);
+                  exportToCSV(rows, [
+                    { key: "name", label: "Nome Opportunità" },
+                    { key: "contact", label: "Contatto" },
+                    { key: "email", label: "Email" },
+                    { key: "phone", label: "Telefono" },
+                    { key: "value", label: "Valore" },
+                    { key: "status", label: "Stato" },
+                    { key: "stage", label: "Fase" },
+                    { key: "source", label: "Fonte" },
+                    { key: "tags", label: "Tag" },
+                    { key: "created_at", label: "Data Creazione" },
+                  ], `opportunita_${today}.csv`);
+                  toast.success(`${rows.length} opportunità esportate`);
+                } catch {
+                  toast.error("Errore durante l'esportazione");
+                }
+              }}>
+                <Download className="mr-2 h-4 w-4" /> Esporta CSV
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => toast.info("Impostazioni in arrivo")}>Impostazioni pipeline</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -305,6 +361,86 @@ function MarketingOpportunitiesContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CSVImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importa Opportunità"
+        fields={OPP_IMPORT_FIELDS}
+        onImport={async (rows) => {
+          if (!companyId || !selectedPipelineId || stages.length === 0) {
+            return { success: 0, errors: ["Seleziona una pipeline con almeno una fase"] };
+          }
+          const defaultStageId = stages.sort((a: any, b: any) => a.position - b.position)[0].id;
+          let success = 0;
+          const errors: string[] = [];
+
+          for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            try {
+              const firstName = r.contact_first_name?.trim() || "Senza nome";
+              const lastName = r.contact_last_name?.trim() || null;
+              const email = r.contact_email?.trim() || null;
+              const phone = r.contact_phone?.trim() || null;
+
+              // Try find existing contact by email or phone
+              let contactId: string | null = null;
+              if (email) {
+                const { data: found } = await supabase
+                  .from("marketing_contacts")
+                  .select("id")
+                  .eq("company_id", companyId)
+                  .eq("email", email)
+                  .limit(1)
+                  .single();
+                if (found) contactId = found.id;
+              }
+              if (!contactId && phone) {
+                const { data: found } = await supabase
+                  .from("marketing_contacts")
+                  .select("id")
+                  .eq("company_id", companyId)
+                  .eq("phone", phone)
+                  .limit(1)
+                  .single();
+                if (found) contactId = found.id;
+              }
+
+              // Create contact if not found
+              if (!contactId) {
+                const { data: newContact, error: cErr } = await supabase
+                  .from("marketing_contacts")
+                  .insert({ company_id: companyId, first_name: firstName, last_name: lastName, email, phone })
+                  .select("id")
+                  .single();
+                if (cErr) throw cErr;
+                contactId = newContact!.id;
+              }
+
+              // Create opportunity
+              const tags = r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [];
+              const { error: oErr } = await supabase
+                .from("marketing_opportunities")
+                .insert({
+                  company_id: companyId,
+                  pipeline_id: selectedPipelineId,
+                  stage_id: defaultStageId,
+                  contact_id: contactId!,
+                  name: r.name?.trim() || `Opportunità ${i + 1}`,
+                  value: parseFloat(r.value) || 0,
+                  source: r.source?.trim() || "importazione",
+                  tags,
+                  notes: r.notes?.trim() || null,
+                });
+              if (oErr) throw oErr;
+              success++;
+            } catch (err: any) {
+              errors.push(`Riga ${i + 2}: ${err?.message || "errore sconosciuto"}`);
+            }
+          }
+          return { success, errors };
+        }}
+      />
     </div>
   );
 }
