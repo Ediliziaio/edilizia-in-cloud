@@ -1,103 +1,86 @@
 
 
-# Miglioramento Opportunita - Stile GHL
+# Opportunita identica a GHL - Elementi mancanti e correzioni
 
-## Problemi identificati
+## Analisi differenze tra la nostra implementazione e GHL
 
-### 1. Bug Titolare/Follower - Query errata
-Il dialog `OpportunityDialog.tsx` recupera gli utenti dalla tabella `profiles` filtrando solo per `company_id`, senza escludere i clienti. Deve filtrare per ruolo `company_admin` / `company_staff` tramite la tabella `user_roles`, come gia fatto in `AssignedToSelect.tsx`.
+### Elementi mancanti nella CARD:
+1. **Layout nome**: GHL usa "Nome - Citta" come testo semplice (bold), senza avatar circolare
+2. **Icona assegnato**: GHL mostra iniziali dell'utente assegnato (es. "SP") in un badge colorato in alto a destra, non un'icona generica
+3. **Label complete**: GHL usa label estese: "Fonte dell'opportunita:", "Valore dell'opportunita:", "Email del contatto:", "Telefono del contatto:" - noi usiamo label abbreviate con icone
+4. **Valore sempre visibile**: GHL mostra sempre il valore anche se e $0.00, noi lo nascondiamo quando e 0
+5. **Barra azioni in basso**: GHL ha una riga di icone piccole in fondo alla card (telefono, email, copia, nota, calendario, cartella, cestino) - COMPLETAMENTE MANCANTE
 
-### 2. Manca il click sulla card per aprire dettagli
-Attualmente le card nel kanban NON hanno un evento click per aprire un popup di dettaglio/modifica dell'opportunita. GHL mostra un dialog completo con sidebar tabs (Dettagli, Appuntamenti, Attivita, Note, Pagamenti, Oggetti Membri) quando si clicca su una card.
+### Elementi mancanti nell'HEADER pagina:
+6. **Tab "Tutto" e "+ Elenco"**: GHL ha tabs sotto il selettore pipeline
+7. **Toggle vista** (griglia/lista): due icone per cambiare visualizzazione
+8. **Pulsante "Importa"**: per importazione bulk
+9. **Menu tre puntini**: azioni aggiuntive
+10. **Barra filtri**: "Filtri avanzati" e "Ordina (1)" come pulsanti separati
+11. **Campo "Cerca Lead"**: ricerca testuale dedicata con icona lente
+12. **Link "Gestisci campi"**: collegamento rapido alla gestione campi personalizzati
 
-### 3. Nome opportunita automatico
-Quando il nome opportunita non viene specificato, deve prendere automaticamente il nome del contatto selezionato (nome + citta se disponibile, come in GHL: "Paolo - Verona").
-
-### 4. Dialog creazione troppo complesso
-Il dialog attuale usa un sistema di tabs per scegliere tra contatto esistente e nuovo. In GHL e piu semplice: un singolo campo di ricerca combobox con opzione "+ nuovo (Crea nuovo contatto)" in fondo alla lista.
-
-### 5. Grafica card e layout
-Le card devono mostrare piu informazioni come in GHL: fonte dell'opportunita, valore, email e telefono del contatto, con label descrittive ("Fonte dell'opportunita:", "Valore dell'opportunita:", ecc.). Le colonne devono mostrare il conteggio opportunita e il valore totale nell'header.
+### Elementi mancanti nella COLONNA:
+13. **Formato header**: GHL mostra "N Opportunita $0.00" in una sola riga compatta, senza badge separato per il conteggio
 
 ---
 
 ## Piano di implementazione
 
-### A. Fix bug Titolare/Follower (`OpportunityDialog.tsx`)
-- Modificare la query `staff` per fare un join con `user_roles` e filtrare solo `company_admin` e `company_staff`
-- Aggiungere campo Follower nel form (attualmente manca)
-- Usare lo stesso pattern di `AssignedToSelect.tsx`
+### A. Riscrittura Card (`OpportunityCard.tsx`)
+- Rimuovere avatar circolare, usare solo testo "Nome - Citta" in bold
+- Icona assegnato in alto a destra con iniziali reali dell'utente (se disponibili) in un badge colorato
+- Label complete in italiano: "Fonte dell'opportunita:", "Valore dell'opportunita:", "Email del contatto:", "Telefono del contatto:"
+- Mostrare SEMPRE tutti i campi (anche se vuoti/zero), come GHL
+- Aggiungere barra azioni in basso con icone: telefono, email, copia, nota, calendario, cartella, cestino
+- Ogni icona della barra azioni avra un tooltip e un'azione corrispondente (es. click su telefono = copia numero, click su email = apri mailto, click su cestino = elimina opportunita)
 
-### B. Dialog dettaglio opportunita - Nuovo componente (`OpportunityDetailDialog.tsx`)
-Creare un nuovo dialog che si apre al click sulla card con sidebar tabs come GHL:
-- **Dettagli dell'opportunita**: form editabile con tutti i campi (nome editabile inline, sequenza, fase, stato, valore, titolare, follower, azienda, fonte, campi custom)
-- **Note**: lista note con possibilita di aggiungerne di nuove (riutilizzando tabella `marketing_contact_notes` o creando `marketing_opportunity_notes`)
-- **Attivita**: timeline delle attivita
-- Layout: sidebar sinistra con link tabs, contenuto a destra
+### B. Header pagina completo (`MarketingOpportunities.tsx`)
+- Prima riga: selettore pipeline, badge lead count (verde), toggle vista griglia/lista, "Importa", "+ Aggiungi opportunita", menu tre puntini
+- Seconda riga (sotto): tab "Tutto" e "+ Elenco"
+- Terza riga: "Filtri avanzati" (pulsante con icona filtro), "Ordina" (pulsante), a destra "Cerca Lead" (input ricerca), "Gestisci campi" (link)
+- Implementare ricerca locale: filtrare le opportunita per nome contatto, email, telefono
 
-### C. Semplificare dialog creazione (`OpportunityDialog.tsx`)
-- Sostituire il sistema tabs (Esistente/Nuovo) con un singolo campo combobox di ricerca
-- In fondo alla lista risultati: link "+ nuovo (Crea nuovo contatto)" che espande i campi per il nuovo contatto
-- Il nome opportunita si auto-compila con il nome del contatto + citta quando viene selezionato
-- Aggiungere campo Follower
+### C. Header colonna semplificato (`OpportunityKanbanView.tsx`)
+- Una sola riga: nome fase in bold
+- Sotto: "N Opportunita $0.00" in testo piccolo grigio (formato GHL esatto)
+- Rimuovere il Badge separato per il conteggio
 
-### D. Migliorare card kanban (`OpportunityCard.tsx`)
-- Aggiungere label descrittive come GHL: "Fonte dell'opportunita:", "Valore dell'opportunita:", "Email del contatto:", "Telefono del contatto:"
-- Mostrare il valore con formato "EUR 0.00" o simile
-- Aggiungere icona utente assegnato in alto a destra (con avatar iniziali se assegnato)
-- Aggiungere `onClick` per aprire il dialog dettaglio
-
-### E. Migliorare header colonne kanban (`OpportunityKanbanView.tsx`)
-- Mostrare "N Opportunita EUR X.XX" nell'header di ogni colonna come in GHL
-
-### F. Database - Tabella note opportunita
-Creare tabella `marketing_opportunity_notes` per le note associate alle opportunita:
-- `id`, `opportunity_id`, `company_id`, `content`, `created_by`, `created_at`
-- RLS policies standard
-
----
-
-## File coinvolti
-
-### Nuovi file (1)
-1. `src/components/opportunities/OpportunityDetailDialog.tsx` - Dialog dettaglio/modifica con sidebar tabs
-
-### File modificati (4)
-1. `src/components/opportunities/OpportunityDialog.tsx` - Semplificare con combobox, fix staff query, aggiungere follower, auto-nome
-2. `src/components/opportunities/OpportunityCard.tsx` - Label descrittive GHL-style, onClick per dettaglio
-3. `src/components/opportunities/OpportunityKanbanView.tsx` - Passare callback onClick, migliorare header colonne
-4. `src/hooks/useOpportunitiesData.ts` - Aggiungere hook `useUpdateOpportunity` per modifica completa
-
-### Migrazione database (1)
-- CREATE TABLE `marketing_opportunity_notes` con RLS
+### D. Integrazione con `useOpportunitiesData.ts`
+- Aggiungere hook `useDeleteOpportunity` se non presente (per il cestino nella card)
+- Le azioni della barra card useranno i dati del contatto collegato
 
 ---
 
 ## Dettaglio tecnico
 
-### Query staff corretta (fix bug critico)
-```text
-1. Fetch profiles WHERE company_id = X
-2. Fetch user_roles WHERE user_id IN (profile_ids)
-3. Filter: keep only company_admin + company_staff
-```
+### File modificati (3)
+1. **`src/components/opportunities/OpportunityCard.tsx`** - Riscrittura completa layout GHL con barra azioni
+2. **`src/pages/azienda/marketing/MarketingOpportunities.tsx`** - Header completo con filtri, ricerca, toggle vista
+3. **`src/components/opportunities/OpportunityKanbanView.tsx`** - Header colonna semplificato formato GHL
 
-### Auto-nome opportunita
-Quando viene selezionato un contatto, il campo nome si compila con:
-- `{first_name} {last_name} - {city}` se la citta e disponibile
-- `{first_name} {last_name}` altrimenti
-- L'utente puo sovrascrivere manualmente
-
-### Dialog dettaglio - Tabs sidebar
-| Tab | Contenuto |
+### Barra azioni card (icone da sinistra a destra)
+| Icona | Azione |
 |---|---|
-| Dettagli dell'opportunita | Form editabile con save automatico |
-| Note | Lista note + "Aggiungi Nota" |
-| Attivita | Timeline (futuro, per ora placeholder) |
+| Phone | Copia numero telefono contatto |
+| Mail | Apri mailto: con email contatto |
+| Copy | Copia nome opportunita |
+| StickyNote | Apri dialog note (toast "funzionalita in arrivo") |
+| Calendar | Apri calendario (toast "funzionalita in arrivo") |
+| Folder | Apri documenti (toast "funzionalita in arrivo") |
+| Trash2 | Elimina opportunita con conferma |
+
+### Ricerca locale
+Il campo "Cerca Lead" filtrera le opportunita gia caricate in memoria, cercando in:
+- Nome opportunita
+- Nome contatto (first_name, last_name)
+- Email contatto
+- Telefono contatto
 
 ### Cosa NON cambia
-- Nessuna modifica alla struttura pipeline/stages
-- Nessuna modifica ai contatti marketing
-- Nessuna modifica alla navigazione
-- Drag & drop kanban rimane invariato
+- Drag & drop tra colonne rimane invariato
+- Dialog dettaglio (click su card) rimane invariato
+- Dialog creazione rimane invariato
+- Pipeline selector rimane invariato
+- Database e RLS non cambiano
 
