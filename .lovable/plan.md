@@ -1,90 +1,113 @@
 
+# Completare "Gestisci Campi" con tutti i campi contatto + campi opportunita
 
-# Fix e Stabilizzazione Filtri Avanzati Contatti
+## Problema
 
-## Problemi identificati
+Il pannello "Gestisci campi" mostra solo 8 colonne (Nome, Telefono, Email, Azienda, Creato, Ultima Attivita, Tag, Fonte) ma mancano molti campi del contatto presenti nel database e non ci sono campi relativi alle opportunita.
 
-### Bug 1: Tag mostrati come input testo invece che dropdown
-Nel `ContactFiltersSheet.tsx`, il campo "Tag" ha `type: "tags"` ma **nessuna opzione definita** (`options: undefined`). La condizione a riga 340 (`isSelectField && fieldDef?.options`) risulta `false` per i tag, quindi il tag viene renderizzato come un semplice input di testo invece che come dropdown con i tag disponibili. L'utente non puo selezionare un tag dal menu.
+## Campi mancanti da aggiungere
 
-**Fix**: Aggiungere un check separato per `fieldDef?.type === "tags"` che usa `availableTags` come sorgente delle opzioni.
+### Campi contatto
+| Campo DB | Label | Tipo rendering |
+|----------|-------|----------------|
+| `city` | Citta | testo |
+| `province` | Provincia | testo |
+| `address` | Indirizzo | testo |
+| `postal_code` | CAP | testo |
+| `country` | Paese | testo |
+| `contact_type` | Tipo contatto | badge (lead/cliente/etc) |
+| `date_of_birth` | Data di nascita | data |
+| `website` | Sito web | testo |
+| `notes` | Note | testo troncato |
+| `assigned_to` | Assegnato a | testo (nome utente) |
 
-### Bug 2: Warning console "Function components cannot be given refs"
-Il componente `Select` di Radix viene usato senza `forwardRef`. Questo warning appare perche Radix tenta di passare un ref al componente `Select` dentro lo Sheet. Non causa crash ma inquina la console.
-
-**Fix**: Non risolvibile direttamente (e un comportamento interno di Radix/Sheet). Il warning e innocuo.
-
-### Cleanup 1: Import inutilizzato `X`
-L'import `X` da lucide-react (riga 6) non viene mai usato nel componente.
-
-**Fix**: Rimuovere l'import.
-
-### Cleanup 2: Condizioni ridondanti in MarketingContacts
-Riga 178: `rule.field.startsWith("opp_") || rule.field === "opp_status" || rule.field === "opp_stage"` - le ultime due condizioni sono ridondanti perche entrambi i campi iniziano gia con `"opp_"`.
-
-**Fix**: Semplificare a `rule.field.startsWith("opp_")`.
+### Campi opportunita (nuovi, richiedono join)
+| Campo | Label | Tipo rendering |
+|-------|-------|----------------|
+| `opp_name` | Opportunita | testo (nome prima opp) |
+| `opp_value` | Valore opportunita | valuta |
+| `opp_status` | Stato opportunita | badge |
+| `opp_pipeline` | Pipeline | testo |
+| `opp_stage` | Fase pipeline | testo |
 
 ## File da modificare
 
 | File | Modifica |
 |------|----------|
-| `src/components/marketing/ContactFiltersSheet.tsx` | Fix rendering tag come dropdown + rimuovere import `X` |
-| `src/pages/azienda/marketing/MarketingContacts.tsx` | Semplificare condizione ridondante opp rules |
+| `src/components/marketing/ContactsTable.tsx` | Aggiungere nuove colonne a COLUMNS, estendere MarketingContact interface, aggiungere rendering per ogni nuovo campo nel switch/case |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Aggiornare la query per fetchare i nuovi campi contatto + fare un join/lookup delle opportunita per ogni contatto |
 
 ## Dettagli tecnici
 
-### ContactFiltersSheet.tsx - Fix Tag Dropdown
+### 1. ContactsTable.tsx - Estendere COLUMNS
 
-Nella sezione di rendering del valore (righe 339-355), cambiare la logica per gestire i tag separatamente:
+Aggiungere tutte le colonne mancanti all'array `COLUMNS`:
 
 ```text
-// Prima (bug): tags cade nel branch text input
-{isSelectField && fieldDef?.options ? (
-  <Select>...</Select>
-) : fieldDef?.type === "date" ? (
-  <Input type="date" />
-) : (
-  <Input placeholder="Inserisci valore..." />  // <-- tags finisce qui!
-)}
+// Campi contatto aggiuntivi
+{ key: "city", label: "Citta" },
+{ key: "province", label: "Provincia" },
+{ key: "address", label: "Indirizzo" },
+{ key: "postal_code", label: "CAP" },
+{ key: "country", label: "Paese" },
+{ key: "contact_type", label: "Tipo contatto" },
+{ key: "date_of_birth", label: "Data di nascita" },
+{ key: "website", label: "Sito web" },
+{ key: "notes", label: "Note" },
 
-// Dopo (fix): check esplicito per tags
-{fieldDef?.type === "tags" ? (
-  <Select value={rule.value} onValueChange={...}>
-    <SelectTrigger>
-      <SelectValue placeholder="Seleziona tag..." />
-    </SelectTrigger>
-    <SelectContent>
-      {availableTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-    </SelectContent>
-  </Select>
-) : isSelectField && fieldDef?.options ? (
-  <Select>...options...</Select>
-) : fieldDef?.type === "date" ? (
-  <Input type="date" />
-) : (
-  <Input placeholder="Inserisci valore..." />
-)}
+// Campi opportunita
+{ key: "opp_name", label: "Opportunita" },
+{ key: "opp_value", label: "Valore opp." },
+{ key: "opp_status", label: "Stato opp." },
+{ key: "opp_pipeline", label: "Pipeline" },
+{ key: "opp_stage", label: "Fase pipeline" },
 ```
 
-### ContactFiltersSheet.tsx - Rimuovere import X
+### 2. ContactsTable.tsx - Estendere MarketingContact
 
-Riga 6: rimuovere `X` dall'import di lucide-react.
+Aggiungere i nuovi campi all'interfaccia:
 
-### MarketingContacts.tsx - Semplificare condizione
-
-Riga 178: cambiare da:
 ```text
-rule.field.startsWith("opp_") || rule.field === "opp_status" || rule.field === "opp_stage"
+// Campi contatto aggiuntivi
+city: string | null;
+province: string | null;
+address: string | null;
+postal_code: string | null;
+country: string | null;
+contact_type: string;
+date_of_birth: string | null;
+website: string | null;
+
+// Campi opportunita (calcolati lato query)
+opp_name: string | null;
+opp_value: number | null;
+opp_status: string | null;
+opp_pipeline: string | null;
+opp_stage: string | null;
 ```
-a:
-```text
-rule.field.startsWith("opp_")
-```
 
-## Verifiche UX
+### 3. ContactsTable.tsx - Aggiungere rendering nel switch
 
-- Il campo Tag ora mostra un dropdown con tutti i tag disponibili
-- Tutti gli altri campi continuano a funzionare come prima
-- La console e pulita (warning Radix residuo, innocuo)
-- Il flusso aggiunta filtro -> selezione campo -> compilazione valore -> applica e fluido
+Per ogni nuovo campo, aggiungere il case nel switch di rendering delle celle:
+- Testo semplice per city, province, address, postal_code, country, website
+- Badge colorato per contact_type e opp_status
+- Data formattata per date_of_birth
+- Testo troncato per notes
+- Valuta formattata per opp_value
 
+### 4. MarketingContacts.tsx - Aggiornare query
+
+- Aggiungere i nuovi campi alla select del contatto: `city, province, address, postal_code, country, contact_type, date_of_birth, website`
+- Fare una query separata per le opportunita raggruppate per contact_id (prendendo la prima/piu recente per ogni contatto)
+- Unire i dati opportunita ai contatti prima di passarli alla tabella
+
+### 5. DEFAULT_VISIBLE resta invariato
+
+I nuovi campi non saranno visibili di default. Appariranno nella sezione "Aggiungi campi" del pannello "Gestisci campi" e l'utente potra attivarli.
+
+## Risultato atteso
+
+- Il pannello "Gestisci campi" mostra tutti i campi contatto + i campi opportunita
+- L'utente puo attivare/disattivare qualsiasi colonna
+- Le colonne opportunita mostrano i dati della prima opportunita associata al contatto
+- Nessun impatto sulle colonne visibili di default
