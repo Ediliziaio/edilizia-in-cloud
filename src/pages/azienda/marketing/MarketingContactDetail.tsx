@@ -312,7 +312,7 @@ export default function MarketingContactDetail() {
       if (!id) return [];
       const { data, error } = await supabase
         .from("marketing_contact_activities")
-        .select("*")
+        .select("*, profiles:created_by(first_name, last_name)")
         .eq("contact_id", id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -328,7 +328,7 @@ export default function MarketingContactDetail() {
       if (!id) return [];
       const { data, error } = await supabase
         .from("marketing_contact_notes")
-        .select("*")
+        .select("*, profiles:created_by(first_name, last_name)")
         .eq("contact_id", id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -452,7 +452,7 @@ export default function MarketingContactDetail() {
   return (
     <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
       {/* ══════════ LEFT COLUMN ══════════ */}
-      <div className="w-[340px] min-w-[340px] border-r flex flex-col">
+      <div className="w-[300px] min-w-[300px] border-r flex flex-col">
         {/* Header */}
         <div className="h-11 border-b flex items-center justify-between px-2 shrink-0">
           <div className="flex items-center gap-1">
@@ -763,6 +763,9 @@ export default function MarketingContactDetail() {
                             <p className="text-xs">{act.description}</p>
                             <p className="text-[10px] text-muted-foreground mt-0.5">
                               {format(new Date(act.created_at), "HH:mm", { locale: it })}
+                              {act.profiles && (act.profiles as any).first_name && (
+                                <> · <span className="font-medium">{(act.profiles as any).first_name} {(act.profiles as any).last_name}</span></>
+                              )}
                             </p>
                           </div>
                           {act.metadata && Object.keys(act.metadata).length > 0 && (
@@ -869,6 +872,11 @@ export default function MarketingContactDetail() {
                         <p className="text-[10px] text-muted-foreground">
                           {format(new Date(note.created_at), "dd MMM yyyy, HH:mm", { locale: it })}
                         </p>
+                        {note.profiles && (note.profiles as any).first_name && (
+                          <p className="text-[10px] text-muted-foreground">
+                            Creato da: <span className="font-medium">{(note.profiles as any).first_name} {(note.profiles as any).last_name}</span>
+                          </p>
+                        )}
                       </div>
                     ))}
                     {notes.length === 0 && (
