@@ -20,13 +20,32 @@ interface ContactFieldsSheetProps {
   customFields?: CustomFieldDef[];
 }
 
+interface ColDef {
+  key: string;
+  label: string;
+  fixed: boolean;
+  group: string;
+}
+
+const GROUP_ORDER = ["Contatto", "Date", "Tag", "Opportunità", "Campi personalizzati"];
+
+function groupBy(cols: ColDef[]) {
+  const groups: Record<string, ColDef[]> = {};
+  for (const col of cols) {
+    const g = col.group;
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(col);
+  }
+  return GROUP_ORDER.filter(g => groups[g]?.length).map(g => ({ group: g, cols: groups[g] }));
+}
+
 export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply, customFields = [] }: ContactFieldsSheetProps) {
   const [draft, setDraft] = useState<Set<string>>(new Set(visibleColumns));
   const [search, setSearch] = useState("");
 
-  const allColumns = useMemo(() => {
-    const staticCols = COLUMNS.map(c => ({ key: c.key as string, label: c.label, fixed: c.key === "name" }));
-    const cfCols = customFields.map(f => ({ key: `cf_${f.id}`, label: f.name, fixed: false }));
+  const allColumns: ColDef[] = useMemo(() => {
+    const staticCols = COLUMNS.map(c => ({ key: c.key as string, label: c.label, fixed: c.key === "name", group: c.group }));
+    const cfCols = customFields.map(f => ({ key: `cf_${f.id}`, label: f.name, fixed: false, group: "Campi personalizzati" }));
     return [...staticCols, ...cfCols];
   }, [customFields]);
 
@@ -40,15 +59,16 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
 
   const q = search.toLowerCase();
 
-  const activeFields = useMemo(() =>
-    allColumns.filter((c) => c.fixed || draft.has(c.key)).filter((c) => !q || c.label.toLowerCase().includes(q)),
-    [allColumns, draft, q]
+  const filtered = useMemo(() =>
+    allColumns.filter(c => !q || c.label.toLowerCase().includes(q)),
+    [allColumns, q]
   );
 
-  const inactiveFields = useMemo(() =>
-    allColumns.filter((c) => !c.fixed && !draft.has(c.key)).filter((c) => !q || c.label.toLowerCase().includes(q)),
-    [allColumns, draft, q]
-  );
+  const activeFields = useMemo(() => filtered.filter(c => c.fixed || draft.has(c.key)), [filtered, draft]);
+  const inactiveFields = useMemo(() => filtered.filter(c => !c.fixed && !draft.has(c.key)), [filtered, draft]);
+
+  const activeGroups = useMemo(() => groupBy(activeFields), [activeFields]);
+  const inactiveGroups = useMemo(() => groupBy(inactiveFields), [inactiveFields]);
 
   const toggleField = (key: string) => {
     if (key === "name") return;
@@ -58,6 +78,25 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
       return next;
     });
   };
+
+  const renderField = (col: ColDef) => (
+    <div key={col.key} className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-muted/50">
+      {col.fixed ? (
+        <Lock className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+      ) : draft.has(col.key) ? (
+        <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
+      ) : (
+        <div className="w-3.5" />
+      )}
+      <Checkbox
+        checked={col.fixed || draft.has(col.key)}
+        disabled={col.fixed}
+        onCheckedChange={() => toggleField(col.key)}
+        className="h-3.5 w-3.5"
+      />
+      <span className="text-xs truncate">{col.label}</span>
+    </div>
+  );
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -81,40 +120,27 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
             />
           </div>
 
-          {/* Active fields */}
-          <div className="space-y-1">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase">Campi nella tabella</p>
-            {activeFields.map((col) => (
-              <div key={col.key} className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-muted/50">
-                {col.fixed ? (
-                  <Lock className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                ) : (
-                  <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
-                )}
-                <Checkbox
-                  checked
-                  disabled={col.fixed}
-                  onCheckedChange={() => toggleField(col.key)}
-                  className="h-3.5 w-3.5"
-                />
-                <span className="text-xs truncate">{col.label}</span>
-              </div>
-            ))}
-          </div>
+          {/* Active fields grouped */}
+          {activeGroups.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase">Campi nella tabella</p>
+              {activeGroups.map(({ group, cols }) => (
+                <div key={group} className="space-y-0.5">
+                  <p className="text-[10px] font-medium text-muted-foreground/70 pl-1">{group}</p>
+                  {cols.map(renderField)}
+                </div>
+              ))}
+            </div>
+          )}
 
-          {/* Inactive fields */}
-          {inactiveFields.length > 0 && (
-            <div className="space-y-1">
+          {/* Inactive fields grouped */}
+          {inactiveGroups.length > 0 && (
+            <div className="space-y-3">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase">Aggiungi campi</p>
-              {inactiveFields.map((col) => (
-                <div key={col.key} className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-muted/50">
-                  <div className="w-3.5" />
-                  <Checkbox
-                    checked={false}
-                    onCheckedChange={() => toggleField(col.key)}
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="text-xs truncate">{col.label}</span>
+              {inactiveGroups.map(({ group, cols }) => (
+                <div key={group} className="space-y-0.5">
+                  <p className="text-[10px] font-medium text-muted-foreground/70 pl-1">{group}</p>
+                  {cols.map(renderField)}
                 </div>
               ))}
             </div>
