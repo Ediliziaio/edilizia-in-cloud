@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -10,7 +10,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Loader2, GripVertical, Trash2 } from "lucide-react";
+import { Plus, Loader2, GripVertical, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   const [stages, setStages] = useState<Stage[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const originalStagesRef = useRef<Stage[]>([]);
 
   const { data: queryData, isLoading } = useQuery({
     queryKey: ["pipeline_stages", pipelineId],
@@ -69,7 +70,10 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   });
 
   useEffect(() => {
-    if (queryData && !hasChanges) setStages(queryData);
+    if (queryData && !hasChanges) {
+      setStages(queryData);
+      originalStagesRef.current = queryData;
+    }
   }, [queryData, hasChanges]);
 
   const sensors = useSensors(
@@ -94,7 +98,20 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     setHasChanges(true);
   }, []);
 
-  const handleDelete = useCallback((id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
+    // For existing stages (not temp), check if opportunities are linked
+    if (!id.startsWith("temp-")) {
+      const { count, error } = await supabase
+        .from("marketing_opportunities")
+        .select("id", { count: "exact", head: true })
+        .eq("stage_id", id);
+
+      if (!error && count && count > 0) {
+        toast.error(`Impossibile rimuovere: ${count} opportunità collegate a questa fase. Spostale prima.`);
+        return;
+      }
+    }
+
     setStages((prev) => prev.filter((s) => s.id !== id).map((s, idx) => ({ ...s, position: idx })));
     setHasChanges(true);
   }, []);
@@ -108,19 +125,58 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     if (!companyId) return;
     setIsSaving(true);
     try {
-      // Delete existing
-      await supabase.from("marketing_pipeline_stages").delete().eq("pipeline_id", pipelineId);
+      const original = originalStagesRef.current;
+      const originalIds = new Set(original.map((s) => s.id));
+      const currentIds = new Set(stages.map((s) => s.id));
 
-      // Insert new
-      const toInsert = stages.map((s, idx) => ({
-        pipeline_id: pipelineId,
-        company_id: companyId,
-        name: s.name,
-        position: idx,
-      }));
+      // Stages to delete (in original but not in current)
+      const toDelete = original.filter((s) => !currentIds.has(s.id));
 
-      const { error } = await supabase.from("marketing_pipeline_stages").insert(toInsert);
-      if (error) throw error;
+      // Check if any stage to delete has linked opportunities
+      for (const stage of toDelete) {
+        const { count, error } = await supabase
+          .from("marketing_opportunities")
+          .select("id", { count: "exact", head: true })
+          .eq("stage_id", stage.id);
+
+        if (!error && count && count > 0) {
+          toast.error(`Impossibile eliminare la fase "${stage.name}": ${count} opportunità collegate.`);
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // Delete removed stages
+      for (const stage of toDelete) {
+        const { error } = await supabase.from("marketing_pipeline_stages").delete().eq("id", stage.id);
+        if (error) throw error;
+      }
+
+      // Update existing stages (position and name)
+      for (const stage of stages) {
+        if (originalIds.has(stage.id)) {
+          const { error } = await supabase
+            .from("marketing_pipeline_stages")
+            .update({ name: stage.name, position: stage.position })
+            .eq("id", stage.id);
+          if (error) throw error;
+        }
+      }
+
+      // Insert new stages (temp- ids)
+      const toInsert = stages
+        .filter((s) => s.id.startsWith("temp-"))
+        .map((s) => ({
+          pipeline_id: pipelineId,
+          company_id: companyId,
+          name: s.name,
+          position: s.position,
+        }));
+
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from("marketing_pipeline_stages").insert(toInsert);
+        if (error) throw error;
+      }
 
       setHasChanges(false);
       queryClient.invalidateQueries({ queryKey: ["pipeline_stages", pipelineId] });
