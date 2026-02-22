@@ -1,4 +1,5 @@
 import { memo, useState, forwardRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2, UserCircle } from "lucide-react";
@@ -23,6 +24,7 @@ interface OpportunityCardProps {
 }
 
 export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardProps>(function OpportunityCard({ opportunity, onClick, onOpenTab, onDelete, isOverlay, selected, onSelect }, _ref) {
+  const navigate = useNavigate();
   const contact = opportunity.marketing_contacts;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { activeFields, layout, isFieldActive } = useCardFieldPreferences();
@@ -140,7 +142,17 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                 <Checkbox checked={!!selected} className="h-4 w-4" />
               </div>
             )}
-            <p className="text-sm font-bold leading-tight truncate">{displayName}</p>
+            {contact ? (
+              <p
+                className="text-sm font-bold leading-tight truncate cursor-pointer hover:underline"
+                onClick={(e) => { e.stopPropagation(); navigate(`/azienda/marketing/contatti/${contact.id}`); }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                {displayName}
+              </p>
+            ) : (
+              <p className="text-sm font-bold leading-tight truncate">{displayName}</p>
+            )}
           </div>
           {isFieldActive("owner") && (
             <Tooltip>
