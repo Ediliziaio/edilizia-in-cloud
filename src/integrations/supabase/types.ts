@@ -991,6 +991,7 @@ export type Database = {
           field_type: string
           id: string
           name: string
+          object_type: string
           options: string[] | null
           position: number
           section: string
@@ -1001,6 +1002,7 @@ export type Database = {
           field_type?: string
           id?: string
           name: string
+          object_type?: string
           options?: string[] | null
           position?: number
           section?: string
@@ -1011,6 +1013,7 @@ export type Database = {
           field_type?: string
           id?: string
           name?: string
+          object_type?: string
           options?: string[] | null
           position?: number
           section?: string
@@ -1104,6 +1107,45 @@ export type Database = {
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "marketing_pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_opportunity_field_values: {
+        Row: {
+          created_at: string
+          field_id: string
+          id: string
+          opportunity_id: string
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          field_id: string
+          id?: string
+          opportunity_id: string
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          field_id?: string
+          id?: string
+          opportunity_id?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_opportunity_field_values_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_custom_fields"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_opportunity_field_values_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
             referencedColumns: ["id"]
           },
         ]

@@ -42,14 +42,17 @@ const FOLDER_COLORS: Record<string, string> = {
   contact: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
   general_info: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   additional_info: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  opportunity_details: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300",
 };
 const FOLDER_LABELS: Record<string, string> = {
   contact: "Contatto",
   general_info: "General Info",
   additional_info: "Additional Info",
+  opportunity_details: "Opportunità Details",
 };
 
 const BUILTIN_FIELDS: UnifiedField[] = [
+  // Contact fields
   { id: "sys_first_name", name: "First Name", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.first_name }}", createdAt: "2024-01-01", isSystem: true },
   { id: "sys_last_name", name: "Last Name", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.last_name }}", createdAt: "2024-01-01", isSystem: true },
   { id: "sys_email", name: "Email", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.email }}", createdAt: "2024-01-01", isSystem: true },
@@ -64,6 +67,15 @@ const BUILTIN_FIELDS: UnifiedField[] = [
   { id: "sys_postal_code", name: "Postal Code", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.postal_code }}", createdAt: "2024-01-01", isSystem: true },
   { id: "sys_country", name: "Country", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.country }}", createdAt: "2024-01-01", isSystem: true },
   { id: "sys_website", name: "Website", object: "Contatto", folder: "general_info", folderColor: FOLDER_COLORS.general_info, uniqueKey: "{{ contact.website }}", createdAt: "2024-01-01", isSystem: true },
+  // Opportunity fields
+  { id: "sys_opp_name", name: "Opportunity Name", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.name }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_opp_pipeline", name: "Pipeline", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.pipeline_id }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_opp_stage", name: "Stage", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.pipeline_stage_id }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_opp_status", name: "Status", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.status }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_opp_value", name: "Lead Value", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.monetary_value }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_opp_owner", name: "Opportunity Owner", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.assigned_to }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_opp_source", name: "Opportunity Source", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.source }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_opp_lost_reason", name: "Lost Reason", object: "Opportunità", folder: "opportunity_details", folderColor: FOLDER_COLORS.opportunity_details, uniqueKey: "{{ opportunity.lost_reason }}", createdAt: "2024-01-01", isSystem: true },
 ];
 
 const FIELD_TYPES = [
@@ -72,10 +84,14 @@ const FIELD_TYPES = [
   { value: "date", label: "Data" },
   { value: "select", label: "Selezione" },
 ];
-const SECTIONS = [
+
+const CONTACT_SECTIONS = [
   { value: "contact", label: "Contatto" },
   { value: "general_info", label: "Informazioni generali" },
   { value: "additional_info", label: "Informazioni aggiuntive" },
+];
+const OPPORTUNITY_SECTIONS = [
+  { value: "opportunity_details", label: "Opportunità Details" },
 ];
 
 function toSnakeCase(s: string) {
@@ -92,9 +108,11 @@ export function CustomFieldsConfig() {
   const [name, setName] = useState("");
   const [fieldType, setFieldType] = useState("text");
   const [section, setSection] = useState("general_info");
+  const [objectType, setObjectType] = useState<"contact" | "opportunity">("contact");
   const [optionsInput, setOptionsInput] = useState("");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [groupBy, setGroupBy] = useState("all");
   const [pageSize, setPageSize] = useState(200);
 
   const { data: customFields = [], isLoading } = useQuery({
@@ -114,32 +132,56 @@ export function CustomFieldsConfig() {
   });
 
   const allFields = useMemo<UnifiedField[]>(() => {
-    const custom: UnifiedField[] = customFields.map((f) => ({
-      id: f.id,
-      name: f.name,
-      object: "Contatto",
-      folder: f.section,
-      folderColor: FOLDER_COLORS[f.section] || FOLDER_COLORS.additional_info,
-      uniqueKey: `{{ contact.${toSnakeCase(f.name)} }}`,
-      createdAt: f.created_at,
-      isSystem: false,
-      fieldType: f.field_type,
-      options: f.options ?? [],
-      section: f.section,
-    }));
+    const custom: UnifiedField[] = customFields.map((f: any) => {
+      const isOpp = f.object_type === "opportunity";
+      return {
+        id: f.id,
+        name: f.name,
+        object: isOpp ? "Opportunità" : "Contatto",
+        folder: f.section,
+        folderColor: FOLDER_COLORS[f.section] || FOLDER_COLORS.additional_info,
+        uniqueKey: isOpp
+          ? `{{ opportunity.${toSnakeCase(f.name)} }}`
+          : `{{ contact.${toSnakeCase(f.name)} }}`,
+        createdAt: f.created_at,
+        isSystem: false,
+        fieldType: f.field_type,
+        options: f.options ?? [],
+        section: f.section,
+      };
+    });
     return [...BUILTIN_FIELDS, ...custom];
   }, [customFields]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return allFields;
-    const q = search.toLowerCase();
-    return allFields.filter(
-      (f) =>
-        f.name.toLowerCase().includes(q) ||
-        f.uniqueKey.toLowerCase().includes(q) ||
-        (FOLDER_LABELS[f.folder] || f.folder).toLowerCase().includes(q)
-    );
-  }, [allFields, search]);
+    let result = allFields;
+    // Filter by group
+    if (groupBy === "contact") {
+      result = result.filter((f) => f.object === "Contatto");
+    } else if (groupBy === "opportunity") {
+      result = result.filter((f) => f.object === "Opportunità");
+    }
+    // Filter by search
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (f) =>
+          f.name.toLowerCase().includes(q) ||
+          f.uniqueKey.toLowerCase().includes(q) ||
+          f.object.toLowerCase().includes(q) ||
+          (FOLDER_LABELS[f.folder] || f.folder).toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [allFields, search, groupBy]);
+
+  // When objectType changes, reset section to a valid default
+  const handleObjectTypeChange = (val: "contact" | "opportunity") => {
+    setObjectType(val);
+    setSection(val === "opportunity" ? "opportunity_details" : "general_info");
+  };
+
+  const availableSections = objectType === "opportunity" ? OPPORTUNITY_SECTIONS : CONTACT_SECTIONS;
 
   const addMutation = useMutation({
     mutationFn: async () => {
@@ -155,6 +197,7 @@ export function CustomFieldsConfig() {
         options,
         section,
         position: customFields.length,
+        object_type: objectType,
       });
       if (error) throw error;
     },
@@ -165,6 +208,7 @@ export function CustomFieldsConfig() {
       setName("");
       setFieldType("text");
       setSection("general_info");
+      setObjectType("contact");
       setOptionsInput("");
     },
     onError: (e: any) => toast.error(e.message),
@@ -187,8 +231,7 @@ export function CustomFieldsConfig() {
     toast.success("Chiave copiata");
   };
 
-  const startIdx = 0;
-  const visibleFields = filtered.slice(startIdx, startIdx + pageSize);
+  const visibleFields = filtered.slice(0, pageSize);
   const total = filtered.length;
 
   return (
@@ -232,12 +275,14 @@ export function CustomFieldsConfig() {
         </div>
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <span>Raggruppa per:</span>
-          <Select defaultValue="all">
-            <SelectTrigger className="h-8 w-[100px] text-sm">
+          <Select value={groupBy} onValueChange={setGroupBy}>
+            <SelectTrigger className="h-8 w-[140px] text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutto</SelectItem>
+              <SelectItem value="contact">Contatto</SelectItem>
+              <SelectItem value="opportunity">Opportunità</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -346,6 +391,16 @@ export function CustomFieldsConfig() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
+              <Label>Oggetto *</Label>
+              <Select value={objectType} onValueChange={(v) => handleObjectTypeChange(v as "contact" | "opportunity")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contact">Contatto</SelectItem>
+                  <SelectItem value="opportunity">Opportunità</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label>Nome del campo *</Label>
               <Input
                 value={name}
@@ -370,7 +425,7 @@ export function CustomFieldsConfig() {
                 <Select value={section} onValueChange={setSection}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {SECTIONS.map((s) => (
+                    {availableSections.map((s) => (
                       <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                     ))}
                   </SelectContent>
