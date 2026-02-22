@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useState, forwardRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2 } from "lucide-react";
@@ -17,7 +17,7 @@ interface OpportunityCardProps {
   isOverlay?: boolean;
 }
 
-export const OpportunityCard = memo(function OpportunityCard({ opportunity, onClick, onDelete, isOverlay }: OpportunityCardProps) {
+export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardProps>(function OpportunityCard({ opportunity, onClick, onDelete, isOverlay }, _ref) {
   const contact = opportunity.marketing_contacts;
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -172,4 +172,4 @@ export const OpportunityCard = memo(function OpportunityCard({ opportunity, onCl
       </AlertDialog>
     </>
   );
-});
+}));

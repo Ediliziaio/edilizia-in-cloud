@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,6 +9,10 @@ import {
   useUpdateContact, useUpsertContactFieldValues, useUpsertOpportunityFieldValues,
 } from "@/hooks/useOpportunityDetailData";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +35,7 @@ interface Props {
   opportunity: any;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  stages: { id: string; name: string }[];
+  stages: { id: string; name: string; auto_status?: string | null }[];
 }
 
 type Tab = "details" | "notes" | "appointments" | "activities" | "payments" | "members";
@@ -58,6 +62,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [tab, setTab] = useState<Tab>("details");
   const [hideEmpty, setHideEmpty] = useState(false);
   const [newNote, setNewNote] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Contact fields
   const [contactEmail, setContactEmail] = useState("");
@@ -189,20 +194,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       finalContactId = newContact.id;
     }
 
-    // 1. Update opportunity
-    updateOpp.mutate({
-      id: opportunity.id,
-      name, stage_id: stageId, status,
-      value: parseFloat(value) || 0,
-      source: source || null,
-      assigned_to: assignedTo || null,
-      follower_id: followerId || null,
-      company_name: companyName || null,
-      notes: oppNotes || null,
-      tags: oppTags,
-      contact_id: finalContactId,
-    });
-
     // 2. Update contact base fields if changed (only if not changing contact)
     if (!pendingContactId && !showNewContactForm && contact && (contactEmail !== (contact.email || "") || contactPhone !== (contact.phone || ""))) {
       updateContact.mutate({ id: contact.id, email: contactEmail || null, phone: contactPhone || null });
@@ -226,13 +217,33 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       .map(([field_id, value]) => ({ opportunity_id: opportunity.id, field_id, value: value || null }));
     if (oppFieldsToUpsert.length) upsertOppFields.mutate(oppFieldsToUpsert);
 
-    toast.success("Opportunità aggiornata con successo");
-    onOpenChange(false);
+    // 1. Update opportunity (toast + close on success)
+    updateOpp.mutate({
+      id: opportunity.id,
+      name, stage_id: stageId, status,
+      value: parseFloat(value) || 0,
+      source: source || null,
+      assigned_to: assignedTo || null,
+      follower_id: followerId || null,
+      company_name: companyName || null,
+      notes: oppNotes || null,
+      tags: oppTags,
+      contact_id: finalContactId,
+    }, {
+      onSuccess: () => {
+        toast.success("Opportunità aggiornata con successo");
+        onOpenChange(false);
+      },
+      onError: (e: any) => toast.error(e.message || "Errore durante il salvataggio"),
+    });
   };
 
   const handleDelete = () => {
-    if (!confirm("Eliminare questa opportunità?")) return;
-    deleteOpp.mutate(opportunity.id, { onSuccess: () => onOpenChange(false) });
+    setConfirmDelete(true);
+  };
+
+  const confirmDeleteAction = () => {
+    deleteOpp.mutate(opportunity.id, { onSuccess: () => { setConfirmDelete(false); onOpenChange(false); } });
   };
 
   const handleAddNote = () => {
@@ -291,6 +302,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const searchTrimmed = contactSearch.trim();
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
@@ -662,5 +674,21 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         </div>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Eliminare questa opportunità?</AlertDialogTitle>
+          <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annulla</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmDeleteAction} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            Elimina
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
