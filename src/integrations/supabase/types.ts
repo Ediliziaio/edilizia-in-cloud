@@ -769,55 +769,255 @@ export type Database = {
           },
         ]
       }
-      marketing_contacts: {
+      marketing_contact_activities: {
+        Row: {
+          activity_type: string
+          company_id: string
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          activity_type: string
+          company_id: string
+          contact_id: string
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          activity_type?: string
+          company_id?: string
+          contact_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_contact_activities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_contact_activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_contact_field_values: {
+        Row: {
+          contact_id: string
+          created_at: string
+          field_id: string
+          id: string
+          value: string | null
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          field_id: string
+          id?: string
+          value?: string | null
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          field_id?: string
+          id?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_contact_field_values_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_contact_field_values_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_custom_fields"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_contact_notes: {
         Row: {
           company_id: string
-          company_name: string | null
+          contact_id: string
+          content: string
           created_at: string
+          created_by: string
+          id: string
+        }
+        Insert: {
+          company_id: string
+          contact_id: string
+          content: string
+          created_at?: string
+          created_by: string
+          id?: string
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string
+          content?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_contact_notes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_contact_notes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_contacts: {
+        Row: {
+          address: string | null
+          assigned_to: string | null
+          city: string | null
+          company_id: string
+          company_name: string | null
+          contact_type: string
+          country: string | null
+          created_at: string
+          date_of_birth: string | null
           email: string | null
           first_name: string
+          follower_id: string | null
           id: string
           last_activity_at: string | null
           last_name: string | null
           notes: string | null
           phone: string | null
+          postal_code: string | null
+          province: string | null
           source: string | null
           tags: string[]
           updated_at: string
+          website: string | null
         }
         Insert: {
+          address?: string | null
+          assigned_to?: string | null
+          city?: string | null
           company_id: string
           company_name?: string | null
+          contact_type?: string
+          country?: string | null
           created_at?: string
+          date_of_birth?: string | null
           email?: string | null
           first_name: string
+          follower_id?: string | null
           id?: string
           last_activity_at?: string | null
           last_name?: string | null
           notes?: string | null
           phone?: string | null
+          postal_code?: string | null
+          province?: string | null
           source?: string | null
           tags?: string[]
           updated_at?: string
+          website?: string | null
         }
         Update: {
+          address?: string | null
+          assigned_to?: string | null
+          city?: string | null
           company_id?: string
           company_name?: string | null
+          contact_type?: string
+          country?: string | null
           created_at?: string
+          date_of_birth?: string | null
           email?: string | null
           first_name?: string
+          follower_id?: string | null
           id?: string
           last_activity_at?: string | null
           last_name?: string | null
           notes?: string | null
           phone?: string | null
+          postal_code?: string | null
+          province?: string | null
           source?: string | null
           tags?: string[]
           updated_at?: string
+          website?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "marketing_contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_custom_fields: {
+        Row: {
+          company_id: string
+          created_at: string
+          field_type: string
+          id: string
+          name: string
+          options: string[] | null
+          position: number
+          section: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          field_type?: string
+          id?: string
+          name: string
+          options?: string[] | null
+          position?: number
+          section?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          field_type?: string
+          id?: string
+          name?: string
+          options?: string[] | null
+          position?: number
+          section?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_custom_fields_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"

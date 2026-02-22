@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
 import { Trash2, Pencil } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,7 @@ export function ContactsTable({
   contacts, totalCount, selectedIds, onToggleSelect, onToggleAll,
   onEdit, onDelete, page, pageSize, onPageChange, onPageSizeChange,
 }: ContactsTableProps) {
+  const navigate = useNavigate();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const allSelected = contacts.length > 0 && contacts.every((c) => selectedIds.has(c.id));
 
@@ -122,7 +124,12 @@ export function ContactsTable({
                         <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0 ${getAvatarColor(fullName)}`}>
                           {getInitials(c.first_name, c.last_name)}
                         </div>
-                        <span className="font-medium">{fullName}</span>
+                        <span
+                          className="font-medium text-primary hover:underline cursor-pointer"
+                          onClick={() => navigate(`/azienda/marketing/contatti/${c.id}`)}
+                        >
+                          {fullName}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{c.phone || "—"}</TableCell>
