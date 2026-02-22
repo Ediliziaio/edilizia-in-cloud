@@ -22,12 +22,12 @@ interface Props {
 }
 
 export function OpportunityDialog({ open, onOpenChange, pipelineId, stages }: Props) {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const createOpportunity = useCreateOpportunity();
 
   const [contactMode, setContactMode] = useState<"existing" | "new">("existing");
-  const [selectedContactId, setSelectedContactId] = useState<string>("");
+  const [selectedContactId, setSelectedContactId] = useState("");
   const [contactSearch, setContactSearch] = useState("");
   const [newContactName, setNewContactName] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
@@ -39,8 +39,10 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, stages }: Pr
   const [source, setSource] = useState("");
   const [oppCompanyName, setOppCompanyName] = useState("");
   const [notes, setNotes] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
 
-  // Fetch contacts for search
+  // Fetch contacts
   const { data: contacts = [] } = useQuery({
     queryKey: ["marketing_contacts_search", companyId, contactSearch],
     queryFn: async () => {
@@ -49,11 +51,9 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, stages }: Pr
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", companyId!)
         .limit(20);
-
       if (contactSearch) {
         query = query.or(`first_name.ilike.%${contactSearch}%,last_name.ilike.%${contactSearch}%,email.ilike.%${contactSearch}%`);
       }
-
       const { data, error } = await query.order("first_name");
       if (error) throw error;
       return data;
@@ -61,7 +61,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, stages }: Pr
     enabled: !!companyId && open,
   });
 
-  // Fetch staff for assignment
+  // Fetch staff
   const { data: staff = [] } = useQuery({
     queryKey: ["company_staff_opps", companyId],
     queryFn: async () => {
@@ -75,7 +75,22 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, stages }: Pr
     enabled: !!companyId && open,
   });
 
-  const [assignedTo, setAssignedTo] = useState("");
+  // Fetch opportunity custom fields
+  const { data: customFields = [] } = useQuery({
+    queryKey: ["marketing_custom_fields_opportunity", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("marketing_custom_fields")
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("object_type", "opportunity")
+        .order("position");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!companyId && open,
+  });
 
   const resetForm = () => {
     setContactMode("existing");
@@ -91,12 +106,12 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, stages }: Pr
     setOppCompanyName("");
     setNotes("");
     setAssignedTo("");
+    setCustomFieldValues({});
   };
 
   const handleSubmit = async () => {
     let contactId = selectedContactId;
 
-    // Create new contact first if needed
     if (contactMode === "new") {
       if (!newContactName.trim()) {
         toast.error("Inserisci il nome del contatto");
@@ -129,7 +144,6 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, stages }: Pr
       toast.error("Seleziona o crea un contatto");
       return;
     }
-
     if (!stageId) {
       toast.error("Seleziona una fase");
       return;
@@ -148,11 +162,51 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, stages }: Pr
         notes: notes || undefined,
       },
       {
-        onSuccess: () => {
+        onSuccess: async (data: any) => {
+          // Save custom field values
+          const oppId = data?.id;
+          if (oppId && Object.keys(customFieldValues).length > 0) {
+            const rows = Object.entries(customFieldValues)
+              .filter(([, v]) => v.trim())
+              .map(([fieldId, val]) => ({
+                opportunity_id: oppId,
+                field_id: fieldId,
+                value: val,
+              }));
+            if (rows.length > 0) {
+              await supabase.from("marketing_opportunity_field_values").insert(rows);
+            }
+          }
           resetForm();
           onOpenChange(false);
         },
       }
+    );
+  };
+
+  const renderCustomFieldInput = (field: any) => {
+    const val = customFieldValues[field.id] || "";
+    const onChange = (v: string) => setCustomFieldValues((prev) => ({ ...prev, [field.id]: v }));
+
+    if (field.field_type === "select" && field.options?.length) {
+      return (
+        <Select value={val} onValueChange={onChange}>
+          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+          <SelectContent>
+            {field.options.map((opt: string) => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    return (
+      <Input
+        value={val}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 text-sm"
+        type={field.field_type === "number" ? "number" : field.field_type === "date" ? "date" : "text"}
+      />
     );
   };
 
@@ -262,6 +316,19 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, stages }: Pr
                 <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note..." rows={2} className="text-sm" />
               </div>
             </div>
+
+            {/* Custom fields for opportunities */}
+            {customFields.length > 0 && (
+              <div className="space-y-3 pt-2 border-t">
+                <Label className="text-sm font-semibold">Campi personalizzati</Label>
+                {customFields.map((field: any) => (
+                  <div key={field.id} className="space-y-1">
+                    <Label className="text-xs">{field.name}</Label>
+                    {renderCustomFieldInput(field)}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </ScrollArea>
 

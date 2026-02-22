@@ -65,13 +65,14 @@ export function useCreateOpportunity() {
       company_name?: string;
       notes?: string;
     }) => {
-      const { error } = await supabase.from("marketing_opportunities").insert({
+      const { data: result, error } = await supabase.from("marketing_opportunities").insert({
         ...data,
         company_id: companyId!,
         value: data.value || 0,
         status: data.status || "open",
-      });
+      }).select("id").single();
       if (error) throw error;
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
