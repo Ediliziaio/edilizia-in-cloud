@@ -18,9 +18,12 @@ import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 const CSV_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true },
   { key: "last_name", label: "Cognome", required: false },
+  { key: "fullname", label: "Nome Completo", required: false },
   { key: "phone", label: "Telefono", required: false },
   { key: "email", label: "Email", required: false, type: "email" },
   { key: "company_name", label: "Azienda", required: false },
+  { key: "city", label: "Città", required: false },
+  { key: "province", label: "Provincia", required: false },
   { key: "tags", label: "Tag", required: false },
   { key: "notes", label: "Note", required: false },
   { key: "source", label: "Fonte", required: false },
@@ -157,17 +160,28 @@ export default function MarketingContacts() {
   const handleImport = async (rows: Record<string, string>[]) => {
     if (!companyId) return { success: 0, errors: ["Nessuna azienda selezionata"] };
     const customKeys = contactCustomFields.map(f => `custom_${f.id}`);
-    const toInsert = rows.map((r) => ({
-      company_id: companyId,
-      first_name: r.first_name?.trim() || "Senza nome",
-      last_name: r.last_name?.trim() || null,
-      phone: r.phone?.trim() || null,
-      email: r.email?.trim() || null,
-      company_name: r.company_name?.trim() || null,
-      tags: r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [],
-      notes: r.notes?.trim() || null,
-      source: r.source?.trim() || "importazione",
-    }));
+    const toInsert = rows.map((r) => {
+      let firstName = r.first_name?.trim() || "";
+      let lastName = r.last_name?.trim() || "";
+      if (!firstName && r.fullname?.trim()) {
+        const parts = r.fullname.trim().split(/\s+/);
+        firstName = parts[0];
+        lastName = parts.slice(1).join(" ");
+      }
+      return {
+        company_id: companyId,
+        first_name: firstName || "Senza nome",
+        last_name: lastName || null,
+        phone: r.phone?.trim() || null,
+        email: r.email?.trim() || null,
+        company_name: r.company_name?.trim() || null,
+        city: r.city?.trim() || null,
+        province: r.province?.trim() || null,
+        tags: r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [],
+        notes: r.notes?.trim() || null,
+        source: r.source?.trim() || "importazione",
+      };
+    });
 
     const { error, data } = await supabase.from("marketing_contacts").insert(toInsert).select("id");
     if (error) return { success: 0, errors: [error.message] };
@@ -237,6 +251,8 @@ export default function MarketingContacts() {
                 phone: c.phone || "",
                 email: c.email || "",
                 company_name: c.company_name || "",
+                city: c.city || "",
+                province: c.province || "",
                 tags: (c.tags || []).join(", "),
                 notes: c.notes || "",
                 source: c.source || "",
@@ -249,6 +265,8 @@ export default function MarketingContacts() {
                 { key: "phone", label: "Telefono" },
                 { key: "email", label: "Email" },
                 { key: "company_name", label: "Azienda" },
+                { key: "city", label: "Città" },
+                { key: "province", label: "Provincia" },
                 { key: "tags", label: "Tag" },
                 { key: "notes", label: "Note" },
                 { key: "source", label: "Fonte" },
@@ -307,6 +325,8 @@ export default function MarketingContacts() {
           phone: editingContact.phone || "",
           email: editingContact.email || "",
           company_name: editingContact.company_name || "",
+          city: (editingContact as any).city || "",
+          province: (editingContact as any).province || "",
           tags: editingContact.tags,
           notes: editingContact.notes || "",
           source: editingContact.source || "",

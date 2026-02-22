@@ -16,6 +16,8 @@ export interface ContactFormData {
   phone: string;
   email: string;
   company_name: string;
+  city: string;
+  province: string;
   tags: string[];
   notes: string;
   source: string;
@@ -43,6 +45,8 @@ const emptyForm: ContactFormData = {
   phone: "",
   email: "",
   company_name: "",
+  city: "",
+  province: "",
   tags: [],
   notes: "",
   source: "manuale",
@@ -194,6 +198,16 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
           <div className="space-y-1.5">
             <Label>Azienda</Label>
             <Input value={form.company_name} onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Città</Label>
+              <Input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Provincia</Label>
+              <Input value={form.province} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} placeholder="Es: MI, RM, NA" maxLength={2} />
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label>Tag</Label>
