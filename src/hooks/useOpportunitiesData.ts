@@ -94,7 +94,6 @@ export function useUpdateOpportunity() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
-      toast.success("Opportunità aggiornata");
     },
     onError: (e: any) => toast.error(e.message),
   });
