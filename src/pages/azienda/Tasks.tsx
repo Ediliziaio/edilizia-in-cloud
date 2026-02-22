@@ -62,6 +62,7 @@ export default function Tasks() {
           cost:company_costs!tasks_cost_id_fkey(name, amount)
         `)
         .eq("company_id", companyId)
+        .not("category", "in", "(marketing,contatti,opportunita)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
