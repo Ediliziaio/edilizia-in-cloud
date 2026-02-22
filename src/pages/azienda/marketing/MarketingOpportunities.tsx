@@ -12,6 +12,8 @@ import { OpportunityDialog } from "@/components/opportunities/OpportunityDialog"
 import { OpportunityFiltersSheet, OpportunityFilters, EMPTY_FILTERS, countActiveFilters } from "@/components/opportunities/OpportunityFiltersSheet";
 import { BulkEditSheet } from "@/components/opportunities/BulkEditSheet";
 import { usePipelines, useOpportunities, useCompanyStaff, useBulkDeleteOpportunities } from "@/hooks/useOpportunitiesData";
+import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
+import type { FieldDefinition } from "@/hooks/useCardFieldPreferences";
 import { toast } from "sonner";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -42,6 +44,11 @@ function MarketingOpportunitiesContent() {
   const bulkDelete = useBulkDeleteOpportunities();
   const { activeFields, layout, setActiveFields, setLayout } = useCardFieldPreferences();
   const [cardCustomizeOpen, setCardCustomizeOpen] = useState(false);
+  const { data: oppCustomFields = [] } = useOpportunityCustomFields();
+  const customFieldDefs: FieldDefinition[] = useMemo(() =>
+    oppCustomFields.map((f) => ({ key: `custom_${f.id}`, label: f.name, section: "opportunity" })),
+    [oppCustomFields]
+  );
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -280,7 +287,8 @@ function MarketingOpportunitiesContent() {
         onOpenChange={setCardCustomizeOpen}
         activeFields={activeFields}
         layout={layout}
-        onApply={(fields, l) => { setActiveFields(fields); setLayout(l); }}
+        onApply={(fields, l) => { setActiveFields(fields); setLayout(l); toast.success("Personalizzazione applicata"); }}
+        customFields={customFieldDefs}
       />
 
       <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>

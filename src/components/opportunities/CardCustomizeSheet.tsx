@@ -119,9 +119,11 @@ export function CardCustomizeSheet({ open, onOpenChange, activeFields, layout, o
           <div className="bg-background border rounded-lg p-3 shadow-sm space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-bold truncate">Mario Rossi - Roma</p>
-              <span className="shrink-0 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold">
-                AR
-              </span>
+              {draftFields.includes("owner") && (
+                <span className="shrink-0 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold">
+                  AR
+                </span>
+              )}
             </div>
             {draftFields.includes("tags") && (
               <div className="flex gap-1">
