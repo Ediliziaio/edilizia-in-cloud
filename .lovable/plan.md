@@ -1,75 +1,57 @@
 
-# Sidebar visibile durante importazione + Stabilizzazione
 
-## Problema principale
+# Fix Import Wizard - Sidebar Visibile + Stabilizzazione
 
-Il wizard di importazione attuale usa `fixed inset-0 z-50`, coprendo l'intera pagina inclusa la sidebar. Nello screenshot GHL, la sidebar resta sempre visibile a sinistra e il wizard occupa solo l'area di contenuto principale.
+## Problema
+
+Il wizard di importazione usa `absolute inset-0 z-40` dentro `<main>` che causa problemi grafici con la sidebar (testo troncato, overlay). Il wizard dovrebbe essere contenuto inline nell'area di contenuto senza posizionamento assoluto.
+
+## Soluzione
+
+Rendere il wizard un componente **inline** che sostituisce il contenuto della pagina quando attivo, invece di un overlay posizionato.
 
 ## Modifiche
 
-### 1. ImportWizard: da overlay a contenuto inline
+### 1. ImportWizard.tsx - Da overlay a contenuto inline
 
-**File**: `src/components/shared/ImportWizard.tsx`
+Rimuovere `absolute inset-0 z-40 bg-background` dal wrapper root. Usare un semplice `div` con `flex flex-col h-full` che occupa lo spazio naturale del parent. Rimuovere anche `overflow-hidden` dal wrapper. Il wizard diventa semplicemente un componente che prende tutto lo spazio disponibile nel flusso normale del layout.
 
-Cambiare il wrapper da `fixed inset-0 z-50 bg-background` a un layout che occupa solo l'area di contenuto (senza `fixed`). Il componente diventa un semplice container flex-col che riempie lo spazio disponibile del parent (il `<main>` dentro `CompanyLayout`).
+Cambiare:
+- `absolute inset-0 z-40 bg-background flex flex-col overflow-hidden` diventa `flex flex-col min-h-[calc(100vh-8rem)] -m-6 bg-background`
+- Il `-m-6` compensa il `p-6` del `<main>`, cosi il wizard si estende bordo a bordo nell'area di contenuto
+- Nessun z-index, nessun posizionamento assoluto
 
-- Rimuovere `fixed inset-0 z-50`
-- Usare `absolute inset-0 z-40 bg-background` oppure semplicemente un div che occupa `h-full w-full` in modo che il layout della sidebar resti intatto
-- Aggiungere un titolo "Importazioni" con sottotitolo "Importare contatti e lead" come in GHL (visibile nello screenshot)
+### 2. MarketingContacts.tsx - Rendering condizionale
 
-### 2. StepIndicator: aggiungere forwardRef per eliminare il warning
+Quando `importOpen` e true, rendere SOLO il wizard (senza il resto della pagina). Il wizard sostituisce il contenuto della pagina invece di sovrapporsi.
 
-**File**: `src/components/shared/import-wizard/StepIndicator.tsx`
+Spostare il rendering del wizard prima del contenuto principale con un `if (importOpen) return <ImportWizard ... />` pattern.
 
-- Wrappare con `React.forwardRef` per eliminare il warning in console "Function components cannot be given refs"
+### 3. MarketingOpportunities.tsx - Rendering condizionale
 
-### 3. StepIndicator: allineare testi a GHL
+Stessa logica: quando `importOpen` e true, rendere solo il wizard al posto del contenuto della pagina.
 
-Aggiornare le descrizioni degli step per corrispondere esattamente allo screenshot GHL:
-- Step 1: "Avvia" - "Seleziona gli oggetti e ulteriori informazioni"
-- Step 2: "Carica" - "Carica il file e configura"
-- Step 3: "Mappa" - "Mappa le colonne ai campi"
-- Step 4: "Verifica" - "Conferma e finalizza la selezione"
+### 4. CompanyLayout.tsx - Rimuovere relative overflow-hidden
 
-### 4. StepReview: aggiungere opzioni mancanti (come GHL)
+Rimuovere `relative overflow-hidden` dal `<main>` dato che non serve piu (il wizard non usa piu posizionamento assoluto). Mantenere solo `flex-1 p-6 bg-muted/30`.
 
-**File**: `src/components/shared/import-wizard/StepReview.tsx`
+### 5. StepIndicator.tsx - Gia corretto con forwardRef
 
-Nello screenshot GHL la sezione "Preferenze" include:
-- "Crea un elenco intelligente per i nuovi contatti creati con l'importazione" (con campo data)
-- "Aggiungi i contatti importati a un flusso di lavoro" (con select)
-- "Aggiungi etichette ai contatti importati" (con select tag)
+Verificato: gia usa `React.forwardRef`, il warning in console dovrebbe essere risolto.
 
-Aggiungere queste opzioni. Le prime due saranno placeholder visivi (checkbox disabilitate o con "Prossimamente"). La terza (tag) e gia implementata.
-
-## Riepilogo file modificati
+## Riepilogo file
 
 | File | Tipo | Descrizione |
 |------|------|-------------|
-| `src/components/shared/ImportWizard.tsx` | UX Fix | Da overlay fullscreen a contenuto inline (sidebar visibile) + titolo pagina |
-| `src/components/shared/import-wizard/StepIndicator.tsx` | Bug Fix | Aggiungere forwardRef + aggiornare testi step |
-| `src/components/shared/import-wizard/StepReview.tsx` | UX | Aggiungere opzioni preferenze stile GHL |
+| `src/components/shared/ImportWizard.tsx` | Fix | Rimuovere posizionamento assoluto, usare layout inline con margini negativi |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Fix | Rendering condizionale: wizard sostituisce contenuto pagina |
+| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Fix | Rendering condizionale: wizard sostituisce contenuto pagina |
+| `src/components/layouts/CompanyLayout.tsx` | Cleanup | Rimuovere `relative overflow-hidden` dal main |
 
-## Dettaglio tecnico
+## Risultato atteso
 
-### ImportWizard.tsx - Nuovo layout
-
-Il div root passa da:
-```text
-<div className="fixed inset-0 z-50 bg-background flex flex-col">
-```
-a:
-```text
-<div className="absolute inset-0 z-40 bg-background flex flex-col overflow-hidden">
-```
-
-Questo lo posiziona sopra il contenuto della pagina ma dentro il container `<main>` del layout, mantenendo la sidebar visibile. Il `<main>` in CompanyLayout ha gia `position: relative` o lo aggiungeremo se necessario.
-
-La top bar del wizard verra aggiornata con:
-- Titolo "Importazioni" (h1, font-semibold)
-- Sottotitolo "Importare contatti e lead" (text-sm, muted)
-- Pulsante X a destra per chiudere
-
-### CompanyLayout.tsx - relative sul main
-
-Verificare che il container principale del contenuto abbia `relative` per ancorare l'`absolute` del wizard. Se non lo ha, aggiungere `relative` al wrapper dell'`<Outlet>`.
+- Sidebar sempre completamente visibile e funzionante durante l'importazione
+- Wizard occupa solo l'area di contenuto principale
+- Nessun problema di z-index o posizionamento
+- Header della pagina (con nome azienda) resta visibile sopra il wizard
+- UX fluida: il wizard sostituisce il contenuto come una "sotto-pagina"
