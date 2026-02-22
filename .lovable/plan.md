@@ -1,57 +1,46 @@
 
+# Fix Assegnazione Utenti nei Contatti Marketing
 
-# Spostare Tag e Campi Personalizzati in nuova categoria "Marketing e Vendita"
+## Problema
+Nella scheda dettaglio contatto marketing, i selettori **Titolare** e **Follower** mostrano **tutti i profili** dell'azienda (inclusi clienti, dipendenti, venditori) invece di mostrare solo gli **utenti** della sezione "Utenti" (company_admin e company_staff).
 
-## Panoramica
-Nella sidebar delle impostazioni aziendali, spostare le voci **Tag** e **Campi personalizzati** dalla sezione "Gestione ordini" a una nuova macrocategoria chiamata **"Marketing e Vendita"**, posizionata tra "Gestione ordini" e "Team".
-
-## Cosa cambia
-
-### File: `src/components/layouts/CompanyLayout.tsx`
-
-**Sezione "Gestione ordini"** (righe 171-207): rimuovere le voci Tag e Campi personalizzati, lasciando solo:
-- Stati ordine
-- Fornitori
-
-**Nuova sezione "Marketing e Vendita"**: aggiungere un nuovo `SidebarGroup` subito dopo "Gestione ordini" con:
-- Tag (icona Tag, route `/azienda/impostazioni/tag`)
-- Campi personalizzati (icona SlidersHorizontal, route `/azienda/impostazioni/campi-personalizzati`)
-
-Nessun'altra icona da importare (Tag, SlidersHorizontal e Megaphone sono gia importati). Si aggiungera l'icona `Megaphone` come label della sezione per coerenza con la sidebar principale, oppure si usera solo il testo come nelle altre sezioni impostazioni.
-
-## Risultato finale nella sidebar impostazioni
-
+La causa e nella query a riga 191-203 di `MarketingContactDetail.tsx`:
+```typescript
+// ATTUALE - SBAGLIATO: prende TUTTI i profili
+const { data, error } = await supabase
+  .from("profiles")
+  .select("id, first_name, last_name")
+  .eq("company_id", companyId);
 ```
-La mia azienda
-  - Profilo aziendale
-  - Catalogo articoli
 
-Gestione ordini
-  - Stati ordine
-  - Fornitori
+Non filtra per ruolo, quindi include clienti, dipendenti, venditori.
 
-Marketing e Vendita    <-- NUOVA
-  - Tag
-  - Campi personalizzati
+## Soluzione
+Applicare lo stesso pattern gia usato in `AssignedToSelect.tsx`: dopo aver recuperato i profili, fare una seconda query su `user_roles` per filtrare solo `company_admin` e `company_staff`.
 
-Team
-  - Utenti
-  - Venditori
-  - Staff / Operai
+## Dettaglio tecnico
 
-Sicurezza e log
-  - Cambio password
-  - Registro attivita
-```
+### File: `src/pages/azienda/marketing/MarketingContactDetail.tsx`
+Modificare la query `company_staff` (righe 191-203):
+1. Recuperare i profili con `company_id`
+2. Recuperare i ruoli da `user_roles` per quegli utenti
+3. Filtrare solo quelli con ruolo `company_admin` o `company_staff`
+4. Restituire solo quei profili
+
+La logica sara identica a quella di `AssignedToSelect.tsx` (righe 24-48).
+
+## Altre pagine verificate
+- `TaskDialog.tsx` usa gia `AssignedToSelect` che filtra correttamente
+- `AssignedToSelect.tsx` e gia corretto
+- Il problema e isolato a `MarketingContactDetail.tsx`
 
 ## File coinvolti
 
 | File | Azione |
 |---|---|
-| `src/components/layouts/CompanyLayout.tsx` | Spostamento voci + aggiunta nuovo SidebarGroup |
+| `src/pages/azienda/marketing/MarketingContactDetail.tsx` | Fix query staff: aggiungere filtro per ruolo |
 
 ## Cosa NON cambia
-- Routing invariato
-- Componenti Tag e Campi personalizzati invariati
 - Nessuna modifica al database
-
+- Nessuna modifica a componenti condivisi
+- Routing e sidebar invariati
