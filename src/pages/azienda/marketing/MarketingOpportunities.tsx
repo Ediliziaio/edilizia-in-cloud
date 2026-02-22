@@ -1,18 +1,24 @@
-import { useState, useEffect } from "react";
-import { Plus, Loader2, Target } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { PipelineSelector } from "@/components/opportunities/PipelineSelector";
 import { OpportunityKanbanView } from "@/components/opportunities/OpportunityKanbanView";
 import { OpportunityDialog } from "@/components/opportunities/OpportunityDialog";
 import { usePipelines, useOpportunities } from "@/hooks/useOpportunitiesData";
+import { toast } from "sonner";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function MarketingOpportunities() {
   const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines();
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Auto-select first pipeline
   useEffect(() => {
     if (pipelines.length > 0 && !selectedPipelineId) {
       setSelectedPipelineId(pipelines[0].id);
@@ -23,6 +29,22 @@ export default function MarketingOpportunities() {
   const stages = selectedPipeline?.marketing_pipeline_stages || [];
 
   const { data: opportunities = [], isLoading: loadingOpps } = useOpportunities(selectedPipelineId);
+
+  // Local search filter
+  const filteredOpportunities = useMemo(() => {
+    if (!searchQuery.trim()) return opportunities;
+    const q = searchQuery.toLowerCase();
+    return opportunities.filter((o: any) => {
+      const contact = o.marketing_contacts;
+      return (
+        o.name?.toLowerCase().includes(q) ||
+        contact?.first_name?.toLowerCase().includes(q) ||
+        contact?.last_name?.toLowerCase().includes(q) ||
+        contact?.email?.toLowerCase().includes(q) ||
+        contact?.phone?.toLowerCase().includes(q)
+      );
+    });
+  }, [opportunities, searchQuery]);
 
   if (loadingPipelines) {
     return (
@@ -48,22 +70,95 @@ export default function MarketingOpportunities() {
   }
 
   return (
-    <div className="flex flex-col h-full gap-4">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
+    <div className="flex flex-col h-full gap-3">
+      {/* Row 1: Pipeline selector + actions */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
           <PipelineSelector
             pipelines={pipelines}
             value={selectedPipelineId}
             onChange={setSelectedPipelineId}
           />
-          <Badge variant="secondary" className="h-7 px-2.5">
-            {opportunities.length} opportunità
+          <Badge className="bg-primary text-primary-foreground hover:bg-primary/90 h-6 px-2 text-xs">
+            {filteredOpportunities.length} lead
           </Badge>
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)} disabled={stages.length === 0}>
-          <Plus className="mr-2 h-4 w-4" /> Aggiungi opportunità
+        <div className="flex items-center gap-1.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Vista griglia</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toast.info("Vista lista in arrivo")}>
+                <List className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Vista lista</TooltipContent>
+          </Tooltip>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => toast.info("Importazione in arrivo")}>
+            <Upload className="mr-1.5 h-3.5 w-3.5" /> Importa
+          </Button>
+          <Button size="sm" className="h-8 text-xs" onClick={() => setDialogOpen(true)} disabled={stages.length === 0}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> Aggiungi opportunità
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => toast.info("Esportazione in arrivo")}>Esporta</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Impostazioni in arrivo")}>Impostazioni pipeline</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Row 2: Tabs */}
+      <div className="flex items-center gap-1 border-b">
+        <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none border-b-2 border-primary font-semibold">
+          Tutto
         </Button>
+        <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none text-muted-foreground" onClick={() => toast.info("Elenchi personalizzati in arrivo")}>
+          + Elenco
+        </Button>
+      </div>
+
+      {/* Row 3: Filters + search */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => toast.info("Filtri avanzati in arrivo")}>
+            <Filter className="mr-1.5 h-3.5 w-3.5" /> Filtri avanzati
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => toast.info("Ordinamento in arrivo")}>
+            <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Cerca Lead..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 w-48 pl-8 text-xs"
+            />
+          </div>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-8 text-xs px-1"
+            onClick={() => window.location.href = "/azienda/impostazioni/campi-personalizzati"}
+          >
+            <Settings2 className="mr-1 h-3.5 w-3.5" /> Gestisci campi
+          </Button>
+        </div>
       </div>
 
       {/* Kanban */}
@@ -79,7 +174,7 @@ export default function MarketingOpportunities() {
           </Button>
         </div>
       ) : (
-        <OpportunityKanbanView stages={stages} opportunities={opportunities} />
+        <OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} />
       )}
 
       {/* Create dialog */}
