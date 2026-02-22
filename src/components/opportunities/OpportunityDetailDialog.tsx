@@ -1,4 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useUpdateOpportunity, useDeleteOpportunity, useCompanyStaff, useOpportunityNotes, useAddOpportunityNote, usePipelines } from "@/hooks/useOpportunitiesData";
 import {
   useContactCustomFields, useOpportunityCustomFields,
@@ -17,7 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
-  CreditCard, Users, Settings2, User, Mail, Phone,
+  CreditCard, Users, Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -35,6 +38,8 @@ type Tab = "details" | "notes" | "appointments" | "activities" | "payments" | "m
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages }: Props) {
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   const updateOpp = useUpdateOpportunity();
   const deleteOpp = useDeleteOpportunity();
   const { data: staff = [] } = useCompanyStaff();
@@ -72,6 +77,39 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [oppTags, setOppTags] = useState<string[]>([]);
   const [oppCustomValues, setOppCustomValues] = useState<Record<string, string>>({});
 
+  // Change contact state
+  const [changingContact, setChangingContact] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
+  const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const [showNewContactForm, setShowNewContactForm] = useState(false);
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
+  const [pendingContactId, setPendingContactId] = useState<string | null>(null);
+
+  // Track synced IDs to prevent infinite loops
+  const lastSyncedContactFieldsRef = useRef<string>("");
+  const lastSyncedOppFieldsRef = useRef<string>("");
+
+  // Fetch contacts for change contact combobox
+  const { data: searchContacts = [] } = useQuery({
+    queryKey: ["marketing_contacts_search_detail", companyId, contactSearch],
+    queryFn: async () => {
+      let query = supabase
+        .from("marketing_contacts")
+        .select("id, first_name, last_name, email, phone, city")
+        .eq("company_id", companyId!)
+        .limit(20);
+      if (contactSearch) {
+        query = query.or(`first_name.ilike.%${contactSearch}%,last_name.ilike.%${contactSearch}%,email.ilike.%${contactSearch}%`);
+      }
+      const { data, error } = await query.order("first_name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!companyId && changingContact,
+  });
+
   useEffect(() => {
     if (opportunity) {
       const contact = opportunity.marketing_contacts;
@@ -89,17 +127,29 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       setOppTags(opportunity.tags || []);
       setTab("details");
       setNewNote("");
+      setChangingContact(false);
+      setShowNewContactForm(false);
+      setPendingContactId(null);
+      lastSyncedContactFieldsRef.current = "";
+      lastSyncedOppFieldsRef.current = "";
     }
   }, [opportunity]);
 
-  // Sync custom field values when loaded
+  // Sync contact custom field values - with guard to prevent infinite loop
   useEffect(() => {
+    const serialized = JSON.stringify(contactFieldValues);
+    if (serialized === lastSyncedContactFieldsRef.current) return;
+    lastSyncedContactFieldsRef.current = serialized;
     const map: Record<string, string> = {};
     contactFieldValues.forEach((v: any) => { map[v.field_id] = v.value || ""; });
     setContactCustomValues(map);
   }, [contactFieldValues]);
 
+  // Sync opportunity custom field values - with guard to prevent infinite loop
   useEffect(() => {
+    const serialized = JSON.stringify(oppFieldValues);
+    if (serialized === lastSyncedOppFieldsRef.current) return;
+    lastSyncedOppFieldsRef.current = serialized;
     const map: Record<string, string> = {};
     oppFieldValues.forEach((v: any) => { map[v.field_id] = v.value || ""; });
     setOppCustomValues(map);
@@ -115,6 +165,30 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const isSaving = updateOpp.isPending || updateContact.isPending || upsertContactFields.isPending || upsertOppFields.isPending;
 
   const handleSave = async () => {
+    // Handle new contact creation if pending
+    let finalContactId = pendingContactId || opportunity.contact_id;
+
+    if (showNewContactForm && newContactName.trim()) {
+      const nameParts = newContactName.trim().split(" ");
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(" ") || null;
+
+      const { data: newContact, error } = await supabase
+        .from("marketing_contacts")
+        .insert({
+          company_id: companyId!,
+          first_name: firstName,
+          last_name: lastName,
+          email: newContactEmail || null,
+          phone: newContactPhone || null,
+        })
+        .select("id")
+        .single();
+
+      if (error) { toast.error(error.message); return; }
+      finalContactId = newContact.id;
+    }
+
     // 1. Update opportunity
     updateOpp.mutate({
       id: opportunity.id,
@@ -126,10 +200,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       company_name: companyName || null,
       notes: oppNotes || null,
       tags: oppTags,
+      contact_id: finalContactId,
     });
 
-    // 2. Update contact base fields if changed
-    if (contact && (contactEmail !== (contact.email || "") || contactPhone !== (contact.phone || ""))) {
+    // 2. Update contact base fields if changed (only if not changing contact)
+    if (!pendingContactId && !showNewContactForm && contact && (contactEmail !== (contact.email || "") || contactPhone !== (contact.phone || ""))) {
       updateContact.mutate({ id: contact.id, email: contactEmail || null, phone: contactPhone || null });
     }
 
@@ -139,7 +214,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         const original = contactFieldValues.find((v: any) => v.field_id === fieldId);
         return (original?.value || "") !== val;
       })
-      .map(([field_id, value]) => ({ contact_id: opportunity.contact_id, field_id, value: value || null }));
+      .map(([field_id, value]) => ({ contact_id: finalContactId, field_id, value: value || null }));
     if (contactFieldsToUpsert.length) upsertContactFields.mutate(contactFieldsToUpsert);
 
     // 4. Upsert opportunity custom field values
@@ -151,6 +226,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       .map(([field_id, value]) => ({ opportunity_id: opportunity.id, field_id, value: value || null }));
     if (oppFieldsToUpsert.length) upsertOppFields.mutate(oppFieldsToUpsert);
 
+    toast.success("Opportunità aggiornata con successo");
     onOpenChange(false);
   };
 
@@ -162,6 +238,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const handleAddNote = () => {
     if (!newNote.trim()) return;
     addNote.mutate({ opportunityId: opportunity.id, content: newNote.trim() }, { onSuccess: () => setNewNote("") });
+  };
+
+  const handleSelectExistingContact = (c: any) => {
+    setPendingContactId(c.id);
+    setContactEmail(c.email || "");
+    setContactPhone(c.phone || "");
+    setContactSearch(`${c.first_name} ${c.last_name || ""}`.trim());
+    setShowContactDropdown(false);
+    setShowNewContactForm(false);
   };
 
   const renderCustomField = (field: any, values: Record<string, string>, setValues: (v: Record<string, string>) => void) => {
@@ -203,9 +288,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     { key: "members", label: "Oggetti Membri", icon: <Users className="h-4 w-4" />, enabled: false },
   ];
 
+  const searchTrimmed = contactSearch.trim();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <div className="px-6 pt-5 pb-3">
           <h2 className="text-lg font-semibold">Modifica "{fullName}{cityPart}"</h2>
@@ -247,22 +334,128 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-semibold">Contatto Dettagli</h3>
-                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-                        <Checkbox checked={hideEmpty} onCheckedChange={(c) => setHideEmpty(!!c)} className="h-3.5 w-3.5" />
-                        Nascondi campi vuoti
-                      </label>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                          <Checkbox checked={hideEmpty} onCheckedChange={(c) => setHideEmpty(!!c)} className="h-3.5 w-3.5" />
+                          Nascondi campi vuoti
+                        </label>
+                      </div>
                     </div>
 
                     <div className="space-y-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Nome del contatto primario</Label>
-                        <div className="flex items-center gap-2 h-8 px-3 border rounded-md bg-muted/30 text-sm">
-                          <User className="h-3.5 w-3.5 text-muted-foreground" />
-                          {fullName || "—"}
+                      {/* Contact name - with change button */}
+                      {!changingContact ? (
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Nome del contatto primario</Label>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 h-8 px-3 border rounded-md bg-muted/30 text-sm flex-1">
+                              <User className="h-3.5 w-3.5 text-muted-foreground" />
+                              {pendingContactId ? contactSearch : (fullName || "—")}
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1"
+                              onClick={() => {
+                                setChangingContact(true);
+                                setContactSearch("");
+                                setShowNewContactForm(false);
+                                setPendingContactId(null);
+                              }}
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              Cambia
+                            </Button>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Cerca o crea contatto</Label>
+                          <div className="relative">
+                            <Input
+                              placeholder="Cerca contatto..."
+                              value={contactSearch}
+                              onChange={(e) => {
+                                setContactSearch(e.target.value);
+                                setShowContactDropdown(true);
+                                setShowNewContactForm(false);
+                              }}
+                              onFocus={() => setShowContactDropdown(true)}
+                              onBlur={() => setTimeout(() => setShowContactDropdown(false), 300)}
+                              className="h-8 text-sm"
+                              autoFocus
+                            />
+                            {showContactDropdown && (
+                              <div className="absolute z-50 w-full mt-1 border rounded-lg bg-popover shadow-lg max-h-[200px] overflow-y-auto">
+                                {searchContacts.length > 0 ? (
+                                  searchContacts.map((c: any) => (
+                                    <button
+                                      key={c.id}
+                                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors border-b last:border-b-0 flex items-center gap-2"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => {
+                                        handleSelectExistingContact(c);
+                                        setChangingContact(false);
+                                      }}
+                                    >
+                                      <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                      <div className="min-w-0">
+                                        <p className="font-medium text-xs truncate">{c.first_name} {c.last_name || ""}</p>
+                                        {c.email && <p className="text-[11px] text-muted-foreground truncate">{c.email}</p>}
+                                      </div>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="flex flex-col items-center py-4 text-muted-foreground">
+                                    <DatabaseZap className="h-6 w-6 mb-1 opacity-40" />
+                                    <p className="text-xs">Nessun risultato</p>
+                                  </div>
+                                )}
+                                <button
+                                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-accent transition-colors flex items-center gap-2 text-primary font-medium border-t"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    setShowNewContactForm(true);
+                                    setShowContactDropdown(false);
+                                    setChangingContact(false);
+                                    setPendingContactId(null);
+                                    if (searchTrimmed) setNewContactName(searchTrimmed);
+                                  }}
+                                >
+                                  <UserPlus className="h-3.5 w-3.5" />
+                                  + {searchTrimmed || ""} (Crea nuovo contatto)
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              setChangingContact(false);
+                              setPendingContactId(null);
+                            }}
+                          >
+                            Annulla
+                          </button>
+                        </div>
+                      )}
 
-                      {(!hideEmpty || contactEmail) && (
+                      {/* New contact inline form */}
+                      {showNewContactForm && (
+                        <div className="space-y-2 p-3 rounded-lg border border-dashed bg-muted/30">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-semibold flex items-center gap-1.5"><UserPlus className="h-3.5 w-3.5" /> Nuovo contatto</Label>
+                            <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowNewContactForm(false)}>Annulla</button>
+                          </div>
+                          <Input placeholder="Nome e cognome *" value={newContactName} onChange={(e) => setNewContactName(e.target.value)} className="h-8 text-sm" />
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input placeholder="Email" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} className="h-8 text-sm" type="email" />
+                            <Input placeholder="Telefono" value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-8 text-sm" type="tel" />
+                          </div>
+                        </div>
+                      )}
+
+                      {(!hideEmpty || contactEmail) && !showNewContactForm && (
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Email primaria</Label>
                           <div className="relative">
@@ -272,7 +465,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       )}
 
-                      {(!hideEmpty || contactPhone) && (
+                      {(!hideEmpty || contactPhone) && !showNewContactForm && (
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Telefono primario</Label>
                           <div className="relative">
@@ -282,7 +475,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       )}
 
-                      {(!hideEmpty) && (
+                      {(!hideEmpty) && !showNewContactForm && (
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Contatti aggiuntivo</Label>
                           <p className="text-xs text-muted-foreground italic px-1">Aggiungi altri contatti</p>

@@ -68,7 +68,7 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
     }
   };
 
-  // removed handleCopyName
+  
 
   const handleComingSoon = (label: string) => (e: React.MouseEvent) => {
     stopProp(e);
