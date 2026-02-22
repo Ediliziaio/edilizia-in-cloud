@@ -16,7 +16,6 @@ export function usePipelines() {
         .eq("company_id", companyId!)
         .order("position");
       if (error) throw error;
-      // Sort stages by position
       return data.map((p: any) => ({
         ...p,
         marketing_pipeline_stages: (p.marketing_pipeline_stages || []).sort((a: any, b: any) => a.position - b.position),
@@ -82,6 +81,25 @@ export function useCreateOpportunity() {
   });
 }
 
+export function useUpdateOpportunity() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; [key: string]: any }) => {
+      const { error } = await supabase
+        .from("marketing_opportunities")
+        .update(data)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      toast.success("Opportunità aggiornata");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useUpdateOpportunityStage() {
   const queryClient = useQueryClient();
 
@@ -111,6 +129,77 @@ export function useDeleteOpportunity() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
       toast.success("Opportunità eliminata");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useCompanyStaff() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: ["company_staff_roles", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId);
+      if (!profiles?.length) return [];
+
+      const userIds = profiles.map((p) => p.id);
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds);
+
+      const validUserIds = roles
+        ?.filter((r) => r.role === "company_admin" || r.role === "company_staff")
+        .map((r) => r.user_id) || [];
+
+      return profiles
+        .filter((p) => validUserIds.includes(p.id))
+        .map((p) => ({ id: p.id, name: `${p.first_name} ${p.last_name}` }));
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useOpportunityNotes(opportunityId: string | null) {
+  return useQuery({
+    queryKey: ["marketing_opportunity_notes", opportunityId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("marketing_opportunity_notes")
+        .select("*")
+        .eq("opportunity_id", opportunityId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!opportunityId,
+  });
+}
+
+export function useAddOpportunityNote() {
+  const queryClient = useQueryClient();
+  const { effectiveCompany, user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ opportunityId, content }: { opportunityId: string; content: string }) => {
+      const { error } = await supabase.from("marketing_opportunity_notes").insert({
+        opportunity_id: opportunityId,
+        company_id: effectiveCompany!.id,
+        content,
+        created_by: user!.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["marketing_opportunity_notes"] });
+      toast.success("Nota aggiunta");
     },
     onError: (e: any) => toast.error(e.message),
   });
