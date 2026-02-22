@@ -603,7 +603,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Titolare</Label>
                           <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>

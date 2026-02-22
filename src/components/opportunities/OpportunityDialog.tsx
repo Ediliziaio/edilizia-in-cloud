@@ -208,24 +208,15 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
-      <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-2xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <div className="px-6 py-4 border-b">
           <DialogTitle className="text-lg font-bold">Aggiungi Nuovo opportunità</DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">Crea Nuovo opportunità in dettagli e selezionando un contatto</DialogDescription>
         </div>
 
-        {/* Body with sidebar */}
+        {/* Body */}
         <div className="flex flex-1 min-h-0">
-          {/* Sidebar */}
-          <div className="w-[200px] border-r bg-muted/30 p-3 shrink-0">
-            <button className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground">
-              <FileText className="h-4 w-4" />
-              Dettagli dell'opportunità
-            </button>
-          </div>
-
-          {/* Content */}
           <ScrollArea className="flex-1">
             <div className="p-5 space-y-6">
               {/* Section 1: Contatto Dettagli */}
