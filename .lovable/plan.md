@@ -1,127 +1,64 @@
 
-# Filtri Avanzati Dinamici - Stile GHL
+# Fix Filtri Avanzati - Bug di Rendering
 
-## Panoramica
+## Problema identificato
 
-Ristrutturare completamente il sistema di filtri per replicare l'approccio GHL: invece di sezioni fisse con campi predefiniti, l'utente aggiunge **regole di filtro dinamiche** una alla volta. Ogni regola ha un campo selezionabile, un operatore e un valore. Le regole possono essere combinate con logica **E (AND)** oppure **O (OR)**.
+Il `ContactFiltersSheet` ha un bug critico nel rendering delle due schermate (lista regole vs. field picker). Le due schermate usano posizionamento `absolute inset-0` con transizioni CSS `translate-x`, ma la Schermata 2 (field picker) viene sempre renderizzata sopra la Schermata 1 perche si trova dopo nel DOM e entrambe hanno la stessa posizione.
 
-## Come funziona (UX - identico a GHL)
+Risultato: quando si apre lo sheet, si vede sempre il field picker, il back button non funziona visivamente, e cliccando i campi non succede nulla (perche `pickingRuleId` e `null` al primo render).
 
-1. Lo Sheet si apre con la lista delle regole attive (inizialmente vuota)
-2. In alto: toggle **E / O** per la logica di combinazione
-3. Ogni regola di filtro mostra:
-   - Nome del campo (con icona matita per cambiare)
-   - Dropdown operatore (E, Non e, E vuoto, Non e vuoto)
-   - Campo di input per il valore
-   - Icona cestino per eliminare la regola
-4. Sotto le regole: link **"+ Aggiungi filtro"** per aggiungere una nuova regola
-5. Footer: **"Rimuovi tutti i filtri"** a sinistra, **"Cancel"** e **"Apply"** a destra
-6. Quando si clicca su un campo o su "+ Aggiungi filtro", si apre un picker per scegliere il campo da filtrare (lista di tutti i campi disponibili raggruppati)
+## Causa tecnica
 
-## Nuovo modello dati
+1. **Z-index implicito**: due elementi `absolute inset-0` nello stesso container - il secondo (field picker) copre sempre il primo (rules list)
+2. **Reset stato mancante**: `handleOpenChange` resetta solo quando `o = true`, ma Radix Dialog chiama `onOpenChange` solo con `false` (quando si chiude). Quindi lo stato non viene mai resettato alla riapertura
+3. **`overflow-hidden` non basta**: le transizioni `translate-x` non funzionano correttamente in questo contesto
 
-```text
-interface FilterRule {
-  id: string;                // ID univoco della regola (generato)
-  field: string;             // Chiave del campo (es. "city", "email", "opp_pipeline", "cf_<id>")
-  operator: "is" | "is_not" | "is_empty" | "is_not_empty" | "contains" | "gte" | "lte";
-  value: string;
-}
+## Soluzione
 
-interface ContactFilters {
-  logic: "and" | "or";       // Logica di combinazione tra regole
-  rules: FilterRule[];       // Lista dinamica di regole
-}
-```
+Sostituire il sistema CSS-based con **rendering condizionale** semplice (`{isPicking ? <FieldPicker /> : <RulesList />}`). Questo elimina tutti i problemi di z-index e CSS transition.
 
-## Campi disponibili nel picker
+Aggiungere un `useEffect` per resettare lo stato quando `open` cambia a `true`.
 
-| Gruppo | Campi |
-|--------|-------|
-| Informazioni contatto | Nome, Email, Telefono, Azienda, Fonte, Citta, Provincia |
-| Date | Data creazione, Ultima attivita |
-| Tag | Tag |
-| Opportunita | Sequenza (pipeline), Fase, Stato |
-| Campi personalizzati | Tutti i custom fields di tipo "contact" |
+## File da modificare
 
-## Operatori disponibili per tipo
-
-| Tipo campo | Operatori |
-|------------|-----------|
-| Testo | E, Non e, E vuoto, Non e vuoto |
-| Data | E, Non e, E vuoto, Non e vuoto (valore = date input) |
-| Tag | E (valore = tag selezionato), Non e |
-| Pipeline/Stage | E (valore = select), Non e |
-| Stato opp | E, Non e |
-
-## Logica query aggiornata
-
-In `MarketingContacts.tsx`, la query viene costruita dinamicamente:
-
-1. Separare le regole in 3 gruppi: standard (campi contatto), opportunita, custom fields
-2. Per le regole standard: applicare filtri direttamente sulla query `marketing_contacts`
-3. Per le regole opportunita: query su `marketing_opportunities` per ottenere `contact_id`
-4. Per le regole custom fields: query su `marketing_contact_field_values` per ottenere `contact_id`
-5. Se logica = AND: intersecare tutti gli ID, applicare filtri standard con `.and()`
-6. Se logica = OR: unire tutti gli ID, applicare filtri standard con `.or()`
-
-## File coinvolti
-
-| File | Azione |
-|------|--------|
-| `src/components/marketing/ContactFiltersSheet.tsx` | Riscrittura completa: regole dinamiche, toggle AND/OR, field picker, layout GHL |
-| `src/pages/azienda/marketing/MarketingContacts.tsx` | Aggiornare tipo ContactFilters, riscrivere logica query per regole dinamiche con AND/OR |
+| File | Modifica |
+|------|----------|
+| `src/components/marketing/ContactFiltersSheet.tsx` | Sostituire le due schermate absolute con rendering condizionale + fix reset stato |
 
 ## Dettagli tecnici
 
-### ContactFiltersSheet - Struttura interna
-
-Il componente gestisce due viste:
-- **Vista principale**: lista delle regole + toggle AND/OR + "+ Aggiungi filtro"
-- **Vista field picker**: lista raggruppata di tutti i campi disponibili (si apre quando si aggiunge/modifica un campo)
-
-Ogni regola viene renderizzata come un blocco compatto:
-```text
-[Citta (pencil)] [E (dropdown)] [Roma (input)] [trash]
-```
-
-Il toggle AND/OR e un segmented control in alto che cambia `logic` tra "and" e "or".
-
-### Query builder in MarketingContacts.tsx
-
-La funzione `applyFilterCondition` viene rimossa e sostituita da un sistema che itera sulle `rules`:
+### 1. Aggiungere useEffect per reset stato
 
 ```text
-for each rule in filters.rules:
-  if rule.field is standard -> apply to main query
-  if rule.field starts with "opp_" -> add to opportunity sub-query
-  if rule.field starts with "cf_" -> add to custom field sub-query
-  if rule.field is "tags" -> apply overlaps
-  if rule.field is date -> apply gte/lte
+useEffect(() => {
+  if (open) {
+    setLocal(filters);
+    setPickingRuleId(null);
+    setFieldSearch("");
+  }
+}, [open, filters]);
 ```
 
-Se `logic = "and"`: tutti i filtri standard vengono applicati in sequenza (AND implicito di Supabase), gli ID vengono intersecati.
-Se `logic = "or"`: i filtri standard vengono combinati con `.or()`, gli ID vengono uniti.
+### 2. Sostituire il rendering a due schermate
 
-### countActiveContactFilters
+Invece di due `div` con `absolute inset-0` e `translate-x`, usare:
 
-Diventa semplicemente `filters.rules.length`.
+```text
+{isPicking ? (
+  <FieldPickerScreen />
+) : (
+  <RulesListScreen />
+)}
+```
 
-### EMPTY_CONTACT_FILTERS
+### 3. Aggiungere SheetDescription per eliminare warning console
 
-Diventa `{ logic: "and", rules: [] }`.
+Aggiungere un `SheetDescription` nascosto con `className="sr-only"` per risolvere il warning "Missing Description or aria-describedby" visibile nei log.
 
-### Field picker
+## Risultato atteso
 
-Un pannello con ricerca che mostra i campi raggruppati. Quando l'utente seleziona un campo, viene creata una nuova regola con operatore default "is" e valore vuoto, e il picker si chiude tornando alla vista principale.
-
-### Validazione
-
-Una regola con operatore "is" o "is_not" senza valore mostra un messaggio rosso "Minimo 3 caratteri richiesti" (come GHL) e non viene applicata alla query.
-
-### UX miglioramenti
-
-- Transizione fluida tra vista principale e field picker
-- I campi gia usati in una regola vengono comunque mostrati nel picker (si possono avere piu regole sullo stesso campo)
-- Feedback visivo per regole incomplete (bordo rosso sull'input)
-- Il pulsante "Apply" e disabilitato se ci sono regole con valori richiesti ma vuoti
+- Lo sheet si apre mostrando la lista regole (vuota con "Aggiungi filtro")
+- Cliccando "Aggiungi filtro" si passa al field picker
+- Selezionando un campo si torna alla lista con la nuova regola
+- Il back button funziona correttamente
+- I filtri si applicano correttamente
