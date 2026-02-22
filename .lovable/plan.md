@@ -1,140 +1,110 @@
 
-# Note cliccabili, Documenti sincronizzati e pulizia sidebar Opportunita
+# Separazione Attivita, Sincronizzazione Task Contatti/Opportunita e Timeline Completa
 
-## 1. Icone Note e Documenti sulla card opportunita
+## Problemi identificati
 
-Attualmente le icone "Note" e "Documenti" sulla card mostrano solo "funzionalita in arrivo". Verranno modificate per aprire il dialog dell'opportunita direttamente sulla tab corrispondente.
+1. **Tasks mescolati**: La pagina "Attivita" in Gestione Interna (`Tasks.tsx`) carica TUTTI i task senza escludere quelli con categorie marketing (`marketing`, `contatti`, `opportunita`). Risultato: i task marketing appaiono anche nella sezione interna.
 
-**File: `src/components/opportunities/OpportunityCard.tsx`**
-- Modificare le azioni delle icone Note e Documenti per invocare `onClick` con un parametro che indica la tab da aprire
-- Aggiornare l'interfaccia `OpportunityCardProps` per aggiungere `onOpenTab?: (tab: string) => void`
+2. **Task contatti/opportunita non sincronizzati**: I task creati da un contatto non appaiono nell'opportunita collegata e viceversa. Servono filtri incrociati.
 
-**File: `src/components/opportunities/OpportunityKanbanView.tsx`**
-- Passare la callback `onOpenTab` alla card per aprire il dialog sulla tab corretta
+3. **Timeline centrale troppo limitata**: La colonna centrale del dettaglio contatto mostra solo aggiornamenti dei tag (inseriti manualmente via codice in `updateField`). Mancano: creazione contatto, spostamento in opportunita, cambio fase, aggiunta nota, assegnazione utente, upload documenti, ecc.
 
-## 2. Database: tabella documenti marketing
+---
 
-Creare una nuova tabella `marketing_documents` per documenti condivisi tra contatti e opportunita:
+## Soluzione
 
-```sql
-CREATE TABLE marketing_documents (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  contact_id uuid NOT NULL REFERENCES marketing_contacts(id) ON DELETE CASCADE,
-  opportunity_id uuid REFERENCES marketing_opportunities(id) ON DELETE SET NULL,
-  company_id uuid NOT NULL,
-  file_name text NOT NULL,
-  file_url text NOT NULL,
-  file_type text NOT NULL,
-  file_size integer NOT NULL,
-  uploaded_by uuid NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+### Parte 1: Separare i task interni da quelli marketing
 
--- RLS policies (stesse logiche delle altre tabelle marketing)
-ALTER TABLE marketing_documents ENABLE ROW LEVEL SECURITY;
+**File: `src/pages/azienda/Tasks.tsx`**
+- Aggiungere un filtro `.not("category", "in", "(marketing,contatti,opportunita)")` alla query Supabase, in modo che la pagina Attivita interna mostri solo categorie operative (generale, ordini, magazzino, pagamenti, costi).
 
-CREATE POLICY "Company admins can manage marketing documents"
-  ON marketing_documents FOR ALL
-  USING (has_role(auth.uid(), 'company_admin') AND company_id = get_user_company_id(auth.uid()));
+### Parte 2: Sincronizzare task contatti/opportunita
 
-CREATE POLICY "Staff can view marketing documents if permitted"
-  ON marketing_documents FOR SELECT
-  USING (has_permission(auth.uid(), 'can_view_orders') AND company_id = get_user_company_id(auth.uid()));
+**File: `src/components/tasks/LinkedTasks.tsx`**
+- Quando il componente e usato nel contesto di un contatto (`contactId` presente), caricare anche i task che hanno un `opportunity_id` collegato a un'opportunita di quel contatto (query incrociata).
+- Quando usato nel contesto di un'opportunita (`opportunityId` presente), caricare anche i task generici del contatto collegato.
 
-CREATE POLICY "Super admins can manage all marketing documents"
-  ON marketing_documents FOR ALL
-  USING (has_role(auth.uid(), 'super_admin'));
-```
+### Parte 3: Timeline completa del contatto (registro attivita)
 
-Creare un nuovo storage bucket `marketing-attachments` (pubblico).
+Attualmente la tabella `marketing_contact_activities` esiste ma viene alimentata solo da due punti nel codice (aggiornamento campo e aggiunta nota in `MarketingContactDetail.tsx`). Serve ampliare la registrazione con trigger database per catturare automaticamente tutti gli eventi importanti.
 
-## 3. Documenti nel contact detail (sidebar destra)
+**Database - Nuovi trigger**:
+
+Creare trigger database su:
+
+| Tabella | Evento | Tipo attivita registrata |
+|---------|--------|--------------------------|
+| `marketing_contacts` | INSERT | `contact_created` - "Contatto creato" |
+| `marketing_opportunities` | INSERT | `opportunity_created` - "Opportunita creata: {nome}" |
+| `marketing_opportunities` | UPDATE di `stage_id` | `stage_changed` - "Fase cambiata: {vecchia} -> {nuova}" |
+| `marketing_opportunities` | UPDATE di `status` | `status_changed` - "Stato opportunita: {stato}" |
+| `marketing_opportunities` | UPDATE di `assigned_to` | `opportunity_assigned` - "Opportunita assegnata" |
+| `marketing_contact_notes` | INSERT | `note_added` - "Nota aggiunta" |
+| `marketing_documents` | INSERT | `document_uploaded` - "Documento caricato: {nome}" |
+| `marketing_contacts` | UPDATE di `assigned_to` | `contact_assigned` - "Contatto assegnato a {utente}" |
+
+Questi trigger inseriranno automaticamente righe in `marketing_contact_activities` con il `contact_id` corretto (per le opportunita, risalendo tramite la FK `contact_id` sulla tabella `marketing_opportunities`).
 
 **File: `src/pages/azienda/marketing/MarketingContactDetail.tsx`**
-- Sostituire il placeholder "Ancora nessun documento" con un componente funzionale che:
-  - Mostra i documenti caricati (lista con nome, tipo, data, badge "Opportunita" se collegato)
-  - Permette upload di file (PDF, PNG, JPG, DOC, ecc.) tramite Supabase Storage
-  - Permette download e eliminazione dei documenti
-  - I documenti sono collegati al `contact_id`, opzionalmente a un `opportunity_id`
+- Rimuovere gli inserimenti manuali in `marketing_contact_activities` dal codice frontend (linee 335-342 e 376-383), dato che ora i trigger database li gestiscono automaticamente.
+- Aggiungere nuovi tipi di attivita alle funzioni `getActivityIcon` e `getActivityColor`:
+  - `contact_created` (icona: UserPlus, colore: verde)
+  - `opportunity_created` (icona: Target, colore: viola)
+  - `stage_changed` (icona: ArrowRight, colore: blu)
+  - `status_changed` (icona: RefreshCw, colore: arancione)
+  - `opportunity_assigned` (icona: UserCheck, colore: indaco)
+  - `contact_assigned` (icona: UserCheck, colore: indaco)
+  - `document_uploaded` (icona: FileText, colore: ciano)
+- Rendere il pulsante "Dettagli" funzionale: al click mostrare i metadati dell'attivita (campo `metadata` JSONB) in un popover con le informazioni dettagliate del cambiamento.
 
-## 4. Documenti nel dialog opportunita
+---
 
-**File: `src/components/opportunities/OpportunityDetailDialog.tsx`**
-- Aggiungere tab "documents" al tipo `Tab`
-- Aggiungere voce "Documenti" alla sidebar (con icona `FileText`)
-- Rimuovere "Pagamenti" e "Oggetti Membri" dalla sidebar
-- Nel contenuto della tab "documents":
-  - Mostrare documenti filtrati per `opportunity_id` + documenti generici del contatto
-  - Permettere upload, download, eliminazione
-  - Badge visivo per distinguere documenti dell'opportunita vs del contatto
+## Riepilogo tecnico delle modifiche
 
-## 5. Rimuovere Pagamenti e Oggetti Membri
+| Area | File/Risorsa | Tipo | Modifica |
+|------|--------------|------|----------|
+| Task separazione | `src/pages/azienda/Tasks.tsx` | Modifica | Escludere categorie marketing dalla query |
+| Task sync | `src/components/tasks/LinkedTasks.tsx` | Modifica | Cross-query contatti/opportunita |
+| Timeline | Database (migrazione SQL) | Nuovo | Trigger per registrare automaticamente tutte le attivita |
+| Timeline | `MarketingContactDetail.tsx` | Modifica | Rimuovere inserimenti manuali attivita, aggiungere nuove icone/colori, popover dettagli |
 
-**File: `src/components/opportunities/OpportunityDetailDialog.tsx`**
-- Rimuovere le voci `payments` e `members` dall'array `sidebarTabs`
-- Rimuovere `CreditCard` e `Users` dagli import se non usati altrove
-- Aggiornare il tipo `Tab` eliminando "payments" e "members"
+### Dettaglio SQL dei trigger
 
-## Riepilogo modifiche
+I trigger verranno implementati come funzioni PL/pgSQL che inseriscono in `marketing_contact_activities`:
 
-| File | Modifica |
-|------|----------|
-| **Database** | Creare tabella `marketing_documents` + bucket `marketing-attachments` |
-| `OpportunityCard.tsx` | Note e Documenti aprono il dialog sulla tab giusta |
-| `OpportunityKanbanView.tsx` | Passare callback `onOpenTab` |
-| `OpportunityDetailDialog.tsx` | Aggiungere tab "Documenti", rimuovere "Pagamenti" e "Oggetti Membri", upload/download documenti |
-| `MarketingContactDetail.tsx` | Rendere funzionale il pannello "Documenti" con upload/download/lista |
+```sql
+-- Esempio: trigger per creazione contatto
+CREATE FUNCTION log_contact_created() RETURNS trigger AS $$
+BEGIN
+  INSERT INTO marketing_contact_activities (contact_id, company_id, activity_type, description, metadata, created_by)
+  VALUES (NEW.id, NEW.company_id, 'contact_created', 'Contatto creato', '{}', COALESCE(auth.uid(), NEW.assigned_to));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-## Dettagli tecnici
+CREATE TRIGGER trg_contact_created 
+  AFTER INSERT ON marketing_contacts
+  FOR EACH ROW EXECUTE FUNCTION log_contact_created();
 
-### OpportunityCard - apertura tab specifica
-
-L'interfaccia viene estesa con `onOpenTab`:
-
-```
-interface OpportunityCardProps {
-  opportunity: any;
-  onClick?: () => void;
-  onOpenTab?: (tab: string) => void;  // NUOVO
-  onDelete?: (id: string) => void;
-  ...
-}
-```
-
-Le icone Note e Documenti chiamano `onOpenTab("notes")` e `onOpenTab("documents")` invece di mostrare "in arrivo".
-
-### OpportunityDetailDialog - nuova tab Documenti
-
-Il tipo `Tab` diventa:
-
-```
-type Tab = "details" | "notes" | "appointments" | "activities" | "documents";
-```
-
-La sidebar aggiornata:
-
-```
-sidebarTabs = [
-  { key: "details", label: "Dettagli dell'opportunita", icon: FileText, enabled: true },
-  { key: "appointments", label: "Prenota/aggiorna appuntamento", icon: CalendarDays, enabled: false },
-  { key: "activities", label: "Attivita", icon: Activity, enabled: true },
-  { key: "notes", label: "Note", icon: StickyNote, enabled: true },
-  { key: "documents", label: "Documenti", icon: Folder, enabled: true },   // NUOVO
-];
+-- Esempio: trigger per cambio fase opportunita
+CREATE FUNCTION log_opportunity_stage_change() RETURNS trigger AS $$
+DECLARE
+  old_stage_name text;
+  new_stage_name text;
+BEGIN
+  IF OLD.stage_id IS DISTINCT FROM NEW.stage_id THEN
+    SELECT name INTO old_stage_name FROM marketing_pipeline_stages WHERE id = OLD.stage_id;
+    SELECT name INTO new_stage_name FROM marketing_pipeline_stages WHERE id = NEW.stage_id;
+    INSERT INTO marketing_contact_activities (contact_id, company_id, activity_type, description, metadata, created_by)
+    VALUES (NEW.contact_id, NEW.company_id, 'stage_changed',
+      'Fase cambiata: ' || COALESCE(old_stage_name,'?') || ' → ' || COALESCE(new_stage_name,'?'),
+      jsonb_build_object('old_stage', old_stage_name, 'new_stage', new_stage_name, 'opportunity_name', NEW.name),
+      COALESCE(auth.uid(), NEW.assigned_to));
+  END IF;
+  -- ... analoghi per status e assigned_to
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
-### Upload documenti
-
-Il flusso di upload segue lo stesso pattern di `OrderAttachments`:
-1. Input file nascosto con accept per PDF, immagini, documenti
-2. Upload su Supabase Storage bucket `marketing-attachments`
-3. Salvataggio metadata nella tabella `marketing_documents`
-4. Visualizzazione con icone per tipo file, nome, dimensione, data
-5. Azioni: download e elimina
-
-### Sincronizzazione documenti contatto/opportunita
-
-Come per le note, i documenti sono salvati con `contact_id` obbligatorio e `opportunity_id` opzionale:
-- Nella pagina contatto: si vedono TUTTI i documenti del contatto
-- Nel dialog opportunita: si vedono i documenti con quel `opportunity_id` + quelli generici del contatto
-- Quando si carica un documento dal dialog opportunita, viene salvato con entrambi gli ID
+Ogni trigger registra `metadata` JSONB con i dettagli del cambiamento (valori vecchi/nuovi), rendendo la timeline un registro completo e preparato per future integrazioni (WhatsApp, SMS, email).
