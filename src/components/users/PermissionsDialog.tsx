@@ -27,6 +27,8 @@ export interface StaffPermissions {
   can_edit_tickets: boolean;
   can_view_forecast: boolean;
   can_view_settings: boolean;
+  can_view_marketing?: boolean;
+  can_edit_marketing?: boolean;
   only_assigned?: boolean;
 }
 
@@ -39,53 +41,23 @@ interface PermissionsDialogProps {
   isLoading?: boolean;
 }
 
-const PERMISSION_SECTIONS = [
-  {
-    label: "Dashboard",
-    viewKey: "can_view_dashboard" as keyof StaffPermissions,
-    editKey: null,
-  },
-  {
-    label: "Ordini",
-    viewKey: "can_view_orders" as keyof StaffPermissions,
-    editKey: "can_edit_orders" as keyof StaffPermissions,
-  },
-  {
-    label: "Magazzino",
-    viewKey: "can_view_warehouse" as keyof StaffPermissions,
-    editKey: "can_edit_warehouse" as keyof StaffPermissions,
-  },
-  {
-    label: "Calendario",
-    viewKey: "can_view_calendar" as keyof StaffPermissions,
-    editKey: null,
-  },
-  {
-    label: "Clienti",
-    viewKey: "can_view_customers" as keyof StaffPermissions,
-    editKey: "can_edit_customers" as keyof StaffPermissions,
-  },
-  {
-    label: "Dipendenti",
-    viewKey: "can_view_employees" as keyof StaffPermissions,
-    editKey: null,
-  },
-  {
-    label: "Assistenza",
-    viewKey: "can_view_tickets" as keyof StaffPermissions,
-    editKey: "can_edit_tickets" as keyof StaffPermissions,
-  },
-  {
-    label: "Previsionale",
-    viewKey: "can_view_forecast" as keyof StaffPermissions,
-    editKey: null,
-  },
-  {
-    label: "Impostazioni",
-    viewKey: "can_view_settings" as keyof StaffPermissions,
-    editKey: null,
-  },
+const INTERNAL_SECTIONS = [
+  { label: "Dashboard", viewKey: "can_view_dashboard" as keyof StaffPermissions, editKey: null },
+  { label: "Ordini", viewKey: "can_view_orders" as keyof StaffPermissions, editKey: "can_edit_orders" as keyof StaffPermissions },
+  { label: "Magazzino", viewKey: "can_view_warehouse" as keyof StaffPermissions, editKey: "can_edit_warehouse" as keyof StaffPermissions },
+  { label: "Calendario", viewKey: "can_view_calendar" as keyof StaffPermissions, editKey: null },
+  { label: "Clienti", viewKey: "can_view_customers" as keyof StaffPermissions, editKey: "can_edit_customers" as keyof StaffPermissions },
+  { label: "Dipendenti", viewKey: "can_view_employees" as keyof StaffPermissions, editKey: null },
+  { label: "Assistenza", viewKey: "can_view_tickets" as keyof StaffPermissions, editKey: "can_edit_tickets" as keyof StaffPermissions },
+  { label: "Previsionale", viewKey: "can_view_forecast" as keyof StaffPermissions, editKey: null },
+  { label: "Impostazioni", viewKey: "can_view_settings" as keyof StaffPermissions, editKey: null },
 ];
+
+const MARKETING_SECTIONS = [
+  { label: "Contatti Marketing", viewKey: "can_view_marketing" as keyof StaffPermissions, editKey: "can_edit_marketing" as keyof StaffPermissions },
+];
+
+export const ALL_PERMISSION_SECTIONS = [...INTERNAL_SECTIONS, ...MARKETING_SECTIONS];
 
 export function PermissionsDialog({
   open,
@@ -104,13 +76,10 @@ export function PermissionsDialog({
   const handleToggle = (key: keyof StaffPermissions, value: boolean) => {
     setPermissions((prev) => {
       const updated = { ...prev, [key]: value };
-      
-      // If turning off view, also turn off edit
-      const section = PERMISSION_SECTIONS.find((s) => s.viewKey === key);
+      const section = ALL_PERMISSION_SECTIONS.find((s) => s.viewKey === key);
       if (section?.editKey && !value) {
         updated[section.editKey] = false;
       }
-      
       return updated;
     });
   };
@@ -122,41 +91,52 @@ export function PermissionsDialog({
 
   const handleSelectAll = () => {
     setPermissions({
-      can_view_dashboard: true,
-      can_view_orders: true,
-      can_edit_orders: true,
-      can_view_warehouse: true,
-      can_edit_warehouse: true,
-      can_view_calendar: true,
-      can_view_customers: true,
-      can_edit_customers: true,
-      can_view_employees: true,
-      can_view_tickets: true,
-      can_edit_tickets: true,
-      can_view_forecast: true,
-      can_view_settings: true,
+      can_view_dashboard: true, can_view_orders: true, can_edit_orders: true,
+      can_view_warehouse: true, can_edit_warehouse: true, can_view_calendar: true,
+      can_view_customers: true, can_edit_customers: true, can_view_employees: true,
+      can_view_tickets: true, can_edit_tickets: true, can_view_forecast: true,
+      can_view_settings: true, can_view_marketing: true, can_edit_marketing: true,
       only_assigned: permissions.only_assigned,
     });
   };
 
   const handleDeselectAll = () => {
     setPermissions({
-      can_view_dashboard: false,
-      can_view_orders: false,
-      can_edit_orders: false,
-      can_view_warehouse: false,
-      can_edit_warehouse: false,
-      can_view_calendar: false,
-      can_view_customers: false,
-      can_edit_customers: false,
-      can_view_employees: false,
-      can_view_tickets: false,
-      can_edit_tickets: false,
-      can_view_forecast: false,
-      can_view_settings: false,
+      can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
+      can_view_warehouse: false, can_edit_warehouse: false, can_view_calendar: false,
+      can_view_customers: false, can_edit_customers: false, can_view_employees: false,
+      can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
+      can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
       only_assigned: permissions.only_assigned,
     });
   };
+
+  const renderSection = (section: typeof INTERNAL_SECTIONS[0]) => (
+    <div key={section.viewKey} className="space-y-2">
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          id={section.viewKey}
+          checked={permissions[section.viewKey]}
+          onCheckedChange={(checked) => handleToggle(section.viewKey, checked as boolean)}
+        />
+        <Label htmlFor={section.viewKey} className="font-medium">
+          {section.label}
+        </Label>
+      </div>
+      {section.editKey && permissions[section.viewKey] && (
+        <div className="ml-6 flex items-center space-x-2">
+          <Checkbox
+            id={section.editKey}
+            checked={permissions[section.editKey]}
+            onCheckedChange={(checked) => handleToggle(section.editKey!, checked as boolean)}
+          />
+          <Label htmlFor={section.editKey} className="text-sm text-muted-foreground">
+            Può modificare
+          </Label>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -181,40 +161,15 @@ export function PermissionsDialog({
           <Separator />
 
           <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-            {PERMISSION_SECTIONS.map((section) => (
-              <div key={section.viewKey} className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={section.viewKey}
-                    checked={permissions[section.viewKey]}
-                    onCheckedChange={(checked) =>
-                      handleToggle(section.viewKey, checked as boolean)
-                    }
-                  />
-                  <Label htmlFor={section.viewKey} className="font-medium">
-                    {section.label}
-                  </Label>
-                </div>
+            {/* Gestione Interna */}
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gestione Interna</p>
+            {INTERNAL_SECTIONS.map(renderSection)}
 
-                {section.editKey && permissions[section.viewKey] && (
-                  <div className="ml-6 flex items-center space-x-2">
-                    <Checkbox
-                      id={section.editKey}
-                      checked={permissions[section.editKey]}
-                      onCheckedChange={(checked) =>
-                        handleToggle(section.editKey!, checked as boolean)
-                      }
-                    />
-                    <Label
-                      htmlFor={section.editKey}
-                      className="text-sm text-muted-foreground"
-                    >
-                      Può modificare
-                    </Label>
-                  </div>
-                )}
-              </div>
-            ))}
+            <Separator />
+
+            {/* Marketing e Vendita */}
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marketing e Vendita</p>
+            {MARKETING_SECTIONS.map(renderSection)}
 
             <Separator />
 

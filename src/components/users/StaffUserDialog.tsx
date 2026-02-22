@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Copy, Check, ShieldCheck, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { StaffPermissions } from "@/components/users/PermissionsDialog";
+import { StaffPermissions, ALL_PERMISSION_SECTIONS } from "@/components/users/PermissionsDialog";
 
 interface StaffUserDialogProps {
   open: boolean;
@@ -32,33 +32,20 @@ export interface StaffUserFormData {
 }
 
 const DEFAULT_PERMISSIONS: StaffPermissions = {
-  can_view_dashboard: false,
-  can_view_orders: false,
-  can_edit_orders: false,
-  can_view_warehouse: false,
-  can_edit_warehouse: false,
-  can_view_calendar: false,
-  can_view_customers: false,
-  can_edit_customers: false,
-  can_view_employees: false,
-  can_view_tickets: false,
-  can_edit_tickets: false,
-  can_view_forecast: false,
-  can_view_settings: false,
+  can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
+  can_view_warehouse: false, can_edit_warehouse: false, can_view_calendar: false,
+  can_view_customers: false, can_edit_customers: false, can_view_employees: false,
+  can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
+  can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
   only_assigned: false,
 };
 
-const PERMISSION_SECTIONS = [
-  { label: "Dashboard", viewKey: "can_view_dashboard" as keyof StaffPermissions, editKey: null },
-  { label: "Ordini", viewKey: "can_view_orders" as keyof StaffPermissions, editKey: "can_edit_orders" as keyof StaffPermissions },
-  { label: "Magazzino", viewKey: "can_view_warehouse" as keyof StaffPermissions, editKey: "can_edit_warehouse" as keyof StaffPermissions },
-  { label: "Calendario", viewKey: "can_view_calendar" as keyof StaffPermissions, editKey: null },
-  { label: "Clienti", viewKey: "can_view_customers" as keyof StaffPermissions, editKey: "can_edit_customers" as keyof StaffPermissions },
-  { label: "Dipendenti", viewKey: "can_view_employees" as keyof StaffPermissions, editKey: null },
-  { label: "Assistenza", viewKey: "can_view_tickets" as keyof StaffPermissions, editKey: "can_edit_tickets" as keyof StaffPermissions },
-  { label: "Previsionale", viewKey: "can_view_forecast" as keyof StaffPermissions, editKey: null },
-  { label: "Impostazioni", viewKey: "can_view_settings" as keyof StaffPermissions, editKey: null },
-];
+const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s =>
+  !["can_view_marketing"].includes(s.viewKey as string)
+);
+const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s =>
+  ["can_view_marketing"].includes(s.viewKey as string)
+);
 
 export function StaffUserDialog({
   open,
@@ -78,7 +65,7 @@ export function StaffUserDialog({
   const handleTogglePermission = (key: keyof StaffPermissions, value: boolean) => {
     setPermissions((prev) => {
       const updated = { ...prev, [key]: value };
-      const section = PERMISSION_SECTIONS.find((s) => s.viewKey === key);
+      const section = ALL_PERMISSION_SECTIONS.find((s) => s.viewKey === key);
       if (section?.editKey && !value) {
         updated[section.editKey] = false;
       }
@@ -88,11 +75,13 @@ export function StaffUserDialog({
 
   const handleSelectAll = () => {
     setPermissions((prev) => ({
+      ...DEFAULT_PERMISSIONS,
       can_view_dashboard: true, can_view_orders: true, can_edit_orders: true,
       can_view_warehouse: true, can_edit_warehouse: true, can_view_calendar: true,
       can_view_customers: true, can_edit_customers: true, can_view_employees: true,
       can_view_tickets: true, can_edit_tickets: true, can_view_forecast: true,
-      can_view_settings: true, only_assigned: prev.only_assigned,
+      can_view_settings: true, can_view_marketing: true, can_edit_marketing: true,
+      only_assigned: prev.only_assigned,
     }));
   };
 
@@ -132,15 +121,41 @@ export function StaffUserDialog({
   };
 
   const handleClose = () => {
-    setFirstName("");
-    setLastName("");
-    setEmail("");
+    setFirstName(""); setLastName(""); setEmail("");
     setRoleType("company_staff");
     setPermissions({ ...DEFAULT_PERMISSIONS });
-    setTemporaryPassword(null);
-    setCopied(false);
+    setTemporaryPassword(null); setCopied(false);
     onOpenChange(false);
   };
+
+  const renderSection = (section: typeof ALL_PERMISSION_SECTIONS[0]) => (
+    <div key={section.viewKey} className="space-y-1.5">
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          id={`create-${section.viewKey}`}
+          checked={permissions[section.viewKey] as boolean}
+          onCheckedChange={(checked) => handleTogglePermission(section.viewKey, checked as boolean)}
+          disabled={isLoading}
+        />
+        <Label htmlFor={`create-${section.viewKey}`} className="font-medium text-sm">
+          {section.label}
+        </Label>
+      </div>
+      {section.editKey && permissions[section.viewKey] && (
+        <div className="ml-6 flex items-center space-x-2">
+          <Checkbox
+            id={`create-${section.editKey}`}
+            checked={permissions[section.editKey] as boolean}
+            onCheckedChange={(checked) => handleTogglePermission(section.editKey!, checked as boolean)}
+            disabled={isLoading}
+          />
+          <Label htmlFor={`create-${section.editKey}`} className="text-xs text-muted-foreground">
+            Può modificare
+          </Label>
+        </div>
+      )}
+    </div>
+  );
 
   if (temporaryPassword) {
     return (
@@ -155,9 +170,7 @@ export function StaffUserDialog({
           <div className="space-y-4">
             <div className="p-4 bg-muted rounded-lg space-y-2">
               <p className="text-sm font-medium">Credenziali di accesso:</p>
-              <div className="text-sm">
-                <span className="text-muted-foreground">Email:</span> {email}
-              </div>
+              <div className="text-sm"><span className="text-muted-foreground">Email:</span> {email}</div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Password:</span>
                 <code className="px-2 py-1 bg-background rounded text-sm font-mono">{temporaryPassword}</code>
@@ -167,12 +180,10 @@ export function StaffUserDialog({
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              ⚠️ Questa password viene mostrata solo una volta. Assicurati di comunicarla all'utente in modo sicuro. L'utente potrà cambiarla dopo il primo accesso.
+              ⚠️ Questa password viene mostrata solo una volta. Assicurati di comunicarla all'utente in modo sicuro.
             </p>
           </div>
-          <DialogFooter>
-            <Button onClick={handleClose}>Chiudi</Button>
-          </DialogFooter>
+          <DialogFooter><Button onClick={handleClose}>Chiudi</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     );
@@ -189,37 +200,20 @@ export function StaffUserDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Role Type Selector */}
           <div className="space-y-2">
             <Label>Tipo utente *</Label>
             <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setRoleType("company_admin")}
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${
-                  roleType === "company_admin" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"
-                }`}
-                disabled={isLoading}
-              >
+              <button type="button" onClick={() => setRoleType("company_admin")}
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${roleType === "company_admin" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"}`}
+                disabled={isLoading}>
                 <ShieldCheck className={`h-5 w-5 shrink-0 ${roleType === "company_admin" ? "text-primary" : "text-muted-foreground"}`} />
-                <div>
-                  <p className="font-medium text-sm">Amministratore</p>
-                  <p className="text-xs text-muted-foreground">Accesso completo, può gestire utenti</p>
-                </div>
+                <div><p className="font-medium text-sm">Amministratore</p><p className="text-xs text-muted-foreground">Accesso completo</p></div>
               </button>
-              <button
-                type="button"
-                onClick={() => setRoleType("company_staff")}
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${
-                  roleType === "company_staff" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"
-                }`}
-                disabled={isLoading}
-              >
+              <button type="button" onClick={() => setRoleType("company_staff")}
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${roleType === "company_staff" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"}`}
+                disabled={isLoading}>
                 <User className={`h-5 w-5 shrink-0 ${roleType === "company_staff" ? "text-primary" : "text-muted-foreground"}`} />
-                <div>
-                  <p className="font-medium text-sm">Operatore</p>
-                  <p className="text-xs text-muted-foreground">Accesso limitato ai permessi configurati</p>
-                </div>
+                <div><p className="font-medium text-sm">Operatore</p><p className="text-xs text-muted-foreground">Accesso limitato</p></div>
               </button>
             </div>
           </div>
@@ -242,7 +236,6 @@ export function StaffUserDialog({
             </div>
           </div>
 
-          {/* Inline Permissions for Staff */}
           {roleType === "company_staff" && (
             <>
               <Separator />
@@ -250,62 +243,29 @@ export function StaffUserDialog({
                 <div className="flex items-center justify-between">
                   <Label className="text-base font-semibold">Permessi</Label>
                   <div className="flex gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={handleSelectAll} disabled={isLoading}>
-                      Seleziona tutti
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={handleDeselectAll} disabled={isLoading}>
-                      Deseleziona tutti
-                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={handleSelectAll} disabled={isLoading}>Seleziona tutti</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={handleDeselectAll} disabled={isLoading}>Deseleziona tutti</Button>
                   </div>
                 </div>
 
                 <div className="space-y-3 max-h-[280px] overflow-y-auto pr-2">
-                  {PERMISSION_SECTIONS.map((section) => (
-                    <div key={section.viewKey} className="space-y-1.5">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`create-${section.viewKey}`}
-                          checked={permissions[section.viewKey] as boolean}
-                          onCheckedChange={(checked) => handleTogglePermission(section.viewKey, checked as boolean)}
-                          disabled={isLoading}
-                        />
-                        <Label htmlFor={`create-${section.viewKey}`} className="font-medium text-sm">
-                          {section.label}
-                        </Label>
-                      </div>
-                      {section.editKey && permissions[section.viewKey] && (
-                        <div className="ml-6 flex items-center space-x-2">
-                          <Checkbox
-                            id={`create-${section.editKey}`}
-                            checked={permissions[section.editKey] as boolean}
-                            onCheckedChange={(checked) => handleTogglePermission(section.editKey!, checked as boolean)}
-                            disabled={isLoading}
-                          />
-                          <Label htmlFor={`create-${section.editKey}`} className="text-xs text-muted-foreground">
-                            Può modificare
-                          </Label>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gestione Interna</p>
+                  {INTERNAL_SECTIONS.map(renderSection)}
+
+                  <Separator />
+
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marketing e Vendita</p>
+                  {MARKETING_SECTIONS.map(renderSection)}
 
                   <Separator />
 
                   <div className="space-y-1.5">
                     <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="create-only_assigned"
-                        checked={permissions.only_assigned || false}
-                        onCheckedChange={(checked) => setPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))}
-                        disabled={isLoading}
-                      />
-                      <Label htmlFor="create-only_assigned" className="font-medium text-sm">
-                        Solo elementi assegnati
-                      </Label>
+                      <Checkbox id="create-only_assigned" checked={permissions.only_assigned || false}
+                        onCheckedChange={(checked) => setPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))} disabled={isLoading} />
+                      <Label htmlFor="create-only_assigned" className="font-medium text-sm">Solo elementi assegnati</Label>
                     </div>
-                    <p className="text-xs text-muted-foreground ml-6">
-                      Se attivo, l'utente vedrà solo ordini, attività e appuntamenti assegnati a lui
-                    </p>
+                    <p className="text-xs text-muted-foreground ml-6">Se attivo, l'utente vedrà solo ordini, attività e appuntamenti assegnati a lui</p>
                   </div>
                 </div>
               </div>
@@ -313,9 +273,7 @@ export function StaffUserDialog({
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>
-              Annulla
-            </Button>
+            <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>Annulla</Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Crea Utente

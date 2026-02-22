@@ -10,10 +10,12 @@ const corsHeaders = {
 interface CreateEmployeeUserRequest {
   employee_id: string;
   email: string;
+  password?: string;
+  phone?: string;
+  permissions?: Record<string, boolean>;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -25,20 +27,13 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Verify caller is authenticated
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      throw new Error("Non autorizzato");
-    }
+    if (!authHeader) throw new Error("Non autorizzato");
 
     const token = authHeader.replace("Bearer ", "");
     const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
-    if (authError || !caller) {
-      throw new Error("Non autorizzato");
-    }
+    if (authError || !caller) throw new Error("Non autorizzato");
 
-    // Check if caller is company_admin
     const { data: callerRole } = await supabaseAdmin
       .from("user_roles")
       .select("role")
@@ -49,35 +44,30 @@ serve(async (req) => {
       throw new Error("Permessi insufficienti");
     }
 
-    const { employee_id, email }: CreateEmployeeUserRequest = await req.json();
+    const { employee_id, email, password, phone, permissions }: CreateEmployeeUserRequest = await req.json();
 
     if (!employee_id || !email) {
       throw new Error("ID dipendente ed email sono obbligatori");
     }
 
-    // Get employee data
     const { data: employee, error: empError } = await supabaseAdmin
       .from("employees")
       .select("*, company:companies(name)")
       .eq("id", employee_id)
       .single();
 
-    if (empError || !employee) {
-      throw new Error("Dipendente non trovato");
-    }
+    if (empError || !employee) throw new Error("Dipendente non trovato");
+    if (employee.user_id) throw new Error("Il dipendente ha già un account utente");
 
-    // Check if employee already has a user
-    if (employee.user_id) {
-      throw new Error("Il dipendente ha già un account utente");
-    }
+    // Use provided password or generate one
+    const finalPassword = password && password.trim().length > 0
+      ? password.trim()
+      : crypto.randomUUID().substring(0, 12);
+    const isManualPassword = !!(password && password.trim().length > 0);
 
-    // Generate temporary password
-    const tempPassword = crypto.randomUUID().substring(0, 12);
-
-    // Create auth user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password: tempPassword,
+      password: finalPassword,
       email_confirm: true,
       user_metadata: {
         first_name: employee.first_name,
@@ -98,11 +88,10 @@ serve(async (req) => {
         first_name: employee.first_name,
         last_name: employee.last_name,
         company_id: employee.company_id,
-        phone: employee.phone,
+        phone: phone || employee.phone,
       });
 
     if (profileError) {
-      // Rollback: delete auth user
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       throw new Error("Errore nella creazione profilo");
     }
@@ -110,15 +99,59 @@ serve(async (req) => {
     // Assign employee role
     const { error: roleError } = await supabaseAdmin
       .from("user_roles")
-      .insert({
-        user_id: newUser.user.id,
-        role: "employee",
-      });
+      .insert({ user_id: newUser.user.id, role: "employee" });
 
     if (roleError) {
-      // Rollback
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       throw new Error("Errore nell'assegnazione ruolo");
+    }
+
+    // Also assign company_staff role so user appears in Users section
+    const { error: staffRoleError } = await supabaseAdmin
+      .from("user_roles")
+      .insert({ user_id: newUser.user.id, role: "company_staff" });
+
+    if (staffRoleError) {
+      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
+      throw new Error("Errore nell'assegnazione ruolo staff");
+    }
+
+    // Create staff_permissions record
+    const permissionsRecord: Record<string, any> = {
+      user_id: newUser.user.id,
+      can_view_dashboard: false,
+      can_view_orders: false,
+      can_edit_orders: false,
+      can_view_warehouse: false,
+      can_edit_warehouse: false,
+      can_view_calendar: false,
+      can_view_customers: false,
+      can_edit_customers: false,
+      can_view_employees: false,
+      can_view_tickets: false,
+      can_edit_tickets: false,
+      can_view_forecast: false,
+      can_view_settings: false,
+      can_view_marketing: false,
+      can_edit_marketing: false,
+      only_assigned: false,
+    };
+
+    if (permissions) {
+      for (const [key, value] of Object.entries(permissions)) {
+        if (key in permissionsRecord) {
+          permissionsRecord[key] = value;
+        }
+      }
+    }
+
+    const { error: permError } = await supabaseAdmin
+      .from("staff_permissions")
+      .insert(permissionsRecord);
+
+    if (permError) {
+      console.error("Error creating staff_permissions:", permError);
+      // Non-fatal: don't rollback for this
     }
 
     // Link employee to user
@@ -128,7 +161,6 @@ serve(async (req) => {
       .eq("id", employee_id);
 
     if (linkError) {
-      // Rollback
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       throw new Error("Errore nel collegamento dipendente");
     }
@@ -137,7 +169,8 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         user_id: newUser.user.id,
-        temp_password: tempPassword,
+        temp_password: isManualPassword ? null : finalPassword,
+        is_manual_password: isManualPassword,
         message: `Account creato per ${employee.first_name} ${employee.last_name}`,
       }),
       {

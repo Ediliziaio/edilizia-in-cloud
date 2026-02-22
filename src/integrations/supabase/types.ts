@@ -2206,6 +2206,7 @@ export type Database = {
       staff_permissions: {
         Row: {
           can_edit_customers: boolean | null
+          can_edit_marketing: boolean
           can_edit_orders: boolean | null
           can_edit_tickets: boolean | null
           can_edit_warehouse: boolean | null
@@ -2214,6 +2215,7 @@ export type Database = {
           can_view_dashboard: boolean | null
           can_view_employees: boolean | null
           can_view_forecast: boolean | null
+          can_view_marketing: boolean
           can_view_orders: boolean | null
           can_view_settings: boolean | null
           can_view_tickets: boolean | null
@@ -2228,6 +2230,7 @@ export type Database = {
         }
         Insert: {
           can_edit_customers?: boolean | null
+          can_edit_marketing?: boolean
           can_edit_orders?: boolean | null
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
@@ -2236,6 +2239,7 @@ export type Database = {
           can_view_dashboard?: boolean | null
           can_view_employees?: boolean | null
           can_view_forecast?: boolean | null
+          can_view_marketing?: boolean
           can_view_orders?: boolean | null
           can_view_settings?: boolean | null
           can_view_tickets?: boolean | null
@@ -2250,6 +2254,7 @@ export type Database = {
         }
         Update: {
           can_edit_customers?: boolean | null
+          can_edit_marketing?: boolean
           can_edit_orders?: boolean | null
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
@@ -2258,6 +2263,7 @@ export type Database = {
           can_view_dashboard?: boolean | null
           can_view_employees?: boolean | null
           can_view_forecast?: boolean | null
+          can_view_marketing?: boolean
           can_view_orders?: boolean | null
           can_view_settings?: boolean | null
           can_view_tickets?: boolean | null
