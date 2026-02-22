@@ -20,7 +20,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   pipelineId: string;
   pipelineName?: string;
-  stages: { id: string; name: string }[];
+  stages: { id: string; name: string; auto_status?: string | null }[];
 }
 
 export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName, stages }: Props) {
@@ -360,7 +360,11 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Fase</Label>
-                    <Select value={stageId} onValueChange={setStageId}>
+                    <Select value={stageId} onValueChange={(v) => {
+                      setStageId(v);
+                      const stage = stages.find((s) => s.id === v);
+                      if (stage?.auto_status) setStatus(stage.auto_status);
+                    }}>
                       <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
