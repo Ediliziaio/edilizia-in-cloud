@@ -1,4 +1,4 @@
-import { memo, useState, forwardRef } from "react";
+import { memo, useState, forwardRef, useMemo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2, UserCircle } from "lucide-react";
@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { useCardFieldPreferences, type CardLayout } from "@/hooks/useCardFieldPreferences";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -23,6 +24,7 @@ interface OpportunityCardProps {
 export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardProps>(function OpportunityCard({ opportunity, onClick, onDelete, isOverlay, selected, onSelect }, _ref) {
   const contact = opportunity.marketing_contacts;
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { activeFields, layout, isFieldActive } = useCardFieldPreferences();
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: opportunity.id,
@@ -157,25 +159,8 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
           </Tooltip>
         </div>
 
-        {/* Detail rows */}
-        <div className="space-y-1">
-          <p className="text-[11px] leading-tight truncate">
-            <span className="text-muted-foreground">Fonte: </span>
-            <span className="text-foreground">{opportunity.source || "—"}</span>
-          </p>
-          <p className="text-[11px] leading-tight truncate">
-            <span className="text-muted-foreground">Valore: </span>
-            <span className="font-semibold text-primary">{`EUR ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`}</span>
-          </p>
-          <p className="text-[11px] leading-tight truncate">
-            <span className="text-muted-foreground">Email: </span>
-            <span className="text-foreground">{contact?.email || "—"}</span>
-          </p>
-          <p className="text-[11px] leading-tight truncate">
-            <span className="text-muted-foreground">Telefono: </span>
-            <span className="text-foreground">{contact?.phone || "—"}</span>
-          </p>
-        </div>
+        {/* Detail rows - driven by field preferences */}
+        <CardDetailRows opportunity={opportunity} contact={contact} activeFields={activeFields} layout={layout} isFieldActive={isFieldActive} />
 
         {/* Action bar */}
         {!isOverlay && (
@@ -219,3 +204,60 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
     </>
   );
 }));
+
+/** Renders detail rows based on user field preferences */
+function CardDetailRows({ opportunity, contact, activeFields, layout, isFieldActive }: {
+  opportunity: any;
+  contact: any;
+  activeFields: string[];
+  layout: CardLayout;
+  isFieldActive: (key: string) => boolean;
+}) {
+  const rows = useMemo(() => {
+    const r: { label: string; value: string; highlight?: boolean }[] = [];
+    const fieldMap: Record<string, () => { label: string; value: string; highlight?: boolean }> = {
+      source: () => ({ label: "Fonte", value: opportunity.source || "—" }),
+      value: () => ({
+        label: "Valore",
+        value: `EUR ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`,
+        highlight: true,
+      }),
+      contact_email: () => ({ label: "Email", value: contact?.email || "—" }),
+      contact_phone: () => ({ label: "Telefono", value: contact?.phone || "—" }),
+      lost_reason: () => ({ label: "Motivo perdita", value: opportunity.notes || "—" }),
+      created_at: () => ({ label: "Creato il", value: opportunity.created_at ? new Date(opportunity.created_at).toLocaleDateString("it-IT") : "—" }),
+      updated_at: () => ({ label: "Aggiornato il", value: opportunity.updated_at ? new Date(opportunity.updated_at).toLocaleDateString("it-IT") : "—" }),
+      contact_name: () => ({ label: "Contatto", value: contact ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim() || "—" : "—" }),
+      contact_company: () => ({ label: "Azienda", value: contact?.company_name || "—" }),
+      contact_city: () => ({ label: "Città", value: contact?.city || "—" }),
+      contact_source: () => ({ label: "Fonte contatto", value: contact?.source || "—" }),
+      status: () => ({ label: "Stato", value: opportunity.status || "—" }),
+      pipeline: () => ({ label: "Sequenza", value: opportunity.pipeline_name || "—" }),
+      stage: () => ({ label: "Fase", value: opportunity.stage_name || "—" }),
+    };
+
+    for (const key of activeFields) {
+      if (key === "opp_name" || key === "tags" || key === "owner") continue;
+      const gen = fieldMap[key];
+      if (gen) r.push(gen());
+    }
+    return r;
+  }, [opportunity, contact, activeFields]);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className={cn("space-y-1", layout === "compact" && "space-y-0.5")}>
+      {rows.map((row) => (
+        <p key={row.label} className={cn("leading-tight truncate", layout === "compact" ? "text-[10px]" : "text-[11px]")}>
+          {layout !== "no-label" && (
+            <span className="text-muted-foreground">{row.label}: </span>
+          )}
+          <span className={cn("text-foreground", row.highlight && "font-semibold text-primary")}>
+            {row.value}
+          </span>
+        </p>
+      ))}
+    </div>
+  );
+}
