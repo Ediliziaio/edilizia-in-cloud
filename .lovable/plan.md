@@ -1,64 +1,118 @@
 
-# Fix Filtri Avanzati - Bug di Rendering
+# Filtri GHL - Gruppi AND/OR con "Add nested filter" e "Add Filter"
 
-## Problema identificato
+## Panoramica
 
-Il `ContactFiltersSheet` ha un bug critico nel rendering delle due schermate (lista regole vs. field picker). Le due schermate usano posizionamento `absolute inset-0` con transizioni CSS `translate-x`, ma la Schermata 2 (field picker) viene sempre renderizzata sopra la Schermata 1 perche si trova dopo nel DOM e entrambe hanno la stessa posizione.
+Ristrutturare il modello dati e la UI dei filtri per replicare esattamente il pattern GHL:
 
-Risultato: quando si apre lo sheet, si vede sempre il field picker, il back button non funziona visivamente, e cliccando i campi non succede nulla (perche `pickingRuleId` e `null` al primo render).
+- Ogni **gruppo** di filtri e un blocco visuale con bordo che contiene una o piu regole combinate con **AND**
+- Dentro ogni gruppo c'e un link **"+ Aggiungi filtro annidato"** che aggiunge una regola AND nello stesso gruppo
+- Tra i gruppi c'e un separatore con etichetta **OR**
+- Sotto tutti i gruppi c'e un pulsante **"+ Aggiungi filtro"** che crea un nuovo gruppo OR
+- Footer con **"Rimuovi tutti i filtri"**, **"Cancel"** e **"Apply"**
 
-## Causa tecnica
+## Nuovo modello dati
 
-1. **Z-index implicito**: due elementi `absolute inset-0` nello stesso container - il secondo (field picker) copre sempre il primo (rules list)
-2. **Reset stato mancante**: `handleOpenChange` resetta solo quando `o = true`, ma Radix Dialog chiama `onOpenChange` solo con `false` (quando si chiude). Quindi lo stato non viene mai resettato alla riapertura
-3. **`overflow-hidden` non basta**: le transizioni `translate-x` non funzionano correttamente in questo contesto
+```text
+interface FilterRule {
+  id: string;
+  field: string;
+  operator: "is" | "is_not" | "is_empty" | "is_not_empty";
+  value: string;
+}
 
-## Soluzione
+interface FilterGroup {
+  id: string;
+  rules: FilterRule[];    // regole AND dentro il gruppo
+}
 
-Sostituire il sistema CSS-based con **rendering condizionale** semplice (`{isPicking ? <FieldPicker /> : <RulesList />}`). Questo elimina tutti i problemi di z-index e CSS transition.
+interface ContactFilters {
+  groups: FilterGroup[];  // gruppi combinati con OR
+}
+```
 
-Aggiungere un `useEffect` per resettare lo stato quando `open` cambia a `true`.
+- `EMPTY_CONTACT_FILTERS = { groups: [] }`
+- `countActiveContactFilters` = somma di tutte le regole in tutti i gruppi
 
-## File da modificare
+## Layout UI (identico a GHL)
 
-| File | Modifica |
-|------|----------|
-| `src/components/marketing/ContactFiltersSheet.tsx` | Sostituire le due schermate absolute con rendering condizionale + fix reset stato |
+```text
++------------------------------------------+
+| Filtri Avanzati                     [X]  |
+|                                          |
+| +--------------------------------------+ |
+| | [Citta] [pencil]    [E] [dropdown]   | |
+| | [Roma________________]  [trash]      | |
+| | + Aggiungi filtro annidato           | |
+| +--------------------------------------+ |
+|                                          |
+|        -------- AND --------             |  (se ci sono piu regole nello stesso gruppo)
+|                                          |
+| +--------------------------------------+ |
+| | [Email] [pencil]   [E] [dropdown]   | |
+| | [test________________]  [trash]      | |
+| | + Aggiungi filtro annidato           | |
+| +--------------------------------------+ |
+|                                          |
+|         -------- OR --------             |  (tra gruppi diversi)
+|                                          |
+| +--------------------------------------+ |
+| | [Please Select] [pencil] [Select v]  | |
+| | [Please Input____________] [trash]   | |
+| | + Aggiungi filtro annidato           | |
+| +--------------------------------------+ |
+|                                          |
+| [+ Aggiungi filtro]                      |
+|                                          |
+|  Rimuovi tutti    [Cancel] [Apply]       |
++------------------------------------------+
+```
+
+Ogni regola dentro un gruppo mostra:
+- Riga 1: Nome campo con icona matita (apre field picker) + dropdown operatore a destra
+- Riga 2: Input valore + icona cestino (nascosto se operatore e "E vuoto"/"Non e vuoto")
+
+Tra regole dello stesso gruppo: separatore con "AND"
+Tra gruppi diversi: separatore con "OR"
+Sotto ogni gruppo: "+ Aggiungi filtro annidato"
+Sotto tutti i gruppi: "+ Aggiungi filtro" (bordo, stile pulsante)
+
+## Logica query aggiornata
+
+In `MarketingContacts.tsx`:
+
+1. Per ogni gruppo, tutte le regole vengono applicate in AND (comportamento default Supabase: chain di filtri)
+2. I gruppi vengono combinati con OR: si eseguono query separate per ogni gruppo e si uniscono gli ID risultanti
+3. Se c'e un solo gruppo, si applica direttamente senza OR
+
+Pseudo-codice:
+```text
+if groups.length === 0 -> nessun filtro
+if groups.length === 1 -> applica tutte le regole del gruppo in AND sulla query
+if groups.length > 1 -> per ogni gruppo, esegui query separata, unisci gli ID (OR)
+```
+
+## File coinvolti
+
+| File | Azione |
+|------|--------|
+| `src/components/marketing/ContactFiltersSheet.tsx` | Cambiare tipi (FilterGroup, ContactFilters), UI con gruppi, AND/OR separatori, field picker invariato |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Aggiornare imports, riscrivere logica query per gruppi OR con regole AND |
 
 ## Dettagli tecnici
 
-### 1. Aggiungere useEffect per reset stato
+### ContactFiltersSheet.tsx
 
-```text
-useEffect(() => {
-  if (open) {
-    setLocal(filters);
-    setPickingRuleId(null);
-    setFieldSearch("");
-  }
-}, [open, filters]);
-```
+- Nuovo tipo `FilterGroup` con `id` e `rules[]`
+- `ContactFilters` diventa `{ groups: FilterGroup[] }`
+- Stato `pickingRuleId` cambia formato: `"new_group"` per nuovo gruppo OR, `"nested_<groupId>"` per aggiungere AND nel gruppo, `"change_<ruleId>"` per cambiare campo di una regola esistente
+- `countActiveContactFilters` = `f.groups.reduce((sum, g) => sum + g.rules.length, 0)`
+- Render: iterare su `groups`, per ogni gruppo renderizzare le regole con separatore AND tra di loro, poi "+ Aggiungi filtro annidato", poi separatore OR prima del gruppo successivo
+- Footer: "Rimuovi tutti i filtri" (link), "Cancel" (outline), "Apply" (primary)
 
-### 2. Sostituire il rendering a due schermate
+### MarketingContacts.tsx
 
-Invece di due `div` con `absolute inset-0` e `translate-x`, usare:
-
-```text
-{isPicking ? (
-  <FieldPickerScreen />
-) : (
-  <RulesListScreen />
-)}
-```
-
-### 3. Aggiungere SheetDescription per eliminare warning console
-
-Aggiungere un `SheetDescription` nascosto con `className="sr-only"` per risolvere il warning "Missing Description or aria-describedby" visibile nei log.
-
-## Risultato atteso
-
-- Lo sheet si apre mostrando la lista regole (vuota con "Aggiungi filtro")
-- Cliccando "Aggiungi filtro" si passa al field picker
-- Selezionando un campo si torna alla lista con la nuova regola
-- Il back button funziona correttamente
-- I filtri si applicano correttamente
+- Importare `FilterGroup` oltre a `FilterRule`
+- Per un singolo gruppo: applicare le regole come AND (chain su query Supabase)
+- Per gruppi multipli: eseguire una query per gruppo, unire i risultati (OR)
+- Regole opportunita/custom fields: gestite come sub-query per ottenere contact_id, poi intersecate (AND) dentro il gruppo, unite (OR) tra gruppi
