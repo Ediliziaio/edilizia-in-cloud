@@ -188,7 +188,6 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
 
   const [showDropdown, setShowDropdown] = useState(false);
   const searchTrimmed = contactSearch.trim();
-  const filteredContacts = contacts;
 
   const statusOptions = [
     { value: "open", label: "Aperta" },
@@ -246,8 +245,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     />
                     {showDropdown && !showNewContact && (
                       <div className="absolute z-50 w-full mt-1 border rounded-lg bg-popover shadow-lg max-h-[220px] overflow-y-auto">
-                        {filteredContacts.length > 0 ? (
-                          filteredContacts.map((c: any) => (
+                        {contacts.length > 0 ? (
+                          contacts.map((c: any) => (
                             <button
                               key={c.id}
                               className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors border-b last:border-b-0 flex items-center gap-2 ${selectedContactId === c.id ? "bg-primary/10 text-primary" : ""}`}
