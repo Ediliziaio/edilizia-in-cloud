@@ -55,6 +55,7 @@ const BUILTIN_FIELDS: UnifiedField[] = [
   // Contact fields
   { id: "sys_first_name", name: "First Name", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.first_name }}", createdAt: "2024-01-01", isSystem: true },
   { id: "sys_last_name", name: "Last Name", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.last_name }}", createdAt: "2024-01-01", isSystem: true },
+  { id: "sys_full_name", name: "Full Name", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.full_name }}", createdAt: "2024-01-01", isSystem: true },
   { id: "sys_email", name: "Email", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.email }}", createdAt: "2024-01-01", isSystem: true },
   { id: "sys_phone", name: "Phone", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.phone }}", createdAt: "2024-01-01", isSystem: true },
   { id: "sys_dob", name: "Date Of Birth", object: "Contatto", folder: "contact", folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.date_of_birth }}", createdAt: "2024-01-01", isSystem: true },
