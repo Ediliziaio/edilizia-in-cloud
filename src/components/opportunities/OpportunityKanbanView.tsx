@@ -22,7 +22,7 @@ function StageColumn({ stage, opportunities, onCardClick }: { stage: Stage; oppo
     <div className="flex flex-col min-w-[280px] max-w-[300px] shrink-0">
       {/* GHL-style compact header */}
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg">
-        <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name || "Fase senza nome"}</h3>
+        <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name}</h3>
         <p className="text-[11px] text-muted-foreground mt-0.5">
           {opportunities.length} Opportunità · EUR {totalValue.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
         </p>

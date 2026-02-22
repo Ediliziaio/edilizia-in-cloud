@@ -33,7 +33,7 @@ export function PipelinesConfig() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_pipelines")
-        .select("*, marketing_pipeline_stages(id)")
+        .select("*, marketing_pipeline_stages(id, name, position)")
         .eq("company_id", companyId!)
         .order("position");
       if (error) throw error;
