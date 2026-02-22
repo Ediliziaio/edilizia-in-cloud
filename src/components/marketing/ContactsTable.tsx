@@ -2,20 +2,16 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Pencil, ChevronUp, ChevronDown, Settings2 } from "lucide-react";
+import { Trash2, Pencil, ChevronUp, ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover, PopoverContent, PopoverTrigger,
-} from "@/components/ui/popover";
 
 export interface MarketingContact {
   id: string;
@@ -34,6 +30,35 @@ export interface MarketingContact {
 export type SortField = "first_name" | "phone" | "email" | "company_name" | "created_at" | "last_activity_at";
 export type SortDirection = "asc" | "desc";
 
+export const COLUMNS = [
+  { key: "name", label: "Nome del Contatto", sortField: "first_name" as SortField, fixed: true },
+  { key: "phone", label: "Telefono", sortField: "phone" as SortField },
+  { key: "email", label: "Email", sortField: "email" as SortField },
+  { key: "company_name", label: "Azienda", sortField: "company_name" as SortField },
+  { key: "created_at", label: "Creato", sortField: "created_at" as SortField },
+  { key: "last_activity_at", label: "Ultima Attività", sortField: "last_activity_at" as SortField },
+  { key: "tags", label: "Tag" },
+  { key: "source", label: "Fonte" },
+] as const;
+
+export type ColumnKey = (typeof COLUMNS)[number]["key"];
+
+export const DEFAULT_VISIBLE: ColumnKey[] = ["name", "phone", "email", "company_name", "created_at", "last_activity_at", "tags"];
+
+const STORAGE_KEY = "contacts-visible-columns";
+
+export function loadVisibleColumns(): Set<ColumnKey> {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return new Set(JSON.parse(stored) as ColumnKey[]);
+  } catch {}
+  return new Set(DEFAULT_VISIBLE);
+}
+
+export function saveVisibleColumns(cols: Set<ColumnKey>) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(cols)));
+}
+
 interface ContactsTableProps {
   contacts: MarketingContact[];
   totalCount: number;
@@ -50,31 +75,7 @@ interface ContactsTableProps {
   sortDirection: SortDirection;
   onSort: (field: SortField, direction: SortDirection) => void;
   bulkActions?: React.ReactNode;
-}
-
-const COLUMNS = [
-  { key: "name", label: "Nome del Contatto", sortField: "first_name" as SortField, fixed: true },
-  { key: "phone", label: "Telefono", sortField: "phone" as SortField },
-  { key: "email", label: "Email", sortField: "email" as SortField },
-  { key: "company_name", label: "Azienda", sortField: "company_name" as SortField },
-  { key: "created_at", label: "Creato", sortField: "created_at" as SortField },
-  { key: "last_activity_at", label: "Ultima Attività", sortField: "last_activity_at" as SortField },
-  { key: "tags", label: "Tag" },
-  { key: "source", label: "Fonte" },
-] as const;
-
-type ColumnKey = (typeof COLUMNS)[number]["key"];
-
-const DEFAULT_VISIBLE: ColumnKey[] = ["name", "phone", "email", "company_name", "created_at", "last_activity_at", "tags"];
-
-const STORAGE_KEY = "contacts-visible-columns";
-
-function loadVisibleColumns(): Set<ColumnKey> {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return new Set(JSON.parse(stored) as ColumnKey[]);
-  } catch {}
-  return new Set(DEFAULT_VISIBLE);
+  visibleColumns: Set<ColumnKey>;
 }
 
 const AVATAR_COLORS = [
@@ -116,25 +117,13 @@ function SortIcon({ field, currentField, direction }: { field: string; currentFi
 export function ContactsTable({
   contacts, totalCount, selectedIds, onToggleSelect, onToggleAll,
   onEdit, onDelete, page, pageSize, onPageChange, onPageSizeChange,
-  sortField, sortDirection, onSort, bulkActions,
+  sortField, sortDirection, onSort, bulkActions, visibleColumns,
 }: ContactsTableProps) {
   const navigate = useNavigate();
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const allSelected = contacts.length > 0 && contacts.every((c) => selectedIds.has(c.id));
 
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(loadVisibleColumns);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(visibleColumns)));
-  }, [visibleColumns]);
-
-  const toggleColumn = (key: ColumnKey) => {
-    setVisibleColumns((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
+  const isVisible = (key: ColumnKey) => key === "name" || visibleColumns.has(key);
 
   const handleSort = (col: typeof COLUMNS[number]) => {
     if (!("sortField" in col) || !col.sortField) return;
@@ -146,7 +135,6 @@ export function ContactsTable({
     }
   };
 
-  const isVisible = (key: ColumnKey) => key === "name" || visibleColumns.has(key);
   const visibleCols = COLUMNS.filter((c) => isVisible(c.key));
   const borderClass = "border-r border-border/30";
 
@@ -163,36 +151,6 @@ export function ContactsTable({
         </div>
       )}
 
-      {/* Manage columns */}
-      <div className="flex justify-end">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-muted-foreground gap-1.5">
-              <Settings2 className="h-4 w-4" /> Gestisci campi
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-56 p-3">
-            <p className="text-sm font-medium mb-3">Colonne visibili</p>
-            <div className="space-y-2.5">
-              {COLUMNS.map((col) => {
-                const isFixed = col.key === "name";
-                return (
-                  <label key={col.key} className="flex items-center justify-between text-sm">
-                    <span className={isFixed ? "text-muted-foreground" : ""}>{col.label}</span>
-                    <Switch
-                      checked={isVisible(col.key)}
-                      disabled={isFixed}
-                      onCheckedChange={() => toggleColumn(col.key)}
-                      className="scale-75"
-                    />
-                  </label>
-                );
-              })}
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -206,10 +164,10 @@ export function ContactsTable({
                 return (
                   <TableHead
                     key={col.key}
-                    className={`${!isLast ? borderClass : ""} ${sortable ? "cursor-pointer select-none hover:bg-muted/50" : ""}`}
+                    className={`py-2 ${!isLast ? borderClass : ""} ${sortable ? "cursor-pointer select-none hover:bg-muted/50" : ""}`}
                     onClick={() => sortable && handleSort(col)}
                   >
-                    <div className="flex items-center">
+                    <div className="flex items-center text-xs">
                       {col.label}
                       {sortable && col.sortField && (
                         <SortIcon field={col.sortField} currentField={sortField} direction={sortDirection} />
@@ -218,7 +176,7 @@ export function ContactsTable({
                   </TableHead>
                 );
               })}
-              <TableHead className="w-[60px]" />
+              <TableHead className="w-[50px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -233,55 +191,55 @@ export function ContactsTable({
                 const fullName = `${c.first_name} ${c.last_name || ""}`.trim();
                 return (
                   <TableRow key={c.id} className="group">
-                    <TableCell className={borderClass}>
+                    <TableCell className={`py-1.5 ${borderClass}`}>
                       <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => onToggleSelect(c.id)} />
                     </TableCell>
                     {visibleCols.map((col, i) => {
                       const isLast = i === visibleCols.length - 1;
-                      const cls = !isLast ? borderClass : "";
+                      const cls = `py-1.5 ${!isLast ? borderClass : ""}`;
                       switch (col.key) {
                         case "name":
                           return (
                             <TableCell key={col.key} className={cls}>
-                              <div className="flex items-center gap-2.5">
-                                <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0 ${getAvatarColor(fullName)}`}>
+                              <div className="flex items-center gap-2">
+                                <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0 ${getAvatarColor(fullName)}`}>
                                   {getInitials(c.first_name, c.last_name)}
                                 </div>
-                                <span className="font-medium text-primary hover:underline cursor-pointer" onClick={() => navigate(`/azienda/marketing/contatti/${c.id}`)}>
+                                <span className="font-medium text-sm text-primary hover:underline cursor-pointer" onClick={() => navigate(`/azienda/marketing/contatti/${c.id}`)}>
                                   {fullName}
                                 </span>
                               </div>
                             </TableCell>
                           );
                         case "phone":
-                          return <TableCell key={col.key} className={`text-muted-foreground ${cls}`}>{c.phone || "—"}</TableCell>;
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.phone || "—"}</TableCell>;
                         case "email":
-                          return <TableCell key={col.key} className={`text-muted-foreground ${cls}`}>{c.email || "—"}</TableCell>;
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.email || "—"}</TableCell>;
                         case "company_name":
-                          return <TableCell key={col.key} className={`text-muted-foreground ${cls}`}>{c.company_name || "—"}</TableCell>;
+                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.company_name || "—"}</TableCell>;
                         case "created_at":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{formatDate(c.created_at)}</TableCell>;
+                          return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.created_at)}</TableCell>;
                         case "last_activity_at":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{formatDate(c.last_activity_at)}</TableCell>;
+                          return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.last_activity_at)}</TableCell>;
                         case "tags":
                           return (
                             <TableCell key={col.key} className={cls}>
                               <div className="flex flex-wrap gap-1">
                                 {c.tags.map((tag) => (
-                                  <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                                  <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
                                 ))}
                               </div>
                             </TableCell>
                           );
                         case "source":
-                          return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.source || "—"}</TableCell>;
+                          return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{c.source || "—"}</TableCell>;
                         default:
                           return null;
                       }
                     })}
-                    <TableCell>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => onEdit(c)}>
-                        <Pencil className="h-3.5 w-3.5" />
+                    <TableCell className="py-1.5">
+                      <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => onEdit(c)}>
+                        <Pencil className="h-3 w-3" />
                       </Button>
                     </TableCell>
                   </TableRow>

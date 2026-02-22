@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ContactsTable, type MarketingContact, type SortField, type SortDirection } from "@/components/marketing/ContactsTable";
+import { ContactsTable, type MarketingContact, type SortField, type SortDirection, type ColumnKey, loadVisibleColumns, saveVisibleColumns } from "@/components/marketing/ContactsTable";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { ContactListsView } from "@/components/marketing/ContactListsView";
 import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
@@ -17,6 +17,8 @@ import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { exportToCSV } from "@/lib/csvExport";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
+import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
+import { ContactFiltersSheet, type ContactFilters, EMPTY_CONTACT_FILTERS, countActiveContactFilters } from "@/components/marketing/ContactFiltersSheet";
 
 const CSV_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true },
@@ -58,6 +60,28 @@ export default function MarketingContacts() {
   const [editingContact, setEditingContact] = useState<MarketingContact | null>(null);
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(loadVisibleColumns);
+  const [fieldsSheetOpen, setFieldsSheetOpen] = useState(false);
+  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
+  const [filters, setFilters] = useState<ContactFilters>(EMPTY_CONTACT_FILTERS);
+
+  const activeFilterCount = countActiveContactFilters(filters);
+
+  // Available tags for filter
+  const { data: availableTags = [] } = useQuery({
+    queryKey: ["marketing-tags-list", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("marketing_tags")
+        .select("name")
+        .eq("company_id", companyId)
+        .order("name");
+      if (error) throw error;
+      return (data || []).map((t) => t.name);
+    },
+    enabled: !!companyId,
+  });
 
   // List count for tab badge
   const { data: listCount = 0 } = useQuery({
@@ -76,7 +100,7 @@ export default function MarketingContacts() {
 
   // Fetch contacts
   const { data, isLoading } = useQuery({
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection],
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
@@ -93,6 +117,29 @@ export default function MarketingContacts() {
       if (search.trim()) {
         const s = `%${search.trim()}%`;
         query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
+      }
+
+      // Apply filters
+      if (filters.source) {
+        query = query.ilike("source", `%${filters.source}%`);
+      }
+      if (filters.company) {
+        query = query.ilike("company_name", `%${filters.company}%`);
+      }
+      if (filters.dateFrom) {
+        query = query.gte("created_at", filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        query = query.lte("created_at", `${filters.dateTo}T23:59:59`);
+      }
+      if (filters.activityFrom) {
+        query = query.gte("last_activity_at", filters.activityFrom);
+      }
+      if (filters.activityTo) {
+        query = query.lte("last_activity_at", `${filters.activityTo}T23:59:59`);
+      }
+      if (filters.tags.length > 0) {
+        query = query.overlaps("tags", filters.tags);
       }
 
       const { data: contacts, count, error } = await query;
@@ -178,6 +225,16 @@ export default function MarketingContacts() {
     setDialogOpen(true);
   };
 
+  const handleApplyColumns = (cols: Set<ColumnKey>) => {
+    setVisibleColumns(cols);
+    saveVisibleColumns(cols);
+  };
+
+  const handleApplyFilters = (f: ContactFilters) => {
+    setFilters(f);
+    setPage(1);
+  };
+
   const handleImport = async (rows: Record<string, string>[]) => {
     if (!companyId) return { success: 0, errors: ["Nessuna azienda selezionata"] };
     const customKeys = contactCustomFields.map(f => `custom_${f.id}`);
@@ -246,7 +303,7 @@ export default function MarketingContacts() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -323,15 +380,56 @@ export default function MarketingContacts() {
         <ContactListsView />
       ) : (
         <>
-          {/* Search */}
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Cerca contatti..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            />
+          {/* Filter bar */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => setFiltersSheetOpen(true)}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                Filtri avanzati
+                {activeFilterCount > 0 && (
+                  <Badge className="h-4 w-4 p-0 flex items-center justify-center text-[9px] rounded-full">
+                    {activeFilterCount}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => {
+                  setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+                  setPage(1);
+                }}
+              >
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                Ordina
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca contatti..."
+                  className="pl-8 h-8 w-[220px] text-xs"
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-xs text-muted-foreground"
+                onClick={() => setFieldsSheetOpen(true)}
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                Gestisci campi
+              </Button>
+            </div>
           </div>
 
           {/* Table */}
@@ -351,9 +449,25 @@ export default function MarketingContacts() {
             sortDirection={sortDirection}
             onSort={(f, d) => { setSortField(f); setSortDirection(d); setPage(1); }}
             bulkActions={<AddToListDropdown selectedIds={selectedIds} />}
+            visibleColumns={visibleColumns}
           />
         </>
       )}
+
+      {/* Sheets */}
+      <ContactFieldsSheet
+        open={fieldsSheetOpen}
+        onOpenChange={setFieldsSheetOpen}
+        visibleColumns={visibleColumns}
+        onApply={handleApplyColumns}
+      />
+      <ContactFiltersSheet
+        open={filtersSheetOpen}
+        onOpenChange={setFiltersSheetOpen}
+        filters={filters}
+        onApply={handleApplyFilters}
+        availableTags={availableTags}
+      />
 
       {/* Dialogs */}
       <ContactDialog
