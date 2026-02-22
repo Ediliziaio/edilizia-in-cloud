@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { ChevronLeft, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 // --- Types ---
 
@@ -337,15 +337,22 @@ export function ContactFiltersSheet({ open, onOpenChange, filters, onApply, avai
                             {showValue && (
                               <div className="flex items-center gap-2">
                                 <div className="flex-1">
-                                  {isSelectField && fieldDef?.options ? (
+                                  {fieldDef?.type === "tags" ? (
+                                    <Select value={rule.value} onValueChange={(v) => updateRule(rule.id, { value: v })}>
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Seleziona tag..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {availableTags.map((t) => <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : isSelectField && fieldDef?.options ? (
                                     <Select value={rule.value} onValueChange={(v) => updateRule(rule.id, { value: v })}>
                                       <SelectTrigger className="h-8 text-xs">
                                         <SelectValue placeholder="Seleziona..." />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {fieldDef.type === "tags"
-                                          ? availableTags.map((t) => <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)
-                                          : fieldDef.options.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+                                        {fieldDef.options.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
                                       </SelectContent>
                                     </Select>
                                   ) : fieldDef?.type === "date" ? (
