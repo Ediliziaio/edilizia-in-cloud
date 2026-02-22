@@ -444,7 +444,7 @@ export function CompanyLayout() {
               {effectiveCompany?.name}
             </span>
           </header>
-          <main className="flex-1 p-6 bg-muted/30 relative overflow-hidden">
+          <main className="flex-1 p-6 bg-muted/30">
             <Outlet />
           </main>
         </div>

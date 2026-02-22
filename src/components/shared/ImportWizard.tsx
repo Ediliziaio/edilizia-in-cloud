@@ -150,7 +150,7 @@ export function ImportWizard({
   if (!open) return null;
 
   return (
-    <div className="absolute inset-0 z-40 bg-background flex flex-col overflow-hidden">
+    <div className="flex flex-col min-h-[calc(100vh-8rem)] -m-6 bg-background">
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-3 border-b bg-background shrink-0">
         <div>

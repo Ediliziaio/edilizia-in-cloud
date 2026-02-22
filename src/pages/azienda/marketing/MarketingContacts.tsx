@@ -162,6 +162,20 @@ export default function MarketingContacts() {
     return { success: data?.length || 0, errors: [] };
   };
 
+  if (importOpen) {
+    return (
+      <ImportWizard
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        defaultObjectType="contacts"
+        contactFields={CSV_FIELDS}
+        opportunityFields={[]}
+        onImportContacts={async (rows, options) => handleImport(rows)}
+        onImportOpportunities={async () => ({ success: 0, errors: [] })}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -265,15 +279,6 @@ export default function MarketingContacts() {
         isEditing={!!editingContact}
       />
 
-      <ImportWizard
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        defaultObjectType="contacts"
-        contactFields={CSV_FIELDS}
-        opportunityFields={[]}
-        onImportContacts={async (rows, options) => handleImport(rows)}
-        onImportOpportunities={async () => ({ success: 0, errors: [] })}
-      />
     </div>
   );
 }

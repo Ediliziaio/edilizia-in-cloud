@@ -155,6 +155,61 @@ function MarketingOpportunitiesContent() {
 
   const activeFilterCount = countActiveFilters(filters);
 
+  if (importOpen) {
+    return (
+      <ImportWizard
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        defaultObjectType="opportunities"
+        contactFields={[]}
+        opportunityFields={OPP_IMPORT_FIELDS}
+        onImportContacts={async () => ({ success: 0, errors: [] })}
+        onImportOpportunities={async (rows) => {
+          if (!companyId || !selectedPipelineId || stages.length === 0) {
+            return { success: 0, errors: ["Seleziona una pipeline con almeno una fase"] };
+          }
+          const defaultStageId = stages.sort((a: any, b: any) => a.position - b.position)[0].id;
+          let success = 0;
+          const errors: string[] = [];
+          for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            try {
+              const firstName = r.contact_first_name?.trim() || "Senza nome";
+              const lastName = r.contact_last_name?.trim() || null;
+              const email = r.contact_email?.trim() || null;
+              const phone = r.contact_phone?.trim() || null;
+              let contactId: string | null = null;
+              if (email) {
+                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("email", email).limit(1).single();
+                if (found) contactId = found.id;
+              }
+              if (!contactId && phone) {
+                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("phone", phone).limit(1).single();
+                if (found) contactId = found.id;
+              }
+              if (!contactId) {
+                const { data: newContact, error: cErr } = await supabase.from("marketing_contacts").insert({ company_id: companyId, first_name: firstName, last_name: lastName, email, phone }).select("id").single();
+                if (cErr) throw cErr;
+                contactId = newContact!.id;
+              }
+              const tags = r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [];
+              const { error: oErr } = await supabase.from("marketing_opportunities").insert({
+                company_id: companyId, pipeline_id: selectedPipelineId, stage_id: defaultStageId,
+                contact_id: contactId!, name: r.name?.trim() || `Opportunità ${i + 1}`,
+                value: parseFloat(r.value) || 0, source: r.source?.trim() || "importazione", tags, notes: r.notes?.trim() || null,
+              });
+              if (oErr) throw oErr;
+              success++;
+            } catch (err: any) {
+              errors.push(`Riga ${i + 2}: ${err?.message || "errore sconosciuto"}`);
+            }
+          }
+          return { success, errors };
+        }}
+      />
+    );
+  }
+
   if (loadingPipelines) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -362,57 +417,6 @@ function MarketingOpportunitiesContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <ImportWizard
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        defaultObjectType="opportunities"
-        contactFields={[]}
-        opportunityFields={OPP_IMPORT_FIELDS}
-        onImportContacts={async () => ({ success: 0, errors: [] })}
-        onImportOpportunities={async (rows) => {
-          if (!companyId || !selectedPipelineId || stages.length === 0) {
-            return { success: 0, errors: ["Seleziona una pipeline con almeno una fase"] };
-          }
-          const defaultStageId = stages.sort((a: any, b: any) => a.position - b.position)[0].id;
-          let success = 0;
-          const errors: string[] = [];
-          for (let i = 0; i < rows.length; i++) {
-            const r = rows[i];
-            try {
-              const firstName = r.contact_first_name?.trim() || "Senza nome";
-              const lastName = r.contact_last_name?.trim() || null;
-              const email = r.contact_email?.trim() || null;
-              const phone = r.contact_phone?.trim() || null;
-              let contactId: string | null = null;
-              if (email) {
-                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("email", email).limit(1).single();
-                if (found) contactId = found.id;
-              }
-              if (!contactId && phone) {
-                const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("phone", phone).limit(1).single();
-                if (found) contactId = found.id;
-              }
-              if (!contactId) {
-                const { data: newContact, error: cErr } = await supabase.from("marketing_contacts").insert({ company_id: companyId, first_name: firstName, last_name: lastName, email, phone }).select("id").single();
-                if (cErr) throw cErr;
-                contactId = newContact!.id;
-              }
-              const tags = r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [];
-              const { error: oErr } = await supabase.from("marketing_opportunities").insert({
-                company_id: companyId, pipeline_id: selectedPipelineId, stage_id: defaultStageId,
-                contact_id: contactId!, name: r.name?.trim() || `Opportunità ${i + 1}`,
-                value: parseFloat(r.value) || 0, source: r.source?.trim() || "importazione", tags, notes: r.notes?.trim() || null,
-              });
-              if (oErr) throw oErr;
-              success++;
-            } catch (err: any) {
-              errors.push(`Riga ${i + 2}: ${err?.message || "errore sconosciuto"}`);
-            }
-          }
-          return { success, errors };
-        }}
-      />
     </div>
   );
 }
