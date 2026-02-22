@@ -45,6 +45,7 @@ import SettingsStaff from "@/pages/azienda/settings/SettingsStaff";
 import SettingsSecurity from "@/pages/azienda/settings/SettingsSecurity";
 import SettingsActivityLog from "@/pages/azienda/settings/SettingsActivityLog";
 import SettingsTags from "@/pages/azienda/settings/SettingsTags";
+import SettingsCustomFields from "@/pages/azienda/settings/SettingsCustomFields";
 import OrdersList from "@/pages/azienda/OrdersList";
 import CreateOrder from "@/pages/azienda/CreateOrder";
 import OrderDetail from "@/pages/azienda/OrderDetail";
@@ -70,6 +71,7 @@ import MarketingOpportunities from "@/pages/azienda/marketing/MarketingOpportuni
 import MarketingCalendar from "@/pages/azienda/marketing/MarketingCalendar";
 import MarketingAutomations from "@/pages/azienda/marketing/MarketingAutomations";
 import MarketingAiAgent from "@/pages/azienda/marketing/MarketingAiAgent";
+import MarketingContactDetail from "@/pages/azienda/marketing/MarketingContactDetail";
 
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
@@ -200,6 +202,7 @@ const App = () => (
               {/* Marketing Routes */}
               <Route path="marketing" element={<MarketingDashboard />} />
               <Route path="marketing/contatti" element={<MarketingContacts />} />
+              <Route path="marketing/contatti/:id" element={<MarketingContactDetail />} />
               <Route path="marketing/opportunita" element={<MarketingOpportunities />} />
               <Route path="marketing/calendario" element={<MarketingCalendar />} />
               <Route path="marketing/automazioni" element={<MarketingAutomations />} />
@@ -212,6 +215,7 @@ const App = () => (
                 <Route path="stati-ordine" element={<SettingsOrderStatus />} />
                 <Route path="fornitori" element={<SettingsSuppliers />} />
                 <Route path="tag" element={<SettingsTags />} />
+                <Route path="campi-personalizzati" element={<SettingsCustomFields />} />
                 <Route path="utenti" element={<SettingsUsers />} />
                 <Route path="venditori" element={<SettingsSalespeople />} />
                 <Route path="staff" element={<SettingsStaff />} />
