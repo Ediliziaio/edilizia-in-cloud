@@ -452,7 +452,7 @@ export default function MarketingContactDetail() {
   return (
     <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
       {/* ══════════ LEFT COLUMN ══════════ */}
-      <div className="w-[300px] min-w-[300px] border-r flex flex-col">
+      <div className="w-[360px] min-w-[360px] border-r flex flex-col">
         {/* Header */}
         <div className="h-11 border-b flex items-center justify-between px-2 shrink-0">
           <div className="flex items-center gap-1">
@@ -477,7 +477,7 @@ export default function MarketingContactDetail() {
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-4 space-y-4">
+          <div className="p-3 space-y-4">
             {/* Avatar + Name + Delete */}
             <div className="flex items-center gap-2.5">
               <Avatar className="h-12 w-12 shrink-0">
@@ -492,7 +492,7 @@ export default function MarketingContactDetail() {
             </div>
 
             {/* Titolare, Follower & Call Center */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               <div>
                 <div className="flex items-center gap-1 mb-0.5">
                   <User className="h-3 w-3 text-muted-foreground" />
