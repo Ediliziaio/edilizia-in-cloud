@@ -150,10 +150,13 @@ export function ImportWizard({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+    <div className="absolute inset-0 z-40 bg-background flex flex-col overflow-hidden">
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-3 border-b bg-background shrink-0">
-        <h1 className="text-lg font-semibold">Importazione in blocco</h1>
+        <div>
+          <h1 className="text-lg font-semibold">Importazioni</h1>
+          <p className="text-sm text-muted-foreground">Importare contatti e lead</p>
+        </div>
         <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
           <X className="h-5 w-5" />
         </button>
