@@ -46,6 +46,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const [oppCompanyName, setOppCompanyName] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [followerId, setFollowerId] = useState("");
+  const [callCenterId, setCallCenterId] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
 
@@ -105,6 +106,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
     setOppCompanyName("");
     setAssignedTo("");
     setFollowerId("");
+    setCallCenterId("");
     setTags([]);
     setCustomFieldValues({});
   };
@@ -165,6 +167,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         source: source || undefined,
         assigned_to: assignedTo || undefined,
         follower_id: followerId || undefined,
+        call_center_id: callCenterId || undefined,
         company_name: oppCompanyName || undefined,
       },
       {
@@ -406,8 +409,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                   </div>
                 </div>
 
-                {/* Owner + Follower */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Owner + Follower + Call Center */}
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Titolare</Label>
                     <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
@@ -421,6 +424,16 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Follower</Label>
                     <Select value={followerId || "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nessuno</SelectItem>
+                        {staff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Call Center</Label>
+                    <Select value={callCenterId || "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
                       <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nessuno</SelectItem>

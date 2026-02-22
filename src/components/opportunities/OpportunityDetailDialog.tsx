@@ -80,6 +80,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
   const [source, setSource] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [followerId, setFollowerId] = useState("");
+  const [callCenterId, setCallCenterId] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [oppNotes, setOppNotes] = useState("");
   const [oppTags, setOppTags] = useState<string[]>([]);
@@ -130,6 +131,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
       setSource(opportunity.source || "");
       setAssignedTo(opportunity.assigned_to || "");
       setFollowerId(opportunity.follower_id || "");
+      setCallCenterId(opportunity.call_center_id || "");
       setCompanyName(opportunity.company_name || "");
       setOppNotes(opportunity.notes || "");
       setOppTags(opportunity.tags || []);
@@ -253,6 +255,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
       source: source || null,
       assigned_to: assignedTo || null,
       follower_id: followerId || null,
+      call_center_id: callCenterId || null,
       company_name: companyName || null,
       notes: oppNotes || null,
       tags: oppTags,
@@ -596,7 +599,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Titolare</Label>
                           <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
@@ -610,6 +613,16 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Follower</Label>
                           <Select value={followerId || "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Nessuno</SelectItem>
+                              {staff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Call Center</Label>
+                          <Select value={callCenterId || "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Nessuno</SelectItem>

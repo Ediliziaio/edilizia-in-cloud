@@ -137,6 +137,9 @@ function MarketingOpportunitiesContent() {
     if (filters.followerId) {
       result = result.filter((o: any) => o.follower_id === filters.followerId);
     }
+    if (filters.callCenterId) {
+      result = result.filter((o: any) => o.call_center_id === filters.callCenterId);
+    }
     if (filters.source) {
       const src = filters.source.toLowerCase();
       result = result.filter((o: any) => o.source?.toLowerCase().includes(src));
