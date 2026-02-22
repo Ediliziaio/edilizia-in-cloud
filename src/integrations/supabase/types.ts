@@ -856,6 +856,77 @@ export type Database = {
           },
         ]
       }
+      marketing_contact_list_members: {
+        Row: {
+          added_at: string
+          contact_id: string
+          id: string
+          list_id: string
+        }
+        Insert: {
+          added_at?: string
+          contact_id: string
+          id?: string
+          list_id: string
+        }
+        Update: {
+          added_at?: string
+          contact_id?: string
+          id?: string
+          list_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_contact_list_members_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_contact_list_members_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contact_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_contact_lists: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_contact_lists_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_contact_notes: {
         Row: {
           company_id: string
