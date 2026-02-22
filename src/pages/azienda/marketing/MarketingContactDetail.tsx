@@ -192,12 +192,25 @@ export default function MarketingContactDetail() {
     queryKey: ["company_staff", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
+      const { data: profiles, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
         .eq("company_id", companyId);
       if (error) throw error;
-      return data;
+
+      const userIds = profiles.map((p) => p.id);
+      if (userIds.length === 0) return [];
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds);
+
+      const validUserIds = roles
+        ?.filter((r) => r.role === "company_admin" || r.role === "company_staff")
+        .map((r) => r.user_id) || [];
+
+      return profiles.filter((p) => validUserIds.includes(p.id));
     },
     enabled: !!companyId,
   });
