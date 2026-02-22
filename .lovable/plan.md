@@ -1,86 +1,60 @@
 
+# Fix Import Error + Custom Fields in Import
 
-# Stabilizzazione Opportunita + Pulizia Codebase
+## Bug 1: "Component is not a function" quando si clicca Import
 
-## Bug identificati e fix
+**Causa**: Le componenti `ImportWizard`, `StepStart` e `StepIndicator` sono state wrappate con `React.forwardRef` nelle modifiche precedenti, ma nessun parent passa un ref a queste componenti. Il `forwardRef` non necessario causa problemi con l'HMR (Hot Module Replacement) di Vite e puo produrre l'errore "Component is not a function" durante il re-render.
 
-### 1. Console Warning: ref su ImportWizard e StepStart
-**Problema**: Due warning in console "Function components cannot be given refs" per `ImportWizard` e `StepStart`. React tenta di passare un ref a questi componenti ma non usano `forwardRef`.
+**Fix**: Rimuovere `React.forwardRef` da tutte e tre le componenti, tornando a semplici function components. Nessuno le usa con un ref.
 
-**File da modificare**:
-- `src/components/shared/ImportWizard.tsx`: wrappare con `React.forwardRef`
-- `src/components/shared/import-wizard/StepStart.tsx`: wrappare con `React.forwardRef`
+### File modificati:
 
-### 2. CSVImportDialog: codice duplicato legacy
-**Problema**: `CSVImportDialog` contiene funzioni `autoMatch` e `parseFileData` identiche a quelle in `ImportWizard.tsx`. Il componente `CSVImportDialog` e ancora usato da 3 pagine (CustomersList, OrdersList, CompanyCostsManager), quindi non puo essere rimosso, ma la duplicazione di logica e inutile.
+| File | Modifica |
+|------|----------|
+| `src/components/shared/ImportWizard.tsx` | Rimuovere `React.forwardRef`, tornare a semplice function export |
+| `src/components/shared/import-wizard/StepStart.tsx` | Rimuovere `React.forwardRef`, tornare a semplice function export |
+| `src/components/shared/import-wizard/StepIndicator.tsx` | Rimuovere `React.forwardRef` e `displayName`, tornare a semplice function export |
 
-**Azione**: Nessuna rimozione (e usato altrove), ma nessun fix necessario - la duplicazione e accettabile dato che i due componenti servono contesti diversi.
+## Bug 2: Campi personalizzati mancanti nell'importazione CSV
 
-### 3. OpportunityDialog: stage_id non si aggiorna quando stages cambiano
-**Problema**: `stageId` viene inizializzato con `stages[0]?.id || ""` al mount del componente. Se `stages` arriva vuoto e poi si popola (async), lo state resta `""`. Questo puo causare un errore silenzioso alla creazione.
+**Causa**: Le liste `CSV_FIELDS` (contatti) e `OPP_IMPORT_FIELDS` (opportunita) sono hardcoded e non includono i campi personalizzati creati dall'utente (es. "Citta", o qualsiasi campo custom definito in Impostazioni > Campi personalizzati).
 
-**Fix**: Aggiungere un `useEffect` che aggiorna `stageId` quando `stages` cambia e `stageId` e vuoto o non valido.
+**Fix**: In `MarketingContacts.tsx` e `MarketingOpportunities.tsx`, usare i hook `useContactCustomFields()` e `useOpportunityCustomFields()` per recuperare i campi personalizzati dal database, e concatenarli ai campi statici prima di passarli al wizard.
 
-**File**: `src/components/opportunities/OpportunityDialog.tsx`
+### File modificati:
 
-### 4. OpportunityDetailDialog: auto-sync tag potenzialmente causa loop e write non necessarie
-**Problema**: L'`useEffect` alle righe 146-163 che sincronizza i tag dal contatto all'opportunita scrive direttamente nel DB ad ogni apertura del dialog, anche se non necessario. Questo causa invalidation della cache e potenziali race condition.
-
-**Fix**: Aggiungere un guard per evitare la sync se i tag sono gia allineati. Spostare il check prima della write.
-
-**File**: `src/components/opportunities/OpportunityDetailDialog.tsx`
-
-## Pulizia codice
-
-### 5. Import inutili
-- `src/components/opportunities/OpportunityDialog.tsx` riga 16: `useNavigate` importato ma mai usato per la navigazione (solo dichiarato, non chiamato)
-- `src/components/opportunities/OpportunityDetailDialog.tsx` riga 32: `useNavigate` importato e dichiarato ma non usato nelle funzioni
-
-**Fix**: Rimuovere import e dichiarazioni di `useNavigate` da entrambi i file.
-
-### 6. OpportunityCard: variabile `stopProp` non necessaria come funzione separata
-**Azione**: Nessuna modifica - e usata in piu punti, e giustificata.
-
-## Miglioramenti UX
-
-### 7. OpportunityDialog: feedback durante il salvataggio
-**Problema**: Il pulsante "Crea Opportunita" non mostra stato di loading durante il salvataggio.
-
-**Fix**: Aggiungere `disabled={createOpportunity.isPending}` e icona `Loader2` al pulsante di submit.
-
-**File**: `src/components/opportunities/OpportunityDialog.tsx` (riga del pulsante submit, circa riga 490)
-
-### 8. ImportWizard: transizione tra step
-**Problema**: Il passaggio tra step e istantaneo senza feedback visivo.
-
-**Fix**: Aggiungere una transizione CSS con `transition-opacity duration-200` sul container del contenuto degli step.
-
-**File**: `src/components/shared/ImportWizard.tsx`
-
-## Riepilogo file modificati
-
-| File | Tipo | Descrizione |
-|------|------|-------------|
-| `src/components/shared/ImportWizard.tsx` | Bug fix + UX | Aggiungere `forwardRef` + transizione step |
-| `src/components/shared/import-wizard/StepStart.tsx` | Bug fix | Aggiungere `forwardRef` |
-| `src/components/opportunities/OpportunityDialog.tsx` | Bug fix + Cleanup + UX | Fix stageId init + rimuovere useNavigate + loading button |
-| `src/components/opportunities/OpportunityDetailDialog.tsx` | Bug fix + Cleanup | Guard auto-sync tag + rimuovere useNavigate |
+| File | Modifica |
+|------|----------|
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Importare `useContactCustomFields`, creare lista dinamica di import fields che include i campi personalizzati |
+| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Usare il gia importato `useOpportunityCustomFields`, creare lista dinamica di import fields che include i campi personalizzati |
 
 ## Dettagli tecnici
 
-### ImportWizard.tsx - forwardRef
-Wrappare il componente:
+### ImportWizard.tsx - Rimuovere forwardRef
+
+Da:
 ```text
-export const ImportWizard = React.forwardRef<HTMLDivElement, ImportWizardProps>(
-  function ImportWizard({ open, onClose, ... }, ref) {
-    // ... corpo esistente
-    return <div ref={ref} className="flex flex-col ...">
-  }
-);
+export const ImportWizard = React.forwardRef<HTMLDivElement, ImportWizardProps>(function ImportWizard({
+  open, onClose, ...
+}: ImportWizardProps, ref) {
+  ...
+  return <div ref={ref} className="flex flex-col ...">
+});
 ```
 
-### StepStart.tsx - forwardRef
-Wrappare il componente:
+A:
+```text
+export function ImportWizard({
+  open, onClose, ...
+}: ImportWizardProps) {
+  ...
+  return <div className="flex flex-col ...">
+}
+```
+
+### StepStart.tsx - Rimuovere forwardRef
+
+Da:
 ```text
 export const StepStart = React.forwardRef<HTMLDivElement, StepStartProps>(
   function StepStart({ objectType, onObjectTypeChange }, ref) {
@@ -89,16 +63,76 @@ export const StepStart = React.forwardRef<HTMLDivElement, StepStartProps>(
 );
 ```
 
-### OpportunityDialog.tsx - stageId sync
-Aggiungere dopo la dichiarazione dello state:
+A:
 ```text
-useEffect(() => {
-  if (stages.length > 0 && !stages.some(s => s.id === stageId)) {
-    setStageId(stages[0].id);
-  }
-}, [stages]);
+export function StepStart({ objectType, onObjectTypeChange }: StepStartProps) {
+  return <div className="max-w-xl ...">
+}
 ```
 
-### OpportunityDetailDialog.tsx - guard auto-sync
-Modificare l'useEffect tag-sync (righe 146-163) per controllare se i tag mancanti sono davvero mancanti prima di fare la write.
+### StepIndicator.tsx - Rimuovere forwardRef
 
+Da:
+```text
+export const StepIndicator = React.forwardRef<HTMLDivElement, StepIndicatorProps>(
+  ({ currentStep }, ref) => {
+    return <div ref={ref} className="flex ...">
+  }
+);
+StepIndicator.displayName = "StepIndicator";
+```
+
+A:
+```text
+export function StepIndicator({ currentStep }: StepIndicatorProps) {
+  return <div className="flex ...">
+}
+```
+
+### MarketingContacts.tsx - Aggiungere campi personalizzati
+
+Aggiungere import e useMemo:
+```text
+import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
+
+// Dentro il componente:
+const { data: contactCustomFields = [] } = useContactCustomFields();
+
+const importFields = useMemo(() => {
+  const customImportFields = contactCustomFields.map(f => ({
+    key: `custom_${f.id}`,
+    label: f.name,
+    required: false,
+    type: "text" as const,
+  }));
+  return [...CSV_FIELDS, ...customImportFields];
+}, [contactCustomFields]);
+```
+
+Passare `importFields` al posto di `CSV_FIELDS` nel componente `ImportWizard`.
+
+Aggiornare anche `onImportContacts` per salvare i valori dei campi personalizzati in `marketing_contact_field_values`.
+
+### MarketingOpportunities.tsx - Aggiungere campi personalizzati
+
+Il hook `useOpportunityCustomFields` e gia importato (riga 16). Aggiungere un `useMemo`:
+```text
+const importFields = useMemo(() => {
+  const customImportFields = oppCustomFields.map(f => ({
+    key: `custom_${f.id}`,
+    label: f.name,
+    required: false,
+    type: "text" as const,
+  }));
+  return [...OPP_IMPORT_FIELDS, ...customImportFields];
+}, [oppCustomFields]);
+```
+
+Passare `importFields` al posto di `OPP_IMPORT_FIELDS` al wizard e aggiornare `onImportOpportunities` per salvare i valori custom in `marketing_opportunity_field_values`.
+
+## Riepilogo
+
+- **3 file** per fix "Component is not a function" (rimozione forwardRef inutile)
+- **2 file** per aggiungere campi personalizzati all'importazione
+- **5 file totali** modificati
+- Nessun cambiamento funzionale al comportamento esistente
