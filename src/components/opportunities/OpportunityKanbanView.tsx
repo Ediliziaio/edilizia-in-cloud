@@ -7,7 +7,6 @@ import { useDroppable } from "@dnd-kit/core";
 import { OpportunityCard } from "./OpportunityCard";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { useUpdateOpportunityStage } from "@/hooks/useOpportunitiesData";
-import { Badge } from "@/components/ui/badge";
 
 interface Stage {
   id: string;
@@ -21,14 +20,11 @@ function StageColumn({ stage, opportunities, onCardClick }: { stage: Stage; oppo
 
   return (
     <div className="flex flex-col min-w-[280px] max-w-[300px] shrink-0">
-      {/* Column header */}
-      <div className="px-3 py-2.5 border-b bg-muted/50 rounded-t-lg">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold truncate">{stage.name}</h3>
-          <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{opportunities.length}</Badge>
-        </div>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          {opportunities.length} opportunità · EUR {totalValue.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+      {/* GHL-style compact header */}
+      <div className="px-3 py-2 border-b bg-muted/50 rounded-t-lg">
+        <h3 className="text-sm font-bold truncate">{stage.name}</h3>
+        <p className="text-[11px] text-muted-foreground">
+          {opportunities.length} Opportunità · EUR {totalValue.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
         </p>
       </div>
 
