@@ -1,50 +1,28 @@
 
-# Modifiche al dettaglio opportunita - Sezione Contatto
+# Rendere il nome contatto cliccabile sulla card opportunita
 
 ## Cosa cambia
 
-### File: `src/components/opportunities/OpportunityDetailDialog.tsx`
+### File: `src/components/opportunities/OpportunityCard.tsx`
 
-### 1. Rimuovere "Contatti aggiuntivo" (righe 536-541)
-La sezione placeholder "Contatti aggiuntivo / Aggiungi altri contatti" verra eliminata completamente. Non ha funzionalita reale.
+### 1. Nome contatto cliccabile con navigazione
+Il nome del contatto (es. "Contatto 1 - milano", "Enrico Goldoni") sulla card diventa un link cliccabile. Al click, naviga alla pagina di dettaglio contatto `/azienda/marketing/contatti/{contactId}`.
 
-### 2. Rimuovere i campi personalizzati del contatto (righe 543-546)
-Il blocco che renderizza i custom fields del contatto (es. "prova del cavolo") verra rimosso dalla sezione "Contatto Dettagli". I campi personalizzati resteranno gestibili dalla pagina dedicata del contatto, ma non compariranno piu nel dettaglio opportunita.
-
-```
-// Questo blocco verra rimosso:
-{contactCustomFields.map((field) =>
-  renderCustomField(field, contactCustomValues, setContactCustomValues)
-)}
-```
-
-### 3. Aggiungere campo "Citta" dopo il telefono (prima di dove c'era "Contatti aggiuntivo")
-Verra aggiunto un campo inline che mostra la citta del contatto (`contact.city`), con possibilita di modifica. Il valore verra inizializzato dal contatto caricato e salvato insieme agli altri campi contatto.
-
-Servira:
-- Nuovo stato `contactCity` inizializzato da `contact.city`
-- Campo Input con label "Citta" nella sezione contatto, visibile se non vuoto o se `hideEmpty` e disattivo
-- Salvataggio del campo `city` nel `handleSave` insieme a email e phone
-
-### Riepilogo visivo della sezione Contatto dopo le modifiche
-
-```
-Contatto Dettagli
-  - Nome del contatto primario  [Cambia]
-  - Email primaria
-  - Telefono primario
-  - Citta                        <-- NUOVO
-```
-
-Nessun custom field, nessun "Contatti aggiuntivo".
+- Al passaggio del mouse: il testo si sottolinea (underline on hover) per indicare che e cliccabile
+- Al click: naviga alla pagina del contatto associato (usando `useNavigate` da react-router-dom)
+- Il click sul nome NON apre il dettaglio opportunita (stopPropagation)
+- Il drag & drop continua a funzionare normalmente (il link si attiva solo su click, non su drag)
+- Se non c'e un contatto associato (`contact` e null), il nome resta testo statico non cliccabile
 
 ### Dettaglio tecnico
 
-| Azione | Righe | Dettaglio |
-|--------|-------|-----------|
-| Nuovo stato `contactCity` | ~76-78 | `const [contactCity, setContactCity] = useState("")` |
-| Inizializzazione da contact | ~130-140 | Aggiungere `setContactCity(contact.city or "")` nell'useEffect |
-| Campo Citta nel JSX | dopo riga 534 | Input con label "Citta" |
-| Rimuovere "Contatti aggiuntivo" | 536-541 | Eliminare intero blocco |
-| Rimuovere custom fields contatto | 543-546 | Eliminare il `.map(renderCustomField)` per contatto |
-| Salvataggio city | nella funzione handleSave | Aggiungere `city: contactCity` nell'update del contatto |
+| Azione | Riga | Dettaglio |
+|--------|------|-----------|
+| Import `useNavigate` | 1 | Aggiungere import da `react-router-dom` |
+| Aggiungere `navigate` nel componente | 26 | `const navigate = useNavigate()` |
+| Rendere il nome un elemento cliccabile | 143 | Wrappare in un `<span>` con `onClick` che naviga a `/azienda/marketing/contatti/${contact.id}`, con `cursor-pointer hover:underline` e `stopPropagation` + `e.preventDefault()` per non triggerare il drag o l'apertura del dettaglio opportunita |
+
+### Comportamento
+- Con contatto associato: testo con hover underline, click naviga al contatto
+- Senza contatto: testo statico come prima
+- Il resto della card continua ad aprire il dettaglio opportunita come prima
