@@ -52,6 +52,29 @@ export async function syncTagsToOpportunities(contactId: string, newTags: string
 }
 
 /**
+ * When a tag is removed from an opportunity, remove it from the linked contact too.
+ */
+export async function removeTagFromContact(contactId: string, removedTag: string) {
+  if (!contactId || !removedTag) return;
+
+  const { data: contact } = await supabase
+    .from("marketing_contacts")
+    .select("tags")
+    .eq("id", contactId)
+    .single();
+
+  if (!contact) return;
+
+  if ((contact.tags || []).includes(removedTag)) {
+    const filtered = (contact.tags || []).filter((t: string) => t !== removedTag);
+    await supabase
+      .from("marketing_contacts")
+      .update({ tags: filtered, updated_at: new Date().toISOString() })
+      .eq("id", contactId);
+  }
+}
+
+/**
  * When a tag is removed from a contact, remove it from all linked opportunities too.
  */
 export async function removeTagFromOpportunities(contactId: string, removedTag: string) {

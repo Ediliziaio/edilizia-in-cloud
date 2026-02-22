@@ -2,7 +2,6 @@ import { memo, useState, forwardRef, useMemo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2, UserCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -161,22 +160,6 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
             </Tooltip>
           )}
         </div>
-
-        {/* Tag badges - conditional */}
-        {isFieldActive("tags") && tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {tags.slice(0, 3).map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-[9px] px-1.5 py-0 h-4 font-medium">
-                {tag}
-              </Badge>
-            ))}
-            {tags.length > 3 && (
-              <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-medium">
-                +{tags.length - 3}
-              </Badge>
-            )}
-          </div>
-        )}
 
         {/* Detail rows - driven by field preferences */}
         <CardDetailRows opportunity={opportunity} contact={contact} activeFields={activeFields} layout={layout} isFieldActive={isFieldActive} />
