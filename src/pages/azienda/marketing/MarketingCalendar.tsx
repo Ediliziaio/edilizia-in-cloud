@@ -120,6 +120,7 @@ export default function MarketingCalendar() {
         .from("appointments")
         .select("*")
         .eq("company_id", companyId)
+        .not("calendar_id", "is", null)
         .order("appointment_date", { ascending: true });
       return (data || []) as any[];
     },
@@ -142,7 +143,8 @@ export default function MarketingCalendar() {
   // Filtered
   const filteredAppointments = useMemo(() => {
     return appointments.filter((a: any) => {
-      if (selectedCalendarIds.length > 0 && a.calendar_id && !selectedCalendarIds.includes(a.calendar_id))
+      if (!a.calendar_id) return false;
+      if (selectedCalendarIds.length > 0 && !selectedCalendarIds.includes(a.calendar_id))
         return false;
       if (selectedUserIds.length > 0 && a.assigned_to && !selectedUserIds.includes(a.assigned_to))
         return false;
