@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { PipelineSelector } from "@/components/opportunities/PipelineSelector";
 import { OpportunityKanbanView } from "@/components/opportunities/OpportunityKanbanView";
+import { OpportunityListView } from "@/components/opportunities/OpportunityListView";
 import { OpportunityDialog } from "@/components/opportunities/OpportunityDialog";
 import { OpportunityFiltersSheet, OpportunityFilters, EMPTY_FILTERS, countActiveFilters } from "@/components/opportunities/OpportunityFiltersSheet";
 import { BulkEditSheet } from "@/components/opportunities/BulkEditSheet";
@@ -24,6 +25,7 @@ export default function MarketingOpportunities() {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<OpportunityFilters>(EMPTY_FILTERS);
   const { data: staff = [] } = useCompanyStaff();
@@ -170,7 +172,12 @@ export default function MarketingOpportunities() {
         <div className="flex items-center gap-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button
+                variant={viewMode === "kanban" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setViewMode("kanban")}
+              >
                 <LayoutGrid className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -178,7 +185,12 @@ export default function MarketingOpportunities() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toast.info("Vista lista in arrivo")}>
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setViewMode("list")}
+              >
                 <List className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -298,12 +310,21 @@ export default function MarketingOpportunities() {
               </div>
             </div>
           )}
-          <OpportunityKanbanView
-            stages={stages}
-            opportunities={filteredOpportunities}
-            selectedIds={selectedIds}
-            onSelect={handleSelect}
-          />
+          {viewMode === "list" ? (
+            <OpportunityListView
+              stages={stages}
+              opportunities={filteredOpportunities}
+              selectedIds={selectedIds}
+              onSelect={handleSelect}
+            />
+          ) : (
+            <OpportunityKanbanView
+              stages={stages}
+              opportunities={filteredOpportunities}
+              selectedIds={selectedIds}
+              onSelect={handleSelect}
+            />
+          )}
         </>
       )}
 
