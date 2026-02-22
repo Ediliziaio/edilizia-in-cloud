@@ -75,6 +75,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
   // Contact fields
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [contactCity, setContactCity] = useState("");
   const [contactCustomValues, setContactCustomValues] = useState<Record<string, string>>({});
 
   // Opportunity fields
@@ -129,6 +130,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
       const contact = opportunity.marketing_contacts;
       setContactEmail(contact?.email || "");
       setContactPhone(contact?.phone || "");
+      setContactCity(contact?.city || "");
       setName(opportunity.name || "");
       setStageId(opportunity.stage_id || "");
       setStatus(opportunity.status || "open");
@@ -230,8 +232,8 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
     }
 
     // 2. Update contact base fields if changed (only if not changing contact)
-    if (!pendingContactId && !showNewContactForm && contact && (contactEmail !== (contact.email || "") || contactPhone !== (contact.phone || ""))) {
-      updateContact.mutate({ id: contact.id, email: contactEmail || null, phone: contactPhone || null });
+    if (!pendingContactId && !showNewContactForm && contact && (contactEmail !== (contact.email || "") || contactPhone !== (contact.phone || "") || contactCity !== (contact.city || ""))) {
+      updateContact.mutate({ id: contact.id, email: contactEmail || null, phone: contactPhone || null, city: contactCity || null });
     }
 
     // 3. Upsert contact custom field values
@@ -533,16 +535,11 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
                         </div>
                       )}
 
-                      {(!hideEmpty) && !showNewContactForm && (
+                      {(!hideEmpty || contactCity) && !showNewContactForm && (
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Contatti aggiuntivo</Label>
-                          <p className="text-xs text-muted-foreground italic px-1">Aggiungi altri contatti</p>
+                          <Label className="text-xs text-muted-foreground">Città</Label>
+                          <Input value={contactCity} onChange={(e) => setContactCity(e.target.value)} className="h-8 text-sm" />
                         </div>
-                      )}
-
-                      {/* Custom contact fields */}
-                      {contactCustomFields.map((field: any) =>
-                        renderCustomField(field, contactCustomValues, setContactCustomValues)
                       )}
                     </div>
                   </div>
