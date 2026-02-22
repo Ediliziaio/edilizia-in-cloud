@@ -1,51 +1,90 @@
 
 
-# Redesign Dialog "Nuovo Calendario" (stile GHL)
+# Pulizia e stabilizzazione Calendari Marketing
 
-## Panoramica
+## Bug trovati
 
-Ricostruire il dialog `CalendarDialog.tsx` per replicare fedelmente il layout di GoHighLevel, senza il campo "URL personalizzato" come richiesto.
+1. **Variabile inutilizzata**: `availInitialized` (riga 247) - `useState(false)` mai usato
+2. **Uso errato di useState come side-effect** (righe 270-272): `useState(() => { initAvailability(); })` non e il modo corretto per inizializzare dati. Deve essere `useEffect`
+3. **setState durante il render** (righe 275-297 e 308-322): il pattern `if (key !== prevKey) { setPrevKey(...); setLocalState(...) }` causa aggiornamenti di stato durante il rendering, potenziale fonte di loop infiniti e warning React. Va sostituito con `useEffect`
+4. **Funzione `initAvailability`** (riga 250): definita ma mai chiamata correttamente (solo dal `useState` rotto)
 
----
-
-## Layout del nuovo dialog (dall'alto in basso)
-
-1. **Titolo**: "Nuovo calendario" (o "Modifica calendario")
-2. **Nome del calendario** - Input con label + icona info tooltip, placeholder "(es.) Portata in uscita"
-3. **"— Rimuovi descrizione" / "+ Aggiungi descrizione"** - Link toggle per mostrare/nascondere il campo descrizione
-4. **Descrizione** (collassabile) - Textarea con placeholder "Scrivi descrizione" (niente rich text editor per semplicita)
-5. **Seleziona membro del team** - Select con label + icona info tooltip, lista dei membri admin/staff della company
-6. **Durata dell'incontro** - Input numerico + Select unita (Minuti/Ore), con icona info tooltip
-7. **Nota informativa**: "Per personalizzare ulteriormente il tuo orario di lavoro, vai alle impostazioni avanzate."
-8. **Footer**: Link "Impostazioni avanzate" a sinistra, bottoni "Annulla" e "Conferma" a destra
-
----
-
-## Modifiche tecniche
-
-### File: `src/components/settings/CalendarDialog.tsx` (riscrittura)
-
-| Elemento | Dettaglio |
-|----------|-----------|
-| Campo "Nome del calendario" | Label con Tooltip info icon, placeholder "(es.) Portata in uscita" |
-| Descrizione collapsabile | State `showDescription`, toggle con link "— Rimuovi descrizione" / "+ Aggiungi descrizione" |
-| Team member select | Query `profiles` filtrata per `company_id`, solo ruoli `company_admin` e `company_staff`. Usa pattern simile a `AssignedToSelect` |
-| Durata | Input numerico (default 30) + Select per unita ("Minuti" / "Ore") |
-| Impostazioni avanzate | Link che porta al tab Disponibilita nella stessa pagina |
-| Footer layout | `justify-between` con link a sinistra e bottoni a destra |
-| Rimuovere | Campi "Gruppo" e "Tipo" dal dialog principale (restano gestibili dalla tabella) |
-
-### Aggiornamento interfaccia `CalendarFormData`
-
-Aggiungere `owner_id: string` per il membro del team selezionato. Rimuovere `group_name` e `calendar_type` dal dialog (verranno impostati con valori default).
+## Soluzione tecnica
 
 ### File: `src/components/settings/MarketingCalendarsConfig.tsx`
 
-Aggiornare la chiamata al dialog per passare/ricevere `owner_id` e gestire i valori default per `group_name` e `calendar_type`.
+**Rimozioni:**
+- Variabile `availInitialized` (riga 247)
+- Funzione `initAvailability` standalone (righe 250-267)
+- Pattern `useState(() => { ... })` errato (righe 270-272)
+- Variabili `prevAvailKey` e `prevPrefsKey` con relative logiche di confronto durante il render (righe 275-297, 308-322)
+
+**Sostituzione con useEffect puliti:**
+
+```typescript
+// Sync availability from query data
+useEffect(() => {
+  if (availability.length > 0) {
+    setLocalAvail(
+      availability
+        .filter(a => a.specific_date === null)
+        .map(a => ({
+          day_of_week: a.day_of_week!,
+          start_time: a.start_time,
+          end_time: a.end_time,
+          is_enabled: a.is_enabled,
+        }))
+    );
+  } else if (selectedCalendarId) {
+    setLocalAvail(
+      DAYS.map(d => ({
+        day_of_week: d.value,
+        start_time: "09:00",
+        end_time: "18:00",
+        is_enabled: d.value >= 1 && d.value <= 5,
+      }))
+    );
+  }
+}, [availability, selectedCalendarId]);
+
+// Sync preferences from query data
+useEffect(() => {
+  if (preferences) {
+    setLocalPrefs({
+      week_start_day: preferences.week_start_day,
+      time_format: preferences.time_format,
+      language: preferences.language,
+      show_services_menu: preferences.show_services_menu,
+      show_rooms: preferences.show_rooms,
+      show_equipment: preferences.show_equipment,
+    });
+  }
+}, [preferences]);
+```
+
+**Aggiunta import `useEffect`**: gia presente nella signature ma va confermato che sia importato (attualmente importa solo `useState`; va aggiunto `useEffect`).
 
 ---
 
+## Elenco rimozioni
+
+| Elemento | Riga | Motivo |
+|----------|------|--------|
+| `availInitialized` | 247 | Mai usata |
+| `initAvailability()` | 250-267 | Sostituita da useEffect |
+| `useState(() => {...})` | 270-272 | Uso errato di useState |
+| `prevAvailKey` + logica render-time | 275-297 | Anti-pattern React |
+| `prevPrefsKey` + logica render-time | 308-322 | Anti-pattern React |
+
+## Miglioramenti UX
+
+- Nessun rischio di loop di rendering
+- Stato locale sempre sincronizzato correttamente con i dati del server
+- Nessun warning React in console
+
 ## Nessuna modifica al database
 
-Le colonne esistenti supportano gia tutti i campi. `owner_id` e gia presente nella tabella `marketing_calendars`.
+## File modificati: 1
+
+- `src/components/settings/MarketingCalendarsConfig.tsx`
 
