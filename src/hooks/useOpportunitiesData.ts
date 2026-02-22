@@ -112,6 +112,7 @@ export function useUpdateOpportunity() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities"] });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -162,6 +163,7 @@ export function useUpdateOpportunityStage() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities"] });
     },
   });
 }
