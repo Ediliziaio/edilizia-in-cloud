@@ -1,113 +1,127 @@
 
-# Filtri Avanzati con Navigazione a Sub-Schermata (Stile GHL)
+# Filtri Avanzati Dinamici - Stile GHL
 
 ## Panoramica
 
-Ristrutturare il `ContactFiltersSheet` per replicare l'esperienza GHL: ogni filtro e una riga cliccabile che apre una **sub-schermata** all'interno dello stesso Sheet, dove l'utente puo scegliere un **operatore** (E, Non e, E vuoto, Non e vuoto) e inserire il valore.
+Ristrutturare completamente il sistema di filtri per replicare l'approccio GHL: invece di sezioni fisse con campi predefiniti, l'utente aggiunge **regole di filtro dinamiche** una alla volta. Ogni regola ha un campo selezionabile, un operatore e un valore. Le regole possono essere combinate con logica **E (AND)** oppure **O (OR)**.
 
-## Come funziona (UX)
+## Come funziona (UX - identico a GHL)
 
-1. Lo Sheet si apre e mostra la **lista dei filtri** raggruppati per sezione (Informazioni contatto, Attivita, Opportunita, Tag, Campi personalizzati)
-2. L'utente clicca su un filtro (es. "Citta")
-3. Lo Sheet naviga a una **sub-schermata** con:
-   - Header con nome del campo e freccia indietro
-   - Dropdown operatore: E / Non e / Non e vuoto / E vuoto
-   - Campo di input per il valore (visibile solo per "E" e "Non e")
-   - Pulsante "Applica" per confermare e tornare alla lista
-4. I filtri attivi vengono evidenziati nella lista con un badge/dot blu e il valore impostato
-5. Footer con "Rimuovi tutti i filtri" + "Applica" (come GHL)
+1. Lo Sheet si apre con la lista delle regole attive (inizialmente vuota)
+2. In alto: toggle **E / O** per la logica di combinazione
+3. Ogni regola di filtro mostra:
+   - Nome del campo (con icona matita per cambiare)
+   - Dropdown operatore (E, Non e, E vuoto, Non e vuoto)
+   - Campo di input per il valore
+   - Icona cestino per eliminare la regola
+4. Sotto le regole: link **"+ Aggiungi filtro"** per aggiungere una nuova regola
+5. Footer: **"Rimuovi tutti i filtri"** a sinistra, **"Cancel"** e **"Apply"** a destra
+6. Quando si clicca su un campo o su "+ Aggiungi filtro", si apre un picker per scegliere il campo da filtrare (lista di tutti i campi disponibili raggruppati)
 
-## Nuovo modello dati filtri
-
-Ogni filtro diventa un oggetto con operatore e valore:
+## Nuovo modello dati
 
 ```text
-interface FilterCondition {
+interface FilterRule {
+  id: string;                // ID univoco della regola (generato)
+  field: string;             // Chiave del campo (es. "city", "email", "opp_pipeline", "cf_<id>")
   operator: "is" | "is_not" | "is_empty" | "is_not_empty" | "contains" | "gte" | "lte";
   value: string;
 }
 
 interface ContactFilters {
-  // Campi standard - ognuno con operatore
-  name: FilterCondition | null;
-  email: FilterCondition | null;
-  phone: FilterCondition | null;
-  company: FilterCondition | null;
-  source: FilterCondition | null;
-  city: FilterCondition | null;
-  province: FilterCondition | null;
-  // Date
-  dateFrom: string;
-  dateTo: string;
-  activityFrom: string;
-  activityTo: string;
-  // Collections
-  tags: string[];
-  pipelineId: string;
-  stageId: string;
-  oppStatuses: string[];
-  customFields: Record<string, FilterCondition>;
+  logic: "and" | "or";       // Logica di combinazione tra regole
+  rules: FilterRule[];       // Lista dinamica di regole
 }
 ```
 
-## Operatori per tipo di campo
+## Campi disponibili nel picker
 
-| Tipo campo | Operatori disponibili |
-|------------|----------------------|
-| Testo (nome, email, citta...) | E, Non e, Non e vuoto, E vuoto |
-| Data | Da / A (range picker, come ora) |
-| Tag | Selezione multipla chip (come ora) |
-| Pipeline/Stage/Status | Select/Checkbox (come ora) |
-| Custom field testo | E, Non e, Non e vuoto, E vuoto |
-| Custom field select | E, Non e, Non e vuoto, E vuoto |
-| Custom field numero | E, Non e, Non e vuoto, E vuoto |
-| Custom field data | Da / A |
+| Gruppo | Campi |
+|--------|-------|
+| Informazioni contatto | Nome, Email, Telefono, Azienda, Fonte, Citta, Provincia |
+| Date | Data creazione, Ultima attivita |
+| Tag | Tag |
+| Opportunita | Sequenza (pipeline), Fase, Stato |
+| Campi personalizzati | Tutti i custom fields di tipo "contact" |
 
-## Struttura del componente
+## Operatori disponibili per tipo
 
-Il `ContactFiltersSheet` avra due "schermate" interne gestite con uno stato `activeField`:
-
-### Schermata 1 - Lista filtri (activeField = null)
-- Barra di ricerca filtri
-- Sezioni collapsible:
-  - **Informazioni di contatto**: Nome, Email, Telefono, Azienda, Fonte, Citta, Provincia
-  - **Attivita di contatto**: Data creazione, Ultima attivita
-  - **Informazioni sulle opportunita**: Sequenza, Fase, Stato
-  - **Tag**: Tag
-  - **Campi personalizzati**: Raggruppati per sezione
-- Ogni riga mostra il nome del campo. Se ha un filtro attivo, mostra il valore/operatore con un dot blu
-- Footer: "Rimuovi tutti i filtri" a sinistra + "Cancel" e "Apply" a destra
-
-### Schermata 2 - Dettaglio filtro (activeField = "city" etc.)
-- Header: freccia indietro + nome campo (es. "Citta") + icona edit
-- Dropdown operatore con checkmark sull'attivo
-- Input valore (nascosto se operatore e "E vuoto" / "Non e vuoto")
-- Link "+ Add nested filter" (solo UI, non funzionale per ora)
-- Conferma automatica al ritorno alla lista
+| Tipo campo | Operatori |
+|------------|-----------|
+| Testo | E, Non e, E vuoto, Non e vuoto |
+| Data | E, Non e, E vuoto, Non e vuoto (valore = date input) |
+| Tag | E (valore = tag selezionato), Non e |
+| Pipeline/Stage | E (valore = select), Non e |
+| Stato opp | E, Non e |
 
 ## Logica query aggiornata
 
-In `MarketingContacts.tsx`, la logica di query viene aggiornata per gestire gli operatori:
+In `MarketingContacts.tsx`, la query viene costruita dinamicamente:
 
-| Operatore | Query Supabase |
-|-----------|---------------|
-| is (E) | `.ilike(field, "%value%")` per testo, `.eq(field, value)` per select |
-| is_not (Non e) | `.not(field, "ilike", "%value%")` |
-| is_empty (E vuoto) | `.is(field, null)` oppure `.eq(field, "")` |
-| is_not_empty (Non e vuoto) | `.not(field, "is", null)` |
+1. Separare le regole in 3 gruppi: standard (campi contatto), opportunita, custom fields
+2. Per le regole standard: applicare filtri direttamente sulla query `marketing_contacts`
+3. Per le regole opportunita: query su `marketing_opportunities` per ottenere `contact_id`
+4. Per le regole custom fields: query su `marketing_contact_field_values` per ottenere `contact_id`
+5. Se logica = AND: intersecare tutti gli ID, applicare filtri standard con `.and()`
+6. Se logica = OR: unire tutti gli ID, applicare filtri standard con `.or()`
 
 ## File coinvolti
 
 | File | Azione |
 |------|--------|
-| `src/components/marketing/ContactFiltersSheet.tsx` | Riscrittura completa con navigazione a sub-schermata, operatori, UX GHL |
-| `src/pages/azienda/marketing/MarketingContacts.tsx` | Aggiornare tipo `ContactFilters`, logica query per operatori |
+| `src/components/marketing/ContactFiltersSheet.tsx` | Riscrittura completa: regole dinamiche, toggle AND/OR, field picker, layout GHL |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Aggiornare tipo ContactFilters, riscrivere logica query per regole dinamiche con AND/OR |
 
 ## Dettagli tecnici
 
-- La navigazione tra lista e dettaglio e gestita con `useState<string | null>(null)` per `activeField`
-- Transizione fluida con CSS (translate-x animato) tra le due schermate
-- Il footer "Rimuovi tutti i filtri" resetta tutto a `EMPTY_CONTACT_FILTERS`
-- I filtri attivi mostrano un cerchio blu e il testo "E: Roma" accanto al nome campo nella lista
-- La `countActiveContactFilters` viene aggiornata per contare le `FilterCondition` non null
-- Backward compatible: i filtri date, tag, pipeline restano con la stessa struttura attuale
+### ContactFiltersSheet - Struttura interna
+
+Il componente gestisce due viste:
+- **Vista principale**: lista delle regole + toggle AND/OR + "+ Aggiungi filtro"
+- **Vista field picker**: lista raggruppata di tutti i campi disponibili (si apre quando si aggiunge/modifica un campo)
+
+Ogni regola viene renderizzata come un blocco compatto:
+```text
+[Citta (pencil)] [E (dropdown)] [Roma (input)] [trash]
+```
+
+Il toggle AND/OR e un segmented control in alto che cambia `logic` tra "and" e "or".
+
+### Query builder in MarketingContacts.tsx
+
+La funzione `applyFilterCondition` viene rimossa e sostituita da un sistema che itera sulle `rules`:
+
+```text
+for each rule in filters.rules:
+  if rule.field is standard -> apply to main query
+  if rule.field starts with "opp_" -> add to opportunity sub-query
+  if rule.field starts with "cf_" -> add to custom field sub-query
+  if rule.field is "tags" -> apply overlaps
+  if rule.field is date -> apply gte/lte
+```
+
+Se `logic = "and"`: tutti i filtri standard vengono applicati in sequenza (AND implicito di Supabase), gli ID vengono intersecati.
+Se `logic = "or"`: i filtri standard vengono combinati con `.or()`, gli ID vengono uniti.
+
+### countActiveContactFilters
+
+Diventa semplicemente `filters.rules.length`.
+
+### EMPTY_CONTACT_FILTERS
+
+Diventa `{ logic: "and", rules: [] }`.
+
+### Field picker
+
+Un pannello con ricerca che mostra i campi raggruppati. Quando l'utente seleziona un campo, viene creata una nuova regola con operatore default "is" e valore vuoto, e il picker si chiude tornando alla vista principale.
+
+### Validazione
+
+Una regola con operatore "is" o "is_not" senza valore mostra un messaggio rosso "Minimo 3 caratteri richiesti" (come GHL) e non viene applicata alla query.
+
+### UX miglioramenti
+
+- Transizione fluida tra vista principale e field picker
+- I campi gia usati in una regola vengono comunque mostrati nel picker (si possono avere piu regole sullo stesso campo)
+- Feedback visivo per regole incomplete (bordo rosso sull'input)
+- Il pulsante "Apply" e disabilitato se ci sono regole con valori richiesti ma vuoti
