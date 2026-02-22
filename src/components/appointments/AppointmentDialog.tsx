@@ -92,12 +92,21 @@ export function AppointmentDialog({
     queryKey: ["assignable-users", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data } = await supabase
+      const { data: profiles } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
         .eq("company_id", companyId)
         .order("last_name");
-      return data || [];
+      if (!profiles?.length) return [];
+      const userIds = profiles.map((p) => p.id);
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds);
+      const validUserIds = roles
+        ?.filter((r) => r.role === "company_admin" || r.role === "company_staff")
+        .map((r) => r.user_id) || [];
+      return profiles.filter((p) => validUserIds.includes(p.id));
     },
     enabled: open && !!companyId,
   });

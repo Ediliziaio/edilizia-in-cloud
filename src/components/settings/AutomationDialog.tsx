@@ -106,7 +106,17 @@ export function AutomationDialog({ open, onOpenChange, automation, onSaved }: Pr
         supabase.from("profiles").select("id, first_name, last_name").eq("company_id", effectiveCompany.id),
       ]);
       if (statusRes.data) setOrderStatuses(statusRes.data);
-      if (usersRes.data) setCompanyUsers(usersRes.data.map(u => ({ id: u.id, name: `${u.first_name} ${u.last_name}` })));
+      if (usersRes.data) {
+        const userIds = usersRes.data.map((p) => p.id);
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", userIds);
+        const validUserIds = roles
+          ?.filter((r) => r.role === "company_admin" || r.role === "company_staff")
+          .map((r) => r.user_id) || [];
+        setCompanyUsers(usersRes.data.filter((p) => validUserIds.includes(p.id)).map(u => ({ id: u.id, name: `${u.first_name} ${u.last_name}` })));
+      }
     };
     fetchData();
   }, [effectiveCompany?.id]);
