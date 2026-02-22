@@ -1,148 +1,100 @@
 
-# Implementazione Pipeline/Sequenze + Opportunita (stile GHL)
+
+# Aggiunta Campi Personalizzati Opportunita alla sezione Campi Personalizzati
 
 ## Panoramica
 
-Costruire un sistema completo di pipeline di vendita ispirato a GoHighLevel con:
-1. **Impostazioni > Sequenze**: gestione delle pipeline e relative fasi
-2. **Opportunita**: vista kanban con card contatto, collegata ai contatti marketing
+Estendere la pagina "Campi Personalizzati" per supportare sia i campi dei Contatti che quelli delle Opportunita, esattamente come in GHL. L'interfaccia mostrera entrambi gli oggetti (Contatto e Opportunita) nella stessa tabella unificata, con la possibilita di creare campi custom per entrambi.
 
 ---
 
-## FASE 1: Database - Nuove Tabelle
+## FASE 1: Database - Estensione tabella e nuova tabella valori
 
-### Tabella `marketing_pipelines`
+### Modifica `marketing_custom_fields`
+Aggiungere colonna `object_type` per distinguere a quale oggetto appartiene il campo:
+- `object_type TEXT NOT NULL DEFAULT 'contact'` (valori: `'contact'`, `'opportunity'`)
+
+### Nuova tabella `marketing_opportunity_field_values`
 | Colonna | Tipo | Note |
 |---|---|---|
 | id | uuid | PK |
-| company_id | uuid | FK companies |
-| name | text | Nome della sequenza/pipeline |
-| position | integer | Ordine di visualizzazione |
+| opportunity_id | uuid | FK marketing_opportunities |
+| field_id | uuid | FK marketing_custom_fields |
+| value | text | Valore del campo |
 | created_at | timestamptz | Default now() |
-| updated_at | timestamptz | Default now() |
 
-### Tabella `marketing_pipeline_stages`
-| Colonna | Tipo | Note |
+RLS policies: stesse pattern delle altre tabelle marketing (company_admin ALL, staff SELECT, super_admin ALL), con join a `marketing_opportunities` per verificare `company_id`.
+
+---
+
+## FASE 2: Campi di sistema Opportunita (built-in)
+
+Aggiungere nella lista statica `BUILTIN_FIELDS` i seguenti campi di sistema per le opportunita:
+
+| Nome | Chiave Univoca | Cartella |
 |---|---|---|
-| id | uuid | PK |
-| pipeline_id | uuid | FK marketing_pipelines |
-| company_id | uuid | FK companies (per RLS) |
-| name | text | Nome della fase |
-| position | integer | Ordine nella pipeline |
-| show_in_reports | boolean | Default true |
-| created_at | timestamptz | Default now() |
-
-### Tabella `marketing_opportunities`
-| Colonna | Tipo | Note |
-|---|---|---|
-| id | uuid | PK |
-| company_id | uuid | FK companies |
-| contact_id | uuid | FK marketing_contacts |
-| pipeline_id | uuid | FK marketing_pipelines |
-| stage_id | uuid | FK marketing_pipeline_stages |
-| name | text | Nome opportunita |
-| value | numeric | Valore in EUR, default 0 |
-| status | text | 'open', 'won', 'lost' default 'open' |
-| source | text | Fonte dell'opportunita |
-| assigned_to | uuid | Titolare |
-| follower_id | uuid | Follower |
-| company_name | text | Nome azienda (opzionale) |
-| notes | text | Note |
-| created_at | timestamptz | Default now() |
-| updated_at | timestamptz | Default now() |
-
-### RLS Policies
-Stesse pattern delle altre tabelle marketing:
-- company_admin: ALL con company_id match
-- staff con `can_view_orders`: SELECT
-- super_admin: ALL
+| Opportunity Name | `{{ opportunity.name }}` | Opportunita Details |
+| Pipeline | `{{ opportunity.pipeline_id }}` | Opportunita Details |
+| Stage | `{{ opportunity.pipeline_stage_id }}` | Opportunita Details |
+| Status | `{{ opportunity.status }}` | Opportunita Details |
+| Lead Value | `{{ opportunity.monetary_value }}` | Opportunita Details |
+| Opportunity Owner | `{{ opportunity.assigned_to }}` | Opportunita Details |
+| Opportunity Source | `{{ opportunity.source }}` | Opportunita Details |
+| Lost Reason | `{{ opportunity.lost_reason }}` | Opportunita Details |
 
 ---
 
-## FASE 2: Impostazioni - Sezione "Sequenze"
+## FASE 3: Modifiche UI in `CustomFieldsConfig.tsx`
 
-### Nuovi file
-| File | Descrizione |
-|---|---|
-| `src/pages/azienda/settings/SettingsPipelines.tsx` | Pagina wrapper (come SettingsOrderStatus) |
-| `src/components/settings/PipelinesConfig.tsx` | Componente principale: lista pipeline con CRUD |
-| `src/components/settings/PipelineStagesConfig.tsx` | Gestione fasi di una singola pipeline (drag-and-drop) |
+### Costanti
+- Aggiungere colore e label per cartella `opportunity_details` (es. viola)
+- Aggiungere oggetto `"Opportunita"` tra gli oggetti disponibili
 
-### Modifiche esistenti
-| File | Modifica |
-|---|---|
-| `src/components/layouts/CompanyLayout.tsx` | Aggiungere voce "Sequenze" nella sidebar impostazioni sotto "Marketing e Vendita" con icona `GitBranch` |
-| `src/App.tsx` | Aggiungere route `impostazioni/sequenze` |
+### Dialog "Aggiungi campo"
+- Aggiungere un select "Oggetto" con opzioni `Contatto` / `Opportunita`
+- Il valore selezionato viene salvato come `object_type` nella tabella `marketing_custom_fields`
+- Le sezioni disponibili cambiano in base all'oggetto selezionato:
+  - **Contatto**: Contatto, Informazioni generali, Informazioni aggiuntive
+  - **Opportunita**: Opportunita Details
 
-### Funzionalita
-- Lista pipeline con nome, numero fasi, data aggiornamento
-- Pulsante "+ Crea Sequenza" (dialog con nome)
-- Click su pipeline -> vista dettaglio fasi
-- Fasi: drag-and-drop per riordinare, aggiungere, eliminare
-- Pulsante freccia indietro per tornare alla lista pipeline
+### Tabella
+- I campi custom con `object_type = 'opportunity'` vengono mostrati con oggetto "Opportunita" e chiave `{{ opportunity.campo }}`
+- I campi filtrabili per oggetto tramite il "Raggruppa per" (attivare il filtro con opzioni: Tutto, Contatto, Opportunita)
+
+### Ricerca
+- La ricerca filtra anche per oggetto
 
 ---
 
-## FASE 3: Pagina Opportunita (Kanban)
+## FASE 4: Integrazione nei componenti Opportunita
 
-### Nuovi file
-| File | Descrizione |
-|---|---|
-| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Riscrittura completa della pagina |
-| `src/components/opportunities/OpportunityKanbanView.tsx` | Vista kanban con colonne per fase |
-| `src/components/opportunities/OpportunityCard.tsx` | Card singola opportunita con dati contatto |
-| `src/components/opportunities/OpportunityDialog.tsx` | Dialog creazione/modifica opportunita |
-| `src/components/opportunities/PipelineSelector.tsx` | Select per scegliere la pipeline in alto a sinistra |
-| `src/hooks/useOpportunitiesData.ts` | Hook per fetch opportunita e pipeline |
-
-### Layout pagina (dall'immagine GHL)
-- **Header**: selettore pipeline a sinistra, conteggio lead, pulsanti vista (griglia/lista), "Importa", "+ Aggiungi opportunita"
-- **Filtri**: filtri avanzati, ordinamento, ricerca
-- **Kanban**: colonne orizzontali scrollabili, una per ogni fase della pipeline selezionata
-- **Card opportunita**: nome contatto + citta, fonte, valore, email, telefono, icona utente assegnato
-
-### Dialog "Aggiungi Opportunita"
-Due sezioni:
-1. **Contatto**: selezione contatto esistente (combobox con ricerca) oppure creazione rapida nuovo contatto (nome, email, telefono)
-2. **Dettagli opportunita**: nome, sequenza (select), fase (select filtrata), stato, valore, titolare, follower, azienda, fonte
-
-### Drag & Drop
-- Spostamento card tra colonne (cambio fase)
-- Usa @dnd-kit come gia implementato per OrdersPipelineView
+### `OpportunityDialog.tsx`
+- Fetch dei campi custom con `object_type = 'opportunity'`
+- Renderizzare input dinamici nel form di creazione opportunita (sotto i campi standard)
+- Salvare i valori nella tabella `marketing_opportunity_field_values`
 
 ---
 
-## FASE 4: Integrazione con Dettaglio Contatto
+## FASE 5: Fix console warning e pulizia
 
-### Modifica
-| File | Modifica |
-|---|---|
-| `src/pages/azienda/marketing/MarketingContactDetail.tsx` | Tab "Opportunita" nella sidebar destra: mostra lista opportunita collegate al contatto con link e stato |
+- Fix del warning ref gia presente in `CustomFieldsConfig` (la `Select` del footer non e dentro un `forwardRef` - verificare e fixare)
+- Rimuovere variabile `startIdx` inutilizzata (e sempre 0)
+- Attivare il dropdown "Raggruppa per" con le opzioni reali
 
 ---
 
-## Riepilogo file coinvolti
+## Dettaglio tecnico
 
-### Nuovi file (8)
-1. `src/pages/azienda/settings/SettingsPipelines.tsx`
-2. `src/components/settings/PipelinesConfig.tsx`
-3. `src/components/settings/PipelineStagesConfig.tsx`
-4. `src/components/opportunities/OpportunityKanbanView.tsx`
-5. `src/components/opportunities/OpportunityCard.tsx`
-6. `src/components/opportunities/OpportunityDialog.tsx`
-7. `src/components/opportunities/PipelineSelector.tsx`
-8. `src/hooks/useOpportunitiesData.ts`
+### File modificati
+1. **`src/components/settings/CustomFieldsConfig.tsx`** - Aggiungere built-in opportunity fields, select oggetto nel dialog, filtro per oggetto, pulizia codice
+2. **`src/components/opportunities/OpportunityDialog.tsx`** - Aggiungere rendering campi custom opportunita + salvataggio valori
 
-### File modificati (4)
-1. `src/App.tsx` - nuova route impostazioni/sequenze
-2. `src/components/layouts/CompanyLayout.tsx` - voce sidebar "Sequenze"
-3. `src/pages/azienda/marketing/MarketingOpportunities.tsx` - riscrittura completa
-4. `src/pages/azienda/marketing/MarketingContactDetail.tsx` - tab opportunita funzionante
+### Migrazione database (1)
+- ALTER TABLE `marketing_custom_fields` ADD COLUMN `object_type`
+- CREATE TABLE `marketing_opportunity_field_values` con RLS
 
-### Migrazioni database (1)
-- Creazione tabelle `marketing_pipelines`, `marketing_pipeline_stages`, `marketing_opportunities` con RLS
+### Cosa NON cambia
+- Nessuna modifica ai campi contatto esistenti
+- Nessuna modifica alle pipeline/fasi
+- Nessuna modifica alla struttura di navigazione
 
-## Cosa NON cambia
-- Nessuna modifica ai moduli esistenti (ordini, magazzino, etc.)
-- Nessuna modifica ai contatti marketing esistenti
-- Nessuna modifica alla struttura di autenticazione
