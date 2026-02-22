@@ -41,6 +41,75 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
     queryKey: ["tasks", "linked", filterKey],
     queryFn: async () => {
       if (!companyId) return [];
+
+      if (contactId) {
+        // Load tasks for this contact + tasks linked to any opportunity of this contact
+        const [contactRes, oppsRes] = await Promise.all([
+          supabase
+            .from("tasks")
+            .select("*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
+            .eq("company_id", companyId)
+            .eq("contact_id", contactId)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("marketing_opportunities")
+            .select("id")
+            .eq("contact_id", contactId)
+            .eq("company_id", companyId),
+        ]);
+        if (contactRes.error) throw contactRes.error;
+        const oppIds = (oppsRes.data || []).map((o: any) => o.id);
+        let oppTasks: any[] = [];
+        if (oppIds.length > 0) {
+          const { data, error } = await supabase
+            .from("tasks")
+            .select("*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
+            .eq("company_id", companyId)
+            .in("opportunity_id", oppIds)
+            .order("created_at", { ascending: false });
+          if (error) throw error;
+          oppTasks = data || [];
+        }
+        // Merge and deduplicate
+        const allTasks = [...(contactRes.data || []), ...oppTasks];
+        const seen = new Set<string>();
+        return allTasks.filter((t) => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+      }
+
+      if (opportunityId) {
+        // Load tasks for this opportunity + generic tasks of the linked contact
+        const oppRes = await supabase
+          .from("tasks")
+          .select("*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
+          .eq("company_id", companyId)
+          .eq("opportunity_id", opportunityId)
+          .order("created_at", { ascending: false });
+        if (oppRes.error) throw oppRes.error;
+
+        // Find the contact_id from the opportunity
+        const { data: opp } = await supabase
+          .from("marketing_opportunities")
+          .select("contact_id")
+          .eq("id", opportunityId)
+          .maybeSingle();
+
+        let contactTasks: any[] = [];
+        if (opp?.contact_id) {
+          const { data, error } = await supabase
+            .from("tasks")
+            .select("*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
+            .eq("company_id", companyId)
+            .eq("contact_id", opp.contact_id)
+            .is("opportunity_id", null)
+            .order("created_at", { ascending: false });
+          if (error) throw error;
+          contactTasks = data || [];
+        }
+        const allTasks = [...(oppRes.data || []), ...contactTasks];
+        const seen = new Set<string>();
+        return allTasks.filter((t) => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+      }
+
       let query = supabase
         .from("tasks")
         .select("*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
@@ -50,8 +119,6 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       if (orderId) query = query.eq("order_id", orderId);
       else if (stockItemId) query = query.eq("stock_item_id", stockItemId);
       else if (costId) query = query.eq("cost_id", costId);
-      else if (contactId) query = query.eq("contact_id", contactId);
-      else if (opportunityId) query = query.eq("opportunity_id", opportunityId);
       else return [];
 
       const { data, error } = await query;

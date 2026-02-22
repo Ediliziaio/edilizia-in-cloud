@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
   FileText, Activity, StickyNote, CalendarDays, Target, Plus, Send, Search,
-  Bell, User, Settings, X, Filter,
+  Bell, User, Settings, X, Filter, UserPlus, ArrowRight, RefreshCw, UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,21 +102,35 @@ function getAvatarColor(name: string) {
 // ── Activity type icons & labels ──
 function getActivityIcon(type: string) {
   switch (type) {
-    case "created": return <User className="h-3.5 w-3.5" />;
+    case "created":
+    case "contact_created": return <UserPlus className="h-3.5 w-3.5" />;
     case "updated": return <Settings className="h-3.5 w-3.5" />;
     case "note_added": return <StickyNote className="h-3.5 w-3.5" />;
     case "email_sent": return <Mail className="h-3.5 w-3.5" />;
-    case "opportunity_linked": return <Target className="h-3.5 w-3.5" />;
+    case "opportunity_linked":
+    case "opportunity_created": return <Target className="h-3.5 w-3.5" />;
+    case "stage_changed": return <ArrowRight className="h-3.5 w-3.5" />;
+    case "status_changed": return <RefreshCw className="h-3.5 w-3.5" />;
+    case "opportunity_assigned":
+    case "contact_assigned": return <UserCheck className="h-3.5 w-3.5" />;
+    case "document_uploaded": return <FileText className="h-3.5 w-3.5" />;
     default: return <Activity className="h-3.5 w-3.5" />;
   }
 }
 
 function getActivityColor(type: string) {
   switch (type) {
-    case "created": return "bg-emerald-100 text-emerald-600";
+    case "created":
+    case "contact_created": return "bg-emerald-100 text-emerald-600";
     case "updated": return "bg-blue-100 text-blue-600";
     case "note_added": return "bg-amber-100 text-amber-600";
     case "email_sent": return "bg-violet-100 text-violet-600";
+    case "opportunity_created": return "bg-purple-100 text-purple-600";
+    case "stage_changed": return "bg-sky-100 text-sky-600";
+    case "status_changed": return "bg-orange-100 text-orange-600";
+    case "opportunity_assigned":
+    case "contact_assigned": return "bg-indigo-100 text-indigo-600";
+    case "document_uploaded": return "bg-cyan-100 text-cyan-600";
     default: return "bg-muted text-muted-foreground";
   }
 }
@@ -331,13 +345,15 @@ export default function MarketingContactDetail() {
         .update({ [field]: value, updated_at: new Date().toISOString() })
         .eq("id", id!);
       if (error) throw error;
-      if (companyId) {
+      // Activity logging for field updates (except assigned_to which has a DB trigger)
+      if (companyId && field !== "assigned_to") {
         await supabase.from("marketing_contact_activities").insert({
           contact_id: id!,
           company_id: companyId,
           activity_type: "updated",
           description: `Campo "${field}" aggiornato`,
           created_by: user?.id,
+          metadata: { field, value },
         });
       }
     },
@@ -373,13 +389,7 @@ export default function MarketingContactDetail() {
         created_by: user.id,
       });
       if (error) throw error;
-      await supabase.from("marketing_contact_activities").insert({
-        contact_id: id!,
-        company_id: companyId,
-        activity_type: "note_added",
-        description: "Nota aggiunta",
-        created_by: user.id,
-      });
+      // Note activity is now logged automatically via DB trigger
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_notes", id] });
@@ -755,7 +765,21 @@ export default function MarketingContactDetail() {
                               {format(new Date(act.created_at), "HH:mm", { locale: it })}
                             </p>
                           </div>
-                          <button className="text-[10px] text-primary hover:underline shrink-0">Dettagli</button>
+                          {act.metadata && Object.keys(act.metadata).length > 0 && (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button className="text-[10px] text-primary hover:underline shrink-0">Dettagli</button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-56 p-2.5 text-xs space-y-1" side="left">
+                                {Object.entries(act.metadata as Record<string, any>).map(([key, val]) => (
+                                  <div key={key} className="flex justify-between gap-2">
+                                    <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
+                                    <span className="font-medium text-right truncate max-w-[120px]">{String(val)}</span>
+                                  </div>
+                                ))}
+                              </PopoverContent>
+                            </Popover>
+                          )}
                         </div>
                       ))}
                     </div>
