@@ -215,19 +215,53 @@ export function useCompanyStaff() {
   });
 }
 
-export function useOpportunityNotes(opportunityId: string | null) {
+export function useOpportunityNotes(opportunityId: string | null, contactId?: string | null) {
   return useQuery({
-    queryKey: ["marketing_opportunity_notes", opportunityId],
+    queryKey: ["marketing_contact_notes", "opportunity", opportunityId, contactId],
     queryFn: async () => {
+      if (!contactId) {
+        // Fallback: only notes linked to this opportunity
+        const { data, error } = await supabase
+          .from("marketing_contact_notes")
+          .select("*")
+          .eq("opportunity_id", opportunityId!)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return data;
+      }
+      // Get all notes for the contact (both generic and opportunity-specific)
       const { data, error } = await supabase
-        .from("marketing_opportunity_notes")
+        .from("marketing_contact_notes")
         .select("*")
-        .eq("opportunity_id", opportunityId!)
+        .eq("contact_id", contactId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
     enabled: !!opportunityId,
+  });
+}
+
+export function useAddOpportunityNote() {
+  const queryClient = useQueryClient();
+  const { effectiveCompany, user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ opportunityId, contactId, content }: { opportunityId: string; contactId: string; content: string }) => {
+      const { error } = await supabase.from("marketing_contact_notes").insert({
+        contact_id: contactId,
+        opportunity_id: opportunityId,
+        company_id: effectiveCompany!.id,
+        content,
+        created_by: user!.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact_notes"] });
+      toast.success("Nota aggiunta");
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 }
 
@@ -266,28 +300,6 @@ export function useBulkDeleteOpportunities() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
       toast.success("Opportunità eliminate");
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-}
-
-export function useAddOpportunityNote() {
-  const queryClient = useQueryClient();
-  const { effectiveCompany, user } = useAuth();
-
-  return useMutation({
-    mutationFn: async ({ opportunityId, content }: { opportunityId: string; content: string }) => {
-      const { error } = await supabase.from("marketing_opportunity_notes").insert({
-        opportunity_id: opportunityId,
-        company_id: effectiveCompany!.id,
-        content,
-        created_by: user!.id,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_opportunity_notes"] });
-      toast.success("Nota aggiunta");
     },
     onError: (e: any) => toast.error(e.message),
   });

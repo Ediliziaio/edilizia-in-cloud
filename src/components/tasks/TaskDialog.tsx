@@ -28,6 +28,8 @@ interface TaskData {
   order_id: string | null;
   stock_item_id: string | null;
   cost_id: string | null;
+  contact_id: string | null;
+  opportunity_id: string | null;
   category: string;
 }
 
@@ -40,6 +42,8 @@ interface TaskDialogProps {
   defaultOrderId?: string;
   defaultStockItemId?: string;
   defaultCostId?: string;
+  defaultContactId?: string;
+  defaultOpportunityId?: string;
 }
 
 const PRIORITIES = [
@@ -55,6 +59,9 @@ const CATEGORIES = [
   { value: "magazzino", label: "Magazzino" },
   { value: "pagamenti", label: "Pagamenti" },
   { value: "costi", label: "Costi" },
+  { value: "marketing", label: "Marketing" },
+  { value: "contatti", label: "Contatti" },
+  { value: "opportunita", label: "Opportunità" },
 ];
 
 const STATUSES = [
@@ -63,7 +70,7 @@ const STATUSES = [
   { value: "completata", label: "Completata" },
 ];
 
-export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId }: TaskDialogProps) {
+export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId }: TaskDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
@@ -78,6 +85,8 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   const [orderId, setOrderId] = useState<string>("");
   const [stockItemId, setStockItemId] = useState<string>("");
   const [costId, setCostId] = useState<string>("");
+  const [contactId, setContactId] = useState<string>("");
+  const [opportunityId, setOpportunityId] = useState<string>("");
   const [category, setCategory] = useState("generale");
   const [saving, setSaving] = useState(false);
 
@@ -92,6 +101,8 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       setOrderId(task.order_id || "");
       setStockItemId(task.stock_item_id || "");
       setCostId(task.cost_id || "");
+      setContactId(task.contact_id || "");
+      setOpportunityId(task.opportunity_id || "");
       setCategory(task.category);
     } else {
       setTitle("");
@@ -103,9 +114,11 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       setOrderId(defaultOrderId || "");
       setStockItemId(defaultStockItemId || "");
       setCostId(defaultCostId || "");
+      setContactId(defaultContactId || "");
+      setOpportunityId(defaultOpportunityId || "");
       setCategory(defaultCategory || "generale");
     }
-  }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, onlyAssigned, user?.id]);
+  }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, onlyAssigned, user?.id]);
 
   const { data: assignableUsers = [] } = useQuery({
     queryKey: ["assignable-users", companyId],
@@ -175,6 +188,36 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
     enabled: open && !!companyId && category === "costi",
   });
 
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["task-contacts", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("marketing_contacts")
+        .select("id, first_name, last_name, email")
+        .eq("company_id", companyId)
+        .order("first_name")
+        .limit(100);
+      return data || [];
+    },
+    enabled: open && !!companyId && (category === "contatti" || category === "marketing"),
+  });
+
+  const { data: opportunities = [] } = useQuery({
+    queryKey: ["task-opportunities", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("marketing_opportunities")
+        .select("id, name, value")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      return data || [];
+    },
+    enabled: open && !!companyId && (category === "opportunita" || category === "marketing"),
+  });
+
   const handleSave = async () => {
     if (!title.trim()) {
       toast({ title: "Inserisci un titolo", variant: "destructive" });
@@ -195,6 +238,8 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         order_id: (category === "ordini" || category === "pagamenti") && orderId && orderId !== "none" ? orderId : null,
         stock_item_id: category === "magazzino" && stockItemId && stockItemId !== "none" ? stockItemId : null,
         cost_id: category === "costi" && costId && costId !== "none" ? costId : null,
+        contact_id: (category === "contatti" || category === "marketing") && contactId && contactId !== "none" ? contactId : null,
+        opportunity_id: (category === "opportunita" || category === "marketing") && opportunityId && opportunityId !== "none" ? opportunityId : null,
         category,
         completed_at: status === "completata" ? new Date().toISOString() : null,
       };
@@ -271,7 +316,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
 
             <div className="space-y-2">
               <Label>Categoria</Label>
-              <Select value={category} onValueChange={(v) => { setCategory(v); setOrderId(""); setStockItemId(""); setCostId(""); }}>
+              <Select value={category} onValueChange={(v) => { setCategory(v); setOrderId(""); setStockItemId(""); setCostId(""); setContactId(""); setOpportunityId(""); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((c) => (
@@ -368,6 +413,40 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                   {costs.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name} (€{c.amount})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {(category === "contatti" || category === "marketing") && (
+            <div className="space-y-2">
+              <Label>Contatto collegato</Label>
+              <Select value={contactId} onValueChange={setContactId}>
+                <SelectTrigger><SelectValue placeholder="Seleziona contatto" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nessuno</SelectItem>
+                  {contacts.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.first_name} {c.last_name || ""} {c.email ? `(${c.email})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {(category === "opportunita" || category === "marketing") && (
+            <div className="space-y-2">
+              <Label>Opportunità collegata</Label>
+              <Select value={opportunityId} onValueChange={setOpportunityId}>
+                <SelectTrigger><SelectValue placeholder="Seleziona opportunità" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nessuna</SelectItem>
+                  {opportunities.map((o: any) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.name} {o.value > 0 ? `(€${o.value})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
