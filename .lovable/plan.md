@@ -1,107 +1,75 @@
 
-# Wizard di Importazione in 4 Step stile GHL
+# Sidebar visibile durante importazione + Stabilizzazione
 
-## Panoramica
+## Problema principale
 
-Sostituire il dialog modale `CSVImportDialog` con un wizard a pagina intera in 4 step, identico a GHL. Il wizard sara un nuovo componente riutilizzabile che verra mostrato al posto del contenuto corrente quando l'utente clicca "Importa".
+Il wizard di importazione attuale usa `fixed inset-0 z-50`, coprendo l'intera pagina inclusa la sidebar. Nello screenshot GHL, la sidebar resta sempre visibile a sinistra e il wizard occupa solo l'area di contenuto principale.
 
-## I 4 Step del Wizard
+## Modifiche
 
-### Step 1 - Avvia
-- Stepper orizzontale in alto con 4 step: Avvia, Carica, Mappa, Verifica
-- Selezione oggetto da importare con card selezionabili:
-  - **Contatti**: "Contiene l'elenco di tutti i lead, i loro dettagli e le specifiche" (icona utente)
-  - **Opportunita**: "Contiene l'elenco di tutte le vendite, le loro fasi, gli stati e l'avanzamento" (icona target)
-- Pre-selezionato in base alla pagina da cui si arriva (contatti o opportunita)
-- Footer fisso con pulsanti "Annulla" e "Successivo"
+### 1. ImportWizard: da overlay a contenuto inline
 
-### Step 2 - Carica
-- Titolo "Carica i tuoi file" con link "Scarica file di esempio"
-- Area drag-and-drop per CSV (dimensione massima 30MB)
-- Select "Seleziona come importare contatti": Crea contatti / Crea e aggiorna contatti / Aggiorna contatti
-- Se oggetto = Opportunita, select aggiuntiva "Seleziona come importare opportunita"
-- Footer con "Indietro", "Annulla", "Successivo" (abilitato solo dopo upload)
+**File**: `src/components/shared/ImportWizard.tsx`
 
-### Step 3 - Mappa
-- Alert informativo: "Assicurati che tutti i campi obbligatori siano mappati correttamente"
-- Box con campi obbligatori evidenziati (Nome per contatti, Nome Opportunita per opportunita)
-- Tabella di mapping con colonne:
-  - **Intestazione colonna nel file**: nome header CSV
-  - **Informazioni di anteprima**: prime 3 righe di dati (stacked verticalmente)
-  - **Stato**: badge "Mappato" (verde) o "In sospeso" (grigio)
-  - **Oggetto**: Contatto / Opportunita
-  - **Campi**: dropdown per selezionare il campo di destinazione con auto-match
-- Checkbox "Non importare dati in X unmapped columns"
-- Footer con "Indietro", "Annulla", "Successivo"
+Cambiare il wrapper da `fixed inset-0 z-50 bg-background` a un layout che occupa solo l'area di contenuto (senza `fixed`). Il componente diventa un semplice container flex-col che riempie lo spazio disponibile del parent (il `<main>` dentro `CompanyLayout`).
 
-### Step 4 - Verifica
-- Sezione Preferenze:
-  - Checkbox "Aggiungi etichette ai contatti importati" con select tag
-- Sezione "Rivedi importazione":
-  - Info documento (nome file, dimensione, stato caricamento)
-  - Tabella mapping riassuntiva (solo colonne mappate)
-- Checkbox consenso in basso: "Confermo che tutti i contatti coinvolti hanno acconsentito..."
-- Footer con "Indietro", "Annulla", "Avvia importazione in blocco"
+- Rimuovere `fixed inset-0 z-50`
+- Usare `absolute inset-0 z-40 bg-background` oppure semplicemente un div che occupa `h-full w-full` in modo che il layout della sidebar resti intatto
+- Aggiungere un titolo "Importazioni" con sottotitolo "Importare contatti e lead" come in GHL (visibile nello screenshot)
 
-## Architettura
+### 2. StepIndicator: aggiungere forwardRef per eliminare il warning
 
-### Nuovi file
+**File**: `src/components/shared/import-wizard/StepIndicator.tsx`
 
-| File | Descrizione |
-|------|-------------|
-| `src/components/shared/ImportWizard.tsx` | Componente principale wizard 4 step |
-| `src/components/shared/import-wizard/StepIndicator.tsx` | Stepper orizzontale con icone e linee connettore |
-| `src/components/shared/import-wizard/StepStart.tsx` | Step 1 - Selezione oggetto |
-| `src/components/shared/import-wizard/StepUpload.tsx` | Step 2 - Upload file e configurazione |
-| `src/components/shared/import-wizard/StepMap.tsx` | Step 3 - Mapping colonne con tabella GHL-style |
-| `src/components/shared/import-wizard/StepReview.tsx` | Step 4 - Verifica e avvio importazione |
+- Wrappare con `React.forwardRef` per eliminare il warning in console "Function components cannot be given refs"
 
-### File modificati
+### 3. StepIndicator: allineare testi a GHL
 
-| File | Modifica |
-|------|----------|
-| `src/pages/azienda/marketing/MarketingContacts.tsx` | Sostituire `CSVImportDialog` con `ImportWizard` inline (overlay a pagina intera) |
-| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Sostituire `CSVImportDialog` con `ImportWizard` inline |
+Aggiornare le descrizioni degli step per corrispondere esattamente allo screenshot GHL:
+- Step 1: "Avvia" - "Seleziona gli oggetti e ulteriori informazioni"
+- Step 2: "Carica" - "Carica il file e configura"
+- Step 3: "Mappa" - "Mappa le colonne ai campi"
+- Step 4: "Verifica" - "Conferma e finalizza la selezione"
 
-## Dettagli tecnici
+### 4. StepReview: aggiungere opzioni mancanti (come GHL)
 
-### ImportWizard Props
+**File**: `src/components/shared/import-wizard/StepReview.tsx`
+
+Nello screenshot GHL la sezione "Preferenze" include:
+- "Crea un elenco intelligente per i nuovi contatti creati con l'importazione" (con campo data)
+- "Aggiungi i contatti importati a un flusso di lavoro" (con select)
+- "Aggiungi etichette ai contatti importati" (con select tag)
+
+Aggiungere queste opzioni. Le prime due saranno placeholder visivi (checkbox disabilitate o con "Prossimamente"). La terza (tag) e gia implementata.
+
+## Riepilogo file modificati
+
+| File | Tipo | Descrizione |
+|------|------|-------------|
+| `src/components/shared/ImportWizard.tsx` | UX Fix | Da overlay fullscreen a contenuto inline (sidebar visibile) + titolo pagina |
+| `src/components/shared/import-wizard/StepIndicator.tsx` | Bug Fix | Aggiungere forwardRef + aggiornare testi step |
+| `src/components/shared/import-wizard/StepReview.tsx` | UX | Aggiungere opzioni preferenze stile GHL |
+
+## Dettaglio tecnico
+
+### ImportWizard.tsx - Nuovo layout
+
+Il div root passa da:
 ```text
-interface ImportWizardProps {
-  open: boolean
-  onClose: () => void
-  defaultObjectType: "contacts" | "opportunities"  
-  contactFields: ImportField[]
-  opportunityFields: ImportField[]
-  onImportContacts: (rows, options) => Promise<result>
-  onImportOpportunities: (rows, options) => Promise<result>
-}
+<div className="fixed inset-0 z-50 bg-background flex flex-col">
+```
+a:
+```text
+<div className="absolute inset-0 z-40 bg-background flex flex-col overflow-hidden">
 ```
 
-### StepIndicator
-- 4 cerchi numerati collegati da linee
-- Step completati: cerchio blu con check, linea blu
-- Step corrente: cerchio blu con numero
-- Step futuri: cerchio grigio con numero, linea grigia
-- Sotto ogni cerchio: nome step + descrizione
+Questo lo posiziona sopra il contenuto della pagina ma dentro il container `<main>` del layout, mantenendo la sidebar visibile. Il `<main>` in CompanyLayout ha gia `position: relative` o lo aggiungeremo se necessario.
 
-### Tabella Mapping (Step 3)
-- Auto-match intelligente: confronto normalizzato tra header CSV e label campi
-- Preview: mostra le prime 3 righe per ogni colonna (stacked in un'unica cella)
-- Badge stato: "Mappato" verde se il campo e mappato, "In sospeso" grigio se non mappato
-- Colonna "Oggetto" fissa a "Contatto" o "Opportunita" in base all'oggetto selezionato
-- Dropdown campi: lista di tutti i campi disponibili + "Please Select" (non mappato)
+La top bar del wizard verra aggiornata con:
+- Titolo "Importazioni" (h1, font-semibold)
+- Sottotitolo "Importare contatti e lead" (text-sm, muted)
+- Pulsante X a destra per chiudere
 
-### Import Mode
-- "Crea contatti": inserisce solo nuovi record
-- "Aggiorna contatti": aggiorna solo record esistenti (match per email/telefono)
-- "Crea e aggiorna": upsert - crea nuovi e aggiorna esistenti
+### CompanyLayout.tsx - relative sul main
 
-### Parsing File
-- Riutilizza la logica di parsing esistente (CSV con auto-detect separatore, XLS/XLSX via xlsx)
-- Supporta sia ; che , come separatore
-
-### Footer Fisso
-- Barra bianca sticky in basso con bordo superiore
-- Pulsante "Indietro" a sinistra (non visibile su step 1)
-- Pulsanti "Annulla" e "Successivo"/"Avvia importazione" a destra
+Verificare che il container principale del contenuto abbia `relative` per ancorare l'`absolute` del wizard. Se non lo ha, aggiungere `relative` al wrapper dell'`<Outlet>`.
