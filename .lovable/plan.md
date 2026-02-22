@@ -1,71 +1,102 @@
 
-# Stabilizzazione e Fix - Opportunita
+# Funzionalita GHL-Style per Opportunity Cards
 
-## Bug identificati e correzioni
+## Panoramica
 
-### 1. Doppio Toast al salvataggio (BUG CRITICO UX)
-
-**Problema**: Quando si salva un'opportunita dal `OpportunityDetailDialog`, appaiono DUE toast di successo:
-- `useUpdateOpportunity.onSuccess` mostra "Opportunita aggiornata" (riga 98 di `useOpportunitiesData.ts`)
-- `handleSave` inline `onSuccess` mostra "Opportunita aggiornata con successo" (riga 234 di `OpportunityDetailDialog.tsx`)
-
-Entrambi i callback `onSuccess` vengono eseguiti da React Query.
-
-**Soluzione**: Rimuovere il toast globale da `useUpdateOpportunity` e lasciare solo `queryClient.invalidateQueries`. I chiamanti gestiscono i propri messaggi. L'unico chiamante e `OpportunityDetailDialog`.
-
-**File**: `src/hooks/useOpportunitiesData.ts` (riga 98: rimuovere `toast.success`)
+Aggiungere 3 funzionalita ispirate a GHL nelle card opportunita:
+1. Avatar titolare (owner) in alto a destra con tooltip
+2. Selezione multipla con checkbox + barra azioni bulk
+3. Icona tag con badge conteggio e tooltip con nomi tag
 
 ---
 
-### 2. GripVertical importato ma non usato in PipelineStagesConfig
+## 1. Avatar Titolare (Owner Circle)
 
-**Problema**: In `PipelineStagesConfig.tsx` riga 13, `GripVertical` e importato da lucide-react ED effettivamente usato nel componente `SortableStage` (riga 47). Questo e OK, nessuna azione necessaria.
+**Problema attuale**: `OpportunityCard` gia mostra `assignedInitials` ma il campo `assigned_to_name` non viene mai popolato perche la query in `useOpportunities` non fa JOIN con `profiles`.
 
----
+**Soluzione**:
+- Modificare la query in `useOpportunitiesData.ts` (`useOpportunities`) per fare un LEFT JOIN con `profiles` sulla colonna `assigned_to`
+- Query aggiornata: `*, marketing_contacts(...), assigned_profile:profiles!marketing_opportunities_assigned_to_fkey(first_name, last_name)`
+- Nel componente `OpportunityCard`, leggere `opportunity.assigned_profile` per costruire le iniziali
+- Se `assigned_to` e NULL, mostrare l'icona persona vuota (come in GHL: icona `UserCircle` grigia) con tooltip "Non assegnato"
+- Se assegnato, mostrare cerchio con iniziali colorato + tooltip con nome completo
 
-### 3. Warning Console "Function components cannot be given refs"
-
-**Problema**: Il warning persiste nella console. `OpportunityCard` ha gia `forwardRef`, ma i log mostrano anche un warning per `OpportunityDetailDialog` (secondo warning nella console).
-
-**Analisi**: `OpportunityDetailDialog` e renderizzato fuori dal `DndContext` nel fragment di `OpportunityKanbanView`. Il warning per `OpportunityDetailDialog` puo provenire dal fatto che `Dialog` di Radix tenta internamente di clonare elementi e passare ref. Il fix e wrappare `OpportunityDetailDialog` con `forwardRef` per eliminare il warning.
-
-**Soluzione**: Wrappare `OpportunityDetailDialog` con `forwardRef` (accettando e ignorando il ref, dato che non serve).
-
-**File**: `src/components/opportunities/OpportunityDetailDialog.tsx`
-
----
-
-### 4. StageColumn dentro OpportunityKanbanView - potenziale warning ref
-
-**Problema**: `StageColumn` e wrappato con `memo` ma non `forwardRef`. Se DndContext tenta di passare un ref, genera warning.
-
-**Soluzione**: Wrappare `StageColumn` con `forwardRef` come fatto per `OpportunityCard`.
-
-**File**: `src/components/opportunities/OpportunityKanbanView.tsx`
+**File modificati**:
+- `src/hooks/useOpportunitiesData.ts` - aggiungere join profiles nella query `useOpportunities`
+- `src/components/opportunities/OpportunityCard.tsx` - aggiornare logica avatar per usare `assigned_profile`
 
 ---
 
-### 5. isSaving non riflette lo stato reale delle mutations
+## 2. Selezione Multipla + Azioni Bulk
 
-**Problema**: In `OpportunityDetailDialog` riga 170:
-```
-const isSaving = updateOpp.isPending || updateContact.isPending || upsertContactFields.isPending || upsertOppFields.isPending;
-```
-Ma `handleSave` chiama `updateContact.mutate` e `upsertContactFields.mutate` in modo fire-and-forget (senza attendere). Solo `updateOpp.mutate` ha callback `onSuccess`/`onError`. Le altre mutations potrebbero fallire silenziosamente.
+**Riferimento**: Come fa GHL (screenshot), con checkbox su ogni card + barra sticky in alto con conteggio e azioni.
 
-**Soluzione**: Questo e accettabile per ora dato che le mutations hanno i propri `onError` con toast. Nessuna modifica necessaria, ma si documenta il comportamento.
+### 2a. Checkbox nelle Card
+
+- Aggiungere una prop `selected` e `onSelect` a `OpportunityCard`
+- Posizionare checkbox in alto a destra, accanto all'avatar titolare (come in GHL)
+- Il checkbox si mostra sempre (come in GHL)
+- Click sul checkbox NON apre il detail dialog
+
+### 2b. Stato selezione
+
+- Lo stato `selectedIds: Set<string>` vive in `MarketingOpportunities.tsx` (pagina principale)
+- Viene passato giu a `OpportunityKanbanView` e poi a `StageColumn` e `OpportunityCard`
+- Logica "Seleziona tutto" per selezionare tutte le opportunita filtrate
+
+### 2c. Barra Azioni Bulk (sticky)
+
+Quando `selectedIds.size > 0`, mostrare una barra sticky sopra il kanban con:
+- Badge: "{N} lead selezionato/i"
+- Link "Seleziona tutto {total}"
+- Bottone "Modifica" che apre sheet bulk edit
+- Bottone "Elimina" con AlertDialog di conferma
+
+### 2d. Sheet "Modifica in blocco"
+
+Come in GHL (screenshot destro), un `Sheet` laterale con:
+- Titolo "Modifica in blocco"
+- Campo ricerca
+- Lista campi modificabili: Fase, Stato, Valore, Titolare, Follower, Fonte, Tags
+- Quando si seleziona un campo, mostra il form per il nuovo valore
+- Bottone "Applica" che esegue update su tutte le opportunita selezionate
+
+**Nuovo file**: `src/components/opportunities/BulkEditSheet.tsx`
+
+**File modificati**:
+- `src/components/opportunities/OpportunityCard.tsx` - aggiungere props `selected`, `onSelect`, checkbox
+- `src/components/opportunities/OpportunityKanbanView.tsx` - propagare selectedIds, onSelect, bulk actions
+- `src/pages/azienda/marketing/MarketingOpportunities.tsx` - stato selectedIds, barra bulk, sheet bulk edit
+- `src/hooks/useOpportunitiesData.ts` - aggiungere `useBulkUpdateOpportunities` e `useBulkDeleteOpportunities`
 
 ---
 
-## Riepilogo modifiche (3 file)
+## 3. Icona Tag con Badge e Tooltip
 
-| File | Modifica |
-|------|----------|
-| `src/hooks/useOpportunitiesData.ts` | Rimuovere `toast.success` da `useUpdateOpportunity.onSuccess` per evitare doppio toast |
-| `src/components/opportunities/OpportunityDetailDialog.tsx` | Wrappare con `forwardRef` per eliminare warning console |
-| `src/components/opportunities/OpportunityKanbanView.tsx` | Wrappare `StageColumn` con `forwardRef` per eliminare warning console |
+**Attualmente**: L'icona `Tag` nella action bar mostra solo "funzionalita in arrivo".
 
-## Cosa NON cambia
-- Nessun comportamento funzionale modificato
-- Nessun layout/design toccato
-- Nessuna tabella DB modificata
+**Soluzione**:
+- Se l'opportunita ha tags (`opportunity.tags?.length > 0`), mostrare un badge con il conteggio accanto all'icona Tag
+- Al hover (tooltip), mostrare la lista dei tag separati da virgola
+- Se non ci sono tag, tooltip mostra "Nessuna etichetta"
+- Click sull'icona apre il detail dialog sul tab dettagli (non piu "in arrivo")
+
+**File modificato**: `src/components/opportunities/OpportunityCard.tsx`
+
+---
+
+## Riepilogo file
+
+| File | Tipo |
+|------|------|
+| `src/hooks/useOpportunitiesData.ts` | Modifica: join profiles, bulk mutations |
+| `src/components/opportunities/OpportunityCard.tsx` | Modifica: avatar, checkbox, tag badge |
+| `src/components/opportunities/OpportunityKanbanView.tsx` | Modifica: propagare selection state |
+| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Modifica: selectedIds, barra bulk, sheet |
+| `src/components/opportunities/BulkEditSheet.tsx` | Nuovo: sheet modifica in blocco |
+
+## Note tecniche
+
+- La selezione checkbox deve interrompere la propagazione dell'evento per non attivare il drag-and-drop o il click sulla card
+- Il bulk update usa `Promise.all` come gia fatto in `OrdersTable`
+- La query profiles usa la foreign key esistente `marketing_opportunities_assigned_to_fkey`
