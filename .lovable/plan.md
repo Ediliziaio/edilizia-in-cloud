@@ -1,95 +1,101 @@
 
+# Aggiungere ruolo "Call Center" come terza assegnazione per Contatti e Opportunita
 
-# Migliorare visibilita Pipeline/Fase nei Filtri e Gestisci Campi
+## Contesto
 
-## Analisi
+Attualmente contatti e opportunita supportano due figure di assegnazione:
+- **Titolare** (`assigned_to`): puo gestire e modificare tutto
+- **Follower** (`follower_id`): puo solo visualizzare
 
-Dopo un'analisi approfondita del codice, i campi "Pipeline" e "Fase pipeline" sono gia presenti sia nei filtri avanzati (`ContactFiltersSheet`) sia nel pannello "Gestisci campi" (`ContactFieldsSheet`). Tuttavia ci sono due problemi di UX che li rendono difficili da trovare:
+L'utente vuole una terza figura:
+- **Call Center** (`call_center_id`): puo gestire e spostare come il Titolare, utile per tracciare statisticamente chi chiama e gestisce i contatti/opportunita
 
-1. **Gestisci campi**: i campi sono mostrati in una lista piatta senza categorie. Con 22+ campi, quelli in fondo (Pipeline, Fase pipeline, campi custom) sono nascosti e difficili da trovare
-2. **Filtri**: la "Fase pipeline" mostra tutte le fasi di tutte le pipeline in un unico dropdown. L'utente vuole un flusso a cascata: prima scegliere la pipeline, poi la fase
+## Modifiche Database
 
-## Modifiche previste
+Aggiungere la colonna `call_center_id` (uuid, nullable) a:
+- `marketing_contacts`
+- `marketing_opportunities`
+
+## File da modificare
 
 | File | Modifica |
 |------|----------|
-| `src/components/marketing/ContactFieldsSheet.tsx` | Raggruppare i campi per categoria (Contatto, Date, Tag, Opportunita, Campi personalizzati) |
-| `src/components/marketing/ContactsTable.tsx` | Aggiungere una proprietà `group` ai COLUMNS per identificare la categoria |
+| **Database** | Aggiungere `call_center_id` a `marketing_contacts` e `marketing_opportunities` |
+| `src/pages/azienda/marketing/MarketingContactDetail.tsx` | Aggiungere selettore "Call Center" accanto a Titolare e Follower (griglia 3 colonne) |
+| `src/components/marketing/ContactDialog.tsx` | Nessuna modifica (dialog semplificato per creazione rapida) |
+| `src/components/opportunities/OpportunityDialog.tsx` | Aggiungere selettore "Call Center" nella sezione Owner/Follower (griglia 3 colonne) + stato + submit |
+| `src/components/opportunities/OpportunityDetailDialog.tsx` | Aggiungere selettore "Call Center" nella sezione Titolare/Follower (griglia 3 colonne) + stato + submit |
+| `src/components/opportunities/OpportunityFiltersSheet.tsx` | Aggiungere filtro "Call Center" nell'interfaccia e nel tipo `OpportunityFilters` |
+| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Aggiungere logica filtro per `callCenterId` |
+| `src/components/marketing/ContactsTable.tsx` | Aggiungere colonna "Call Center" in COLUMNS |
+| `src/components/marketing/ContactFiltersSheet.tsx` | Aggiungere filtro "Call Center" nei filtri contatti |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Fetchare nomi utenti per `call_center_id` e passarli alla tabella |
 
 ## Dettagli tecnici
 
-### 1. ContactsTable.tsx - Aggiungere gruppi ai COLUMNS
+### 1. Migrazione Database
 
-Aggiungere una proprieta `group` a ogni colonna per categorizzarle:
-
-```text
-COLUMNS = [
-  { key: "name", label: "Nome del Contatto", group: "Contatto", ... },
-  { key: "phone", label: "Telefono", group: "Contatto", ... },
-  { key: "email", label: "Email", group: "Contatto", ... },
-  { key: "company_name", label: "Azienda", group: "Contatto", ... },
-  { key: "city", label: "Citta", group: "Contatto" },
-  { key: "province", label: "Provincia", group: "Contatto" },
-  { key: "address", label: "Indirizzo", group: "Contatto" },
-  { key: "postal_code", label: "CAP", group: "Contatto" },
-  { key: "country", label: "Paese", group: "Contatto" },
-  { key: "contact_type", label: "Tipo contatto", group: "Contatto" },
-  { key: "website", label: "Sito web", group: "Contatto" },
-  { key: "notes_col", label: "Note", group: "Contatto" },
-  { key: "source", label: "Fonte", group: "Contatto" },
-  { key: "created_at", label: "Creato", group: "Date", ... },
-  { key: "last_activity_at", label: "Ultima Attivita", group: "Date", ... },
-  { key: "date_of_birth", label: "Data di nascita", group: "Date" },
-  { key: "tags", label: "Tag", group: "Tag" },
-  { key: "opp_name", label: "Opportunita", group: "Opportunita" },
-  { key: "opp_value", label: "Valore opp.", group: "Opportunita" },
-  { key: "opp_status", label: "Stato opp.", group: "Opportunita" },
-  { key: "opp_pipeline", label: "Pipeline", group: "Opportunita" },
-  { key: "opp_stage", label: "Fase pipeline", group: "Opportunita" },
-]
+```sql
+ALTER TABLE marketing_contacts ADD COLUMN call_center_id uuid REFERENCES auth.users(id);
+ALTER TABLE marketing_opportunities ADD COLUMN call_center_id uuid REFERENCES auth.users(id);
 ```
 
-### 2. ContactFieldsSheet.tsx - Mostrare campi raggruppati per categoria
+### 2. MarketingContactDetail.tsx - Selettore Call Center
 
-Modificare il rendering per mostrare i campi raggruppati:
-
-- **Campi nella tabella**: raggruppati per categoria con header (Contatto, Date, Tag, Opportunita, Campi personalizzati)
-- **Aggiungi campi**: raggruppati per categoria con header
-- I custom fields avranno il gruppo "Campi personalizzati"
+Nella sezione "Titolare & Follower" (attualmente grid 2 colonne), cambiare a grid 3 colonne e aggiungere il terzo selettore:
 
 ```text
-// Esempio struttura visiva nel pannello:
-
-CAMPI NELLA TABELLA
-  Contatto
-    [x] Nome del Contatto (bloccato)
-    [x] Telefono
-    [x] Email
-  Date
-    [x] Creato
-
-AGGIUNGI CAMPI
-  Contatto
-    [ ] Citta
-    [ ] Provincia
-  Opportunita
-    [ ] Pipeline
-    [ ] Fase pipeline
-  Campi personalizzati
-    [ ] Campo custom 1
+<div className="grid grid-cols-3 gap-2">
+  <div> Titolare </div>
+  <div> Follower </div>
+  <div> Call Center </div>  // NUOVO
+</div>
 ```
 
-Questo rende immediatamente visibili i campi Pipeline e Fase pipeline nella sezione "Opportunita", eliminando il problema di trovarli in una lista piatta.
+Il selettore Call Center usa la stessa lista `staff` gia disponibile nel componente.
 
-### 3. Nessuna modifica ai filtri
+### 3. OpportunityDialog.tsx - Creazione opportunita
 
-I filtri avanzati (`ContactFiltersSheet`) gia supportano "Fase pipeline" con tutte le fasi raggruppate per pipeline nel formato "Pipeline -> Fase". Il campo e nel gruppo "Opportunita" nel field picker. Non servono modifiche funzionali.
+Aggiungere stato `callCenterId` e selettore nella sezione Owner/Follower. Cambiare da grid 2 a grid 3 colonne. Passare `call_center_id` nel submit.
+
+### 4. OpportunityDetailDialog.tsx - Dettaglio opportunita
+
+Aggiungere stato `callCenterId`, sincronizzarlo con `opportunity.call_center_id` nel useEffect di init, aggiungere selettore nella grid Titolare/Follower (3 colonne), includere nel payload di salvataggio.
+
+### 5. OpportunityFiltersSheet.tsx - Filtri opportunita
+
+- Aggiungere `callCenterId: string` al tipo `OpportunityFilters`
+- Aggiungere selettore "Call Center" nella sezione filtri assegnazione
+- Aggiornare `countActiveFilters` per contare anche `callCenterId`
+
+### 6. MarketingOpportunities.tsx - Logica filtro
+
+Aggiungere:
+```text
+if (filters.callCenterId) {
+  result = result.filter((o) => o.call_center_id === filters.callCenterId);
+}
+```
+
+### 7. ContactsTable.tsx - Colonna Call Center
+
+Aggiungere colonna `{ key: "call_center", label: "Call Center", group: "Contatto" }` all'array COLUMNS e renderizzare il nome dell'utente assegnato.
+
+### 8. ContactFiltersSheet.tsx - Filtro Call Center nei contatti
+
+Aggiungere il campo "Call Center" tra le opzioni di filtro disponibili per i contatti.
+
+### 9. MarketingContacts.tsx - Fetch nomi Call Center
+
+Nella query contatti, includere `call_center_id` e risolvere il nome dell'utente per visualizzarlo nella tabella.
+
+## Permessi
+
+Il Call Center ha gli stessi permessi del Titolare (puo gestire, spostare, modificare). Questo e coerente con il modello esistente dove `assigned_to` = gestione completa e `follower_id` = solo visualizzazione. Non servono modifiche RLS perche le policy sono basate su `company_id`, non su `assigned_to`.
 
 ## Risultato atteso
 
-- Il pannello "Gestisci campi" mostra i campi organizzati per categoria
-- Pipeline e Fase pipeline sono chiaramente visibili nella sezione "Opportunita"
-- I campi personalizzati hanno la propria sezione dedicata
-- I filtri continuano a funzionare come prima
-- Nessun cambio funzionale, solo miglioramento organizzativo/UX
-
+- Contatti e opportunita possono avere 3 figure: Titolare, Follower, Call Center
+- Call Center visibile in creazione, dettaglio, filtri e tabella
+- Utile per statistiche: quanti contatti/opportunita gestiti dal call center vs titolare
+- Nessun impatto sulle policy di sicurezza esistenti
