@@ -1,22 +1,22 @@
 
 
-# Fix Console Warning: TagSelector forwardRef
+# Fix Console Warning: MarketingOpportunities forwardRef
 
 ## Problema Identificato
 
-**Console Error**: "Function components cannot be given refs. Check the render method of TagSelector."
+**Console Warning**: "Function components cannot be given refs. Check the render method of `App`." puntando a `MarketingOpportunities`.
 
-**Causa**: `TagSelector` e un function component usato dentro `PopoverContent` nella pagina di dettaglio contatto (riga 492). Radix Popover tenta di attaccare una ref al contenuto, ma `TagSelector` non la accetta perche non usa `React.forwardRef`.
+**Causa**: React Router (o un componente parent nel layout) tenta di passare una ref al componente di pagina `MarketingOpportunities`, che essendo un semplice function component non la accetta.
 
 ## Fix
 
-### File: `src/components/marketing/TagSelector.tsx`
-- Wrappare il componente con `React.forwardRef` per accettare la ref passata da Radix Popover
+### File: `src/pages/azienda/marketing/MarketingOpportunities.tsx`
+- Wrappare il componente con `React.forwardRef` per accettare la ref
 - Aggiungere `ref` al `div` root del componente
+- Aggiungere `displayName`
 
 ## Cosa NON cambia
 - Nessuna modifica funzionale
 - Nessuna modifica al database
 - Nessuna modifica ad altri file
 - Solo eliminazione del warning in console
-
