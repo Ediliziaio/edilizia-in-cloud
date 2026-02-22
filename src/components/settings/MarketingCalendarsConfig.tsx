@@ -78,6 +78,7 @@ export default function MarketingCalendarsConfig() {
   const [editingCalendar, setEditingCalendar] = useState<MarketingCalendar | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("calendars");
 
   // ---- QUERIES ----
   const { data: calendars = [], isLoading: loadingCalendars } = useQuery({
@@ -128,16 +129,17 @@ export default function MarketingCalendarsConfig() {
 
   // ---- MUTATIONS ----
   const createCalendar = useMutation({
-    mutationFn: async (data: { name: string; group_name: string; duration_minutes: number; calendar_type: string; description: string }) => {
+    mutationFn: async (data: { name: string; description: string; owner_id: string; duration_minutes: number }) => {
       if (!effectiveCompanyId || !user?.id) throw new Error("Dati mancanti");
       const { error } = await supabase.from("marketing_calendars").insert({
         company_id: effectiveCompanyId,
         created_by: user.id,
         name: data.name,
-        group_name: data.group_name || null,
-        duration_minutes: data.duration_minutes,
-        calendar_type: data.calendar_type,
         description: data.description || null,
+        owner_id: data.owner_id || null,
+        duration_minutes: data.duration_minutes,
+        calendar_type: "personal",
+        group_name: null,
       });
       if (error) throw error;
     },
@@ -149,13 +151,12 @@ export default function MarketingCalendarsConfig() {
   });
 
   const updateCalendar = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; name: string; group_name: string; duration_minutes: number; calendar_type: string; description: string }) => {
+    mutationFn: async ({ id, ...data }: { id: string; name: string; description: string; owner_id: string; duration_minutes: number }) => {
       const { error } = await supabase.from("marketing_calendars").update({
         name: data.name,
-        group_name: data.group_name || null,
-        duration_minutes: data.duration_minutes,
-        calendar_type: data.calendar_type,
         description: data.description || null,
+        owner_id: data.owner_id || null,
+        duration_minutes: data.duration_minutes,
       }).eq("id", id);
       if (error) throw error;
     },
@@ -327,7 +328,7 @@ export default function MarketingCalendarsConfig() {
         <p className="text-muted-foreground">Gestisci i calendari del modulo Marketing e Vendita</p>
       </div>
 
-      <Tabs defaultValue="calendars" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="calendars" className="gap-2"><CalendarDays className="h-4 w-4" />Calendari</TabsTrigger>
           <TabsTrigger value="preferences" className="gap-2"><Settings2 className="h-4 w-4" />Preferenze</TabsTrigger>
@@ -648,6 +649,10 @@ export default function MarketingCalendarsConfig() {
           } else {
             createCalendar.mutate(data);
           }
+        }}
+        onAdvancedSettings={() => {
+          setDialogOpen(false);
+          setActiveTab("availability");
         }}
         initialData={editingCalendar}
         isLoading={createCalendar.isPending || updateCalendar.isPending}
