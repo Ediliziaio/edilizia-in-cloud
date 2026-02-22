@@ -30,6 +30,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { syncTagsToContact } from "@/hooks/useTagSync";
 
 interface Props {
   opportunity: any;
@@ -230,7 +231,11 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
       tags: oppTags,
       contact_id: finalContactId,
     }, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        // Sync tags to the linked contact
+        if (oppTags.length > 0) {
+          await syncTagsToContact(finalContactId, oppTags);
+        }
         toast.success("Opportunità aggiornata con successo");
         onOpenChange(false);
       },
