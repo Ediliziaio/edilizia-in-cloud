@@ -1112,6 +1112,60 @@ export type Database = {
           },
         ]
       }
+      marketing_documents: {
+        Row: {
+          company_id: string
+          contact_id: string
+          created_at: string
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id: string
+          opportunity_id: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          company_id: string
+          contact_id: string
+          created_at?: string
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id?: string
+          opportunity_id?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string
+          created_at?: string
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          file_url?: string
+          id?: string
+          opportunity_id?: string | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_documents_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_documents_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_opportunities: {
         Row: {
           assigned_to: string | null
