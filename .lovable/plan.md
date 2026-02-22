@@ -1,94 +1,61 @@
 
 
-# Validazione Contatti: Email/Telefono obbligatorio + Anti-duplicazione + Formato italiano
+# Miglioramenti Contact Dialog: Citta/Provincia + Fullname Import
 
-## Problema attuale
-1. Solo `first_name` e obbligatorio, ma email e telefono no
-2. Nessun controllo duplicati su email/telefono
-3. Nessuna validazione formato numero italiano
-
-## Modifiche
+## 1. Aggiungere Citta e Provincia al dialog contatto
 
 ### File: `src/components/marketing/ContactDialog.tsx`
 
-**1. Validazione: almeno email O telefono obbligatorio**
-- Modificare `handleSubmit` per richiedere almeno uno tra email e telefono
-- Aggiornare le label per indicare "Email o Telefono obbligatorio"
-- Disabilitare il pulsante se mancano entrambi
-
-**2. Validazione formato telefono italiano**
-- Accettare formati: `+39 xxx xxxxxxx`, `+39xxxxxxxxxx`, `3xxxxxxxxx`, `0x xxxxxxx`
-- Regex: `/^(\+39\s?)?[03]\d{5,12}$/` (dopo aver rimosso spazi)
-- Mostrare errore inline se il formato non e valido
-
-**3. Validazione formato email**
-- Regex base per validare il formato email
-- Mostrare errore inline
-
-**4. Check duplicati nel database**
-- Aggiungere prop `companyId` al `ContactDialog`
-- Aggiungere prop `editingContactId` (opzionale) per escludere il contatto corrente in modifica
-- In `handleSubmit`, prima di chiamare `onSave`:
-  - Se email presente: query `marketing_contacts` per `email = X AND company_id = Y AND id != editingId`
-  - Se telefono presente: query `marketing_contacts` per `phone = X AND company_id = Y AND id != editingId`
-  - Se trovato un duplicato, mostrare errore e bloccare il salvataggio
+- Aggiungere `city` e `province` a `ContactFormData` e a `emptyForm`
+- Aggiungere i due campi nel form tra "Azienda" e "Tag", in una riga grid a 2 colonne
+- Aggiornare `initialData` mapping in `MarketingContacts.tsx`
 
 ### File: `src/pages/azienda/marketing/MarketingContacts.tsx`
 
-- Passare `companyId` e `editingContactId` come nuove prop al `ContactDialog`
+- Aggiungere `city` e `province` all'`initialData` passato al dialog per l'editing
+- Aggiungere `city` e `province` ai CSV_FIELDS per l'importazione
+- Aggiungere `city` e `province` alla logica di export CSV
+- Aggiungere `city` e `province` alla mappatura `toInsert` nell'import
 
-## Dettagli tecnici
+## 2. Fix label Email obbligatoria
 
-### Regex telefono italiano
+Il codice attuale mostra gia `*` condizionale, ma si aggiunge chiarezza rendendo le label piu evidenti con un testo helper sotto i campi quando entrambi sono vuoti.
+
+## 3. Campo "Fullname" per importazione CSV
+
+### Logica
+
+- Aggiungere `fullname` come campo importabile in `CSV_FIELDS`
+- Durante l'import, se `fullname` e presente e `first_name` non lo e:
+  - Splittare `fullname` al primo spazio: la prima parte diventa `first_name`, il resto diventa `last_name`
+  - Se non c'e spazio, tutto va in `first_name`
+
+### File: `src/pages/azienda/marketing/MarketingContacts.tsx`
+
+Aggiungere in CSV_FIELDS:
 ```text
-// Rimuovi spazi, trattini, punti
-const cleaned = phone.replace(/[\s\-\.]/g, "");
-// Valida: +39 seguito da 9-10 cifre, oppure numero che inizia con 0 o 3
-const isValid = /^(\+39)?[03]\d{8,10}$/.test(cleaned);
+{ key: "fullname", label: "Nome Completo", required: false }
 ```
 
-### Check duplicati (dentro ContactDialog)
+Nel `handleImport`, aggiungere logica di split:
 ```text
-const checkDuplicate = async () => {
-  if (!companyId) return null;
-  const checks = [];
-  if (form.email.trim()) {
-    checks.push(
-      supabase.from("marketing_contacts")
-        .select("id, first_name, last_name")
-        .eq("company_id", companyId)
-        .eq("email", form.email.trim().toLowerCase())
-        .neq("id", editingContactId || "00000000-0000-0000-0000-000000000000")
-        .limit(1)
-    );
-  }
-  if (cleanedPhone) {
-    checks.push(
-      supabase.from("marketing_contacts")
-        .select("id, first_name, last_name")
-        .eq("company_id", companyId)
-        .eq("phone", cleanedPhone)
-        .neq("id", editingContactId || "00000000-0000-0000-0000-000000000000")
-        .limit(1)
-    );
-  }
-  // Se trovato, return nome del duplicato
-};
+let firstName = r.first_name?.trim() || "";
+let lastName = r.last_name?.trim() || "";
+if (!firstName && r.fullname?.trim()) {
+  const parts = r.fullname.trim().split(/\s+/);
+  firstName = parts[0];
+  lastName = parts.slice(1).join(" ");
+}
 ```
 
-### UI errori
-- Errori mostrati sotto ogni campo con testo rosso piccolo
-- State `errors: { phone?: string; email?: string; general?: string }`
-- Errore duplicato mostrato come toast o come messaggio sotto il form
+## Riepilogo modifiche
 
-## Riepilogo
+| File | Cosa |
+|------|------|
+| `ContactDialog.tsx` | Aggiungere city, province a form e interface |
+| `MarketingContacts.tsx` | city/province in initialData, export, import; fullname split in import |
 
-| Cosa | Dettaglio |
-|------|-----------|
-| Obbligatorieta | Almeno email O telefono (non piu solo nome) |
-| Anti-duplicazione | Check DB prima del salvataggio su email e telefono |
-| Formato telefono | Regex per numeri italiani (+39, 3xx, 0xx) |
-| Formato email | Validazione base |
-| File modificati | `ContactDialog.tsx`, `MarketingContacts.tsx` |
-| UX | Errori inline chiari, pulsante disabilitato se validazione fallisce |
+- 2 file modificati
+- Nessuna migrazione DB necessaria (city e province esistono gia nella tabella `marketing_contacts`)
+- Nessun cambiamento funzionale ai flussi esistenti
 
