@@ -20,6 +20,7 @@ import { exportToCSV } from "@/lib/csvExport";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -50,6 +51,7 @@ const OPP_IMPORT_FIELDS: ImportField[] = [
 ];
 
 function MarketingOpportunitiesContent() {
+  const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines();
@@ -336,7 +338,7 @@ function MarketingOpportunitiesContent() {
               }}>
                 <Download className="mr-2 h-4 w-4" /> Esporta CSV
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info("Impostazioni in arrivo")}>Impostazioni pipeline</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/azienda/impostazioni/sequenze")}>Impostazioni pipeline</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -344,7 +346,14 @@ function MarketingOpportunitiesContent() {
 
       <div className="flex items-center gap-1 border-b">
         <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none border-b-2 border-primary font-semibold">Tutto</Button>
-        <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none text-muted-foreground" onClick={() => toast.info("Elenchi personalizzati in arrivo")}>+ Elenco</Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none text-muted-foreground" disabled>+ Elenco</Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>Funzionalità in arrivo</TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -357,9 +366,16 @@ function MarketingOpportunitiesContent() {
               </Badge>
             )}
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => toast.info("Ordinamento in arrivo")}>
-            <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button variant="outline" size="sm" className="h-8 text-xs" disabled>
+                  <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Funzionalità in arrivo</TooltipContent>
+          </Tooltip>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
