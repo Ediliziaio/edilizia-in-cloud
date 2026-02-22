@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -284,22 +285,8 @@ export default function MarketingContactDetail() {
     enabled: !!companyId,
   });
 
-  // ── Fetch custom fields ──
-  const { data: customFields = [] } = useQuery({
-    queryKey: ["marketing_custom_fields", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("marketing_custom_fields")
-        .select("*")
-        .eq("company_id", companyId)
-        .order("section")
-        .order("position");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!companyId,
-  });
+  // ── Fetch custom fields (solo tipo "contact") ──
+  const { data: customFields = [] } = useContactCustomFields();
 
   // ── Fetch custom field values ──
   const { data: fieldValues = [] } = useQuery({

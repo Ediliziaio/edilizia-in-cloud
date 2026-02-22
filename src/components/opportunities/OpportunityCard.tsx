@@ -1,4 +1,4 @@
-import { memo, useState, forwardRef, useMemo } from "react";
+import { memo, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -23,7 +23,7 @@ interface OpportunityCardProps {
   onSelect?: (id: string, selected: boolean) => void;
 }
 
-export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardProps>(function OpportunityCard({ opportunity, onClick, onOpenTab, onDelete, isOverlay, selected, onSelect }, _ref) {
+export const OpportunityCard = memo(function OpportunityCard({ opportunity, onClick, onOpenTab, onDelete, isOverlay, selected, onSelect }: OpportunityCardProps) {
   const navigate = useNavigate();
   const contact = opportunity.marketing_contacts;
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -218,7 +218,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
       </AlertDialog>
     </>
   );
-}));
+});
 
 /** Renders detail rows based on user field preferences */
 function CardDetailRows({ opportunity, contact, activeFields, layout, isFieldActive }: {
