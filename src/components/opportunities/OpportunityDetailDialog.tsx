@@ -22,6 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TagSelector } from "@/components/marketing/TagSelector";
+import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
   CreditCard, Users, Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw,
@@ -31,6 +32,7 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
+import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 // Note: useNavigate kept for "Aggiungi/gestisci campi" link in footer
 
 interface Props {
@@ -50,7 +52,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
   const updateOpp = useUpdateOpportunity();
   const deleteOpp = useDeleteOpportunity();
   const { data: staff = [] } = useCompanyStaff();
-  const { data: notes = [] } = useOpportunityNotes(opportunity?.id || null);
+  const { data: notes = [] } = useOpportunityNotes(opportunity?.id || null, opportunity?.contact_id || null);
   const addNote = useAddOpportunityNote();
   const { data: pipelines = [] } = usePipelines();
 
@@ -290,7 +292,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
 
   const handleAddNote = () => {
     if (!newNote.trim()) return;
-    addNote.mutate({ opportunityId: opportunity.id, content: newNote.trim() }, { onSuccess: () => setNewNote("") });
+    addNote.mutate({ opportunityId: opportunity.id, contactId: opportunity.contact_id, content: newNote.trim() }, { onSuccess: () => setNewNote("") });
   };
 
   const handleSelectExistingContact = (c: any) => {
@@ -335,7 +337,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
   const sidebarTabs: { key: Tab; label: string; icon: React.ReactNode; enabled: boolean }[] = [
     { key: "details", label: "Dettagli dell'opportunità", icon: <FileText className="h-4 w-4" />, enabled: true },
     { key: "appointments", label: "Prenota/aggiorna appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: false },
-    { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: false },
+    { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: "Note", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "payments", label: "Pagamenti", icon: <CreditCard className="h-4 w-4" />, enabled: false },
     { key: "members", label: "Oggetti Membri", icon: <Users className="h-4 w-4" />, enabled: false },
@@ -683,6 +685,15 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
                     <div className="space-y-3">
                       {notes.map((note: any) => (
                         <div key={note.id} className="p-3 rounded-lg border bg-muted/20">
+                          <div className="flex items-center gap-2 mb-1">
+                            {note.opportunity_id === opportunity.id ? (
+                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5">Opportunità</Badge>
+                            ) : note.opportunity_id ? (
+                              <Badge variant="outline" className="text-[9px] h-4 px-1.5">Altra opp.</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[9px] h-4 px-1.5">Contatto</Badge>
+                            )}
+                          </div>
                           <p className="text-sm whitespace-pre-wrap">{note.content}</p>
                           <p className="text-[11px] text-muted-foreground mt-2">
                             {format(new Date(note.created_at), "d MMM yyyy HH:mm", { locale: it })}
@@ -692,6 +703,14 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
                     </div>
                   )}
                 </div>
+              )}
+
+              {tab === "activities" && (
+                <LinkedTasks
+                  opportunityId={opportunity.id}
+                  category="opportunita"
+                  companyId={companyId}
+                />
               )}
             </div>
           </ScrollArea>

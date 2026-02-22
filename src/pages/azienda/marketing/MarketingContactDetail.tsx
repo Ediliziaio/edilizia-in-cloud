@@ -32,6 +32,7 @@ import { TagSelector } from "@/components/marketing/TagSelector";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
+import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 
 // ── Inline editable field ──
 function InlineField({ label, value, onSave, type = "text", options }: {
@@ -816,24 +817,13 @@ export default function MarketingContactDetail() {
                 </div>
               )}
 
-              {/* Activities panel */}
-              {rightTab === "activities" && (
-                <div className="space-y-2">
-                  {activities.map((act: any) => (
-                    <div key={act.id} className="rounded bg-muted/50 p-2 space-y-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <Badge variant="secondary" className="text-[9px] h-4 px-1">{act.activity_type}</Badge>
-                      </div>
-                      <p className="text-[11px]">{act.description}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {format(new Date(act.created_at), "dd MMM yyyy, HH:mm", { locale: it })}
-                      </p>
-                    </div>
-                  ))}
-                  {activities.length === 0 && (
-                    <p className="text-[11px] text-muted-foreground text-center py-6">Nessuna attività</p>
-                  )}
-                </div>
+              {/* Activities panel - LinkedTasks */}
+              {rightTab === "activities" && id && companyId && (
+                <LinkedTasks
+                  contactId={id}
+                  category="contatti"
+                  companyId={companyId}
+                />
               )}
 
               {/* Notes panel */}
@@ -857,6 +847,9 @@ export default function MarketingContactDetail() {
                   <div className="space-y-2 pt-1">
                     {notes.map((note: any) => (
                       <div key={note.id} className="rounded bg-muted/50 p-2 space-y-0.5">
+                        {(note as any).opportunity_id && (
+                          <Badge variant="outline" className="text-[9px] h-4 px-1.5 mb-0.5">Opportunità</Badge>
+                        )}
                         <p className="text-[11px] whitespace-pre-wrap">{note.content}</p>
                         <p className="text-[10px] text-muted-foreground">
                           {format(new Date(note.created_at), "dd MMM yyyy, HH:mm", { locale: it })}

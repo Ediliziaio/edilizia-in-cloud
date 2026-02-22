@@ -935,6 +935,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          opportunity_id: string | null
         }
         Insert: {
           company_id: string
@@ -943,6 +944,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          opportunity_id?: string | null
         }
         Update: {
           company_id?: string
@@ -951,6 +953,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          opportunity_id?: string | null
         }
         Relationships: [
           {
@@ -965,6 +968,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_contact_notes_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
             referencedColumns: ["id"]
           },
         ]
@@ -2928,12 +2938,14 @@ export type Database = {
           category: string
           company_id: string
           completed_at: string | null
+          contact_id: string | null
           cost_id: string | null
           created_at: string
           created_by: string
           due_date: string | null
           id: string
           notes: string | null
+          opportunity_id: string | null
           order_id: string | null
           priority: string
           status: string
@@ -2946,12 +2958,14 @@ export type Database = {
           category?: string
           company_id: string
           completed_at?: string | null
+          contact_id?: string | null
           cost_id?: string | null
           created_at?: string
           created_by: string
           due_date?: string | null
           id?: string
           notes?: string | null
+          opportunity_id?: string | null
           order_id?: string | null
           priority?: string
           status?: string
@@ -2964,12 +2978,14 @@ export type Database = {
           category?: string
           company_id?: string
           completed_at?: string | null
+          contact_id?: string | null
           cost_id?: string | null
           created_at?: string
           created_by?: string
           due_date?: string | null
           id?: string
           notes?: string | null
+          opportunity_id?: string | null
           order_id?: string | null
           priority?: string
           status?: string
@@ -2993,10 +3009,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tasks_cost_id_fkey"
             columns: ["cost_id"]
             isOneToOne: false
             referencedRelation: "company_costs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
             referencedColumns: ["id"]
           },
           {
