@@ -1,7 +1,6 @@
-import { useState, useMemo, memo } from "react";
+import { useState, useMemo, useRef, useEffect, memo } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { UserCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -56,6 +55,18 @@ export const OpportunityListView = memo(function OpportunityListView({
   const allSelected = opportunities.length > 0 && opportunities.every((o: any) => selectedIds.has(o.id));
   const someSelected = opportunities.some((o: any) => selectedIds.has(o.id)) && !allSelected;
 
+  const selectAllRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (el) {
+      const input = el.querySelector("input") || el;
+      if (input instanceof HTMLInputElement) {
+        input.indeterminate = someSelected;
+      }
+    }
+  }, [someSelected]);
+
   const handleSelectAll = () => {
     if (allSelected) {
       opportunities.forEach((o: any) => onSelect(o.id, false));
@@ -73,9 +84,8 @@ export const OpportunityListView = memo(function OpportunityListView({
               <TableRow className="bg-muted/40">
                 <TableHead className="w-10">
                   <Checkbox
-                    checked={allSelected}
-                    // @ts-ignore
-                    indeterminate={someSelected}
+                    ref={selectAllRef}
+                    checked={allSelected || (someSelected ? "indeterminate" : false)}
                     onCheckedChange={handleSelectAll}
                     className="h-4 w-4"
                   />

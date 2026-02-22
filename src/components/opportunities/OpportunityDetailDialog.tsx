@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, forwardRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUpdateOpportunity, useDeleteOpportunity, useCompanyStaff, useOpportunityNotes, useAddOpportunityNote, usePipelines } from "@/hooks/useOpportunitiesData";
@@ -8,7 +8,7 @@ import {
   useContactFieldValues, useOpportunityFieldValues,
   useUpdateContact, useUpsertContactFieldValues, useUpsertOpportunityFieldValues,
 } from "@/hooks/useOpportunityDetailData";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -45,6 +45,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const queryClient = useQueryClient();
   const updateOpp = useUpdateOpportunity();
   const deleteOpp = useDeleteOpportunity();
   const { data: staff = [] } = useCompanyStaff();
@@ -151,14 +152,16 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
     if (missing.length > 0) {
       const merged = [...new Set([...oppTagsCurrent, ...contact.tags])];
       setOppTags(merged);
-      // Persist to DB silently
+      // Persist to DB silently and invalidate cache
       supabase
         .from("marketing_opportunities")
         .update({ tags: merged, updated_at: new Date().toISOString() })
         .eq("id", opportunity.id)
-        .then();
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+        });
     }
-  }, [opportunity?.id, open]);
+  }, [opportunity?.id, open, queryClient]);
 
   // Sync contact custom field values - with guard to prevent infinite loop
   useEffect(() => {
@@ -331,10 +334,10 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
       <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <div className="px-6 pt-5 pb-3">
-          <h2 className="text-lg font-semibold">Modifica "{fullName}{cityPart}"</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <DialogTitle className="text-lg font-semibold">Modifica "{fullName}{cityPart}"</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground mt-0.5">
             Aggiungi e Modifica opportunità Dettagli, attività, note e Appuntamento.
-          </p>
+          </DialogDescription>
         </div>
 
         <Separator />

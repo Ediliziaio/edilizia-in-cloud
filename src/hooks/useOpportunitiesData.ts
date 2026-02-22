@@ -34,7 +34,7 @@ export function useOpportunities(pipelineId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_opportunities")
-        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, source, company_name)")
+        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, source, company_name, tags)")
         .eq("company_id", companyId!)
         .eq("pipeline_id", pipelineId!)
         .order("created_at", { ascending: false });
