@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, memo } from "react";
+import { useMemo, useState, useCallback, memo, forwardRef } from "react";
 import {
   DndContext, closestCorners, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay,
@@ -16,12 +16,12 @@ interface Stage {
   auto_status?: string | null;
 }
 
-const StageColumn = memo(function StageColumn({ stage, opportunities, onCardClick, onDelete }: {
+const StageColumn = memo(forwardRef<HTMLDivElement, {
   stage: Stage;
   opportunities: any[];
   onCardClick: (opp: any) => void;
   onDelete: (id: string) => void;
-}) {
+}>(function StageColumn({ stage, opportunities, onCardClick, onDelete }, _ref) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
 
@@ -48,7 +48,7 @@ const StageColumn = memo(function StageColumn({ stage, opportunities, onCardClic
       </div>
     </div>
   );
-});
+}));
 
 export function OpportunityKanbanView({ stages, opportunities }: { stages: Stage[]; opportunities: any[] }) {
   const updateStage = useUpdateOpportunityStage();

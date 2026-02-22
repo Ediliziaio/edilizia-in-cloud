@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, forwardRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,7 +40,7 @@ interface Props {
 
 type Tab = "details" | "notes" | "appointments" | "activities" | "payments" | "members";
 
-export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages }: Props) {
+export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages }: Props, _ref) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -691,4 +691,4 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     </AlertDialog>
     </>
   );
-}
+});
