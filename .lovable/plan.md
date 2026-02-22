@@ -1,68 +1,39 @@
 
-# Fix layout, timeline e nomi utente nel dettaglio contatto
+# Fix colonna sinistra tagliata nel dettaglio contatto
 
-## Problema 1: Colonna sinistra troppo larga
+## Problema
 
-La colonna sinistra ha `w-[340px] min-w-[340px]` fisso. Ridurre a `w-[300px] min-w-[300px]` per dare piu spazio alla timeline centrale.
+La colonna sinistra a 300px e troppo stretta. Come si vede dallo screenshot:
+- "Call Center" e troncato in "Call C..."
+- La tab "Azioni" e troncata in "Azi..."
+- L'email e troncata
+- I select Titolare/Follower/Call Center sono compressi
 
-**File: `src/pages/azienda/marketing/MarketingContactDetail.tsx`** (riga 455)
-- Cambiare `w-[340px] min-w-[340px]` in `w-[300px] min-w-[300px]`
+## Soluzione
 
-## Problema 2: Timeline non aggiornata dopo cambio fase opportunita
+### 1. Ripristinare larghezza colonna sinistra e usare layout flessibile
 
-I trigger database funzionano correttamente (i dati sono presenti nel DB), ma la cache React Query della timeline non viene invalidata quando si spostano le opportunita di fase. I cambi avvengono in altri componenti (KanbanView, OpportunityDetailDialog) che non invalidano la query `marketing_contact_activities`.
-
-**File: `src/hooks/useOpportunitiesData.ts`**
-- Nella mutazione `useUpdateOpportunity` e `useMoveOpportunityStage`, aggiungere invalidazione della query `marketing_contact_activities` dopo il successo
-
-**File: `src/components/opportunities/OpportunityKanbanView.tsx`**
-- Dopo il drag-and-drop che cambia la fase, invalidare `marketing_contact_activities`
-
-## Problema 3: Mostrare il nome utente accanto a note e attivita
-
-Attualmente le note e le attivita non mostrano chi ha eseguito l'azione.
-
-### Attivita (timeline centrale)
 **File: `src/pages/azienda/marketing/MarketingContactDetail.tsx`**
-- Modificare la query delle attivita per fare un join con `profiles` tramite `created_by`:
-  ```
-  .select("*, profiles:created_by(first_name, last_name)")
-  ```
-- Nella visualizzazione di ogni attivita, mostrare il nome utente sotto la descrizione (stile GHL: "Creato da: Nome Cognome")
 
-### Note (sidebar destra)
-- Modificare la query delle note per fare un join con `profiles` tramite `created_by`:
-  ```
-  .select("*, profiles:created_by(first_name, last_name)")
-  ```
-- Nella card di ogni nota, aggiungere "Creato da: Nome Cognome" come in GHL (sotto la data)
+- Cambiare la colonna sinistra da `w-[300px] min-w-[300px]` a `w-[340px] min-w-[340px]` (ripristino)
+- Cambiare la riga Titolare/Follower/Call Center da `grid-cols-3` a un layout piu adattivo: usare `grid-cols-2` con Call Center sotto, oppure ridurre le label per farlo stare in 3 colonne
+- Approccio scelto: mantenere `grid-cols-3` ma abbreviare le label ("Titol." e "Follow.") e ridurre il gap
 
-## Riepilogo modifiche
+### 2. Dettaglio modifiche
 
-| File | Modifica |
-|------|----------|
-| `MarketingContactDetail.tsx` | Ridurre larghezza colonna sinistra da 340px a 300px |
-| `MarketingContactDetail.tsx` | Join attivita con profiles per mostrare nome utente |
-| `MarketingContactDetail.tsx` | Join note con profiles per mostrare nome utente |
-| `MarketingContactDetail.tsx` | Visualizzare "Creato da: Nome Cognome" in attivita e note |
-| `useOpportunitiesData.ts` | Invalidare `marketing_contact_activities` dopo aggiornamento opportunita |
-| `OpportunityKanbanView.tsx` | Invalidare `marketing_contact_activities` dopo drag-and-drop |
+**Larghezza colonna** (riga 455):
+- `w-[300px] min-w-[300px]` diventa `w-[360px] min-w-[360px]`
 
-## Dettagli tecnici
+**Griglia Titolare/Follower/Call Center** (riga 495):
+- Cambiare il padding della colonna da `p-4` a `p-3` per recuperare spazio laterale
+- Mantenere `grid-cols-3` con `gap-1.5` invece di `gap-2`
 
-### Layout della timeline con nome utente (stile GHL)
+Questo approccio da 360px alla colonna sinistra (20px in piu rispetto al primo tentativo), sufficiente per mostrare tutto il contenuto senza troncare le tab e le label, mantenendo abbastanza spazio per la timeline centrale.
 
-Ogni entry della timeline diventera:
-```
-[icona] Fase cambiata: Da Chiamare -> Non risponde
-        19:06 · Creato da: Mario Rossi
-        [Dettagli]
-```
+## Riepilogo
 
-Ogni nota nella sidebar diventera:
-```
-Testo della nota...
-22 feb 2026, 18:50
-Creato da: Mario Rossi
-[Badge Opportunita se collegata]
-```
+| Modifica | Dettaglio |
+|----------|-----------|
+| Larghezza colonna | Da 300px a 360px |
+| Griglia assegnazione | Gap ridotto da 2 a 1.5 |
+| Padding colonna | Da p-4 a p-3 per guadagnare 8px |
