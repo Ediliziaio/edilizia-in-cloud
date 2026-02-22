@@ -21,7 +21,9 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   opportunities: any[];
   onCardClick: (opp: any) => void;
   onDelete: (id: string) => void;
-}>(function StageColumn({ stage, opportunities, onCardClick, onDelete }, _ref) {
+  selectedIds: Set<string>;
+  onSelect: (id: string, selected: boolean) => void;
+}>(function StageColumn({ stage, opportunities, onCardClick, onDelete, selectedIds, onSelect }, _ref) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
 
@@ -39,7 +41,14 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
       >
         <SortableContext items={opportunities.map((o: any) => o.id)} strategy={verticalListSortingStrategy}>
           {opportunities.map((opp: any) => (
-            <OpportunityCard key={opp.id} opportunity={opp} onClick={() => onCardClick(opp)} onDelete={onDelete} />
+            <OpportunityCard
+              key={opp.id}
+              opportunity={opp}
+              onClick={() => onCardClick(opp)}
+              onDelete={onDelete}
+              selected={selectedIds.has(opp.id)}
+              onSelect={onSelect}
+            />
           ))}
         </SortableContext>
         {opportunities.length === 0 && (
@@ -50,7 +59,14 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   );
 }));
 
-export function OpportunityKanbanView({ stages, opportunities }: { stages: Stage[]; opportunities: any[] }) {
+interface KanbanProps {
+  stages: Stage[];
+  opportunities: any[];
+  selectedIds: Set<string>;
+  onSelect: (id: string, selected: boolean) => void;
+}
+
+export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSelect }: KanbanProps) {
   const updateStage = useUpdateOpportunityStage();
   const deleteOpp = useDeleteOpportunity();
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
@@ -119,6 +135,8 @@ export function OpportunityKanbanView({ stages, opportunities }: { stages: Stage
                 opportunities={opportunitiesByStage[stage.id] || []}
                 onCardClick={setSelectedOpp}
                 onDelete={handleDelete}
+                selectedIds={selectedIds}
+                onSelect={onSelect}
               />
             ))}
           </div>

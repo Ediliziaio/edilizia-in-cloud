@@ -39,7 +39,24 @@ export function useOpportunities(pipelineId: string | null) {
         .eq("pipeline_id", pipelineId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+
+      // Enrich with assigned profile names
+      const assignedIds = [...new Set(data.filter((o: any) => o.assigned_to).map((o: any) => o.assigned_to))];
+      let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
+      if (assignedIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", assignedIds);
+        if (profiles) {
+          profiles.forEach((p: any) => { profilesMap[p.id] = p; });
+        }
+      }
+
+      return data.map((o: any) => ({
+        ...o,
+        assigned_profile: o.assigned_to ? profilesMap[o.assigned_to] || null : null,
+      }));
     },
     enabled: !!companyId && !!pipelineId,
   });
@@ -210,6 +227,46 @@ export function useOpportunityNotes(opportunityId: string | null) {
       return data;
     },
     enabled: !!opportunityId,
+  });
+}
+
+export function useBulkUpdateOpportunities() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ ids, data }: { ids: string[]; data: Record<string, any> }) => {
+      const promises = ids.map((id) =>
+        supabase.from("marketing_opportunities").update(data).eq("id", id).then(({ error }) => {
+          if (error) throw error;
+        })
+      );
+      await Promise.all(promises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      toast.success("Opportunità aggiornate");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useBulkDeleteOpportunities() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const promises = ids.map((id) =>
+        supabase.from("marketing_opportunities").delete().eq("id", id).then(({ error }) => {
+          if (error) throw error;
+        })
+      );
+      await Promise.all(promises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      toast.success("Opportunità eliminate");
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 }
 

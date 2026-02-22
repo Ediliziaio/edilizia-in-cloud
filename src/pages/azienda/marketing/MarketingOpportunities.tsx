@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2 } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -7,12 +7,17 @@ import { PipelineSelector } from "@/components/opportunities/PipelineSelector";
 import { OpportunityKanbanView } from "@/components/opportunities/OpportunityKanbanView";
 import { OpportunityDialog } from "@/components/opportunities/OpportunityDialog";
 import { OpportunityFiltersSheet, OpportunityFilters, EMPTY_FILTERS, countActiveFilters } from "@/components/opportunities/OpportunityFiltersSheet";
-import { usePipelines, useOpportunities, useCompanyStaff } from "@/hooks/useOpportunitiesData";
+import { BulkEditSheet } from "@/components/opportunities/BulkEditSheet";
+import { usePipelines, useOpportunities, useCompanyStaff, useBulkDeleteOpportunities } from "@/hooks/useOpportunitiesData";
 import { toast } from "sonner";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function MarketingOpportunities() {
   const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines();
@@ -22,6 +27,22 @@ export default function MarketingOpportunities() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<OpportunityFilters>(EMPTY_FILTERS);
   const { data: staff = [] } = useCompanyStaff();
+  const bulkDelete = useBulkDeleteOpportunities();
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+
+  const handleSelect = useCallback((id: string, sel: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (sel) next.add(id); else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   useEffect(() => {
     if (pipelines.length > 0 && !selectedPipelineId) {
@@ -247,7 +268,43 @@ export default function MarketingOpportunities() {
           </Button>
         </div>
       ) : (
-        <OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} />
+        <>
+          {/* Bulk Actions Bar */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border rounded-lg">
+              <Badge variant="secondary" className="text-xs font-semibold">
+                {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
+              </Badge>
+              {selectedIds.size < filteredOpportunities.length && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  onClick={() => setSelectedIds(new Set(filteredOpportunities.map((o: any) => o.id)))}
+                >
+                  Seleziona tutti ({filteredOpportunities.length})
+                </Button>
+              )}
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={clearSelection}>
+                Deseleziona
+              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setBulkEditOpen(true)}>
+                  <Pencil className="h-3 w-3" /> Modifica
+                </Button>
+                <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={() => setConfirmBulkDelete(true)}>
+                  <Trash2 className="h-3 w-3" /> Elimina
+                </Button>
+              </div>
+            </div>
+          )}
+          <OpportunityKanbanView
+            stages={stages}
+            opportunities={filteredOpportunities}
+            selectedIds={selectedIds}
+            onSelect={handleSelect}
+          />
+        </>
       )}
 
       {/* Create dialog */}
@@ -270,6 +327,41 @@ export default function MarketingOpportunities() {
         staff={staff}
         availableTags={availableTags}
       />
+
+      {/* Bulk Edit Sheet */}
+      <BulkEditSheet
+        open={bulkEditOpen}
+        onOpenChange={setBulkEditOpen}
+        selectedIds={[...selectedIds]}
+        stages={stages}
+        onDone={clearSelection}
+      />
+
+      {/* Bulk Delete Confirm */}
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare {selectedIds.size} opportunità?</AlertDialogTitle>
+            <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                bulkDelete.mutate([...selectedIds], {
+                  onSuccess: () => {
+                    clearSelection();
+                    setConfirmBulkDelete(false);
+                  },
+                });
+              }}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
