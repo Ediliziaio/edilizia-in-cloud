@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, X } from "lucide-react";
@@ -77,10 +77,10 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
   });
 }
 
-export function ImportWizard({
+export const ImportWizard = React.forwardRef<HTMLDivElement, ImportWizardProps>(function ImportWizard({
   open, onClose, defaultObjectType, contactFields, opportunityFields,
   onImportContacts, onImportOpportunities,
-}: ImportWizardProps) {
+}: ImportWizardProps, ref) {
   const [step, setStep] = useState(0);
   const [objectType, setObjectType] = useState<ObjectType>(defaultObjectType);
   const [file, setFile] = useState<File | null>(null);
@@ -150,7 +150,7 @@ export function ImportWizard({
   if (!open) return null;
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-8rem)] -m-6 bg-background">
+    <div ref={ref} className="flex flex-col min-h-[calc(100vh-8rem)] -m-6 bg-background">
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-3 border-b bg-background shrink-0">
         <div>
@@ -168,7 +168,7 @@ export function ImportWizard({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto px-6 py-8">
+      <div className="flex-1 overflow-auto px-6 py-8 transition-opacity duration-200">
         {step === 0 && <StepStart objectType={objectType} onObjectTypeChange={setObjectType} />}
         {step === 1 && (
           <StepUpload
@@ -235,4 +235,4 @@ export function ImportWizard({
       </div>
     </div>
   );
-}
+});

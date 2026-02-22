@@ -31,6 +31,7 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
+// Note: useNavigate kept for "Aggiungi/gestisci campi" link in footer
 
 interface Props {
   opportunity: any;
@@ -143,24 +144,28 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
   }, [opportunity]);
 
   // Auto-sync: merge contact tags into opportunity if missing (safety net)
+  // Guard: only write if there are actually missing tags to avoid unnecessary DB writes
+  const lastSyncedTagsRef = useRef<string>("");
   useEffect(() => {
     if (!opportunity || !open) return;
     const contact = opportunity.marketing_contacts;
     if (!contact?.tags?.length) return;
     const oppTagsCurrent: string[] = opportunity.tags || [];
     const missing = contact.tags.filter((t: string) => !oppTagsCurrent.includes(t));
-    if (missing.length > 0) {
-      const merged = [...new Set([...oppTagsCurrent, ...contact.tags])];
-      setOppTags(merged);
-      // Persist to DB silently and invalidate cache
-      supabase
-        .from("marketing_opportunities")
-        .update({ tags: merged, updated_at: new Date().toISOString() })
-        .eq("id", opportunity.id)
-        .then(() => {
-          queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
-        });
-    }
+    if (missing.length === 0) return;
+    // Prevent duplicate syncs for the same opportunity
+    const syncKey = `${opportunity.id}-${missing.sort().join(",")}`;
+    if (lastSyncedTagsRef.current === syncKey) return;
+    lastSyncedTagsRef.current = syncKey;
+    const merged = [...new Set([...oppTagsCurrent, ...contact.tags])];
+    setOppTags(merged);
+    supabase
+      .from("marketing_opportunities")
+      .update({ tags: merged, updated_at: new Date().toISOString() })
+      .eq("id", opportunity.id)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+      });
   }, [opportunity?.id, open, queryClient]);
 
   // Sync contact custom field values - with guard to prevent infinite loop
