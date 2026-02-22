@@ -38,6 +38,7 @@ import { SettingsLayout } from "@/components/layouts/SettingsLayout";
 import SettingsProfile from "@/pages/azienda/settings/SettingsProfile";
 import SettingsCatalog from "@/pages/azienda/settings/SettingsCatalog";
 import SettingsOrderStatus from "@/pages/azienda/settings/SettingsOrderStatus";
+import SettingsPipelines from "@/pages/azienda/settings/SettingsPipelines";
 import SettingsSuppliers from "@/pages/azienda/settings/SettingsSuppliers";
 import SettingsUsers from "@/pages/azienda/settings/SettingsUsers";
 import SettingsSalespeople from "@/pages/azienda/settings/SettingsSalespeople";
@@ -216,6 +217,7 @@ const App = () => (
                 <Route path="fornitori" element={<SettingsSuppliers />} />
                 <Route path="tag" element={<SettingsTags />} />
                 <Route path="campi-personalizzati" element={<SettingsCustomFields />} />
+                <Route path="sequenze" element={<SettingsPipelines />} />
                 <Route path="utenti" element={<SettingsUsers />} />
                 <Route path="venditori" element={<SettingsSalespeople />} />
                 <Route path="staff" element={<SettingsStaff />} />

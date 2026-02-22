@@ -1025,6 +1025,169 @@ export type Database = {
           },
         ]
       }
+      marketing_opportunities: {
+        Row: {
+          assigned_to: string | null
+          company_id: string
+          company_name: string | null
+          contact_id: string
+          created_at: string
+          follower_id: string | null
+          id: string
+          name: string
+          notes: string | null
+          pipeline_id: string
+          source: string | null
+          stage_id: string
+          status: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          assigned_to?: string | null
+          company_id: string
+          company_name?: string | null
+          contact_id: string
+          created_at?: string
+          follower_id?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          pipeline_id: string
+          source?: string | null
+          stage_id: string
+          status?: string
+          updated_at?: string
+          value?: number
+        }
+        Update: {
+          assigned_to?: string | null
+          company_id?: string
+          company_name?: string | null
+          contact_id?: string
+          created_at?: string
+          follower_id?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          pipeline_id?: string
+          source?: string | null
+          stage_id?: string
+          status?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_opportunities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_opportunities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_opportunities_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_opportunities_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_pipeline_stages: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          pipeline_id: string
+          position: number
+          show_in_reports: boolean
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          pipeline_id: string
+          position?: number
+          show_in_reports?: boolean
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          pipeline_id?: string
+          position?: number
+          show_in_reports?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_pipeline_stages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_pipeline_stages_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_pipelines: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_pipelines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_tags: {
         Row: {
           color: string | null
