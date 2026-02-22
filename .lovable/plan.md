@@ -1,147 +1,107 @@
 
-# Dettaglio Contatto + Campi Personalizzati + Assegnazione Staff
+
+# Redesign Pagina Dettaglio Contatto - Stile GHL
 
 ## Panoramica
-Implementare una pagina dettaglio contatto in stile GHL con layout a 3 colonne, campi personalizzati configurabili nelle impostazioni, assegnazione titolare/follower, e sidebar laterale con attivita, note, documenti.
-
-Dato l'ampiezza della feature, la suddivido in blocchi implementativi.
+Riscrivere la pagina `MarketingContactDetail.tsx` per replicare fedelmente il layout GHL dallo screenshot, ottimizzando spazi, sidebar destra con icone verticali sul bordo e pannello contenuto interno, header centrale con avatar e azioni, e colonna sinistra con layout compatto.
 
 ---
 
-## 1. Database - Nuove tabelle
+## Modifiche principali
 
-### Tabella `marketing_custom_fields`
-Definisce i campi personalizzati configurabili per azienda.
+### 1. Colonna sinistra - Redesign completo
 
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | uuid PK | gen_random_uuid() |
-| company_id | uuid FK companies | NOT NULL, ON DELETE CASCADE |
-| name | text | NOT NULL (es. "Tipo di caldaia") |
-| field_type | text | NOT NULL: text, select, date, number |
-| options | text[] | Per i campi select (es. ['Condensazione', 'Tradizionale']) |
-| section | text | Default 'general_info' (raggruppamento: contatto, general_info, additional_info) |
-| position | integer | Default 0 (ordine di visualizzazione) |
-| created_at | timestamptz | default now() |
+**Header:**
+- Freccia indietro + testo "Contatto Dettagli" + contatore "X/N" + frecce prev/next (< >)
+- Richiede fetch del conteggio totale contatti e navigazione tra di essi
 
-RLS: company_admin ALL, staff SELECT, super_admin ALL.
+**Sezione avatar:**
+- Avatar + nome sulla stessa riga + icona cestino allineata a destra (compatto, come screenshot)
 
-### Tabella `marketing_contact_field_values`
-Valori dei campi personalizzati per ogni contatto.
+**Titolare e Follower:**
+- Disposti fianco a fianco su una riga (grid a 2 colonne) con icone utente
+- Dropdown compatti con placeholder "Non assegnato" / icona utente
 
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | uuid PK | gen_random_uuid() |
-| contact_id | uuid FK marketing_contacts | NOT NULL, ON DELETE CASCADE |
-| field_id | uuid FK marketing_custom_fields | NOT NULL, ON DELETE CASCADE |
-| value | text | nullable |
-| created_at | timestamptz | default now() |
+**Etichette (Tag):**
+- Label "Etichette (N)" con bottone "+" per aggiungere
+- Badge rimovibili (nome tag + X) sotto la label
+- Click su "+" apre il TagSelector esistente
 
-UNIQUE su (contact_id, field_id). RLS via join a marketing_contacts.company_id.
+**Tabs sotto etichette:**
+- 3 tab: "Tutti i campi" | "DND" | "Azioni"
+- Solo "Tutti i campi" e funzionale (gli altri sono placeholder)
 
-### Tabella `marketing_contact_notes`
-Note sul contatto.
+**Campo ricerca:**
+- Input "Cerca campi e cartelle" con icona filtro a destra (sotto i tab)
 
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | uuid PK | gen_random_uuid() |
-| contact_id | uuid FK marketing_contacts | NOT NULL, ON DELETE CASCADE |
-| company_id | uuid | NOT NULL |
-| content | text | NOT NULL |
-| created_by | uuid | NOT NULL |
-| created_at | timestamptz | default now() |
-
-### Tabella `marketing_contact_activities`
-Timeline di attivita del contatto (log automatico).
-
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | uuid PK | gen_random_uuid() |
-| contact_id | uuid FK marketing_contacts | NOT NULL, ON DELETE CASCADE |
-| company_id | uuid | NOT NULL |
-| activity_type | text | NOT NULL (es. 'created', 'updated', 'note_added', 'opportunity_linked', 'email_sent') |
-| description | text | NOT NULL |
-| metadata | jsonb | Default '{}' |
-| created_by | uuid | nullable |
-| created_at | timestamptz | default now() |
-
-### Nuove colonne su `marketing_contacts`
-- `assigned_to` uuid nullable (titolare - staff assegnato)
-- `follower_id` uuid nullable (follower - chi puo solo vedere)
-- `contact_type` text default 'lead' (lead, cliente, partner, ecc.)
-- `address` text nullable
-- `city` text nullable
-- `province` text nullable
-- `postal_code` text nullable
-- `country` text nullable (default 'Italia')
-- `website` text nullable
-- `date_of_birth` date nullable
-- `custom_fields` jsonb default '{}' (alternativa rapida per i valori)
+**Sezioni collassabili (invariate nel contenuto):**
+- Contatto, Informazioni generali, Campi personalizzati
+- Stesso funzionamento inline edit attuale
 
 ---
 
-## 2. Impostazioni - Campi Personalizzati
+### 2. Colonna centrale - Redesign header e timeline
 
-### Nuova pagina: `src/pages/azienda/settings/SettingsCustomFields.tsx`
-Pagina wrapper.
+**Header:**
+- Avatar piccolo + nome contatto a sinistra
+- Icone azione a destra: campanella (con dropdown), telefono, calendario, stella (preferito), busta email
 
-### Nuovo componente: `src/components/settings/CustomFieldsConfig.tsx`
-Interfaccia per:
-- Vedere lista dei campi personalizzati con nome, tipo e sezione
-- Aggiungere un nuovo campo con: nome, tipo (testo, select, data, numero), opzioni (per select), sezione
-- Eliminare un campo
-- Riordinare con drag (futuro, per ora position manuale)
+**Timeline:**
+- Separatori di data (es. "Ieri", "21 Feb 2026") tra gruppi di attivita
+- Entry con icona tipo + testo + "Dettagli" link + data
+- Stile piu ricco con icone per tipo attivita
 
-### Route e Sidebar
-- Aggiungere route `campi-personalizzati` sotto impostazioni in `App.tsx`
-- Aggiungere voce "Campi Personalizzati" nella sidebar impostazioni in `CompanyLayout.tsx`
+**Footer messaggio:**
+- Icona busta con dropdown + input "Digita un messaggio..." + bottone invio con colore primario
 
 ---
 
-## 3. Pagina Dettaglio Contatto
+### 3. Colonna destra - Sidebar con icone verticali
 
-### Nuova pagina: `src/pages/azienda/marketing/MarketingContactDetail.tsx`
-Layout a 3 colonne come nello screenshot GHL:
+**Layout completamente diverso:**
+- Le icone tab sono una colonna verticale stretta (w-10) sul bordo destro della pagina
+- Il pannello contenuto (w-64) si apre alla sinistra delle icone
+- Ogni icona: documenti, attivita, note, calendario, opportunita, impostazioni
 
-**Colonna sinistra (w-80, scrollabile):**
-- Header: freccia indietro "Contatto Dettagli" + navigazione prev/next (X/N)
-- Avatar con iniziali + nome + bottone elimina
-- Selettori "Titolare" e "Follower" (dropdown staff azienda)
-- Etichette (tag) con possibilita di aggiungere/rimuovere
-- Tabs: "Tutti i campi" | "DND" | "Azioni"
-- Sotto tab "Tutti i campi": sezioni collassabili
-  - **Contatto**: Nome, Cognome, Email, Telefono, Data di nascita, Source, Tipo di contatto
-  - **General Info**: Nome azienda, Indirizzo, Citta, Provincia, CAP, Paese, Sito web
-  - **Campi personalizzati**: Campi dinamici dalla tabella custom_fields
-- In fondo: "Creato il: data" + "Creato da: fonte"
+**Pannello Documenti (come screenshot):**
+- Header: titolo "Documenti" + "+ Aggiungi" + X per chiudere
+- Input ricerca "Cerca per nome del documento"
+- Filter tabs: Tutto | Interno | Inviato | Ricevuto
+- Lista documenti o stato vuoto "Ancora nessun documento"
 
-**Colonna centrale (flex-1):**
-- Header con nome contatto + icone azioni (telefono, email, preferito)
-- Timeline delle attivita ordinate per data
-- Ogni entry mostra tipo, descrizione, data
-- In basso: input "Digita un messaggio..." (placeholder per futuro)
+**Pannello Note:**
+- Header con titolo + X
+- Area textarea per nuova nota + bottone aggiungi
+- Lista note esistenti
 
-**Colonna destra (w-72, sidebar con icone tab):**
-- Tab verticali con icone: Documenti, Attivita, Note, Appuntamenti, Opportunita
-- **Documenti**: upload file + lista documenti caricati
-- **Note**: aggiungere/vedere note testuali
-- **Appuntamenti**: lista appuntamenti collegati (futura integrazione)
-- **Opportunita**: lista opportunita collegate (futura integrazione)
-
-### Routing
-- Route: `/azienda/marketing/contatti/:id`
-- Click sul nome nella tabella contatti naviga a questa pagina
-
-### Modifica inline
-- I campi nella colonna sinistra sono editabili inline (click per modificare, blur/enter per salvare)
-- Ogni modifica aggiorna il DB e aggiunge un'entry nella timeline attivita
+**Altri pannelli:** placeholder coerente con lo stile
 
 ---
 
-## 4. Aggiornamento ContactsTable
+## Dettaglio tecnico
 
-### File: `src/components/marketing/ContactsTable.tsx`
-- Il nome del contatto diventa un link cliccabile che naviga a `/azienda/marketing/contatti/:id`
+### File: `src/pages/azienda/marketing/MarketingContactDetail.tsx`
+
+Riscrittura completa del componente. Struttura JSX:
+
+```text
++------------------------------------------------------------------+
+|  LEFT (w-80)  |    CENTER (flex-1)    | CONTENT(w-64) | ICONS(w-12) |
+|               |                       |  (conditional)|             |
+|  Header       |  Avatar+Name+Actions  |  Docs/Notes/  | [icon]      |
+|  Avatar+Name  |  ─────────────────    |  etc panel    | [icon]      |
+|  Tit | Foll   |  Timeline entries     |               | [icon]      |
+|  Tags         |  with date separators |               | [icon]      |
+|  Tabs         |                       |               | [icon]      |
+|  Search       |                       |               | [icon]      |
+|  Collapsibles |  ─────────────────    |               |             |
+|               |  Message input bar    |               |             |
++------------------------------------------------------------------+
+```
+
+**Query aggiuntiva:** fetch count totale contatti per il contatore "X/N" e IDs per navigazione prev/next.
+
+**Nessuna nuova tabella o migrazione richiesta** - solo refactoring UI.
 
 ---
 
@@ -149,15 +109,11 @@ Layout a 3 colonne come nello screenshot GHL:
 
 | File | Azione |
 |------|--------|
-| Migration SQL | Nuove tabelle + colonne aggiuntive su marketing_contacts |
-| `src/pages/azienda/settings/SettingsCustomFields.tsx` | Nuovo |
-| `src/components/settings/CustomFieldsConfig.tsx` | Nuovo |
-| `src/pages/azienda/marketing/MarketingContactDetail.tsx` | Nuovo - pagina dettaglio 3 colonne |
-| `src/components/marketing/ContactsTable.tsx` | Modifica - nome cliccabile |
-| `src/App.tsx` | Modifica - nuove route |
-| `src/components/layouts/CompanyLayout.tsx` | Modifica - voce sidebar impostazioni |
+| `src/pages/azienda/marketing/MarketingContactDetail.tsx` | Riscrittura - layout GHL fedele |
 
 ## Cosa NON cambia
-- Le pagine esistenti (Dashboard, Opportunita, ecc.) restano invariate
-- Il dialog di creazione contatto rimane funzionante
-- I tag e il sistema esistente non vengono toccati
+- Database e tabelle invariati
+- Query e mutations esistenti riutilizzate
+- Componenti TagSelector, InlineField invariati nella logica
+- Routing invariato
+
