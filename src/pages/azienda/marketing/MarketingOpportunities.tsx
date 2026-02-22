@@ -1,8 +1,9 @@
+import React from "react";
 import { Target } from "lucide-react";
 
-export default function MarketingOpportunities() {
+const MarketingOpportunities = React.forwardRef<HTMLDivElement>((_, ref) => {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
+    <div ref={ref} className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
       <Target className="h-16 w-16 text-muted-foreground/40" />
       <h1 className="text-2xl font-bold">Opportunità</h1>
       <p className="text-muted-foreground max-w-md">
@@ -10,4 +11,8 @@ export default function MarketingOpportunities() {
       </p>
     </div>
   );
-}
+});
+
+MarketingOpportunities.displayName = "MarketingOpportunities";
+
+export default MarketingOpportunities;
