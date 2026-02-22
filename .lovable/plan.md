@@ -1,33 +1,42 @@
 
-# Fix colonna sinistra tagliata - Layout adattivo
 
-## Problema
+# Fix: Attivita non visibili - Foreign key mancanti
 
-Con 360px e `grid-cols-3`, le 3 colonne Titolare/Follower/Call Center hanno circa 112px ciascuna, insufficiente per mostrare le label e i valori dei select senza troncamento.
+## Causa
+
+Le query per attivita e note usano un join PostgREST:
+```
+.select("*, profiles:created_by(first_name, last_name)")
+```
+
+Ma le tabelle `marketing_contact_activities` e `marketing_contact_notes` non hanno una foreign key da `created_by` verso `profiles(id)`. PostgREST restituisce errore 400 e le attivita non vengono caricate.
 
 ## Soluzione
 
-### Cambio layout Titolare/Follower/Call Center
+### 1. Aggiungere le foreign key mancanti (migrazione DB)
 
-**File: `src/pages/azienda/marketing/MarketingContactDetail.tsx`**
+```sql
+ALTER TABLE marketing_contact_activities
+  ADD CONSTRAINT fk_activities_created_by
+  FOREIGN KEY (created_by) REFERENCES profiles(id);
 
-Sostituire il `grid-cols-3` con un layout a 2 righe:
-- Prima riga: `grid-cols-2` con Titolare e Follower (piu spazio per ciascuno)
-- Seconda riga: `grid-cols-2` con Call Center e un eventuale spazio vuoto, oppure Call Center a larghezza piena
+ALTER TABLE marketing_contact_notes
+  ADD CONSTRAINT fk_notes_created_by
+  FOREIGN KEY (created_by) REFERENCES profiles(id);
+```
 
-Approccio scelto: **`grid-cols-2` unico**, con Call Center che occupa una cella nella seconda riga. Cosi ogni colonna ha circa 170px, sufficiente per le label e i select.
+Questo permette a PostgREST di risolvere il join `profiles:created_by(...)` correttamente.
 
-**Modifiche specifiche (riga ~495)**:
-- Da: `<div className="grid grid-cols-3 gap-1.5">` con 3 `<div>` figli
-- A: `<div className="grid grid-cols-2 gap-2">` con 3 `<div>` figli (Call Center nella riga sotto, occupa 1 cella)
+### 2. Nessuna modifica al codice frontend
 
-### Tabs non troncate
-
-Le tabs "Tutti i campi", "DND", "Azioni" (riga ~598-603) dovrebbero essere gia OK a 360px, ma per sicurezza abbreviare "Tutti i campi" in "Campi" se necessario.
+Le query in `MarketingContactDetail.tsx` (righe 315 e 331) sono gia corrette. Una volta aggiunte le FK, il join funzionera e:
+- Le attivita verranno caricate nella timeline centrale
+- I nomi utente saranno visibili accanto a ogni attivita e nota
 
 ## Riepilogo
 
-| Modifica | Dettaglio |
-|----------|-----------|
-| Grid assegnazione | Da `grid-cols-3 gap-1.5` a `grid-cols-2 gap-2` |
-| Layout | Titolare e Follower sulla prima riga, Call Center sotto |
+| Azione | Dettaglio |
+|--------|-----------|
+| Migrazione DB | Aggiungere FK `created_by -> profiles(id)` su entrambe le tabelle |
+| Frontend | Nessuna modifica necessaria |
+| Risultato | Timeline attivita visibile + nomi utente mostrati |
