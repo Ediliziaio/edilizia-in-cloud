@@ -307,38 +307,40 @@ function CompanySidebar() {
             </Collapsible>
 
             {/* Marketing e Vendita */}
-            <Collapsible defaultOpen={isMarketingRoute}>
-              <SidebarGroup className="pt-0">
-                <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
-                  <span className="flex items-center gap-2">
-                    <Megaphone className="h-3.5 w-3.5" />
-                    Marketing e Vendita
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      {visibleMarketingItems.map((item) => (
-                        <SidebarMenuItem key={item.title}>
-                          <SidebarMenuButton asChild>
-                            <NavLink 
-                              to={item.url} 
-                              end={item.url === "/azienda/marketing"}
-                              className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                              activeClassName="bg-muted text-foreground font-medium"
-                            >
-                              <item.icon className="h-4 w-4" />
-                              <span>{item.title}</span>
-                            </NavLink>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </CollapsibleContent>
-              </SidebarGroup>
-            </Collapsible>
+            {visibleMarketingItems.length > 0 && (
+              <Collapsible defaultOpen={isMarketingRoute}>
+                <SidebarGroup className="pt-0">
+                  <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
+                    <span className="flex items-center gap-2">
+                      <Megaphone className="h-3.5 w-3.5" />
+                      Marketing e Vendita
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarGroupContent>
+                      <SidebarMenu>
+                        {visibleMarketingItems.map((item) => (
+                          <SidebarMenuItem key={item.title}>
+                            <SidebarMenuButton asChild>
+                              <NavLink 
+                                to={item.url} 
+                                end={item.url === "/azienda/marketing"}
+                                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                activeClassName="bg-muted text-foreground font-medium"
+                              >
+                                <item.icon className="h-4 w-4" />
+                                <span>{item.title}</span>
+                              </NavLink>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </SidebarMenu>
+                    </SidebarGroupContent>
+                  </CollapsibleContent>
+                </SidebarGroup>
+              </Collapsible>
+            )}
             
             <div className="mt-auto border-t">
               {permissions.canViewSettings && (

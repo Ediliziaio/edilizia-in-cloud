@@ -214,7 +214,7 @@ export function UsersConfig() {
     if (u.permissions.can_view_tickets) labels.push("Assistenza");
     if (u.permissions.can_view_forecast) labels.push("Previsionale");
     if (u.permissions.can_view_settings) labels.push("Impostazioni");
-    if ((u.permissions as any).can_view_marketing) labels.push("Marketing");
+    if (u.permissions.can_view_marketing) labels.push("Marketing");
     
     if (labels.length === 0) return "Nessun permesso";
     if (labels.length > 3) return `${labels.slice(0, 3).join(", ")} +${labels.length - 3}`;

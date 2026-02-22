@@ -27,8 +27,8 @@ export interface StaffPermissions {
   can_edit_tickets: boolean;
   can_view_forecast: boolean;
   can_view_settings: boolean;
-  can_view_marketing?: boolean;
-  can_edit_marketing?: boolean;
+  can_view_marketing: boolean;
+  can_edit_marketing: boolean;
   only_assigned?: boolean;
 }
 
