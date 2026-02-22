@@ -183,6 +183,7 @@ export default function MarketingOpportunities() {
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           pipelineId={selectedPipelineId}
+          pipelineName={selectedPipeline?.name}
           stages={stages}
         />
       )}
