@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ContactsTable, type MarketingContact } from "@/components/marketing/ContactsTable";
+import { ContactsTable, type MarketingContact, type SortField, type SortDirection } from "@/components/marketing/ContactsTable";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { ContactListsView } from "@/components/marketing/ContactListsView";
 import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
@@ -56,6 +56,8 @@ export default function MarketingContacts() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<MarketingContact | null>(null);
+  const [sortField, setSortField] = useState<SortField>("created_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   // List count for tab badge
   const { data: listCount = 0 } = useQuery({
@@ -74,7 +76,7 @@ export default function MarketingContacts() {
 
   // Fetch contacts
   const { data, isLoading } = useQuery({
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize],
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
@@ -85,7 +87,7 @@ export default function MarketingContacts() {
         .from("marketing_contacts")
         .select("*", { count: "exact" })
         .eq("company_id", companyId)
-        .order("created_at", { ascending: false })
+        .order(sortField, { ascending: sortDirection === "asc" })
         .range(from, to);
 
       if (search.trim()) {
@@ -345,6 +347,9 @@ export default function MarketingContacts() {
             pageSize={pageSize}
             onPageChange={setPage}
             onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={(f, d) => { setSortField(f); setSortDirection(d); setPage(1); }}
             bulkActions={<AddToListDropdown selectedIds={selectedIds} />}
           />
         </>
