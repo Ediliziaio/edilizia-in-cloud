@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Phone, Mail, Copy, StickyNote, Calendar, Folder, Trash2 } from "lucide-react";
+import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
@@ -68,11 +68,7 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
     }
   };
 
-  const handleCopyName = (e: React.MouseEvent) => {
-    stopProp(e);
-    navigator.clipboard.writeText(opportunity.name || fullName);
-    toast.success("Nome copiato");
-  };
+  // removed handleCopyName
 
   const handleComingSoon = (label: string) => (e: React.MouseEvent) => {
     stopProp(e);
@@ -92,7 +88,7 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
   const actionIcons = [
     { icon: Phone, tooltip: "Copia telefono", action: handleCopyPhone },
     { icon: Mail, tooltip: "Invia email", action: handleEmail },
-    { icon: Copy, tooltip: "Copia nome", action: handleCopyName },
+    { icon: Tag, tooltip: "Etichette", action: handleComingSoon("Etichette") },
     { icon: StickyNote, tooltip: "Note", action: handleComingSoon("Note") },
     { icon: Calendar, tooltip: "Calendario", action: handleComingSoon("Calendario") },
     { icon: Folder, tooltip: "Documenti", action: handleComingSoon("Documenti") },
@@ -122,16 +118,14 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
           )}
         </div>
 
-        {/* Detail rows - always show all */}
+        {/* Detail rows - values only */}
         <div className="space-y-1">
-          <DetailRow label="Fonte dell'opportunità:" value={opportunity.source || "—"} />
-          <DetailRow
-            label="Valore dell'opportunità:"
-            value={`EUR ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`}
-            bold
-          />
-          <DetailRow label="Email del contatto:" value={contact?.email || "—"} />
-          <DetailRow label="Telefono del contatto:" value={contact?.phone || "—"} />
+          <p className="text-[11px] leading-tight text-foreground truncate">{opportunity.source || "—"}</p>
+          <p className="text-[11px] leading-tight font-semibold text-primary truncate">
+            {`EUR ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`}
+          </p>
+          <p className="text-[11px] leading-tight text-foreground truncate">{contact?.email || "—"}</p>
+          <p className="text-[11px] leading-tight text-foreground truncate">{contact?.phone || "—"}</p>
         </div>
 
         {/* Action bar */}
@@ -170,11 +164,3 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
   );
 }
 
-function DetailRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return (
-    <div className="flex items-baseline gap-1 text-[11px] leading-tight">
-      <span className="text-muted-foreground shrink-0">{label}</span>
-      <span className={cn("truncate", bold ? "font-semibold text-primary" : "text-foreground")}>{value}</span>
-    </div>
-  );
-}
