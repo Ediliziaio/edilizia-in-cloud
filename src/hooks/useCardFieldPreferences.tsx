@@ -1,4 +1,4 @@
-import React, { useState, useCallback, createContext, useContext, type ReactNode } from "react";
+import { useState, useCallback, createContext, useContext, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export type CardLayout = "default" | "compact" | "no-label";
