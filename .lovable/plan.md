@@ -1,91 +1,86 @@
 
+# Migliorare il concetto delle Liste Contatti
 
-# Liste Contatti (Smart Lists) - Come GHL
+## Problemi attuali
 
-## Cosa viene creato
+Le liste oggi sono basiche: si possono solo creare, rinominare, eliminare e filtrare. Mancano diverse funzionalita chiave per renderle davvero utili come in GHL.
 
-Un sistema di liste per raggruppare contatti. L'utente puo creare liste (es. "Contatti vecchi", "Contatti Milano"), aggiungere/rimuovere contatti dalle liste, e filtrare la vista contatti per lista.
+## Miglioramenti previsti
 
-## Struttura
+### 1. Vista dettaglio lista con gestione membri
 
-### 1. Database - Nuova tabella `marketing_contact_lists`
+Quando l'utente clicca su una lista, invece di tornare al tab "Tutti" con un filtro, si apre una **vista dedicata** dentro il tab Liste stessa con:
+- Header con nome lista, descrizione, conteggio membri
+- Pulsante "Indietro" per tornare all'elenco liste
+- Tabella contatti con possibilita di **rimuovere** singoli contatti dalla lista
+- Pulsante "Aggiungi contatti" che apre un dialog per cercare e aggiungere contatti esistenti
+- Ricerca contatti dentro la lista
 
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | uuid | PK |
-| company_id | uuid | FK |
-| name | text | Nome lista |
-| description | text | Opzionale |
-| created_at | timestamptz | Default now() |
-| updated_at | timestamptz | Default now() |
+### 2. Dialog "Aggiungi contatti a lista"
 
-### 2. Database - Tabella ponte `marketing_contact_list_members`
+Un nuovo dialog con:
+- Barra di ricerca per trovare contatti esistenti (nome, email, telefono)
+- Checkbox per selezionare piu contatti
+- Mostra quanti contatti sono gia nella lista (disabilitati)
+- Pulsante "Aggiungi selezionati"
 
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | uuid | PK |
-| list_id | uuid | FK a marketing_contact_lists |
-| contact_id | uuid | FK a marketing_contacts |
-| added_at | timestamptz | Default now() |
+### 3. Rimuovi da lista (bulk e singolo)
 
-Con vincolo UNIQUE su (list_id, contact_id) per evitare duplicati.
+- Nella vista dettaglio lista, ogni riga ha un'icona "rimuovi dalla lista" (non elimina il contatto, solo la membership)
+- Selezione multipla con azione "Rimuovi dalla lista"
 
-### 3. RLS Policies
+### 4. Conferma eliminazione lista
 
-- Company admins: ALL su entrambe le tabelle (filtro company_id)
-- Staff con can_view_orders: SELECT
-- Super admins: ALL
+- Dialog di conferma prima di eliminare una lista (oggi elimina direttamente)
+- Messaggio chiaro: "I contatti non verranno eliminati, solo la lista"
 
-### 4. UI - Tab "Liste" nella pagina Contatti
+### 5. Conteggio liste nel tab
 
-In `MarketingContacts.tsx`:
-- Aggiungere tab switcher sopra la tabella: **Tutti** | **Liste**
-- Tab "Tutti" mostra la vista attuale
-- Tab "Liste" mostra l'elenco delle liste con conteggio contatti
-
-### 5. Componente `ContactListsView.tsx`
-
-Vista griglia/lista delle liste con:
-- Nome lista, descrizione, numero contatti, data creazione
-- Pulsante "Crea Lista" con dialog per nome + descrizione
-- Click su lista filtra la tabella contatti mostrando solo i membri
-- Menu azioni: rinomina, elimina lista
-
-### 6. Componente `CreateListDialog.tsx`
-
-Dialog semplice con:
-- Campo nome (obbligatorio)
-- Campo descrizione (opzionale)
-- Pulsante Crea
-
-### 7. Aggiungere contatti a liste
-
-- Nella bulk actions bar (quando contatti selezionati), aggiungere pulsante "Aggiungi a lista"
-- Dropdown che mostra le liste esistenti + opzione "Crea nuova lista"
-- Nella pagina dettaglio contatto, mostrare le liste di appartenenza
-
-### 8. Filtro per lista nella vista contatti
-
-- Quando si clicca su una lista, la vista torna su "Tutti" ma filtrata per quella lista
-- Badge che mostra il filtro attivo con possibilita di rimuoverlo
+- Badge con il numero di liste nel tab "Liste"
 
 ## File coinvolti
 
 | File | Azione |
 |------|--------|
-| Migrazione SQL | Creare 2 tabelle + RLS + indici |
-| `src/components/marketing/ContactListsView.tsx` | NUOVO - Vista liste |
-| `src/components/marketing/CreateListDialog.tsx` | NUOVO - Dialog creazione lista |
-| `src/components/marketing/AddToListDropdown.tsx` | NUOVO - Dropdown per aggiungere a lista |
-| `src/pages/azienda/marketing/MarketingContacts.tsx` | Aggiungere tabs Tutti/Liste, filtro per lista, bulk action |
-| `src/components/marketing/ContactsTable.tsx` | Aggiungere pulsante "Aggiungi a lista" nelle bulk actions |
+| `ContactListsView.tsx` | Ristrutturare: aggiungere vista dettaglio lista inline, dialog aggiunta contatti, rimozione membri, conferma eliminazione |
+| `MarketingContacts.tsx` | Rimuovere logica filterListId (spostata dentro ContactListsView), aggiungere badge conteggio al tab Liste |
+| `ContactsTable.tsx` | Nessuna modifica |
+| `AddToListDropdown.tsx` | Nessuna modifica |
 
-## Flusso UX
+## Dettagli tecnici
 
-1. Utente va su Contatti e vede tab "Tutti" (default) e "Liste"
-2. Clicca "Liste" e vede elenco liste (o vuoto con CTA)
-3. Crea una nuova lista con nome e descrizione
-4. Torna su "Tutti", seleziona contatti con checkbox
-5. Nella barra bulk actions clicca "Aggiungi a lista" e sceglie la lista
-6. Clicca su una lista per vedere solo i suoi contatti (filtro attivo con badge rimovibile)
+### ContactListsView - Nuova struttura interna
 
+Il componente gestira due stati interni:
+- `selectedList: null` = mostra griglia liste
+- `selectedList: { id, name }` = mostra vista dettaglio con tabella membri
+
+### Query per membri della lista
+
+```text
+supabase
+  .from("marketing_contact_list_members")
+  .select("contact_id, added_at, marketing_contacts(*)")
+  .eq("list_id", selectedListId)
+```
+
+### Dialog "Aggiungi contatti"
+
+Ricerca contatti dell'azienda non ancora nella lista:
+```text
+- Fetch tutti i contatti dell'azienda con ricerca
+- Escludere quelli gia presenti nella lista
+- Upsert dei selezionati nella tabella members
+```
+
+### Conferma eliminazione
+
+AlertDialog standard con testo: "Sei sicuro di voler eliminare la lista '{nome}'? I contatti al suo interno non verranno eliminati."
+
+## Flusso UX migliorato
+
+1. Utente va su tab "Liste" e vede le card con conteggio
+2. Clicca su una lista e vede la tabella dei suoi membri
+3. Puo cercare dentro la lista, rimuovere contatti, aggiungerne di nuovi
+4. Pulsante indietro per tornare all'elenco liste
+5. Dal tab "Tutti", puo ancora usare la selezione multipla e "Aggiungi a lista"
