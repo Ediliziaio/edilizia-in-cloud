@@ -1,102 +1,44 @@
 
 
-# Stabilizzazione e Miglioramento Opportunita - Piano Completo
+# Fix: Nomi Fasi Non Visibili nella Kanban + Miglioramento Card
 
-## Bug critico trovato
+## Problema identificato
 
-**"Maximum update depth exceeded"** in `OpportunityDetailDialog.tsx` (linea 102). I due `useEffect` per sincronizzare `contactFieldValues` e `oppFieldValues` creano nuovi oggetti `Record` ad ogni render, causando un loop infinito di setState. Questo causa freeze della UI e re-render continui.
+Le colonne della kanban mostrano il conteggio ("2 Opportunita - EUR 0,00") ma il nome della fase (es. "Da Chiamare", "Non risponde") non appare visibile. I dati sono corretti nel database e nel codice. Il problema e che l'`h3` con `stage.name` viene renderizzato ma potrebbe non essere visibile a causa di un problema di stile/rendering.
 
-**Causa**: `contactFieldValues` e `oppFieldValues` sono array che cambiano riferimento ad ogni query refetch, ma il `useEffect` non confronta i valori prima di fare `setState`, creando un ciclo: setState -> re-render -> useEffect -> setState -> ...
+Dalla comparazione con lo screenshot GHL, emergono anche differenze importanti nella card:
+- GHL mostra **etichette** per ogni campo: "Fonte dell'opportunita:", "Valore dell'opportunita:", "Email del contatto:", "Telefono del contatto:"
+- La card attuale mostra solo i valori senza etichette, rendendo difficile capire cosa si sta guardando
 
 ## Modifiche previste
 
-### 1. Fix bug critico - Loop infinito in OpportunityDetailDialog.tsx
+### 1. Fix header colonne kanban
 
-**File**: `src/components/opportunities/OpportunityDetailDialog.tsx`
+**File**: `src/components/opportunities/OpportunityKanbanView.tsx`
 
-Sostituire i due `useEffect` problematici (linee 96-106) con una logica che confronta i valori prima di aggiornare lo stato. Usare `JSON.stringify` per evitare re-render inutili oppure spostare la sincronizzazione dentro il `useEffect` principale che si attiva su `opportunity`.
+Il tag `h3` con `stage.name` (linea 25) viene renderizzato ma potrebbe essere troncato o non visibile. Verifichero che:
+- Il testo non sia troncato con `truncate` in modo eccessivo
+- Il font size e peso siano sufficienti
+- Aggiungo un fallback visivo se il nome e vuoto (non dovrebbe essere il caso, ma per sicurezza)
 
-Approccio: unificare la sincronizzazione dei custom field values nell'effetto principale (linea 75) che dipende da `opportunity`, aggiungendo `contactFieldValues` e `oppFieldValues` come dipendenze con un guard di confronto.
-
-### 2. Dialog piu grande
-
-**File**: `src/components/opportunities/OpportunityDetailDialog.tsx`
-- Cambiare `max-w-3xl` a `max-w-5xl` e `max-h-[90vh]` a `max-h-[92vh]`
-
-**File**: `src/components/opportunities/OpportunityDialog.tsx`
-- Cambiare `max-w-2xl` a `max-w-4xl` e `max-h-[85vh]` a `max-h-[92vh]`
-
-### 3. Creazione nuovo contatto dal dialog dettaglio
-
-**File**: `src/components/opportunities/OpportunityDetailDialog.tsx`
-
-Aggiungere un pulsante "Cambia contatto" sotto il nome del contatto primario che apre un combobox/inline form (simile a quello del dialog di creazione) per:
-- Cercare un contatto esistente e associarlo
-- Creare un nuovo contatto inline (nome, email, telefono) e associarlo all'opportunita
-
-### 4. Pulizia codice
+### 2. Card stile GHL con etichette
 
 **File**: `src/components/opportunities/OpportunityCard.tsx`
-- Rimuovere il commento morto `// removed handleCopyName` (linea 71)
 
-**File**: `src/components/opportunities/OpportunityDetailDialog.tsx`
-- Rimuovere import `Textarea` se non usato nella tab details (viene usato nelle note, quindi resta)
-- Verificare che tutti gli import siano necessari
+Aggiornare la card per mostrare le etichette come in GHL:
+- "Fonte dell'opportunita: Facebook Bluesolar"
+- "Valore dell'opportunita: EUR 0,00"
+- "Email del contatto: email@esempio.com"
+- "Telefono del contatto: +393483467567"
 
-### 5. Miglioramenti UX
+Formato: testo grigio per l'etichetta, testo nero per il valore, tutto sulla stessa riga con `truncate` per i valori lunghi.
 
-**File**: `src/components/opportunities/OpportunityDetailDialog.tsx`
-- Aggiungere `toast.success` dopo il salvataggio andato a buon fine (attualmente chiude il dialog senza feedback)
-- Aggiungere stato di loading sul pulsante "Aggiorna" con `Loader2` (gia presente ma verificare che funzioni)
-- Disabilitare il pulsante "Aggiorna" se non ci sono modifiche (opzionale, basso priorita)
+### 3. Debug rendering
 
-**File**: `src/components/opportunities/OpportunityDialog.tsx`
-- Il dropdown contatti scompare con `onBlur` dopo 200ms - aumentare a 300ms per evitare click mancati su mobile
+Per sicurezza, aggiungero un `console.log` temporaneo (che poi rimuovo) per verificare che `stage.name` arrivi correttamente al componente. Se il problema e un race condition o un dato mancante, lo correggo nella query.
 
----
+## File modificati (2)
 
-## Dettaglio tecnico
-
-### File modificati (3)
-
-1. **`src/components/opportunities/OpportunityDetailDialog.tsx`**
-   - Fix loop infinito: sostituire i due useEffect con sincronizzazione sicura usando `useMemo` per creare i valori iniziali e sincronizzare solo quando l'`opportunity.id` cambia
-   - Dialog piu grande: `max-w-5xl`
-   - Aggiungere sezione "Cambia contatto" con combobox di ricerca + form inline per nuovo contatto
-   - Toast di successo al salvataggio
-
-2. **`src/components/opportunities/OpportunityDialog.tsx`**
-   - Dialog piu grande: `max-w-4xl`
-   - Fix timeout onBlur da 200ms a 300ms
-
-3. **`src/components/opportunities/OpportunityCard.tsx`**
-   - Rimuovere commento morto linea 71
-
-### Flusso "Cambia contatto" nel dialog dettaglio
-
-```text
-[Nome contatto primario (read-only)]  [Pulsante "Cambia"]
-                |
-                v (click "Cambia")
-[Input ricerca contatto con dropdown]
-  - Lista contatti filtrati
-  - "+ Crea nuovo contatto" in fondo
-                |
-                v (seleziona esistente)
-  Aggiorna contact_id sull'opportunita al salvataggio
-                |
-                v (crea nuovo)
-  Form inline: Nome, Email, Telefono
-  Al salvataggio: crea contatto -> aggiorna contact_id
-```
-
-### Elenco bug corretti
-1. **Loop infinito** (Maximum update depth exceeded) - useEffect senza guard in OpportunityDetailDialog
-2. **Commento morto** in OpportunityCard
-
-### Elenco miglioramenti UX
-1. Dialog piu grandi (5xl dettaglio, 4xl creazione)
-2. Toast feedback al salvataggio
-3. Timeout onBlur aumentato per mobile
-4. Possibilita di cambiare contatto dal dettaglio
+1. **`src/components/opportunities/OpportunityKanbanView.tsx`** - Fix visibilita nome fase nell'header della colonna
+2. **`src/components/opportunities/OpportunityCard.tsx`** - Aggiunta etichette GHL-style per fonte, valore, email, telefono
 
