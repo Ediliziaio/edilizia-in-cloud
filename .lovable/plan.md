@@ -1,107 +1,76 @@
 
 
-# Redesign Pagina Dettaglio Contatto - Stile GHL
+# Redesign Campi Personalizzati - Stile GHL
 
 ## Panoramica
-Riscrivere la pagina `MarketingContactDetail.tsx` per replicare fedelmente il layout GHL dallo screenshot, ottimizzando spazi, sidebar destra con icone verticali sul bordo e pannello contenuto interno, header centrale con avatar e azioni, e colonna sinistra con layout compatto.
+Riscrivere la pagina "Campi Personalizzati" nelle impostazioni per replicare il layout GHL: una tabella unificata che mostra sia i **campi di sistema** (obbligatori, non modificabili/eliminabili) sia i **campi personalizzati** creati dall'utente, con la possibilita di aggiungere nuovi campi.
 
 ---
 
-## Modifiche principali
+## Layout dalla screenshot GHL
 
-### 1. Colonna sinistra - Redesign completo
+### Header
+- Tabs: "Tutti i campi" | "Cartelle" | "Campi eliminati"
+- Solo "Tutti i campi" sara funzionale (gli altri placeholder)
+- Bottoni in alto a destra: "Aggiungi cartella" (placeholder) + "+ Aggiungi campo" (funzionale)
 
-**Header:**
-- Freccia indietro + testo "Contatto Dettagli" + contatore "X/N" + frecce prev/next (< >)
-- Richiede fetch del conteggio totale contatti e navigazione tra di essi
+### Barra ricerca
+- Input "Cerca" con icona lente
+- A destra: "Raggruppa per: Tutto" dropdown
 
-**Sezione avatar:**
-- Avatar + nome sulla stessa riga + icona cestino allineata a destra (compatto, come screenshot)
+### Tabella unificata
+Colonne:
+- **Checkbox** (per selezione multipla, placeholder)
+- **Nome Del Campo** - nome leggibile
+- **Oggetto** - "Contatto" oppure "Opportunita"
+- **Cartella** - badge colorato con sezione (es. "Contatto", "General Info", "Additional Info")
+- **Chiave Univoca** - chiave tecnica tra doppie graffe, es. `{{ contact.first_name }}`, con icona copia
+- **Creato Il** - data di creazione
 
-**Titolare e Follower:**
-- Disposti fianco a fianco su una riga (grid a 2 colonne) con icone utente
-- Dropdown compatti con placeholder "Non assegnato" / icona utente
+### Campi di sistema (built-in)
+Campi predefiniti non eliminabili, sempre presenti in tabella. Suddivisi per oggetto:
 
-**Etichette (Tag):**
-- Label "Etichette (N)" con bottone "+" per aggiungere
-- Badge rimovibili (nome tag + X) sotto la label
-- Click su "+" apre il TagSelector esistente
+**Contatto - sezione "Contatto":**
+- First Name -> `{{ contact.first_name }}`
+- Last Name -> `{{ contact.last_name }}`
+- Email -> `{{ contact.email }}`
+- Phone -> `{{ contact.phone }}`
+- Date Of Birth -> `{{ contact.date_of_birth }}`
+- Contact Source -> `{{ contact.source }}`
+- Contact Type -> `{{ contact.type }}`
 
-**Tabs sotto etichette:**
-- 3 tab: "Tutti i campi" | "DND" | "Azioni"
-- Solo "Tutti i campi" e funzionale (gli altri sono placeholder)
+**Contatto - sezione "General Info":**
+- Business Name -> `{{ contact.company_name }}`
+- Street Address -> `{{ contact.address }}`
+- City -> `{{ contact.city }}`
+- State -> `{{ contact.province }}`
+- Postal Code -> `{{ contact.postal_code }}`
+- Country -> `{{ contact.country }}`
+- Website -> `{{ contact.website }}`
 
-**Campo ricerca:**
-- Input "Cerca campi e cartelle" con icona filtro a destra (sotto i tab)
+I campi personalizzati (dal database `marketing_custom_fields`) appaiono nella stessa tabella con la loro sezione e una chiave univoca generata dal nome, es. `{{ contact.nome_campo_custom }}`.
 
-**Sezioni collassabili (invariate nel contenuto):**
-- Contatto, Informazioni generali, Campi personalizzati
-- Stesso funzionamento inline edit attuale
-
----
-
-### 2. Colonna centrale - Redesign header e timeline
-
-**Header:**
-- Avatar piccolo + nome contatto a sinistra
-- Icone azione a destra: campanella (con dropdown), telefono, calendario, stella (preferito), busta email
-
-**Timeline:**
-- Separatori di data (es. "Ieri", "21 Feb 2026") tra gruppi di attivita
-- Entry con icona tipo + testo + "Dettagli" link + data
-- Stile piu ricco con icone per tipo attivita
-
-**Footer messaggio:**
-- Icona busta con dropdown + input "Digita un messaggio..." + bottone invio con colore primario
-
----
-
-### 3. Colonna destra - Sidebar con icone verticali
-
-**Layout completamente diverso:**
-- Le icone tab sono una colonna verticale stretta (w-10) sul bordo destro della pagina
-- Il pannello contenuto (w-64) si apre alla sinistra delle icone
-- Ogni icona: documenti, attivita, note, calendario, opportunita, impostazioni
-
-**Pannello Documenti (come screenshot):**
-- Header: titolo "Documenti" + "+ Aggiungi" + X per chiudere
-- Input ricerca "Cerca per nome del documento"
-- Filter tabs: Tutto | Interno | Inviato | Ricevuto
-- Lista documenti o stato vuoto "Ancora nessun documento"
-
-**Pannello Note:**
-- Header con titolo + X
-- Area textarea per nuova nota + bottone aggiungi
-- Lista note esistenti
-
-**Altri pannelli:** placeholder coerente con lo stile
+### Footer tabella
+- Contatore "Presentazione 1 a N di N risultati"
+- Selettore "Dimensione pagina: 200"
+- Paginazione (se servisse)
 
 ---
 
 ## Dettaglio tecnico
 
-### File: `src/pages/azienda/marketing/MarketingContactDetail.tsx`
+### File: `src/components/settings/CustomFieldsConfig.tsx`
+Riscrittura completa:
+- Definire un array costante `BUILTIN_FIELDS` con tutti i campi di sistema (nome, oggetto, cartella, chiave, data creazione fissa, `isSystem: true`)
+- Unire `BUILTIN_FIELDS` + campi custom dal database in un'unica lista
+- Campi di sistema: nessun checkbox, nessun bottone elimina
+- Campi custom: checkbox + bottone elimina attivo
+- Filtro ricerca per nome campo
+- Dialog "Aggiungi campo" invariato nella logica (nome, tipo, sezione, opzioni)
+- Bottone copia su chiave univoca (clipboard)
 
-Riscrittura completa del componente. Struttura JSX:
-
-```text
-+------------------------------------------------------------------+
-|  LEFT (w-80)  |    CENTER (flex-1)    | CONTENT(w-64) | ICONS(w-12) |
-|               |                       |  (conditional)|             |
-|  Header       |  Avatar+Name+Actions  |  Docs/Notes/  | [icon]      |
-|  Avatar+Name  |  ─────────────────    |  etc panel    | [icon]      |
-|  Tit | Foll   |  Timeline entries     |               | [icon]      |
-|  Tags         |  with date separators |               | [icon]      |
-|  Tabs         |                       |               | [icon]      |
-|  Search       |                       |               | [icon]      |
-|  Collapsibles |  ─────────────────    |               |             |
-|               |  Message input bar    |               |             |
-+------------------------------------------------------------------+
-```
-
-**Query aggiuntiva:** fetch count totale contatti per il contatore "X/N" e IDs per navigazione prev/next.
-
-**Nessuna nuova tabella o migrazione richiesta** - solo refactoring UI.
+### Nessuna modifica al database
+I campi di sistema sono definiti come costante nel frontend, non servono nuove tabelle o colonne.
 
 ---
 
@@ -109,11 +78,10 @@ Riscrittura completa del componente. Struttura JSX:
 
 | File | Azione |
 |------|--------|
-| `src/pages/azienda/marketing/MarketingContactDetail.tsx` | Riscrittura - layout GHL fedele |
+| `src/components/settings/CustomFieldsConfig.tsx` | Riscrittura completa - layout GHL con campi di sistema + custom |
 
 ## Cosa NON cambia
-- Database e tabelle invariati
-- Query e mutations esistenti riutilizzate
-- Componenti TagSelector, InlineField invariati nella logica
-- Routing invariato
-
+- Tabella `marketing_custom_fields` e RLS invariate
+- Dialog di creazione campo invariato nella logica
+- Pagina wrapper `SettingsCustomFields.tsx` invariata
+- Routing e sidebar invariati
