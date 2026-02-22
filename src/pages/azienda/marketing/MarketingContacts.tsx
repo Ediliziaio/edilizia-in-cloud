@@ -328,10 +328,26 @@ export default function MarketingContacts() {
         }
       }
 
+      // Fetch call_center names
+      const callCenterIds = [...new Set((contactsRaw || []).map((c: any) => c.call_center_id).filter(Boolean))];
+      let callCenterMap: Record<string, string> = {};
+      if (callCenterIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", callCenterIds);
+        if (profiles) {
+          for (const p of profiles) {
+            callCenterMap[p.id] = `${p.first_name} ${p.last_name || ""}`.trim();
+          }
+        }
+      }
+
       const contacts: MarketingContact[] = (contactsRaw || []).map((c: any) => {
         const opp = oppMap[c.id];
         return {
           ...c,
+          call_center_name: callCenterMap[c.call_center_id] || null,
           opp_name: opp?.name || null,
           opp_value: opp?.value ?? null,
           opp_status: opp?.status || null,

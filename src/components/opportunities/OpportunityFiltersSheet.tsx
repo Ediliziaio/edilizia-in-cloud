@@ -12,6 +12,7 @@ export interface OpportunityFilters {
   statuses: string[];
   assignedTo: string;
   followerId: string;
+  callCenterId: string;
   source: string;
   valueMin: string;
   valueMax: string;
@@ -24,6 +25,7 @@ export const EMPTY_FILTERS: OpportunityFilters = {
   statuses: [],
   assignedTo: "",
   followerId: "",
+  callCenterId: "",
   source: "",
   valueMin: "",
   valueMax: "",
@@ -37,6 +39,7 @@ export function countActiveFilters(f: OpportunityFilters): number {
   if (f.statuses.length) count++;
   if (f.assignedTo) count++;
   if (f.followerId) count++;
+  if (f.callCenterId) count++;
   if (f.source) count++;
   if (f.valueMin || f.valueMax) count++;
   if (f.dateFrom || f.dateTo) count++;
@@ -136,6 +139,17 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           {/* Follower */}
           <FilterSection title="Follower">
             <Select value={local.followerId || "all"} onValueChange={(v) => setLocal((p) => ({ ...p, followerId: v === "all" ? "" : v }))}>
+              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti</SelectItem>
+                {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </FilterSection>
+
+          {/* Call Center */}
+          <FilterSection title="Call Center">
+            <Select value={local.callCenterId || "all"} onValueChange={(v) => setLocal((p) => ({ ...p, callCenterId: v === "all" ? "" : v }))}>
               <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti</SelectItem>

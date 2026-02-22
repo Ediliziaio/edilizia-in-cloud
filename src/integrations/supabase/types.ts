@@ -973,6 +973,7 @@ export type Database = {
         Row: {
           address: string | null
           assigned_to: string | null
+          call_center_id: string | null
           city: string | null
           company_id: string
           company_name: string | null
@@ -998,6 +999,7 @@ export type Database = {
         Insert: {
           address?: string | null
           assigned_to?: string | null
+          call_center_id?: string | null
           city?: string | null
           company_id: string
           company_name?: string | null
@@ -1023,6 +1025,7 @@ export type Database = {
         Update: {
           address?: string | null
           assigned_to?: string | null
+          call_center_id?: string | null
           city?: string | null
           company_id?: string
           company_name?: string | null
@@ -1102,6 +1105,7 @@ export type Database = {
       marketing_opportunities: {
         Row: {
           assigned_to: string | null
+          call_center_id: string | null
           company_id: string
           company_name: string | null
           contact_id: string
@@ -1120,6 +1124,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          call_center_id?: string | null
           company_id: string
           company_name?: string | null
           contact_id: string
@@ -1138,6 +1143,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          call_center_id?: string | null
           company_id?: string
           company_name?: string | null
           contact_id?: string

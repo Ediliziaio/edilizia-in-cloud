@@ -479,8 +479,8 @@ export default function MarketingContactDetail() {
               </Button>
             </div>
 
-            {/* Titolare & Follower side by side */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Titolare, Follower & Call Center */}
+            <div className="grid grid-cols-3 gap-2">
               <div>
                 <div className="flex items-center gap-1 mb-0.5">
                   <User className="h-3 w-3 text-muted-foreground" />
@@ -506,6 +506,23 @@ export default function MarketingContactDetail() {
                 <Select
                   value={contact.follower_id || ""}
                   onValueChange={(v) => updateField.mutate({ field: "follower_id", value: v || null })}
+                >
+                  <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                  <SelectContent>
+                    {staff.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <div className="flex items-center gap-1 mb-0.5">
+                  <Phone className="h-3 w-3 text-muted-foreground" />
+                  <Label className="text-xs text-muted-foreground">Call Center</Label>
+                </div>
+                <Select
+                  value={(contact as any).call_center_id || ""}
+                  onValueChange={(v) => updateField.mutate({ field: "call_center_id", value: v || null })}
                 >
                   <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                   <SelectContent>

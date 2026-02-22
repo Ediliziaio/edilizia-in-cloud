@@ -36,6 +36,8 @@ export interface MarketingContact {
   date_of_birth: string | null;
   website: string | null;
   assigned_to: string | null;
+  call_center_id: string | null;
+  call_center_name: string | null;
   opp_name: string | null;
   opp_value: number | null;
   opp_status: string | null;
@@ -69,6 +71,7 @@ export const COLUMNS = [
   { key: "opp_status", label: "Stato opp.", group: "Opportunità" },
   { key: "opp_pipeline", label: "Pipeline", group: "Opportunità" },
   { key: "opp_stage", label: "Fase pipeline", group: "Opportunità" },
+  { key: "call_center", label: "Call Center", group: "Assegnazione" },
 ] as const;
 
 export type ColumnKey = (typeof COLUMNS)[number]["key"];
@@ -220,6 +223,8 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.opp_pipeline || "—"}</TableCell>;
     case "opp_stage":
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.opp_stage || "—"}</TableCell>;
+    case "call_center":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.call_center_name || "—"}</TableCell>;
     default:
       return null;
   }

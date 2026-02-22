@@ -78,6 +78,7 @@ export function useCreateOpportunity() {
       source?: string;
       assigned_to?: string;
       follower_id?: string;
+      call_center_id?: string;
       company_name?: string;
       notes?: string;
     }) => {
