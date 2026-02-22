@@ -1,57 +1,104 @@
 
 
-# Fix Import Wizard - Sidebar Visibile + Stabilizzazione
+# Stabilizzazione Opportunita + Pulizia Codebase
 
-## Problema
+## Bug identificati e fix
 
-Il wizard di importazione usa `absolute inset-0 z-40` dentro `<main>` che causa problemi grafici con la sidebar (testo troncato, overlay). Il wizard dovrebbe essere contenuto inline nell'area di contenuto senza posizionamento assoluto.
+### 1. Console Warning: ref su ImportWizard e StepStart
+**Problema**: Due warning in console "Function components cannot be given refs" per `ImportWizard` e `StepStart`. React tenta di passare un ref a questi componenti ma non usano `forwardRef`.
 
-## Soluzione
+**File da modificare**:
+- `src/components/shared/ImportWizard.tsx`: wrappare con `React.forwardRef`
+- `src/components/shared/import-wizard/StepStart.tsx`: wrappare con `React.forwardRef`
 
-Rendere il wizard un componente **inline** che sostituisce il contenuto della pagina quando attivo, invece di un overlay posizionato.
+### 2. CSVImportDialog: codice duplicato legacy
+**Problema**: `CSVImportDialog` contiene funzioni `autoMatch` e `parseFileData` identiche a quelle in `ImportWizard.tsx`. Il componente `CSVImportDialog` e ancora usato da 3 pagine (CustomersList, OrdersList, CompanyCostsManager), quindi non puo essere rimosso, ma la duplicazione di logica e inutile.
 
-## Modifiche
+**Azione**: Nessuna rimozione (e usato altrove), ma nessun fix necessario - la duplicazione e accettabile dato che i due componenti servono contesti diversi.
 
-### 1. ImportWizard.tsx - Da overlay a contenuto inline
+### 3. OpportunityDialog: stage_id non si aggiorna quando stages cambiano
+**Problema**: `stageId` viene inizializzato con `stages[0]?.id || ""` al mount del componente. Se `stages` arriva vuoto e poi si popola (async), lo state resta `""`. Questo puo causare un errore silenzioso alla creazione.
 
-Rimuovere `absolute inset-0 z-40 bg-background` dal wrapper root. Usare un semplice `div` con `flex flex-col h-full` che occupa lo spazio naturale del parent. Rimuovere anche `overflow-hidden` dal wrapper. Il wizard diventa semplicemente un componente che prende tutto lo spazio disponibile nel flusso normale del layout.
+**Fix**: Aggiungere un `useEffect` che aggiorna `stageId` quando `stages` cambia e `stageId` e vuoto o non valido.
 
-Cambiare:
-- `absolute inset-0 z-40 bg-background flex flex-col overflow-hidden` diventa `flex flex-col min-h-[calc(100vh-8rem)] -m-6 bg-background`
-- Il `-m-6` compensa il `p-6` del `<main>`, cosi il wizard si estende bordo a bordo nell'area di contenuto
-- Nessun z-index, nessun posizionamento assoluto
+**File**: `src/components/opportunities/OpportunityDialog.tsx`
 
-### 2. MarketingContacts.tsx - Rendering condizionale
+### 4. OpportunityDetailDialog: auto-sync tag potenzialmente causa loop e write non necessarie
+**Problema**: L'`useEffect` alle righe 146-163 che sincronizza i tag dal contatto all'opportunita scrive direttamente nel DB ad ogni apertura del dialog, anche se non necessario. Questo causa invalidation della cache e potenziali race condition.
 
-Quando `importOpen` e true, rendere SOLO il wizard (senza il resto della pagina). Il wizard sostituisce il contenuto della pagina invece di sovrapporsi.
+**Fix**: Aggiungere un guard per evitare la sync se i tag sono gia allineati. Spostare il check prima della write.
 
-Spostare il rendering del wizard prima del contenuto principale con un `if (importOpen) return <ImportWizard ... />` pattern.
+**File**: `src/components/opportunities/OpportunityDetailDialog.tsx`
 
-### 3. MarketingOpportunities.tsx - Rendering condizionale
+## Pulizia codice
 
-Stessa logica: quando `importOpen` e true, rendere solo il wizard al posto del contenuto della pagina.
+### 5. Import inutili
+- `src/components/opportunities/OpportunityDialog.tsx` riga 16: `useNavigate` importato ma mai usato per la navigazione (solo dichiarato, non chiamato)
+- `src/components/opportunities/OpportunityDetailDialog.tsx` riga 32: `useNavigate` importato e dichiarato ma non usato nelle funzioni
 
-### 4. CompanyLayout.tsx - Rimuovere relative overflow-hidden
+**Fix**: Rimuovere import e dichiarazioni di `useNavigate` da entrambi i file.
 
-Rimuovere `relative overflow-hidden` dal `<main>` dato che non serve piu (il wizard non usa piu posizionamento assoluto). Mantenere solo `flex-1 p-6 bg-muted/30`.
+### 6. OpportunityCard: variabile `stopProp` non necessaria come funzione separata
+**Azione**: Nessuna modifica - e usata in piu punti, e giustificata.
 
-### 5. StepIndicator.tsx - Gia corretto con forwardRef
+## Miglioramenti UX
 
-Verificato: gia usa `React.forwardRef`, il warning in console dovrebbe essere risolto.
+### 7. OpportunityDialog: feedback durante il salvataggio
+**Problema**: Il pulsante "Crea Opportunita" non mostra stato di loading durante il salvataggio.
 
-## Riepilogo file
+**Fix**: Aggiungere `disabled={createOpportunity.isPending}` e icona `Loader2` al pulsante di submit.
+
+**File**: `src/components/opportunities/OpportunityDialog.tsx` (riga del pulsante submit, circa riga 490)
+
+### 8. ImportWizard: transizione tra step
+**Problema**: Il passaggio tra step e istantaneo senza feedback visivo.
+
+**Fix**: Aggiungere una transizione CSS con `transition-opacity duration-200` sul container del contenuto degli step.
+
+**File**: `src/components/shared/ImportWizard.tsx`
+
+## Riepilogo file modificati
 
 | File | Tipo | Descrizione |
 |------|------|-------------|
-| `src/components/shared/ImportWizard.tsx` | Fix | Rimuovere posizionamento assoluto, usare layout inline con margini negativi |
-| `src/pages/azienda/marketing/MarketingContacts.tsx` | Fix | Rendering condizionale: wizard sostituisce contenuto pagina |
-| `src/pages/azienda/marketing/MarketingOpportunities.tsx` | Fix | Rendering condizionale: wizard sostituisce contenuto pagina |
-| `src/components/layouts/CompanyLayout.tsx` | Cleanup | Rimuovere `relative overflow-hidden` dal main |
+| `src/components/shared/ImportWizard.tsx` | Bug fix + UX | Aggiungere `forwardRef` + transizione step |
+| `src/components/shared/import-wizard/StepStart.tsx` | Bug fix | Aggiungere `forwardRef` |
+| `src/components/opportunities/OpportunityDialog.tsx` | Bug fix + Cleanup + UX | Fix stageId init + rimuovere useNavigate + loading button |
+| `src/components/opportunities/OpportunityDetailDialog.tsx` | Bug fix + Cleanup | Guard auto-sync tag + rimuovere useNavigate |
 
-## Risultato atteso
+## Dettagli tecnici
 
-- Sidebar sempre completamente visibile e funzionante durante l'importazione
-- Wizard occupa solo l'area di contenuto principale
-- Nessun problema di z-index o posizionamento
-- Header della pagina (con nome azienda) resta visibile sopra il wizard
-- UX fluida: il wizard sostituisce il contenuto come una "sotto-pagina"
+### ImportWizard.tsx - forwardRef
+Wrappare il componente:
+```text
+export const ImportWizard = React.forwardRef<HTMLDivElement, ImportWizardProps>(
+  function ImportWizard({ open, onClose, ... }, ref) {
+    // ... corpo esistente
+    return <div ref={ref} className="flex flex-col ...">
+  }
+);
+```
+
+### StepStart.tsx - forwardRef
+Wrappare il componente:
+```text
+export const StepStart = React.forwardRef<HTMLDivElement, StepStartProps>(
+  function StepStart({ objectType, onObjectTypeChange }, ref) {
+    return <div ref={ref} className="max-w-xl ...">
+  }
+);
+```
+
+### OpportunityDialog.tsx - stageId sync
+Aggiungere dopo la dichiarazione dello state:
+```text
+useEffect(() => {
+  if (stages.length > 0 && !stages.some(s => s.id === stageId)) {
+    setStageId(stages[0].id);
+  }
+}, [stages]);
+```
+
+### OpportunityDetailDialog.tsx - guard auto-sync
+Modificare l'useEffect tag-sync (righe 146-163) per controllare se i tag mancanti sono davvero mancanti prima di fare la write.
+
