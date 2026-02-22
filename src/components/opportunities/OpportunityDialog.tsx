@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCreateOpportunity, useCompanyStaff } from "@/hooks/useOpportunitiesData";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
 import { toast } from "sonner";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,7 +189,6 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const [showDropdown, setShowDropdown] = useState(false);
   const searchTrimmed = contactSearch.trim();
   const filteredContacts = contacts;
-  const noResults = searchTrimmed.length > 0 && filteredContacts.length === 0;
 
   const statusOptions = [
     { value: "open", label: "Aperta" },
@@ -203,8 +202,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
       <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <div className="px-6 py-4 border-b">
-          <h2 className="text-lg font-bold">Aggiungi Nuovo opportunità</h2>
-          <p className="text-sm text-muted-foreground">Crea Nuovo opportunità in dettagli e selezionando un contatto</p>
+          <DialogTitle className="text-lg font-bold">Aggiungi Nuovo opportunità</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">Crea Nuovo opportunità in dettagli e selezionando un contatto</DialogDescription>
         </div>
 
         {/* Body with sidebar */}
