@@ -1,107 +1,113 @@
 
-# Filtri Avanzati Contatti - Stile GHL
+# Filtri Avanzati con Navigazione a Sub-Schermata (Stile GHL)
 
 ## Panoramica
 
-Ristrutturare completamente il `ContactFiltersSheet` per replicare lo stile GHL con sezioni raggruppate per categoria, ricerca filtri, filtri per campi personalizzati e filtri basati sulle opportunita (sequenza, fase, stato).
+Ristrutturare il `ContactFiltersSheet` per replicare l'esperienza GHL: ogni filtro e una riga cliccabile che apre una **sub-schermata** all'interno dello stesso Sheet, dove l'utente puo scegliere un **operatore** (E, Non e, E vuoto, Non e vuoto) e inserire il valore.
 
-## Struttura delle sezioni filtri (come GHL)
+## Come funziona (UX)
 
-| Sezione | Filtri contenuti |
-|---------|-----------------|
-| Informazioni di contatto | Nome, Email, Telefono, Azienda, Fonte, Citta, Provincia |
-| Attivita di contatto | Data creazione (da/a), Ultima attivita (da/a) |
-| Informazioni sulle opportunita | Sequenza (pipeline), Fase della pipeline (stage), Stato della pipeline (open/won/lost/abandoned) |
-| Tag | Tag selezionabili con chip |
-| Campi personalizzati | Campi custom di tipo contact creati dall'utente, raggruppati per sezione |
+1. Lo Sheet si apre e mostra la **lista dei filtri** raggruppati per sezione (Informazioni contatto, Attivita, Opportunita, Tag, Campi personalizzati)
+2. L'utente clicca su un filtro (es. "Citta")
+3. Lo Sheet naviga a una **sub-schermata** con:
+   - Header con nome del campo e freccia indietro
+   - Dropdown operatore: E / Non e / Non e vuoto / E vuoto
+   - Campo di input per il valore (visibile solo per "E" e "Non e")
+   - Pulsante "Applica" per confermare e tornare alla lista
+4. I filtri attivi vengono evidenziati nella lista con un badge/dot blu e il valore impostato
+5. Footer con "Rimuovi tutti i filtri" + "Applica" (come GHL)
 
-## Logica filtri opportunita
+## Nuovo modello dati filtri
 
-I filtri opportunita filtrano i contatti che hanno almeno una opportunita corrispondente ai criteri selezionati. La query:
-
-1. Se un filtro opportunita e attivo, eseguire prima una query su `marketing_opportunities` per ottenere i `contact_id` che matchano
-2. Poi filtrare `marketing_contacts` con `.in("id", matchingContactIds)`
-
-Filtri disponibili:
-- **Sequenza**: Select con tutte le pipeline dell'azienda
-- **Fase della pipeline**: Select con gli stage della pipeline selezionata (dipendente dalla sequenza)
-- **Stato della pipeline**: Checkbox multiple (Aperta, Vinta, Persa, Abbandonata)
-
-## Logica filtri campi personalizzati
-
-Per ogni campo custom di tipo "contact":
-- **Testo**: Input text con ricerca ilike
-- **Numero**: Input min/max
-- **Data**: Date picker da/a
-- **Select**: Checkbox con le opzioni predefinite
-
-La query: cercare nella tabella `marketing_contact_field_values` i `contact_id` dove `field_id` = X e `value` matcha il filtro, poi filtrare con `.in("id", ids)`.
-
-## File coinvolti
-
-| File | Azione |
-|------|--------|
-| `src/components/marketing/ContactFiltersSheet.tsx` | Riscrittura completa: aggiungere sezioni GHL, ricerca filtri, filtri opportunita, filtri custom fields |
-| `src/pages/azienda/marketing/MarketingContacts.tsx` | Aggiornare interfaccia `ContactFilters`, passare nuove props (pipelines, custom fields), aggiornare logica query per filtri opportunita e custom fields |
-
-## Dettagli tecnici
-
-### Nuovo tipo ContactFilters
+Ogni filtro diventa un oggetto con operatore e valore:
 
 ```text
+interface FilterCondition {
+  operator: "is" | "is_not" | "is_empty" | "is_not_empty" | "contains" | "gte" | "lte";
+  value: string;
+}
+
 interface ContactFilters {
-  // Informazioni contatto
-  name: string;
-  email: string;
-  phone: string;
-  company: string;
-  source: string;
-  city: string;
-  province: string;
+  // Campi standard - ognuno con operatore
+  name: FilterCondition | null;
+  email: FilterCondition | null;
+  phone: FilterCondition | null;
+  company: FilterCondition | null;
+  source: FilterCondition | null;
+  city: FilterCondition | null;
+  province: FilterCondition | null;
   // Date
   dateFrom: string;
   dateTo: string;
   activityFrom: string;
   activityTo: string;
-  // Tag
+  // Collections
   tags: string[];
-  // Opportunita
   pipelineId: string;
   stageId: string;
   oppStatuses: string[];
-  // Custom fields
-  customFields: Record<string, string>;
+  customFields: Record<string, FilterCondition>;
 }
 ```
 
-### Flusso query in MarketingContacts.tsx
+## Operatori per tipo di campo
 
-1. Se filtri opportunita attivi (pipelineId, stageId o oppStatuses) -> query `marketing_opportunities` per ottenere lista `contact_id`
-2. Se filtri custom fields attivi -> query `marketing_contact_field_values` per ottenere lista `contact_id`
-3. Intersecare le due liste se entrambi attivi
-4. Applicare `.in("id", contactIds)` alla query principale dei contatti
-5. I filtri "standard" (name, email, phone, etc.) vengono applicati direttamente sulla query principale
+| Tipo campo | Operatori disponibili |
+|------------|----------------------|
+| Testo (nome, email, citta...) | E, Non e, Non e vuoto, E vuoto |
+| Data | Da / A (range picker, come ora) |
+| Tag | Selezione multipla chip (come ora) |
+| Pipeline/Stage/Status | Select/Checkbox (come ora) |
+| Custom field testo | E, Non e, Non e vuoto, E vuoto |
+| Custom field select | E, Non e, Non e vuoto, E vuoto |
+| Custom field numero | E, Non e, Non e vuoto, E vuoto |
+| Custom field data | Da / A |
 
-### Props aggiuntive per ContactFiltersSheet
+## Struttura del componente
 
-- `pipelines`: lista pipeline con stages (gia disponibile da `usePipelines`)
-- `customFields`: lista campi personalizzati di tipo "contact" (gia disponibile da `useContactCustomFields`)
-- `availableTags`: lista tag disponibili (gia presente)
+Il `ContactFiltersSheet` avra due "schermate" interne gestite con uno stato `activeField`:
 
-### Ricerca filtri
+### Schermata 1 - Lista filtri (activeField = null)
+- Barra di ricerca filtri
+- Sezioni collapsible:
+  - **Informazioni di contatto**: Nome, Email, Telefono, Azienda, Fonte, Citta, Provincia
+  - **Attivita di contatto**: Data creazione, Ultima attivita
+  - **Informazioni sulle opportunita**: Sequenza, Fase, Stato
+  - **Tag**: Tag
+  - **Campi personalizzati**: Raggruppati per sezione
+- Ogni riga mostra il nome del campo. Se ha un filtro attivo, mostra il valore/operatore con un dot blu
+- Footer: "Rimuovi tutti i filtri" a sinistra + "Cancel" e "Apply" a destra
 
-Una barra di ricerca in cima al sheet (come GHL) che filtra le sezioni e i campi mostrati. Se il testo di ricerca non matcha nessun campo in una sezione, la sezione viene nascosta.
+### Schermata 2 - Dettaglio filtro (activeField = "city" etc.)
+- Header: freccia indietro + nome campo (es. "Citta") + icona edit
+- Dropdown operatore con checkmark sull'attivo
+- Input valore (nascosto se operatore e "E vuoto" / "Non e vuoto")
+- Link "+ Add nested filter" (solo UI, non funzionale per ora)
+- Conferma automatica al ritorno alla lista
 
-### UX Sheet
+## Logica query aggiornata
 
-- Header: "Advanced Filters" con ricerca
-- Body: sezioni collapsible con ChevronRight/ChevronDown
-- Sezione "Informazioni sulle opportunita": quando si seleziona una Sequenza, gli stage si aggiornano dinamicamente
-- Footer: "Resetta" + "Applica filtri" (invariato)
-- Conteggio filtri attivi aggiornato per includere i nuovi filtri
+In `MarketingContacts.tsx`, la logica di query viene aggiornata per gestire gli operatori:
 
-## Pulizia codice
+| Operatore | Query Supabase |
+|-----------|---------------|
+| is (E) | `.ilike(field, "%value%")` per testo, `.eq(field, value)` per select |
+| is_not (Non e) | `.not(field, "ilike", "%value%")` |
+| is_empty (E vuoto) | `.is(field, null)` oppure `.eq(field, "")` |
+| is_not_empty (Non e vuoto) | `.not(field, "is", null)` |
 
-- Rimuovere filtri duplicati o non piu utilizzati
-- Consolidare la logica di conteggio filtri attivi
-- Assicurarsi che il reset pulisca tutti i nuovi filtri
+## File coinvolti
+
+| File | Azione |
+|------|--------|
+| `src/components/marketing/ContactFiltersSheet.tsx` | Riscrittura completa con navigazione a sub-schermata, operatori, UX GHL |
+| `src/pages/azienda/marketing/MarketingContacts.tsx` | Aggiornare tipo `ContactFilters`, logica query per operatori |
+
+## Dettagli tecnici
+
+- La navigazione tra lista e dettaglio e gestita con `useState<string | null>(null)` per `activeField`
+- Transizione fluida con CSS (translate-x animato) tra le due schermate
+- Il footer "Rimuovi tutti i filtri" resetta tutto a `EMPTY_CONTACT_FILTERS`
+- I filtri attivi mostrano un cerchio blu e il testo "E: Roma" accanto al nome campo nella lista
+- La `countActiveContactFilters` viene aggiornata per contare le `FilterCondition` non null
+- Backward compatible: i filtri date, tag, pipeline restano con la stessa struttura attuale
