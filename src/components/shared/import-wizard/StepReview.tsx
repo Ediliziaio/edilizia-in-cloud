@@ -78,6 +78,27 @@ export function StepReview({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      {/* Preferences */}
+      <div>
+        <h3 className="text-sm font-semibold mb-3">Preferenze</h3>
+        <div className="space-y-3 border rounded-lg p-4 bg-muted/20">
+          <div className="flex items-start gap-2 opacity-50">
+            <Checkbox disabled className="mt-0.5" />
+            <div>
+              <p className="text-sm text-muted-foreground">Crea un elenco intelligente per i nuovi contatti creati con l'importazione</p>
+              <Badge variant="outline" className="mt-1 text-[10px]">Prossimamente</Badge>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 opacity-50">
+            <Checkbox disabled className="mt-0.5" />
+            <div>
+              <p className="text-sm text-muted-foreground">Aggiungi i contatti importati a un flusso di lavoro</p>
+              <Badge variant="outline" className="mt-1 text-[10px]">Prossimamente</Badge>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Document info */}
       <div>
         <h3 className="text-sm font-semibold mb-3">Rivedi importazione</h3>
