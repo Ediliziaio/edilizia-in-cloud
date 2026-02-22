@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { PipelineSelector } from "@/components/opportunities/PipelineSelector";
 import { OpportunityKanbanView } from "@/components/opportunities/OpportunityKanbanView";
 import { OpportunityDialog } from "@/components/opportunities/OpportunityDialog";
-import { usePipelines, useOpportunities } from "@/hooks/useOpportunitiesData";
+import { OpportunityFiltersSheet, OpportunityFilters, EMPTY_FILTERS, countActiveFilters } from "@/components/opportunities/OpportunityFiltersSheet";
+import { usePipelines, useOpportunities, useCompanyStaff } from "@/hooks/useOpportunitiesData";
 import { toast } from "sonner";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -18,6 +19,9 @@ export default function MarketingOpportunities() {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState<OpportunityFilters>(EMPTY_FILTERS);
+  const { data: staff = [] } = useCompanyStaff();
 
   useEffect(() => {
     if (pipelines.length > 0 && !selectedPipelineId) {
@@ -30,21 +34,80 @@ export default function MarketingOpportunities() {
 
   const { data: opportunities = [], isLoading: loadingOpps } = useOpportunities(selectedPipelineId);
 
-  // Local search filter
+  // Collect all unique tags from opportunities
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    opportunities.forEach((o: any) => (o.tags || []).forEach((t: string) => tagSet.add(t)));
+    return Array.from(tagSet).sort();
+  }, [opportunities]);
+
+  // Combined search + advanced filters
   const filteredOpportunities = useMemo(() => {
-    if (!searchQuery.trim()) return opportunities;
-    const q = searchQuery.toLowerCase();
-    return opportunities.filter((o: any) => {
-      const contact = o.marketing_contacts;
-      return (
-        o.name?.toLowerCase().includes(q) ||
-        contact?.first_name?.toLowerCase().includes(q) ||
-        contact?.last_name?.toLowerCase().includes(q) ||
-        contact?.email?.toLowerCase().includes(q) ||
-        contact?.phone?.toLowerCase().includes(q)
-      );
-    });
-  }, [opportunities, searchQuery]);
+    let result = opportunities;
+
+    // Text search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((o: any) => {
+        const contact = o.marketing_contacts;
+        return (
+          o.name?.toLowerCase().includes(q) ||
+          contact?.first_name?.toLowerCase().includes(q) ||
+          contact?.last_name?.toLowerCase().includes(q) ||
+          contact?.email?.toLowerCase().includes(q) ||
+          contact?.phone?.toLowerCase().includes(q)
+        );
+      });
+    }
+
+    // Status filter
+    if (filters.statuses.length > 0) {
+      result = result.filter((o: any) => filters.statuses.includes(o.status));
+    }
+
+    // Assigned to
+    if (filters.assignedTo) {
+      result = result.filter((o: any) => o.assigned_to === filters.assignedTo);
+    }
+
+    // Follower
+    if (filters.followerId) {
+      result = result.filter((o: any) => o.follower_id === filters.followerId);
+    }
+
+    // Source
+    if (filters.source) {
+      const src = filters.source.toLowerCase();
+      result = result.filter((o: any) => o.source?.toLowerCase().includes(src));
+    }
+
+    // Value range
+    if (filters.valueMin) {
+      const min = parseFloat(filters.valueMin);
+      result = result.filter((o: any) => Number(o.value || 0) >= min);
+    }
+    if (filters.valueMax) {
+      const max = parseFloat(filters.valueMax);
+      result = result.filter((o: any) => Number(o.value || 0) <= max);
+    }
+
+    // Date range
+    if (filters.dateFrom) {
+      result = result.filter((o: any) => o.created_at >= filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      result = result.filter((o: any) => o.created_at <= filters.dateTo + "T23:59:59");
+    }
+
+    // Tags
+    if (filters.tags.length > 0) {
+      result = result.filter((o: any) => filters.tags.some((t) => (o.tags || []).includes(t)));
+    }
+
+    return result;
+  }, [opportunities, searchQuery, filters]);
+
+  const activeFilterCount = countActiveFilters(filters);
 
   if (loadingPipelines) {
     return (
@@ -133,8 +196,18 @@ export default function MarketingOpportunities() {
       {/* Row 3: Filters + search */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => toast.info("Filtri avanzati in arrivo")}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs relative"
+            onClick={() => setFiltersOpen(true)}
+          >
             <Filter className="mr-1.5 h-3.5 w-3.5" /> Filtri avanzati
+            {activeFilterCount > 0 && (
+              <Badge className="ml-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-primary text-primary-foreground">
+                {activeFilterCount}
+              </Badge>
+            )}
           </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => toast.info("Ordinamento in arrivo")}>
             <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
@@ -187,6 +260,16 @@ export default function MarketingOpportunities() {
           stages={stages}
         />
       )}
+
+      {/* Filters Sheet */}
+      <OpportunityFiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        filters={filters}
+        onApply={setFilters}
+        staff={staff}
+        availableTags={availableTags}
+      />
     </div>
   );
 }

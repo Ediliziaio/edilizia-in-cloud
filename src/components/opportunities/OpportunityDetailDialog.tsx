@@ -509,7 +509,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Fase</Label>
-                          <Select value={stageId} onValueChange={setStageId}>
+                          <Select value={stageId} onValueChange={(newStageId) => {
+                            setStageId(newStageId);
+                            // Auto-update status based on stage's auto_status
+                            const pipeline = pipelines.find((p: any) => p.id === opportunity.pipeline_id);
+                            const targetStage = pipeline?.marketing_pipeline_stages?.find((s: any) => s.id === newStageId);
+                            if (targetStage?.auto_status) {
+                              setStatus(targetStage.auto_status);
+                            }
+                          }}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
