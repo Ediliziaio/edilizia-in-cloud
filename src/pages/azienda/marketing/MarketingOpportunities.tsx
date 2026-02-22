@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil } from "lucide-react";
 import { CardCustomizeSheet } from "@/components/opportunities/CardCustomizeSheet";
-import { useCardFieldPreferences } from "@/hooks/useCardFieldPreferences";
+import { useCardFieldPreferences, CardFieldPreferencesProvider } from "@/hooks/useCardFieldPreferences";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,14 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function MarketingOpportunities() {
+  return (
+    <CardFieldPreferencesProvider>
+      <MarketingOpportunitiesContent />
+    </CardFieldPreferencesProvider>
+  );
+}
+
+function MarketingOpportunitiesContent() {
   const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines();
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -61,18 +69,15 @@ export default function MarketingOpportunities() {
 
   const { data: opportunities = [], isLoading: loadingOpps } = useOpportunities(selectedPipelineId);
 
-  // Collect all unique tags from opportunities
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
     opportunities.forEach((o: any) => (o.tags || []).forEach((t: string) => tagSet.add(t)));
     return Array.from(tagSet).sort();
   }, [opportunities]);
 
-  // Combined search + advanced filters
   const filteredOpportunities = useMemo(() => {
     let result = opportunities;
 
-    // Text search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter((o: any) => {
@@ -87,28 +92,19 @@ export default function MarketingOpportunities() {
       });
     }
 
-    // Status filter
     if (filters.statuses.length > 0) {
       result = result.filter((o: any) => filters.statuses.includes(o.status));
     }
-
-    // Assigned to
     if (filters.assignedTo) {
       result = result.filter((o: any) => o.assigned_to === filters.assignedTo);
     }
-
-    // Follower
     if (filters.followerId) {
       result = result.filter((o: any) => o.follower_id === filters.followerId);
     }
-
-    // Source
     if (filters.source) {
       const src = filters.source.toLowerCase();
       result = result.filter((o: any) => o.source?.toLowerCase().includes(src));
     }
-
-    // Value range
     if (filters.valueMin) {
       const min = parseFloat(filters.valueMin);
       result = result.filter((o: any) => Number(o.value || 0) >= min);
@@ -117,16 +113,12 @@ export default function MarketingOpportunities() {
       const max = parseFloat(filters.valueMax);
       result = result.filter((o: any) => Number(o.value || 0) <= max);
     }
-
-    // Date range
     if (filters.dateFrom) {
       result = result.filter((o: any) => o.created_at >= filters.dateFrom);
     }
     if (filters.dateTo) {
       result = result.filter((o: any) => o.created_at <= filters.dateTo + "T23:59:59");
     }
-
-    // Tags
     if (filters.tags.length > 0) {
       result = result.filter((o: any) => filters.tags.some((t) => (o.tags || []).includes(t)));
     }
@@ -161,14 +153,9 @@ export default function MarketingOpportunities() {
 
   return (
     <div className="flex flex-col h-full gap-3">
-      {/* Row 1: Pipeline selector + actions */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <PipelineSelector
-            pipelines={pipelines}
-            value={selectedPipelineId}
-            onChange={setSelectedPipelineId}
-          />
+          <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
           <Badge className="bg-primary text-primary-foreground hover:bg-primary/90 h-6 px-2 text-xs">
             {filteredOpportunities.length} lead
           </Badge>
@@ -176,12 +163,7 @@ export default function MarketingOpportunities() {
         <div className="flex items-center gap-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant={viewMode === "kanban" ? "secondary" : "ghost"}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setViewMode("kanban")}
-              >
+              <Button variant={viewMode === "kanban" ? "secondary" : "ghost"} size="icon" className="h-8 w-8" onClick={() => setViewMode("kanban")}>
                 <LayoutGrid className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -189,12 +171,7 @@ export default function MarketingOpportunities() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant={viewMode === "list" ? "secondary" : "ghost"}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setViewMode("list")}
-              >
+              <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="h-8 w-8" onClick={() => setViewMode("list")}>
                 <List className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -220,25 +197,14 @@ export default function MarketingOpportunities() {
         </div>
       </div>
 
-      {/* Row 2: Tabs */}
       <div className="flex items-center gap-1 border-b">
-        <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none border-b-2 border-primary font-semibold">
-          Tutto
-        </Button>
-        <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none text-muted-foreground" onClick={() => toast.info("Elenchi personalizzati in arrivo")}>
-          + Elenco
-        </Button>
+        <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none border-b-2 border-primary font-semibold">Tutto</Button>
+        <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none text-muted-foreground" onClick={() => toast.info("Elenchi personalizzati in arrivo")}>+ Elenco</Button>
       </div>
 
-      {/* Row 3: Filters + search */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs relative"
-            onClick={() => setFiltersOpen(true)}
-          >
+          <Button variant="outline" size="sm" className="h-8 text-xs relative" onClick={() => setFiltersOpen(true)}>
             <Filter className="mr-1.5 h-3.5 w-3.5" /> Filtri avanzati
             {activeFilterCount > 0 && (
               <Badge className="ml-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-primary text-primary-foreground">
@@ -253,25 +219,14 @@ export default function MarketingOpportunities() {
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Cerca Lead..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 w-48 pl-8 text-xs"
-            />
+            <Input placeholder="Cerca Lead..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 w-48 pl-8 text-xs" />
           </div>
-          <Button
-            variant="link"
-            size="sm"
-            className="h-8 text-xs px-1"
-            onClick={() => setCardCustomizeOpen(true)}
-          >
+          <Button variant="link" size="sm" className="h-8 text-xs px-1" onClick={() => setCardCustomizeOpen(true)}>
             <Settings2 className="mr-1 h-3.5 w-3.5" /> Gestisci campi
           </Button>
         </div>
       </div>
 
-      {/* Kanban */}
       {loadingOpps ? (
         <div className="flex items-center justify-center flex-1">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -279,31 +234,21 @@ export default function MarketingOpportunities() {
       ) : stages.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground gap-2">
           <p className="text-sm">Questa pipeline non ha fasi configurate.</p>
-          <Button variant="outline" size="sm" onClick={() => window.location.href = "/azienda/impostazioni/sequenze"}>
-            Configura fasi
-          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.location.href = "/azienda/impostazioni/sequenze"}>Configura fasi</Button>
         </div>
       ) : (
         <>
-          {/* Bulk Actions Bar */}
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border rounded-lg">
               <Badge variant="secondary" className="text-xs font-semibold">
                 {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
               </Badge>
               {selectedIds.size < filteredOpportunities.length && (
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0 text-xs"
-                  onClick={() => setSelectedIds(new Set(filteredOpportunities.map((o: any) => o.id)))}
-                >
+                <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setSelectedIds(new Set(filteredOpportunities.map((o: any) => o.id)))}>
                   Seleziona tutti ({filteredOpportunities.length})
                 </Button>
               )}
-              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={clearSelection}>
-                Deseleziona
-              </Button>
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={clearSelection}>Deseleziona</Button>
               <div className="ml-auto flex items-center gap-2">
                 <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setBulkEditOpen(true)}>
                   <Pencil className="h-3 w-3" /> Modifica
@@ -315,66 +260,29 @@ export default function MarketingOpportunities() {
             </div>
           )}
           {viewMode === "list" ? (
-            <OpportunityListView
-              stages={stages}
-              opportunities={filteredOpportunities}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-            />
+            <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} />
           ) : (
-            <OpportunityKanbanView
-              stages={stages}
-              opportunities={filteredOpportunities}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-            />
+            <OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} />
           )}
         </>
       )}
 
-      {/* Create dialog */}
       {selectedPipelineId && stages.length > 0 && (
-        <OpportunityDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          pipelineId={selectedPipelineId}
-          pipelineName={selectedPipeline?.name}
-          stages={stages}
-        />
+        <OpportunityDialog open={dialogOpen} onOpenChange={setDialogOpen} pipelineId={selectedPipelineId} pipelineName={selectedPipeline?.name} stages={stages} />
       )}
 
-      {/* Filters Sheet */}
-      <OpportunityFiltersSheet
-        open={filtersOpen}
-        onOpenChange={setFiltersOpen}
-        filters={filters}
-        onApply={setFilters}
-        staff={staff}
-        availableTags={availableTags}
-      />
+      <OpportunityFiltersSheet open={filtersOpen} onOpenChange={setFiltersOpen} filters={filters} onApply={setFilters} staff={staff} availableTags={availableTags} />
 
-      {/* Bulk Edit Sheet */}
-      <BulkEditSheet
-        open={bulkEditOpen}
-        onOpenChange={setBulkEditOpen}
-        selectedIds={[...selectedIds]}
-        stages={stages}
-        onDone={clearSelection}
-      />
+      <BulkEditSheet open={bulkEditOpen} onOpenChange={setBulkEditOpen} selectedIds={[...selectedIds]} stages={stages} onDone={clearSelection} />
 
-      {/* Card Customize Sheet */}
       <CardCustomizeSheet
         open={cardCustomizeOpen}
         onOpenChange={setCardCustomizeOpen}
         activeFields={activeFields}
         layout={layout}
-        onApply={(fields, l) => {
-          setActiveFields(fields);
-          setLayout(l);
-        }}
+        onApply={(fields, l) => { setActiveFields(fields); setLayout(l); }}
       />
 
-      {/* Bulk Delete Confirm */}
       <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -383,17 +291,7 @@ export default function MarketingOpportunities() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                bulkDelete.mutate([...selectedIds], {
-                  onSuccess: () => {
-                    clearSelection();
-                    setConfirmBulkDelete(false);
-                  },
-                });
-              }}
-            >
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { bulkDelete.mutate([...selectedIds], { onSuccess: () => { clearSelection(); setConfirmBulkDelete(false); } }); }}>
               Elimina
             </AlertDialogAction>
           </AlertDialogFooter>
