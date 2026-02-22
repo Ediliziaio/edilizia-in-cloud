@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 
 // ── Inline editable field ──
 function InlineField({ label, value, onSave, type = "text", options }: {
@@ -799,22 +800,12 @@ export default function MarketingContactDetail() {
           <ScrollArea className="flex-1">
             <div className="p-2.5">
               {/* Documents panel */}
-              {rightTab === "documents" && (
-                <div className="space-y-2.5">
-                  <Input placeholder="Cerca per nome del documento" className="h-7 text-[11px]" />
-                  <div className="flex gap-1">
-                    {["all", "internal", "sent", "received"].map(f => (
-                      <button
-                        key={f}
-                        className={cn("text-[10px] px-2 py-1 rounded-full", docFilter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
-                        onClick={() => setDocFilter(f)}
-                      >
-                        {f === "all" ? "Tutto" : f === "internal" ? "Interno" : f === "sent" ? "Inviato" : "Ricevuto"}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground text-center py-8">Ancora nessun documento</p>
-                </div>
+              {rightTab === "documents" && id && companyId && (
+                <MarketingDocumentsPanel
+                  contactId={id}
+                  companyId={companyId}
+                  compact
+                />
               )}
 
               {/* Activities panel - LinkedTasks */}

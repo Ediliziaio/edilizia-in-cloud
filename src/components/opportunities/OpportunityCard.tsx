@@ -15,13 +15,14 @@ import {
 interface OpportunityCardProps {
   opportunity: any;
   onClick?: () => void;
+  onOpenTab?: (tab: string) => void;
   onDelete?: (id: string) => void;
   isOverlay?: boolean;
   selected?: boolean;
   onSelect?: (id: string, selected: boolean) => void;
 }
 
-export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardProps>(function OpportunityCard({ opportunity, onClick, onDelete, isOverlay, selected, onSelect }, _ref) {
+export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardProps>(function OpportunityCard({ opportunity, onClick, onOpenTab, onDelete, isOverlay, selected, onSelect }, _ref) {
   const contact = opportunity.marketing_contacts;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { activeFields, layout, isFieldActive } = useCardFieldPreferences();
@@ -111,9 +112,9 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
       action: (e: React.MouseEvent) => { stopProp(e); onClick?.(); },
       badge: tags.length > 0 ? tags.length : null,
     },
-    { icon: StickyNote, tooltip: "Note", action: handleComingSoon("Note") },
+    { icon: StickyNote, tooltip: "Note", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); } },
     { icon: Calendar, tooltip: "Calendario", action: handleComingSoon("Calendario") },
-    { icon: Folder, tooltip: "Documenti", action: handleComingSoon("Documenti") },
+    { icon: Folder, tooltip: "Documenti", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("documents"); } },
     { icon: Trash2, tooltip: "Elimina", action: handleDeleteClick },
   ];
 

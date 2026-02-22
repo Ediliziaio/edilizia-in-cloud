@@ -25,7 +25,8 @@ import { TagSelector } from "@/components/marketing/TagSelector";
 import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
-  CreditCard, Users, Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw,
+  Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
+  Upload, Download, X as XIcon, File, Image, FileSpreadsheet,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -33,6 +34,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 // Note: useNavigate kept for "Aggiungi/gestisci campi" link in footer
 
 interface Props {
@@ -40,11 +42,12 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stages: { id: string; name: string; auto_status?: string | null }[];
+  initialTab?: string;
 }
 
-type Tab = "details" | "notes" | "appointments" | "activities" | "payments" | "members";
+type Tab = "details" | "notes" | "appointments" | "activities" | "documents";
 
-export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages }: Props, _ref) {
+export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab }: Props, _ref) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -137,7 +140,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
       setCompanyName(opportunity.company_name || "");
       setOppNotes(opportunity.notes || "");
       setOppTags(opportunity.tags || []);
-      setTab("details");
+      setTab((initialTab as Tab) || "details");
       setNewNote("");
       setChangingContact(false);
       setShowNewContactForm(false);
@@ -145,7 +148,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
       lastSyncedContactFieldsRef.current = "";
       lastSyncedOppFieldsRef.current = "";
     }
-  }, [opportunity]);
+  }, [opportunity, initialTab]);
 
   // Auto-sync: merge contact tags into opportunity if missing (safety net)
   // Guard: only write if there are actually missing tags to avoid unnecessary DB writes
@@ -339,8 +342,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
     { key: "appointments", label: "Prenota/aggiorna appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: false },
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: "Note", icon: <StickyNote className="h-4 w-4" />, enabled: true },
-    { key: "payments", label: "Pagamenti", icon: <CreditCard className="h-4 w-4" />, enabled: false },
-    { key: "members", label: "Oggetti Membri", icon: <Users className="h-4 w-4" />, enabled: false },
+    { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
   ];
 
   const searchTrimmed = contactSearch.trim();
@@ -710,6 +712,15 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
                   opportunityId={opportunity.id}
                   category="opportunita"
                   companyId={companyId}
+                />
+              )}
+
+              {tab === "documents" && (
+                <MarketingDocumentsPanel
+                  contactId={opportunity.contact_id}
+                  opportunityId={opportunity.id}
+                  companyId={companyId!}
+                  linkToOpportunity
                 />
               )}
             </div>

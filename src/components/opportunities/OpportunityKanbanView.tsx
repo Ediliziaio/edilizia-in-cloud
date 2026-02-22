@@ -19,7 +19,7 @@ interface Stage {
 const StageColumn = memo(forwardRef<HTMLDivElement, {
   stage: Stage;
   opportunities: any[];
-  onCardClick: (opp: any) => void;
+  onCardClick: (opp: any, tab?: string) => void;
   onDelete: (id: string) => void;
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
@@ -45,6 +45,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
               key={opp.id}
               opportunity={opp}
               onClick={() => onCardClick(opp)}
+              onOpenTab={(tab) => onCardClick(opp, tab)}
               onDelete={onDelete}
               selected={selectedIds.has(opp.id)}
               onSelect={onSelect}
@@ -70,6 +71,7 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
   const updateStage = useUpdateOpportunityStage();
   const deleteOpp = useDeleteOpportunity();
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
+  const [initialTab, setInitialTab] = useState<string | undefined>();
   const [activeItem, setActiveItem] = useState<any>(null);
 
   const sensors = useSensors(
@@ -133,7 +135,7 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
                 key={stage.id}
                 stage={stage}
                 opportunities={opportunitiesByStage[stage.id] || []}
-                onCardClick={setSelectedOpp}
+                onCardClick={(opp, tab) => { setSelectedOpp(opp); setInitialTab(tab); }}
                 onDelete={handleDelete}
                 selectedIds={selectedIds}
                 onSelect={onSelect}
@@ -153,8 +155,9 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
       <OpportunityDetailDialog
         opportunity={selectedOpp}
         open={!!selectedOpp}
-        onOpenChange={(open) => { if (!open) setSelectedOpp(null); }}
+        onOpenChange={(open) => { if (!open) { setSelectedOpp(null); setInitialTab(undefined); } }}
         stages={stages}
+        initialTab={initialTab}
       />
     </>
   );
