@@ -1,61 +1,31 @@
 
 
-# Miglioramenti Contact Dialog: Citta/Provincia + Fullname Import
+# Aggiungere "Full Name" ai campi di sistema in Campi Personalizzati
 
-## 1. Aggiungere Citta e Provincia al dialog contatto
+## Contesto
 
-### File: `src/components/marketing/ContactDialog.tsx`
+- `{{ contact.email }}` corrisponde esattamente al campo email del contatto. Tutti i placeholder `{{ contact.xxx }}` mappano i campi della tabella `marketing_contacts`.
+- Il campo `fullname` esiste solo come helper per l'importazione CSV (split automatico in nome + cognome), ma non appare nella lista dei campi di sistema nella pagina Campi Personalizzati.
 
-- Aggiungere `city` e `province` a `ContactFormData` e a `emptyForm`
-- Aggiungere i due campi nel form tra "Azienda" e "Tag", in una riga grid a 2 colonne
-- Aggiornare `initialData` mapping in `MarketingContacts.tsx`
+## Modifica
 
-### File: `src/pages/azienda/marketing/MarketingContacts.tsx`
+### File: `src/components/settings/CustomFieldsConfig.tsx`
 
-- Aggiungere `city` e `province` all'`initialData` passato al dialog per l'editing
-- Aggiungere `city` e `province` ai CSV_FIELDS per l'importazione
-- Aggiungere `city` e `province` alla logica di export CSV
-- Aggiungere `city` e `province` alla mappatura `toInsert` nell'import
+Aggiungere una riga nella lista `BUILTIN_FIELDS`, subito dopo `Last Name`:
 
-## 2. Fix label Email obbligatoria
-
-Il codice attuale mostra gia `*` condizionale, ma si aggiunge chiarezza rendendo le label piu evidenti con un testo helper sotto i campi quando entrambi sono vuoti.
-
-## 3. Campo "Fullname" per importazione CSV
-
-### Logica
-
-- Aggiungere `fullname` come campo importabile in `CSV_FIELDS`
-- Durante l'import, se `fullname` e presente e `first_name` non lo e:
-  - Splittare `fullname` al primo spazio: la prima parte diventa `first_name`, il resto diventa `last_name`
-  - Se non c'e spazio, tutto va in `first_name`
-
-### File: `src/pages/azienda/marketing/MarketingContacts.tsx`
-
-Aggiungere in CSV_FIELDS:
 ```text
-{ key: "fullname", label: "Nome Completo", required: false }
+{ id: "sys_full_name", name: "Full Name", object: "Contatto", folder: "contact",
+  folderColor: FOLDER_COLORS.contact, uniqueKey: "{{ contact.full_name }}",
+  createdAt: "2024-01-01", isSystem: true },
 ```
 
-Nel `handleImport`, aggiungere logica di split:
-```text
-let firstName = r.first_name?.trim() || "";
-let lastName = r.last_name?.trim() || "";
-if (!firstName && r.fullname?.trim()) {
-  const parts = r.fullname.trim().split(/\s+/);
-  firstName = parts[0];
-  lastName = parts.slice(1).join(" ");
-}
-```
+Questo campo e "virtuale" (non e una colonna DB, ma viene costruito da `first_name + last_name`). In fase di import CSV, se si mappa una colonna su `fullname`, il sistema splitta automaticamente il valore in nome e cognome.
 
-## Riepilogo modifiche
+## Riepilogo
 
-| File | Cosa |
-|------|------|
-| `ContactDialog.tsx` | Aggiungere city, province a form e interface |
-| `MarketingContacts.tsx` | city/province in initialData, export, import; fullname split in import |
-
-- 2 file modificati
-- Nessuna migrazione DB necessaria (city e province esistono gia nella tabella `marketing_contacts`)
-- Nessun cambiamento funzionale ai flussi esistenti
+| Cosa | Dettaglio |
+|------|-----------|
+| File modificato | `CustomFieldsConfig.tsx` |
+| Modifica | 1 riga aggiunta a `BUILTIN_FIELDS` |
+| Impatto | Il campo "Full Name" apparira nella tabella campi personalizzati come campo di sistema (lucchetto, non eliminabile) |
 
