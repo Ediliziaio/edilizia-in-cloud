@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, forwardRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,7 +26,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
-  Upload, Download, X as XIcon, File, Image, FileSpreadsheet,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -35,7 +34,6 @@ import { useNavigate } from "react-router-dom";
 import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
-// Note: useNavigate kept for "Aggiungi/gestisci campi" link in footer
 
 interface Props {
   opportunity: any;
@@ -47,7 +45,7 @@ interface Props {
 
 type Tab = "details" | "notes" | "appointments" | "activities" | "documents";
 
-export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab }: Props, _ref) {
+export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab }: Props) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -304,6 +302,7 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
     setPendingContactId(c.id);
     setContactEmail(c.email || "");
     setContactPhone(c.phone || "");
+    setContactCity(c.city || "");
     setContactSearch(`${c.first_name} ${c.last_name || ""}`.trim());
     setShowContactDropdown(false);
     setShowNewContactForm(false);
@@ -770,4 +769,4 @@ export const OpportunityDetailDialog = forwardRef<HTMLDivElement, Props>(functio
     </AlertDialog>
     </>
   );
-});
+}
