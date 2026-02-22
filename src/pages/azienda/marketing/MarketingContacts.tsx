@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Upload, Plus, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { exportToCSV } from "@/lib/csvExport";
+import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 
 const CSV_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true },
@@ -29,6 +30,17 @@ export default function MarketingContacts() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const { data: contactCustomFields = [] } = useContactCustomFields();
+
+  const importFields = useMemo(() => {
+    const customImportFields = contactCustomFields.map(f => ({
+      key: `custom_${f.id}`,
+      label: f.name,
+      required: false,
+      type: "text" as const,
+    }));
+    return [...CSV_FIELDS, ...customImportFields];
+  }, [contactCustomFields]);
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -144,6 +156,7 @@ export default function MarketingContacts() {
 
   const handleImport = async (rows: Record<string, string>[]) => {
     if (!companyId) return { success: 0, errors: ["Nessuna azienda selezionata"] };
+    const customKeys = contactCustomFields.map(f => `custom_${f.id}`);
     const toInsert = rows.map((r) => ({
       company_id: companyId,
       first_name: r.first_name?.trim() || "Senza nome",
@@ -158,6 +171,28 @@ export default function MarketingContacts() {
 
     const { error, data } = await supabase.from("marketing_contacts").insert(toInsert).select("id");
     if (error) return { success: 0, errors: [error.message] };
+
+    // Save custom field values
+    if (data && customKeys.length > 0) {
+      const fieldValues: { contact_id: string; field_id: string; value: string | null }[] = [];
+      data.forEach((contact, idx) => {
+        const row = rows[idx];
+        customKeys.forEach(key => {
+          const val = row[key]?.trim();
+          if (val) {
+            fieldValues.push({
+              contact_id: contact.id,
+              field_id: key.replace("custom_", ""),
+              value: val,
+            });
+          }
+        });
+      });
+      if (fieldValues.length > 0) {
+        await supabase.from("marketing_contact_field_values").insert(fieldValues);
+      }
+    }
+
     invalidate();
     return { success: data?.length || 0, errors: [] };
   };
@@ -168,7 +203,7 @@ export default function MarketingContacts() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         defaultObjectType="contacts"
-        contactFields={CSV_FIELDS}
+        contactFields={importFields}
         opportunityFields={[]}
         onImportContacts={async (rows, options) => handleImport(rows)}
         onImportOpportunities={async () => ({ success: 0, errors: [] })}
