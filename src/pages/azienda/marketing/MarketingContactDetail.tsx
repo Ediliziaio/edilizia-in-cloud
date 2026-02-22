@@ -492,7 +492,7 @@ export default function MarketingContactDetail() {
             </div>
 
             {/* Titolare, Follower & Call Center */}
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <div className="flex items-center gap-1 mb-0.5">
                   <User className="h-3 w-3 text-muted-foreground" />
