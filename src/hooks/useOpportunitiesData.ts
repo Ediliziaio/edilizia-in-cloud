@@ -104,17 +104,10 @@ export function useUpdateOpportunityStage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, stage_id }: { id: string; stage_id: string }) => {
-      // Check if the target stage has an auto_status
-      const { data: stageData } = await supabase
-        .from("marketing_pipeline_stages")
-        .select("auto_status")
-        .eq("id", stage_id)
-        .single();
-
+    mutationFn: async ({ id, stage_id, auto_status }: { id: string; stage_id: string; auto_status?: string }) => {
       const updateData: any = { stage_id };
-      if (stageData?.auto_status) {
-        updateData.status = stageData.auto_status;
+      if (auto_status) {
+        updateData.status = auto_status;
       }
 
       const { error } = await supabase
@@ -123,10 +116,36 @@ export function useUpdateOpportunityStage() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onMutate: async ({ id, stage_id, auto_status }) => {
+      await queryClient.cancelQueries({ queryKey: ["marketing_opportunities"] });
+
+      const previousData = queryClient.getQueriesData({ queryKey: ["marketing_opportunities"] });
+
+      queryClient.setQueriesData(
+        { queryKey: ["marketing_opportunities"] },
+        (old: any[] | undefined) => {
+          if (!old) return old;
+          return old.map((o: any) =>
+            o.id === id
+              ? { ...o, stage_id, ...(auto_status ? { status: auto_status } : {}) }
+              : o
+          );
+        }
+      );
+
+      return { previousData };
+    },
+    onError: (e: any, _vars, context) => {
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]: any) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+      toast.error(e.message);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
     },
-    onError: (e: any) => toast.error(e.message),
   });
 }
 

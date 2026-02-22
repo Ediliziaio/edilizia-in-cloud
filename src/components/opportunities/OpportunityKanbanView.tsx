@@ -1,41 +1,45 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback, memo } from "react";
 import {
-  DndContext, closestCorners, PointerSensor, useSensor, useSensors, DragEndEvent,
+  DndContext, closestCorners, PointerSensor, TouchSensor, KeyboardSensor,
+  useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { OpportunityCard } from "./OpportunityCard";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
-import { useUpdateOpportunityStage } from "@/hooks/useOpportunitiesData";
+import { useUpdateOpportunityStage, useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
 
 interface Stage {
   id: string;
   name: string;
   position: number;
+  auto_status?: string | null;
 }
 
-function StageColumn({ stage, opportunities, onCardClick }: { stage: Stage; opportunities: any[]; onCardClick: (opp: any) => void }) {
+const StageColumn = memo(function StageColumn({ stage, opportunities, onCardClick, onDelete }: {
+  stage: Stage;
+  opportunities: any[];
+  onCardClick: (opp: any) => void;
+  onDelete: (id: string) => void;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
 
   return (
     <div className="flex flex-col min-w-[280px] max-w-[300px] shrink-0">
-      {/* GHL-style compact header */}
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg">
         <h3 className="text-sm font-bold text-foreground leading-snug">{stage.name}</h3>
         <p className="text-[11px] text-muted-foreground mt-0.5">
           {opportunities.length} Opportunità · EUR {totalValue.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
         </p>
       </div>
-
-      {/* Cards */}
       <div
         ref={setNodeRef}
         className={`flex-1 p-2 space-y-2 min-h-[200px] rounded-b-lg border border-t-0 transition-colors ${isOver ? "bg-primary/5" : "bg-muted/10"}`}
       >
         <SortableContext items={opportunities.map((o: any) => o.id)} strategy={verticalListSortingStrategy}>
           {opportunities.map((opp: any) => (
-            <OpportunityCard key={opp.id} opportunity={opp} onClick={() => onCardClick(opp)} />
+            <OpportunityCard key={opp.id} opportunity={opp} onClick={() => onCardClick(opp)} onDelete={onDelete} />
           ))}
         </SortableContext>
         {opportunities.length === 0 && (
@@ -44,14 +48,18 @@ function StageColumn({ stage, opportunities, onCardClick }: { stage: Stage; oppo
       </div>
     </div>
   );
-}
+});
 
 export function OpportunityKanbanView({ stages, opportunities }: { stages: Stage[]; opportunities: any[] }) {
   const updateStage = useUpdateOpportunityStage();
+  const deleteOpp = useDeleteOpportunity();
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
+  const [activeItem, setActiveItem] = useState<any>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor)
   );
 
   const opportunitiesByStage = useMemo(() => {
@@ -63,7 +71,13 @@ export function OpportunityKanbanView({ stages, opportunities }: { stages: Stage
     return map;
   }, [stages, opportunities]);
 
-  function handleDragEnd(event: DragEndEvent) {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const opp = opportunities.find((o: any) => o.id === event.active.id);
+    if (opp) setActiveItem(opp);
+  }, [opportunities]);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveItem(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -75,14 +89,28 @@ export function OpportunityKanbanView({ stages, opportunities }: { stages: Stage
     if (overOpp) targetStageId = overOpp.stage_id;
 
     if (activeOpp.stage_id !== targetStageId && stages.some(s => s.id === targetStageId)) {
-      updateStage.mutate({ id: activeOpp.id, stage_id: targetStageId });
+      const targetStage = stages.find(s => s.id === targetStageId);
+      updateStage.mutate({
+        id: activeOpp.id,
+        stage_id: targetStageId,
+        auto_status: targetStage?.auto_status || undefined,
+      });
     }
-  }
+  }, [opportunities, stages, updateStage]);
+
+  const handleDelete = useCallback((id: string) => {
+    deleteOpp.mutate(id);
+  }, [deleteOpp]);
 
   return (
     <>
       <div className="w-full overflow-x-auto">
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
           <div className="flex gap-3 p-1 min-w-max">
             {stages.map((stage) => (
               <StageColumn
@@ -90,9 +118,17 @@ export function OpportunityKanbanView({ stages, opportunities }: { stages: Stage
                 stage={stage}
                 opportunities={opportunitiesByStage[stage.id] || []}
                 onCardClick={setSelectedOpp}
+                onDelete={handleDelete}
               />
             ))}
           </div>
+          <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+            {activeItem ? (
+              <div className="opacity-90 rotate-2 scale-105">
+                <OpportunityCard opportunity={activeItem} isOverlay />
+              </div>
+            ) : null}
+          </DragOverlay>
         </DndContext>
       </div>
 

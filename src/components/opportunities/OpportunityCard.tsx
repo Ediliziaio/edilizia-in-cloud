@@ -1,11 +1,10 @@
+import { memo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
 import { toast } from "sonner";
-import { useState } from "react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -14,19 +13,21 @@ import {
 interface OpportunityCardProps {
   opportunity: any;
   onClick?: () => void;
+  onDelete?: (id: string) => void;
+  isOverlay?: boolean;
 }
 
-export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) {
+export const OpportunityCard = memo(function OpportunityCard({ opportunity, onClick, onDelete, isOverlay }: OpportunityCardProps) {
   const contact = opportunity.marketing_contacts;
-  const deleteOpp = useDeleteOpportunity();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: opportunity.id,
     data: { type: "opportunity", stageId: opportunity.stage_id },
+    disabled: isOverlay,
   });
 
-  const style = {
+  const style = isOverlay ? undefined : {
     transform: CSS.Transform.toString(transform),
     transition,
   };
@@ -37,7 +38,6 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
   const cityPart = contact?.city ? ` - ${contact.city}` : "";
   const displayName = `${fullName}${cityPart}` || opportunity.name;
 
-  // Assigned user initials
   const assignedInitials = opportunity.assigned_to_name
     ? opportunity.assigned_to_name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
     : null;
@@ -68,8 +68,6 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
     }
   };
 
-  
-
   const handleComingSoon = (label: string) => (e: React.MouseEvent) => {
     stopProp(e);
     toast.info(`${label}: funzionalità in arrivo`);
@@ -81,7 +79,7 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
   };
 
   const confirmDeleteAction = () => {
-    deleteOpp.mutate(opportunity.id);
+    onDelete?.(opportunity.id);
     setConfirmDelete(false);
   };
 
@@ -98,14 +96,14 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
   return (
     <>
       <div
-        ref={setNodeRef}
+        ref={isOverlay ? undefined : setNodeRef}
         style={style}
-        {...attributes}
-        {...listeners}
+        {...(isOverlay ? {} : { ...attributes, ...listeners })}
         onClick={handleCardClick}
         className={cn(
           "bg-background border rounded-lg p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-primary/30 transition-all space-y-2",
-          isDragging && "opacity-50 shadow-lg"
+          isDragging && "opacity-30 shadow-lg",
+          isOverlay && "shadow-xl border-primary/40"
         )}
       >
         {/* Top: Name + Assigned */}
@@ -118,7 +116,7 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
           )}
         </div>
 
-        {/* Detail rows - GHL style with labels */}
+        {/* Detail rows */}
         <div className="space-y-1">
           <p className="text-[11px] leading-tight truncate">
             <span className="text-muted-foreground">Fonte: </span>
@@ -139,21 +137,23 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
         </div>
 
         {/* Action bar */}
-        <div className="flex items-center justify-between pt-1 border-t border-border/50">
-          {actionIcons.map(({ icon: Icon, tooltip, action }, i) => (
-            <Tooltip key={i}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={action}
-                  className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">{tooltip}</TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
+        {!isOverlay && (
+          <div className="flex items-center justify-between pt-1 border-t border-border/50">
+            {actionIcons.map(({ icon: Icon, tooltip, action }, i) => (
+              <Tooltip key={i}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={action}
+                    className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">{tooltip}</TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+        )}
       </div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -172,5 +172,4 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
       </AlertDialog>
     </>
   );
-}
-
+});
