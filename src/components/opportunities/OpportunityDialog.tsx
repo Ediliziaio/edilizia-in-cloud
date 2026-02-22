@@ -49,6 +49,13 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const [tags, setTags] = useState<string[]>([]);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
 
+  // Fix: sync stageId when stages load async
+  useEffect(() => {
+    if (stages.length > 0 && !stages.some(s => s.id === stageId)) {
+      setStageId(stages[0].id);
+    }
+  }, [stages, stageId]);
+
   // Fetch contacts
   const { data: contacts = [] } = useQuery({
     queryKey: ["marketing_contacts_search", companyId, contactSearch],
