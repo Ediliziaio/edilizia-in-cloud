@@ -27,6 +27,9 @@ export interface AppointmentData {
   assigned_to: string | null;
   order_id: string | null;
   is_completed: boolean;
+  calendar_id?: string | null;
+  contact_id?: string | null;
+  status?: string;
 }
 
 interface AppointmentDialogProps {
@@ -36,6 +39,8 @@ interface AppointmentDialogProps {
   onSaved: () => void;
   defaultOrderId?: string;
   showOrderSelect?: boolean;
+  defaultDate?: string;
+  defaultTime?: string;
 }
 
 const APPOINTMENT_TYPES = [
@@ -53,6 +58,8 @@ export function AppointmentDialog({
   onSaved,
   defaultOrderId,
   showOrderSelect = false,
+  defaultDate,
+  defaultTime,
 }: AppointmentDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -66,6 +73,9 @@ export function AppointmentDialog({
   const [appointmentType, setAppointmentType] = useState("generico");
   const [assignedTo, setAssignedTo] = useState("");
   const [orderId, setOrderId] = useState("");
+  const [calendarId, setCalendarId] = useState("");
+  const [contactId, setContactId] = useState("");
+  const [status, setStatus] = useState("confermato");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -77,16 +87,22 @@ export function AppointmentDialog({
       setAppointmentType(appointment.appointment_type);
       setAssignedTo(appointment.assigned_to || "");
       setOrderId(appointment.order_id || "");
+      setCalendarId(appointment.calendar_id || "");
+      setContactId(appointment.contact_id || "");
+      setStatus(appointment.status || "confermato");
     } else {
       setTitle("");
       setDescription("");
-      setAppointmentDate(undefined);
-      setAppointmentTime("");
+      setAppointmentDate(defaultDate ? new Date(defaultDate) : undefined);
+      setAppointmentTime(defaultTime || "");
       setAppointmentType("generico");
       setAssignedTo(onlyAssigned && user?.id ? user.id : "");
       setOrderId(defaultOrderId || "");
+      setCalendarId("");
+      setContactId("");
+      setStatus("confermato");
     }
-  }, [appointment, open, defaultOrderId, onlyAssigned, user?.id]);
+  }, [appointment, open, defaultOrderId, onlyAssigned, user?.id, defaultDate, defaultTime]);
 
   const { data: assignableUsers = [] } = useQuery({
     queryKey: ["assignable-users", companyId],
@@ -126,6 +142,36 @@ export function AppointmentDialog({
     enabled: open && !!companyId && showOrderSelect,
   });
 
+  const { data: marketingCalendars = [] } = useQuery({
+    queryKey: ["appointment-calendars", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("marketing_calendars")
+        .select("id, name")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .order("name");
+      return data || [];
+    },
+    enabled: open && !!companyId,
+  });
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["appointment-contacts", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("marketing_contacts")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId)
+        .order("last_name")
+        .limit(200);
+      return data || [];
+    },
+    enabled: open && !!companyId,
+  });
+
   const handleSave = async () => {
     if (!title.trim()) {
       toast({ title: "Inserisci un titolo", variant: "destructive" });
@@ -148,6 +194,9 @@ export function AppointmentDialog({
         appointment_type: appointmentType,
         assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
         order_id: orderId && orderId !== "none" ? orderId : null,
+        calendar_id: calendarId && calendarId !== "none" ? calendarId : null,
+        contact_id: contactId && contactId !== "none" ? contactId : null,
+        status: status,
       };
 
       if (isEditing && appointment?.id) {
@@ -267,6 +316,48 @@ export function AppointmentDialog({
               </Select>
             </div>
           )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Calendario</Label>
+              <Select value={calendarId} onValueChange={setCalendarId}>
+                <SelectTrigger><SelectValue placeholder="Nessun calendario" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nessuno</SelectItem>
+                  {marketingCalendars.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Stato</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="confermato">Confermato</SelectItem>
+                  <SelectItem value="annullato">Annullato</SelectItem>
+                  <SelectItem value="riprogrammato">Riprogrammato</SelectItem>
+                  <SelectItem value="completato">Completato</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Contatto CRM</Label>
+            <Select value={contactId} onValueChange={setContactId}>
+              <SelectTrigger><SelectValue placeholder="Nessun contatto" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nessuno</SelectItem>
+                {contacts.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.first_name} {c.last_name || ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="apt-desc">Note</Label>
