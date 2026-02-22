@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,7 +15,7 @@ interface TagSelectorProps {
   onTagsChange: (tags: string[]) => void;
 }
 
-export function TagSelector({ selectedTags, onTagsChange }: TagSelectorProps) {
+export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selectedTags, onTagsChange }, ref) => {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -79,7 +79,7 @@ export function TagSelector({ selectedTags, onTagsChange }: TagSelectorProps) {
   const canCreate = searchNormalized && !tags.some((t) => t.name === searchNormalized);
 
   return (
-    <div className="space-y-1.5">
+    <div ref={ref} className="space-y-1.5">
       {selectedTags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selectedTags.map((tag) => (
@@ -145,4 +145,5 @@ export function TagSelector({ selectedTags, onTagsChange }: TagSelectorProps) {
       </Popover>
     </div>
   );
-}
+});
+TagSelector.displayName = "TagSelector";
