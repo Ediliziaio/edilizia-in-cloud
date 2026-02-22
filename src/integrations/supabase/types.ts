@@ -83,13 +83,16 @@ export type Database = {
           appointment_time: string | null
           appointment_type: string
           assigned_to: string | null
+          calendar_id: string | null
           company_id: string
+          contact_id: string | null
           created_at: string
           created_by: string
           description: string | null
           id: string
           is_completed: boolean
           order_id: string | null
+          status: string
           title: string
           updated_at: string
         }
@@ -98,13 +101,16 @@ export type Database = {
           appointment_time?: string | null
           appointment_type?: string
           assigned_to?: string | null
+          calendar_id?: string | null
           company_id: string
+          contact_id?: string | null
           created_at?: string
           created_by: string
           description?: string | null
           id?: string
           is_completed?: boolean
           order_id?: string | null
+          status?: string
           title: string
           updated_at?: string
         }
@@ -113,22 +119,39 @@ export type Database = {
           appointment_time?: string | null
           appointment_type?: string
           assigned_to?: string | null
+          calendar_id?: string | null
           company_id?: string
+          contact_id?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
           id?: string
           is_completed?: boolean
           order_id?: string | null
+          status?: string
           title?: string
           updated_at?: string
         }
         Relationships: [
           {
+            foreignKeyName: "appointments_calendar_id_fkey"
+            columns: ["calendar_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_calendars"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "appointments_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
             referencedColumns: ["id"]
           },
           {
