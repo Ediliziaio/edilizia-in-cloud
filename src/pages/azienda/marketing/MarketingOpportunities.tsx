@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil } from "lucide-react";
+import { CardCustomizeSheet } from "@/components/opportunities/CardCustomizeSheet";
+import { useCardFieldPreferences } from "@/hooks/useCardFieldPreferences";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,8 @@ export default function MarketingOpportunities() {
   const [filters, setFilters] = useState<OpportunityFilters>(EMPTY_FILTERS);
   const { data: staff = [] } = useCompanyStaff();
   const bulkDelete = useBulkDeleteOpportunities();
+  const { activeFields, layout, setActiveFields, setLayout } = useCardFieldPreferences();
+  const [cardCustomizeOpen, setCardCustomizeOpen] = useState(false);
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -260,7 +264,7 @@ export default function MarketingOpportunities() {
             variant="link"
             size="sm"
             className="h-8 text-xs px-1"
-            onClick={() => window.location.href = "/azienda/impostazioni/campi-personalizzati"}
+            onClick={() => setCardCustomizeOpen(true)}
           >
             <Settings2 className="mr-1 h-3.5 w-3.5" /> Gestisci campi
           </Button>
@@ -356,6 +360,18 @@ export default function MarketingOpportunities() {
         selectedIds={[...selectedIds]}
         stages={stages}
         onDone={clearSelection}
+      />
+
+      {/* Card Customize Sheet */}
+      <CardCustomizeSheet
+        open={cardCustomizeOpen}
+        onOpenChange={setCardCustomizeOpen}
+        activeFields={activeFields}
+        layout={layout}
+        onApply={(fields, l) => {
+          setActiveFields(fields);
+          setLayout(l);
+        }}
       />
 
       {/* Bulk Delete Confirm */}
