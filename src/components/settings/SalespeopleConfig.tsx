@@ -280,7 +280,7 @@ export function SalespeopleConfig() {
               <TableRow>
                 <TableHead>Nome</TableHead><TableHead>Contatto</TableHead>
                 <TableHead>Tipo Provvigione</TableHead><TableHead>Valore</TableHead>
-                <TableHead>Account</TableHead><TableHead>Attivo</TableHead>
+                <TableHead>Attivo</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
@@ -303,19 +303,15 @@ export function SalespeopleConfig() {
                   </TableCell>
                   <TableCell className="font-medium">{formatCommissionValue(sp.commission_type, sp.commission_value)}</TableCell>
                   <TableCell>
-                    {sp.user_id ? (
-                      <Badge variant="secondary" className="gap-1"><Check className="h-3 w-3" />Attivo</Badge>
-                    ) : (
-                      <Button size="sm" variant="outline" onClick={() => handleOpenCreateAccount(sp)} disabled={createAccountMutation.isPending}>
-                        <UserPlus className="h-3 w-3 mr-1" />Crea Account
-                      </Button>
-                    )}
-                  </TableCell>
-                  <TableCell>
                     <Switch checked={sp.is_active} onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: sp.id, is_active: checked })} />
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">
+                      {!sp.user_id && (
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenCreateAccount(sp)} disabled={createAccountMutation.isPending} title="Crea Account">
+                          <UserPlus className="h-4 w-4 text-primary" />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(sp)} title="Modifica"><Pencil className="h-4 w-4" /></Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
