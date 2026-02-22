@@ -18,7 +18,7 @@ import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/use
 import { exportToCSV } from "@/lib/csvExport";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
-import { ContactFiltersSheet, type ContactFilters, EMPTY_CONTACT_FILTERS, countActiveContactFilters } from "@/components/marketing/ContactFiltersSheet";
+import { ContactFiltersSheet, type ContactFilters, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
 
 const CSV_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true },
@@ -67,6 +67,22 @@ export default function MarketingContacts() {
 
   const activeFilterCount = countActiveContactFilters(filters);
 
+  // Pipelines with stages for opportunity filters
+  const { data: pipelines = [] } = useQuery({
+    queryKey: ["marketing_pipelines_for_filters", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("marketing_pipelines")
+        .select("id, name, marketing_pipeline_stages(id, name, position)")
+        .eq("company_id", companyId)
+        .order("position");
+      if (error) throw error;
+      return (data || []) as PipelineWithStages[];
+    },
+    enabled: !!companyId,
+  });
+
   // Available tags for filter
   const { data: availableTags = [] } = useQuery({
     queryKey: ["marketing-tags-list", companyId],
@@ -98,11 +114,59 @@ export default function MarketingContacts() {
     enabled: !!companyId,
   });
 
-  // Fetch contacts
+  // Fetch contacts with opportunity + custom field filtering
   const { data, isLoading } = useQuery({
     queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
+
+      // Step 1: Opportunity filter → get matching contact_ids
+      const hasOppFilter = !!(filters.pipelineId || filters.stageId || filters.oppStatuses.length);
+      let oppContactIds: string[] | null = null;
+      if (hasOppFilter) {
+        let oppQuery = supabase
+          .from("marketing_opportunities")
+          .select("contact_id")
+          .eq("company_id", companyId);
+        if (filters.pipelineId) oppQuery = oppQuery.eq("pipeline_id", filters.pipelineId);
+        if (filters.stageId) oppQuery = oppQuery.eq("stage_id", filters.stageId);
+        if (filters.oppStatuses.length) oppQuery = oppQuery.in("status", filters.oppStatuses);
+        const { data: oppData } = await oppQuery;
+        oppContactIds = [...new Set((oppData || []).map((o) => o.contact_id))];
+        if (oppContactIds.length === 0) return { contacts: [] as MarketingContact[], count: 0 };
+      }
+
+      // Step 2: Custom field filter → get matching contact_ids
+      const activeCFs = Object.entries(filters.customFields).filter(([, v]) => v);
+      let cfContactIds: string[] | null = null;
+      if (activeCFs.length > 0) {
+        const sets: Set<string>[] = [];
+        for (const [fieldId, value] of activeCFs) {
+          const { data: cfData } = await supabase
+            .from("marketing_contact_field_values")
+            .select("contact_id")
+            .eq("field_id", fieldId)
+            .ilike("value", `%${value}%`);
+          sets.push(new Set((cfData || []).map((r) => r.contact_id)));
+        }
+        // Intersection
+        let result = sets[0];
+        for (let i = 1; i < sets.length; i++) {
+          result = new Set([...result].filter((id) => sets[i].has(id)));
+        }
+        cfContactIds = [...result];
+        if (cfContactIds.length === 0) return { contacts: [] as MarketingContact[], count: 0 };
+      }
+
+      // Step 3: Intersect opp + cf ids
+      let filterIds: string[] | null = null;
+      if (oppContactIds && cfContactIds) {
+        const cfSet = new Set(cfContactIds);
+        filterIds = oppContactIds.filter((id) => cfSet.has(id));
+        if (filterIds.length === 0) return { contacts: [] as MarketingContact[], count: 0 };
+      } else {
+        filterIds = oppContactIds || cfContactIds;
+      }
 
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -114,33 +178,32 @@ export default function MarketingContacts() {
         .order(sortField, { ascending: sortDirection === "asc" })
         .range(from, to);
 
+      // Apply id filter from opportunity/custom fields
+      if (filterIds) {
+        query = query.in("id", filterIds);
+      }
+
       if (search.trim()) {
         const s = `%${search.trim()}%`;
         query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
       }
 
-      // Apply filters
-      if (filters.source) {
-        query = query.ilike("source", `%${filters.source}%`);
+      // Standard filters
+      if (filters.name) {
+        const n = `%${filters.name}%`;
+        query = query.or(`first_name.ilike.${n},last_name.ilike.${n}`);
       }
-      if (filters.company) {
-        query = query.ilike("company_name", `%${filters.company}%`);
-      }
-      if (filters.dateFrom) {
-        query = query.gte("created_at", filters.dateFrom);
-      }
-      if (filters.dateTo) {
-        query = query.lte("created_at", `${filters.dateTo}T23:59:59`);
-      }
-      if (filters.activityFrom) {
-        query = query.gte("last_activity_at", filters.activityFrom);
-      }
-      if (filters.activityTo) {
-        query = query.lte("last_activity_at", `${filters.activityTo}T23:59:59`);
-      }
-      if (filters.tags.length > 0) {
-        query = query.overlaps("tags", filters.tags);
-      }
+      if (filters.email) query = query.ilike("email", `%${filters.email}%`);
+      if (filters.phone) query = query.ilike("phone", `%${filters.phone}%`);
+      if (filters.source) query = query.ilike("source", `%${filters.source}%`);
+      if (filters.company) query = query.ilike("company_name", `%${filters.company}%`);
+      if (filters.city) query = query.ilike("city", `%${filters.city}%`);
+      if (filters.province) query = query.ilike("province", `%${filters.province}%`);
+      if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom);
+      if (filters.dateTo) query = query.lte("created_at", `${filters.dateTo}T23:59:59`);
+      if (filters.activityFrom) query = query.gte("last_activity_at", filters.activityFrom);
+      if (filters.activityTo) query = query.lte("last_activity_at", `${filters.activityTo}T23:59:59`);
+      if (filters.tags.length > 0) query = query.overlaps("tags", filters.tags);
 
       const { data: contacts, count, error } = await query;
       if (error) throw error;
@@ -467,6 +530,8 @@ export default function MarketingContacts() {
         filters={filters}
         onApply={handleApplyFilters}
         availableTags={availableTags}
+        pipelines={pipelines}
+        customFields={contactCustomFields}
       />
 
       {/* Dialogs */}
