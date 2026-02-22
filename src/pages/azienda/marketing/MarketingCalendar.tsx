@@ -1,19 +1,41 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { startOfWeek, addWeeks, subWeeks, format, addDays } from "date-fns";
+import {
+  startOfWeek,
+  startOfMonth,
+  addWeeks,
+  subWeeks,
+  addMonths,
+  subMonths,
+  addDays,
+  subDays,
+  format,
+} from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Plus, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import MarketingCalendarWeekView from "@/components/marketing/MarketingCalendarWeekView";
+import MarketingCalendarDayView from "@/components/marketing/MarketingCalendarDayView";
+import MarketingCalendarMonthView from "@/components/marketing/MarketingCalendarMonthView";
 import MarketingCalendarFilters from "@/components/marketing/MarketingCalendarFilters";
 import MarketingAppointmentsList from "@/components/marketing/MarketingAppointmentsList";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 
 type TabKey = "calendar" | "list";
+type CalendarView = "day" | "week" | "month";
 
 export default function MarketingCalendar() {
   const navigate = useNavigate();
@@ -21,9 +43,9 @@ export default function MarketingCalendar() {
   const companyId = effectiveCompany?.id;
 
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
-  const [weekStart, setWeekStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
+  const [calendarView, setCalendarView] = useState<CalendarView>("week");
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
   const [defaultDate, setDefaultDate] = useState<string | undefined>();
@@ -33,6 +55,12 @@ export default function MarketingCalendar() {
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [filtersInitialized, setFiltersInitialized] = useState(false);
+
+  // Derived weekStart for week view
+  const weekStart = useMemo(
+    () => startOfWeek(currentDate, { weekStartsOn: 1 }),
+    [currentDate]
+  );
 
   // Fetch calendars
   const { data: calendars = [] } = useQuery({
@@ -84,10 +112,7 @@ export default function MarketingCalendar() {
   });
 
   // Fetch appointments
-  const {
-    data: rawAppointments = [],
-    refetch: refetchAppointments,
-  } = useQuery({
+  const { data: rawAppointments = [], refetch: refetchAppointments } = useQuery({
     queryKey: ["marketing-appointments", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -103,17 +128,18 @@ export default function MarketingCalendar() {
 
   // Enrich with names
   const appointments = useMemo(() => {
-    return rawAppointments.map((a: any) => ({
-      ...a,
-      calendar_name: calendars.find((c) => c.id === a.calendar_id)?.name || null,
-      assigned_name: users.find((u) => u.id === a.assigned_to)
-        ? `${users.find((u) => u.id === a.assigned_to)!.first_name} ${users.find((u) => u.id === a.assigned_to)!.last_name}`
-        : null,
-      contact_name: null, // will be enriched if needed
-    }));
+    return rawAppointments.map((a: any) => {
+      const user = users.find((u) => u.id === a.assigned_to);
+      return {
+        ...a,
+        calendar_name: calendars.find((c) => c.id === a.calendar_id)?.name || null,
+        assigned_name: user ? `${user.first_name} ${user.last_name}` : null,
+        contact_name: null,
+      };
+    });
   }, [rawAppointments, calendars, users]);
 
-  // Filtered for week view
+  // Filtered
   const filteredAppointments = useMemo(() => {
     return appointments.filter((a: any) => {
       if (selectedCalendarIds.length > 0 && a.calendar_id && !selectedCalendarIds.includes(a.calendar_id))
@@ -136,6 +162,38 @@ export default function MarketingCalendar() {
     );
   }, []);
 
+  // Navigation handlers
+  const goToday = () => setCurrentDate(new Date());
+
+  const goPrev = () => {
+    if (calendarView === "day") setCurrentDate((d) => subDays(d, 1));
+    else if (calendarView === "week") setCurrentDate((d) => subWeeks(d, 1));
+    else setCurrentDate((d) => subMonths(d, 1));
+  };
+
+  const goNext = () => {
+    if (calendarView === "day") setCurrentDate((d) => addDays(d, 1));
+    else if (calendarView === "week") setCurrentDate((d) => addWeeks(d, 1));
+    else setCurrentDate((d) => addMonths(d, 1));
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setCurrentDate(date);
+      setDatePickerOpen(false);
+    }
+  };
+
+  // Date label
+  const dateLabel = useMemo(() => {
+    if (calendarView === "day") return format(currentDate, "d MMMM yyyy", { locale: it });
+    if (calendarView === "week") {
+      const end = addDays(weekStart, 6);
+      return `${format(weekStart, "d MMM", { locale: it })} – ${format(end, "d MMM yyyy", { locale: it })}`;
+    }
+    return format(currentDate, "MMMM yyyy", { locale: it });
+  }, [calendarView, currentDate, weekStart]);
+
   const openNewDialog = (date?: Date, hour?: number) => {
     setEditingAppointment(null);
     setDefaultDate(date ? format(date, "yyyy-MM-dd") : undefined);
@@ -157,9 +215,6 @@ export default function MarketingCalendar() {
     });
     setDialogOpen(true);
   };
-
-  const weekEnd = addDays(weekStart, 6);
-  const weekLabel = `${format(weekStart, "d MMM", { locale: it })} – ${format(weekEnd, "d MMM yyyy", { locale: it })}`;
 
   const tabs = [
     { key: "calendar" as const, label: "Visualizza calendario" },
@@ -205,32 +260,78 @@ export default function MarketingCalendar() {
       {/* Content */}
       {activeTab === "calendar" && (
         <div className="flex gap-0 h-[calc(100vh-200px)]">
-          {/* Week navigation + calendar */}
           <div className="flex-1 flex flex-col gap-3">
+            {/* Navigation bar */}
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-              >
+              <Button variant="outline" size="sm" onClick={goToday}>
                 Oggi
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setWeekStart((w) => subWeeks(w, 1))}>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goPrev}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setWeekStart((w) => addWeeks(w, 1))}>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goNext}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
-              <span className="text-sm font-medium">{weekLabel}</span>
+
+              {/* Date label with popover */}
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <button className="text-sm font-medium hover:text-primary transition-colors cursor-pointer">
+                    {dateLabel}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={currentDate}
+                    onSelect={handleDateSelect}
+                    locale={it}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+
+              {/* View switcher */}
+              <Select value={calendarView} onValueChange={(v) => setCalendarView(v as CalendarView)}>
+                <SelectTrigger className="w-[140px] h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="day">Giorno</SelectItem>
+                  <SelectItem value="week">Settimana</SelectItem>
+                  <SelectItem value="month">Mese</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <MarketingCalendarWeekView
-              weekStart={weekStart}
-              appointments={filteredAppointments}
-              calendarIds={calendars.map((c) => c.id)}
-              onClickAppointment={openEditDialog}
-              onClickSlot={(date, hour) => openNewDialog(date, hour)}
-            />
+            {/* Calendar views */}
+            {calendarView === "week" && (
+              <MarketingCalendarWeekView
+                weekStart={weekStart}
+                appointments={filteredAppointments}
+                calendarIds={calendars.map((c) => c.id)}
+                onClickAppointment={openEditDialog}
+                onClickSlot={(date, hour) => openNewDialog(date, hour)}
+              />
+            )}
+            {calendarView === "day" && (
+              <MarketingCalendarDayView
+                date={currentDate}
+                appointments={filteredAppointments}
+                calendarIds={calendars.map((c) => c.id)}
+                onClickAppointment={openEditDialog}
+                onClickSlot={(date, hour) => openNewDialog(date, hour)}
+              />
+            )}
+            {calendarView === "month" && (
+              <MarketingCalendarMonthView
+                currentDate={currentDate}
+                appointments={filteredAppointments}
+                calendarIds={calendars.map((c) => c.id)}
+                onClickAppointment={openEditDialog}
+                onClickDay={(date) => openNewDialog(date)}
+              />
+            )}
           </div>
 
           {/* Filters panel */}
