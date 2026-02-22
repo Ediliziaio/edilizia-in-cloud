@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { ContactsTable, type MarketingContact } from "@/components/marketing/ContactsTable";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
-import { syncTagsToOpportunities } from "@/hooks/useTagSync";
+import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { exportToCSV } from "@/lib/csvExport";
 
 const CSV_FIELDS: ImportField[] = [
@@ -88,10 +88,20 @@ export default function MarketingContacts() {
     },
     onSuccess: async (_, formData) => {
       toast.success(editingContact ? "Contatto aggiornato" : "Contatto aggiunto");
-      // Sync tags to linked opportunities when editing
-      if (editingContact && formData.tags.length > 0) {
-        await syncTagsToOpportunities(editingContact.id, formData.tags);
-        queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
+      // Sync tags bidirectionally when editing
+      if (editingContact) {
+        const originalTags = editingContact.tags || [];
+        const addedTags = formData.tags.filter(t => !originalTags.includes(t));
+        const removedTags = originalTags.filter(t => !formData.tags.includes(t));
+        if (addedTags.length > 0) {
+          await syncTagsToOpportunities(editingContact.id, addedTags);
+        }
+        for (const tag of removedTags) {
+          await removeTagFromOpportunities(editingContact.id, tag);
+        }
+        if (addedTags.length > 0 || removedTags.length > 0) {
+          queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
+        }
       }
       invalidate();
       setEditingContact(null);
