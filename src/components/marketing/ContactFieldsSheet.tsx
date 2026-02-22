@@ -4,18 +4,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Lock, GripVertical } from "lucide-react";
-import { COLUMNS, type ColumnKey } from "./ContactsTable";
+import { COLUMNS } from "./ContactsTable";
+
+export interface CustomFieldDef {
+  id: string;
+  name: string;
+  field_type: string;
+}
 
 interface ContactFieldsSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  visibleColumns: Set<ColumnKey>;
-  onApply: (columns: Set<ColumnKey>) => void;
+  visibleColumns: Set<string>;
+  onApply: (columns: Set<string>) => void;
+  customFields?: CustomFieldDef[];
 }
 
-export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply }: ContactFieldsSheetProps) {
-  const [draft, setDraft] = useState<Set<ColumnKey>>(new Set(visibleColumns));
+export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply, customFields = [] }: ContactFieldsSheetProps) {
+  const [draft, setDraft] = useState<Set<string>>(new Set(visibleColumns));
   const [search, setSearch] = useState("");
+
+  const allColumns = useMemo(() => {
+    const staticCols = COLUMNS.map(c => ({ key: c.key as string, label: c.label, fixed: c.key === "name" }));
+    const cfCols = customFields.map(f => ({ key: `cf_${f.id}`, label: f.name, fixed: false }));
+    return [...staticCols, ...cfCols];
+  }, [customFields]);
 
   const handleOpenChange = (v: boolean) => {
     if (v) {
@@ -28,16 +41,16 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
   const q = search.toLowerCase();
 
   const activeFields = useMemo(() =>
-    COLUMNS.filter((c) => c.key === "name" || draft.has(c.key)).filter((c) => !q || c.label.toLowerCase().includes(q)),
-    [draft, q]
+    allColumns.filter((c) => c.fixed || draft.has(c.key)).filter((c) => !q || c.label.toLowerCase().includes(q)),
+    [allColumns, draft, q]
   );
 
   const inactiveFields = useMemo(() =>
-    COLUMNS.filter((c) => c.key !== "name" && !draft.has(c.key)).filter((c) => !q || c.label.toLowerCase().includes(q)),
-    [draft, q]
+    allColumns.filter((c) => !c.fixed && !draft.has(c.key)).filter((c) => !q || c.label.toLowerCase().includes(q)),
+    [allColumns, draft, q]
   );
 
-  const toggleField = (key: ColumnKey) => {
+  const toggleField = (key: string) => {
     if (key === "name") return;
     setDraft((prev) => {
       const next = new Set(prev);
@@ -71,25 +84,22 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
           {/* Active fields */}
           <div className="space-y-1">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase">Campi nella tabella</p>
-            {activeFields.map((col) => {
-              const isFixed = col.key === "name";
-              return (
-                <div key={col.key} className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-muted/50">
-                  {isFixed ? (
-                    <Lock className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                  ) : (
-                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
-                  )}
-                  <Checkbox
-                    checked
-                    disabled={isFixed}
-                    onCheckedChange={() => toggleField(col.key)}
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="text-xs truncate">{col.label}</span>
-                </div>
-              );
-            })}
+            {activeFields.map((col) => (
+              <div key={col.key} className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-muted/50">
+                {col.fixed ? (
+                  <Lock className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                ) : (
+                  <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab shrink-0" />
+                )}
+                <Checkbox
+                  checked
+                  disabled={col.fixed}
+                  onCheckedChange={() => toggleField(col.key)}
+                  className="h-3.5 w-3.5"
+                />
+                <span className="text-xs truncate">{col.label}</span>
+              </div>
+            ))}
           </div>
 
           {/* Inactive fields */}
@@ -119,7 +129,7 @@ export function ContactFieldsSheet({ open, onOpenChange, visibleColumns, onApply
           <Button
             size="sm"
             onClick={() => {
-              onApply(draft);
+              onApply(draft as any);
               onOpenChange(false);
             }}
           >

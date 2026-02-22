@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ContactsTable, type MarketingContact, type SortField, type SortDirection, type ColumnKey, loadVisibleColumns, saveVisibleColumns } from "@/components/marketing/ContactsTable";
+import { ContactsTable, type MarketingContact, type SortField, type SortDirection, loadVisibleColumns, saveVisibleColumns } from "@/components/marketing/ContactsTable";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
 import { ContactListsView } from "@/components/marketing/ContactListsView";
 import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
@@ -106,7 +106,7 @@ export default function MarketingContacts() {
   const [editingContact, setEditingContact] = useState<MarketingContact | null>(null);
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(loadVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(loadVisibleColumns);
   const [fieldsSheetOpen, setFieldsSheetOpen] = useState(false);
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ContactFilters>(EMPTY_CONTACT_FILTERS);
@@ -346,6 +346,27 @@ export default function MarketingContacts() {
   });
   const contacts = data?.contacts || [];
   const totalCount = data?.count || 0;
+  const contactIds = contacts.map(c => c.id);
+
+  // Fetch custom field values for visible contacts
+  const { data: customFieldValues = {} } = useQuery({
+    queryKey: ["marketing-contact-field-values", contactIds],
+    queryFn: async () => {
+      if (contactIds.length === 0) return {} as Record<string, Record<string, string>>;
+      const { data: vals, error } = await supabase
+        .from("marketing_contact_field_values")
+        .select("contact_id, field_id, value")
+        .in("contact_id", contactIds);
+      if (error) throw error;
+      const map: Record<string, Record<string, string>> = {};
+      for (const v of vals || []) {
+        if (!map[v.contact_id]) map[v.contact_id] = {};
+        if (v.value) map[v.contact_id][v.field_id] = v.value;
+      }
+      return map;
+    },
+    enabled: contactIds.length > 0,
+  });
 
   // Mutations
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["marketing-contacts"] });
@@ -420,7 +441,7 @@ export default function MarketingContacts() {
     setDialogOpen(true);
   };
 
-  const handleApplyColumns = (cols: Set<ColumnKey>) => {
+  const handleApplyColumns = (cols: Set<string>) => {
     setVisibleColumns(cols);
     saveVisibleColumns(cols);
   };
@@ -645,6 +666,8 @@ export default function MarketingContacts() {
             onSort={(f, d) => { setSortField(f); setSortDirection(d); setPage(1); }}
             bulkActions={<AddToListDropdown selectedIds={selectedIds} />}
             visibleColumns={visibleColumns}
+            customFields={contactCustomFields}
+            customFieldValues={customFieldValues}
           />
         </>
       )}
@@ -655,6 +678,7 @@ export default function MarketingContacts() {
         onOpenChange={setFieldsSheetOpen}
         visibleColumns={visibleColumns}
         onApply={handleApplyColumns}
+        customFields={contactCustomFields}
       />
       <ContactFiltersSheet
         open={filtersSheetOpen}
