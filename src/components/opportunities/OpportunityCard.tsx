@@ -118,14 +118,24 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
           )}
         </div>
 
-        {/* Detail rows - values only */}
+        {/* Detail rows - GHL style with labels */}
         <div className="space-y-1">
-          <p className="text-[11px] leading-tight text-foreground truncate">{opportunity.source || "—"}</p>
-          <p className="text-[11px] leading-tight font-semibold text-primary truncate">
-            {`EUR ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`}
+          <p className="text-[11px] leading-tight truncate">
+            <span className="text-muted-foreground">Fonte: </span>
+            <span className="text-foreground">{opportunity.source || "—"}</span>
           </p>
-          <p className="text-[11px] leading-tight text-foreground truncate">{contact?.email || "—"}</p>
-          <p className="text-[11px] leading-tight text-foreground truncate">{contact?.phone || "—"}</p>
+          <p className="text-[11px] leading-tight truncate">
+            <span className="text-muted-foreground">Valore: </span>
+            <span className="font-semibold text-primary">{`EUR ${Number(opportunity.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`}</span>
+          </p>
+          <p className="text-[11px] leading-tight truncate">
+            <span className="text-muted-foreground">Email: </span>
+            <span className="text-foreground">{contact?.email || "—"}</span>
+          </p>
+          <p className="text-[11px] leading-tight truncate">
+            <span className="text-muted-foreground">Telefono: </span>
+            <span className="text-foreground">{contact?.phone || "—"}</span>
+          </p>
         </div>
 
         {/* Action bar */}
