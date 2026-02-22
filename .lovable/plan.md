@@ -1,28 +1,29 @@
 
-# Rendere il nome contatto cliccabile sulla card opportunita
+# Aggiungere badge conteggio su Note e Documenti nelle card opportunita
 
 ## Cosa cambia
 
-### File: `src/components/opportunities/OpportunityCard.tsx`
+Attualmente solo l'icona Etichette (Tag) mostra un badge con il numero. Le icone Note (StickyNote) e Documenti (Folder) non mostrano alcun conteggio. Dopo questa modifica, tutte e tre le icone mostreranno un badge numerico quando ci sono elementi associati.
 
-### 1. Nome contatto cliccabile con navigazione
-Il nome del contatto (es. "Contatto 1 - milano", "Enrico Goldoni") sulla card diventa un link cliccabile. Al click, naviga alla pagina di dettaglio contatto `/azienda/marketing/contatti/{contactId}`.
+## Modifiche tecniche
 
-- Al passaggio del mouse: il testo si sottolinea (underline on hover) per indicare che e cliccabile
-- Al click: naviga alla pagina del contatto associato (usando `useNavigate` da react-router-dom)
-- Il click sul nome NON apre il dettaglio opportunita (stopPropagation)
-- Il drag & drop continua a funzionare normalmente (il link si attiva solo su click, non su drag)
-- Se non c'e un contatto associato (`contact` e null), il nome resta testo statico non cliccabile
+### 1. File: `src/hooks/useOpportunitiesData.ts` - Arricchire i dati con conteggi
 
-### Dettaglio tecnico
+Dopo aver caricato le opportunita nella funzione `useOpportunities`, aggiungere due query batch per recuperare i conteggi di note e documenti per ogni opportunita:
 
-| Azione | Riga | Dettaglio |
-|--------|------|-----------|
-| Import `useNavigate` | 1 | Aggiungere import da `react-router-dom` |
-| Aggiungere `navigate` nel componente | 26 | `const navigate = useNavigate()` |
-| Rendere il nome un elemento cliccabile | 143 | Wrappare in un `<span>` con `onClick` che naviga a `/azienda/marketing/contatti/${contact.id}`, con `cursor-pointer hover:underline` e `stopPropagation` + `e.preventDefault()` per non triggerare il drag o l'apertura del dettaglio opportunita |
+- Query su `marketing_contact_notes` filtrata per `opportunity_id` in lista IDs
+- Query su `marketing_documents` filtrata per `opportunity_id` in lista IDs
+- Aggregare i risultati e aggiungere `notes_count` e `documents_count` ad ogni opportunita
 
-### Comportamento
-- Con contatto associato: testo con hover underline, click naviga al contatto
-- Senza contatto: testo statico come prima
-- Il resto della card continua ad aprire il dettaglio opportunita come prima
+### 2. File: `src/components/opportunities/OpportunityCard.tsx` - Mostrare i badge
+
+Modificare l'array `actionIcons` per aggiungere la proprieta `badge` anche alle icone Note e Documenti:
+
+- **StickyNote (Note)**: `badge: opportunity.notes_count > 0 ? opportunity.notes_count : null`
+- **Folder (Documenti)**: `badge: opportunity.documents_count > 0 ? opportunity.documents_count : null`
+
+Il rendering del badge e gia implementato (lo stesso usato per le etichette), quindi non servono modifiche al template.
+
+## Risultato visivo
+
+Ogni icona nella barra azioni della card mostrera un piccolo badge circolare blu con il numero, identico a quello gia presente sulle etichette, quando ci sono elementi associati. Se non ce ne sono, nessun badge viene mostrato.
