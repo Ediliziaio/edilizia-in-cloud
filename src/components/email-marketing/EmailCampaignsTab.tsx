@@ -130,6 +130,7 @@ export function EmailCampaignsTab() {
         sender_name: campaign.sender_name,
         sender_email: campaign.sender_email,
         folder_id: campaign.folder_id,
+        json_content: campaign.json_content,
       });
       if (error) throw error;
     },
@@ -307,7 +308,7 @@ export function EmailCampaignsTab() {
                     <TableRow
                       key={c.id}
                       className="cursor-pointer"
-                      onClick={() => navigate(`/azienda/marketing/email/campagna/${c.id}/editor`)}
+                      onClick={() => navigate(`/azienda/marketing/email/campagna/${c.id}/${c.json_content ? 'builder' : 'editor'}`)}
                     >
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell>
