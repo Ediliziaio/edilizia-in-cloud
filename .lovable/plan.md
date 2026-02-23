@@ -1,154 +1,83 @@
 
 
-# Email Marketing Module - Piano di Implementazione
+# Automazioni Marketing - Implementazione Completa
 
-Questo e un modulo complesso che richiede implementazione in fasi. Questa prima fase copre la **struttura UI completa** (3 tab: Statistiche, Campagne, Modelli), le **tabelle database**, e la **logica CRUD** per campagne e template. L'integrazione SendGrid vera e propria verra configurata in una fase successiva (richiede API key e webhook).
-
----
-
-## Fase 1: Struttura, Database, UI
-
-### 1. Sidebar - Nuova voce "Email Marketing"
-
-Aggiungere in `src/lib/sidebarConfig.ts` la voce `Email Marketing` con icona `Mail` nella sezione `marketingNavItems`, dopo "Agente AI".
-
-### 2. Database - Nuove tabelle
-
-Creare tramite migration:
-
-```text
-email_templates
-  - id (uuid PK)
-  - company_id (uuid FK companies)
-  - name (text)
-  - subject (text)
-  - html_content (text)
-  - json_content (jsonb) -- per editor strutturato
-  - folder (text, default 'Home')
-  - type (text: 'html' | 'editor')
-  - created_by (uuid)
-  - created_at, updated_at (timestamptz)
-
-email_campaigns
-  - id (uuid PK)
-  - company_id (uuid FK companies)
-  - name (text)
-  - subject (text)
-  - template_id (uuid FK email_templates, nullable)
-  - status (text: 'draft' | 'scheduled' | 'sending' | 'sent' | 'paused')
-  - type (text: 'broadcast' | 'automation')
-  - scheduled_at (timestamptz, nullable)
-  - sent_at (timestamptz, nullable)
-  - recipient_filter (jsonb) -- filtri: lista, tag, pipeline, custom field
-  - total_recipients (int, default 0)
-  - ab_test_enabled (bool, default false)
-  - ab_subject_b (text, nullable)
-  - created_by (uuid)
-  - created_at, updated_at (timestamptz)
-
-email_logs
-  - id (uuid PK)
-  - campaign_id (uuid FK email_campaigns)
-  - contact_id (uuid FK marketing_contacts)
-  - company_id (uuid)
-  - status (text: 'queued' | 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'unsubscribed' | 'spam')
-  - sendgrid_message_id (text, nullable)
-  - event_timestamp (timestamptz)
-  - metadata (jsonb)
-
-email_billing
-  - id (uuid PK)
-  - company_id (uuid)
-  - campaign_id (uuid FK, nullable)
-  - emails_sent (int)
-  - unit_cost (numeric)
-  - total_cost (numeric)
-  - month_reference (date)
-  - created_at (timestamptz)
-```
-
-RLS: tutte filtrate per `company_id` con le stesse policy pattern delle tabelle marketing esistenti.
-
-### 3. Routing
-
-In `src/App.tsx`, aggiungere:
-```
-<Route path="marketing/email" element={<EmailMarketing />} />
-```
-
-### 4. Pagina principale: `src/pages/azienda/marketing/EmailMarketing.tsx`
-
-Pagina con 3 tab (come negli screenshot GHL):
-- **Statistiche**: KPI cards (Consegnate, Aperte, Cliccate, Bounce, Disiscrizioni, Spam) + grafico funnel orizzontale + grafico andamento nel tempo + tabella "migliori campagne"
-- **Campagne**: Lista campagne con filtri (tipo, stato), sidebar sub-filtri (Campagne email, Flusso, Azione in blocco), empty state con CTA "+ Crea campagna", dialog per creare/editare campagna
-- **Modelli**: Lista template con ricerca, filtro, paginazione, pulsanti "+ Nuovo" e "Crea cartella", dropdown "Nuovo" (Modello vuoto, Importa HTML)
-
-### 5. Componenti nuovi
-
-```text
-src/components/email-marketing/
-  EmailStatsTab.tsx        -- Tab statistiche con KPI + grafici
-  EmailCampaignsTab.tsx    -- Tab campagne con lista + filtri
-  EmailTemplatesTab.tsx    -- Tab modelli con lista + CRUD
-  CampaignDialog.tsx       -- Dialog creazione/modifica campagna
-  TemplateDialog.tsx        -- Dialog creazione/modifica template
-  TemplateEditor.tsx       -- Editor HTML con textarea + anteprima
-  CampaignStatsCards.tsx   -- Card KPI riutilizzabili
-  EmailFunnelChart.tsx     -- Grafico funnel (recharts BarChart orizzontale)
-```
-
-### 6. Editor Template
-
-Per la Fase 1, l'editor sara un **editor HTML** con:
-- Textarea con syntax highlighting base
-- Anteprima live in iframe
-- Variabili placeholder (nome contatto, azienda, ecc.)
-- Salva come template
-
-L'editor drag-and-drop completo e previsto per una fase successiva.
-
-### 7. Logica Campagne (UI-only in Fase 1)
-
-- CRUD completo campagne (bozza, pianificata)
-- Selezione destinatari tramite filtri (lista, tag, pipeline)
-- Selezione template
-- Invio test (mock, logga in console)
-- Cambio stato (bozza -> pianificata -> in invio -> inviata)
-
-L'invio reale via SendGrid e il webhook per tracking eventi saranno in Fase 2.
-
-### 8. Statistiche (dati mock iniziali)
-
-Le statistiche leggono dalla tabella `email_logs`. In Fase 1 i dati saranno vuoti con empty state appropriati. La struttura UI e pronta per quando arriveranno i dati reali dal webhook SendGrid.
+Attualmente la pagina "Automazioni" nella sezione Marketing e Vendita e un semplice placeholder. L'obiettivo e trasformarla in un modulo funzionante con trigger specifici per il marketing (nuovo lead, cambio fase pipeline, tag aggiunto) e azioni dedicate (invia email, attendi X giorni, condizione IF).
 
 ---
 
-## Fase 2 (successiva, non inclusa ora)
+## Approccio
 
-- Integrazione SendGrid API key (secret)
-- Edge function `send-email-campaign` per invio bulk
-- Edge function `sendgrid-webhook` per tracking eventi
-- Sistema billing a consumo
-- Editor drag-and-drop avanzato
-- Automazioni email (trigger da pipeline/tag)
-- Warmup, rate limit, monitoring reputazione
+Riutilizzare la stessa tabella `automations` gia esistente, aggiungendo nuovi tipi di trigger e azioni specifici per il marketing. La pagina `MarketingAutomations.tsx` verra riscritta per usare `AutomationsConfig` con configurazione marketing-specifica.
 
 ---
 
-## Riepilogo file
+## Modifiche
+
+### 1. `src/pages/azienda/marketing/MarketingAutomations.tsx`
+
+Sostituire il placeholder con una pagina completa che usa un componente dedicato `MarketingAutomationsConfig`, simile a `AutomationsConfig` ma con trigger e azioni marketing.
+
+### 2. Nuovo: `src/components/marketing/MarketingAutomationsConfig.tsx`
+
+Componente principale che replica la struttura di `AutomationsConfig` ma con:
+- **Trigger marketing**:
+  - `new_lead` - Nuovo contatto/lead creato
+  - `pipeline_stage_change` - Cambio fase opportunita
+  - `tag_added` - Tag aggiunto al contatto
+  - `contact_field_change` - Campo personalizzato modificato
+  - `opportunity_won` - Opportunita vinta
+  - `opportunity_lost` - Opportunita persa
+- **Azioni marketing**:
+  - `send_email` - Invia email (seleziona template da `email_templates`)
+  - `wait_days` - Attendi X giorni
+  - `add_tag` - Aggiungi tag al contatto
+  - `remove_tag` - Rimuovi tag dal contatto
+  - `move_pipeline_stage` - Sposta opportunita a fase
+  - `create_task` - Crea attivita
+  - `send_notification` - Invia notifica interna
+- Query e mutazioni CRUD sulla tabella `automations` filtrate per `company_id`
+- Nuovi trigger/action type vengono salvati come stringhe nella stessa tabella `automations` (campo `trigger_type`, `actions` jsonb)
+
+### 3. Nuovo: `src/components/marketing/MarketingAutomationDialog.tsx`
+
+Dialog per creare/modificare automazioni marketing con lo stesso pattern visivo QUANDO/SE/ALLORA del dialog interno ma con i nuovi trigger e azioni.
+
+### 4. Nuovo: `src/components/marketing/MarketingActionBlock.tsx`
+
+Blocco azione singola (come `AutomationActionBlock`) con i tipi di azione marketing:
+- `send_email`: selettore template email + variante oggetto
+- `wait_days`: input numero giorni
+- `add_tag` / `remove_tag`: selettore tag esistenti
+- `move_pipeline_stage`: selettore pipeline + fase
+- `create_task`: titolo + assegnazione
+- `send_notification`: messaggio + destinatario
+
+### 5. Nessuna modifica database
+
+La tabella `automations` supporta gia qualsiasi `trigger_type` e `actions` come jsonb. Non servono migrazioni.
+
+---
+
+## Sezione tecnica
+
+### File coinvolti
 
 | Azione | File |
 |--------|------|
-| Modifica | `src/lib/sidebarConfig.ts` (nuova voce) |
-| Modifica | `src/App.tsx` (nuova route) |
-| Nuovo | `src/pages/azienda/marketing/EmailMarketing.tsx` |
-| Nuovo | `src/components/email-marketing/EmailStatsTab.tsx` |
-| Nuovo | `src/components/email-marketing/EmailCampaignsTab.tsx` |
-| Nuovo | `src/components/email-marketing/EmailTemplatesTab.tsx` |
-| Nuovo | `src/components/email-marketing/CampaignDialog.tsx` |
-| Nuovo | `src/components/email-marketing/TemplateDialog.tsx` |
-| Nuovo | `src/components/email-marketing/TemplateEditor.tsx` |
-| Nuovo | `src/components/email-marketing/CampaignStatsCards.tsx` |
-| Nuovo | `src/components/email-marketing/EmailFunnelChart.tsx` |
-| Migration | 4 nuove tabelle + RLS policies |
+| Riscrittura | `src/pages/azienda/marketing/MarketingAutomations.tsx` |
+| Nuovo | `src/components/marketing/MarketingAutomationsConfig.tsx` |
+| Nuovo | `src/components/marketing/MarketingAutomationDialog.tsx` |
+| Nuovo | `src/components/marketing/MarketingActionBlock.tsx` |
+
+### Dati caricati nel dialog
+
+- Pipeline e fasi: query `marketing_pipelines` + `marketing_pipeline_stages`
+- Tag: derivati dai contatti o dalla config tag
+- Template email: query `email_templates`
+- Utenti azienda: query `profiles` + `user_roles`
+
+### Pattern visivo
+
+Stessa UI "QUANDO / SE / ALLORA" con card colorate (blu trigger, ambra condizioni, verde azioni) gia usata nelle automazioni interne.
 
