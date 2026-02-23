@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AutomationFlowsList } from "@/components/marketing/automations/AutomationFlowsList";
 import { GlobalWorkflowSettings } from "@/components/marketing/automations/GlobalWorkflowSettings";
-import { Plus, FolderPlus, Sparkles, Search, SlidersHorizontal, Settings2 } from "lucide-react";
+import { Plus, FolderPlus, Sparkles, Search, SlidersHorizontal, Settings2, Home, ChevronRight, ListFilter } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type MainTab = "workflows" | "settings";
@@ -73,7 +73,7 @@ export default function MarketingAutomations() {
 
           {/* Level 3: Filter tabs + search */}
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 border-b">
               {([
                 { key: "all", label: "Tutti i flussi di lavoro" },
                 { key: "needs_review", label: "Necessita revisione" },
@@ -83,33 +83,49 @@ export default function MarketingAutomations() {
                   key={f.key}
                   onClick={() => setListFilter(f.key)}
                   className={cn(
-                    "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                    "px-3 pb-2 text-xs font-medium transition-colors border-b-2",
                     listFilter === f.key
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {f.label}
                 </button>
               ))}
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn("text-xs h-7", showAdvancedFilters && "bg-primary/10 text-primary")}
+              <button
+                className={cn(
+                  "px-3 pb-2 text-xs font-medium transition-colors border-b-2",
+                  showAdvancedFilters
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
               >
-                <SlidersHorizontal className="h-3.5 w-3.5 mr-1" /> Filtri avanzati
+                <span className="flex items-center gap-1"><SlidersHorizontal className="h-3.5 w-3.5" /> Filtri avanzati</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-8 text-sm"
+                />
+              </div>
+              <Button variant="ghost" size="sm" className="text-xs h-8 text-muted-foreground">
+                <ListFilter className="h-3.5 w-3.5 mr-1" /> Personalizza Elenco
               </Button>
             </div>
-            <div className="relative w-64">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Cerca..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-8 text-sm"
-              />
-            </div>
+          </div>
+
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Home className="h-3.5 w-3.5" />
+            <span>Home</span>
+            <ChevronRight className="h-3 w-3" />
+            <span className="text-foreground font-medium">Automazione</span>
           </div>
 
           {/* Table */}
