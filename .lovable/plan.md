@@ -1,140 +1,81 @@
 
-Obiettivo immediato: risolvere in modo definitivo il fatto che “Bozza” e “Salva” non rispondono, con priorità su affidabilità del builder nella route `/azienda/marketing/automazioni/nuova` (attualmente in stato di caricamento) e sulle azioni di persistenza/stato.
 
-## Diagnosi tecnica (basata sul codice attuale)
+# Fix Errori Frequenti e Validazione Automazioni
 
-1. Creazione flow “nuova” fragile
-- In `useAutomationBuilder`, la creazione iniziale usa `effectiveCompany!.id` e `user!.id` senza guardie.
-- Se `effectiveCompany` non è pronto/null (caso frequente su super admin senza impersonazione attiva o race di bootstrap auth), la mutation fallisce.
-- In `AutomationBuilder`, l’effetto di creazione su `id === "nuova"` può riprovare in loop (isPending/data), lasciando UX bloccata su loading o comportamento non deterministico.
+## Problemi identificati
 
-2. Azioni Save/Bozza non protette dallo stato “flow non pronto”
-- `saveAll` ritorna silenziosamente se `flowId` manca (`return` senza feedback), percepito come “non funziona”.
-- `togglePublish` dipende da `flow`; se non disponibile, ritorna senza informare.
-- In UI i comandi restano visibili/cliccabili anche quando il flow non è ancora pronto.
+### 1. Warning `forwardRef` frequente (TagSelector dentro PopoverContent)
+Il warning React "Function components cannot be given refs" appare ogni volta che si apre il pannello config di un nodo. La causa e che `Command` (da cmdk) dentro `PopoverContent` tenta di passare un ref a un child che non lo supporta. TagSelector gia usa `forwardRef`, ma il componente wrapping dentro AutomationNodeConfig non gestisce il ref correttamente quando usato come child di Popover.
 
-3. UX di errore insufficiente nei punti critici
-- Mancano messaggi contestuali chiari quando il problema è “contesto non inizializzato” (azienda non selezionata / flow non creato).
-- Lo stato di caricamento non distingue:
-  - “sto creando il flow”
-  - “creazione fallita”
-  - “flow pronto”.
+**Fix**: Il problema non e in TagSelector (gia corretto) ma nel modo in cui viene usato dentro `AutomationNodeConfig`. Verificare che non ci siano function components usati come `asChild` senza `forwardRef`. In realta il warning punta a `PopoverContent` -> TagSelector nel config panel. Dato che TagSelector e gia `forwardRef`, il warning potrebbe venire da un livello intermedio. Servira wrappare il container div con `forwardRef` se necessario, oppure rimuovere l'uso improprio di `asChild`.
 
-4. Segnale collaterale da warning React
-- C’è un warning ref-related nella pagina lista automazioni (non il root diretto di Save/Bozza), ma va incluso nel ciclo di stabilizzazione per ridurre rumore e possibili side-effect di rendering.
+### 2. Si puo creare/pubblicare un'automazione vuota (CRITICO)
+Attualmente:
+- `togglePublish` non verifica se ci sono nodi nel flusso
+- `saveAll` salva anche flow vuoti senza avvertire
+- Si puo pubblicare un'automazione senza trigger ne azioni
 
-## Intervento proposto (implementazione)
+**Fix**:
+- In `togglePublish`: aggiungere validazione che richieda almeno 1 trigger prima di pubblicare
+- In `saveAll`: permettere il salvataggio bozza vuota ma avvisare l'utente
+- Aggiungere validazione completa prima della pubblicazione:
+  - Almeno 1 trigger obbligatorio
+  - Warning se nessuna azione collegata
+  - Tutti i nodi devono avere configurazione minima valida
 
-### A) Stabilizzazione creazione flow in `/nuova`
-File: `src/components/marketing/automations/AutomationBuilder.tsx`, `src/hooks/useAutomationBuilder.ts`
+### 3. Bottone Salva/Bozza che a volte non funziona
+Il problema persiste quando:
+- `canPersist` e `false` perche `effectiveCompany` non e ancora caricato al mount
+- Il flow esiste nel DB ma la query non ha ancora restituito i dati
+- L'utente clicca troppo presto prima che il flow sia completamente caricato
 
-- Introdurre stato esplicito di bootstrap flow:
-  - `isCreatingInitialFlow`
-  - `createInitialFlowError`
-  - `initialFlowId` (opzionale, per gating UI)
-- Eseguire creazione solo quando prerequisiti sono pronti:
-  - `id === "nuova"`
-  - `effectiveCompany` presente
-  - `user` presente
-  - non già in creazione
-  - non già creato
-- Evitare retry loop automatici incontrollati.
-- In caso errore, mostrare stato di errore con CTA:
-  - “Riprova creazione flow”
-  - “Torna alla lista automazioni”
+**Fix**:
+- Aggiungere loading state visibile sui bottoni quando `canPersist` e false
+- Mostrare tooltip "Caricamento in corso..." quando i bottoni sono disabilitati
+- Assicurarsi che `canPersist` diventi true non appena il flow e caricato
 
-### B) Gating forte dei comandi Save / Bozza / Archivia
-File: `src/components/marketing/automations/AutomationBuilder.tsx`, `src/hooks/useAutomationBuilder.ts`
+## Modifiche tecniche
 
-- Calcolare `canPersist = Boolean(flowId && flow && effectiveCompany)`.
-- Disabilitare:
-  - bottone Save
-  - switch Bozza/Pubblicata
-  - bottone Archivia
-  quando `canPersist` è false.
-- Se utente forza azione senza contesto pronto (shortcut o click race):
-  - toast esplicito: “Flow non ancora pronto. Attendi il completamento della creazione.”
-- Per Save:
-  - mantenere spinner coerente
-  - feedback successo/errore sempre presente.
+### File: `src/hooks/useAutomationBuilder.ts`
 
-### C) Correzione comportamento save “silente”
-File: `src/hooks/useAutomationBuilder.ts`
+1. **Aggiungere validazione pre-pubblicazione**:
+```typescript
+const validateForPublish = useCallback((): string[] => {
+  const errors: string[] = [];
+  const hasTrigger = nodes.some(n => n.node_type === "trigger");
+  if (!hasTrigger) errors.push("Aggiungi almeno un trigger prima di pubblicare.");
+  if (nodes.length < 2) errors.push("Aggiungi almeno un'azione dopo il trigger.");
+  return errors;
+}, [nodes]);
+```
 
-- In `saveAll`, sostituire i `return` silenziosi con esiti espliciti:
-  - se manca `flowId/effectiveCompany`: toast informativo e uscita controllata.
-- Confermare che `saveAllRef` punti sempre all’ultima closure (già introdotto), mantenendo debounce affidabile.
-- Pulizia timer al teardown componente per evitare race al cambio route.
+2. **Modificare `togglePublish`** per usare la validazione:
+- Se si vuole pubblicare (da draft a published): eseguire `validateForPublish()`. Se ci sono errori, mostrare toast e bloccare.
+- Se si vuole mettere in bozza (da published a draft): consentire sempre.
 
-### D) Pubblica/Bozza robusto e deterministico
-File: `src/hooks/useAutomationBuilder.ts`
+3. **Modificare `saveAll`** per non mostrare toast distruttivo su flow vuoti in bozza - solo un avviso leggero.
 
-- In `togglePublish`:
-  - guardia su `flow.id` e `flow.status` validi
-  - blocco re-entrancy se mutation in corso
-  - invalidate query del flow e (se necessario) della lista automazioni per consistenza badge/stato.
-- Gestione errori con messaggio leggibile lato utente.
+### File: `src/components/marketing/automations/AutomationBuilder.tsx`
 
-### E) Miglioria UX anti-dead-end
-File: `src/components/marketing/automations/AutomationBuilder.tsx`
+1. **Aggiungere `validateForPublish` dall'hook** e usarlo nel toggle
+2. **Tooltip sui bottoni disabilitati** per spiegare perche non sono cliccabili
+3. **Feedback visivo** quando `canPersist` diventa true (bottoni si attivano)
 
-- Differenziare vista di loading:
-  - “Creazione automazione in corso…”
-- Aggiungere stato errore dedicato (non solo spinner infinito).
-- CTA sempre presenti:
-  - riprova
-  - torna alla lista.
+### File: `src/components/marketing/automations/AutomationNodeConfig.tsx`
 
-### F) Riduzione warning React (stabilizzazione)
-File target da verificare durante implementazione:
-- `src/pages/azienda/marketing/MarketingAutomations.tsx`
-- `src/components/marketing/automations/AutomationFlowsList.tsx`
-- eventuali componenti custom usati come child di primitive `asChild` (ref forwarding)
+1. **Fix warning ref**: Il `TagSelector` e usato dentro il config panel che e gia dentro un contesto Popover. Il warning viene dal fatto che `PopoverContent` nel TagSelector cerca di passare il ref ma c'e un livello intermedio. Assicurarsi che il div wrapper nel TagSelector gestisca il ref correttamente (gia fatto con forwardRef, ma verificare che non ci sia un secondo Popover annidato che causa conflitto).
 
-- Identificare il punto che passa ref a function component non `forwardRef` e riallineare al pattern corretto.
-- Obiettivo: console pulita sui path automazioni per debugging affidabile.
+## Sequenza implementazione
 
-## Sequenza di lavoro (ordine esecuzione)
+1. Fix validazione `togglePublish` nel hook (impedire pubblicazione vuota)
+2. Fix `saveAll` messaging per bozze vuote
+3. Aggiungere `validateForPublish` come export dall'hook
+4. Aggiornare UI builder per usare validazione e feedback
+5. Fix warning ref nel config panel
 
-1. Hardening hook `useAutomationBuilder` (guardie, save/publish/cleanup timer).
-2. Hardening UI `AutomationBuilder` (gating bottoni, stati loading/error, CTA).
-3. Fix warning ref in lista automazioni.
-4. Test funzionali end-to-end e regressione UX.
+## Risultato atteso
 
-## Test plan obbligatorio (che eseguirò dopo implementazione)
-
-1. Smoke test completo
-- `/azienda/marketing/automazioni`
-- crea nuovo flow (`/nuova`) -> redirect su `/:id`
-- aggiungi nodo trigger/azione
-- salva manuale
-- autosave (attesa debounce)
-- toggle Bozza/Pubblicata
-- archivia e ritorno lista.
-
-2. Edge cases
-- click Save immediato durante creazione flow
-- toggle Bozza con flow non pronto
-- refresh pagina su `/:id` e su `/nuova`
-- back/forward browser
-- sessione con contesto azienda non disponibile (messaggio + CTA, no freeze).
-
-3. Responsive
-- mobile first (390x844): nessun blocco CTA, controlli raggiungibili
-- desktop: comportamento invariato.
-
-4. Performance base
-- nessun loading infinito
-- nessun loop mutation
-- debounce save stabile senza spam.
-
-5. Console quality gate
-- nessun runtime error
-- warning solo non bloccanti (idealmente azzerati nell’area automazioni).
-
-## Deliverable finale che produrrò dopo implementazione
-
-- elenco preciso di ciò che rimuovo/pulisco (import, rami legacy, codice morto relativo all’area toccata)
-- elenco bug corretti con causa tecnica e fix applicato
-- elenco miglioramenti UX implementati
-- esito test con evidenza puntuale; “TUTTO OK” solo dopo completamento completo della checklist sopra.
+- Non si puo pubblicare un'automazione senza almeno un trigger
+- Il salvataggio funziona sempre per le bozze con feedback chiaro
+- I bottoni mostrano stato chiaro (disabilitati con motivo, attivi quando pronti)
+- Warning ref eliminato dalla console
