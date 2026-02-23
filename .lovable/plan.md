@@ -1,88 +1,52 @@
 
-# Piano: Custom Fields + Blocchi in Colonne + Undo/Redo
 
-## 1. Variabili di personalizzazione (Custom Fields) nel Builder
+# Stabilizzazione Email Builder - QA Report
 
-Attualmente il `CampaignEditor` (editor standard) ha gia un dropdown "Variabili" con tag come `{{contact.first_name}}`. Il builder drag-and-drop non ha questa funzionalita.
+## Analisi Completata
 
-### Implementazione
-
-**File: `BuilderPropertiesPanel.tsx`**
-- Aggiungere un dropdown "Inserisci variabile" nel pannello proprieta per i blocchi di tipo **text** e **button**
-- Le variabili disponibili sono le stesse del CampaignEditor: `{{contact.first_name}}`, `{{contact.last_name}}`, `{{contact.email}}`, `{{contact.phone}}`, `{{company.name}}`, `{{unsubscribe_url}}`
-- Al click su una variabile, il tag viene appeso al contenuto del blocco testo (nel campo "Contenuto") o al testo del pulsante
-- Le variabili vengono mantenute come testo nel JSON e passate inalterate nell'HTML generato (la sostituzione avviene lato server al momento dell'invio)
-
-### Dettaglio tecnico
-- Estrarre la lista `VARIABLES` in un file condiviso (`builderTypes.ts`) per riutilizzarla sia nel CampaignEditor che nel PropertiesPanel
-- Nel `TextProperties`: aggiungere un `DropdownMenu` sotto il campo "Contenuto" con le variabili
-- Nel `ButtonProperties`: aggiungere lo stesso dropdown sotto il campo "Testo"
+Ho analizzato tutti i file del modulo email builder (`builderTypes.ts`, `BuilderSidebar.tsx`, `BuilderBlock.tsx`, `BuilderCanvas.tsx`, `BuilderPropertiesPanel.tsx`, `DragDropEmailBuilder.tsx`, `builderHtmlGenerator.ts`) e la console del browser.
 
 ---
 
-## 2. Blocchi dentro le Colonne (Column Children)
+## 1. Bug Trovati
 
-Attualmente le colonne nel canvas mostrano placeholder "Colonna 1", "Colonna 2" ma non permettono di aggiungere elementi al loro interno. L'utente non puo trascinare blocchi dentro le colonne.
+### Bug 1: Cambio layout colonne non sincronizza l'array children
+Quando l'utente modifica il layout nelle proprieta (es. da "2 colonne" a "3 colonne"), solo `props.layout` viene aggiornato ma l'array `children` resta con il vecchio numero di colonne. I blocchi aggiunti nelle vecchie colonne possono andare persi o la nuova colonna rimane inaccessibile.
 
-### Implementazione
+**Fix**: Intercettare il cambio layout in `DragDropEmailBuilder.tsx` (dentro `handleUpdateBlockProps`): se il blocco e di tipo `columns` e il layout cambia, ricalcolare e adattare l'array `children` al nuovo numero di colonne (aggiungendo array vuoti o preservando quelli esistenti).
 
-**File: `BuilderBlock.tsx`**
-- Ogni colonna diventa un mini-canvas con un pulsante "+" per aggiungere elementi
-- Al click su "+" si apre un piccolo menu (DropdownMenu) con la lista degli elementi disponibili (Testo, Immagine, Pulsante, etc.)
-- L'elemento viene creato e aggiunto ai `children[colIndex]` del blocco colonne
+### Bug 2: Import inutilizzato `Columns` in BuilderBlock.tsx
+L'import `Columns` da lucide-react non e usato nel file.
 
-**File: `DragDropEmailBuilder.tsx`**
-- Aggiungere una funzione `handleAddChildBlock(parentBlockId: string, colIndex: number, childType: BlockType)` che:
-  1. Trova il blocco colonne
-  2. Crea un nuovo blocco figlio con `createBlock(childType)`
-  3. Lo inserisce in `children[colIndex]`
-  4. Aggiorna lo stato e triggera l'auto-save
-- Aggiungere `handleDeleteChildBlock(parentBlockId: string, colIndex: number, childBlockId: string)` per rimuovere blocchi figli
-- Aggiungere `handleUpdateChildBlockProps(parentBlockId: string, colIndex: number, childBlockId: string, partial)` per aggiornare le proprieta dei blocchi figli
-- Passare queste funzioni al `BuilderCanvas` e poi al `BuilderBlock`
+**Fix**: Rimuovere l'import.
 
-**File: `BuilderCanvas.tsx`**
-- Passare le nuove callback per la gestione dei blocchi figli
+### Bug 3: Console warning "Function components cannot be given refs" su BuilderPropertiesPanel
+Il warning proviene dal rendering di `BuilderPropertiesPanel` come componente funzionale dove React tenta di passare un ref.
 
-**File: `BuilderBlock.tsx`**
-- Nella sezione `case "columns"`, ogni colonna renderizza:
-  - I blocchi figli esistenti con toolbar (elimina)
-  - Un pulsante "+" in fondo per aggiungere nuovi elementi
-  - Click su un blocco figlio seleziona quel blocco nel pannello proprieta
-
-**File: `BuilderPropertiesPanel.tsx`**
-- Il pannello deve poter mostrare le proprieta di un blocco figlio (non solo dei blocchi root)
-- Aggiornare la logica di selezione per supportare `selectedBlock` che puo essere un figlio
+**Fix**: Nessun impatto funzionale, ma per pulizia console si puo wrappare con `React.forwardRef` oppure verificare che nessun parent stia passando ref implicitamente.
 
 ---
 
-## 3. Undo/Redo (Ctrl+Z / Ctrl+Y)
+## 2. Pulizia Codice
 
-### Implementazione
-
-**File: `DragDropEmailBuilder.tsx`**
-- Creare un hook/logica di history con due stack: `undoStack` e `redoStack` (array di `BuilderBlock[]`)
-- Ogni volta che `updateBlocks` viene chiamato, pushare lo stato **precedente** nell'`undoStack` e svuotare il `redoStack`
-- Limitare la history a 50 step per evitare consumo memoria eccessivo
-- Funzioni:
-  - `handleUndo()`: pop dall'undoStack, push stato corrente nel redoStack, setBlocks
-  - `handleRedo()`: pop dal redoStack, push stato corrente nell'undoStack, setBlocks
-- Registrare un event listener `keydown` per:
-  - `Ctrl+Z` (o `Cmd+Z` su Mac): chiama `handleUndo()`
-  - `Ctrl+Y` (o `Cmd+Shift+Z` su Mac): chiama `handleRedo()`
-- Aggiungere nella top bar due pulsanti icona (Undo/Redo) con stato disabled quando lo stack corrispondente e vuoto
-- Le operazioni di undo/redo triggerano l'auto-save
+| File | Azione |
+|------|--------|
+| `BuilderBlock.tsx` | Rimuovere import `Columns` (non usato) |
 
 ---
 
-## 4. Riepilogo File da Modificare
+## 3. Miglioramento UX: Sincronizzazione Layout
 
-| File | Modifiche |
-|------|-----------|
-| `src/components/email-builder/builderTypes.ts` | Aggiungere costante `PERSONALIZATION_VARIABLES` condivisa |
-| `src/components/email-builder/BuilderPropertiesPanel.tsx` | Dropdown variabili per testo e pulsante |
-| `src/components/email-builder/BuilderBlock.tsx` | Pulsante "+" per aggiungere blocchi nelle colonne, click su figli per selezionarli, eliminazione figli |
-| `src/components/email-builder/BuilderCanvas.tsx` | Passare callback per gestione blocchi figli |
-| `src/pages/azienda/marketing/DragDropEmailBuilder.tsx` | Logica undo/redo con history stack, handler per blocchi figli nelle colonne, shortcut tastiera, pulsanti undo/redo nella top bar |
+Quando l'utente cambia il layout delle colonne nel pannello proprieta, i blocchi figli nelle colonne esistenti devono essere preservati e le nuove colonne devono apparire vuote. Se il numero di colonne diminuisce, i blocchi figli "orfani" vengono spostati nell'ultima colonna disponibile.
+
+---
+
+## Riepilogo Modifiche
+
+| File | Modifica |
+|------|----------|
+| `src/components/email-builder/BuilderBlock.tsx` | Rimuovere import `Columns` inutilizzato |
+| `src/pages/azienda/marketing/DragDropEmailBuilder.tsx` | Aggiungere logica di riadattamento children quando cambia il layout colonne in `handleUpdateBlockProps` |
 
 ### Nessuna modifica database necessaria
+
