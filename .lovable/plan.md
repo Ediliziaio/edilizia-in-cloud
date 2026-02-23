@@ -1,116 +1,93 @@
 
-# Hard Refactor: Production Enterprise Readiness
 
-## Riepilogo Analisi
+# Audit Enterprise - Risultato e Interventi Rimanenti
 
-Il progetto ha un'architettura solida: multi-tenant con company_id, RLS su tutte le tabelle, ruoli in tabella dedicata con `security definer`, edge functions per operazioni privilegiate. La struttura e' gia' buona, quindi il piano si concentra su interventi mirati ad alto impatto.
+## Stato Attuale (AS-IS)
 
----
+Il progetto e' gia' in ottimo stato dopo i refactor precedenti:
+- Lazy loading implementato su tutte le route (~60 componenti)
+- Hook `useAutomationBuilder` ottimizzato con `useRef` per la storia
+- Indici database creati su tabelle critiche
+- Input validation con trim + maxLength sui nomi flow/cartelle
+- ErrorBoundary su tutte le aree principali
+- RLS su tutte le tabelle con `security definer` functions
+- Multi-tenancy con `company_id` isolato ovunque
+- Audit trail tramite `company_activity_log` con trigger automatici
 
-## 1. Performance: Lazy Loading delle Route
+## Problemi Residui Identificati (P0/P1)
 
-**Problema**: Tutte le pagine (~60 componenti) vengono importate staticamente in `App.tsx`, aumentando il bundle iniziale.
+### P0 - Console Warning: ref su function component
+**Problema**: Due warning in console da `AutomationCanvas` e `AutomationBuilder`:
+- `Tooltip` wrappa un function component senza `forwardRef` in `AutomationCanvas`
+- `AlertDialog` riceve ref su function component in `AutomationBuilder`
 
-**Intervento**: Convertire tutti gli import delle pagine in `React.lazy()` con `Suspense` wrapper.
+**Fix**:
+- File: `src/components/marketing/automations/AutomationCanvas.tsx` -- I `TooltipTrigger` che wrappano `<Button>` vanno verificati; il problema e' probabilmente un `TooltipTrigger` che wrappa direttamente un componente custom senza `asChild`. Servira' aggiungere `asChild` o wrappare in `<span>`.
+- File: `src/components/marketing/automations/AutomationBuilder.tsx` -- L'`AlertDialog` a riga 487 e' gia' usato correttamente con `AlertDialogContent`, ma il warning potrebbe venire dal Fragment `<>` che wrappa il dialog. Fix: wrappare in un `<div>` o usare un componente con ref.
 
-File: `src/App.tsx`
-- Sostituire gli import statici con `const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"))` ecc.
-- Wrappare le route con un fallback Suspense (spinner di caricamento)
-- Stima: riduzione del 40-60% del bundle iniziale
+### P1 - Status badge in inglese
+**Problema**: I badge di stato nella lista automazioni sono in inglese ("Draft", "Published", "Archived") invece che italiano.
+File: `src/components/marketing/automations/AutomationFlowsList.tsx` (righe 260-264)
+**Fix**: Tradurre in "Bozza", "Pubblicata", "Archiviata".
 
----
+### P1 - Drag node causa re-render continui
+**Problema**: In `AutomationCanvas`, `handleNodeDragStart` dipende da `nodes` (riga 76), causando ricreazione del callback ad ogni modifica dello state nodes.
+**Fix**: Usare `useRef` per accedere ai nodi correnti durante il drag, evitando la dipendenza diretta.
 
-## 2. Performance: Ottimizzazione useAutomationBuilder
+### P1 - Pan callback dipende da `pan` state
+**Problema**: `handleCanvasMouseDown` dipende da `pan` (riga 41), ricreandosi ad ogni spostamento del canvas.
+**Fix**: Usare un ref per il pan corrente nella callback, eliminando la dipendenza.
 
-**Problema**: Il hook `pushHistory` ha una dipendenza su `historyIndex` che causa ricreazione ad ogni cambio, e `addNode`/`updateNode`/`removeNode` dipendono tutti da `connections`/`nodes` state causando cascate di ricreazione.
+### P1 - Leaked Password Protection
+**Problema**: Il linter di sicurezza segnala "Leaked Password Protection Disabled". Questa e' una configurazione a livello di progetto nel pannello Supabase Auth, non configurabile via codice.
+**Nota**: Richiedera' intervento manuale nel pannello di configurazione Cloud.
 
-**Intervento**:
-File: `src/hooks/useAutomationBuilder.ts`
-- Usare `useRef` per `historyIndex` e `history` per evitare ricreazioni dei callback
-- Usare updater functions (`setConnections(prev => ...)`) nelle dipendenze per eliminare la dipendenza diretta su `connections`/`nodes`
+## Interventi Proposti
 
----
-
-## 3. Performance: Indici Database
-
-**Intervento**: Aggiungere indici compositi sulle tabelle piu' interrogate per accelerare le query filtrate per `company_id`.
-
-Migrazione SQL:
-```sql
-CREATE INDEX IF NOT EXISTS idx_automation_flows_company_status ON automation_flows(company_id, status);
-CREATE INDEX IF NOT EXISTS idx_automation_flows_company_folder ON automation_flows(company_id, folder_id);
-CREATE INDEX IF NOT EXISTS idx_automation_nodes_flow ON automation_nodes(flow_id);
-CREATE INDEX IF NOT EXISTS idx_automation_connections_flow ON automation_connections(flow_id);
-CREATE INDEX IF NOT EXISTS idx_automation_folders_company_parent ON automation_folders(company_id, parent_id);
-CREATE INDEX IF NOT EXISTS idx_orders_company_status ON orders(company_id, current_status_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_company_status ON tasks(company_id, status);
-CREATE INDEX IF NOT EXISTS idx_marketing_contacts_company ON marketing_contacts(company_id);
-```
-
----
-
-## 4. Sicurezza: Leaked Password Protection
-
-**Problema**: Il linter di sicurezza segnala "Leaked Password Protection Disabled".
-
-**Intervento**: Abilitare la protezione password compromesse tramite il tool configure-auth.
-
----
-
-## 5. Sicurezza: Validazione input nel Builder
-
-**Problema**: I nomi dei flow e delle cartelle non hanno validazione (lunghezza, caratteri).
-
-**Intervento**:
-- File: `src/hooks/useAutomationBuilder.ts` - Aggiungere trim + max length (100 char) al nome flow nel `createFlowMutation` e `updateFlowMutation`
-- File: `src/pages/azienda/marketing/MarketingAutomations.tsx` - Validare nome cartella (trim + max 100 char) prima del mutation
-- File: `src/components/marketing/automations/AutomationBuilder.tsx` - Limitare Input del nome a maxLength={100}
-
----
-
-## 6. Pulizia Codice
-
-**Interventi**:
-
-- **`src/components/marketing/automations/AutomationFlowsList.tsx`**: I testi paginazione "Previous" e "Next" sono in inglese, tradurli in italiano ("Precedente" / "Successivo") per coerenza UI
-- **`src/App.tsx`**: Rimuovere l'import/export `.env` che viene ricreato ad ogni build (file non dovrebbe essere tracciato)
-- **`src/components/marketing/automations/AutomationBuilder.tsx`**: Il `TooltipProvider` wrapper e' ridondante perche' ce n'e' gia' uno nel root `App.tsx` - rimuoverlo
-
----
-
-## 7. Stabilita': Error Boundary nel Builder
-
-**Problema**: Se il canvas crasha (es. nodo malformato), l'intera app si blocca.
-
-**Intervento**: Wrappare il contenuto delle tab `builder`/`settings`/`enrollments`/`logs` nel componente `ErrorBoundary` gia' esistente nel progetto.
+### 1. Fix console warnings (P0)
+File: `src/components/marketing/automations/AutomationCanvas.tsx`
+- Aggiungere `asChild` ai `TooltipTrigger` che non lo hanno, oppure wrappare i children in `<span>`
 
 File: `src/components/marketing/automations/AutomationBuilder.tsx`
+- Assicurarsi che tutti gli `AlertDialog` non ricevano ref inaspettati -- verificare che il `<>` Fragment sia compatibile
 
----
+### 2. Tradurre badge di stato (P1)
+File: `src/components/marketing/automations/AutomationFlowsList.tsx`
+- Cambiare "Draft" in "Bozza", "Published" in "Pubblicata", "Archived" in "Archiviata"
 
-## 8. Backup e Monitoraggio
+### 3. Ottimizzazione callback Canvas (P1)
+File: `src/components/marketing/automations/AutomationCanvas.tsx`
+- Sostituire la dipendenza `nodes` in `handleNodeDragStart` con un `nodesRef` (useRef)
+- Sostituire la dipendenza `pan` in `handleCanvasMouseDown` con un `panRef` (useRef)
+- Questo elimina ricreazioni di callback durante drag e pan, migliorando la fluidita'
 
-**Stato attuale**: Lovable Cloud (Supabase) fornisce automaticamente:
-- Backup giornalieri automatici del database
-- Point-in-time recovery (PITR)
-- Log centralizzati (auth, DB, edge functions) accessibili via analytics
-- Uptime monitoring integrato
+### 4. Sicurezza: Leaked Password Protection
+- Segnalare all'utente che questa impostazione va attivata manualmente nel pannello di configurazione Cloud sotto Authentication > Settings
 
-**Nessun intervento aggiuntivo necessario** per backup. Il sistema di audit trail e' gia' implementato tramite `company_activity_log` con trigger automatici.
+## Checklist Multi-Tenant Isolation
+- [x] `company_id` su tutte le entita' principali
+- [x] RLS policies con `security definer` functions
+- [x] `effectiveCompany` usato ovunque (supporta impersonificazione)
+- [x] Query filtrate per `company_id` in tutti i componenti verificati
+- [x] Edge functions con autenticazione e validazione
+- [x] Nessun dato cross-tenant accessibile
 
----
+## Checklist Sicurezza
+- [x] Ruoli in tabella separata (`user_roles`) con enum `app_role`
+- [x] `has_role()` e `has_permission()` come `security definer`
+- [x] Input validation su nomi flow e cartelle (trim + maxLength 100)
+- [x] No API keys esposte nel client (solo anon key, che e' pubblica by design)
+- [x] Auth token gestito da Supabase SDK con refresh automatico
+- [x] CORS configurato nelle edge functions
+- [ ] Leaked Password Protection -- richiede attivazione manuale
 
-## Riepilogo File Modificati
+## Checklist Backup
+- [x] Backup giornalieri automatici (gestiti da Lovable Cloud)
+- [x] Point-in-time recovery disponibile
+- [x] Audit trail attivo (`company_activity_log`)
 
-| File | Intervento |
-|------|-----------|
-| `src/App.tsx` | Lazy loading di tutte le pagine |
-| `src/hooks/useAutomationBuilder.ts` | Ottimizzazione callback con useRef |
-| `src/components/marketing/automations/AutomationBuilder.tsx` | Rimozione TooltipProvider ridondante, maxLength input, ErrorBoundary |
-| `src/pages/azienda/marketing/MarketingAutomations.tsx` | Validazione nome cartella |
-| `src/components/marketing/automations/AutomationFlowsList.tsx` | Traduzione testi paginazione |
-| Migrazione SQL | Indici database |
-| Auth config | Leaked password protection |
+## File modificati
+1. `src/components/marketing/automations/AutomationCanvas.tsx` -- fix ref warning + ottimizzazione callback
+2. `src/components/marketing/automations/AutomationBuilder.tsx` -- fix AlertDialog ref warning
+3. `src/components/marketing/automations/AutomationFlowsList.tsx` -- traduzione badge stato
 
-## Vincolo rispettato
-Nessun comportamento funzionale viene modificato. Tutte le modifiche sono di tipo performance, sicurezza, pulizia e stabilita'.
