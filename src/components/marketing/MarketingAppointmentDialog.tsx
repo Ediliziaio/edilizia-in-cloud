@@ -421,7 +421,7 @@ export default function MarketingAppointmentDialog({
 
                 <div className="space-y-2">
                   <Label>Data *</Label>
-                  <Popover>
+                  <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !appointmentDate && "text-muted-foreground")}>
                         <CalendarDays className="mr-2 h-4 w-4" />
@@ -432,7 +432,7 @@ export default function MarketingAppointmentDialog({
                       <Calendar
                         mode="single"
                         selected={appointmentDate}
-                        onSelect={setAppointmentDate}
+                        onSelect={(d) => { setAppointmentDate(d); setDatePickerOpen(false); }}
                         locale={it}
                         className="p-3 pointer-events-auto"
                       />
@@ -458,36 +458,39 @@ export default function MarketingAppointmentDialog({
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
-          {isEditing && (
-            <Button variant="destructive" onClick={handleDelete} disabled={saving} className="sm:mr-auto" size="sm">
-              <Trash2 className="h-4 w-4 mr-1" />
-              Elimina
-            </Button>
-          )}
+        <DialogFooter className="flex-col gap-3 sm:flex-row sm:items-center sm:gap-2 mt-4">
+          <div className="flex flex-wrap items-center gap-2 sm:mr-auto">
+            {isEditing && (
+              <Button variant="destructive" onClick={handleDelete} disabled={saving} size="sm">
+                <Trash2 className="h-4 w-4 mr-1" />
+                Elimina
+              </Button>
+            )}
 
-          {!isBlocked && (
-            <div className="flex items-center gap-2 sm:mr-auto">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">Stato:</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="h-8 w-[140px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="confermato">Confermato</SelectItem>
-                  <SelectItem value="annullato">Annullato</SelectItem>
-                  <SelectItem value="riprogrammato">Riprogrammato</SelectItem>
-                  <SelectItem value="completato">Completato</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+            {!isBlocked && (
+              <>
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Stato:</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger className="h-8 w-[140px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="confermato">Confermato</SelectItem>
+                    <SelectItem value="annullato">Annullato</SelectItem>
+                    <SelectItem value="riprogrammato">Riprogrammato</SelectItem>
+                    <SelectItem value="completato">Completato</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+          </div>
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Annulla
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button onClick={handleSave} disabled={saving} className="gap-2">
+              {saving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
               {saving
                 ? "Salvataggio..."
                 : isEditing
