@@ -1,18 +1,68 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Badge } from "@/components/ui/badge";
 import { CalendarIcon, RefreshCw, Users } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-export function AutomationEnrollmentsTab() {
+interface Props {
+  flowId: string;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  active: "Attivo",
+  completed: "Completato",
+  removed: "Rimosso",
+  paused: "In pausa",
+};
+
+const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  active: "default",
+  completed: "secondary",
+  removed: "destructive",
+  paused: "outline",
+};
+
+export function AutomationEnrollmentsTab({ flowId }: Props) {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 25;
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["automation-enrollments", flowId, startDate, endDate, statusFilter, search, page],
+    queryFn: async () => {
+      let query = supabase
+        .from("automation_enrollments")
+        .select("*", { count: "exact" })
+        .eq("flow_id", flowId)
+        .order("created_at", { ascending: false })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      if (statusFilter !== "all") query = query.eq("status", statusFilter);
+      if (startDate) query = query.gte("created_at", startDate.toISOString());
+      if (endDate) query = query.lte("created_at", endDate.toISOString());
+
+      const { data: enrollments, error, count } = await query;
+      if (error) throw error;
+      return { enrollments: enrollments ?? [], total: count ?? 0 };
+    },
+    enabled: !!flowId,
+  });
+
+  const enrollments = data?.enrollments ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -23,7 +73,6 @@ export function AutomationEnrollmentsTab() {
         </p>
       </div>
 
-      {/* Filtri */}
       <div className="flex flex-wrap items-center gap-2">
         <Popover>
           <PopoverTrigger asChild>
@@ -33,7 +82,7 @@ export function AutomationEnrollmentsTab() {
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={startDate} onSelect={setStartDate} className="p-3 pointer-events-auto" />
+            <Calendar mode="single" selected={startDate} onSelect={(d) => { setStartDate(d); setPage(0); }} className="p-3 pointer-events-auto" />
           </PopoverContent>
         </Popover>
 
@@ -47,56 +96,92 @@ export function AutomationEnrollmentsTab() {
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={endDate} onSelect={setEndDate} className="p-3 pointer-events-auto" />
+            <Calendar mode="single" selected={endDate} onSelect={(d) => { setEndDate(d); setPage(0); }} className="p-3 pointer-events-auto" />
           </PopoverContent>
         </Popover>
 
-        <Select defaultValue="all">
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
           <SelectTrigger className="w-[160px] h-8 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Ogni Eventi</SelectItem>
-            <SelectItem value="enrolled">Iscritto</SelectItem>
+            <SelectItem value="all">Ogni stato</SelectItem>
+            <SelectItem value="active">Attivo</SelectItem>
             <SelectItem value="completed">Completato</SelectItem>
             <SelectItem value="removed">Rimosso</SelectItem>
+            <SelectItem value="paused">In pausa</SelectItem>
           </SelectContent>
         </Select>
 
-        <Input placeholder="Seleziona Contatto" className="w-[200px] h-8 text-sm" />
+        <Input
+          placeholder="Cerca per entity ID..."
+          className="w-[200px] h-8 text-sm"
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+        />
 
-        <Button variant="ghost" size="icon" className="h-8 w-8">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => refetch()}>
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       </div>
 
-      {/* Tabella */}
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Contatto</TableHead>
-              <TableHead>Iscrizione Ragione</TableHead>
-              <TableHead>Data Iscritto (CET +01:00)</TableHead>
-              <TableHead>Azione Attuale</TableHead>
-              <TableHead>Stato Attuale</TableHead>
-              <TableHead>Successivo esecuzione</TableHead>
-              <TableHead className="w-[80px]">Attività</TableHead>
+              <TableHead>Entità</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Versione flusso</TableHead>
+              <TableHead>Data iscrizione (CET)</TableHead>
+              <TableHead>Stato</TableHead>
+              <TableHead>Ultimo aggiornamento</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow>
-              <TableCell colSpan={7} className="h-48">
-                <div className="flex flex-col items-center justify-center text-muted-foreground">
-                  <Users className="h-10 w-10 mb-3 opacity-30" />
-                  <p className="text-sm font-medium">Nessuna Iscrizione Trovata</p>
-                  <p className="text-xs mt-1">La cronologia delle iscrizioni è disponibile fino agli ultimi 30 giorni.</p>
-                </div>
-              </TableCell>
-            </TableRow>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">Caricamento...</TableCell>
+              </TableRow>
+            ) : enrollments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-48">
+                  <div className="flex flex-col items-center justify-center text-muted-foreground">
+                    <Users className="h-10 w-10 mb-3 opacity-30" />
+                    <p className="text-sm font-medium">Nessuna iscrizione trovata</p>
+                    <p className="text-xs mt-1">La cronologia delle iscrizioni apparirà qui quando i contatti verranno iscritti.</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              enrollments.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell className="font-mono text-xs">{e.entity_id?.slice(0, 8)}...</TableCell>
+                  <TableCell>{e.entity_type}</TableCell>
+                  <TableCell>v{e.flow_version}</TableCell>
+                  <TableCell>{format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: it })}</TableCell>
+                  <TableCell>
+                    <Badge variant={STATUS_VARIANTS[e.status] ?? "outline"}>
+                      {STATUS_LABELS[e.status] ?? e.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{format(new Date(e.updated_at), "dd/MM/yyyy HH:mm", { locale: it })}</TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>{total} risultati totali</span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Precedente</Button>
+            <span className="flex items-center px-2">Pagina {page + 1} di {totalPages}</span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Successiva</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
