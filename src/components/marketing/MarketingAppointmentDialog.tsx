@@ -244,6 +244,18 @@ export default function MarketingAppointmentDialog({
         toast({ title: isBlocked ? "Tempo bloccato creato" : "Appuntamento prenotato" });
       }
 
+      // Sync address to contact
+      const effectiveContactId = !isBlocked && contactId && contactId !== "none" ? contactId : null;
+      if (effectiveContactId && addressData.address_line) {
+        await supabase.from("marketing_contacts").update({
+          address: addressData.address_line,
+          city: addressData.address_city || null,
+          postal_code: addressData.address_postal_code || null,
+          province: addressData.address_province || null,
+          country: addressData.address_country || "Italia",
+        }).eq("id", effectiveContactId);
+      }
+
       onSaved();
       onOpenChange(false);
     } catch (e: any) {

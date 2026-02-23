@@ -33,6 +33,15 @@ type MarketingCalendar = {
   created_by: string;
   created_at: string;
   updated_at: string;
+  base_address_line: string | null;
+  base_address_city: string | null;
+  base_address_postal_code: string | null;
+  base_address_province: string | null;
+  base_address_country: string | null;
+  base_formatted_address: string | null;
+  base_lat: number | null;
+  base_lng: number | null;
+  base_place_id: string | null;
 };
 
 type CalendarPreferences = {
@@ -129,7 +138,7 @@ export default function MarketingCalendarsConfig() {
 
   // ---- MUTATIONS ----
   const createCalendar = useMutation({
-    mutationFn: async (data: { name: string; description: string; owner_id: string; duration_minutes: number }) => {
+    mutationFn: async (data: any) => {
       if (!effectiveCompanyId || !user?.id) throw new Error("Dati mancanti");
       const { error } = await supabase.from("marketing_calendars").insert({
         company_id: effectiveCompanyId,
@@ -140,6 +149,15 @@ export default function MarketingCalendarsConfig() {
         duration_minutes: data.duration_minutes,
         calendar_type: "personal",
         group_name: null,
+        base_address_line: data.base_address_line || null,
+        base_address_city: data.base_address_city || null,
+        base_address_postal_code: data.base_address_postal_code || null,
+        base_address_province: data.base_address_province || null,
+        base_address_country: data.base_address_country || "IT",
+        base_formatted_address: data.base_formatted_address || null,
+        base_lat: data.base_lat ?? null,
+        base_lng: data.base_lng ?? null,
+        base_place_id: data.base_place_id || null,
       });
       if (error) throw error;
     },
@@ -151,12 +169,21 @@ export default function MarketingCalendarsConfig() {
   });
 
   const updateCalendar = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; name: string; description: string; owner_id: string; duration_minutes: number }) => {
+    mutationFn: async ({ id, ...data }: any) => {
       const { error } = await supabase.from("marketing_calendars").update({
         name: data.name,
         description: data.description || null,
         owner_id: data.owner_id || null,
         duration_minutes: data.duration_minutes,
+        base_address_line: data.base_address_line || null,
+        base_address_city: data.base_address_city || null,
+        base_address_postal_code: data.base_address_postal_code || null,
+        base_address_province: data.base_address_province || null,
+        base_address_country: data.base_address_country || "IT",
+        base_formatted_address: data.base_formatted_address || null,
+        base_lat: data.base_lat ?? null,
+        base_lng: data.base_lng ?? null,
+        base_place_id: data.base_place_id || null,
       }).eq("id", id);
       if (error) throw error;
     },

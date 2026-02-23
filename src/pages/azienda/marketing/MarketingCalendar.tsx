@@ -81,7 +81,7 @@ export default function MarketingCalendar() {
       if (!companyId) return [];
       const { data } = await supabase
         .from("marketing_calendars")
-        .select("id, name, is_active")
+        .select("id, name, is_active, base_lat, base_lng, base_formatted_address")
         .eq("company_id", companyId)
         .eq("is_active", true)
         .order("name");
@@ -178,21 +178,40 @@ export default function MarketingCalendar() {
       .sort((a: any, b: any) => (a.appointment_time || "09:00").localeCompare(b.appointment_time || "09:00"));
   }, [filteredAppointments, currentDate, calendarView]);
 
+  // Get base waypoint from selected calendar
+  const baseCalendarWaypoint = useMemo(() => {
+    if (selectedCalendarIds.length === 1) {
+      const cal = calendars.find((c: any) => c.id === selectedCalendarIds[0]);
+      if (cal && (cal as any).base_lat && (cal as any).base_lng) {
+        return { lat: (cal as any).base_lat, lng: (cal as any).base_lng };
+      }
+    }
+    return null;
+  }, [selectedCalendarIds, calendars]);
+
   const { data: travelLegs = [] } = useQuery({
-    queryKey: ["travel-legs", dayAppointmentsWithCoords.map((a: any) => a.id).join(",")],
+    queryKey: ["travel-legs", baseCalendarWaypoint?.lat, dayAppointmentsWithCoords.map((a: any) => a.id).join(",")],
     queryFn: async (): Promise<TravelLeg[]> => {
-      if (dayAppointmentsWithCoords.length < 2) return [];
-      const waypoints = dayAppointmentsWithCoords.map((a: any) => ({ lat: a.lat, lng: a.lng }));
+      const waypoints: { lat: number; lng: number }[] = [];
+      if (baseCalendarWaypoint) waypoints.push(baseCalendarWaypoint);
+      waypoints.push(...dayAppointmentsWithCoords.map((a: any) => ({ lat: a.lat, lng: a.lng })));
+      if (waypoints.length < 2) return [];
       try {
         const { data, error } = await supabase.functions.invoke("maps-proxy", {
           body: { action: "directions", waypoints },
         });
         if (error || !data?.legs) return [];
+        const offset = baseCalendarWaypoint ? 1 : 0;
         return data.legs.map((leg: any, i: number) => {
-          const fromApt = dayAppointmentsWithCoords[i] as any;
-          const toApt = dayAppointmentsWithCoords[i + 1] as any;
+          const fromIdx = i - offset;
+          const toIdx = i - offset + 1;
+          // Skip legs that don't map to actual appointments
+          if (fromIdx < -1 || toIdx >= dayAppointmentsWithCoords.length) return null;
+          const fromApt = fromIdx >= 0 ? dayAppointmentsWithCoords[fromIdx] as any : null;
+          const toApt = dayAppointmentsWithCoords[toIdx] as any;
+          if (!toApt) return null;
           // Check if late: endTime of from + travel > startTime of to
-          const fromEnd = fromApt.appointment_end_time?.slice(0, 5) || addMinutesToTimeStr(fromApt.appointment_time?.slice(0, 5) || "09:00", 60);
+          const fromEnd = fromApt ? (fromApt.appointment_end_time?.slice(0, 5) || addMinutesToTimeStr(fromApt.appointment_time?.slice(0, 5) || "09:00", 60)) : "08:00";
           const travelMin = Math.ceil(leg.duration_s / 60);
           const arrivalMin = timeToMinutes(fromEnd) + travelMin;
           const toStart = timeToMinutes(toApt.appointment_time?.slice(0, 5) || "09:00");
@@ -203,17 +222,17 @@ export default function MarketingCalendar() {
             distance_m: leg.distance_m,
             duration_text: leg.duration_text,
             distance_text: leg.distance_text,
-            fromId: fromApt.id,
+            fromId: fromApt?.id || "base",
             toId: toApt.id,
             isLate,
             delayMinutes,
           } as TravelLeg;
-        });
+        }).filter(Boolean);
       } catch {
         return [];
       }
     },
-    enabled: calendarView === "day" && dayAppointmentsWithCoords.length >= 2,
+    enabled: calendarView === "day" && (dayAppointmentsWithCoords.length >= 2 || (dayAppointmentsWithCoords.length >= 1 && !!baseCalendarWaypoint)),
     staleTime: 5 * 60 * 1000, // cache 5 min
   });
 

@@ -931,6 +931,15 @@ export type Database = {
       }
       marketing_calendars: {
         Row: {
+          base_address_city: string | null
+          base_address_country: string | null
+          base_address_line: string | null
+          base_address_postal_code: string | null
+          base_address_province: string | null
+          base_formatted_address: string | null
+          base_lat: number | null
+          base_lng: number | null
+          base_place_id: string | null
           calendar_type: string
           company_id: string
           created_at: string
@@ -945,6 +954,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          base_address_city?: string | null
+          base_address_country?: string | null
+          base_address_line?: string | null
+          base_address_postal_code?: string | null
+          base_address_province?: string | null
+          base_formatted_address?: string | null
+          base_lat?: number | null
+          base_lng?: number | null
+          base_place_id?: string | null
           calendar_type?: string
           company_id: string
           created_at?: string
@@ -959,6 +977,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          base_address_city?: string | null
+          base_address_country?: string | null
+          base_address_line?: string | null
+          base_address_postal_code?: string | null
+          base_address_province?: string | null
+          base_formatted_address?: string | null
+          base_lat?: number | null
+          base_lng?: number | null
+          base_place_id?: string | null
           calendar_type?: string
           company_id?: string
           created_at?: string
