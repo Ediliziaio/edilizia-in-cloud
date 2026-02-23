@@ -47,7 +47,7 @@ export const marketingNavItems: NavItem[] = [
   { title: "Contatti", url: "/azienda/marketing/contatti", icon: Contact, permissionKey: "canViewMarketing", category: "marketing" },
   { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketing", category: "marketing" },
   { title: "Attività", url: "/azienda/marketing/attivita", icon: CheckSquare, permissionKey: "canViewMarketing", category: "marketing" },
-  { title: "Calendario", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketing", category: "marketing" },
+  { title: "Appuntamenti", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketing", category: "marketing" },
   { title: "Automazioni", url: "/azienda/marketing/automazioni", icon: Zap, permissionKey: "canViewMarketing", category: "marketing" },
   { title: "Agente AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketing", category: "marketing" },
 ];

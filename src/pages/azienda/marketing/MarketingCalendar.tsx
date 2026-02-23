@@ -363,7 +363,7 @@ export default function MarketingCalendar() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <h1 className="text-xl font-bold">Calendari</h1>
+          <h1 className="text-xl font-bold">Appuntamenti</h1>
           <nav className="flex items-center gap-1 border-b">
             {tabs.map((t) => (
               <button
