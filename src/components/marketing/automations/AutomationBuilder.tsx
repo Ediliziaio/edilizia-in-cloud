@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Save, Loader2, Undo2, Redo2, PlayCircle, Pencil, Archive, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,7 @@ export function AutomationBuilder() {
     addNode, updateNode, removeNode,
     addConnection, removeConnection,
     undo, redo, canUndo, canRedo,
-    saveAll, createFlowMutation, updateFlowMutation, togglePublish,
+    saveAll, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish,
     effectiveCompany, user,
   } = useAutomationBuilder(flowId);
 
@@ -283,143 +284,174 @@ export function AutomationBuilder() {
   ];
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col">
-      {/* Row 1: back link + name center + actions right */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b bg-background shrink-0">
-        <button
-          onClick={() => navigate("/azienda/marketing/automazioni")}
-          className="text-sm text-primary hover:underline whitespace-nowrap"
-        >
-          ← Indietro a Flussi di lavoro
-        </button>
-
-        <div className="flex-1 flex items-center justify-center gap-1.5">
-          {isEditingName ? (
-            <Input
-              value={flowName}
-              onChange={e => setFlowName(e.target.value)}
-              onBlur={handleFlowNameBlur}
-              onKeyDown={e => { if (e.key === "Enter") handleFlowNameBlur(); }}
-              autoFocus
-              className="max-w-xs font-semibold border-none shadow-none focus-visible:ring-1 h-8 text-center"
-            />
-          ) : (
-            <button
-              onClick={() => setIsEditingName(true)}
-              className="flex items-center gap-1.5 text-sm font-semibold hover:text-primary transition-colors"
-            >
-              {flowName || "Senza nome"}
-              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {hasUnsavedChanges && (
-            <span className="text-xs text-muted-foreground">Modifiche non salvate</span>
-          )}
-          {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={undo} disabled={!canUndo}>
-            <Undo2 className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={redo} disabled={!canRedo}>
-            <Redo2 className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={saveAll} disabled={isSaving || !canPersist}>
-            <Save className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground"
-            disabled={!canPersist || updateFlowMutation.isPending}
-            onClick={handleArchive}
+    <TooltipProvider delayDuration={300}>
+      <div className="h-[calc(100vh-4rem)] flex flex-col">
+        {/* Row 1: back link + name center + actions right */}
+        <div className="flex items-center gap-3 px-4 py-2 border-b bg-background shrink-0">
+          <button
+            onClick={() => navigate("/azienda/marketing/automazioni")}
+            className="text-sm text-primary hover:underline whitespace-nowrap"
           >
-            <Archive className="h-4 w-4 mr-1" /> Archivia
-          </Button>
-        </div>
-      </div>
-
-      {/* Row 2: tabs + toggle publish + test */}
-      <div className="flex items-center px-4 border-b bg-background shrink-0">
-        <nav className="flex items-center gap-0">
-          {tabs.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
-                activeTab === tab.key
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="ml-auto flex items-center gap-4">
-          <button className="text-sm text-primary hover:underline flex items-center gap-1">
-            <PlayCircle className="h-4 w-4" />
-            Test flusso
+            ← Indietro a Flussi di lavoro
           </button>
+
+          <div className="flex-1 flex items-center justify-center gap-1.5">
+            {isEditingName ? (
+              <Input
+                value={flowName}
+                onChange={e => setFlowName(e.target.value)}
+                onBlur={handleFlowNameBlur}
+                onKeyDown={e => { if (e.key === "Enter") handleFlowNameBlur(); }}
+                autoFocus
+                className="max-w-xs font-semibold border-none shadow-none focus-visible:ring-1 h-8 text-center"
+              />
+            ) : (
+              <button
+                onClick={() => setIsEditingName(true)}
+                className="flex items-center gap-1.5 text-sm font-semibold hover:text-primary transition-colors"
+              >
+                {flowName || "Senza nome"}
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center gap-2">
-            <Label htmlFor="publish-toggle" className="text-sm text-muted-foreground">
-              {isPublished ? "Pubblicata" : "Bozza"}
-            </Label>
-            <Switch
-              id="publish-toggle"
-              checked={isPublished}
-              onCheckedChange={togglePublish}
-              disabled={!canPersist || updateFlowMutation.isPending}
-            />
+            {hasUnsavedChanges && (
+              <span className="text-xs text-muted-foreground">Modifiche non salvate</span>
+            )}
+            {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={undo} disabled={!canUndo}>
+              <Undo2 className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={redo} disabled={!canRedo}>
+              <Redo2 className="h-4 w-4" />
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={saveAll} disabled={isSaving || !canPersist}>
+                    <Save className="h-4 w-4" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!canPersist && (
+                <TooltipContent>Caricamento in corso…</TooltipContent>
+              )}
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    disabled={!canPersist || updateFlowMutation.isPending}
+                    onClick={handleArchive}
+                  >
+                    <Archive className="h-4 w-4 mr-1" /> Archivia
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!canPersist && (
+                <TooltipContent>Caricamento in corso…</TooltipContent>
+              )}
+            </Tooltip>
           </div>
         </div>
-      </div>
 
-      {/* Tab content */}
-      {activeTab === "builder" && (
-        <div className="flex flex-1 overflow-hidden">
-          <AutomationCanvas
-            nodes={nodes}
-            connections={connections}
-            selectedNodeId={selectedNodeId}
-            onSelectNode={handleSelectNode}
-            onDeleteNode={removeNode}
-            onDuplicateNode={handleDuplicate}
-            onAddAfterNode={openActionPicker}
-            onUpdateNode={updateNode}
-            onOpenTriggerPicker={openTriggerPicker}
-            onOpenActionPicker={() => openActionPicker()}
-          />
+        {/* Row 2: tabs + toggle publish + test */}
+        <div className="flex items-center px-4 border-b bg-background shrink-0">
+          <nav className="flex items-center gap-0">
+            {tabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
+                  activeTab === tab.key
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
 
-          {rightPanel === "config" && selectedNode && (
-            <AutomationNodeConfig
-              node={selectedNode}
-              onUpdate={updateNode}
-              onClose={closeRightPanel}
-              allNodes={nodes}
-            />
-          )}
-
-          <TriggerPickerDialog
-            open={rightPanel === "trigger"}
-            onClose={closeRightPanel}
-            onSelect={handleTriggerSelect}
-          />
-
-          <ActionPickerDialog
-            open={rightPanel === "action"}
-            onClose={closeRightPanel}
-            onSelect={handleActionSelect}
-          />
+          <div className="ml-auto flex items-center gap-4">
+            <button className="text-sm text-primary hover:underline flex items-center gap-1">
+              <PlayCircle className="h-4 w-4" />
+              Test flusso
+            </button>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="publish-toggle" className="text-sm text-muted-foreground">
+                {isPublished ? "Pubblicata" : "Bozza"}
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Switch
+                      id="publish-toggle"
+                      checked={isPublished}
+                      onCheckedChange={togglePublish}
+                      disabled={!canPersist || updateFlowMutation.isPending}
+                    />
+                  </span>
+                </TooltipTrigger>
+                {!canPersist ? (
+                  <TooltipContent>Caricamento in corso…</TooltipContent>
+                ) : !isPublished && nodes.length === 0 ? (
+                  <TooltipContent>Aggiungi almeno un trigger per pubblicare</TooltipContent>
+                ) : null}
+              </Tooltip>
+            </div>
+          </div>
         </div>
-      )}
 
-      {activeTab === "settings" && <AutomationSettingsTab />}
-      {activeTab === "enrollments" && <AutomationEnrollmentsTab />}
-      {activeTab === "logs" && <AutomationLogsTab />}
-    </div>
+        {/* Tab content */}
+        {activeTab === "builder" && (
+          <div className="flex flex-1 overflow-hidden">
+            <AutomationCanvas
+              nodes={nodes}
+              connections={connections}
+              selectedNodeId={selectedNodeId}
+              onSelectNode={handleSelectNode}
+              onDeleteNode={removeNode}
+              onDuplicateNode={handleDuplicate}
+              onAddAfterNode={openActionPicker}
+              onUpdateNode={updateNode}
+              onOpenTriggerPicker={openTriggerPicker}
+              onOpenActionPicker={() => openActionPicker()}
+            />
+
+            {rightPanel === "config" && selectedNode && (
+              <AutomationNodeConfig
+                node={selectedNode}
+                onUpdate={updateNode}
+                onClose={closeRightPanel}
+                allNodes={nodes}
+              />
+            )}
+
+            <TriggerPickerDialog
+              open={rightPanel === "trigger"}
+              onClose={closeRightPanel}
+              onSelect={handleTriggerSelect}
+            />
+
+            <ActionPickerDialog
+              open={rightPanel === "action"}
+              onClose={closeRightPanel}
+              onSelect={handleActionSelect}
+            />
+          </div>
+        )}
+
+        {activeTab === "settings" && <AutomationSettingsTab />}
+        {activeTab === "enrollments" && <AutomationEnrollmentsTab />}
+        {activeTab === "logs" && <AutomationLogsTab />}
+      </div>
+    </TooltipProvider>
   );
 }
