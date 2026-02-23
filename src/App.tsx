@@ -70,6 +70,7 @@ import MarketingContacts from "@/pages/azienda/marketing/MarketingContacts";
 import MarketingOpportunities from "@/pages/azienda/marketing/MarketingOpportunities";
 import MarketingCalendar from "@/pages/azienda/marketing/MarketingCalendar";
 import MarketingAutomations from "@/pages/azienda/marketing/MarketingAutomations";
+import MarketingAutomationBuilder from "@/pages/azienda/marketing/MarketingAutomationBuilder";
 import MarketingAiAgent from "@/pages/azienda/marketing/MarketingAiAgent";
 import MarketingContactDetail from "@/pages/azienda/marketing/MarketingContactDetail";
 import MarketingTasks from "@/pages/azienda/marketing/MarketingTasks";
@@ -212,6 +213,8 @@ const App = () => (
               <Route path="marketing/attivita" element={<MarketingTasks />} />
               <Route path="marketing/calendario" element={<MarketingCalendar />} />
               <Route path="marketing/automazioni" element={<MarketingAutomations />} />
+              <Route path="marketing/automazioni/nuova" element={<MarketingAutomationBuilder />} />
+              <Route path="marketing/automazioni/:id" element={<MarketingAutomationBuilder />} />
               <Route path="marketing/agente-ai" element={<MarketingAiAgent />} />
               <Route path="marketing/email" element={<EmailMarketing />} />
               <Route path="marketing/email/campagna/:id/editor" element={<CampaignEditor />} />
