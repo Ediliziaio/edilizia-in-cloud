@@ -80,6 +80,7 @@ export type Database = {
       appointments: {
         Row: {
           appointment_date: string
+          appointment_end_time: string | null
           appointment_time: string | null
           appointment_type: string
           assigned_to: string | null
@@ -90,6 +91,8 @@ export type Database = {
           created_by: string
           description: string | null
           id: string
+          internal_notes: string | null
+          is_blocked_slot: boolean
           is_completed: boolean
           order_id: string | null
           status: string
@@ -98,6 +101,7 @@ export type Database = {
         }
         Insert: {
           appointment_date: string
+          appointment_end_time?: string | null
           appointment_time?: string | null
           appointment_type?: string
           assigned_to?: string | null
@@ -108,6 +112,8 @@ export type Database = {
           created_by: string
           description?: string | null
           id?: string
+          internal_notes?: string | null
+          is_blocked_slot?: boolean
           is_completed?: boolean
           order_id?: string | null
           status?: string
@@ -116,6 +122,7 @@ export type Database = {
         }
         Update: {
           appointment_date?: string
+          appointment_end_time?: string | null
           appointment_time?: string | null
           appointment_type?: string
           assigned_to?: string | null
@@ -126,6 +133,8 @@ export type Database = {
           created_by?: string
           description?: string | null
           id?: string
+          internal_notes?: string | null
+          is_blocked_slot?: boolean
           is_completed?: boolean
           order_id?: string | null
           status?: string
