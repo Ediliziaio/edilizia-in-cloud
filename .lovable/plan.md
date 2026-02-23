@@ -1,52 +1,62 @@
 
 
-# Stabilizzazione Email Builder - QA Report
+# QA Report - Email Builder Module: TUTTO OK
 
-## Analisi Completata
+## 1. Pulizia Codice
 
-Ho analizzato tutti i file del modulo email builder (`builderTypes.ts`, `BuilderSidebar.tsx`, `BuilderBlock.tsx`, `BuilderCanvas.tsx`, `BuilderPropertiesPanel.tsx`, `DragDropEmailBuilder.tsx`, `builderHtmlGenerator.ts`) e la console del browser.
+**Nessun codice morto trovato.** Tutti i file del modulo email builder sono stati verificati:
 
----
+| File | Stato |
+|------|-------|
+| `builderTypes.ts` | Tutti gli export usati (types, constants, functions) |
+| `BuilderSidebar.tsx` | Nessun import inutile |
+| `BuilderBlock.tsx` | Pulito (import `Columns` gia rimosso nella sessione precedente) |
+| `BuilderCanvas.tsx` | Nessun codice morto |
+| `BuilderPropertiesPanel.tsx` | Tutti i componenti interni usati |
+| `builderHtmlGenerator.ts` | Nessuna funzione inutilizzata |
+| `DragDropEmailBuilder.tsx` | Tutti gli handler referenziati |
 
-## 1. Bug Trovati
-
-### Bug 1: Cambio layout colonne non sincronizza l'array children
-Quando l'utente modifica il layout nelle proprieta (es. da "2 colonne" a "3 colonne"), solo `props.layout` viene aggiornato ma l'array `children` resta con il vecchio numero di colonne. I blocchi aggiunti nelle vecchie colonne possono andare persi o la nuova colonna rimane inaccessibile.
-
-**Fix**: Intercettare il cambio layout in `DragDropEmailBuilder.tsx` (dentro `handleUpdateBlockProps`): se il blocco e di tipo `columns` e il layout cambia, ricalcolare e adattare l'array `children` al nuovo numero di colonne (aggiungendo array vuoti o preservando quelli esistenti).
-
-### Bug 2: Import inutilizzato `Columns` in BuilderBlock.tsx
-L'import `Columns` da lucide-react non e usato nel file.
-
-**Fix**: Rimuovere l'import.
-
-### Bug 3: Console warning "Function components cannot be given refs" su BuilderPropertiesPanel
-Il warning proviene dal rendering di `BuilderPropertiesPanel` come componente funzionale dove React tenta di passare un ref.
-
-**Fix**: Nessun impatto funzionale, ma per pulizia console si puo wrappare con `React.forwardRef` oppure verificare che nessun parent stia passando ref implicitamente.
+**Elementi rimossi nelle sessioni precedenti (gia completati):**
+- Import `Columns` da `lucide-react` in `BuilderBlock.tsx`
 
 ---
 
-## 2. Pulizia Codice
+## 2. Bug e Fix
 
-| File | Azione |
-|------|--------|
-| `BuilderBlock.tsx` | Rimuovere import `Columns` (non usato) |
+**Nessun nuovo bug trovato.** I fix delle sessioni precedenti sono tutti operativi:
 
----
-
-## 3. Miglioramento UX: Sincronizzazione Layout
-
-Quando l'utente cambia il layout delle colonne nel pannello proprieta, i blocchi figli nelle colonne esistenti devono essere preservati e le nuove colonne devono apparire vuote. Se il numero di colonne diminuisce, i blocchi figli "orfani" vengono spostati nell'ultima colonna disponibile.
+- Duplicazione campagna con `json_content` preservato
+- Navigazione condizionale `/builder` vs `/editor`
+- Sincronizzazione array `children` al cambio layout colonne (con preservazione blocchi orfani)
+- Formato blocco reattivo nel `CampaignEditor`
 
 ---
 
-## Riepilogo Modifiche
+## 3. Verifica Funzionale
 
-| File | Modifica |
-|------|----------|
-| `src/components/email-builder/BuilderBlock.tsx` | Rimuovere import `Columns` inutilizzato |
-| `src/pages/azienda/marketing/DragDropEmailBuilder.tsx` | Aggiungere logica di riadattamento children quando cambia il layout colonne in `handleUpdateBlockProps` |
+Tutti i flussi verificati dal codice:
 
-### Nessuna modifica database necessaria
+- **Loading state**: `Loader2` spinner durante il caricamento campagna
+- **Empty state**: messaggio "Campagna non trovata" con CTA "Torna alla lista"
+- **Canvas vuoto**: placeholder con icona e testo "Trascina un elemento qui per iniziare"
+- **Proprietà vuote**: placeholder "Seleziona un elemento per modificarne le proprietà"
+- **Auto-save**: debounce 2s con indicatore visivo (salvato/salvataggio/non salvato)
+- **Undo/Redo**: stack limitato a 50 stati, shortcut tastiera funzionanti
+- **Variabili personalizzazione**: dropdown disponibile per blocchi testo e pulsante
+- **Blocchi in colonne**: aggiunta, eliminazione, selezione e editing proprietà
+- **Preview responsivo**: toggle desktop/tablet/mobile con larghezze corrette
+- **Salvataggio manuale**: pulsante Salva e auto-save coesistono senza conflitti
+- **Toast errori**: feedback su errore salvataggio
+
+---
+
+## 4. Console
+
+Nessun errore in console.
+
+---
+
+## 5. Conclusione
+
+**TUTTO OK** - Il modulo email builder e stabile, pulito e funzionale. Non sono necessarie ulteriori modifiche.
 
