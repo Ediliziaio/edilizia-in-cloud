@@ -5,11 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, FolderPlus, FileText, MoreHorizontal, Pencil, Trash2, ChevronRight, ChevronLeft } from "lucide-react";
+import { Plus, Search, FolderPlus, FileText, MoreHorizontal, Pencil, Trash2, Copy, FolderInput, ChevronRight, ChevronLeft } from "lucide-react";
 import { TemplateDialog } from "./TemplateDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
@@ -17,7 +19,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
 export function EmailTemplatesTab() {
-  const { effectiveCompany: company } = useAuth();
+  const { effectiveCompany: company, user } = useAuth();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<any>(null);
@@ -30,6 +32,10 @@ export function EmailTemplatesTab() {
   const [perPage, setPerPage] = useState(10);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  // Move to folder
+  const [moveTarget, setMoveTarget] = useState<string | null>(null);
+  const [moveFolderId, setMoveFolderId] = useState<string | null>(null);
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["email-templates", company?.id],
@@ -90,6 +96,41 @@ export function EmailTemplatesTab() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const duplicateMutation = useMutation({
+    mutationFn: async (template: any) => {
+      const { error } = await supabase.from("email_templates").insert({
+        company_id: company!.id,
+        created_by: user!.id,
+        name: `Copia di ${template.name}`,
+        subject: template.subject,
+        html_content: template.html_content,
+        json_content: template.json_content,
+        type: template.type,
+        folder: template.folder,
+        folder_id: template.folder_id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Template duplicato");
+      qc.invalidateQueries({ queryKey: ["email-templates"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const moveMutation = useMutation({
+    mutationFn: async ({ id, folder_id }: { id: string; folder_id: string | null }) => {
+      const { error } = await supabase.from("email_templates").update({ folder_id }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Template spostato");
+      qc.invalidateQueries({ queryKey: ["email-templates"] });
+      setMoveTarget(null);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const currentFolders = folders.filter((f: any) => f.parent_id === currentFolderId);
 
   const filtered = templates.filter((t: any) => {
@@ -101,7 +142,7 @@ export function EmailTemplatesTab() {
   const totalPages = Math.ceil(filtered.length / perPage);
   const paged = filtered.slice(page * perPage, (page + 1) * perPage);
   const showing = filtered.length > 0
-    ? `Presentazione ${page * perPage + 1} - ${Math.min((page + 1) * perPage, filtered.length)} di ${filtered.length} risultati`
+    ? `${page * perPage + 1} - ${Math.min((page + 1) * perPage, filtered.length)} di ${filtered.length}`
     : "";
 
   const navigateToFolder = (folderId: string, folderName: string) => {
@@ -214,6 +255,13 @@ export function EmailTemplatesTab() {
                         <DropdownMenuItem onClick={() => { setEditTemplate(t); setDialogOpen(true); }}>
                           <Pencil className="h-4 w-4 mr-2" /> Modifica
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => duplicateMutation.mutate(t)}>
+                          <Copy className="h-4 w-4 mr-2" /> Duplica
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setMoveTarget(t.id); setMoveFolderId(t.folder_id || null); }}>
+                          <FolderInput className="h-4 w-4 mr-2" /> Sposta in cartella
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(t.id)}>
                           <Trash2 className="h-4 w-4 mr-2" /> Elimina
                         </DropdownMenuItem>
@@ -256,6 +304,7 @@ export function EmailTemplatesTab() {
         isPending={createFolderMut.isPending}
       />
 
+      {/* Delete dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -273,6 +322,36 @@ export function EmailTemplatesTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Move to folder dialog */}
+      <Dialog open={!!moveTarget} onOpenChange={(open) => !open && setMoveTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Sposta in cartella</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Cartella di destinazione</Label>
+            <Select value={moveFolderId || "__home__"} onValueChange={(v) => setMoveFolderId(v === "__home__" ? null : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__home__">Home (nessuna cartella)</SelectItem>
+                {folders.map((f: any) => (
+                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveTarget(null)}>Annulla</Button>
+            <Button
+              onClick={() => moveTarget && moveMutation.mutate({ id: moveTarget, folder_id: moveFolderId })}
+              disabled={moveMutation.isPending}
+            >
+              {moveMutation.isPending ? "Spostamento..." : "Sposta"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -24,12 +26,14 @@ import {
   Mail,
   CheckCircle2,
   Loader2,
+  Users,
 } from "lucide-react";
 
 export default function CampaignSendSettings() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { effectiveCompany: company } = useAuth();
 
   const [senderName, setSenderName] = useState("");
   const [senderEmail, setSenderEmail] = useState("");
@@ -45,6 +49,7 @@ export default function CampaignSendSettings() {
   const [replyToEmail, setReplyToEmail] = useState("");
   const [recipientMode, setRecipientMode] = useState("list");
   const [additionalOpen, setAdditionalOpen] = useState(false);
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["campaign-send-settings", id],
@@ -57,6 +62,20 @@ export default function CampaignSendSettings() {
         .single();
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Recipient count
+  const { data: recipientCount = 0 } = useQuery({
+    queryKey: ["recipient-count", company?.id],
+    enabled: !!company?.id,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("marketing_contacts")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", company!.id);
+      if (error) throw error;
+      return count || 0;
     },
   });
 
@@ -104,7 +123,6 @@ export default function CampaignSendSettings() {
 
   const sendMut = useMutation({
     mutationFn: async () => {
-      // Validate required fields
       if (!senderEmail) throw new Error("Email del mittente obbligatoria");
       if (!subject) throw new Error("Oggetto obbligatorio");
 
@@ -136,7 +154,6 @@ export default function CampaignSendSettings() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  // Calculate required fields status
   const requiredFields = [
     { label: "Email mittente", ok: !!senderEmail },
     { label: "Oggetto", ok: !!subject },
@@ -144,7 +161,6 @@ export default function CampaignSendSettings() {
   ];
   const missingCount = requiredFields.filter((f) => !f.ok).length;
 
-  // Spam score mock (0-100, lower is better)
   const spamScore = Math.max(0, Math.min(100, 15 + (subject.length > 50 ? 10 : 0) + (!previewText ? 5 : 0)));
   const spamColor = spamScore < 30 ? "text-green-500" : spamScore < 60 ? "text-yellow-500" : "text-red-500";
 
@@ -167,7 +183,7 @@ export default function CampaignSendSettings() {
           <Button variant="outline" size="sm" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
             {saveMut.isPending ? "Salvataggio..." : "Salva"}
           </Button>
-          <Button size="sm" onClick={() => sendMut.mutate()} disabled={sendMut.isPending || missingCount > 0}>
+          <Button size="sm" onClick={() => setConfirmSendOpen(true)} disabled={sendMut.isPending || missingCount > 0}>
             <Send className="h-4 w-4 mr-1" />
             {sendMut.isPending ? "Invio..." : "Rivedi e invia"}
           </Button>
@@ -356,6 +372,19 @@ export default function CampaignSendSettings() {
 
           {/* Sidebar */}
           <div className="w-full lg:w-80 space-y-4 shrink-0">
+            {/* Recipient count */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Users className="h-4 w-4" /> Destinatari stimati
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{recipientCount.toLocaleString("it-IT")}</p>
+                <p className="text-xs text-muted-foreground">contatti nel CRM</p>
+              </CardContent>
+            </Card>
+
             {/* Spam score */}
             <Card>
               <CardHeader className="pb-3">
@@ -441,6 +470,48 @@ export default function CampaignSendSettings() {
           </div>
         </div>
       </div>
+
+      {/* Send confirmation dialog */}
+      <AlertDialog open={confirmSendOpen} onOpenChange={setConfirmSendOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {sendMode === "scheduled" ? "Conferma programmazione" : "Conferma invio"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Stai per {sendMode === "scheduled" ? "programmare" : "inviare"} la campagna con i seguenti parametri:</p>
+                <div className="bg-muted rounded-md p-3 space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Oggetto:</span>
+                    <span className="font-medium text-foreground">{subject || "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Mittente:</span>
+                    <span className="font-medium text-foreground">{senderName ? `${senderName} <${senderEmail}>` : senderEmail || "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Destinatari:</span>
+                    <span className="font-medium text-foreground">~{recipientCount.toLocaleString("it-IT")} contatti</span>
+                  </div>
+                  {sendMode === "scheduled" && scheduledAt && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Data invio:</span>
+                      <span className="font-medium text-foreground">{new Date(scheduledAt).toLocaleString("it-IT")}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => sendMut.mutate()} disabled={sendMut.isPending}>
+              {sendMut.isPending ? "Invio..." : sendMode === "scheduled" ? "Programma" : "Invia adesso"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
