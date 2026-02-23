@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Save, Loader2, Undo2, Redo2, PlayCircle, Pencil, Archive } from "lucide-react";
+import { Save, Loader2, Undo2, Redo2, PlayCircle, Pencil, Archive, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type RightPanel = "none" | "trigger" | "action" | "config";
@@ -26,12 +26,13 @@ export function AutomationBuilder() {
   const flowId = id === "nuova" ? undefined : id;
 
   const {
-    flow, nodes, connections, isLoading, isSaving, hasUnsavedChanges,
+    flow, nodes, connections, isLoading, isSaving, hasUnsavedChanges, canPersist,
     selectedNodeId, selectedNode, setSelectedNodeId,
     addNode, updateNode, removeNode,
     addConnection, removeConnection,
     undo, redo, canUndo, canRedo,
     saveAll, createFlowMutation, updateFlowMutation, togglePublish,
+    effectiveCompany, user,
   } = useAutomationBuilder(flowId);
 
   const [rightPanel, setRightPanel] = useState<RightPanel>("none");
@@ -39,6 +40,7 @@ export function AutomationBuilder() {
   const [flowName, setFlowName] = useState("");
   const [activeTab, setActiveTab] = useState<BuilderTab>("builder");
   const [isEditingName, setIsEditingName] = useState(false);
+  const creationAttemptedRef = useRef(false);
 
   useEffect(() => {
     if (flow) setFlowName(flow.name);
@@ -58,16 +60,28 @@ export function AutomationBuilder() {
     }
   }, [selectedNodeId]);
 
-  // Create flow on first visit
+  // Create flow on first visit - with proper guards
   useEffect(() => {
-    if (id === "nuova" && !createFlowMutation.isPending && !createFlowMutation.data) {
+    if (
+      id === "nuova" &&
+      !creationAttemptedRef.current &&
+      !createFlowMutation.isPending &&
+      !createFlowMutation.data &&
+      !createFlowMutation.isError &&
+      effectiveCompany &&
+      user
+    ) {
+      creationAttemptedRef.current = true;
       createFlowMutation.mutate("Nuova Automazione", {
         onSuccess: (data) => {
           navigate(`/azienda/marketing/automazioni/${data.id}`, { replace: true });
         },
+        onError: (err) => {
+          toast({ title: "Errore creazione automazione", description: err.message, variant: "destructive" });
+        },
       });
     }
-  }, [id]);
+  }, [id, effectiveCompany, user, createFlowMutation.isPending, createFlowMutation.data, createFlowMutation.isError]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -191,12 +205,72 @@ export function AutomationBuilder() {
     }
   }, [flowName, flow, updateFlowMutation]);
 
+  const handleArchive = useCallback(async () => {
+    if (!canPersist) {
+      toast({ title: "Flow non ancora pronto", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateFlowMutation.mutateAsync({ status: "archived" });
+      toast({ title: "Automazione archiviata con successo" });
+      navigate("/azienda/marketing/automazioni");
+    } catch (err: any) {
+      toast({ title: "Errore durante l'archiviazione", description: err.message, variant: "destructive" });
+    }
+  }, [canPersist, updateFlowMutation, navigate]);
+
   const isPublished = flow?.status === "published";
 
-  if (isLoading || (id === "nuova" && createFlowMutation.isPending)) {
+  // --- LOADING / ERROR STATES ---
+
+  // Missing company context (super admin without impersonation)
+  if (id === "nuova" && !effectiveCompany) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
+        <AlertTriangle className="h-10 w-10 text-destructive" />
+        <h2 className="text-lg font-semibold">Nessuna azienda selezionata</h2>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Per creare un'automazione, devi prima selezionare un'azienda tramite il pannello di amministrazione.
+        </p>
+        <Button variant="outline" onClick={() => navigate("/azienda/marketing/automazioni")}>
+          ← Torna alla lista
+        </Button>
+      </div>
+    );
+  }
+
+  // Creation failed
+  if (id === "nuova" && createFlowMutation.isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
+        <AlertTriangle className="h-10 w-10 text-destructive" />
+        <h2 className="text-lg font-semibold">Errore creazione automazione</h2>
+        <p className="text-sm text-muted-foreground max-w-md">
+          {createFlowMutation.error?.message || "Si è verificato un errore durante la creazione."}
+        </p>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={() => navigate("/azienda/marketing/automazioni")}>
+            ← Torna alla lista
+          </Button>
+          <Button onClick={() => {
+            creationAttemptedRef.current = false;
+            createFlowMutation.reset();
+          }}>
+            Riprova
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Creating or loading
+  if (isLoading || (id === "nuova" && (createFlowMutation.isPending || !createFlowMutation.data))) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">
+          {id === "nuova" ? "Creazione automazione in corso…" : "Caricamento…"}
+        </span>
       </div>
     );
   }
@@ -251,22 +325,15 @@ export function AutomationBuilder() {
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={redo} disabled={!canRedo}>
             <Redo2 className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={saveAll} disabled={isSaving}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={saveAll} disabled={isSaving || !canPersist}>
             <Save className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:text-foreground"
-            onClick={async () => {
-              try {
-                await updateFlowMutation.mutateAsync({ status: "archived" });
-                toast({ title: "Automazione archiviata con successo" });
-                navigate("/azienda/marketing/automazioni");
-              } catch (err: any) {
-                toast({ title: "Errore durante l'archiviazione", description: err.message, variant: "destructive" });
-              }
-            }}
+            disabled={!canPersist || updateFlowMutation.isPending}
+            onClick={handleArchive}
           >
             <Archive className="h-4 w-4 mr-1" /> Archivia
           </Button>
@@ -305,6 +372,7 @@ export function AutomationBuilder() {
               id="publish-toggle"
               checked={isPublished}
               onCheckedChange={togglePublish}
+              disabled={!canPersist || updateFlowMutation.isPending}
             />
           </div>
         </div>
