@@ -51,20 +51,22 @@ export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogP
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const payload = {
+      const base = {
         name,
         subject,
         html_content: htmlContent,
         folder_id: folderId === "none" ? null : folderId,
         type: "html" as const,
-        company_id: company!.id,
-        created_by: user!.id,
       };
       if (isEdit) {
-        const { error } = await supabase.from("email_templates").update(payload).eq("id", template.id);
+        const { error } = await supabase.from("email_templates").update(base).eq("id", template.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("email_templates").insert(payload);
+        const { error } = await supabase.from("email_templates").insert({
+          ...base,
+          company_id: company!.id,
+          created_by: user!.id,
+        });
         if (error) throw error;
       }
     },

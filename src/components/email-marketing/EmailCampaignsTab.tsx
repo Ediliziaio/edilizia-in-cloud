@@ -7,9 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Pencil, Trash2, ChevronRight, Send } from "lucide-react";
+import { Plus, Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Pencil, Trash2, ChevronRight, ChevronLeft, Send } from "lucide-react";
 import { CampaignDialog } from "./CampaignDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
@@ -43,6 +44,8 @@ export function EmailCampaignsTab() {
   ]);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [perPage, setPerPage] = useState(10);
 
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["email-campaigns", company?.id],
@@ -100,6 +103,7 @@ export function EmailCampaignsTab() {
       qc.invalidateQueries({ queryKey: ["email-campaigns"] });
       setDeleteTarget(null);
     },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const currentFolders = folders.filter((f: any) => f.parent_id === currentFolderId);
@@ -111,25 +115,45 @@ export function EmailCampaignsTab() {
     return matchSearch && matchCategory && matchFolder;
   });
 
+  const totalPages = Math.ceil(filtered.length / perPage);
+  const paged = filtered.slice(page * perPage, (page + 1) * perPage);
+  const showing = filtered.length > 0
+    ? `${page * perPage + 1} - ${Math.min((page + 1) * perPage, filtered.length)} di ${filtered.length}`
+    : "";
+
   const navigateToFolder = (folderId: string, folderName: string) => {
     setCurrentFolderId(folderId);
     setFolderPath([...folderPath, { id: folderId, name: folderName }]);
+    setPage(0);
   };
 
   const navigateToBreadcrumb = (index: number) => {
     const newPath = folderPath.slice(0, index + 1);
     setFolderPath(newPath);
     setCurrentFolderId(newPath[newPath.length - 1].id);
+    setPage(0);
   };
 
   return (
-    <div className="flex gap-0 min-h-[500px]">
-      {/* Sidebar */}
-      <div className="w-56 border-r pr-3 space-y-1 shrink-0">
+    <div className="flex flex-col md:flex-row gap-0 min-h-[500px]">
+      {/* Mobile category selector */}
+      <div className="md:hidden mb-4">
+        <Select value={category} onValueChange={(v) => { setCategory(v); setPage(0); }}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {CATEGORIES.map((cat) => (
+              <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block w-56 border-r pr-3 space-y-1 shrink-0">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.id}
-            onClick={() => setCategory(cat.id)}
+            onClick={() => { setCategory(cat.id); setPage(0); }}
             className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
               category === cat.id
                 ? "bg-primary/10 text-primary font-medium"
@@ -143,7 +167,7 @@ export function EmailCampaignsTab() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 pl-6 space-y-4">
+      <div className="flex-1 md:pl-6 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -152,7 +176,7 @@ export function EmailCampaignsTab() {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
-              <FolderPlus className="h-4 w-4 mr-1" /> Crea cartella
+              <FolderPlus className="h-4 w-4 mr-1" /> <span className="hidden sm:inline">Crea cartella</span>
             </Button>
             <Button size="sm" onClick={() => { setEditCampaign(null); setDialogOpen(true); }}>
               <Plus className="h-4 w-4 mr-1" /> Nuovo
@@ -164,7 +188,7 @@ export function EmailCampaignsTab() {
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Cerca campagna..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-9" placeholder="Cerca campagna..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
           </div>
         </div>
 
@@ -197,7 +221,7 @@ export function EmailCampaignsTab() {
         {/* Table */}
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
-        ) : filtered.length === 0 ? (
+        ) : paged.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
               <Send className="h-10 w-10 text-muted-foreground" />
@@ -208,59 +232,82 @@ export function EmailCampaignsTab() {
             </CardContent>
           </Card>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Titolo</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Ultimo aggiornamento</TableHead>
-                <TableHead>Data di esecuzione</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((c: any) => {
-                const badge = STATUS_BADGE[c.status] || { label: c.status, variant: "secondary" as const };
-                return (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {c.type === "broadcast" ? "Email" : c.type === "automation" ? "Flusso" : c.type === "bulk" ? "Blocco" : c.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(c.updated_at), "dd MMM yyyy", { locale: it })}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {c.scheduled_at
-                        ? format(new Date(c.scheduled_at), "dd MMM yyyy HH:mm", { locale: it })
-                        : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={badge.variant}>{badge.label}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { setEditCampaign(c); setDialogOpen(true); }}>
-                            <Pencil className="h-4 w-4 mr-2" /> Modifica
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(c.id)}>
-                            <Trash2 className="h-4 w-4 mr-2" /> Elimina
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Titolo</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="hidden sm:table-cell">Ultimo aggiornamento</TableHead>
+                  <TableHead className="hidden sm:table-cell">Data di esecuzione</TableHead>
+                  <TableHead>Stato</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paged.map((c: any) => {
+                  const badge = STATUS_BADGE[c.status] || { label: c.status, variant: "secondary" as const };
+                  return (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {c.type === "broadcast" ? "Email" : c.type === "automation" ? "Flusso" : c.type === "bulk" ? "Blocco" : c.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground hidden sm:table-cell">
+                        {format(new Date(c.updated_at), "dd MMM yyyy", { locale: it })}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground hidden sm:table-cell">
+                        {c.scheduled_at
+                          ? format(new Date(c.scheduled_at), "dd MMM yyyy HH:mm", { locale: it })
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => { setEditCampaign(c); setDialogOpen(true); }}>
+                              <Pencil className="h-4 w-4 mr-2" /> Modifica
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(c.id)}>
+                              <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>{showing}</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                  <ChevronLeft className="h-4 w-4" /> Precedente
+                </Button>
+                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+                  Successivo <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(0); }}>
+                  <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / pagina</SelectItem>
+                    <SelectItem value="25">25 / pagina</SelectItem>
+                    <SelectItem value="50">50 / pagina</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </>
         )}
       </div>
 

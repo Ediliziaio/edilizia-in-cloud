@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, FolderPlus, FileText, MoreHorizontal, Pencil, Trash2, ChevronRight, ChevronLeft, Upload, Copy, BookOpen } from "lucide-react";
+import { Plus, Search, FolderPlus, FileText, MoreHorizontal, Pencil, Trash2, ChevronRight, ChevronLeft } from "lucide-react";
 import { TemplateDialog } from "./TemplateDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
@@ -87,6 +87,7 @@ export function EmailTemplatesTab() {
       qc.invalidateQueries({ queryKey: ["email-templates"] });
       setDeleteTarget(null);
     },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const currentFolders = folders.filter((f: any) => f.parent_id === currentFolderId);
@@ -128,27 +129,9 @@ export function EmailTemplatesTab() {
           <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
             <FolderPlus className="h-4 w-4 mr-1" /> Crea cartella
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" /> Nuovo
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => { setEditTemplate(null); setDialogOpen(true); }}>
-                <FileText className="h-4 w-4 mr-2" /> Modello vuoto
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setEditTemplate(null); setDialogOpen(true); }}>
-                <Copy className="h-4 w-4 mr-2" /> Da campagna esistente
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setEditTemplate(null); setDialogOpen(true); }}>
-                <BookOpen className="h-4 w-4 mr-2" /> Libreria modelli
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setEditTemplate(null); setDialogOpen(true); }}>
-                <Upload className="h-4 w-4 mr-2" /> Importa HTML
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button size="sm" onClick={() => { setEditTemplate(null); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Nuovo template
+          </Button>
         </div>
       </div>
 

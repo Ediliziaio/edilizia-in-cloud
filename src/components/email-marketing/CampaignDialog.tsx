@@ -52,7 +52,7 @@ export function CampaignDialog({ open, onOpenChange, campaign }: CampaignDialogP
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const payload = {
+      const base = {
         name,
         subject,
         type,
@@ -61,14 +61,16 @@ export function CampaignDialog({ open, onOpenChange, campaign }: CampaignDialogP
         ab_subject_b: abEnabled ? abSubjectB : null,
         scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
         status: scheduledAt ? "scheduled" : "draft",
-        company_id: company!.id,
-        created_by: user!.id,
       };
       if (isEdit) {
-        const { error } = await supabase.from("email_campaigns").update(payload).eq("id", campaign.id);
+        const { error } = await supabase.from("email_campaigns").update(base).eq("id", campaign.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("email_campaigns").insert(payload);
+        const { error } = await supabase.from("email_campaigns").insert({
+          ...base,
+          company_id: company!.id,
+          created_by: user!.id,
+        });
         if (error) throw error;
       }
     },
