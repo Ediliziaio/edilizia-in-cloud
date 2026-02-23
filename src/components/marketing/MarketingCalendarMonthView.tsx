@@ -37,6 +37,7 @@ interface Appointment {
   contact_id: string | null;
   description: string | null;
   is_completed: boolean;
+  is_blocked_slot?: boolean;
 }
 
 interface Props {
@@ -131,9 +132,11 @@ export default function MarketingCalendarMonthView({
                       }}
                       className={cn(
                         "text-[10px] leading-tight px-1 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80",
-                        apt.calendar_id && colorMap[apt.calendar_id]
-                          ? colorMap[apt.calendar_id]
-                          : "bg-muted border-muted-foreground/40 text-foreground"
+                        apt.is_blocked_slot
+                          ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
+                          : apt.calendar_id && colorMap[apt.calendar_id]
+                            ? colorMap[apt.calendar_id]
+                            : "bg-muted border-muted-foreground/40 text-foreground"
                       )}
                       title={apt.title}
                     >
