@@ -41,6 +41,7 @@ interface AppointmentDialogProps {
   showOrderSelect?: boolean;
   defaultDate?: string;
   defaultTime?: string;
+  requireTime?: boolean;
 }
 
 const APPOINTMENT_TYPES = [
@@ -60,6 +61,7 @@ export function AppointmentDialog({
   showOrderSelect = false,
   defaultDate,
   defaultTime,
+  requireTime = false,
 }: AppointmentDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -181,6 +183,10 @@ export function AppointmentDialog({
       toast({ title: "Inserisci una data", variant: "destructive" });
       return;
     }
+    if (requireTime && !appointmentTime) {
+      toast({ title: "Inserisci un orario", variant: "destructive" });
+      return;
+    }
     if (!companyId || !user) return;
 
     setSaving(true);
@@ -282,7 +288,7 @@ export function AppointmentDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="apt-time">Ora (opzionale)</Label>
+              <Label htmlFor="apt-time">{requireTime ? "Ora *" : "Ora (opzionale)"}</Label>
               <Input id="apt-time" type="time" value={appointmentTime} onChange={(e) => setAppointmentTime(e.target.value)} />
             </div>
 

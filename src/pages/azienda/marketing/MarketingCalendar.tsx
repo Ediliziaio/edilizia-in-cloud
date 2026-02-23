@@ -361,9 +361,9 @@ export default function MarketingCalendar() {
         onOpenChange={setDialogOpen}
         appointment={editingAppointment}
         onSaved={() => refetchAppointments()}
-        showOrderSelect
         defaultDate={defaultDate}
         defaultTime={defaultTime}
+        requireTime
       />
     </div>
   );
