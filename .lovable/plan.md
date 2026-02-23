@@ -1,39 +1,42 @@
 
 
-# Editing inline nel canvas - Click per modificare direttamente
+# Stabilizzazione Email Builder - Fix Shortcut Ctrl+Z durante editing inline
 
-## Problema attuale
-Quando l'utente clicca su un blocco testo o pulsante nel canvas, puo solo modificarlo dal pannello proprieta a destra. L'utente vuole poter cliccare direttamente sul testo nel canvas e scriverci dentro.
+## Bug trovato
 
-## Soluzione
+### Ctrl+Z/Ctrl+Y intercettato globalmente durante editing inline
+Quando l'utente sta scrivendo testo direttamente dentro un blocco `contentEditable` (la feature inline editing appena aggiunta) e preme **Ctrl+Z**, il sistema intercetta il comando e esegue l'**undo globale** (ripristina l'intero stato dei blocchi) invece di permettere l'**undo nativo del browser** all'interno del campo di testo.
 
-### File: `src/components/email-builder/BuilderBlock.tsx`
+Questo causa un comportamento confuso: l'utente si aspetta di annullare l'ultima parola digitata, ma invece l'intero blocco viene riportato allo stato precedente.
 
-Aggiungere una nuova prop `onInlineEdit` al componente per comunicare le modifiche inline al parent.
+**Stessa cosa per Ctrl+Y / Ctrl+Shift+Z** (redo).
 
-**Blocco Testo (`case "text"`):**
-- Sostituire il `div` con `dangerouslySetInnerHTML` con un `div` con `contentEditable={isSelected}`
-- Quando il blocco e selezionato, l'utente puo cliccare dentro e digitare
-- Al `blur` o `onInput`, chiamare `onInlineEdit(block.id, { content: element.innerHTML })`
-- Mantenere tutti gli stili inline (font, colore, allineamento)
+## Fix
 
-**Blocco Pulsante (`case "button"`):**
-- Rendere lo `span` del testo `contentEditable={isSelected}`
-- Al `blur`, chiamare `onInlineEdit(block.id, { text: element.textContent })`
+### File: `src/pages/azienda/marketing/DragDropEmailBuilder.tsx` (righe 148-161)
 
-**Blocco HTML (`case "html"`):** Non toccare - l'editing inline non ha senso per codice HTML raw.
+Aggiungere un controllo nel handler della tastiera: se l'elemento attivo (`document.activeElement`) ha l'attributo `contentEditable === "true"`, lasciare passare il comportamento nativo del browser senza intercettare l'evento.
 
-### File: `src/components/email-builder/BuilderCanvas.tsx`
-- Passare la nuova prop `onInlineEdit` dal canvas ai `SortableBlock` e poi ai `BuilderBlock`
+```
+const handler = (e: KeyboardEvent) => {
+  // Se l'utente sta editando inline (contentEditable), 
+  // lascia il comportamento nativo del browser
+  const active = document.activeElement;
+  if (active && (active as HTMLElement).isContentEditable) return;
+  
+  const isMod = e.ctrlKey || e.metaKey;
+  // ...resto invariato
+};
+```
 
-### File: `src/pages/azienda/marketing/DragDropEmailBuilder.tsx`
-- Creare un handler `handleInlineEdit(blockId, partial)` che aggiorna le props del blocco (riutilizzando la logica di `handleUpdateBlockProps`)
-- Per i blocchi figli nelle colonne, verificare se il blockId appartiene a un figlio e usare `handleUpdateChildBlockProps`
-- Passare `handleInlineEdit` al `BuilderCanvas`
+## Pulizia codice
+Nessun codice morto trovato - il modulo e gia stato pulito nelle sessioni precedenti.
 
-### Dettagli tecnici
-- Usare `contentEditable` nativo di React con `suppressContentEditableWarning`
-- Aggiornare lo stato su evento `onBlur` (non su ogni keystroke per performance)
-- Impedire che il click dentro il `contentEditable` triggeri la deselezione del blocco (gia gestito da `e.stopPropagation`)
-- Le shortcut Ctrl+Z/Y del browser funzionano nativamente dentro `contentEditable` per l'undo del testo; lo stack globale undo/redo cattura lo stato al blur
+## Riepilogo
+
+| Cosa | Dettaglio |
+|------|-----------|
+| Bug corretto | Ctrl+Z/Y ora funziona nativamente dentro i campi contentEditable |
+| File modificato | `DragDropEmailBuilder.tsx` (3 righe aggiunte nel handler keyboard) |
+| Rischio regressione | Zero - aggiunge solo un early return condizionale |
 
