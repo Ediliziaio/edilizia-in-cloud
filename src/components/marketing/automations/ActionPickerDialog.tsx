@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ACTION_CATEGORIES, type PickerItem } from "@/types/automationBuilder";
-import { Search, ChevronRight, ChevronDown, Zap, Mail, Users, GitBranch, Plug } from "lucide-react";
+import { Search, ChevronRight, ChevronDown, Zap, Mail, Users, GitBranch, Plug, X } from "lucide-react";
 
 const CATEGORY_ICONS: Record<string, typeof Zap> = {
   Mail, Users, GitBranch, Plug,
@@ -11,11 +11,11 @@ const CATEGORY_ICONS: Record<string, typeof Zap> = {
 
 interface Props {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
   onSelect: (item: PickerItem) => void;
 }
 
-export function ActionPickerDialog({ open, onOpenChange, onSelect }: Props) {
+export function ActionPickerDialog({ open, onClose, onSelect }: Props) {
   const [search, setSearch] = useState("");
   const [openCats, setOpenCats] = useState<string[]>(ACTION_CATEGORIES.map(c => c.key));
 
@@ -28,15 +28,21 @@ export function ActionPickerDialog({ open, onOpenChange, onSelect }: Props) {
     items: cat.items.filter(i => i.label.toLowerCase().includes(search.toLowerCase())),
   })).filter(cat => cat.items.length > 0);
 
+  if (!open) return null;
+
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-blue-500" />
-            Aggiungi Azione
-          </DialogTitle>
-        </DialogHeader>
+    <div className="w-80 border-l bg-background flex flex-col overflow-hidden shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <h3 className="font-semibold text-sm flex items-center gap-2">
+          <Zap className="h-4 w-4 text-blue-500" />
+          Aggiungi Azione
+        </h3>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="px-4 py-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -46,38 +52,38 @@ export function ActionPickerDialog({ open, onOpenChange, onSelect }: Props) {
             className="pl-9"
           />
         </div>
-        <div className="overflow-y-auto flex-1 -mx-2 px-2 space-y-1">
-          {filteredCategories.map(cat => {
-            const isOpen = openCats.includes(cat.key);
-            const CatIcon = CATEGORY_ICONS[cat.icon] || Zap;
-            return (
-              <Collapsible key={cat.key} open={isOpen} onOpenChange={() => toggleCat(cat.key)}>
-                <CollapsibleTrigger className="flex items-center gap-2 w-full px-3 py-2 rounded-md hover:bg-accent text-sm font-medium">
-                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  <CatIcon className="h-4 w-4" />
-                  {cat.label}
-                  <span className="ml-auto text-xs text-muted-foreground">{cat.items.length}</span>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pl-6 space-y-0.5">
-                  {cat.items.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => { onSelect(item); onOpenChange(false); setSearch(""); }}
-                      className="flex items-center gap-3 w-full px-3 py-2 rounded-md hover:bg-accent text-sm text-left transition-colors"
-                    >
-                      <div>
-                        <div className="text-muted-foreground">{item.label}</div>
-                        {item.description && <div className="text-xs text-muted-foreground/60">{item.description}</div>}
-                      </div>
-                      <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground/50 shrink-0" />
-                    </button>
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            );
-          })}
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <div className="overflow-y-auto flex-1 px-2 pb-4 space-y-1">
+        {filteredCategories.map(cat => {
+          const isOpen = openCats.includes(cat.key);
+          const CatIcon = CATEGORY_ICONS[cat.icon] || Zap;
+          return (
+            <Collapsible key={cat.key} open={isOpen} onOpenChange={() => toggleCat(cat.key)}>
+              <CollapsibleTrigger className="flex items-center gap-2 w-full px-3 py-2 rounded-md hover:bg-accent text-sm font-medium">
+                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                <CatIcon className="h-4 w-4" />
+                {cat.label}
+                <span className="ml-auto text-xs text-muted-foreground">{cat.items.length}</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pl-6 space-y-0.5">
+                {cat.items.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => { onSelect(item); onClose(); setSearch(""); }}
+                    className="flex items-center gap-3 w-full px-3 py-2 rounded-md hover:bg-accent text-sm text-left transition-colors"
+                  >
+                    <div>
+                      <div className="text-muted-foreground">{item.label}</div>
+                      {item.description && <div className="text-xs text-muted-foreground/60">{item.description}</div>}
+                    </div>
+                    <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground/50 shrink-0" />
+                  </button>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          );
+        })}
+      </div>
+    </div>
   );
 }

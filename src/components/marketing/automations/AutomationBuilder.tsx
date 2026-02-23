@@ -9,8 +9,9 @@ import type { AutomationNode, PickerItem } from "@/types/automationBuilder";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Save, Loader2, Undo2, Redo2, Zap } from "lucide-react";
+
+type RightPanel = "none" | "trigger" | "action" | "config";
 
 export function AutomationBuilder() {
   const { id } = useParams<{ id: string }>();
@@ -26,14 +27,27 @@ export function AutomationBuilder() {
     saveAll, createFlowMutation, updateFlowMutation, togglePublish,
   } = useAutomationBuilder(flowId);
 
-  const [triggerPickerOpen, setTriggerPickerOpen] = useState(false);
-  const [actionPickerOpen, setActionPickerOpen] = useState(false);
+  const [rightPanel, setRightPanel] = useState<RightPanel>("none");
   const [addAfterNodeId, setAddAfterNodeId] = useState<string | null>(null);
   const [flowName, setFlowName] = useState("");
 
   useEffect(() => {
     if (flow) setFlowName(flow.name);
   }, [flow]);
+
+  // Auto-open trigger picker for new empty flows
+  useEffect(() => {
+    if (flow && nodes.length === 0 && rightPanel === "none") {
+      setRightPanel("trigger");
+    }
+  }, [flow, nodes.length]);
+
+  // When selecting a node, show config panel
+  useEffect(() => {
+    if (selectedNodeId) {
+      setRightPanel("config");
+    }
+  }, [selectedNodeId]);
 
   // Create flow on first visit
   useEffect(() => {
@@ -61,6 +75,23 @@ export function AutomationBuilder() {
     return () => window.removeEventListener("keydown", handler);
   }, [undo, redo, saveAll, selectedNodeId, removeNode]);
 
+  const openTriggerPicker = useCallback(() => {
+    setSelectedNodeId(null);
+    setRightPanel("trigger");
+  }, [setSelectedNodeId]);
+
+  const openActionPicker = useCallback((nodeId: string) => {
+    setSelectedNodeId(null);
+    setAddAfterNodeId(nodeId);
+    setRightPanel("action");
+  }, [setSelectedNodeId]);
+
+  const closeRightPanel = useCallback(() => {
+    setRightPanel("none");
+    setSelectedNodeId(null);
+    setAddAfterNodeId(null);
+  }, [setSelectedNodeId]);
+
   const handleTriggerSelect = useCallback((item: PickerItem) => {
     const newNode: AutomationNode = {
       id: crypto.randomUUID(),
@@ -75,6 +106,7 @@ export function AutomationBuilder() {
       updated_at: new Date().toISOString(),
     };
     addNode(newNode);
+    setRightPanel("none");
   }, [flowId, addNode]);
 
   const handleActionSelect = useCallback((item: PickerItem) => {
@@ -82,7 +114,6 @@ export function AutomationBuilder() {
       : item.id === "if_else" ? "condition" as const
       : "action" as const;
 
-    // Position below the parent node
     const parentNode = addAfterNodeId ? nodes.find(n => n.id === addAfterNodeId) : null;
     const posX = parentNode ? parentNode.position_x : 300;
     const posY = parentNode ? parentNode.position_y + 120 : nodes.length * 120 + 100;
@@ -105,7 +136,6 @@ export function AutomationBuilder() {
     };
     addNode(newNode);
 
-    // Auto-connect to parent
     if (addAfterNodeId) {
       addConnection({
         id: crypto.randomUUID(),
@@ -118,12 +148,8 @@ export function AutomationBuilder() {
       });
     }
     setAddAfterNodeId(null);
+    setRightPanel("none");
   }, [flowId, addAfterNodeId, nodes, addNode, addConnection]);
-
-  const handleAddAfterNode = useCallback((nodeId: string) => {
-    setAddAfterNodeId(nodeId);
-    setActionPickerOpen(true);
-  }, []);
 
   const handleDuplicate = useCallback((nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
@@ -138,6 +164,11 @@ export function AutomationBuilder() {
     };
     addNode(newNode);
   }, [nodes, addNode]);
+
+  const handleSelectNode = useCallback((id: string | null) => {
+    setSelectedNodeId(id);
+    if (id) setRightPanel("config");
+  }, [setSelectedNodeId]);
 
   const handleFlowNameBlur = useCallback(() => {
     if (flowName && flowName !== flow?.name) {
@@ -191,39 +222,40 @@ export function AutomationBuilder() {
         </div>
       </div>
 
-      {/* Canvas + Config panel */}
+      {/* Canvas + Right panel */}
       <div className="flex flex-1 overflow-hidden">
         <AutomationCanvas
           nodes={nodes}
           connections={connections}
           selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId}
+          onSelectNode={handleSelectNode}
           onDeleteNode={removeNode}
           onDuplicateNode={handleDuplicate}
-          onAddAfterNode={handleAddAfterNode}
+          onAddAfterNode={openActionPicker}
           onUpdateNode={updateNode}
-          onOpenTriggerPicker={() => setTriggerPickerOpen(true)}
+          onOpenTriggerPicker={openTriggerPicker}
         />
 
-        {selectedNode && (
+        {rightPanel === "config" && selectedNode && (
           <AutomationNodeConfig
             node={selectedNode}
             onUpdate={updateNode}
-            onClose={() => setSelectedNodeId(null)}
+            onClose={closeRightPanel}
           />
         )}
-      </div>
 
-      <TriggerPickerDialog
-        open={triggerPickerOpen}
-        onOpenChange={setTriggerPickerOpen}
-        onSelect={handleTriggerSelect}
-      />
-      <ActionPickerDialog
-        open={actionPickerOpen}
-        onOpenChange={setActionPickerOpen}
-        onSelect={handleActionSelect}
-      />
+        <TriggerPickerDialog
+          open={rightPanel === "trigger"}
+          onClose={closeRightPanel}
+          onSelect={handleTriggerSelect}
+        />
+
+        <ActionPickerDialog
+          open={rightPanel === "action"}
+          onClose={closeRightPanel}
+          onSelect={handleActionSelect}
+        />
+      </div>
     </div>
   );
 }
