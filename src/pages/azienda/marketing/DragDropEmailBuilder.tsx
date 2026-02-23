@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Eye, Send, Pencil, Check, Monitor, Tablet, Smartphone, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Eye, Send, Pencil, Check, Monitor, Tablet, Smartphone, Loader2, Undo2, Redo2 } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 
 const PREVIEW_WIDTHS = {
@@ -23,6 +23,8 @@ const PREVIEW_WIDTHS = {
   mobile: "320px",
 };
 
+const MAX_HISTORY = 50;
+
 export default function DragDropEmailBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -30,6 +32,7 @@ export default function DragDropEmailBuilder() {
 
   const [blocks, setBlocks] = useState<BuilderBlock[]>([]);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [selectedChildBlock, setSelectedChildBlock] = useState<BuilderBlock | null>(null);
   const [name, setName] = useState("");
   const [editingName, setEditingName] = useState(false);
   const [previewMode, setPreviewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
@@ -38,6 +41,11 @@ export default function DragDropEmailBuilder() {
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoadDone = useRef(false);
+
+  // Undo/Redo stacks
+  const [undoStack, setUndoStack] = useState<BuilderBlock[][]>([]);
+  const [redoStack, setRedoStack] = useState<BuilderBlock[][]>([]);
+  const isUndoRedoAction = useRef(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -105,10 +113,104 @@ export default function DragDropEmailBuilder() {
     saveMut.mutate({ html_content: html, json_content: blocks as unknown as Json, name });
   };
 
-  const updateBlocks = (newBlocks: BuilderBlock[]) => {
+  const updateBlocks = useCallback((newBlocks: BuilderBlock[]) => {
+    if (!isUndoRedoAction.current) {
+      setUndoStack((prev) => [...prev.slice(-(MAX_HISTORY - 1)), blocks]);
+      setRedoStack([]);
+    }
+    isUndoRedoAction.current = false;
     setBlocks(newBlocks);
     triggerAutoSave(newBlocks);
-  };
+  }, [blocks, triggerAutoSave]);
+
+  // Undo/Redo handlers
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const prev = undoStack[undoStack.length - 1];
+    setUndoStack((s) => s.slice(0, -1));
+    setRedoStack((s) => [...s, blocks]);
+    isUndoRedoAction.current = true;
+    setBlocks(prev);
+    triggerAutoSave(prev);
+  }, [undoStack, blocks, triggerAutoSave]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    setRedoStack((s) => s.slice(0, -1));
+    setUndoStack((s) => [...s, blocks]);
+    isUndoRedoAction.current = true;
+    setBlocks(next);
+    triggerAutoSave(next);
+  }, [redoStack, blocks, triggerAutoSave]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isMod = e.ctrlKey || e.metaKey;
+      if (isMod && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if ((isMod && e.key === "y") || (isMod && e.shiftKey && e.key === "z")) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [handleUndo, handleRedo]);
+
+  // Child block handlers for columns
+  const handleAddChildBlock = useCallback((parentId: string, colIndex: number, childType: BlockType) => {
+    const newBlocks = blocks.map((b) => {
+      if (b.id !== parentId) return b;
+      const children = b.children ? b.children.map((col) => [...col]) : [];
+      const newChild = createBlock(childType);
+      if (children[colIndex]) {
+        children[colIndex].push(newChild);
+      }
+      return { ...b, children };
+    });
+    updateBlocks(newBlocks);
+  }, [blocks, updateBlocks]);
+
+  const handleDeleteChildBlock = useCallback((parentId: string, colIndex: number, childId: string) => {
+    const newBlocks = blocks.map((b) => {
+      if (b.id !== parentId) return b;
+      const children = b.children ? b.children.map((col, ci) =>
+        ci === colIndex ? col.filter((c) => c.id !== childId) : [...col]
+      ) : [];
+      return { ...b, children };
+    });
+    updateBlocks(newBlocks);
+    if (selectedChildBlock?.id === childId) setSelectedChildBlock(null);
+  }, [blocks, updateBlocks, selectedChildBlock]);
+
+  const handleUpdateChildBlockProps = useCallback((blockId: string, partial: Record<string, any>) => {
+    // Find which parent contains this child and update
+    const newBlocks = blocks.map((b) => {
+      if (!b.children) return b;
+      const newChildren = b.children.map((col) =>
+        col.map((child) =>
+          child.id === blockId ? { ...child, props: { ...child.props, ...partial } } : child
+        )
+      );
+      return { ...b, children: newChildren };
+    });
+    updateBlocks(newBlocks);
+    // Update the selectedChildBlock reference
+    setSelectedChildBlock((prev) => prev && prev.id === blockId ? { ...prev, props: { ...prev.props, ...partial } } : prev);
+  }, [blocks, updateBlocks]);
+
+  const handleSelectChildBlock = useCallback((child: BuilderBlock) => {
+    setSelectedBlockId(null);
+    setSelectedChildBlock(child);
+  }, []);
+
+  const handleSelectBlock = useCallback((id: string | null) => {
+    setSelectedBlockId(id);
+    setSelectedChildBlock(null);
+  }, []);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveDragId(event.active.id as string);
@@ -119,7 +221,6 @@ export default function DragDropEmailBuilder() {
     const { active, over } = event;
     if (!over) return;
 
-    // Dragging from sidebar (new element)
     const activeData = active.data?.current;
     if (activeData && activeData.type) {
       const blockType = activeData.type as BlockType;
@@ -137,11 +238,10 @@ export default function DragDropEmailBuilder() {
         newBlocks.push(newBlock);
       }
       updateBlocks(newBlocks);
-      setSelectedBlockId(newBlock.id);
+      handleSelectBlock(newBlock.id);
       return;
     }
 
-    // Reordering existing blocks
     if (active.id !== over.id) {
       const oldIndex = blocks.findIndex((b) => b.id === active.id);
       const newIndex = blocks.findIndex((b) => b.id === over.id);
@@ -164,12 +264,12 @@ export default function DragDropEmailBuilder() {
     const newBlocks = [...blocks];
     newBlocks.splice(idx + 1, 0, dup);
     updateBlocks(newBlocks);
-    setSelectedBlockId(dup.id);
+    handleSelectBlock(dup.id);
   };
 
   const handleDeleteBlock = (blockId: string) => {
     updateBlocks(blocks.filter((b) => b.id !== blockId));
-    if (selectedBlockId === blockId) setSelectedBlockId(null);
+    if (selectedBlockId === blockId) handleSelectBlock(null);
   };
 
   const handleMoveBlock = (blockId: string, direction: "up" | "down") => {
@@ -187,7 +287,24 @@ export default function DragDropEmailBuilder() {
     updateBlocks(newBlocks);
   };
 
-  const selectedBlock = blocks.find((b) => b.id === selectedBlockId) || null;
+  // Resolve selected block: either root or child
+  const resolvedSelectedBlock = selectedChildBlock
+    ? (() => {
+        // Find fresh child from blocks state
+        for (const b of blocks) {
+          if (!b.children) continue;
+          for (const col of b.children) {
+            const found = col.find((c) => c.id === selectedChildBlock.id);
+            if (found) return found;
+          }
+        }
+        return selectedChildBlock;
+      })()
+    : blocks.find((b) => b.id === selectedBlockId) || null;
+
+  const handleResolvedUpdate = selectedChildBlock
+    ? handleUpdateChildBlockProps
+    : handleUpdateBlockProps;
 
   if (isLoading) {
     return (
@@ -213,6 +330,14 @@ export default function DragDropEmailBuilder() {
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/marketing/email")}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
+          </Button>
+          <Separator orientation="vertical" className="h-6" />
+          {/* Undo/Redo buttons */}
+          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={undoStack.length === 0} onClick={handleUndo} title="Annulla (Ctrl+Z)">
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={redoStack.length === 0} onClick={handleRedo} title="Ripristina (Ctrl+Y)">
+            <Redo2 className="h-4 w-4" />
           </Button>
           <Separator orientation="vertical" className="h-6" />
           <span className="text-xs text-muted-foreground">
@@ -246,7 +371,6 @@ export default function DragDropEmailBuilder() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Responsive preview toggles */}
           <div className="flex items-center border rounded-md">
             {([
               { mode: "desktop" as const, icon: Monitor },
@@ -284,11 +408,15 @@ export default function DragDropEmailBuilder() {
           <BuilderCanvas
             blocks={blocks}
             selectedBlockId={selectedBlockId}
-            onSelectBlock={setSelectedBlockId}
+            onSelectBlock={handleSelectBlock}
             onDuplicateBlock={handleDuplicateBlock}
             onDeleteBlock={handleDeleteBlock}
             onMoveBlock={handleMoveBlock}
             previewWidth={PREVIEW_WIDTHS[previewMode]}
+            onAddChildBlock={handleAddChildBlock}
+            onDeleteChildBlock={handleDeleteChildBlock}
+            onSelectChildBlock={handleSelectChildBlock}
+            selectedChildBlockId={selectedChildBlock?.id || null}
           />
           <DragOverlay>
             {activeDragId ? (
@@ -298,7 +426,7 @@ export default function DragDropEmailBuilder() {
             ) : null}
           </DragOverlay>
         </DndContext>
-        <BuilderPropertiesPanel block={selectedBlock} onUpdate={handleUpdateBlockProps} />
+        <BuilderPropertiesPanel block={resolvedSelectedBlock} onUpdate={handleResolvedUpdate} />
       </div>
 
       {/* Preview dialog */}
