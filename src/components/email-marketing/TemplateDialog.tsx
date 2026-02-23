@@ -3,9 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TemplateEditor } from "./TemplateEditor";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -23,14 +24,28 @@ export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogP
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [htmlContent, setHtmlContent] = useState("");
-  const [folder, setFolder] = useState("Home");
+  const [folderId, setFolderId] = useState<string>("none");
+
+  const { data: folders = [] } = useQuery({
+    queryKey: ["email-folders", company?.id, "template"],
+    enabled: !!company?.id && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_folders")
+        .select("id, name")
+        .eq("company_id", company!.id)
+        .eq("folder_type", "template");
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   useEffect(() => {
     if (open) {
       setName(template?.name || "");
       setSubject(template?.subject || "");
       setHtmlContent(template?.html_content || "");
-      setFolder(template?.folder || "Home");
+      setFolderId(template?.folder_id || "none");
     }
   }, [open, template]);
 
@@ -40,7 +55,7 @@ export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogP
         name,
         subject,
         html_content: htmlContent,
-        folder,
+        folder_id: folderId === "none" ? null : folderId,
         type: "html" as const,
         company_id: company!.id,
         created_by: user!.id,
@@ -79,7 +94,15 @@ export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogP
             </div>
             <div>
               <Label>Cartella</Label>
-              <Input value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="Home" />
+              <Select value={folderId} onValueChange={setFolderId}>
+                <SelectTrigger><SelectValue placeholder="Home" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Home</SelectItem>
+                  {folders.map((f: any) => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div>
