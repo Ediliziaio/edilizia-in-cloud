@@ -1,50 +1,76 @@
 
 
-# Email Marketing - Stabilizzazione e Fix
+# Email Marketing - Ottimizzazione Completa
+
+## Stato Attuale
+
+Il modulo e funzionalmente stabile dopo i fix precedenti. L'analisi rivela opportunita di ottimizzazione in 4 aree: performance delle query, logica duplicata, UX mancante e robustezza del codice.
+
+---
 
 ## Problemi Identificati
 
-### 1. Bug: Warning "Function components cannot be given refs" (Console)
+### 1. Performance: Query duplicate tra tab
 
-Il warning proviene da `AlertDialog` in `EmailTemplatesTab.tsx` (riga 274). Radix UI `AlertDialog` viene usato in modalita controllata (`open` prop) senza `AlertDialogTrigger`. In questa configurazione, Radix tenta di passare un ref al componente figlio diretto. La soluzione e assicurarsi che `AlertDialogContent` sia il figlio diretto senza wrapper funzionali intermedi. Lo stesso pattern esiste in `EmailCampaignsTab.tsx` (riga 275).
+`EmailStatsTab` e `EmailCampaignsTab` eseguono entrambi una query su `email_campaigns` con query key diverse (`email-campaigns-list` vs `email-campaigns`). Quando l'utente passa da una tab all'altra, vengono fatte 2 richieste separate per gli stessi dati.
 
-**Fix**: Avvolgere entrambi gli `AlertDialog` controllati in modo che il contenuto sia correttamente strutturato, aggiungendo `onOpenChange` handler esplicito.
+**Fix**: Unificare le query key. `EmailStatsTab` usa `["email-campaigns-list", company?.id]` e seleziona solo `id, name, type, sent_at, total_recipients`. Cambiare la query key in `["email-campaigns", company?.id]` e usare i dati dalla cache, evitando una seconda richiesta.
 
-### 2. Bug: TemplateDialog usa `folder` (stringa) invece di `folder_id` (UUID)
+### 2. Bug: Campagne tab - manca paginazione
 
-Il `TemplateDialog` salva `folder: "Home"` come stringa di testo nel campo `folder` della tabella `email_templates`. Ma il `EmailTemplatesTab` filtra per `folder_id` (UUID) alla riga 96:
+`EmailCampaignsTab` non ha paginazione (mostra tutte le campagne in una tabella senza limite). `EmailTemplatesTab` invece ha una paginazione completa con "Precedente/Successivo" e selettore "per pagina". Con molte campagne la tabella diventa inutilizzabile.
 
-```
-const matchFolder = currentFolderId ? t.folder_id === currentFolderId : !t.folder_id;
-```
+**Fix**: Aggiungere la stessa paginazione presente in `EmailTemplatesTab` anche a `EmailCampaignsTab`.
 
-Risultato: i template creati non appaiono mai nella vista "Home" perche hanno `folder_id = null` E `folder = "Home"`, ma il filtro controlla solo `folder_id`. Il campo `folder` (stringa) nella tabella e legacy e non piu necessario dato che esiste `folder_id`.
+### 3. UX: Template menu "Nuovo" - tutte le opzioni fanno la stessa cosa
 
-**Fix**: Rimuovere il campo `folder` dal `TemplateDialog`. Il template si salva con `folder_id: null` (Home) di default. Aggiungere un Select per scegliere la cartella tramite `folder_id` dalle `email_folders` reali.
+In `EmailTemplatesTab`, il dropdown "Nuovo" ha 4 opzioni (Modello vuoto, Da campagna esistente, Libreria modelli, Importa HTML) ma tutte eseguono la stessa azione: aprono il dialog vuoto. Questo confonde l'utente.
 
-### 3. Pulizia: campo "Cartella" nella tabella template
+**Fix**: Rimuovere le opzioni non funzionali (Da campagna, Libreria, Importa HTML) e trasformare il dropdown in un semplice `Button` "Nuovo template". Le opzioni avanzate verranno aggiunte quando saranno implementate.
 
-La colonna "Cartella" nella tabella mostra `t.folder || "Home"` (stringa legacy). Dovrebbe mostrare il nome della cartella basato su `folder_id`, oppure "Home" se null.
+### 4. UX: Campagne - sidebar non responsive su mobile
 
-**Fix**: Fare un lookup del nome cartella dai `folders` caricati.
+La sidebar delle categorie (`w-56 border-r`) non collassa su mobile, comprimendo il contenuto principale in uno spazio troppo stretto.
 
-### 4. Pulizia: Import non necessari
+**Fix**: Nascondere la sidebar su mobile e mostrare le categorie come un `Select` dropdown sopra la tabella. Usare `hidden md:block` sulla sidebar e mostrare il Select solo su mobile.
 
-- `EmailPerformanceChart.tsx` riga 12-14: `METRICS` array definito ma il selettore metrica non cambia effettivamente i dati visualizzati (mostra sempre gli stessi dati indipendentemente dalla selezione). Il selettore e decorativo.
+### 5. Bug: EmailPerformanceChart - metrica selezionata non cambia i dati
 
-**Fix**: Rendere il selettore funzionale o rimuoverlo. Per ora lo rendiamo funzionale cambiando il titolo della card in base alla selezione.
+Il selettore "Tasso di apertura / Tasso di clic / Tasso di consegna" cambia solo il titolo della card ma mostra sempre gli stessi dati (aperture). Il chart `data` prop non viene ricalcolato in base alla metrica selezionata.
 
-### 5. UX: Nessun loading state sulle mutation di eliminazione
+**Fix**: Passare la metrica selezionata come prop al componente padre (`EmailStatsTab`) tramite un callback, oppure calcolare tutti e 3 i set di dati in `EmailStatsTab` e passare quello corretto. Approccio piu semplice: spostare il calcolo dei dati dentro `EmailPerformanceChart` passando i `logs` raw, oppure calcolare 3 dataset in `EmailStatsTab` e passarli tutti.
 
-Quando si clicca "Elimina" nell'AlertDialog, il pulsante non mostra stato di caricamento.
+Soluzione scelta: `EmailStatsTab` calcola 3 dataset (`openRateData`, `clickRateData`, `deliveryRateData`) e li passa tutti a `EmailPerformanceChart`, che seleziona quello corretto in base alla metrica.
 
-**Fix**: Aggiungere `disabled={deleteMutation.isPending}` al pulsante Elimina e mostrare testo di caricamento.
+### 6. Pulizia: `any` type ovunque
 
-### 6. UX: CampaignDialog - tipo "broadcast" mostrato come default non chiaro
+Tutti i dati Supabase sono tipizzati come `any`. Non causa bug runtime ma riduce la sicurezza del codice. Si puo migliorare usando i tipi generati.
 
-Il tipo default e "broadcast" ma nell'UI si vede solo "Broadcast" nel Select. Dovrebbe essere coerente con la sidebar ("Campagne email" = broadcast).
+**Fix**: Non prioritario. Annotare per un futuro refactoring ma non modificare ora per evitare rischi.
 
-**Fix**: Cambiare le label del Select tipo nel CampaignDialog per allinearsi alla sidebar: "Email" (broadcast), "Flusso" (automation), "Azione in blocco" (bulk).
+### 7. Bug: CampaignDialog - update sovrascrive `created_by`
+
+Quando si modifica una campagna, il payload include `created_by: user!.id`, sovrascrivendo il creatore originale con l'utente che sta facendo la modifica.
+
+**Fix**: Includere `created_by` solo nell'insert, non nell'update. Separare il payload base (condiviso) dai campi specifici per insert.
+
+### 8. Bug: TemplateDialog - stesso problema con `created_by` su update
+
+Identico al punto 7: l'update sovrascrive `created_by`.
+
+**Fix**: Stesso approccio - includere `created_by` e `company_id` solo nell'insert.
+
+### 9. UX: Nessun feedback di errore sulle mutation di eliminazione
+
+`deleteMutation` in entrambi i tab non ha `onError` handler. Se l'eliminazione fallisce (es. RLS, rete), l'utente non riceve feedback.
+
+**Fix**: Aggiungere `onError: (e) => toast.error(e.message)` alle mutation di eliminazione.
+
+### 10. UX: Campagne - label tipo inconsistente
+
+Nella tabella campagne, `broadcast` viene mostrato come "Email" ma nella sidebar e "Campagne email". Nel dialog e "Campagna Email". Le label dovrebbero essere coerenti in tutto il modulo.
+
+**Fix**: Usare label corte e consistenti nella tabella: "Email", "Flusso", "Blocco" (gia cosi). OK, gia allineato.
 
 ---
 
@@ -52,13 +78,14 @@ Il tipo default e "broadcast" ma nell'UI si vede solo "Broadcast" nel Select. Do
 
 | Azione | File | Dettaglio |
 |--------|------|-----------|
-| Modifica | `TemplateDialog.tsx` | Sostituire campo `folder` stringa con Select `folder_id` da email_folders |
-| Modifica | `EmailTemplatesTab.tsx` | Mostrare nome cartella da folders lookup, fix ref warning AlertDialog |
-| Modifica | `EmailCampaignsTab.tsx` | Fix ref warning AlertDialog, loading state eliminazione |
-| Modifica | `EmailPerformanceChart.tsx` | Titolo card dinamico basato su metrica selezionata |
-| Modifica | `CampaignDialog.tsx` | Allineare label tipi campagna alla sidebar |
+| Modifica | `EmailStatsTab.tsx` | Unificare query key campagne, calcolare 3 dataset per il chart |
+| Modifica | `EmailPerformanceChart.tsx` | Accettare 3 dataset e switchare in base a metrica selezionata |
+| Modifica | `EmailCampaignsTab.tsx` | Aggiungere paginazione, sidebar responsive, onError delete |
+| Modifica | `EmailTemplatesTab.tsx` | Semplificare menu "Nuovo", onError delete |
+| Modifica | `CampaignDialog.tsx` | Separare payload insert/update per non sovrascrivere created_by |
+| Modifica | `TemplateDialog.tsx` | Separare payload insert/update per non sovrascrivere created_by |
 
 ### Nessuna modifica database
 
-Tutti i fix sono puramente frontend. Il campo `folder` (stringa) nella tabella `email_templates` resta per backward compatibility ma non viene piu usato dal dialog.
+Tutte le ottimizzazioni sono puramente frontend.
 
