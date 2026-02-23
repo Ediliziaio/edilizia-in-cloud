@@ -290,7 +290,10 @@ export function useAutomationBuilder(flowId: string | undefined) {
   // Update flow name/description
   const updateFlowMutation = useMutation({
     mutationFn: async (updates: Partial<AutomationFlow>) => {
-      if (!flowId) throw new Error("Flow non disponibile.");
+      if (!flowId || flowId === "nuova") {
+        console.warn("updateFlowMutation called without valid flowId, skipping");
+        return;
+      }
       const { error } = await supabase.from("automation_flows").update(updates).eq("id", flowId);
       if (error) throw error;
     },
