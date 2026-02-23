@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -8,6 +8,9 @@ import {
   addMonths,
   subMonths,
   addDays,
+  startOfMonth,
+  endOfMonth,
+  endOfWeek,
   subDays,
   format,
   isSameDay,
@@ -29,7 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import MarketingCalendarWeekView from "@/components/marketing/MarketingCalendarWeekView";
-import MarketingCalendarDayView, { type TravelLeg } from "@/components/marketing/MarketingCalendarDayView";
+import MarketingCalendarDayView from "@/components/marketing/MarketingCalendarDayView";
+import type { TravelLeg } from "@/types/marketingCalendar";
 import MarketingCalendarMonthView from "@/components/marketing/MarketingCalendarMonthView";
 import MarketingCalendarFilters from "@/components/marketing/MarketingCalendarFilters";
 import MarketingAppointmentsList from "@/components/marketing/MarketingAppointmentsList";
@@ -123,9 +127,35 @@ export default function MarketingCalendar() {
     enabled: !!companyId,
   });
 
-  // Fetch appointments
+  // Compute date range for query based on view
+  const dateRange = useMemo(() => {
+    if (activeTab === "list") {
+      // For list view, fetch a wide range (1 year back + 1 year ahead)
+      const start = format(subMonths(currentDate, 12), "yyyy-MM-dd");
+      const end = format(addMonths(currentDate, 12), "yyyy-MM-dd");
+      return { start, end };
+    }
+    if (calendarView === "day") {
+      const start = format(subDays(currentDate, 1), "yyyy-MM-dd");
+      const end = format(addDays(currentDate, 1), "yyyy-MM-dd");
+      return { start, end };
+    }
+    if (calendarView === "week") {
+      const start = format(subWeeks(weekStart, 1), "yyyy-MM-dd");
+      const end = format(addWeeks(weekStart, 2), "yyyy-MM-dd");
+      return { start, end };
+    }
+    // month
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const start = format(startOfWeek(monthStart, { weekStartsOn: 1 }), "yyyy-MM-dd");
+    const end = format(endOfWeek(monthEnd, { weekStartsOn: 1 }), "yyyy-MM-dd");
+    return { start, end };
+  }, [activeTab, calendarView, currentDate, weekStart]);
+
+  // Fetch appointments with date range filter
   const { data: rawAppointments = [], refetch: refetchAppointments } = useQuery({
-    queryKey: ["marketing-appointments", companyId],
+    queryKey: ["marketing-appointments", companyId, dateRange.start, dateRange.end],
     queryFn: async () => {
       if (!companyId) return [];
       const { data } = await supabase
@@ -133,24 +163,43 @@ export default function MarketingCalendar() {
         .select("*")
         .eq("company_id", companyId)
         .not("calendar_id", "is", null)
+        .gte("appointment_date", dateRange.start)
+        .lte("appointment_date", dateRange.end)
         .order("appointment_date", { ascending: true });
       return (data || []) as any[];
     },
     enabled: !!companyId,
   });
 
+  // Fetch contacts for enrichment
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["marketing-contacts-lookup", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("marketing_contacts")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId)
+        .limit(1000);
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Enrich with names
   const appointments = useMemo(() => {
     return rawAppointments.map((a: any) => {
       const u = users.find((u) => u.id === a.assigned_to);
+      const contact = a.contact_id ? contacts.find((c) => c.id === a.contact_id) : null;
       return {
         ...a,
         calendar_name: calendars.find((c) => c.id === a.calendar_id)?.name || null,
         assigned_name: u ? `${u.first_name} ${u.last_name}` : null,
-        contact_name: null,
+        contact_name: contact ? `${contact.first_name} ${contact.last_name}` : null,
       };
     });
-  }, [rawAppointments, calendars, users]);
+  }, [rawAppointments, calendars, users, contacts]);
 
   // Filtered
   const filteredAppointments = useMemo(() => {

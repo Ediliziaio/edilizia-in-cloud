@@ -11,40 +11,17 @@ import {
   format,
   parseISO,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-
-const CALENDAR_COLORS = [
-  "bg-blue-500/20 border-blue-500 text-blue-900 dark:text-blue-200",
-  "bg-green-500/20 border-green-500 text-green-900 dark:text-green-200",
-  "bg-purple-500/20 border-purple-500 text-purple-900 dark:text-purple-200",
-  "bg-orange-500/20 border-orange-500 text-orange-900 dark:text-orange-200",
-  "bg-pink-500/20 border-pink-500 text-pink-900 dark:text-pink-200",
-  "bg-cyan-500/20 border-cyan-500 text-cyan-900 dark:text-cyan-200",
-];
+import type { MarketingAppointment } from "@/types/marketingCalendar";
+import { buildColorMap } from "@/lib/marketingCalendarConstants";
 
 const DAY_NAMES = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"];
 
-interface Appointment {
-  id: string;
-  title: string;
-  appointment_date: string;
-  appointment_time: string | null;
-  appointment_type: string;
-  status: string;
-  calendar_id: string | null;
-  assigned_to: string | null;
-  contact_id: string | null;
-  description: string | null;
-  is_completed: boolean;
-  is_blocked_slot?: boolean;
-}
-
 interface Props {
   currentDate: Date;
-  appointments: Appointment[];
+  appointments: MarketingAppointment[];
   calendarIds: string[];
-  onClickAppointment: (apt: Appointment) => void;
+  onClickAppointment: (apt: MarketingAppointment) => void;
   onClickDay: (date: Date) => void;
 }
 
@@ -55,13 +32,7 @@ export default function MarketingCalendarMonthView({
   onClickAppointment,
   onClickDay,
 }: Props) {
-  const colorMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    calendarIds.forEach((id, i) => {
-      map[id] = CALENDAR_COLORS[i % CALENDAR_COLORS.length];
-    });
-    return map;
-  }, [calendarIds]);
+  const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
 
   const weeks = useMemo(() => {
     const monthStart = startOfMonth(currentDate);

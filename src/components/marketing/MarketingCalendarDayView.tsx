@@ -3,53 +3,14 @@ import { format, isSameDay, parseISO, isToday } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
-
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 8);
-
-const CALENDAR_COLORS = [
-  "bg-blue-500/20 border-blue-500 text-blue-900 dark:text-blue-200",
-  "bg-green-500/20 border-green-500 text-green-900 dark:text-green-200",
-  "bg-purple-500/20 border-purple-500 text-purple-900 dark:text-purple-200",
-  "bg-orange-500/20 border-orange-500 text-orange-900 dark:text-orange-200",
-  "bg-pink-500/20 border-pink-500 text-pink-900 dark:text-pink-200",
-  "bg-cyan-500/20 border-cyan-500 text-cyan-900 dark:text-cyan-200",
-];
-
-interface Appointment {
-  id: string;
-  title: string;
-  appointment_date: string;
-  appointment_time: string | null;
-  appointment_end_time?: string | null;
-  appointment_type: string;
-  status: string;
-  calendar_id: string | null;
-  assigned_to: string | null;
-  contact_id: string | null;
-  description: string | null;
-  is_completed: boolean;
-  is_blocked_slot?: boolean;
-  lat?: number | null;
-  lng?: number | null;
-  formatted_address?: string | null;
-}
-
-export interface TravelLeg {
-  duration_s: number;
-  distance_m: number;
-  duration_text: string;
-  distance_text: string;
-  fromId: string;
-  toId: string;
-  isLate?: boolean;
-  delayMinutes?: number;
-}
+import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
+import { HOURS, buildColorMap } from "@/lib/marketingCalendarConstants";
 
 interface Props {
   date: Date;
-  appointments: Appointment[];
+  appointments: MarketingAppointment[];
   calendarIds: string[];
-  onClickAppointment: (apt: Appointment) => void;
+  onClickAppointment: (apt: MarketingAppointment) => void;
   onClickSlot: (date: Date, hour: number) => void;
   travelLegs?: TravelLeg[];
 }
@@ -62,28 +23,11 @@ export default function MarketingCalendarDayView({
   onClickSlot,
   travelLegs = [],
 }: Props) {
-  const colorMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    calendarIds.forEach((id, i) => {
-      map[id] = CALENDAR_COLORS[i % CALENDAR_COLORS.length];
-    });
-    return map;
-  }, [calendarIds]);
+  const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
 
   const dayAppointments = useMemo(
     () => appointments.filter((a) => isSameDay(parseISO(a.appointment_date), date)),
     [appointments, date]
-  );
-
-  // Sort by time for travel leg matching
-  const sortedAppointments = useMemo(
-    () =>
-      [...dayAppointments].sort((a, b) => {
-        const ta = a.appointment_time || "09:00";
-        const tb = b.appointment_time || "09:00";
-        return ta.localeCompare(tb);
-      }),
-    [dayAppointments]
   );
 
   const travelLegMap = useMemo(() => {

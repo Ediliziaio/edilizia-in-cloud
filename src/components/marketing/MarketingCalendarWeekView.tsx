@@ -4,42 +4,14 @@ import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { TravelLeg } from "@/components/marketing/MarketingCalendarDayView";
-
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 8);
-
-const CALENDAR_COLORS = [
-  "bg-blue-500/20 border-blue-500 text-blue-900 dark:text-blue-200",
-  "bg-green-500/20 border-green-500 text-green-900 dark:text-green-200",
-  "bg-purple-500/20 border-purple-500 text-purple-900 dark:text-purple-200",
-  "bg-orange-500/20 border-orange-500 text-orange-900 dark:text-orange-200",
-  "bg-pink-500/20 border-pink-500 text-pink-900 dark:text-pink-200",
-  "bg-cyan-500/20 border-cyan-500 text-cyan-900 dark:text-cyan-200",
-];
-
-interface Appointment {
-  id: string;
-  title: string;
-  appointment_date: string;
-  appointment_time: string | null;
-  appointment_type: string;
-  status: string;
-  calendar_id: string | null;
-  assigned_to: string | null;
-  contact_id: string | null;
-  description: string | null;
-  is_completed: boolean;
-  is_blocked_slot?: boolean;
-  lat?: number | null;
-  lng?: number | null;
-  formatted_address?: string | null;
-}
+import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
+import { HOURS, buildColorMap } from "@/lib/marketingCalendarConstants";
 
 interface Props {
   weekStart: Date;
-  appointments: Appointment[];
+  appointments: MarketingAppointment[];
   calendarIds: string[];
-  onClickAppointment: (apt: Appointment) => void;
+  onClickAppointment: (apt: MarketingAppointment) => void;
   onClickSlot: (date: Date, hour: number) => void;
   travelLegs?: Record<string, TravelLeg[]>;
 }
@@ -57,13 +29,7 @@ export default function MarketingCalendarWeekView({
     [weekStart]
   );
 
-  const colorMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    calendarIds.forEach((id, i) => {
-      map[id] = CALENDAR_COLORS[i % CALENDAR_COLORS.length];
-    });
-    return map;
-  }, [calendarIds]);
+  const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
 
   const travelLegMaps = useMemo(() => {
     const maps: Record<string, Record<string, TravelLeg>> = {};

@@ -10,28 +10,12 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-
-interface Appointment {
-  id: string;
-  title: string;
-  appointment_date: string;
-  appointment_time: string | null;
-  appointment_type: string;
-  status: string;
-  calendar_id: string | null;
-  assigned_to: string | null;
-  contact_id: string | null;
-  description: string | null;
-  is_completed: boolean;
-  calendar_name?: string;
-  assigned_name?: string;
-  contact_name?: string;
-}
+import type { MarketingAppointment } from "@/types/marketingCalendar";
 
 interface Props {
-  appointments: Appointment[];
+  appointments: MarketingAppointment[];
   onRefresh: () => void;
-  onClickAppointment: (apt: Appointment) => void;
+  onClickAppointment: (apt: MarketingAppointment) => void;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -43,20 +27,20 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 
 const ROWS_OPTIONS = [10, 25, 50];
 
+const TODAY_STR = new Date().toDateString();
+
 export default function MarketingAppointmentsList({ appointments, onRefresh, onClickAppointment }: Props) {
   const [subTab, setSubTab] = useState<"prossimo" | "annullato" | "tutti">("prossimo");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const now = new Date();
-
   const filtered = useMemo(() => {
     let list = appointments;
 
     if (subTab === "prossimo") {
       list = list.filter(
-        (a) => a.status !== "annullato" && isAfter(parseISO(a.appointment_date), new Date(now.toDateString()))
+        (a) => a.status !== "annullato" && isAfter(parseISO(a.appointment_date), new Date(TODAY_STR))
       );
     } else if (subTab === "annullato") {
       list = list.filter((a) => a.status === "annullato");
