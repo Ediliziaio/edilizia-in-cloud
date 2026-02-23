@@ -471,7 +471,7 @@ export function validateActionConfig(actionType: string, config: Record<string, 
       }
       break;
     case "assign_user":
-      if (config.assign_method === "specific" && !config.assign_user_id) {
+      if (config.assign_method !== "round_robin" && !config.assign_user_id) {
         errors.push({ field: "assign_user_id", message: "Seleziona un utente" });
       }
       break;

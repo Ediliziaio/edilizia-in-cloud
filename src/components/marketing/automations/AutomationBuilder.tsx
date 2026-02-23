@@ -130,7 +130,7 @@ export function AutomationBuilder() {
 
     const configByType: Record<string, Record<string, any>> = {
       delay: { delay_value: 1, delay_unit: "days" },
-      condition: { condition_field: "", condition_operator: "equals", condition_value: "" },
+      condition: { condition_filters: { logic: "AND", conditions: [] } },
       split: { split_a: 50, split_b: 50 },
       goal: { goal_condition: "" },
     };
