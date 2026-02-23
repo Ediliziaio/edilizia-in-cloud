@@ -16,6 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import AddressAutocomplete, { type AddressData, emptyAddress } from "@/components/shared/AddressAutocomplete";
+import AddressMapPreview from "@/components/shared/AddressMapPreview";
 
 interface CalendarOption {
   id: string;
@@ -43,6 +45,17 @@ export interface MarketingAppointmentData {
   is_completed: boolean;
   is_blocked_slot?: boolean;
   internal_notes?: string | null;
+  // Address fields
+  address_line?: string | null;
+  address_city?: string | null;
+  address_postal_code?: string | null;
+  address_province?: string | null;
+  address_country?: string | null;
+  address_notes?: string | null;
+  formatted_address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  place_id?: string | null;
 }
 
 interface Props {
@@ -92,6 +105,7 @@ export default function MarketingAppointmentDialog({
   const [showInternalNotes, setShowInternalNotes] = useState(false);
   const [saving, setSaving] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [addressData, setAddressData] = useState<AddressData>(emptyAddress);
 
   // Auto-select single calendar
   const defaultCalendarId = useMemo(() => {
@@ -114,6 +128,18 @@ export default function MarketingAppointmentDialog({
       setStatus(appointment.status || "confermato");
       setInternalNotes(appointment.internal_notes || "");
       setShowInternalNotes(!!appointment.internal_notes);
+      setAddressData({
+        address_line: appointment.address_line || "",
+        address_city: appointment.address_city || "",
+        address_postal_code: appointment.address_postal_code || "",
+        address_province: appointment.address_province || "",
+        address_country: appointment.address_country || "IT",
+        address_notes: appointment.address_notes || "",
+        formatted_address: appointment.formatted_address || "",
+        lat: appointment.lat ?? null,
+        lng: appointment.lng ?? null,
+        place_id: appointment.place_id || "",
+      });
     } else {
       setActiveTab("appointment");
       setTitle("");
@@ -128,6 +154,7 @@ export default function MarketingAppointmentDialog({
       setStatus("confermato");
       setInternalNotes("");
       setShowInternalNotes(false);
+      setAddressData(emptyAddress);
     }
   }, [appointment, open, defaultDate, defaultTime, defaultCalendarId]);
 
@@ -193,6 +220,17 @@ export default function MarketingAppointmentDialog({
         is_blocked_slot: isBlocked,
         internal_notes: internalNotes.trim() || null,
         order_id: null,
+        // Address fields
+        address_line: addressData.address_line || null,
+        address_city: addressData.address_city || null,
+        address_postal_code: addressData.address_postal_code || null,
+        address_province: addressData.address_province || null,
+        address_country: addressData.address_country || "IT",
+        address_notes: addressData.address_notes || null,
+        formatted_address: addressData.formatted_address || null,
+        lat: addressData.lat ?? null,
+        lng: addressData.lng ?? null,
+        place_id: addressData.place_id || null,
       };
 
       if (isEditing && appointment?.id) {
@@ -286,6 +324,18 @@ export default function MarketingAppointmentDialog({
                 <div className="space-y-2">
                   <Label htmlFor="mkt-desc">Descrizione</Label>
                   <Textarea id="mkt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} />
+                </div>
+
+                {/* Location section */}
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <AddressAutocomplete value={addressData} onChange={setAddressData} />
+                  {addressData.lat != null && addressData.lng != null && (
+                    <AddressMapPreview
+                      lat={addressData.lat}
+                      lng={addressData.lng}
+                      formattedAddress={addressData.formatted_address}
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-2">

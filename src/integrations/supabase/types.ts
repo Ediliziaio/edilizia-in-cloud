@@ -79,6 +79,12 @@ export type Database = {
       }
       appointments: {
         Row: {
+          address_city: string | null
+          address_country: string | null
+          address_line: string | null
+          address_notes: string | null
+          address_postal_code: string | null
+          address_province: string | null
           appointment_date: string
           appointment_end_time: string | null
           appointment_time: string | null
@@ -90,16 +96,26 @@ export type Database = {
           created_at: string
           created_by: string
           description: string | null
+          formatted_address: string | null
           id: string
           internal_notes: string | null
           is_blocked_slot: boolean
           is_completed: boolean
+          lat: number | null
+          lng: number | null
           order_id: string | null
+          place_id: string | null
           status: string
           title: string
           updated_at: string
         }
         Insert: {
+          address_city?: string | null
+          address_country?: string | null
+          address_line?: string | null
+          address_notes?: string | null
+          address_postal_code?: string | null
+          address_province?: string | null
           appointment_date: string
           appointment_end_time?: string | null
           appointment_time?: string | null
@@ -111,16 +127,26 @@ export type Database = {
           created_at?: string
           created_by: string
           description?: string | null
+          formatted_address?: string | null
           id?: string
           internal_notes?: string | null
           is_blocked_slot?: boolean
           is_completed?: boolean
+          lat?: number | null
+          lng?: number | null
           order_id?: string | null
+          place_id?: string | null
           status?: string
           title: string
           updated_at?: string
         }
         Update: {
+          address_city?: string | null
+          address_country?: string | null
+          address_line?: string | null
+          address_notes?: string | null
+          address_postal_code?: string | null
+          address_province?: string | null
           appointment_date?: string
           appointment_end_time?: string | null
           appointment_time?: string | null
@@ -132,11 +158,15 @@ export type Database = {
           created_at?: string
           created_by?: string
           description?: string | null
+          formatted_address?: string | null
           id?: string
           internal_notes?: string | null
           is_blocked_slot?: boolean
           is_completed?: boolean
+          lat?: number | null
+          lng?: number | null
           order_id?: string | null
+          place_id?: string | null
           status?: string
           title?: string
           updated_at?: string
