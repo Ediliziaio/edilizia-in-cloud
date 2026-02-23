@@ -1,116 +1,65 @@
 
-# Automazioni Marketing - Trasformazione UI in stile GoHighLevel
 
-## Analisi delle differenze con GHL
+# Refinamento Visivo GHL - Automazioni
 
-### Screenshot 1: Lista Flussi di Lavoro
-La vista attuale usa **card** impilate verticalmente. GHL usa una **tabella** con colonne strutturate, checkbox per selezione multipla, paginazione, ricerca, cartelle e filtri avanzati.
+## Differenze visive tra il codice attuale e lo screenshot GHL
 
-**Differenze principali:**
+Il codice gia implementa la struttura tabella con checkbox, colonne, paginazione e menu azioni. Serve un fine-tuning visivo per renderlo **identico** a GHL.
 
-| Elemento | Attuale | GHL |
-|----------|---------|-----|
-| Layout lista | Card verticali | Tabella con colonne |
-| Colonne | Nome + badge + data | Nome, Stato, Totale Iscritto, Dinamico Iscritto, Aggiornato il, Creato il, Statistiche |
-| Selezione | Nessuna | Checkbox per riga + selezione multipla |
-| Ricerca | Assente | Campo ricerca in alto a destra |
-| Paginazione | Assente | Previous/Next + pagine + "10 / page" |
-| Cartelle | Assente | "Crea Cartella" button |
-| Filtri avanzati | Assenti | "Filtri avanzati" toggle |
-| Personalizzazione | Assente | "Personalizza Elenco" |
-| Tab in alto | Tab inline (Tabs component) | Tab-link in header (Flussi di lavoro / Impostazioni flusso di lavoro globali) |
-| Azioni riga | Switch + icone inline | Freccia ">" + menu "..." a tre punti |
-| Link esterno | Assente | Icona link esterno accanto al nome |
+### 1. Badge "Published" verde, "Draft" grigio testo
 
-### Screenshot 2: Impostazioni Flusso di Lavoro Globali
-Attualmente la pagina MarketingAutomations ha solo la lista. GHL ha una seconda tab "Impostazioni flusso di lavoro globali" con:
-- **Promemoria**: Toggle on/off
-- **Notifica Email**: Descrizione + "Seleziona Utente" dropdown + checkbox "Amministratori account secondari" / "Utenti account secondari" + pulsante "Salva"
-- **Salvataggio automatico**: Toggle + descrizione dettagliata
-- **Sospendi il Flusso di lavoro**: Scheduler con Start/End Date+Time, selezione flussi, checkbox "Annualmente", "+ Aggiungi data", pulsante "Salva"
+Nello screenshot GHL:
+- **Published** = badge verde con sfondo verde chiaro e testo verde ("Published" in pill verde)
+- **Draft** = testo grigio semplice, senza sfondo colorato
 
-## Piano di implementazione
+Attualmente il codice usa `variant="default"` (blu) per Published e `variant="secondary"` per Draft.
 
-### 1. Ristrutturare MarketingAutomations.tsx - Header con tab GHL
+**Fix**: Cambiare gli stili dei badge:
+- Published: `className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100"`
+- Draft: `variant="secondary"` con colore grigio neutro
+- Archived: mantiene `variant="outline"`
 
-Sostituire l'header attuale con una struttura a due livelli:
-- **Livello 1**: Titolo "Automazione" con tab-link ("Flussi di lavoro" | "Impostazioni flusso di lavoro globali")
-- **Livello 2**: Sotto-header contestuale (titolo "Elenco Flusso di lavoro", bottoni "Crea Cartella", "Crea tramite AI", "+ Crea Flusso di lavoro")
+### 2. Numeri "Totale Iscritto" in blu (link color)
 
-Tab "Flussi di lavoro" mostra la lista, tab "Impostazioni flusso di lavoro globali" mostra le impostazioni globali.
+In GHL i numeri come "24", "349", "67" sono in **blu** (colore link), non in nero.
 
-Sotto la sotto-header, aggiungere:
-- Tab filtro secondarie: "Tutti i flussi di la...", "Necessita revisi...", "Eliminato", "smart_list_mode...", "+ Nuovo Elenco Intelligente"
-- Toggle "Filtri avanzati"
-- Campo "Cerca" a destra
-- Link "Personalizza Elenco" con icona
+**Fix**: Aggiungere `text-primary` ai TableCell dei conteggi.
 
-### 2. Ristrutturare AutomationFlowsList.tsx - Da Card a Tabella
+### 3. Filter tabs con underline, non pill
 
-Trasformare la vista da card a tabella HTML con:
-- **Checkbox** per ogni riga (prima colonna)
-- **Nome**: testo con icona link esterno
-- **Stato**: Badge "Published" (verde) o "Draft" (grigio)
-- **Totale Iscritto**: numero (query count da automation_enrollments)
-- **Dinamico Iscritto**: numero (count enrollments attive)
-- **Aggiornato il**: data formattata "Oct 09 2025, 8:42 AM"
-- **Creato il**: data formattata
-- **Statistiche**: link ">"
-- **Azioni**: menu "..." con Modifica, Duplica, Archivia, Elimina
+In GHL le tab di filtro ("Tutti i flussi di la...", "Necessita revisi...", ecc.) usano **underline blu** per la tab attiva, non background colorato.
 
-Aggiungere **paginazione** in basso a destra: "Previous [1] 2 Next | 10/page"
+**Fix**: Cambiare lo stile da `bg-primary/10 text-primary rounded-md` a `border-b-2 border-primary text-primary` per la tab attiva.
 
-### 3. Creare componente GlobalWorkflowSettings.tsx
+### 4. Breadcrumb "Home" sopra la tabella
 
-Nuovo componente per la tab "Impostazioni flusso di lavoro globali" con tre sezioni:
+GHL mostra "Home" come breadcrumb tra i filtri e la tabella.
 
-**Sezione 1: Promemoria**
-- Toggle Promemoria
-- Card "Notifica Email" con icona busta, descrizione, Select "Seleziona Utente"
-- Checkbox "Amministratori di account secondari" e "Utenti di account secondari"
-- Pulsante "Salva"
+**Fix**: Aggiungere un semplice testo `Home` con freccia prima della tabella.
 
-**Sezione 2: Salvataggio automatico**
-- Toggle con descrizione: "Salva automaticamente le modifiche durante la modifica della bozza del flusso di lavoro..."
+### 5. Paginazione - allineare stile
 
-**Sezione 3: Sospendi il Flusso di lavoro**
-- Card con descrizione: "Metti temporaneamente in pausa i flussi di lavoro selezionati..."
-- Tabella scheduling con:
-  - "Quando a Sospendi Flusso di lavoro?" label + "Sospendi le date: 1/15" counter
-  - Righe con: Start Date and Time -> End Date and Time -> Select "Seleziona Flussi di lavoro"
-  - Checkbox "Annualmente"
-  - Icone refresh e delete
-  - Pulsante "+ Aggiungi data"
-  - Note in basso (max 15 giorni differenza, no overlap)
-  - Pulsante "Salva"
+In GHL la paginazione e solo a destra: `Previous [1] 2 Next  10 / page`. Non c'e il contatore "X risultati" a sinistra.
 
-I dati globali saranno salvati come record nella tabella `automation_flows` con un campo specifico o in una nuova tabella leggera di configurazione (preferibilmente un JSON in una riga di settings globali).
+**Fix**: Rimuovere il contatore risultati a sinistra, spostare tutto a destra, e aggiungere bordo attorno ai numeri pagina come in GHL.
 
-### 4. Aggiungere ricerca e paginazione
+### 6. Header tabella - sfondo piu leggero
 
-- Stato locale `searchQuery` per filtrare i flussi per nome
-- Stato `page` e `pageSize` (default 10) per paginazione client-side
-- Select per "10 / page" con opzioni 10, 25, 50
+In GHL l'header della tabella ha uno sfondo grigio molto chiaro con testo grigio medio e una piccola freccia dropdown accanto al checkbox.
 
-### 5. Pulizia e stabilizzazione
+**Fix**: Rendere `bg-muted/20` invece di `bg-muted/30`.
 
-- Rimuovere il componente `Tabs` / `TabsList` dalla lista (sostituiti con tab-link custom)
-- Verificare che la tabella sia responsiva (scroll orizzontale su mobile)
-- Assicurarsi che tutti i link di navigazione (verso builder) funzionino
-- Mantenere funzionalita di Switch publish/draft via menu contestuale "..."
+### 7. Link "Personalizza Elenco" a destra dei filtri
+
+In GHL c'e un link "Personalizza Elenco" con icona a destra, nella stessa riga della ricerca.
+
+**Fix**: Aggiungere un link/bottone ghost "Personalizza Elenco" accanto al campo Cerca.
 
 ## File da modificare
 
-| File | Operazione |
-|------|------------|
-| `src/pages/azienda/marketing/MarketingAutomations.tsx` | Ristruttura completa: header GHL, tab "Flussi" + "Impostazioni globali", ricerca, sotto-tab filtro |
-| `src/components/marketing/automations/AutomationFlowsList.tsx` | Da card a tabella GHL con checkbox, colonne, paginazione, menu azioni |
-| `src/components/marketing/automations/GlobalWorkflowSettings.tsx` | **Nuovo file**: Impostazioni globali con Promemoria, Salvataggio automatico, Sospendi Flusso |
+| File | Modifiche |
+|------|-----------|
+| `src/components/marketing/automations/AutomationFlowsList.tsx` | Badge Published verde, numeri blu, header piu leggero, paginazione solo a destra |
+| `src/pages/azienda/marketing/MarketingAutomations.tsx` | Filter tabs con underline, breadcrumb "Home", link "Personalizza Elenco" |
 
-## Note tecniche
-
-- I conteggi "Totale Iscritto" e "Dinamico Iscritto" verranno calcolati con query aggregate sulla tabella `automation_enrollments` raggruppate per `flow_id`
-- La paginazione e la ricerca sono client-side per semplicita (i flussi per azienda sono tipicamente < 100)
-- Le impostazioni globali saranno salvate come JSON in un record dedicato (nuova tabella o campo in una tabella settings esistente) - da valutare se serve una migration
-- Nessuna modifica al database richiesta per la trasformazione della lista (i dati sono gia presenti)
-- Per le impostazioni globali potrebbe servire una migration per una tabella `automation_global_settings` con colonne `company_id`, `config_json`, `updated_at`
+Nessun file nuovo. Nessuna modifica al database. Solo refinamento CSS/classe.
