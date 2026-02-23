@@ -10,12 +10,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info, Plus, Minus, Settings2 } from "lucide-react";
+import AddressAutocomplete, { type AddressData, emptyAddress } from "@/components/shared/AddressAutocomplete";
+import AddressMapPreview from "@/components/shared/AddressMapPreview";
 
 export interface CalendarFormData {
   name: string;
   description: string;
   owner_id: string;
   duration_minutes: number;
+  base_address_line: string;
+  base_address_city: string;
+  base_address_postal_code: string;
+  base_address_province: string;
+  base_address_country: string;
+  base_formatted_address: string;
+  base_lat: number | null;
+  base_lng: number | null;
+  base_place_id: string;
 }
 
 interface CalendarDialogProps {
@@ -53,7 +64,44 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
     description: "",
     owner_id: "",
     duration_minutes: 30,
+    base_address_line: "",
+    base_address_city: "",
+    base_address_postal_code: "",
+    base_address_province: "",
+    base_address_country: "IT",
+    base_formatted_address: "",
+    base_lat: null,
+    base_lng: null,
+    base_place_id: "",
   });
+
+  const addressValue: AddressData = {
+    address_line: form.base_address_line,
+    address_city: form.base_address_city,
+    address_postal_code: form.base_address_postal_code,
+    address_province: form.base_address_province,
+    address_country: form.base_address_country,
+    address_notes: "",
+    formatted_address: form.base_formatted_address,
+    lat: form.base_lat,
+    lng: form.base_lng,
+    place_id: form.base_place_id,
+  };
+
+  const handleAddressChange = (data: AddressData) => {
+    setForm(f => ({
+      ...f,
+      base_address_line: data.address_line,
+      base_address_city: data.address_city,
+      base_address_postal_code: data.address_postal_code,
+      base_address_province: data.address_province,
+      base_address_country: data.address_country,
+      base_formatted_address: data.formatted_address,
+      base_lat: data.lat,
+      base_lng: data.lng,
+      base_place_id: data.place_id,
+    }));
+  };
 
   // Fetch team members (admin + staff)
   const { data: teamMembers = [] } = useQuery({
@@ -92,12 +140,21 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
         description: initialData.description || "",
         owner_id: initialData.owner_id || "",
         duration_minutes: mins,
+        base_address_line: initialData.base_address_line || "",
+        base_address_city: initialData.base_address_city || "",
+        base_address_postal_code: initialData.base_address_postal_code || "",
+        base_address_province: initialData.base_address_province || "",
+        base_address_country: initialData.base_address_country || "IT",
+        base_formatted_address: initialData.base_formatted_address || "",
+        base_lat: initialData.base_lat ?? null,
+        base_lng: initialData.base_lng ?? null,
+        base_place_id: initialData.base_place_id || "",
       });
       setShowDescription(!!(initialData.description));
       setDurationUnit(isHours ? "hours" : "minutes");
       setDurationValue(isHours ? mins / 60 : mins);
     } else {
-      setForm({ name: "", description: "", owner_id: "", duration_minutes: 30 });
+      setForm({ name: "", description: "", owner_id: "", duration_minutes: 30, base_address_line: "", base_address_city: "", base_address_postal_code: "", base_address_province: "", base_address_country: "IT", base_formatted_address: "", base_lat: null, base_lng: null, base_place_id: "" });
       setShowDescription(false);
       setDurationUnit("minutes");
       setDurationValue(30);
@@ -210,6 +267,24 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   <SelectItem value="hours">Ore</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* Indirizzo base */}
+          <div className="space-y-2">
+            <Label className="flex items-center">
+              Indirizzo base del calendario
+              <InfoTooltip text="L'indirizzo da cui partono i calcoli di percorrenza (es. sede, ufficio, casa)" />
+            </Label>
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+              <AddressAutocomplete value={addressValue} onChange={handleAddressChange} />
+              {form.base_lat != null && form.base_lng != null && (
+                <AddressMapPreview
+                  lat={form.base_lat}
+                  lng={form.base_lng}
+                  formattedAddress={form.base_formatted_address}
+                />
+              )}
             </div>
           </div>
 
