@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CalendarDays, Trash2, Plus, Clock, Ban, Car } from "lucide-react";
+import { CalendarDays, Trash2, Plus, Clock, Ban, Car, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -222,7 +222,7 @@ export default function MarketingAppointmentDialog({
         .eq("appointment_date", dateStr)
         .neq("status", "annullato");
       if (error) return [];
-      return (data || []).filter((a: any) => a.id !== appointment?.id);
+      return (data || []).filter((a) => a.id !== appointment?.id);
     },
     enabled: open && !!calendarId && !!dateStr,
     staleTime: 5 * 60 * 1000,
@@ -230,17 +230,17 @@ export default function MarketingAppointmentDialog({
 
   // Inter-appointment distances (current → each same-day appointment)
   const geocodedSameDay = useMemo(
-    () => sameDayAppointments.filter((a: any) => a.lat != null && a.lng != null),
+    () => sameDayAppointments.filter((a) => a.lat != null && a.lng != null),
     [sameDayAppointments]
   );
 
-  const { data: interDistances = {} } = useQuery<Record<string, { duration_text: string; distance_text: string }>>({
-    queryKey: ["mkt-apt-inter-dist", addressData.lat, addressData.lng, geocodedSameDay.map((a: any) => a.id).join(",")],
+  const { data: interDistances = {}, isFetching: isInterDistLoading } = useQuery<Record<string, { duration_text: string; distance_text: string }>>({
+    queryKey: ["mkt-apt-inter-dist", addressData.lat, addressData.lng, geocodedSameDay.map((a) => a.id).join(",")],
     queryFn: async () => {
       if (!addressData.lat || !addressData.lng || geocodedSameDay.length === 0) return {};
       const results: Record<string, { duration_text: string; distance_text: string }> = {};
       await Promise.all(
-        geocodedSameDay.map(async (a: any) => {
+        geocodedSameDay.map(async (a) => {
           try {
             const { data, error } = await supabase.functions.invoke("maps-proxy", {
               body: {
@@ -453,19 +453,22 @@ export default function MarketingAppointmentDialog({
                 {sameDayAppointments.length > 0 && (
                   <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
                     <p className="text-xs font-semibold text-foreground">Altri appuntamenti del giorno</p>
-                    {sameDayAppointments.map((a: any) => {
+                    {sameDayAppointments.map((a) => {
                       const dist = interDistances[a.id];
+                      const hasCoords = a.lat != null && a.lng != null;
                       return (
                         <div key={a.id} className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3 shrink-0" />
                           <span>{a.appointment_time?.substring(0, 5) || "—"}</span>
                           <span className="truncate">{a.title || a.formatted_address || "Appuntamento"}</span>
-                          {dist && (
+                          {dist ? (
                             <span className="ml-auto shrink-0 inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[11px] font-medium">
                               <Car className="h-3 w-3" />
                               {dist.duration_text} - {dist.distance_text}
                             </span>
-                          )}
+                          ) : hasCoords && addressData.lat && isInterDistLoading ? (
+                            <Loader2 className="ml-auto h-3 w-3 animate-spin text-muted-foreground" />
+                          ) : null}
                         </div>
                       );
                     })}
@@ -533,6 +536,7 @@ export default function MarketingAppointmentDialog({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Seleziona Contatto *</Label>
+                  <div>
                   <Select value={contactId} onValueChange={setContactId}>
                     <SelectTrigger><SelectValue placeholder="Cerca contatto..." /></SelectTrigger>
                     <SelectContent>
@@ -543,6 +547,7 @@ export default function MarketingAppointmentDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
