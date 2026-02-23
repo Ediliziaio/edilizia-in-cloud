@@ -5,6 +5,7 @@ export interface AutomationFlow {
   description: string | null;
   status: "draft" | "published" | "archived";
   version: number;
+  folder_id: string | null;
   created_by: string;
   updated_by: string | null;
   created_at: string;

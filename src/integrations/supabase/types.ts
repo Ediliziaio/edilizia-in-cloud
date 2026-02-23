@@ -449,6 +449,7 @@ export type Database = {
           created_at: string
           created_by: string
           description: string | null
+          folder_id: string | null
           id: string
           name: string
           status: string
@@ -461,6 +462,7 @@ export type Database = {
           created_at?: string
           created_by: string
           description?: string | null
+          folder_id?: string | null
           id?: string
           name?: string
           status?: string
@@ -473,6 +475,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           description?: string | null
+          folder_id?: string | null
           id?: string
           name?: string
           status?: string
@@ -486,6 +489,52 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_flows_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "automation_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_folders: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          parent_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          parent_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          parent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_folders_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "automation_folders"
             referencedColumns: ["id"]
           },
         ]
