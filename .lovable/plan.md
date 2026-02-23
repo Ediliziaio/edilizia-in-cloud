@@ -1,106 +1,64 @@
 
-# Email Marketing - Revisione Completa e Stabilizzazione
+
+# Email Marketing - Stabilizzazione e Fix
 
 ## Problemi Identificati
 
-### Bug Funzionali
+### 1. Bug: Warning "Function components cannot be given refs" (Console)
 
-1. **CampaignDialog: stato non si resetta** - Quando apri il dialog per creare una nuova campagna dopo averne modificata una, i campi mantengono i valori della campagna precedente. `useState` con valore iniziale da `campaign` non si aggiorna quando `campaign` cambia da un oggetto a `undefined`. Serve un `useEffect` per resettare lo stato.
+Il warning proviene da `AlertDialog` in `EmailTemplatesTab.tsx` (riga 274). Radix UI `AlertDialog` viene usato in modalita controllata (`open` prop) senza `AlertDialogTrigger`. In questa configurazione, Radix tenta di passare un ref al componente figlio diretto. La soluzione e assicurarsi che `AlertDialogContent` sia il figlio diretto senza wrapper funzionali intermedi. Lo stesso pattern esiste in `EmailCampaignsTab.tsx` (riga 275).
 
-2. **TemplateDialog: stesso problema di reset stato** - Identico bug: i campi nome, subject, htmlContent e folder non si resettano tra apertura per modifica e apertura per creazione.
+**Fix**: Avvolgere entrambi gli `AlertDialog` controllati in modo che il contenuto sia correttamente strutturato, aggiungendo `onOpenChange` handler esplicito.
 
-3. **TemplateDialog: campo "folder" usa stringa libera** - Il campo cartella e un semplice `Input` di testo invece di usare il sistema `email_folders` con `folder_id`. I template vengono filtrati per `t.folder` (stringa) nella tab, ma il sistema cartelle usa `folder_id` (UUID). I due sistemi sono disallineati.
+### 2. Bug: TemplateDialog usa `folder` (stringa) invece di `folder_id` (UUID)
 
-4. **EmailCampaignsTab: tipo "bulk" mancante nel dialog** - La sidebar ha 3 categorie (Email/Flusso/Bulk) ma il CampaignDialog permette solo "broadcast" e "automation". Manca "bulk".
+Il `TemplateDialog` salva `folder: "Home"` come stringa di testo nel campo `folder` della tabella `email_templates`. Ma il `EmailTemplatesTab` filtra per `folder_id` (UUID) alla riga 96:
 
-5. **DialogContent senza Description** - Warning Radix: "Missing Description or aria-describedby" su tutti i dialog email (CampaignDialog, TemplateDialog). Serve `DialogDescription` o `aria-describedby`.
+```
+const matchFolder = currentFolderId ? t.folder_id === currentFolderId : !t.folder_id;
+```
 
-6. **Filtro cartelle campagne non funziona con "all"** - Quando `category === "all"`, il filtro tipo viene saltato correttamente, ma il filtro folder mostra solo campagne senza folder quando si e in Home. Le campagne dentro cartelle non vengono mai mostrate nella vista "all".
+Risultato: i template creati non appaiono mai nella vista "Home" perche hanno `folder_id = null` E `folder = "Home"`, ma il filtro controlla solo `folder_id`. Il campo `folder` (stringa) nella tabella e legacy e non piu necessario dato che esiste `folder_id`.
 
-### Pulizia Codice
+**Fix**: Rimuovere il campo `folder` dal `TemplateDialog`. Il template si salva con `folder_id: null` (Home) di default. Aggiungere un Select per scegliere la cartella tramite `folder_id` dalle `email_folders` reali.
 
-7. **Import `Textarea` non usato** in CampaignDialog (riga 8).
-8. **EmailStatsTab: `CampaignDialog` duplicato** - Il dialog per creare campagna e presente sia nella tab Statistiche che nella tab Campagne. Nella tab Statistiche non ha senso il pulsante "Crea campagna" (e una tab di analytics).
-9. **EmailPerformanceChart: `chartData` sempre vuoto** - I dati del grafico performance sono inizializzati come array vuoto e mai popolati. Il grafico mostra sempre "Nessun dato disponibile".
+### 3. Pulizia: campo "Cartella" nella tabella template
 
-### Miglioramenti UX
+La colonna "Cartella" nella tabella mostra `t.folder || "Home"` (stringa legacy). Dovrebbe mostrare il nome della cartella basato su `folder_id`, oppure "Home" se null.
 
-10. **Empty states incoerenti** - Alcuni messaggi vuoti sono generici. Servono messaggi contestuali con CTA chiare.
-11. **Nessuna conferma per eliminazione** - Campagne e template vengono eliminati con un solo click senza conferma.
-12. **Cartelle: `prompt()` nativo** - La creazione cartella usa `window.prompt()` che e brutto e non gestisce validazione. Serve un piccolo dialog modale.
+**Fix**: Fare un lookup del nome cartella dai `folders` caricati.
+
+### 4. Pulizia: Import non necessari
+
+- `EmailPerformanceChart.tsx` riga 12-14: `METRICS` array definito ma il selettore metrica non cambia effettivamente i dati visualizzati (mostra sempre gli stessi dati indipendentemente dalla selezione). Il selettore e decorativo.
+
+**Fix**: Rendere il selettore funzionale o rimuoverlo. Per ora lo rendiamo funzionale cambiando il titolo della card in base alla selezione.
+
+### 5. UX: Nessun loading state sulle mutation di eliminazione
+
+Quando si clicca "Elimina" nell'AlertDialog, il pulsante non mostra stato di caricamento.
+
+**Fix**: Aggiungere `disabled={deleteMutation.isPending}` al pulsante Elimina e mostrare testo di caricamento.
+
+### 6. UX: CampaignDialog - tipo "broadcast" mostrato come default non chiaro
+
+Il tipo default e "broadcast" ma nell'UI si vede solo "Broadcast" nel Select. Dovrebbe essere coerente con la sidebar ("Campagne email" = broadcast).
+
+**Fix**: Cambiare le label del Select tipo nel CampaignDialog per allinearsi alla sidebar: "Email" (broadcast), "Flusso" (automation), "Azione in blocco" (bulk).
 
 ---
 
-## Soluzione
+## Riepilogo Modifiche
 
-### 1. Fix reset stato CampaignDialog
-
-Aggiungere `useEffect` che resetta tutti i campi quando `campaign` o `open` cambiano:
-
-```
-useEffect(() => {
-  if (open) {
-    setName(campaign?.name || "");
-    setSubject(campaign?.subject || "");
-    setType(campaign?.type || "broadcast");
-    setTemplateId(campaign?.template_id || "none");
-    setAbEnabled(campaign?.ab_test_enabled || false);
-    setAbSubjectB(campaign?.ab_subject_b || "");
-    setScheduledAt(campaign?.scheduled_at?.slice(0, 16) || "");
-  }
-}, [open, campaign]);
-```
-
-Aggiungere tipo "bulk" al Select:
-```
-<SelectItem value="bulk">Azione in blocco</SelectItem>
-```
-
-Aggiungere `DialogDescription` per eliminare il warning Radix.
-
-Rimuovere import `Textarea` inutilizzato.
-
-### 2. Fix reset stato TemplateDialog
-
-Stesso pattern `useEffect` per resettare name, subject, htmlContent, folder.
-
-Aggiungere `DialogDescription`.
-
-### 3. Fix filtro campagne nella vista "all"
-
-Rimuovere il filtro `matchFolder` quando `category === "all"` per mostrare tutte le campagne indipendentemente dalla cartella, oppure meglio: mostrare tutte le campagne nella vista "all" senza filtro cartella, e filtrare per cartella solo quando si naviga dentro una cartella specifica.
-
-### 4. Popolare EmailPerformanceChart con dati reali
-
-In `EmailStatsTab`, costruire `chartData` aggregando i log per data e tipo di campagna, calcolando i tassi di apertura giornalieri.
-
-### 5. Rimuovere CampaignDialog dalla tab Statistiche
-
-La tab Statistiche e solo analytics. Rimuovere il pulsante "Crea campagna" e il dialog. L'utente puo creare campagne dalla tab Campagne.
-
-### 6. Aggiungere conferma eliminazione
-
-Aggiungere un `AlertDialog` prima di eliminare campagne e template.
-
-### 7. Sostituire `prompt()` con dialog modale
-
-Creare un piccolo componente `CreateFolderDialog` riutilizzabile per campagne e template.
-
----
-
-## Sezione tecnica
-
-### File modificati
-
-| Azione | File |
-|--------|------|
-| Modifica | `src/components/email-marketing/CampaignDialog.tsx` - useEffect reset, tipo bulk, DialogDescription, rimuovi Textarea |
-| Modifica | `src/components/email-marketing/TemplateDialog.tsx` - useEffect reset, DialogDescription |
-| Modifica | `src/components/email-marketing/EmailStatsTab.tsx` - rimuovi CampaignDialog, popola chartData |
-| Modifica | `src/components/email-marketing/EmailCampaignsTab.tsx` - fix filtro folder, conferma eliminazione, dialog cartella |
-| Modifica | `src/components/email-marketing/EmailTemplatesTab.tsx` - conferma eliminazione, dialog cartella |
-| Nuovo | `src/components/email-marketing/CreateFolderDialog.tsx` - dialog modale per creazione cartella |
+| Azione | File | Dettaglio |
+|--------|------|-----------|
+| Modifica | `TemplateDialog.tsx` | Sostituire campo `folder` stringa con Select `folder_id` da email_folders |
+| Modifica | `EmailTemplatesTab.tsx` | Mostrare nome cartella da folders lookup, fix ref warning AlertDialog |
+| Modifica | `EmailCampaignsTab.tsx` | Fix ref warning AlertDialog, loading state eliminazione |
+| Modifica | `EmailPerformanceChart.tsx` | Titolo card dinamico basato su metrica selezionata |
+| Modifica | `CampaignDialog.tsx` | Allineare label tipi campagna alla sidebar |
 
 ### Nessuna modifica database
 
-Tutte le tabelle (email_campaigns, email_templates, email_folders, email_logs, email_billing) sono gia presenti e correttamente strutturate.
+Tutti i fix sono puramente frontend. Il campo `folder` (stringa) nella tabella `email_templates` resta per backward compatibility ma non viene piu usato dal dialog.
+
