@@ -145,11 +145,23 @@ export function useAutomationBuilder(flowId: string | undefined) {
   // Whether persist actions are possible
   const canPersist = Boolean(flowId && flowId !== "nuova" && effectiveCompany);
 
+  // Validation before publishing
+  const validateForPublish = useCallback((): string[] => {
+    const errors: string[] = [];
+    const hasTrigger = nodes.some(n => n.node_type === "trigger");
+    if (!hasTrigger) errors.push("Aggiungi almeno un trigger prima di pubblicare.");
+    if (nodes.length < 2) errors.push("Aggiungi almeno un'azione dopo il trigger.");
+    return errors;
+  }, [nodes]);
+
   // Save all nodes + connections
   const saveAll = useCallback(async () => {
     if (!flowId || flowId === "nuova" || !effectiveCompany) {
       toast({ title: "Impossibile salvare", description: "Flow non ancora pronto. Attendi il completamento della creazione.", variant: "destructive" });
       return;
+    }
+    if (nodes.length === 0) {
+      toast({ title: "Bozza vuota", description: "Aggiungi almeno un trigger per un flusso completo." });
     }
     setIsSaving(true);
     try {
@@ -294,16 +306,24 @@ export function useAutomationBuilder(flowId: string | undefined) {
       toast({ title: "Flow non ancora pronto", variant: "destructive" });
       return;
     }
-    if (updateFlowMutation.isPending) return; // block re-entrancy
+    if (updateFlowMutation.isPending) return;
     try {
       const newStatus = flow.status === "published" ? "draft" : "published";
+      // Validate before publishing
+      if (newStatus === "published") {
+        const errors = validateForPublish();
+        if (errors.length > 0) {
+          toast({ title: "Impossibile pubblicare", description: errors[0], variant: "destructive" });
+          return;
+        }
+      }
       const newVersion = newStatus === "published" ? flow.version + 1 : flow.version;
       await updateFlowMutation.mutateAsync({ status: newStatus, version: newVersion });
       toast({ title: newStatus === "published" ? "Automazione pubblicata" : "Automazione in bozza" });
     } catch (err: any) {
       toast({ title: "Errore aggiornamento stato", description: err.message, variant: "destructive" });
     }
-  }, [flow, updateFlowMutation]);
+  }, [flow, updateFlowMutation, validateForPublish]);
 
   const isLoading = flowLoading || nodesLoading || connectionsLoading;
   const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
@@ -314,7 +334,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
     addNode, updateNode, removeNode,
     addConnection, removeConnection,
     undo, redo, canUndo: historyIndex > 0, canRedo: historyIndex < history.length - 1,
-    saveAll, createFlowMutation, updateFlowMutation, togglePublish,
+    saveAll, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish,
     effectiveCompany, user,
   };
 }
