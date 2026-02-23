@@ -212,6 +212,18 @@ export default function DragDropEmailBuilder() {
     setSelectedChildBlock(null);
   }, []);
 
+  const handleInlineEdit = useCallback((blockId: string, partial: Record<string, any>) => {
+    // Check if it's a root block
+    const isRoot = blocks.some((b) => b.id === blockId);
+    if (isRoot) {
+      const newBlocks = blocks.map((b) => b.id !== blockId ? b : { ...b, props: { ...b.props, ...partial } });
+      updateBlocks(newBlocks);
+      return;
+    }
+    // Otherwise it's a child block inside columns
+    handleUpdateChildBlockProps(blockId, partial);
+  }, [blocks, updateBlocks, handleUpdateChildBlockProps]);
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveDragId(event.active.id as string);
   };
@@ -435,6 +447,7 @@ export default function DragDropEmailBuilder() {
             onDeleteChildBlock={handleDeleteChildBlock}
             onSelectChildBlock={handleSelectChildBlock}
             selectedChildBlockId={selectedChildBlock?.id || null}
+            onInlineEdit={handleInlineEdit}
           />
           <DragOverlay>
             {activeDragId ? (
