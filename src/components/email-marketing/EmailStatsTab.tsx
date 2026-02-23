@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,18 +6,15 @@ import { CampaignStatsCards } from "./CampaignStatsCards";
 import { EmailFunnelChart } from "./EmailFunnelChart";
 import { EmailPerformanceChart } from "./EmailPerformanceChart";
 import { EmailTopCampaignsTable } from "./EmailTopCampaignsTable";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
-import { CampaignDialog } from "./CampaignDialog";
+import { format } from "date-fns";
 
 export function EmailStatsTab() {
   const { company } = useAuth();
   const [campaignFilter, setCampaignFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["email-campaigns-list", company?.id],
@@ -81,8 +78,37 @@ export function EmailStatsTab() {
       };
     });
 
-  // Empty chart data placeholder
-  const chartData: Array<{ date: string; all: number; broadcast: number; automation: number; bulk: number }> = [];
+  // Build chart data aggregated by date
+  const chartData = useMemo(() => {
+    if (logs.length === 0) return [];
+
+    const campaignTypeMap = new Map<string, string>();
+    campaigns.forEach((c: any) => campaignTypeMap.set(c.id, c.type));
+
+    const byDate = new Map<string, { all: number; broadcast: number; automation: number; bulk: number; total: number }>();
+
+    logs.forEach((l: any) => {
+      const date = format(new Date(l.event_timestamp), "dd/MM");
+      if (!byDate.has(date)) byDate.set(date, { all: 0, broadcast: 0, automation: 0, bulk: 0, total: 0 });
+      const entry = byDate.get(date)!;
+      entry.total++;
+      if (l.status === "opened" || l.status === "clicked") {
+        entry.all++;
+        const cType = campaignTypeMap.get(l.campaign_id) || "broadcast";
+        if (cType === "broadcast") entry.broadcast++;
+        else if (cType === "automation") entry.automation++;
+        else if (cType === "bulk") entry.bulk++;
+      }
+    });
+
+    return Array.from(byDate.entries()).map(([date, v]) => ({
+      date,
+      all: v.total > 0 ? Math.round((v.all / v.total) * 100) : 0,
+      broadcast: v.total > 0 ? Math.round((v.broadcast / v.total) * 100) : 0,
+      automation: v.total > 0 ? Math.round((v.automation / v.total) * 100) : 0,
+      bulk: v.total > 0 ? Math.round((v.bulk / v.total) * 100) : 0,
+    }));
+  }, [logs, campaigns]);
 
   return (
     <div className="space-y-6">
@@ -102,11 +128,6 @@ export function EmailStatsTab() {
           <Input type="date" className="w-[150px] h-9" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           <span>al</span>
           <Input type="date" className="w-[150px] h-9" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
-        <div className="ml-auto">
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Crea campagna
-          </Button>
         </div>
       </div>
 
@@ -130,8 +151,6 @@ export function EmailStatsTab() {
 
       {/* Top campaigns table */}
       <EmailTopCampaignsTable campaigns={campaignPerf} />
-
-      <CampaignDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
 }

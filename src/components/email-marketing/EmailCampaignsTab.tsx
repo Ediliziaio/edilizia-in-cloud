@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Pencil, Trash2, ChevronRight, Send } from "lucide-react";
 import { CampaignDialog } from "./CampaignDialog";
+import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -39,6 +41,8 @@ export function EmailCampaignsTab() {
   const [folderPath, setFolderPath] = useState<Array<{ id: string | null; name: string }>>([
     { id: null, name: "Home" },
   ]);
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["email-campaigns", company?.id],
@@ -69,9 +73,7 @@ export function EmailCampaignsTab() {
   });
 
   const createFolderMut = useMutation({
-    mutationFn: async () => {
-      const name = prompt("Nome cartella:");
-      if (!name) return;
+    mutationFn: async (name: string) => {
       const { error } = await supabase.from("email_folders").insert({
         company_id: company!.id,
         name,
@@ -80,7 +82,12 @@ export function EmailCampaignsTab() {
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Cartella creata"); qc.invalidateQueries({ queryKey: ["email-folders"] }); },
+    onSuccess: () => {
+      toast.success("Cartella creata");
+      qc.invalidateQueries({ queryKey: ["email-folders"] });
+      setFolderDialogOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
@@ -88,7 +95,11 @@ export function EmailCampaignsTab() {
       const { error } = await supabase.from("email_campaigns").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Campagna eliminata"); qc.invalidateQueries({ queryKey: ["email-campaigns"] }); },
+    onSuccess: () => {
+      toast.success("Campagna eliminata");
+      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      setDeleteTarget(null);
+    },
   });
 
   const currentFolders = folders.filter((f: any) => f.parent_id === currentFolderId);
@@ -96,7 +107,7 @@ export function EmailCampaignsTab() {
   const filtered = campaigns.filter((c: any) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "all" || c.type === category;
-    const matchFolder = currentFolderId ? c.folder_id === currentFolderId : !c.folder_id;
+    const matchFolder = currentFolderId ? c.folder_id === currentFolderId : true;
     return matchSearch && matchCategory && matchFolder;
   });
 
@@ -140,7 +151,7 @@ export function EmailCampaignsTab() {
             <p className="text-sm text-muted-foreground">Gestisci e invia campagne email</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => createFolderMut.mutate()}>
+            <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
               <FolderPlus className="h-4 w-4 mr-1" /> Crea cartella
             </Button>
             <Button size="sm" onClick={() => { setEditCampaign(null); setDialogOpen(true); }}>
@@ -190,7 +201,7 @@ export function EmailCampaignsTab() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
               <Send className="h-10 w-10 text-muted-foreground" />
-              <p className="text-muted-foreground">Nessuna campagna</p>
+              <p className="text-muted-foreground">Nessuna campagna trovata</p>
               <Button onClick={() => { setEditCampaign(null); setDialogOpen(true); }}>
                 <Plus className="h-4 w-4 mr-1" /> Crea campagna
               </Button>
@@ -216,7 +227,7 @@ export function EmailCampaignsTab() {
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {c.type === "broadcast" ? "Email" : c.type === "automation" ? "Flusso" : c.type}
+                        {c.type === "broadcast" ? "Email" : c.type === "automation" ? "Flusso" : c.type === "bulk" ? "Blocco" : c.type}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
@@ -239,7 +250,7 @@ export function EmailCampaignsTab() {
                           <DropdownMenuItem onClick={() => { setEditCampaign(c); setDialogOpen(true); }}>
                             <Pencil className="h-4 w-4 mr-2" /> Modifica
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(c.id)}>
+                          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(c.id)}>
                             <Trash2 className="h-4 w-4 mr-2" /> Elimina
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -254,6 +265,27 @@ export function EmailCampaignsTab() {
       </div>
 
       <CampaignDialog open={dialogOpen} onOpenChange={setDialogOpen} campaign={editCampaign} />
+      <CreateFolderDialog
+        open={folderDialogOpen}
+        onOpenChange={setFolderDialogOpen}
+        onConfirm={(name) => createFolderMut.mutate(name)}
+        isPending={createFolderMut.isPending}
+      />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina campagna</AlertDialogTitle>
+            <AlertDialogDescription>Sei sicuro di voler eliminare questa campagna? L'azione non può essere annullata.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}>
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

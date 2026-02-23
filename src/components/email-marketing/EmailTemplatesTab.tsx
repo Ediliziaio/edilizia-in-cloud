@@ -7,9 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, FolderPlus, FileText, MoreHorizontal, Pencil, Trash2, ChevronRight, ChevronLeft, Upload, Copy, BookOpen } from "lucide-react";
 import { TemplateDialog } from "./TemplateDialog";
+import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -26,6 +28,8 @@ export function EmailTemplatesTab() {
   ]);
   const [page, setPage] = useState(0);
   const [perPage, setPerPage] = useState(10);
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["email-templates", company?.id],
@@ -56,9 +60,7 @@ export function EmailTemplatesTab() {
   });
 
   const createFolderMut = useMutation({
-    mutationFn: async () => {
-      const name = prompt("Nome cartella:");
-      if (!name) return;
+    mutationFn: async (name: string) => {
       const { error } = await supabase.from("email_folders").insert({
         company_id: company!.id,
         name,
@@ -67,7 +69,12 @@ export function EmailTemplatesTab() {
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Cartella creata"); qc.invalidateQueries({ queryKey: ["email-folders"] }); },
+    onSuccess: () => {
+      toast.success("Cartella creata");
+      qc.invalidateQueries({ queryKey: ["email-folders"] });
+      setFolderDialogOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
@@ -75,7 +82,11 @@ export function EmailTemplatesTab() {
       const { error } = await supabase.from("email_templates").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Template eliminato"); qc.invalidateQueries({ queryKey: ["email-templates"] }); },
+    onSuccess: () => {
+      toast.success("Template eliminato");
+      qc.invalidateQueries({ queryKey: ["email-templates"] });
+      setDeleteTarget(null);
+    },
   });
 
   const currentFolders = folders.filter((f: any) => f.parent_id === currentFolderId);
@@ -114,7 +125,7 @@ export function EmailTemplatesTab() {
           <p className="text-sm text-muted-foreground">Crea e gestisci i tuoi template email</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => createFolderMut.mutate()}>
+          <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
             <FolderPlus className="h-4 w-4 mr-1" /> Crea cartella
           </Button>
           <DropdownMenu>
@@ -218,7 +229,7 @@ export function EmailTemplatesTab() {
                         <DropdownMenuItem onClick={() => { setEditTemplate(t); setDialogOpen(true); }}>
                           <Pencil className="h-4 w-4 mr-2" /> Modifica
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(t.id)}>
+                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(t.id)}>
                           <Trash2 className="h-4 w-4 mr-2" /> Elimina
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -253,6 +264,27 @@ export function EmailTemplatesTab() {
       )}
 
       <TemplateDialog open={dialogOpen} onOpenChange={setDialogOpen} template={editTemplate} />
+      <CreateFolderDialog
+        open={folderDialogOpen}
+        onOpenChange={setFolderDialogOpen}
+        onConfirm={(name) => createFolderMut.mutate(name)}
+        isPending={createFolderMut.isPending}
+      />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina template</AlertDialogTitle>
+            <AlertDialogDescription>Sei sicuro di voler eliminare questo template? L'azione non può essere annullata.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}>
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
