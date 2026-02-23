@@ -34,6 +34,7 @@ import { useNavigate } from "react-router-dom";
 import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
+import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
 
 interface Props {
   opportunity: any;
@@ -340,7 +341,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
   const sidebarTabs: { key: Tab; label: string; icon: React.ReactNode; enabled: boolean }[] = [
     { key: "details", label: "Dettagli dell'opportunità", icon: <FileText className="h-4 w-4" />, enabled: true },
-    { key: "appointments", label: "Prenota/aggiorna appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: false },
+    { key: "appointments", label: "Prenota/aggiorna appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: true },
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: "Note", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
@@ -701,6 +702,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     </div>
                   )}
                 </div>
+              )}
+
+              {tab === "appointments" && (
+                <OpportunityAppointmentTab
+                  contactId={opportunity.contact_id}
+                  companyId={companyId!}
+                  opportunityId={opportunity.id}
+                  contactName={fullName}
+                />
               )}
 
               {tab === "activities" && (
