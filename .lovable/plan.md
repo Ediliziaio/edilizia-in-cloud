@@ -1,65 +1,103 @@
 
 
-# Pulizia, Fix e Stabilizzazione - Marketing Calendar
+# Prenota Appuntamento dal Dialog Opportunita
 
-## Analisi completata
+## Panoramica
 
-Ho analizzato il codebase della sezione Marketing Calendar e identificato i seguenti problemi:
-
----
-
-## 1. Bug da correggere
-
-### Console Warning: "Function components cannot be given refs"
-Nel tab "Tempo bloccato" del `MarketingAppointmentDialog.tsx` (riga 424), il `Popover` per la selezione data non chiude dopo la selezione e non ha lo state gestito (a differenza del tab Appuntamento che usa `datePickerOpen`). Il `PopoverTrigger` wrappa un `Button` ma la mancanza di stato controllato causa il warning.
-
-**Fix**: Riutilizzare lo stesso state `datePickerOpen` per il Popover nel tab blocked, con chiusura automatica alla selezione della data.
-
-### Date picker nel tab "Tempo bloccato" non si chiude
-La `Calendar` nel tab blocked (riga 435) chiama `setAppointmentDate` direttamente ma non chiude il popover. Il tab Appuntamento invece lo chiude correttamente (riga 324).
-
-**Fix**: Allineare il comportamento: `onSelect={(d) => { setAppointmentDate(d); setDatePickerOpen(false); }}`
+Abilitare il tab "Prenota/aggiorna appuntamento" nel dialog opportunita, con un form inline (non un sotto-dialog) che permette di prenotare un appuntamento per il contatto associato. Quando si seleziona un calendario e una data, il sistema verifica la disponibilita incrociando gli orari configurati in `marketing_calendar_availability` con gli appuntamenti gia esistenti.
 
 ---
 
-## 2. Pulizia codice
+## Struttura UI (stile GHL - come da screenshot)
 
-### Import non utilizzati
-- `MarketingAppointmentDialog.tsx`: l'import della vecchia `MarketingAppointmentData` type nel file precedente `MarketingAppointmentDialog` (in `components/marketing/`) - gia verificato, nessun conflitto con il vecchio dialog generico.
-- Nessun file orfano trovato: il vecchio `AppointmentDialog` e ancora usato dal Calendario Lavori interno (3 file lo importano correttamente).
-
-### Codice legacy
-- Nessuna struttura legacy identificata in questa sezione. Il refactoring precedente ha gia separato correttamente marketing da gestione interna.
+```text
++----------------------------------------------------------+
+| Prenota/aggiorna appuntamento                            |
+|                                                           |
+|  Calendario *                                             |
+|  [Select calendario]                                      |
+|  (messaggio errore se non selezionato)                    |
+|                                                           |
+|  Luogo dell'incontro          Titolo dell'appuntamento    |
+|  [Input]                      [Input]                     |
+|                                                           |
+|  Data *                                                   |
+|  [Date picker]                                            |
+|                                                           |
+|  Slot disponibili                                         |
+|  [09:00] [09:30] [10:00] [10:30] ... (griglia slot)      |
+|  (oppure: "Nessuno slot disponibile per questa data")     |
+|                                                           |
+|  Descrizione                                              |
+|  [Textarea]                                               |
+|                                                           |
+|            [Prenota appuntamento]                          |
++----------------------------------------------------------+
+```
 
 ---
 
-## 3. Miglioramenti UX
+## Logica disponibilita
 
-### Footer dialog: layout migliorato
-Quando si edita un appuntamento, il pulsante "Elimina" e il selettore "Stato" possono sovrapporsi su mobile. Ottimizzare con layout responsive.
-
-### Feedback salvataggio
-Il pulsante mostra "Salvataggio..." ma non c'e un loading spinner visivo. Aggiungere spinner al pulsante durante il salvataggio.
+1. **Seleziona calendario**: query `marketing_calendars` dell'azienda
+2. **Seleziona data**: per la data scelta:
+   - Recupera gli orari da `marketing_calendar_availability` per quel `calendar_id` e `day_of_week` (o `specific_date` se override)
+   - Recupera gli appuntamenti esistenti da `appointments` per la stessa data e calendario
+   - Calcola gli slot liberi: suddividi la finestra di disponibilita in blocchi da `duration_minutes` (dal calendario) e rimuovi quelli gia occupati
+3. **Mostra slot**: griglia di bottoni cliccabili con gli orari liberi
+4. **Prenota**: inserisce in `appointments` con `contact_id` dal contatto dell'opportunita, `calendar_id`, ora inizio/fine
 
 ---
 
-## Riepilogo modifiche
+## Modifiche ai file
+
+### 1. `src/components/opportunities/OpportunityDetailDialog.tsx`
+- Abilitare il tab `appointments` (riga 343: `enabled: true`)
+- Aggiungere il rendering del contenuto tab `appointments` che mostra il nuovo componente `OpportunityAppointmentTab`
+
+### 2. Nuovo: `src/components/opportunities/OpportunityAppointmentTab.tsx`
+Componente inline (non dialog) con:
+- **Props**: `contactId`, `companyId`, `opportunityId`
+- **State**: `calendarId`, `date`, `selectedSlot`, `title`, `location`, `description`
+- **Query calendari**: fetch `marketing_calendars` attivi per `company_id`
+- **Query disponibilita**: quando `calendarId` + `date` sono selezionati:
+  - Fetch `marketing_calendar_availability` filtrato per `calendar_id` e giorno della settimana (o specific_date)
+  - Fetch `appointments` esistenti per la stessa data e calendario (esclusi annullati)
+  - Calcola slot liberi in base a `duration_minutes` del calendario
+- **Griglia slot**: bottoni con gli orari liberi, selezionabili
+- **Salvataggio**: inserisce in `appointments` con tutti i campi necessari
+- **Appuntamento esistente**: se il contatto ha gia un appuntamento futuro per quel calendario, mostrarlo con possibilita di modificare/cancellare
+
+### 3. Nessuna modifica al database
+Le tabelle `appointments`, `marketing_calendars` e `marketing_calendar_availability` hanno gia tutte le colonne necessarie.
+
+---
+
+## Dettagli tecnici
+
+### Calcolo slot liberi (pseudo-codice)
+
+```text
+1. Prendi availability per day_of_week della data selezionata (is_enabled = true)
+   - Se esiste specific_date override, usa quello
+2. Per ogni finestra [start_time, end_time]:
+   - Genera slot ogni N minuti (N = calendar.duration_minutes, default 30)
+   - Per ogni slot [slot_start, slot_end]:
+     - Controlla se esiste un appointment che si sovrappone
+     - Se libero, aggiungilo alla lista
+3. Mostra i slot liberi come bottoni cliccabili
+```
+
+### Appuntamento esistente per il contatto
+- Query: `appointments` dove `contact_id = X` e `appointment_date >= oggi` e `calendar_id` nel set dei calendari aziendali
+- Se trovato: mostra dettagli con pulsanti "Modifica" / "Elimina"
+
+---
+
+## Riepilogo
 
 | File | Azione |
 |------|--------|
-| `src/components/marketing/MarketingAppointmentDialog.tsx` | Fix: Popover blocked tab usa state controllato, chiusura automatica, fix ref warning, spinner loading |
-
-### Dettagli tecnici
-
-**File: `MarketingAppointmentDialog.tsx`**
-
-1. **Riga 424-440** (Tab Blocked - Popover Data): Sostituire il `<Popover>` senza stato con `<Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>` e aggiungere la chiusura automatica su `onSelect`
-
-2. **Riga 490** (Button Salva): Aggiungere una classe `disabled:opacity-50` e icona loader durante il salvataggio
-
-### Cosa NON viene modificato
-- `AppointmentDialog.tsx` (gestione interna) - rimane invariato
-- `MarketingCalendar.tsx` - gia corretto nelle iterazioni precedenti
-- Schema database - nessuna modifica necessaria
-- Nessun file rimosso (tutto il codice e attualmente in uso)
-
+| `src/components/opportunities/OpportunityDetailDialog.tsx` | Modifica: abilita tab, aggiungi render |
+| `src/components/opportunities/OpportunityAppointmentTab.tsx` | Nuovo: form prenotazione con check disponibilita |
+| Database | Nessuna modifica |
