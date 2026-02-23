@@ -1,71 +1,46 @@
 
+# Fix: Bottoni Disabilitati con "Caricamento in corso..." + Warning forwardRef
 
-# Fix Bug "Flow non disponibile" - Salvataggio Non Funzionante
+## Problemi trovati
 
-## Causa radice
-
-Quando l'utente va su `/nuova`, il flow viene creato nel database e il `navigate` verso `/:uuid` viene chiamato. Ma nel frattempo, il loading screen scompare perche `createFlowMutation.data` e truthy, mostrando il builder con `flowId = undefined`. Qualsiasi azione dell'utente (rinominare, salvare, aggiungere nodi + autosave) chiama mutazioni che falliscono perche `flowId` non esiste.
-
-Il toast "Operazione non riuscita: Flow non disponibile" viene dal `MutationCache.onError` globale in `App.tsx`.
-
-## Fix (2 file)
-
-### 1. `src/components/marketing/automations/AutomationBuilder.tsx` - Linea 268
-
-Cambiare la condizione di loading per mantenere lo spinner **sempre** quando `id === "nuova"`:
-
-**Prima:**
+### 1. `canPersist` dipende da `effectiveCompany` che puo essere null per super admin
+In `useAutomationBuilder.ts` linea 146:
 ```typescript
-if (isLoading || (id === "nuova" && (createFlowMutation.isPending || !createFlowMutation.data))) {
+const canPersist = Boolean(flowId && flowId !== "nuova" && effectiveCompany);
+```
+Per un super admin che impersona un'azienda, `effectiveCompany` dipende da `impersonatedCompany` che viene caricato in modo asincrono nel `AuthContext`. Questo significa che:
+- Le query del flow si completano PRIMA che `impersonatedCompany` sia caricato
+- `isLoading` diventa false, il builder si renderizza
+- Ma `effectiveCompany` e ancora null, quindi `canPersist = false`
+- Tutti i bottoni restano disabilitati con tooltip "Caricamento in corso..."
+- Anche quando `effectiveCompany` si risolve, se il componente non si ri-renderizza correttamente, resta bloccato
+
+**Fix**: Rimuovere `effectiveCompany` da `canPersist`. I check su `effectiveCompany` sono gia presenti dentro `saveAll` e `togglePublish`. Il gating dei bottoni deve dipendere solo da `flowId` e `flow` (il dato caricato dal DB):
+```typescript
+const canPersist = Boolean(flowId && flowId !== "nuova" && flow);
 ```
 
-**Dopo:**
-```typescript
-if (isLoading || id === "nuova") {
-```
+### 2. Warning `forwardRef` su `TriggerPickerDialog`
+Il componente `TriggerPickerDialog` e una function component senza `forwardRef`. Quando usato dentro il builder con `TooltipProvider`, React tenta di passare un ref che viene ignorato, generando il warning.
 
-Questo impedisce al builder di renderizzarsi mentre siamo ancora su `/nuova`. L'utente vede "Creazione automazione in corso..." fino a quando il `navigate` cambia l'URL a `/:uuid`, a quel punto il componente si ri-monta con il `flowId` corretto.
+**Fix**: Wrappare `TriggerPickerDialog` con `React.forwardRef`.
 
-### 2. `src/hooks/useAutomationBuilder.ts` - Linea 293
+### 3. Stessa cosa per `ActionPickerDialog`
+Verificare e applicare lo stesso fix se necessario.
 
-Aggiungere un guard silenzioso nel `updateFlowMutation` invece di lanciare un errore (che poi viene catturato dal `MutationCache` globale):
+## Modifiche
 
-**Prima:**
-```typescript
-mutationFn: async (updates: Partial<AutomationFlow>) => {
-  if (!flowId) throw new Error("Flow non disponibile.");
-```
+### File 1: `src/hooks/useAutomationBuilder.ts`
+- Linea 146: cambiare `canPersist` da `Boolean(flowId && flowId !== "nuova" && effectiveCompany)` a `Boolean(flowId && flowId !== "nuova" && flow)`
+- Questo rende i bottoni attivi non appena il flow e caricato dal DB, indipendentemente dal timing dell'auth context
 
-**Dopo:**
-```typescript
-mutationFn: async (updates: Partial<AutomationFlow>) => {
-  if (!flowId || flowId === "nuova") {
-    console.warn("updateFlowMutation called without valid flowId, skipping");
-    return;
-  }
-```
+### File 2: `src/components/marketing/automations/TriggerPickerDialog.tsx`
+- Wrappare il componente con `React.forwardRef` per eliminare il warning
 
-### 3. `src/components/marketing/automations/AutomationBuilder.tsx` - `handleFlowNameBlur`
+### File 3: `src/components/marketing/automations/ActionPickerDialog.tsx`
+- Stesso fix `forwardRef` se necessario
 
-Aggiungere guard per impedire la chiamata a `updateFlowMutation` quando il flow non e pronto:
-
-**Prima:**
-```typescript
-if (flowName && flowName !== flow?.name) {
-  updateFlowMutation.mutate({ name: flowName });
-}
-```
-
-**Dopo:**
-```typescript
-if (flowName && flowName !== flow?.name && canPersist && flow) {
-  updateFlowMutation.mutate({ name: flowName });
-}
-```
-
-## Risultato atteso
-
-- Lo spinner "Creazione automazione in corso..." resta visibile fino al redirect
-- Nessun errore "Flow non disponibile" mai piu
-- Il salvataggio funziona correttamente una volta su `/:uuid`
-- Le mutazioni non lanciano errori quando il contesto non e pronto
+## Risultato
+- I bottoni Salva, Archivia e Bozza/Pubblicata funzionano immediatamente quando il flow e caricato
+- Nessun "Caricamento in corso..." falso positivo
+- Warning React eliminato dalla console
