@@ -86,7 +86,7 @@ export default function MarketingCalendarWeekView({
   const today = new Date();
 
   return (
-    <div className="flex-1 overflow-auto border rounded-lg bg-background">
+    <div className="flex-1 overflow-auto border rounded-lg bg-background relative isolate">
       <div className="min-w-[900px]">
         {/* Header */}
         <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b sticky top-0 z-10 bg-background">
