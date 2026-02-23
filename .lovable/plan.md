@@ -1,29 +1,24 @@
 
-# Fix: Separare appuntamenti Gestione Interna da Marketing
+# Fix Dialog Appuntamento Marketing
 
 ## Problema
+1. Nel dialog aperto da Marketing, il campo "Ordine collegato" non dovrebbe apparire
+2. L'ora deve essere obbligatoria (non "opzionale")
 
-La query degli appuntamenti in `MarketingCalendar.tsx` (riga 119-123) carica **tutti** gli appuntamenti dell'azienda senza filtrare per `calendar_id`. Gli appuntamenti creati dal "Calendario Lavori" (gestione interna) hanno `calendar_id = NULL` e vengono mostrati anche nel calendario Marketing.
-
-## Soluzione
+## Modifiche
 
 ### File: `src/pages/azienda/marketing/MarketingCalendar.tsx`
+- Riga 364: rimuovere `showOrderSelect` dalla chiamata ad `AppointmentDialog` (oppure impostarlo a `false`)
+- Aggiungere prop `requireTime` al dialog
 
-Modificare la query degli appuntamenti (riga 119-124) aggiungendo un filtro `.not("calendar_id", "is", null)` per escludere gli appuntamenti senza calendario marketing associato:
-
-```typescript
-const { data } = await supabase
-  .from("appointments")
-  .select("*")
-  .eq("company_id", companyId)
-  .not("calendar_id", "is", null)  // Solo appuntamenti marketing
-  .order("appointment_date", { ascending: true });
-```
-
-Inoltre, il filtro `filteredAppointments` (righe 143-151) attualmente fa passare gli appuntamenti con `calendar_id = null` perche la condizione `a.calendar_id && !selectedCalendarIds.includes(a.calendar_id)` risulta falsa quando `calendar_id` e null. Questo e un secondo punto dove gli appuntamenti interni "scivolano" nel calendario marketing. Dopo il fix alla query, questo non sara piu un problema, ma per sicurezza la logica di filtro verra resa piu esplicita.
+### File: `src/components/appointments/AppointmentDialog.tsx`
+- Aggiungere prop opzionale `requireTime?: boolean` all'interfaccia `AppointmentDialogProps`
+- Quando `requireTime` e true:
+  - La label "Ora (opzionale)" diventa "Ora *"
+  - La validazione in `handleSave` controlla che `appointmentTime` non sia vuoto, altrimenti mostra toast di errore
+- Il campo "Ordine collegato" e gia condizionato da `showOrderSelect`, quindi basta non passarlo dal Marketing
 
 ## Impatto
-
-- **Zero modifiche al database**
-- **1 solo file modificato**: `src/pages/azienda/marketing/MarketingCalendar.tsx`
-- Gli appuntamenti del "Calendario Lavori" continueranno a funzionare normalmente nella loro sezione dedicata (`/azienda/calendario`)
+- 2 file modificati
+- Zero modifiche al database
+- Il dialog usato dalla Gestione Interna resta invariato
