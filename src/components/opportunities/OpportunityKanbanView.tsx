@@ -8,16 +8,10 @@ import { useDroppable } from "@dnd-kit/core";
 import { OpportunityCard } from "./OpportunityCard";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { useUpdateOpportunityStage, useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
-
-interface Stage {
-  id: string;
-  name: string;
-  position: number;
-  auto_status?: string | null;
-}
+import type { OpportunityStage } from "@/types/opportunities";
 
 const StageColumn = memo(forwardRef<HTMLDivElement, {
-  stage: Stage;
+  stage: OpportunityStage;
   opportunities: any[];
   onCardClick: (opp: any, tab?: string) => void;
   onDelete: (id: string) => void;
@@ -61,7 +55,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
 }));
 
 interface KanbanProps {
-  stages: Stage[];
+  stages: OpportunityStage[];
   opportunities: any[];
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;

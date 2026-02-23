@@ -35,6 +35,7 @@ import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
+import { STATUS_OPTIONS } from "@/types/opportunities";
 
 interface Props {
   opportunity: any;
@@ -587,10 +588,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           <Select value={status} onValueChange={setStatus}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="open">Aperta</SelectItem>
-                              <SelectItem value="won">Vinta</SelectItem>
-                              <SelectItem value="lost">Persa</SelectItem>
-                              <SelectItem value="abandoned">Abbandonata</SelectItem>
+                              {STATUS_OPTIONS.map((s) => (
+                                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>

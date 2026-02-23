@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, ChevronRight, Loader2 } from "lucide-react";
 import { useBulkUpdateOpportunities, useCompanyStaff } from "@/hooks/useOpportunitiesData";
+import { STATUS_OPTIONS } from "@/types/opportunities";
 
 interface BulkEditSheetProps {
   open: boolean;
@@ -123,10 +124,9 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone 
                   <Select value={fieldValue} onValueChange={setFieldValue}>
                     <SelectTrigger><SelectValue placeholder="Seleziona stato..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="open">Aperta</SelectItem>
-                      <SelectItem value="won">Vinta</SelectItem>
-                      <SelectItem value="lost">Persa</SelectItem>
-                      <SelectItem value="abandoned">Abbandonata</SelectItem>
+                      {STATUS_OPTIONS.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}

@@ -47,12 +47,7 @@ export function countActiveFilters(f: OpportunityFilters): number {
   return count;
 }
 
-const STATUS_OPTIONS = [
-  { value: "open", label: "Aperta" },
-  { value: "won", label: "Vinta" },
-  { value: "lost", label: "Persa" },
-  { value: "abandoned", label: "Abbandonata" },
-];
+import { STATUS_OPTIONS } from "@/types/opportunities";
 
 interface Props {
   open: boolean;
