@@ -15,7 +15,7 @@ export interface AutomationNode {
   id: string;
   flow_id: string;
   company_id: string;
-  node_type: "trigger" | "action" | "condition" | "delay" | "goal";
+  node_type: "trigger" | "action" | "condition" | "delay" | "goal" | "split";
   position_x: number;
   position_y: number;
   config_json: Record<string, any>;
@@ -56,6 +56,7 @@ export const TRIGGER_CATEGORIES: { key: TriggerCategory; label: string; icon: st
       { id: "tag_added", label: "Tag aggiunto", icon: "TagIcon", category: "contact" },
       { id: "tag_removed", label: "Tag rimosso", icon: "TagIcon", category: "contact" },
       { id: "custom_field_updated", label: "Campo personalizzato aggiornato", icon: "FileText", category: "contact" },
+      { id: "custom_date", label: "Data personalizzata", icon: "CalendarClock", category: "contact" },
       { id: "birthday_reminder", label: "Promemoria compleanno", icon: "Cake", category: "contact" },
     ],
   },
@@ -90,6 +91,7 @@ export const TRIGGER_CATEGORIES: { key: TriggerCategory; label: string; icon: st
       { id: "email_clicked", label: "Email cliccata", icon: "MousePointerClick", category: "communication" },
       { id: "whatsapp_received", label: "WhatsApp ricevuto", icon: "MessageCircle", category: "communication" },
       { id: "customer_replied", label: "Risposta cliente", icon: "Reply", category: "communication" },
+      { id: "call_registered", label: "Chiamata registrata", icon: "Phone", category: "communication" },
     ],
   },
   {
@@ -100,6 +102,7 @@ export const TRIGGER_CATEGORIES: { key: TriggerCategory; label: string; icon: st
       { id: "webhook_incoming", label: "Webhook in entrata", icon: "Webhook", category: "system" },
       { id: "scheduler", label: "Scheduler", icon: "Timer", category: "system" },
       { id: "form_submitted", label: "Modulo inviato", icon: "FileInput", category: "system" },
+      { id: "survey_submitted", label: "Sondaggio inviato", icon: "ClipboardCheck", category: "system" },
     ],
   },
 ];
@@ -112,7 +115,9 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
     items: [
       { id: "send_email", label: "Invia Email", icon: "Mail", category: "communication" },
       { id: "send_whatsapp", label: "Invia WhatsApp", icon: "MessageCircle", category: "communication" },
+      { id: "send_sms", label: "Invia SMS", icon: "Smartphone", category: "communication" },
       { id: "send_notification", label: "Invia Notifica", icon: "Bell", category: "communication" },
+      { id: "send_ai_message", label: "Invia Messaggio AI", icon: "Bot", category: "communication", description: "Genera e invia un messaggio con AI" },
     ],
   },
   {
@@ -136,6 +141,9 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
     items: [
       { id: "delay", label: "Attendi (Delay)", icon: "Clock", category: "logic", description: "Attendi X giorni/ore prima di proseguire" },
       { id: "if_else", label: "If / Else", icon: "GitBranch", category: "logic", description: "Condizione con 2 rami" },
+      { id: "split_percentage", label: "Split percentuale", icon: "Percent", category: "logic", description: "Dividi il flusso in base a percentuali" },
+      { id: "goal", label: "Obiettivo (Goal)", icon: "Target", category: "logic", description: "Punto di arrivo dell'automazione" },
+      { id: "jump_to_step", label: "Salta a step", icon: "CornerDownRight", category: "logic", description: "Salta ad un altro nodo del flusso" },
       { id: "end_automation", label: "Termina automazione", icon: "StopCircle", category: "logic" },
     ],
   },
@@ -145,6 +153,9 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
     icon: "Plug",
     items: [
       { id: "webhook_out", label: "Webhook uscita", icon: "ExternalLink", category: "integration" },
+      { id: "external_api", label: "API esterna", icon: "Globe", category: "integration", description: "Chiama un'API esterna" },
+      { id: "sync_google", label: "Sync Google", icon: "RefreshCw", category: "integration", description: "Sincronizza con Google" },
+      { id: "sync_meta_lead", label: "Sync Meta Lead", icon: "RefreshCw", category: "integration", description: "Sincronizza con Meta Lead Ads" },
     ],
   },
 ];
@@ -155,6 +166,7 @@ export const NODE_TYPE_COLORS: Record<string, string> = {
   condition: "border-purple-400 bg-purple-50 dark:bg-purple-950/30",
   delay: "border-amber-400 bg-amber-50 dark:bg-amber-950/30",
   goal: "border-green-400 bg-green-50 dark:bg-green-950/30",
+  split: "border-teal-400 bg-teal-50 dark:bg-teal-950/30",
 };
 
 export const NODE_TYPE_LABELS: Record<string, string> = {
@@ -163,4 +175,5 @@ export const NODE_TYPE_LABELS: Record<string, string> = {
   condition: "Condizione",
   delay: "Attesa",
   goal: "Obiettivo",
+  split: "Split",
 };
