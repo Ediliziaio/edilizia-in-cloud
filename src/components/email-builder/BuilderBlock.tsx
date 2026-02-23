@@ -27,17 +27,22 @@ interface BuilderBlockProps {
   onDeleteChildBlock?: (parentId: string, colIndex: number, childId: string) => void;
   onSelectChildBlock?: (childBlock: BuilderBlockType) => void;
   selectedChildBlockId?: string | null;
+  onInlineEdit?: (blockId: string, partial: Record<string, any>) => void;
 }
 
-export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelete, onMoveUp, onMoveDown, isFirst, isLast, dragHandleProps, onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId }: BuilderBlockProps) {
+export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelete, onMoveUp, onMoveDown, isFirst, isLast, dragHandleProps, onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId, onInlineEdit }: BuilderBlockProps) {
   const renderContent = () => {
     switch (block.type) {
       case "text": {
         const p = block.props as TextProps;
         return (
           <div
-            style={{ fontFamily: p.fontFamily, fontSize: p.fontSize, color: p.color, textAlign: p.textAlign, fontWeight: p.fontWeight, lineHeight: 1.5 }}
+            contentEditable={isSelected}
+            suppressContentEditableWarning
+            style={{ fontFamily: p.fontFamily, fontSize: p.fontSize, color: p.color, textAlign: p.textAlign, fontWeight: p.fontWeight, lineHeight: 1.5, outline: "none", cursor: isSelected ? "text" : "pointer" }}
             dangerouslySetInnerHTML={{ __html: p.content }}
+            onBlur={(e) => onInlineEdit?.(block.id, { content: e.currentTarget.innerHTML })}
+            onClick={(e) => { if (isSelected) e.stopPropagation(); }}
           />
         );
       }
@@ -58,10 +63,15 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
         return (
           <div style={{ textAlign: p.align, padding: "8px 0" }}>
             <span
+              contentEditable={isSelected}
+              suppressContentEditableWarning
               style={{
                 display: "inline-block", backgroundColor: p.backgroundColor, color: p.textColor,
                 padding: "12px 24px", borderRadius: p.borderRadius, fontWeight: "bold", fontSize: "16px",
+                outline: "none", cursor: isSelected ? "text" : "pointer",
               }}
+              onBlur={(e) => onInlineEdit?.(block.id, { text: e.currentTarget.textContent || "" })}
+              onClick={(e) => { if (isSelected) e.stopPropagation(); }}
             >
               {p.text}
             </span>
@@ -107,7 +117,7 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
                     <div className="p-1">
                       <BuilderBlock
                         block={child}
-                        isSelected={false}
+                        isSelected={selectedChildBlockId === child.id}
                         onSelect={() => onSelectChildBlock?.(child)}
                         onDuplicate={() => {}}
                         onDelete={() => onDeleteChildBlock?.(block.id, i, child.id)}
@@ -115,6 +125,7 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
                         onMoveDown={() => {}}
                         isFirst
                         isLast
+                        onInlineEdit={onInlineEdit}
                       />
                     </div>
                   </div>

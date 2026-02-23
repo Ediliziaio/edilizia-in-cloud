@@ -17,11 +17,12 @@ interface BuilderCanvasProps {
   onDeleteChildBlock?: (parentId: string, colIndex: number, childId: string) => void;
   onSelectChildBlock?: (childBlock: BuilderBlockType) => void;
   selectedChildBlockId?: string | null;
+  onInlineEdit?: (blockId: string, partial: Record<string, any>) => void;
 }
 
 function SortableBlock({
   block, isSelected, onSelect, onDuplicate, onDelete, onMoveUp, onMoveDown, isFirst, isLast,
-  onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId,
+  onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId, onInlineEdit,
 }: {
   block: BuilderBlockType;
   isSelected: boolean;
@@ -36,6 +37,7 @@ function SortableBlock({
   onDeleteChildBlock?: (parentId: string, colIndex: number, childId: string) => void;
   onSelectChildBlock?: (childBlock: BuilderBlockType) => void;
   selectedChildBlockId?: string | null;
+  onInlineEdit?: (blockId: string, partial: Record<string, any>) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
 
@@ -62,12 +64,13 @@ function SortableBlock({
         onDeleteChildBlock={onDeleteChildBlock}
         onSelectChildBlock={onSelectChildBlock}
         selectedChildBlockId={selectedChildBlockId}
+        onInlineEdit={onInlineEdit}
       />
     </div>
   );
 }
 
-export function BuilderCanvas({ blocks, selectedBlockId, onSelectBlock, onDuplicateBlock, onDeleteBlock, onMoveBlock, previewWidth, onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId }: BuilderCanvasProps) {
+export function BuilderCanvas({ blocks, selectedBlockId, onSelectBlock, onDuplicateBlock, onDeleteBlock, onMoveBlock, previewWidth, onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId, onInlineEdit }: BuilderCanvasProps) {
   const { setNodeRef, isOver } = useDroppable({ id: "canvas-drop" });
 
   return (
@@ -101,6 +104,7 @@ export function BuilderCanvas({ blocks, selectedBlockId, onSelectBlock, onDuplic
                   onDeleteChildBlock={onDeleteChildBlock}
                   onSelectChildBlock={onSelectChildBlock}
                   selectedChildBlockId={selectedChildBlockId}
+                  onInlineEdit={onInlineEdit}
                 />
               ))}
             </SortableContext>
