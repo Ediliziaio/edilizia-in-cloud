@@ -286,7 +286,7 @@ export function AutomationBuilder() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="h-[calc(100vh-4rem)] flex flex-col">
+      <div className="h-screen w-screen fixed inset-0 z-50 flex flex-col bg-background">
         {/* Row 1: back link + name center + actions right */}
         <div className="flex items-center gap-3 px-4 py-2 border-b bg-background shrink-0">
           <button
