@@ -1,4 +1,4 @@
-import { GripVertical, Copy, Trash2, ChevronUp, ChevronDown, Plus, Type, ImageIcon, MousePointerClick, Minus, Code, Columns } from "lucide-react";
+import { GripVertical, Copy, Trash2, ChevronUp, ChevronDown, Plus, Type, ImageIcon, MousePointerClick, Minus, Code } from "lucide-react";
 import { BuilderBlock as BuilderBlockType, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, getColumnWidths, BlockType, createBlock } from "./builderTypes";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";

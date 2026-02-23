@@ -281,9 +281,27 @@ export default function DragDropEmailBuilder() {
   };
 
   const handleUpdateBlockProps = (blockId: string, partial: Record<string, any>) => {
-    const newBlocks = blocks.map((b) =>
-      b.id === blockId ? { ...b, props: { ...b.props, ...partial } } : b
-    );
+    const newBlocks = blocks.map((b) => {
+      if (b.id !== blockId) return b;
+      const updated = { ...b, props: { ...b.props, ...partial } };
+      // Sync children array when column layout changes
+      if (b.type === "columns" && partial.layout && partial.layout !== (b.props as any).layout) {
+        const newColCount = partial.layout === "1" ? 1 : (partial.layout as string).split("-").length;
+        const oldChildren = b.children || [];
+        const newChildren: BuilderBlock[][] = [];
+        for (let i = 0; i < newColCount; i++) {
+          newChildren.push(oldChildren[i] ? [...oldChildren[i]] : []);
+        }
+        // Move orphaned children from removed columns into the last column
+        for (let i = newColCount; i < oldChildren.length; i++) {
+          if (oldChildren[i]?.length) {
+            newChildren[newColCount - 1].push(...oldChildren[i]);
+          }
+        }
+        updated.children = newChildren;
+      }
+      return updated;
+    });
     updateBlocks(newBlocks);
   };
 
