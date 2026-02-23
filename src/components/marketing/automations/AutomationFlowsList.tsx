@@ -19,26 +19,52 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Zap, Plus, ExternalLink, MoreHorizontal, Pencil, Copy, Archive, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Zap, Plus, ExternalLink, MoreHorizontal, Pencil, Copy, Archive, Trash2, ChevronLeft, ChevronRight, Folder } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { AutomationFlow } from "@/types/automationBuilder";
 
 interface Props {
   statusFilter: string;
   searchQuery?: string;
+  folderId?: string | null;
+  onNavigateFolder?: (folderId: string | null) => void;
 }
 
-export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
+export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId = null, onNavigateFolder }: Props) {
   const { effectiveCompany, user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  // Load folders in current directory
+  const { data: folders } = useQuery({
+    queryKey: ["automation-folders", effectiveCompany?.id, folderId],
+    queryFn: async () => {
+      let query = supabase
+        .from("automation_folders")
+        .select("*")
+        .eq("company_id", effectiveCompany!.id)
+        .order("name");
+
+      if (folderId) {
+        query = query.eq("parent_id", folderId);
+      } else {
+        query = query.is("parent_id", null);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!effectiveCompany?.id,
+  });
+
   const { data: flows, isLoading } = useQuery({
-    queryKey: ["automation-flows", effectiveCompany?.id, statusFilter],
+    queryKey: ["automation-flows", effectiveCompany?.id, statusFilter, folderId],
     queryFn: async () => {
       let query = supabase
         .from("automation_flows")
@@ -48,6 +74,12 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
 
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
+      }
+
+      if (folderId) {
+        query = query.eq("folder_id", folderId);
+      } else {
+        query = query.is("folder_id", null);
       }
 
       const { data, error } = await query;
@@ -91,6 +123,19 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
     onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
   });
 
+  const deleteFolderMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("automation_folders").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["automation-folders"] });
+      toast({ title: "Cartella eliminata" });
+      setDeleteFolderId(null);
+    },
+    onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+  });
+
   const duplicateMutation = useMutation({
     mutationFn: async (flow: AutomationFlow) => {
       const { data, error } = await supabase
@@ -101,6 +146,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
           description: flow.description,
           status: "draft",
           created_by: user!.id,
+          folder_id: flow.folder_id,
         })
         .select()
         .single();
@@ -181,7 +227,9 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
     return <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>;
   }
 
-  if (!flows || flows.length === 0) {
+  const hasContent = (folders && folders.length > 0) || (flows && flows.length > 0);
+
+  if (!hasContent) {
     return (
       <div className="text-center py-16">
         <Zap className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
@@ -221,6 +269,46 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {/* Folders */}
+              {folders?.map(folder => (
+                <TableRow
+                  key={`folder-${folder.id}`}
+                  className="cursor-pointer hover:bg-muted/40 transition-colors"
+                  onClick={() => onNavigateFolder?.(folder.id)}
+                >
+                  <TableCell onClick={e => e.stopPropagation()} />
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Folder className="h-4 w-4 text-primary" />
+                      <span className="font-medium">{folder.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell />
+                  <TableCell />
+                  <TableCell />
+                  <TableCell className="text-muted-foreground text-sm">
+                    {formatDate(folder.created_at)}
+                  </TableCell>
+                  <TableCell />
+                  <TableCell />
+                  <TableCell onClick={e => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteFolderId(folder.id)}>
+                          <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+
+              {/* Flows */}
               {paginated.map(flow => {
                 const badge = STATUS_BADGE[flow.status] || STATUS_BADGE.draft;
                 const counts = enrollmentCounts?.[flow.id] || { total: 0, active: 0 };
@@ -327,6 +415,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
         </div>
       </div>
 
+      {/* Delete flow dialog */}
       <AlertDialog open={!!deleteId} onOpenChange={o => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -336,6 +425,20 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteId && deleteMutation.mutate(deleteId)}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete folder dialog */}
+      <AlertDialog open={!!deleteFolderId} onOpenChange={o => !o && setDeleteFolderId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina cartella</AlertDialogTitle>
+            <AlertDialogDescription>La cartella e tutti i contenuti verranno eliminati permanentemente.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteFolderId && deleteFolderMutation.mutate(deleteFolderId)}>Elimina</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
