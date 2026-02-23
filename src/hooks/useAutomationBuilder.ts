@@ -23,6 +23,13 @@ export function useAutomationBuilder(flowId: string | undefined) {
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
   // Load flow
   const { data: flow, isLoading: flowLoading } = useQuery({
     queryKey: ["automation-flow", flowId],
@@ -111,9 +118,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
     setHasUnsavedChanges(true);
   }, [history, historyIndex]);
 
-  // Auto-save with debounce
-
-  // Auto-save with debounce
+  // Auto-save with debounce (uses ref to always call latest saveAll)
   const triggerAutoSave = useCallback(() => {
     setHasUnsavedChanges(true);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -122,12 +127,14 @@ export function useAutomationBuilder(flowId: string | undefined) {
     }, 2000);
   }, []);
 
-  // Create flow
+  // Create flow - with guards for effectiveCompany and user
   const createFlowMutation = useMutation({
     mutationFn: async (name: string) => {
+      if (!effectiveCompany) throw new Error("Nessuna azienda selezionata. Seleziona un'azienda prima di creare un'automazione.");
+      if (!user) throw new Error("Utente non autenticato.");
       const { data, error } = await supabase
         .from("automation_flows")
-        .insert({ name, company_id: effectiveCompany!.id, created_by: user!.id })
+        .insert({ name, company_id: effectiveCompany.id, created_by: user.id })
         .select()
         .single();
       if (error) throw error;
@@ -135,9 +142,15 @@ export function useAutomationBuilder(flowId: string | undefined) {
     },
   });
 
+  // Whether persist actions are possible
+  const canPersist = Boolean(flowId && flowId !== "nuova" && effectiveCompany);
+
   // Save all nodes + connections
   const saveAll = useCallback(async () => {
-    if (!flowId || flowId === "nuova" || !effectiveCompany) return;
+    if (!flowId || flowId === "nuova" || !effectiveCompany) {
+      toast({ title: "Impossibile salvare", description: "Flow non ancora pronto. Attendi il completamento della creazione.", variant: "destructive" });
+      return;
+    }
     setIsSaving(true);
     try {
       // Upsert nodes
@@ -265,16 +278,23 @@ export function useAutomationBuilder(flowId: string | undefined) {
   // Update flow name/description
   const updateFlowMutation = useMutation({
     mutationFn: async (updates: Partial<AutomationFlow>) => {
-      if (!flowId) return;
+      if (!flowId) throw new Error("Flow non disponibile.");
       const { error } = await supabase.from("automation_flows").update(updates).eq("id", flowId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["automation-flow", flowId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["automation-flow", flowId] });
+      queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
+    },
   });
 
   // Publish / Unpublish
   const togglePublish = useCallback(async () => {
-    if (!flow) return;
+    if (!flow) {
+      toast({ title: "Flow non ancora pronto", variant: "destructive" });
+      return;
+    }
+    if (updateFlowMutation.isPending) return; // block re-entrancy
     try {
       const newStatus = flow.status === "published" ? "draft" : "published";
       const newVersion = newStatus === "published" ? flow.version + 1 : flow.version;
@@ -289,11 +309,12 @@ export function useAutomationBuilder(flowId: string | undefined) {
   const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
 
   return {
-    flow, nodes, connections, isLoading, isSaving, hasUnsavedChanges,
+    flow, nodes, connections, isLoading, isSaving, hasUnsavedChanges, canPersist,
     selectedNodeId, selectedNode, setSelectedNodeId,
     addNode, updateNode, removeNode,
     addConnection, removeConnection,
     undo, redo, canUndo: historyIndex > 0, canRedo: historyIndex < history.length - 1,
     saveAll, createFlowMutation, updateFlowMutation, togglePublish,
+    effectiveCompany, user,
   };
 }
