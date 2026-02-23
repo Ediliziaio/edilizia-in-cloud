@@ -677,59 +677,86 @@ export type Database = {
         Row: {
           ab_subject_b: string | null
           ab_test_enabled: boolean
+          auto_tag: boolean
           company_id: string
           created_at: string
           created_by: string
           folder_id: string | null
+          html_content: string
           id: string
           name: string
+          preview_text: string | null
           recipient_filter: Json | null
+          resend_to_unopened: boolean
           scheduled_at: string | null
+          send_mode: string
+          sender_email: string | null
+          sender_name: string | null
           sent_at: string | null
           status: string
           subject: string
           template_id: string | null
           total_recipients: number
+          track_clicks: boolean
           type: string
           updated_at: string
+          utm_tracking: boolean
         }
         Insert: {
           ab_subject_b?: string | null
           ab_test_enabled?: boolean
+          auto_tag?: boolean
           company_id: string
           created_at?: string
           created_by: string
           folder_id?: string | null
+          html_content?: string
           id?: string
           name: string
+          preview_text?: string | null
           recipient_filter?: Json | null
+          resend_to_unopened?: boolean
           scheduled_at?: string | null
+          send_mode?: string
+          sender_email?: string | null
+          sender_name?: string | null
           sent_at?: string | null
           status?: string
           subject?: string
           template_id?: string | null
           total_recipients?: number
+          track_clicks?: boolean
           type?: string
           updated_at?: string
+          utm_tracking?: boolean
         }
         Update: {
           ab_subject_b?: string | null
           ab_test_enabled?: boolean
+          auto_tag?: boolean
           company_id?: string
           created_at?: string
           created_by?: string
           folder_id?: string | null
+          html_content?: string
           id?: string
           name?: string
+          preview_text?: string | null
           recipient_filter?: Json | null
+          resend_to_unopened?: boolean
           scheduled_at?: string | null
+          send_mode?: string
+          sender_email?: string | null
+          sender_name?: string | null
           sent_at?: string | null
           status?: string
           subject?: string
           template_id?: string | null
           total_recipients?: number
+          track_clicks?: boolean
           type?: string
           updated_at?: string
+          utm_tracking?: boolean
         }
         Relationships: [
           {

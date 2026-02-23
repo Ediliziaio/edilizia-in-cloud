@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,8 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Pencil, Trash2, ChevronRight, ChevronLeft, Send } from "lucide-react";
-import { CampaignDialog } from "./CampaignDialog";
+import { Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Trash2, ChevronRight, ChevronLeft, Send } from "lucide-react";
+import { CampaignCreateDropdown } from "./CampaignCreateDropdown";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -33,9 +34,8 @@ const CATEGORIES = [
 
 export function EmailCampaignsTab() {
   const { company } = useAuth();
+  const navigate = useNavigate();
   const qc = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editCampaign, setEditCampaign] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -178,9 +178,7 @@ export function EmailCampaignsTab() {
             <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
               <FolderPlus className="h-4 w-4 mr-1" /> <span className="hidden sm:inline">Crea cartella</span>
             </Button>
-            <Button size="sm" onClick={() => { setEditCampaign(null); setDialogOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" /> Nuovo
-            </Button>
+            <CampaignCreateDropdown />
           </div>
         </div>
 
@@ -226,9 +224,7 @@ export function EmailCampaignsTab() {
             <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
               <Send className="h-10 w-10 text-muted-foreground" />
               <p className="text-muted-foreground">Nessuna campagna trovata</p>
-              <Button onClick={() => { setEditCampaign(null); setDialogOpen(true); }}>
-                <Plus className="h-4 w-4 mr-1" /> Crea campagna
-              </Button>
+              <CampaignCreateDropdown />
             </CardContent>
           </Card>
         ) : (
@@ -248,7 +244,11 @@ export function EmailCampaignsTab() {
                 {paged.map((c: any) => {
                   const badge = STATUS_BADGE[c.status] || { label: c.status, variant: "secondary" as const };
                   return (
-                    <TableRow key={c.id}>
+                    <TableRow
+                      key={c.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/azienda/marketing/email/campagna/${c.id}/editor`)}
+                    >
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell>
                         <Badge variant="outline">
@@ -266,15 +266,12 @@ export function EmailCampaignsTab() {
                       <TableCell>
                         <Badge variant={badge.variant}>{badge.label}</Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => { setEditCampaign(c); setDialogOpen(true); }}>
-                              <Pencil className="h-4 w-4 mr-2" /> Modifica
-                            </DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(c.id)}>
                               <Trash2 className="h-4 w-4 mr-2" /> Elimina
                             </DropdownMenuItem>
@@ -311,7 +308,6 @@ export function EmailCampaignsTab() {
         )}
       </div>
 
-      <CampaignDialog open={dialogOpen} onOpenChange={setDialogOpen} campaign={editCampaign} />
       <CreateFolderDialog
         open={folderDialogOpen}
         onOpenChange={setFolderDialogOpen}

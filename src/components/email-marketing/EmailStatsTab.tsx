@@ -6,6 +6,7 @@ import { CampaignStatsCards } from "./CampaignStatsCards";
 import { EmailFunnelChart } from "./EmailFunnelChart";
 import { EmailPerformanceChart } from "./EmailPerformanceChart";
 import { EmailTopCampaignsTable } from "./EmailTopCampaignsTable";
+import { CampaignCreateDropdown } from "./CampaignCreateDropdown";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
@@ -149,6 +150,7 @@ export function EmailStatsTab() {
     <div className="space-y-6">
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
+        <CampaignCreateDropdown />
         <Select value={campaignFilter} onValueChange={setCampaignFilter}>
           <SelectTrigger className="w-[220px]"><SelectValue placeholder="Tutte le campagne" /></SelectTrigger>
           <SelectContent>
