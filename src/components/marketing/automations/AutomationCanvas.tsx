@@ -32,13 +32,21 @@ export function AutomationCanvas({
   const [dragNodeId, setDragNodeId] = useState<string | null>(null);
   const dragStart = useRef({ x: 0, y: 0, nodeX: 0, nodeY: 0 });
 
+  // Refs to avoid callback recreation during drag/pan
+  const panRef = useRef(pan);
+  panRef.current = pan;
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.target === canvasRef.current || (e.target as HTMLElement).dataset.canvas) {
       onSelectNode(null);
       setIsPanning(true);
-      panStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+      panStart.current = { x: e.clientX, y: e.clientY, panX: panRef.current.x, panY: panRef.current.y };
     }
-  }, [pan, onSelectNode]);
+  }, [onSelectNode]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
@@ -48,14 +56,14 @@ export function AutomationCanvas({
       });
     }
     if (dragNodeId) {
-      const dx = (e.clientX - dragStart.current.x) / zoom;
-      const dy = (e.clientY - dragStart.current.y) / zoom;
+      const dx = (e.clientX - dragStart.current.x) / zoomRef.current;
+      const dy = (e.clientY - dragStart.current.y) / zoomRef.current;
       onUpdateNode(dragNodeId, {
         position_x: dragStart.current.nodeX + dx,
         position_y: dragStart.current.nodeY + dy,
       });
     }
-  }, [isPanning, dragNodeId, zoom, onUpdateNode]);
+  }, [isPanning, dragNodeId, onUpdateNode]);
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
@@ -69,11 +77,11 @@ export function AutomationCanvas({
   }, []);
 
   const handleNodeDragStart = useCallback((id: string, e: React.MouseEvent) => {
-    const node = nodes.find(n => n.id === id);
+    const node = nodesRef.current.find(n => n.id === id);
     if (!node) return;
     setDragNodeId(id);
     dragStart.current = { x: e.clientX, y: e.clientY, nodeX: node.position_x, nodeY: node.position_y };
-  }, [nodes]);
+  }, []);
 
   const fitToScreen = useCallback(() => {
     if (nodes.length === 0 || !canvasRef.current) return;

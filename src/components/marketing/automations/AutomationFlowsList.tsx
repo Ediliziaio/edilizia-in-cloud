@@ -258,9 +258,9 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
   }
 
   const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-    draft: { label: "Draft", className: "bg-muted text-muted-foreground border-border" },
-    published: { label: "Published", className: "bg-green-100 text-green-700 border-green-200 hover:bg-green-100" },
-    archived: { label: "Archived", className: "border text-muted-foreground" },
+    draft: { label: "Bozza", className: "bg-muted text-muted-foreground border-border" },
+    published: { label: "Pubblicata", className: "bg-green-100 text-green-700 border-green-200 hover:bg-green-100" },
+    archived: { label: "Archiviata", className: "border text-muted-foreground" },
   };
 
   return (
