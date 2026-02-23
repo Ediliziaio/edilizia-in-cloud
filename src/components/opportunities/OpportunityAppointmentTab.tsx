@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,12 +12,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CalendarIcon, Loader2, Trash2, Clock, Car } from "lucide-react";
-import { format, getDay, addMinutes, parse, isAfter, isSameDay, parseISO } from "date-fns";
+import { format, getDay, addMinutes, parse, isAfter } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import AddressAutocomplete, { type AddressData, emptyAddress } from "@/components/shared/AddressAutocomplete";
 import AddressMapPreview from "@/components/shared/AddressMapPreview";
+import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
 
 interface Props {
   contactId: string;
@@ -37,6 +38,8 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
   const [description, setDescription] = useState("");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [addressData, setAddressData] = useState<AddressData>(emptyAddress);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<MarketingAppointmentData | null>(null);
 
   // Fetch calendars with base address
   const { data: calendars = [] } = useQuery({
@@ -118,7 +121,52 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
     enabled: !!contactId && !!companyId,
   });
 
-  // Distance from calendar base
+  // Team users for dialog
+  const { data: teamUsers = [] } = useQuery({
+    queryKey: ["company_team_users", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId!)
+        .or("role.eq.admin,role.eq.staff");
+      if (error) throw error;
+      return (data || []) as { id: string; first_name: string; last_name: string }[];
+    },
+    enabled: !!companyId,
+  });
+
+  const handleOpenAppointmentDialog = () => {
+    if (!existingContactAppointment) return;
+    const appt = existingContactAppointment;
+    setEditingAppointment({
+      id: appt.id,
+      title: appt.title,
+      description: appt.description || null,
+      appointment_date: appt.appointment_date,
+      appointment_time: appt.appointment_time || null,
+      appointment_end_time: appt.appointment_end_time || null,
+      appointment_type: appt.appointment_type || "appuntamento",
+      assigned_to: appt.assigned_to || null,
+      calendar_id: appt.calendar_id || null,
+      contact_id: appt.contact_id || null,
+      status: appt.status,
+      is_completed: appt.is_completed || false,
+      is_blocked_slot: appt.is_blocked_slot || false,
+      internal_notes: appt.internal_notes || null,
+      address_line: appt.address_line || null,
+      address_city: appt.address_city || null,
+      address_postal_code: appt.address_postal_code || null,
+      address_province: appt.address_province || null,
+      address_country: appt.address_country || null,
+      address_notes: appt.address_notes || null,
+      formatted_address: appt.formatted_address || null,
+      lat: appt.lat ?? null,
+      lng: appt.lng ?? null,
+      place_id: appt.place_id || null,
+    });
+    setDialogOpen(true);
+  };
   const { data: baseDistance } = useQuery({
     queryKey: ["base-distance", calendarId, addressData.lat, addressData.lng],
     queryFn: async () => {
@@ -246,13 +294,16 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
   return (
     <div className="space-y-5">
       {existingContactAppointment && (
-        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
+        <div
+          className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2 cursor-pointer hover:border-primary/40 transition-colors"
+          onClick={handleOpenAppointmentDialog}
+        >
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold flex items-center gap-2">
               <Clock className="h-4 w-4 text-primary" />
               Appuntamento già fissato
             </h4>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(existingContactAppointment.id)} disabled={deleteMutation.isPending}>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(existingContactAppointment.id); }} disabled={deleteMutation.isPending}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -364,6 +415,17 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         {bookMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Prenota appuntamento
       </Button>
+      <MarketingAppointmentDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        appointment={editingAppointment}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
+          queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
+        }}
+        calendars={calendars}
+        users={teamUsers}
+      />
     </div>
   );
 }
