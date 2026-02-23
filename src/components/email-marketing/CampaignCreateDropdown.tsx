@@ -19,7 +19,7 @@ interface CampaignCreateDropdownProps {
 }
 
 export function CampaignCreateDropdown({ variant = "default", size = "sm" }: CampaignCreateDropdownProps) {
-  const { company, user } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -28,7 +28,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
       const { data, error } = await supabase
         .from("email_campaigns")
         .insert({
-          company_id: company!.id,
+          company_id: effectiveCompany!.id,
           created_by: user!.id,
           name: "Campagna senza titolo",
           status: "draft",
@@ -49,7 +49,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant={variant} size={size} disabled={createDraftMut.isPending}>
+        <Button variant={variant} size={size} disabled={createDraftMut.isPending || !effectiveCompany || !user}>
           <Plus className="h-4 w-4 mr-1" />
           {createDraftMut.isPending ? "Creazione..." : "Crea campagna"}
         </Button>
