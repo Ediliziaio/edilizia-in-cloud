@@ -33,7 +33,7 @@ const CATEGORIES = [
 ];
 
 export function EmailCampaignsTab() {
-  const { company } = useAuth();
+  const { effectiveCompany: company } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");

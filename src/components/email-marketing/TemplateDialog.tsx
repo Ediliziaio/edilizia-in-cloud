@@ -17,7 +17,7 @@ interface TemplateDialogProps {
 }
 
 export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogProps) {
-  const { user, company } = useAuth();
+  const { user, effectiveCompany: company } = useAuth();
   const qc = useQueryClient();
   const isEdit = !!template;
 
