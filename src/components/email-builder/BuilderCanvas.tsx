@@ -1,7 +1,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { BuilderBlock as BuilderBlockType } from "./builderTypes";
+import { BuilderBlock as BuilderBlockType, BlockType } from "./builderTypes";
 import { BuilderBlock } from "./BuilderBlock";
 import { Package } from "lucide-react";
 
@@ -13,10 +13,15 @@ interface BuilderCanvasProps {
   onDeleteBlock: (id: string) => void;
   onMoveBlock: (id: string, direction: "up" | "down") => void;
   previewWidth: string;
+  onAddChildBlock?: (parentId: string, colIndex: number, childType: BlockType) => void;
+  onDeleteChildBlock?: (parentId: string, colIndex: number, childId: string) => void;
+  onSelectChildBlock?: (childBlock: BuilderBlockType) => void;
+  selectedChildBlockId?: string | null;
 }
 
 function SortableBlock({
   block, isSelected, onSelect, onDuplicate, onDelete, onMoveUp, onMoveDown, isFirst, isLast,
+  onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId,
 }: {
   block: BuilderBlockType;
   isSelected: boolean;
@@ -27,6 +32,10 @@ function SortableBlock({
   onMoveDown: () => void;
   isFirst: boolean;
   isLast: boolean;
+  onAddChildBlock?: (parentId: string, colIndex: number, childType: BlockType) => void;
+  onDeleteChildBlock?: (parentId: string, colIndex: number, childId: string) => void;
+  onSelectChildBlock?: (childBlock: BuilderBlockType) => void;
+  selectedChildBlockId?: string | null;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
 
@@ -49,12 +58,16 @@ function SortableBlock({
         isFirst={isFirst}
         isLast={isLast}
         dragHandleProps={listeners}
+        onAddChildBlock={onAddChildBlock}
+        onDeleteChildBlock={onDeleteChildBlock}
+        onSelectChildBlock={onSelectChildBlock}
+        selectedChildBlockId={selectedChildBlockId}
       />
     </div>
   );
 }
 
-export function BuilderCanvas({ blocks, selectedBlockId, onSelectBlock, onDuplicateBlock, onDeleteBlock, onMoveBlock, previewWidth }: BuilderCanvasProps) {
+export function BuilderCanvas({ blocks, selectedBlockId, onSelectBlock, onDuplicateBlock, onDeleteBlock, onMoveBlock, previewWidth, onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId }: BuilderCanvasProps) {
   const { setNodeRef, isOver } = useDroppable({ id: "canvas-drop" });
 
   return (
@@ -84,6 +97,10 @@ export function BuilderCanvas({ blocks, selectedBlockId, onSelectBlock, onDuplic
                   onMoveDown={() => onMoveBlock(block.id, "down")}
                   isFirst={i === 0}
                   isLast={i === blocks.length - 1}
+                  onAddChildBlock={onAddChildBlock}
+                  onDeleteChildBlock={onDeleteChildBlock}
+                  onSelectChildBlock={onSelectChildBlock}
+                  selectedChildBlockId={selectedChildBlockId}
                 />
               ))}
             </SortableContext>

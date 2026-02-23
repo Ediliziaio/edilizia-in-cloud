@@ -120,3 +120,12 @@ export function getColumnWidths(layout: ColumnLayout): string[] {
     default: return ["100%"];
   }
 }
+
+export const PERSONALIZATION_VARIABLES = [
+  { label: "Nome", tag: "{{contact.first_name}}" },
+  { label: "Cognome", tag: "{{contact.last_name}}" },
+  { label: "Email", tag: "{{contact.email}}" },
+  { label: "Telefono", tag: "{{contact.phone}}" },
+  { label: "Azienda", tag: "{{company.name}}" },
+  { label: "Link disiscrizione", tag: "{{unsubscribe_url}}" },
+] as const;

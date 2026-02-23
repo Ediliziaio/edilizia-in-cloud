@@ -1,6 +1,16 @@
-import { GripVertical, Copy, Trash2, ChevronUp, ChevronDown } from "lucide-react";
-import { BuilderBlock as BuilderBlockType, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, getColumnWidths } from "./builderTypes";
+import { GripVertical, Copy, Trash2, ChevronUp, ChevronDown, Plus, Type, ImageIcon, MousePointerClick, Minus, Code, Columns } from "lucide-react";
+import { BuilderBlock as BuilderBlockType, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, getColumnWidths, BlockType, createBlock } from "./builderTypes";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
+const CHILD_BLOCK_OPTIONS: { type: BlockType; label: string; icon: React.ReactNode }[] = [
+  { type: "text", label: "Testo", icon: <Type className="h-3.5 w-3.5" /> },
+  { type: "image", label: "Immagine", icon: <ImageIcon className="h-3.5 w-3.5" /> },
+  { type: "button", label: "Pulsante", icon: <MousePointerClick className="h-3.5 w-3.5" /> },
+  { type: "divider", label: "Divider", icon: <Minus className="h-3.5 w-3.5" /> },
+  { type: "spacer", label: "Spaziatore", icon: <span className="h-3.5 w-3.5 inline-block border-t border-dashed" /> },
+  { type: "html", label: "HTML", icon: <Code className="h-3.5 w-3.5" /> },
+];
 
 interface BuilderBlockProps {
   block: BuilderBlockType;
@@ -13,9 +23,13 @@ interface BuilderBlockProps {
   isFirst: boolean;
   isLast: boolean;
   dragHandleProps?: Record<string, any>;
+  onAddChildBlock?: (parentId: string, colIndex: number, childType: BlockType) => void;
+  onDeleteChildBlock?: (parentId: string, colIndex: number, childId: string) => void;
+  onSelectChildBlock?: (childBlock: BuilderBlockType) => void;
+  selectedChildBlockId?: string | null;
 }
 
-export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelete, onMoveUp, onMoveDown, isFirst, isLast, dragHandleProps }: BuilderBlockProps) {
+export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelete, onMoveUp, onMoveDown, isFirst, isLast, dragHandleProps, onAddChildBlock, onDeleteChildBlock, onSelectChildBlock, selectedChildBlockId }: BuilderBlockProps) {
   const renderContent = () => {
     switch (block.type) {
       case "text": {
@@ -74,25 +88,52 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
           <div style={{ display: "flex", gap: p.gap }}>
             {widths.map((w, i) => (
               <div key={i} style={{ width: w, minHeight: "48px" }} className="border border-dashed border-muted-foreground/20 rounded p-2">
-                {(children[i] || []).length === 0 ? (
-                  <p className="text-xs text-muted-foreground/40 text-center py-3">Colonna {i + 1}</p>
-                ) : (
-                  children[i].map((child) => (
-                    <div key={child.id} className="mb-1">
+                {(children[i] || []).map((child) => (
+                  <div
+                    key={child.id}
+                    className={`mb-1 relative group/child rounded transition-all cursor-pointer ${selectedChildBlockId === child.id ? "ring-2 ring-primary" : "hover:ring-1 hover:ring-muted-foreground/30"}`}
+                    onClick={(e) => { e.stopPropagation(); onSelectChildBlock?.(child); }}
+                  >
+                    <div className={`absolute -top-2 right-0 z-10 transition-opacity ${selectedChildBlockId === child.id ? "opacity-100" : "opacity-0 group-hover/child:opacity-100"}`}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 bg-background border shadow-sm text-destructive hover:text-destructive"
+                        onClick={(e) => { e.stopPropagation(); onDeleteChildBlock?.(block.id, i, child.id); }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="p-1">
                       <BuilderBlock
                         block={child}
                         isSelected={false}
-                        onSelect={() => {}}
+                        onSelect={() => onSelectChildBlock?.(child)}
                         onDuplicate={() => {}}
-                        onDelete={() => {}}
+                        onDelete={() => onDeleteChildBlock?.(block.id, i, child.id)}
                         onMoveUp={() => {}}
                         onMoveDown={() => {}}
                         isFirst
                         isLast
                       />
                     </div>
-                  ))
-                )}
+                  </div>
+                ))}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full h-7 text-xs text-muted-foreground border border-dashed border-muted-foreground/20 hover:border-primary/50 mt-1">
+                      <Plus className="h-3 w-3 mr-1" /> Aggiungi
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="bg-background z-50">
+                    {CHILD_BLOCK_OPTIONS.map((opt) => (
+                      <DropdownMenuItem key={opt.type} onClick={(e) => { e.stopPropagation(); onAddChildBlock?.(block.id, i, opt.type); }}>
+                        {opt.icon}
+                        <span className="ml-2">{opt.label}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             ))}
           </div>

@@ -1,10 +1,11 @@
-import { BuilderBlock, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, ColumnLayout } from "./builderTypes";
+import { BuilderBlock, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, ColumnLayout, PERSONALIZATION_VARIABLES } from "./builderTypes";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { AlignLeft, AlignCenter, AlignRight, Bold, MousePointerClick } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlignLeft, AlignCenter, AlignRight, Bold, MousePointerClick, Variable } from "lucide-react";
 
 interface BuilderPropertiesPanelProps {
   block: BuilderBlock | null;
@@ -26,6 +27,26 @@ function AlignButtons({ value, onChange }: { value: string; onChange: (v: string
         </Button>
       ))}
     </div>
+  );
+}
+
+function VariableInsertButton({ onInsert }: { onInsert: (tag: string) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 text-xs w-full">
+          <Variable className="h-3 w-3 mr-1" /> Inserisci variabile
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="bg-background z-50">
+        {PERSONALIZATION_VARIABLES.map((v) => (
+          <DropdownMenuItem key={v.tag} onClick={() => onInsert(v.tag)}>
+            <span className="text-xs font-mono text-primary mr-2">{v.tag}</span>
+            <span className="text-xs text-muted-foreground">{v.label}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -66,6 +87,7 @@ function TextProperties({ props, update }: { props: TextProps; update: (p: Recor
       <div className="space-y-1.5">
         <Label className="text-xs">Contenuto</Label>
         <Textarea className="min-h-[80px] text-sm" value={props.content} onChange={(e) => update({ content: e.target.value })} />
+        <VariableInsertButton onInsert={(tag) => update({ content: props.content + " " + tag })} />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Font</Label>
@@ -135,6 +157,7 @@ function ButtonProperties({ props, update }: { props: ButtonProps; update: (p: R
       <div className="space-y-1.5">
         <Label className="text-xs">Testo</Label>
         <Input className="h-8 text-xs" value={props.text} onChange={(e) => update({ text: e.target.value })} />
+        <VariableInsertButton onInsert={(tag) => update({ text: props.text + " " + tag })} />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">URL</Label>
