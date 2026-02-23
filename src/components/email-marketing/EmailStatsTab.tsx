@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format } from "date-fns";
 
 export function EmailStatsTab() {
-  const { company } = useAuth();
+  const { effectiveCompany: company } = useAuth();
   const [campaignFilter, setCampaignFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");

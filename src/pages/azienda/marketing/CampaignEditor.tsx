@@ -35,7 +35,6 @@ import {
   Code,
   Undo,
   Redo,
-  Type,
   Loader2,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -199,11 +198,11 @@ export default function CampaignEditor() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") { setEditingName(false); triggerAutoSave(); }
+                  if (e.key === "Enter") { setEditingName(false); handleManualSave(); }
                 }}
                 autoFocus
               />
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingName(false); triggerAutoSave(); }}>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingName(false); handleManualSave(); }}>
                 <Check className="h-4 w-4" />
               </Button>
             </div>
@@ -236,15 +235,21 @@ export default function CampaignEditor() {
 
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-4 py-1.5 bg-background border-b flex-wrap shrink-0">
-        <Select value="paragraph">
+        <Select value="paragraph" onValueChange={(v) => {
+          if (v === "paragraph") {
+            execCmd("formatBlock", "p");
+          } else {
+            execCmd("formatBlock", v);
+          }
+        }}>
           <SelectTrigger className="w-[120px] h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="paragraph">Paragrafo</SelectItem>
-            <SelectItem value="h1" onSelect={() => execCmd("formatBlock", "h1")}>Titolo 1</SelectItem>
-            <SelectItem value="h2" onSelect={() => execCmd("formatBlock", "h2")}>Titolo 2</SelectItem>
-            <SelectItem value="h3" onSelect={() => execCmd("formatBlock", "h3")}>Titolo 3</SelectItem>
+            <SelectItem value="h1">Titolo 1</SelectItem>
+            <SelectItem value="h2">Titolo 2</SelectItem>
+            <SelectItem value="h3">Titolo 3</SelectItem>
           </SelectContent>
         </Select>
 

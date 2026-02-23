@@ -185,7 +185,7 @@ export default function CampaignSendSettings() {
                 <h1 className="text-xl font-semibold text-foreground">Invia o programma</h1>
                 <p className="text-sm text-muted-foreground">{campaign?.name}</p>
               </div>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => toast.info("Funzionalità in arrivo")}>
                 <Paperclip className="h-4 w-4 mr-1" /> Allega file
               </Button>
             </div>

@@ -17,7 +17,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
 export function EmailTemplatesTab() {
-  const { company } = useAuth();
+  const { effectiveCompany: company } = useAuth();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<any>(null);
