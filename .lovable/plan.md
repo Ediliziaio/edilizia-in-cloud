@@ -1,91 +1,136 @@
 
+# Email Marketing - Flusso Campagna stile GHL
 
-# Email Marketing - Ottimizzazione Completa
+## Obiettivo
 
-## Stato Attuale
+Replicare il flusso di GoHighLevel per la creazione e invio campagne email. Attualmente il sistema usa un semplice Dialog modale. Il flusso GHL prevede 3 step su pagine dedicate:
 
-Il modulo e funzionalmente stabile dopo i fix precedenti. L'analisi rivela opportunita di ottimizzazione in 4 aree: performance delle query, logica duplicata, UX mancante e robustezza del codice.
-
----
-
-## Problemi Identificati
-
-### 1. Performance: Query duplicate tra tab
-
-`EmailStatsTab` e `EmailCampaignsTab` eseguono entrambi una query su `email_campaigns` con query key diverse (`email-campaigns-list` vs `email-campaigns`). Quando l'utente passa da una tab all'altra, vengono fatte 2 richieste separate per gli stessi dati.
-
-**Fix**: Unificare le query key. `EmailStatsTab` usa `["email-campaigns-list", company?.id]` e seleziona solo `id, name, type, sent_at, total_recipients`. Cambiare la query key in `["email-campaigns", company?.id]` e usare i dati dalla cache, evitando una seconda richiesta.
-
-### 2. Bug: Campagne tab - manca paginazione
-
-`EmailCampaignsTab` non ha paginazione (mostra tutte le campagne in una tabella senza limite). `EmailTemplatesTab` invece ha una paginazione completa con "Precedente/Successivo" e selettore "per pagina". Con molte campagne la tabella diventa inutilizzabile.
-
-**Fix**: Aggiungere la stessa paginazione presente in `EmailTemplatesTab` anche a `EmailCampaignsTab`.
-
-### 3. UX: Template menu "Nuovo" - tutte le opzioni fanno la stessa cosa
-
-In `EmailTemplatesTab`, il dropdown "Nuovo" ha 4 opzioni (Modello vuoto, Da campagna esistente, Libreria modelli, Importa HTML) ma tutte eseguono la stessa azione: aprono il dialog vuoto. Questo confonde l'utente.
-
-**Fix**: Rimuovere le opzioni non funzionali (Da campagna, Libreria, Importa HTML) e trasformare il dropdown in un semplice `Button` "Nuovo template". Le opzioni avanzate verranno aggiunte quando saranno implementate.
-
-### 4. UX: Campagne - sidebar non responsive su mobile
-
-La sidebar delle categorie (`w-56 border-r`) non collassa su mobile, comprimendo il contenuto principale in uno spazio troppo stretto.
-
-**Fix**: Nascondere la sidebar su mobile e mostrare le categorie come un `Select` dropdown sopra la tabella. Usare `hidden md:block` sulla sidebar e mostrare il Select solo su mobile.
-
-### 5. Bug: EmailPerformanceChart - metrica selezionata non cambia i dati
-
-Il selettore "Tasso di apertura / Tasso di clic / Tasso di consegna" cambia solo il titolo della card ma mostra sempre gli stessi dati (aperture). Il chart `data` prop non viene ricalcolato in base alla metrica selezionata.
-
-**Fix**: Passare la metrica selezionata come prop al componente padre (`EmailStatsTab`) tramite un callback, oppure calcolare tutti e 3 i set di dati in `EmailStatsTab` e passare quello corretto. Approccio piu semplice: spostare il calcolo dei dati dentro `EmailPerformanceChart` passando i `logs` raw, oppure calcolare 3 dataset in `EmailStatsTab` e passarli tutti.
-
-Soluzione scelta: `EmailStatsTab` calcola 3 dataset (`openRateData`, `clickRateData`, `deliveryRateData`) e li passa tutti a `EmailPerformanceChart`, che seleziona quello corretto in base alla metrica.
-
-### 6. Pulizia: `any` type ovunque
-
-Tutti i dati Supabase sono tipizzati come `any`. Non causa bug runtime ma riduce la sicurezza del codice. Si puo migliorare usando i tipi generati.
-
-**Fix**: Non prioritario. Annotare per un futuro refactoring ma non modificare ora per evitare rischi.
-
-### 7. Bug: CampaignDialog - update sovrascrive `created_by`
-
-Quando si modifica una campagna, il payload include `created_by: user!.id`, sovrascrivendo il creatore originale con l'utente che sta facendo la modifica.
-
-**Fix**: Includere `created_by` solo nell'insert, non nell'update. Separare il payload base (condiviso) dai campi specifici per insert.
-
-### 8. Bug: TemplateDialog - stesso problema con `created_by` su update
-
-Identico al punto 7: l'update sovrascrive `created_by`.
-
-**Fix**: Stesso approccio - includere `created_by` e `company_id` solo nell'insert.
-
-### 9. UX: Nessun feedback di errore sulle mutation di eliminazione
-
-`deleteMutation` in entrambi i tab non ha `onError` handler. Se l'eliminazione fallisce (es. RLS, rete), l'utente non riceve feedback.
-
-**Fix**: Aggiungere `onError: (e) => toast.error(e.message)` alle mutation di eliminazione.
-
-### 10. UX: Campagne - label tipo inconsistente
-
-Nella tabella campagne, `broadcast` viene mostrato come "Email" ma nella sidebar e "Campagne email". Nel dialog e "Campagna Email". Le label dovrebbero essere coerenti in tutto il modulo.
-
-**Fix**: Usare label corte e consistenti nella tabella: "Email", "Flusso", "Blocco" (gia cosi). OK, gia allineato.
+1. **Creazione** - Click "Crea campagna" con dropdown (Vuoto / Modelli email / I tuoi modelli), crea bozza e naviga all'editor
+2. **Editor email** - Pagina full-screen con editor rich-text, toolbar, nome campagna editabile al centro, pulsanti Anteprima/Salva/Invia o programma
+3. **Impostazioni invio** - Pagina con opzioni di invio (Invia adesso, Programma), campi mittente, oggetto, testo anteprima, destinatari, impostazioni aggiuntive, anteprima email nella sidebar
 
 ---
 
-## Riepilogo Modifiche
+## Modifiche Database
 
-| Azione | File | Dettaglio |
-|--------|------|-----------|
-| Modifica | `EmailStatsTab.tsx` | Unificare query key campagne, calcolare 3 dataset per il chart |
-| Modifica | `EmailPerformanceChart.tsx` | Accettare 3 dataset e switchare in base a metrica selezionata |
-| Modifica | `EmailCampaignsTab.tsx` | Aggiungere paginazione, sidebar responsive, onError delete |
-| Modifica | `EmailTemplatesTab.tsx` | Semplificare menu "Nuovo", onError delete |
-| Modifica | `CampaignDialog.tsx` | Separare payload insert/update per non sovrascrivere created_by |
-| Modifica | `TemplateDialog.tsx` | Separare payload insert/update per non sovrascrivere created_by |
+Aggiungere colonne mancanti alla tabella `email_campaigns`:
 
-### Nessuna modifica database
+| Colonna | Tipo | Default | Descrizione |
+|---------|------|---------|-------------|
+| `html_content` | text | '' | Contenuto HTML dell'email |
+| `sender_name` | text | null | Nome del mittente |
+| `sender_email` | text | null | Email del mittente |
+| `preview_text` | text | null | Testo di pre-intestazione |
+| `track_clicks` | boolean | false | Traccia i clic sui link |
+| `utm_tracking` | boolean | false | Tracciamento UTM |
+| `auto_tag` | boolean | false | Aggiungi etichette automatiche |
+| `resend_to_unopened` | boolean | false | Rinvia a chi non ha aperto |
+| `send_mode` | text | 'immediate' | Modalita invio (immediate/scheduled/batch/rss/smart) |
 
-Tutte le ottimizzazioni sono puramente frontend.
+---
+
+## Nuovi File
+
+### 1. `src/pages/azienda/marketing/CampaignEditor.tsx`
+Pagina full-screen per l'editor email, layout:
+- **Top bar**: "Indietro" (torna alla lista), indicatore salvataggio automatico, nome campagna editabile al centro con icona matita, pulsanti "Anteprima" / "Salva" / "Invia o programma" (blu primario)
+- **Toolbar**: selettore formato (Paragrafo), font family, font size, colore testo, bold/italic/underline/strikethrough, link, immagine, allineamento, interlinea, liste, codice, variabili, undo/redo
+- **Area editor**: editor contentEditable con contenuto HTML, area bianca centrata con bordi grigi (stile foglio)
+- **Salvataggio automatico**: ogni 30 secondi salva la bozza su DB con debounce
+- Carica la campagna tramite `id` dalla URL, aggiorna `html_content` e `name`
+
+### 2. `src/pages/azienda/marketing/CampaignSendSettings.tsx`
+Pagina impostazioni invio, layout a 2 colonne:
+- **Colonna principale** (sinistra ~70%):
+  - Header "Invia o programma" con pulsante "Allega file"
+  - Tab di modalita invio: "Invia adesso" / "Programma" / "Programmazione per batch" / "Programma RSS" / "Invio intelligente"
+  - Campi form:
+    - Nome del mittente (opzionale)
+    - Email del mittente (obbligatorio, con nota dominio)
+    - Checkbox "Imposta indirizzo di risposta personalizzato"
+    - Oggetto (obbligatorio)
+    - Testo di anteprima (opzionale)
+    - Destinatari con opzioni radio: Scegli contatti / Invia all'elenco / Scegli contatti dal... / Segmenti predefiniti / Crea segmenti
+    - Sezione collapsible "Impostazioni aggiuntive": Traccia clic, Tracciamento UTM, Aggiungi etichette, Rinvia a non aperta
+  - Pulsante "Rivedi e invia" (blu primario in alto a destra)
+- **Colonna sidebar** (destra ~30%):
+  - Punteggio spam con indicatore visivo (gauge colorato)
+  - Link "Anteprima nel browser" e "Invia email di test"
+  - Anteprima HTML dell'email
+  - Card "Campi obbligatori" con contatore campi critici mancanti
+
+### 3. `src/components/email-marketing/CampaignCreateDropdown.tsx`
+Dropdown per creare campagna (usato sia nella tab Statistiche che in Campagne):
+- 3 opzioni: "Vuoto" (crea bozza e naviga all'editor), "Modelli di email marketing" (mostra lista modelli), "I tuoi modelli" (mostra modelli dell'azienda)
+- Crea la campagna in DB con status "draft" e naviga a `/azienda/marketing/email/campagna/:id/editor`
+
+---
+
+## File Modificati
+
+### `src/App.tsx`
+Aggiungere 2 nuove route:
+```
+/azienda/marketing/email/campagna/:id/editor -> CampaignEditor
+/azienda/marketing/email/campagna/:id/impostazioni -> CampaignSendSettings
+```
+
+### `src/components/email-marketing/EmailCampaignsTab.tsx`
+- Sostituire il pulsante "Nuovo" che apre CampaignDialog con `CampaignCreateDropdown`
+- Click su riga tabella: naviga all'editor della campagna
+- Rimuovere `CampaignDialog` import e stato `dialogOpen`/`editCampaign`
+
+### `src/components/email-marketing/EmailStatsTab.tsx`
+- Aggiungere il pulsante "Crea campagna" (blu) nella barra filtri con `CampaignCreateDropdown`, come nello screenshot GHL
+
+### `src/pages/azienda/marketing/EmailMarketing.tsx`
+- Nessuna modifica sostanziale, il flusso si sposta su pagine dedicate tramite navigazione
+
+### `src/components/email-marketing/CampaignDialog.tsx`
+- Mantenere per la modifica rapida dei metadati (nome, tipo) ma non per la creazione. Alternativa: rimuoverlo completamente e usare solo le pagine dedicate.
+- Decisione: **rimuoverlo** - tutta la gestione campagna avviene nelle pagine dedicate
+
+---
+
+## Flusso Utente
+
+```text
+Lista campagne
+    |
+    v
+[+ Crea campagna] --> Dropdown
+    |                    |-- Vuoto --> Crea bozza DB --> /campagna/:id/editor
+    |                    |-- Modelli email marketing --> Mostra modelli pubblici (future)
+    |                    '-- I tuoi modelli --> Mostra template azienda, seleziona, crea bozza con HTML
+    |
+    v
+Editor email (pagina full-screen)
+    |-- [Indietro] --> Torna a lista campagne
+    |-- [Salva] --> Salva bozza
+    |-- [Anteprima] --> Mostra anteprima in dialog
+    |-- [Invia o programma] --> /campagna/:id/impostazioni
+    '-- Auto-save ogni 30s
+    |
+    v
+Impostazioni invio (pagina full-screen)
+    |-- [Torna al builder] --> Torna all'editor
+    |-- [Salva] --> Salva impostazioni
+    |-- [Rivedi e invia] --> Valida campi obbligatori, invia/programma
+    '-- Sidebar: anteprima email, punteggio spam
+```
+
+---
+
+## Riepilogo Tecnico
+
+| Azione | File |
+|--------|------|
+| Migration DB | Aggiungere 9 colonne a email_campaigns |
+| Nuovo | `src/pages/azienda/marketing/CampaignEditor.tsx` |
+| Nuovo | `src/pages/azienda/marketing/CampaignSendSettings.tsx` |
+| Nuovo | `src/components/email-marketing/CampaignCreateDropdown.tsx` |
+| Modifica | `src/App.tsx` - 2 nuove route |
+| Modifica | `src/components/email-marketing/EmailCampaignsTab.tsx` - dropdown, navigazione |
+| Modifica | `src/components/email-marketing/EmailStatsTab.tsx` - pulsante crea campagna |
+| Rimuovere | `src/components/email-marketing/CampaignDialog.tsx` - sostituito da pagine dedicate |
 
