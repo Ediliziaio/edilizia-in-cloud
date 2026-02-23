@@ -1,68 +1,123 @@
 
-# Pulizia, Bug Fix e Ottimizzazione UX - Email Marketing Module
 
-## Panoramica
+# Analisi e Piano di Miglioramento - Modulo Email Marketing
 
-L'analisi completa del modulo email marketing ha rivelato bug critici di multi-tenancy (stessa classe di bug gia corretta in `CampaignCreateDropdown`), codice morto, e problemi UX nel flusso editor.
+## Stato Attuale
 
----
-
-## 1. Bug Critici: `company` vs `effectiveCompany`
-
-4 file usano ancora `company` da `useAuth()` invece di `effectiveCompany`. Questo causa crash/dati vuoti quando il Super Admin impersona un'azienda.
-
-| File | Riga | Fix |
-|------|------|-----|
-| `EmailCampaignsTab.tsx` | 36 | `const { company }` -> `const { effectiveCompany: company }` |
-| `EmailStatsTab.tsx` | 15 | `const { company }` -> `const { effectiveCompany: company }` |
-| `EmailTemplatesTab.tsx` | 20 | `const { company }` -> `const { effectiveCompany: company }` |
-| `TemplateDialog.tsx` | 20 | `const { user, company }` -> `const { user, effectiveCompany: company }` |
-
-Nota: usare l'alias `effectiveCompany: company` per evitare di dover rinominare ogni occorrenza nel file.
+Il modulo ha una buona struttura base con 3 tab (Statistiche, Campagne, Modelli), un editor full-screen, e una pagina di configurazione invio. Tuttavia, pensando da esperto SaaS, ci sono **lacune significative** e **problemi di qualita** che impediscono al modulo di essere competitivo con GHL.
 
 ---
 
-## 2. Bug: Editor formato blocco non funziona
+## A. BUG E PROBLEMI ESISTENTI
 
-In `CampaignEditor.tsx`, il `Select` per il formato (Paragrafo/Titolo 1/2/3) usa `onSelect` sui `SelectItem` che non funziona con Radix. Il Select ha anche `value="paragraph"` fisso (non reattivo).
+### A1. `prompt()` nativo nell'editor (viola le linee guida UX)
+In `CampaignEditor.tsx`, le funzioni `handleInsertLink` e `handleInsertImage` usano `window.prompt()` (il popup nativo del browser). Questo viola la convenzione del progetto che prevede dialog modali personalizzati.
 
-**Fix**: Usare `onValueChange` sul `Select` per eseguire il comando `formatBlock`.
+**Fix**: Sostituire con Dialog modali dedicati per inserimento link e immagine.
 
----
+### A2. Campagne in Home non filtrate per `folder_id`
+In `EmailCampaignsTab.tsx` riga 114, la logica per la vista "Home" e:
+```
+const matchFolder = currentFolderId ? c.folder_id === currentFolderId : true;
+```
+Questo mostra **tutte** le campagne in Home, anche quelle nelle sottocartelle. Il tab Modelli (riga 97) invece filtra correttamente con `!t.folder_id`.
 
-## 3. Codice morto / Import inutili
+**Fix**: Allineare la logica a `!c.folder_id` quando `currentFolderId` e `null`.
 
-| File | Elemento | Motivo |
-|------|----------|--------|
-| `CampaignEditor.tsx` | `import Type` da lucide | Non usato nel JSX |
+### A3. Dropdown azioni campagna troppo limitato
+Il menu contestuale delle campagne ha solo "Elimina". Mancano azioni fondamentali: Duplica, Rinomina, Sposta in cartella.
 
----
-
-## 4. UX: Miglioramenti
-
-### 4a. Editor - Salvataggio nome non intuitivo
-Quando l'utente modifica il nome della campagna e preme Enter o il check, viene triggerato solo l'auto-save con 3s di delay. Se clicca immediatamente "Invia o programma", il nome potrebbe non essere salvato.
-
-**Fix**: Nella conferma nome, fare un save immediato (non solo triggerAutoSave).
-
-### 4b. CampaignSendSettings - Pulsante "Allega file" non funzionale
-Il pulsante "Allega file" non fa nulla e non mostra feedback.
-
-**Fix**: Aggiungere `onClick={() => toast.info("Funzionalita in arrivo")}` per coerenza con gli altri placeholder.
+### A4. A/B test nel DB ma mai esposto
+La tabella ha `ab_test_enabled` e `ab_subject_b` ma nessun componente li utilizza. Codice morto nel DB.
 
 ---
 
-## Riepilogo Modifiche
+## B. FUNZIONALITA MANCANTI (priorita alta)
+
+### B1. Duplicazione campagna
+Fondamentale in qualsiasi tool email marketing. Un utente deve poter duplicare una campagna esistente (con tutto il contenuto HTML) per creare varianti.
+
+**Implementazione**: Aggiungere "Duplica" nel dropdown azioni della tabella campagne. La mutation crea un nuovo record con `name: "Copia di [nome]"`, stesso `html_content`, status "draft".
+
+### B2. Duplicazione template
+Stesso concetto per i modelli email.
+
+### B3. Creazione campagna da template ("I tuoi modelli")
+Il dropdown "Crea campagna" ha "I tuoi modelli" come placeholder. Questa e una funzionalita core.
+
+**Implementazione**: Aprire un Dialog che mostra i template dell'azienda in una lista. Al click, creare una bozza con `html_content` copiato dal template selezionato e navigare all'editor.
+
+### B4. Contatore destinatari nel flusso di invio
+La pagina `CampaignSendSettings` non mostra quanti contatti riceveranno l'email. Questo e critico per evitare errori.
+
+**Implementazione**: Query count su `marketing_contacts` filtrata per la modalita destinatari selezionata, mostrata nella sidebar.
+
+### B5. Selezione liste destinatari effettiva
+Attualmente i radio button "Invia all'elenco" / "Scegli contatti" / "Segmenti" non fanno nulla. Servono almeno la selezione delle liste (gia esistenti in `marketing_contact_lists`).
+
+### B6. Inserimento variabili nell'editor
+Il `TemplateEditor` ha gia il sistema variabili (`{{contact.first_name}}` etc.), ma il `CampaignEditor` no. Senza variabili di personalizzazione, l'email marketing perde il suo valore.
+
+**Implementazione**: Aggiungere un dropdown "Variabili" nella toolbar dell'editor che inserisce le variabili nel contenuto.
+
+---
+
+## C. MIGLIORAMENTI UX (priorita media)
+
+### C1. Dialog modali per link/immagine nell'editor
+Sostituire i `prompt()` con Dialog che validano l'input (URL valido, anteprima immagine).
+
+### C2. Spostamento campagne/template in cartelle
+Aggiungere "Sposta in cartella" nel dropdown azioni con un Dialog di selezione cartella.
+
+### C3. Rinomina campagna dalla lista
+Aggiungere "Rinomina" nel dropdown azioni per modificare il nome senza entrare nell'editor.
+
+### C4. Empty state piu informativo nella tab Statistiche
+Quando non ci sono dati, i grafici mostrano "Nessun dato disponibile" ma non guidano l'utente verso l'azione successiva.
+
+### C5. Conferma prima dell'invio
+Cliccando "Rivedi e invia" si dovrebbe aprire un AlertDialog di riepilogo finale (destinatari, oggetto, mittente) prima dell'invio effettivo.
+
+---
+
+## D. RIEPILOGO IMPLEMENTAZIONE PROPOSTA
+
+L'intervento e organizzato in ordine di impatto/sforzo.
+
+### Fase 1 - Bug fix e pulizia (rapida)
 
 | Azione | File | Dettaglio |
 |--------|------|-----------|
-| Bug fix | `EmailCampaignsTab.tsx` | `effectiveCompany` alias |
-| Bug fix | `EmailStatsTab.tsx` | `effectiveCompany` alias |
-| Bug fix | `EmailTemplatesTab.tsx` | `effectiveCompany` alias |
-| Bug fix | `TemplateDialog.tsx` | `effectiveCompany` alias |
-| Bug fix | `CampaignEditor.tsx` | Fix Select formato blocco, rimuovere import `Type`, save immediato su conferma nome |
-| UX | `CampaignSendSettings.tsx` | Feedback su "Allega file" |
+| Bug fix | `EmailCampaignsTab.tsx` | Fix filtro cartelle Home |
+| Bug fix | `CampaignEditor.tsx` | Sostituire `prompt()` con Dialog modali per link e immagine |
 
-### Nessuna modifica database
+### Fase 2 - Funzionalita core mancanti
 
-Tutte le modifiche sono puramente frontend.
+| Azione | File | Dettaglio |
+|--------|------|-----------|
+| Feature | `EmailCampaignsTab.tsx` | Aggiungere "Duplica" e "Rinomina" nel menu azioni |
+| Feature | `EmailTemplatesTab.tsx` | Aggiungere "Duplica" nel menu azioni template |
+| Feature | `CampaignCreateDropdown.tsx` | "I tuoi modelli" apre Dialog con lista template selezionabili |
+| Feature | `CampaignEditor.tsx` | Dropdown variabili nella toolbar ({{contact.first_name}}, etc.) |
+| Feature | `CampaignSendSettings.tsx` | Conferma invio con AlertDialog riepilogativo |
+
+### Fase 3 - UX polish
+
+| Azione | File | Dettaglio |
+|--------|------|-----------|
+| UX | `EmailCampaignsTab.tsx` | "Sposta in cartella" nel menu azioni |
+| UX | `CampaignSendSettings.tsx` | Contatore destinatari nella sidebar |
+
+### Nessuna modifica database necessaria
+
+Tutte le funzionalita possono essere implementate con le tabelle esistenti.
+
+---
+
+## E. COSA NON FARE ORA
+
+- **Integrazione SendGrid**: richiede API key e Edge Functions dedicate, e un progetto a parte
+- **A/B testing UI**: le colonne DB esistono ma la feature e complessa, va pianificata separatamente
+- **Drag-and-drop email builder**: richiederebbe una libreria dedicata (es. GrapeJS/Unlayer), fuori scope
+
