@@ -14,6 +14,7 @@ import {
   Contact,
   Target,
   Bot,
+  Mail,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
@@ -50,4 +51,5 @@ export const marketingNavItems: NavItem[] = [
   { title: "Appuntamenti", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketing", category: "marketing" },
   { title: "Automazioni", url: "/azienda/marketing/automazioni", icon: Zap, permissionKey: "canViewMarketing", category: "marketing" },
   { title: "Agente AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketing", category: "marketing" },
+  { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketing", category: "marketing" },
 ];

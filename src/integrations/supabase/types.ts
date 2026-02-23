@@ -625,6 +625,231 @@ export type Database = {
           },
         ]
       }
+      email_billing: {
+        Row: {
+          campaign_id: string | null
+          company_id: string
+          created_at: string
+          emails_sent: number
+          id: string
+          month_reference: string
+          total_cost: number
+          unit_cost: number
+        }
+        Insert: {
+          campaign_id?: string | null
+          company_id: string
+          created_at?: string
+          emails_sent?: number
+          id?: string
+          month_reference: string
+          total_cost?: number
+          unit_cost?: number
+        }
+        Update: {
+          campaign_id?: string | null
+          company_id?: string
+          created_at?: string
+          emails_sent?: number
+          id?: string
+          month_reference?: string
+          total_cost?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_billing_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_billing_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_campaigns: {
+        Row: {
+          ab_subject_b: string | null
+          ab_test_enabled: boolean
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          recipient_filter: Json | null
+          scheduled_at: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+          template_id: string | null
+          total_recipients: number
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          ab_subject_b?: string | null
+          ab_test_enabled?: boolean
+          company_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          recipient_filter?: Json | null
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          template_id?: string | null
+          total_recipients?: number
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          ab_subject_b?: string | null
+          ab_test_enabled?: boolean
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          recipient_filter?: Json | null
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          template_id?: string | null
+          total_recipients?: number
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_logs: {
+        Row: {
+          campaign_id: string
+          company_id: string
+          contact_id: string
+          event_timestamp: string
+          id: string
+          metadata: Json | null
+          sendgrid_message_id: string | null
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          company_id: string
+          contact_id: string
+          event_timestamp?: string
+          id?: string
+          metadata?: Json | null
+          sendgrid_message_id?: string | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          company_id?: string
+          contact_id?: string
+          event_timestamp?: string
+          id?: string
+          metadata?: Json | null
+          sendgrid_message_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          folder: string
+          html_content: string
+          id: string
+          json_content: Json | null
+          name: string
+          subject: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          folder?: string
+          html_content?: string
+          id?: string
+          json_content?: Json | null
+          name: string
+          subject?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          folder?: string
+          html_content?: string
+          id?: string
+          json_content?: Json | null
+          name?: string
+          subject?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_attachments: {
         Row: {
           created_at: string
