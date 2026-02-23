@@ -254,10 +254,10 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, allNodes = [] }:
             <div className="space-y-3">
               <div>
                 <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Template email</Label>
-                <Select value={node.config_json?.template_id || ""} onValueChange={(v) => updateConfig("template_id", v)}>
+                <Select value={node.config_json?.template_id || "none"} onValueChange={(v) => updateConfig("template_id", v === "none" ? "" : v)}>
                   <SelectTrigger className={cn("mt-1 h-9 text-xs", hasFieldError("subject_override") && !node.config_json?.template_id && "border-destructive")}><SelectValue placeholder="Seleziona template..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="" className="text-xs">Nessun template</SelectItem>
+                    <SelectItem value="none" className="text-xs">Nessun template</SelectItem>
                     {emailTemplates.map(t => (<SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>))}
                   </SelectContent>
                 </Select>
@@ -787,7 +787,7 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, allNodes = [] }:
               <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Condizione If/Else</Label>
             </div>
             <TriggerConditionBuilder
-              triggerCategory="contact"
+              triggerCategory={allNodes.find(n => n.node_type === "trigger")?.config_json?.trigger_category || "contact"}
               filters={node.config_json?.condition_filters || { logic: "AND", conditions: [] }}
               onChange={(f) => updateConfig("condition_filters", f)}
               errors={validationErrors}
@@ -835,7 +835,18 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, allNodes = [] }:
       </div>
       <div className="border-t p-3 flex gap-2 justify-end shrink-0">
         <Button variant="outline" size="sm" className="text-xs" onClick={onClose}>Annulla</Button>
-        <Button size="sm" className="text-xs" onClick={onClose}>Salva</Button>
+        <Button size="sm" className="text-xs" onClick={() => {
+          if (node.node_type === "condition") {
+            const condFilters = node.config_json?.condition_filters || { logic: "AND", conditions: [] };
+            const errs = validateFilters(condFilters);
+            setValidationErrors(errs);
+            if (errs.size > 0) {
+              toast({ title: "Condizioni non valide", description: "Compila tutti i campi obbligatori.", variant: "destructive" });
+              return;
+            }
+          }
+          onClose();
+        }}>Salva</Button>
       </div>
     </div>
   );
