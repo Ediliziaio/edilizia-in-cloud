@@ -201,7 +201,7 @@ export function AutomationBuilder() {
 
   const handleFlowNameBlur = useCallback(() => {
     setIsEditingName(false);
-    if (flowName && flowName !== flow?.name) {
+    if (flowName && flowName !== flow?.name && canPersist && flow) {
       updateFlowMutation.mutate({ name: flowName });
     }
   }, [flowName, flow, updateFlowMutation]);
@@ -265,7 +265,7 @@ export function AutomationBuilder() {
   }
 
   // Creating or loading
-  if (isLoading || (id === "nuova" && (createFlowMutation.isPending || !createFlowMutation.data))) {
+  if (isLoading || id === "nuova") {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
