@@ -156,8 +156,13 @@ export function useAutomationBuilder(flowId: string | undefined) {
 
   // Save all nodes + connections
   const saveAll = useCallback(async () => {
-    if (!flowId || flowId === "nuova" || !effectiveCompany) {
-      toast({ title: "Impossibile salvare", description: "Flow non ancora pronto. Attendi il completamento della creazione.", variant: "destructive" });
+    // Silent return during creation/redirect phase
+    if (!flowId || flowId === "nuova") {
+      return;
+    }
+    const persistCompanyId = effectiveCompany?.id ?? flow?.company_id;
+    if (!persistCompanyId) {
+      toast({ title: "Impossibile salvare", description: "Nessuna azienda attiva. Seleziona un'azienda.", variant: "destructive" });
       return;
     }
     if (nodes.length === 0) {
@@ -172,7 +177,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
           .upsert(nodes.map(n => ({
             id: n.id,
             flow_id: flowId,
-            company_id: effectiveCompany.id,
+            company_id: persistCompanyId,
             node_type: n.node_type,
             position_x: n.position_x,
             position_y: n.position_y,
@@ -198,7 +203,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
           .upsert(connections.map(c => ({
             id: c.id,
             flow_id: flowId,
-            company_id: effectiveCompany.id,
+            company_id: persistCompanyId,
             from_node_id: c.from_node_id,
             to_node_id: c.to_node_id,
             label: c.label,
@@ -227,7 +232,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
     } finally {
       setIsSaving(false);
     }
-  }, [flowId, effectiveCompany, nodes, connections, dbNodes, dbConnections, queryClient]);
+  }, [flowId, effectiveCompany, flow, nodes, connections, dbNodes, dbConnections, queryClient]);
 
   // Keep saveAllRef in sync
   useEffect(() => {

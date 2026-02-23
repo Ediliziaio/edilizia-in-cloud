@@ -24,7 +24,8 @@ type BuilderTab = "builder" | "settings" | "enrollments" | "logs";
 export function AutomationBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const flowId = id === "nuova" ? undefined : id;
+  const isNewFlow = !id || id === "nuova";
+  const flowId = isNewFlow ? undefined : id;
 
   const {
     flow, nodes, connections, isLoading, isSaving, hasUnsavedChanges, canPersist,
@@ -64,7 +65,7 @@ export function AutomationBuilder() {
   // Create flow on first visit - with proper guards
   useEffect(() => {
     if (
-      id === "nuova" &&
+      isNewFlow &&
       !creationAttemptedRef.current &&
       !createFlowMutation.isPending &&
       !createFlowMutation.data &&
@@ -82,7 +83,7 @@ export function AutomationBuilder() {
         },
       });
     }
-  }, [id, effectiveCompany, user, createFlowMutation.isPending, createFlowMutation.data, createFlowMutation.isError]);
+  }, [isNewFlow, effectiveCompany, user, createFlowMutation.isPending, createFlowMutation.data, createFlowMutation.isError]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -225,7 +226,7 @@ export function AutomationBuilder() {
   // --- LOADING / ERROR STATES ---
 
   // Missing company context (super admin without impersonation)
-  if (id === "nuova" && !effectiveCompany) {
+  if (isNewFlow && !effectiveCompany) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
         <AlertTriangle className="h-10 w-10 text-destructive" />
@@ -241,7 +242,7 @@ export function AutomationBuilder() {
   }
 
   // Creation failed
-  if (id === "nuova" && createFlowMutation.isError) {
+  if (isNewFlow && createFlowMutation.isError) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
         <AlertTriangle className="h-10 w-10 text-destructive" />
@@ -265,12 +266,12 @@ export function AutomationBuilder() {
   }
 
   // Creating or loading
-  if (isLoading || id === "nuova") {
+  if (isLoading || isNewFlow) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         <span className="text-sm text-muted-foreground">
-          {id === "nuova" ? "Creazione automazione in corso…" : "Caricamento…"}
+          {isNewFlow ? "Creazione automazione in corso…" : "Caricamento…"}
         </span>
       </div>
     );
