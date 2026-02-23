@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { AutomationFlowsList } from "@/components/marketing/automations/AutomationFlowsList";
 import { GlobalWorkflowSettings } from "@/components/marketing/automations/GlobalWorkflowSettings";
 import { CreateFolderDialog } from "@/components/email-marketing/CreateFolderDialog";
-import { Plus, FolderPlus, Search, SlidersHorizontal, Settings2, Home, ChevronRight, ListFilter } from "lucide-react";
+import { Plus, FolderPlus, Search, SlidersHorizontal, Settings2, ListFilter } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type MainTab = "workflows" | "settings";
@@ -28,27 +28,6 @@ export default function MarketingAutomations() {
 
   const statusFilter = listFilter === "deleted" ? "archived" : listFilter === "needs_review" ? "draft" : "all";
 
-  // Load current folder ancestors for breadcrumb
-  const { data: folderPath } = useQuery({
-    queryKey: ["automation-folder-path", currentFolderId],
-    queryFn: async () => {
-      if (!currentFolderId) return [];
-      const path: { id: string; name: string }[] = [];
-      let fId: string | null = currentFolderId;
-      while (fId) {
-        const { data } = await supabase
-          .from("automation_folders")
-          .select("id, name, parent_id")
-          .eq("id", fId)
-          .single();
-        if (!data) break;
-        path.unshift({ id: data.id, name: data.name });
-        fId = data.parent_id;
-      }
-      return path;
-    },
-    enabled: !!currentFolderId,
-  });
 
   const createFolderMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -163,36 +142,6 @@ export default function MarketingAutomations() {
                 <ListFilter className="h-3.5 w-3.5 mr-1" /> Personalizza Elenco
               </Button>
             </div>
-          </div>
-
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <button onClick={() => setCurrentFolderId(null)} className="flex items-center gap-1 hover:text-foreground transition-colors">
-              <Home className="h-3.5 w-3.5" />
-              <span>Home</span>
-            </button>
-            <ChevronRight className="h-3 w-3" />
-            {!currentFolderId ? (
-              <span className="text-foreground font-medium">Automazione</span>
-            ) : (
-              <>
-                <button onClick={() => setCurrentFolderId(null)} className="hover:text-foreground transition-colors">
-                  Automazione
-                </button>
-                {folderPath?.map((f) => (
-                  <span key={f.id} className="flex items-center gap-1">
-                    <ChevronRight className="h-3 w-3" />
-                    {f.id === currentFolderId ? (
-                      <span className="text-foreground font-medium">{f.name}</span>
-                    ) : (
-                      <button onClick={() => setCurrentFolderId(f.id)} className="hover:text-foreground transition-colors">
-                        {f.name}
-                      </button>
-                    )}
-                  </span>
-                ))}
-              </>
-            )}
           </div>
 
           {/* Table */}
