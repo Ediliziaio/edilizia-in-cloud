@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { useNavigate } from "react-router-dom";
 import { syncTagsToContact } from "@/hooks/useTagSync";
+import { STATUS_OPTIONS } from "@/types/opportunities";
 
 interface Props {
   open: boolean;
@@ -199,12 +200,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const [showDropdown, setShowDropdown] = useState(false);
   const searchTrimmed = contactSearch.trim();
 
-  const statusOptions = [
-    { value: "open", label: "Aperta" },
-    { value: "won", label: "Vinta" },
-    { value: "lost", label: "Persa" },
-    { value: "abandoned", label: "Abbandonata" },
-  ];
+  const statusOptions = STATUS_OPTIONS;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
