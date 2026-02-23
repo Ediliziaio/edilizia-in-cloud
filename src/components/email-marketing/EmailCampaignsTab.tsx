@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Trash2, ChevronRight, ChevronLeft, Send } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Trash2, ChevronRight, ChevronLeft, Send, Copy, Pencil, FolderInput } from "lucide-react";
 import { CampaignCreateDropdown } from "./CampaignCreateDropdown";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
@@ -33,7 +35,7 @@ const CATEGORIES = [
 ];
 
 export function EmailCampaignsTab() {
-  const { effectiveCompany: company } = useAuth();
+  const { effectiveCompany: company, user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -46,6 +48,14 @@ export function EmailCampaignsTab() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [perPage, setPerPage] = useState(10);
+
+  // Rename dialog
+  const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  // Move to folder dialog
+  const [moveTarget, setMoveTarget] = useState<string | null>(null);
+  const [moveFolderId, setMoveFolderId] = useState<string | null>(null);
 
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["email-campaigns", company?.id],
@@ -106,12 +116,62 @@ export function EmailCampaignsTab() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const duplicateMutation = useMutation({
+    mutationFn: async (campaign: any) => {
+      const { error } = await supabase.from("email_campaigns").insert({
+        company_id: company!.id,
+        created_by: user!.id,
+        name: `Copia di ${campaign.name}`,
+        status: "draft",
+        type: campaign.type,
+        html_content: campaign.html_content,
+        subject: campaign.subject,
+        preview_text: campaign.preview_text,
+        sender_name: campaign.sender_name,
+        sender_email: campaign.sender_email,
+        folder_id: campaign.folder_id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Campagna duplicata");
+      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const { error } = await supabase.from("email_campaigns").update({ name }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Campagna rinominata");
+      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      setRenameTarget(null);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const moveMutation = useMutation({
+    mutationFn: async ({ id, folder_id }: { id: string; folder_id: string | null }) => {
+      const { error } = await supabase.from("email_campaigns").update({ folder_id }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Campagna spostata");
+      qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      setMoveTarget(null);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const currentFolders = folders.filter((f: any) => f.parent_id === currentFolderId);
 
   const filtered = campaigns.filter((c: any) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "all" || c.type === category;
-    const matchFolder = currentFolderId ? c.folder_id === currentFolderId : true;
+    const matchFolder = currentFolderId ? c.folder_id === currentFolderId : !c.folder_id;
     return matchSearch && matchCategory && matchFolder;
   });
 
@@ -272,6 +332,16 @@ export function EmailCampaignsTab() {
                             <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => { setRenameTarget({ id: c.id, name: c.name }); setRenameValue(c.name); }}>
+                              <Pencil className="h-4 w-4 mr-2" /> Rinomina
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => duplicateMutation.mutate(c)}>
+                              <Copy className="h-4 w-4 mr-2" /> Duplica
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setMoveTarget(c.id); setMoveFolderId(c.folder_id || null); }}>
+                              <FolderInput className="h-4 w-4 mr-2" /> Sposta in cartella
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(c.id)}>
                               <Trash2 className="h-4 w-4 mr-2" /> Elimina
                             </DropdownMenuItem>
@@ -315,6 +385,7 @@ export function EmailCampaignsTab() {
         isPending={createFolderMut.isPending}
       />
 
+      {/* Delete dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -332,6 +403,67 @@ export function EmailCampaignsTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Rename dialog */}
+      <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rinomina campagna</DialogTitle>
+          </DialogHeader>
+          <div>
+            <Label>Nome</Label>
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && renameValue.trim() && renameTarget) {
+                  renameMutation.mutate({ id: renameTarget.id, name: renameValue.trim() });
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>Annulla</Button>
+            <Button
+              onClick={() => renameTarget && renameMutation.mutate({ id: renameTarget.id, name: renameValue.trim() })}
+              disabled={!renameValue.trim() || renameMutation.isPending}
+            >
+              {renameMutation.isPending ? "Salvataggio..." : "Salva"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move to folder dialog */}
+      <Dialog open={!!moveTarget} onOpenChange={(open) => !open && setMoveTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Sposta in cartella</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Cartella di destinazione</Label>
+            <Select value={moveFolderId || "__home__"} onValueChange={(v) => setMoveFolderId(v === "__home__" ? null : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__home__">Home (nessuna cartella)</SelectItem>
+                {folders.map((f: any) => (
+                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveTarget(null)}>Annulla</Button>
+            <Button
+              onClick={() => moveTarget && moveMutation.mutate({ id: moveTarget, folder_id: moveFolderId })}
+              disabled={moveMutation.isPending}
+            >
+              {moveMutation.isPending ? "Spostamento..." : "Sposta"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

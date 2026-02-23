@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -12,6 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -36,6 +43,7 @@ import {
   Undo,
   Redo,
   Loader2,
+  Variable,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -45,6 +53,14 @@ const FONT_FAMILIES = [
 ];
 
 const FONT_SIZES = ["10", "12", "14", "16", "18", "20", "24", "28", "32", "36", "48"];
+
+const VARIABLES = [
+  { label: "Nome contatto", value: "{{contact.first_name}}" },
+  { label: "Cognome contatto", value: "{{contact.last_name}}" },
+  { label: "Email contatto", value: "{{contact.email}}" },
+  { label: "Nome azienda", value: "{{company.name}}" },
+  { label: "Link disiscrizione", value: "{{unsubscribe_url}}" },
+];
 
 export default function CampaignEditor() {
   const { id } = useParams<{ id: string }>();
@@ -58,6 +74,14 @@ export default function CampaignEditor() {
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fontFamily, setFontFamily] = useState("Arial");
   const [fontSize, setFontSize] = useState("14");
+
+  // Dialog states for link and image insertion
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkText, setLinkText] = useState("");
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
+  const [imageAlt, setImageAlt] = useState("");
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["campaign-editor", id],
@@ -124,13 +148,36 @@ export default function CampaignEditor() {
   };
 
   const handleInsertLink = () => {
-    const url = prompt("Inserisci URL:");
-    if (url) execCmd("createLink", url);
+    const selection = window.getSelection();
+    setLinkText(selection?.toString() || "");
+    setLinkUrl("");
+    setLinkDialogOpen(true);
+  };
+
+  const confirmInsertLink = () => {
+    if (!linkUrl) return;
+    if (linkText) {
+      execCmd("insertHTML", `<a href="${linkUrl}" target="_blank">${linkText}</a>`);
+    } else {
+      execCmd("createLink", linkUrl);
+    }
+    setLinkDialogOpen(false);
   };
 
   const handleInsertImage = () => {
-    const url = prompt("Inserisci URL immagine:");
-    if (url) execCmd("insertImage", url);
+    setImageUrl("");
+    setImageAlt("");
+    setImageDialogOpen(true);
+  };
+
+  const confirmInsertImage = () => {
+    if (!imageUrl) return;
+    execCmd("insertHTML", `<img src="${imageUrl}" alt="${imageAlt}" style="max-width:100%" />`);
+    setImageDialogOpen(false);
+  };
+
+  const insertVariable = (variable: string) => {
+    execCmd("insertHTML", variable);
   };
 
   const handleFontFamily = (f: string) => {
@@ -140,7 +187,6 @@ export default function CampaignEditor() {
 
   const handleFontSize = (s: string) => {
     setFontSize(s);
-    // fontSize command uses 1-7 scale, map approximately
     const sizeMap: Record<string, string> = { "10": "1", "12": "2", "14": "3", "16": "4", "18": "5", "20": "5", "24": "6", "28": "6", "32": "7", "36": "7", "48": "7" };
     execCmd("fontSize", sizeMap[s] || "3");
   };
@@ -316,6 +362,24 @@ export default function CampaignEditor() {
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
+        {/* Variables dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 text-xs gap-1">
+              <Variable className="h-4 w-4" /> Variabili
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {VARIABLES.map((v) => (
+              <DropdownMenuItem key={v.value} onClick={() => insertVariable(v.value)}>
+                {v.label} <span className="ml-auto text-xs text-muted-foreground pl-3">{v.value}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Separator orientation="vertical" className="h-6 mx-1" />
+
         <ToolbarBtn icon={Undo} cmd="undo" title="Annulla" />
         <ToolbarBtn icon={Redo} cmd="redo" title="Ripristina" />
       </div>
@@ -342,6 +406,78 @@ export default function CampaignEditor() {
             className="border rounded-md p-6 bg-background"
             dangerouslySetInnerHTML={{ __html: editorRef.current?.innerHTML || "" }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Insert Link Dialog */}
+      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Inserisci link</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>URL *</Label>
+              <Input
+                placeholder="https://esempio.com"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && confirmInsertLink()}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Testo del link</Label>
+              <Input
+                placeholder="Clicca qui"
+                value={linkText}
+                onChange={(e) => setLinkText(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Lascia vuoto per usare il testo selezionato</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkDialogOpen(false)}>Annulla</Button>
+            <Button onClick={confirmInsertLink} disabled={!linkUrl.trim()}>Inserisci</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Insert Image Dialog */}
+      <Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Inserisci immagine</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>URL immagine *</Label>
+              <Input
+                placeholder="https://esempio.com/immagine.jpg"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && confirmInsertImage()}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Testo alternativo</Label>
+              <Input
+                placeholder="Descrizione immagine"
+                value={imageAlt}
+                onChange={(e) => setImageAlt(e.target.value)}
+              />
+            </div>
+            {imageUrl && (
+              <div className="border rounded-md p-2">
+                <img src={imageUrl} alt={imageAlt} className="max-h-32 mx-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImageDialogOpen(false)}>Annulla</Button>
+            <Button onClick={confirmInsertImage} disabled={!imageUrl.trim()}>Inserisci</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
