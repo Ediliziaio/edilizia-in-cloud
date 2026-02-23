@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -10,6 +10,8 @@ import {
   addDays,
   subDays,
   format,
+  isSameDay,
+  parseISO,
 } from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -27,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import MarketingCalendarWeekView from "@/components/marketing/MarketingCalendarWeekView";
-import MarketingCalendarDayView from "@/components/marketing/MarketingCalendarDayView";
+import MarketingCalendarDayView, { type TravelLeg } from "@/components/marketing/MarketingCalendarDayView";
 import MarketingCalendarMonthView from "@/components/marketing/MarketingCalendarMonthView";
 import MarketingCalendarFilters from "@/components/marketing/MarketingCalendarFilters";
 import MarketingAppointmentsList from "@/components/marketing/MarketingAppointmentsList";
@@ -35,6 +37,18 @@ import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/com
 
 type TabKey = "calendar" | "list";
 type CalendarView = "day" | "week" | "month";
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+function addMinutesToTimeStr(t: string, mins: number): string {
+  const total = timeToMinutes(t) + mins;
+  const h = Math.floor(total / 60) % 24;
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
 
 export default function MarketingCalendar() {
   const navigate = useNavigate();
@@ -150,6 +164,59 @@ export default function MarketingCalendar() {
     });
   }, [appointments, selectedCalendarIds, selectedUserIds]);
 
+  // ── Travel time calculation for day view ──
+  const dayAppointmentsWithCoords = useMemo(() => {
+    if (calendarView !== "day") return [];
+    return filteredAppointments
+      .filter(
+        (a: any) =>
+          isSameDay(parseISO(a.appointment_date), currentDate) &&
+          a.lat != null &&
+          a.lng != null &&
+          !a.is_blocked_slot
+      )
+      .sort((a: any, b: any) => (a.appointment_time || "09:00").localeCompare(b.appointment_time || "09:00"));
+  }, [filteredAppointments, currentDate, calendarView]);
+
+  const { data: travelLegs = [] } = useQuery({
+    queryKey: ["travel-legs", dayAppointmentsWithCoords.map((a: any) => a.id).join(",")],
+    queryFn: async (): Promise<TravelLeg[]> => {
+      if (dayAppointmentsWithCoords.length < 2) return [];
+      const waypoints = dayAppointmentsWithCoords.map((a: any) => ({ lat: a.lat, lng: a.lng }));
+      try {
+        const { data, error } = await supabase.functions.invoke("maps-proxy", {
+          body: { action: "directions", waypoints },
+        });
+        if (error || !data?.legs) return [];
+        return data.legs.map((leg: any, i: number) => {
+          const fromApt = dayAppointmentsWithCoords[i] as any;
+          const toApt = dayAppointmentsWithCoords[i + 1] as any;
+          // Check if late: endTime of from + travel > startTime of to
+          const fromEnd = fromApt.appointment_end_time?.slice(0, 5) || addMinutesToTimeStr(fromApt.appointment_time?.slice(0, 5) || "09:00", 60);
+          const travelMin = Math.ceil(leg.duration_s / 60);
+          const arrivalMin = timeToMinutes(fromEnd) + travelMin;
+          const toStart = timeToMinutes(toApt.appointment_time?.slice(0, 5) || "09:00");
+          const isLate = arrivalMin > toStart;
+          const delayMinutes = isLate ? arrivalMin - toStart : 0;
+          return {
+            duration_s: leg.duration_s,
+            distance_m: leg.distance_m,
+            duration_text: leg.duration_text,
+            distance_text: leg.distance_text,
+            fromId: fromApt.id,
+            toId: toApt.id,
+            isLate,
+            delayMinutes,
+          } as TravelLeg;
+        });
+      } catch {
+        return [];
+      }
+    },
+    enabled: calendarView === "day" && dayAppointmentsWithCoords.length >= 2,
+    staleTime: 5 * 60 * 1000, // cache 5 min
+  });
+
   const handleToggleCalendar = useCallback((id: string) => {
     setSelectedCalendarIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -213,6 +280,17 @@ export default function MarketingCalendar() {
       is_completed: apt.is_completed,
       is_blocked_slot: apt.is_blocked_slot,
       internal_notes: apt.internal_notes,
+      // Address fields
+      address_line: apt.address_line,
+      address_city: apt.address_city,
+      address_postal_code: apt.address_postal_code,
+      address_province: apt.address_province,
+      address_country: apt.address_country,
+      address_notes: apt.address_notes,
+      formatted_address: apt.formatted_address,
+      lat: apt.lat,
+      lng: apt.lng,
+      place_id: apt.place_id,
     });
     setDialogOpen(true);
   };
@@ -317,6 +395,7 @@ export default function MarketingCalendar() {
                 calendarIds={calendars.map((c) => c.id)}
                 onClickAppointment={openEditDialog}
                 onClickSlot={(date, hour) => openNewDialog(date, hour)}
+                travelLegs={travelLegs}
               />
             )}
             {calendarView === "month" && (

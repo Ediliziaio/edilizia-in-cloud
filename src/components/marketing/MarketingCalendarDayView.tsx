@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { format, isSameDay, parseISO, isToday } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 8);
 
@@ -19,6 +20,7 @@ interface Appointment {
   title: string;
   appointment_date: string;
   appointment_time: string | null;
+  appointment_end_time?: string | null;
   appointment_type: string;
   status: string;
   calendar_id: string | null;
@@ -27,6 +29,20 @@ interface Appointment {
   description: string | null;
   is_completed: boolean;
   is_blocked_slot?: boolean;
+  lat?: number | null;
+  lng?: number | null;
+  formatted_address?: string | null;
+}
+
+export interface TravelLeg {
+  duration_s: number;
+  distance_m: number;
+  duration_text: string;
+  distance_text: string;
+  fromId: string;
+  toId: string;
+  isLate?: boolean;
+  delayMinutes?: number;
 }
 
 interface Props {
@@ -35,6 +51,7 @@ interface Props {
   calendarIds: string[];
   onClickAppointment: (apt: Appointment) => void;
   onClickSlot: (date: Date, hour: number) => void;
+  travelLegs?: TravelLeg[];
 }
 
 export default function MarketingCalendarDayView({
@@ -43,6 +60,7 @@ export default function MarketingCalendarDayView({
   calendarIds,
   onClickAppointment,
   onClickSlot,
+  travelLegs = [],
 }: Props) {
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -56,6 +74,25 @@ export default function MarketingCalendarDayView({
     () => appointments.filter((a) => isSameDay(parseISO(a.appointment_date), date)),
     [appointments, date]
   );
+
+  // Sort by time for travel leg matching
+  const sortedAppointments = useMemo(
+    () =>
+      [...dayAppointments].sort((a, b) => {
+        const ta = a.appointment_time || "09:00";
+        const tb = b.appointment_time || "09:00";
+        return ta.localeCompare(tb);
+      }),
+    [dayAppointments]
+  );
+
+  const travelLegMap = useMemo(() => {
+    const map: Record<string, TravelLeg> = {};
+    travelLegs.forEach((leg) => {
+      map[leg.toId] = leg;
+    });
+    return map;
+  }, [travelLegs]);
 
   const getAppointmentsForHour = (hour: number) =>
     dayAppointments.filter((a) => {
@@ -101,29 +138,63 @@ export default function MarketingCalendarDayView({
                 )}
                 onClick={() => onClickSlot(date, hour)}
               >
-                {slotApts.map((apt) => (
-                  <div
-                    key={apt.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onClickAppointment(apt);
-                    }}
-                    className={cn(
-                      "text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 mb-0.5",
-                      apt.is_blocked_slot
-                        ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
-                        : apt.calendar_id && colorMap[apt.calendar_id]
-                          ? colorMap[apt.calendar_id]
-                          : "bg-muted border-muted-foreground/40 text-foreground"
-                    )}
-                    title={apt.title}
-                  >
-                    {apt.appointment_time && (
-                      <span className="font-medium">{apt.appointment_time.slice(0, 5)} </span>
-                    )}
-                    {apt.title}
-                  </div>
-                ))}
+                {slotApts.map((apt) => {
+                  const leg = travelLegMap[apt.id];
+                  const hasNoCoords = apt.lat == null || apt.lng == null;
+
+                  return (
+                    <div key={apt.id}>
+                      {/* Travel time pill before appointment */}
+                      {leg && (
+                        <div
+                          className={cn(
+                            "flex items-center gap-1 text-[10px] leading-tight px-1.5 py-0.5 rounded mb-0.5",
+                            leg.isLate
+                              ? "bg-destructive/10 text-destructive border border-destructive/30"
+                              : "bg-muted/50 text-muted-foreground"
+                          )}
+                        >
+                          <Car className="h-3 w-3 shrink-0" />
+                          <span>{leg.duration_text} • {leg.distance_text}</span>
+                          {leg.isLate && (
+                            <span className="flex items-center gap-0.5 ml-auto font-medium">
+                              <AlertTriangle className="h-3 w-3" />
+                              +{leg.delayMinutes} min
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {/* Missing address badge */}
+                      {hasNoCoords && !apt.is_blocked_slot && (
+                        <div className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded mb-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-700">
+                          <MapPinOff className="h-3 w-3" />
+                          <span>Indirizzo mancante</span>
+                        </div>
+                      )}
+                      {/* Appointment block */}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onClickAppointment(apt);
+                        }}
+                        className={cn(
+                          "text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 mb-0.5",
+                          apt.is_blocked_slot
+                            ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
+                            : apt.calendar_id && colorMap[apt.calendar_id]
+                              ? colorMap[apt.calendar_id]
+                              : "bg-muted border-muted-foreground/40 text-foreground"
+                        )}
+                        title={apt.title}
+                      >
+                        {apt.appointment_time && (
+                          <span className="font-medium">{apt.appointment_time.slice(0, 5)} </span>
+                        )}
+                        {apt.title}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
