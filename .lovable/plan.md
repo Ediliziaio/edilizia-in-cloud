@@ -1,62 +1,39 @@
 
 
-# QA Report - Email Builder Module: TUTTO OK
+# Editing inline nel canvas - Click per modificare direttamente
 
-## 1. Pulizia Codice
+## Problema attuale
+Quando l'utente clicca su un blocco testo o pulsante nel canvas, puo solo modificarlo dal pannello proprieta a destra. L'utente vuole poter cliccare direttamente sul testo nel canvas e scriverci dentro.
 
-**Nessun codice morto trovato.** Tutti i file del modulo email builder sono stati verificati:
+## Soluzione
 
-| File | Stato |
-|------|-------|
-| `builderTypes.ts` | Tutti gli export usati (types, constants, functions) |
-| `BuilderSidebar.tsx` | Nessun import inutile |
-| `BuilderBlock.tsx` | Pulito (import `Columns` gia rimosso nella sessione precedente) |
-| `BuilderCanvas.tsx` | Nessun codice morto |
-| `BuilderPropertiesPanel.tsx` | Tutti i componenti interni usati |
-| `builderHtmlGenerator.ts` | Nessuna funzione inutilizzata |
-| `DragDropEmailBuilder.tsx` | Tutti gli handler referenziati |
+### File: `src/components/email-builder/BuilderBlock.tsx`
 
-**Elementi rimossi nelle sessioni precedenti (gia completati):**
-- Import `Columns` da `lucide-react` in `BuilderBlock.tsx`
+Aggiungere una nuova prop `onInlineEdit` al componente per comunicare le modifiche inline al parent.
 
----
+**Blocco Testo (`case "text"`):**
+- Sostituire il `div` con `dangerouslySetInnerHTML` con un `div` con `contentEditable={isSelected}`
+- Quando il blocco e selezionato, l'utente puo cliccare dentro e digitare
+- Al `blur` o `onInput`, chiamare `onInlineEdit(block.id, { content: element.innerHTML })`
+- Mantenere tutti gli stili inline (font, colore, allineamento)
 
-## 2. Bug e Fix
+**Blocco Pulsante (`case "button"`):**
+- Rendere lo `span` del testo `contentEditable={isSelected}`
+- Al `blur`, chiamare `onInlineEdit(block.id, { text: element.textContent })`
 
-**Nessun nuovo bug trovato.** I fix delle sessioni precedenti sono tutti operativi:
+**Blocco HTML (`case "html"`):** Non toccare - l'editing inline non ha senso per codice HTML raw.
 
-- Duplicazione campagna con `json_content` preservato
-- Navigazione condizionale `/builder` vs `/editor`
-- Sincronizzazione array `children` al cambio layout colonne (con preservazione blocchi orfani)
-- Formato blocco reattivo nel `CampaignEditor`
+### File: `src/components/email-builder/BuilderCanvas.tsx`
+- Passare la nuova prop `onInlineEdit` dal canvas ai `SortableBlock` e poi ai `BuilderBlock`
 
----
+### File: `src/pages/azienda/marketing/DragDropEmailBuilder.tsx`
+- Creare un handler `handleInlineEdit(blockId, partial)` che aggiorna le props del blocco (riutilizzando la logica di `handleUpdateBlockProps`)
+- Per i blocchi figli nelle colonne, verificare se il blockId appartiene a un figlio e usare `handleUpdateChildBlockProps`
+- Passare `handleInlineEdit` al `BuilderCanvas`
 
-## 3. Verifica Funzionale
-
-Tutti i flussi verificati dal codice:
-
-- **Loading state**: `Loader2` spinner durante il caricamento campagna
-- **Empty state**: messaggio "Campagna non trovata" con CTA "Torna alla lista"
-- **Canvas vuoto**: placeholder con icona e testo "Trascina un elemento qui per iniziare"
-- **Proprietà vuote**: placeholder "Seleziona un elemento per modificarne le proprietà"
-- **Auto-save**: debounce 2s con indicatore visivo (salvato/salvataggio/non salvato)
-- **Undo/Redo**: stack limitato a 50 stati, shortcut tastiera funzionanti
-- **Variabili personalizzazione**: dropdown disponibile per blocchi testo e pulsante
-- **Blocchi in colonne**: aggiunta, eliminazione, selezione e editing proprietà
-- **Preview responsivo**: toggle desktop/tablet/mobile con larghezze corrette
-- **Salvataggio manuale**: pulsante Salva e auto-save coesistono senza conflitti
-- **Toast errori**: feedback su errore salvataggio
-
----
-
-## 4. Console
-
-Nessun errore in console.
-
----
-
-## 5. Conclusione
-
-**TUTTO OK** - Il modulo email builder e stabile, pulito e funzionale. Non sono necessarie ulteriori modifiche.
+### Dettagli tecnici
+- Usare `contentEditable` nativo di React con `suppressContentEditableWarning`
+- Aggiornare lo stato su evento `onBlur` (non su ogni keystroke per performance)
+- Impedire che il click dentro il `contentEditable` triggeri la deselezione del blocco (gia gestito da `e.stopPropagation`)
+- Le shortcut Ctrl+Z/Y del browser funzionano nativamente dentro `contentEditable` per l'undo del testo; lo stack globale undo/redo cattura lo stato al blur
 
