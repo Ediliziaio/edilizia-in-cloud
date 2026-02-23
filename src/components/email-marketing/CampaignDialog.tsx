@@ -25,7 +25,7 @@ export function CampaignDialog({ open, onOpenChange, campaign }: CampaignDialogP
   const [name, setName] = useState(campaign?.name || "");
   const [subject, setSubject] = useState(campaign?.subject || "");
   const [type, setType] = useState(campaign?.type || "broadcast");
-  const [templateId, setTemplateId] = useState(campaign?.template_id || "");
+  const [templateId, setTemplateId] = useState(campaign?.template_id || "none");
   const [abEnabled, setAbEnabled] = useState(campaign?.ab_test_enabled || false);
   const [abSubjectB, setAbSubjectB] = useState(campaign?.ab_subject_b || "");
   const [scheduledAt, setScheduledAt] = useState(campaign?.scheduled_at?.slice(0, 16) || "");
@@ -45,7 +45,7 @@ export function CampaignDialog({ open, onOpenChange, campaign }: CampaignDialogP
         name,
         subject,
         type,
-        template_id: templateId || null,
+        template_id: templateId === "none" ? null : templateId || null,
         ab_test_enabled: abEnabled,
         ab_subject_b: abEnabled ? abSubjectB : null,
         scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
@@ -101,7 +101,7 @@ export function CampaignDialog({ open, onOpenChange, campaign }: CampaignDialogP
               <Select value={templateId} onValueChange={setTemplateId}>
                 <SelectTrigger><SelectValue placeholder="Nessuno" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessuno</SelectItem>
+                  <SelectItem value="none">Nessuno</SelectItem>
                   {templates.map((t: any) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
