@@ -111,6 +111,7 @@ export function AutomationCanvas({
         style={{ background: "radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)", backgroundSize: `${20 * zoom}px ${20 * zoom}px` }}
       >
         <div
+          data-canvas="true"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: "0 0",
@@ -122,7 +123,7 @@ export function AutomationCanvas({
           }}
         >
           {/* SVG connections */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: "visible" }}>
+          <svg data-canvas="true" className="absolute inset-0 w-full h-full" style={{ overflow: "visible" }}>
             {connections.map(conn => (
               <AutomationConnectionLine key={conn.id} connection={conn} nodes={nodes} />
             ))}
