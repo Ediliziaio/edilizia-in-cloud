@@ -34,6 +34,7 @@ export const BUILT_IN_FIELDS: FieldDefinition[] = [
   { key: "updated_at", label: "Aggiornato il", section: "other" },
   { key: "status_changed_at", label: "Data ultima modifica stato", section: "other" },
   { key: "stage_changed_at", label: "Data ultima modifica fase", section: "other" },
+  { key: "appointment_date", label: "Data appuntamento", section: "other" },
   { key: "contact_name", label: "Contatto (nome completo)", section: "contact" },
   { key: "contact_company", label: "Nome dell'azienda", section: "contact" },
   { key: "contact_city", label: "Città", section: "contact" },
