@@ -1,96 +1,44 @@
 
 
-# Prenota Appuntamento dal Dialog Opportunita
+# Appuntamento visibile sulla Card Opportunita (stile GHL)
 
 ## Panoramica
 
-Abilitare il tab "Prenota/aggiorna appuntamento" nel dialog opportunita, con un form inline (non un sotto-dialog) che permette di prenotare un appuntamento per il contatto associato. Quando si seleziona un calendario e una data, il sistema verifica la disponibilita incrociando gli orari configurati in `marketing_calendar_availability` con gli appuntamenti gia esistenti.
-
----
-
-## Struttura UI (stile GHL - come da screenshot)
-
-```text
-+----------------------------------------------------------+
-| Prenota/aggiorna appuntamento                            |
-|                                                           |
-|  Calendario *                                             |
-|  [Select calendario]                                      |
-|  (messaggio errore se non selezionato)                    |
-|                                                           |
-|  Luogo dell'incontro          Titolo dell'appuntamento    |
-|  [Input]                      [Input]                     |
-|                                                           |
-|  Data *                                                   |
-|  [Date picker]                                            |
-|                                                           |
-|  Slot disponibili                                         |
-|  [09:00] [09:30] [10:00] [10:30] ... (griglia slot)      |
-|  (oppure: "Nessuno slot disponibile per questa data")     |
-|                                                           |
-|  Descrizione                                              |
-|  [Textarea]                                               |
-|                                                           |
-|            [Prenota appuntamento]                          |
-+----------------------------------------------------------+
-```
-
----
-
-## Logica disponibilita
-
-1. **Seleziona calendario**: query `marketing_calendars` dell'azienda
-2. **Seleziona data**: per la data scelta:
-   - Recupera gli orari da `marketing_calendar_availability` per quel `calendar_id` e `day_of_week` (o `specific_date` se override)
-   - Recupera gli appuntamenti esistenti da `appointments` per la stessa data e calendario
-   - Calcola gli slot liberi: suddividi la finestra di disponibilita in blocchi da `duration_minutes` (dal calendario) e rimuovi quelli gia occupati
-3. **Mostra slot**: griglia di bottoni cliccabili con gli orari liberi
-4. **Prenota**: inserisce in `appointments` con `contact_id` dal contatto dell'opportunita, `calendar_id`, ora inizio/fine
+Mostrare sulla card dell'opportunita nella Kanban:
+1. L'icona Calendario con badge numerico se il contatto ha un appuntamento futuro
+2. Un chip con la data dell'appuntamento (es. "23 Feb, 10:00") come in GHL
+3. Click sull'icona Calendario apre il tab appuntamenti nel dialog
+4. Il campo "Data appuntamento" e gestibile da "Gestisci campi"
 
 ---
 
 ## Modifiche ai file
 
-### 1. `src/components/opportunities/OpportunityDetailDialog.tsx`
-- Abilitare il tab `appointments` (riga 343: `enabled: true`)
-- Aggiungere il rendering del contenuto tab `appointments` che mostra il nuovo componente `OpportunityAppointmentTab`
+### 1. `src/hooks/useOpportunitiesData.ts` - Fetch appuntamenti
 
-### 2. Nuovo: `src/components/opportunities/OpportunityAppointmentTab.tsx`
-Componente inline (non dialog) con:
-- **Props**: `contactId`, `companyId`, `opportunityId`
-- **State**: `calendarId`, `date`, `selectedSlot`, `title`, `location`, `description`
-- **Query calendari**: fetch `marketing_calendars` attivi per `company_id`
-- **Query disponibilita**: quando `calendarId` + `date` sono selezionati:
-  - Fetch `marketing_calendar_availability` filtrato per `calendar_id` e giorno della settimana (o specific_date)
-  - Fetch `appointments` esistenti per la stessa data e calendario (esclusi annullati)
-  - Calcola slot liberi in base a `duration_minutes` del calendario
-- **Griglia slot**: bottoni con gli orari liberi, selezionabili
-- **Salvataggio**: inserisce in `appointments` con tutti i campi necessari
-- **Appuntamento esistente**: se il contatto ha gia un appuntamento futuro per quel calendario, mostrarlo con possibilita di modificare/cancellare
+Nella funzione `useOpportunities`, aggiungere una query per recuperare il prossimo appuntamento futuro per ogni contatto:
 
-### 3. Nessuna modifica al database
-Le tabelle `appointments`, `marketing_calendars` e `marketing_calendar_availability` hanno gia tutte le colonne necessarie.
+- Raccogliere tutti i `contact_id` dalle opportunita
+- Query su `appointments` con `contact_id IN (...)`, `appointment_date >= oggi`, `status != 'annullato'`, ordinato per data ASC
+- Creare una mappa `contactId -> { date, time }` con il primo appuntamento futuro
+- Arricchire ogni opportunita con `next_appointment: { date, time } | null`
 
----
+### 2. `src/components/opportunities/OpportunityCard.tsx` - Visualizzazione
 
-## Dettagli tecnici
+- **Icona Calendario**: sostituire `handleComingSoon("Calendario")` con apertura del tab `appointments` via `onOpenTab?.("appointments")`
+- **Badge sull'icona**: se `opportunity.next_appointment` esiste, mostrare badge numerico (1)
+- **Chip data appuntamento**: sotto le icone (o inline con esse), se il campo `appointment_date` e attivo e l'appuntamento esiste, mostrare un chip stile GHL con bordo arrotondato e icona calendario + data formattata (es. "23 Feb, 10:00")
 
-### Calcolo slot liberi (pseudo-codice)
+### 3. `src/hooks/useCardFieldPreferences.tsx` - Nuovo campo
 
-```text
-1. Prendi availability per day_of_week della data selezionata (is_enabled = true)
-   - Se esiste specific_date override, usa quello
-2. Per ogni finestra [start_time, end_time]:
-   - Genera slot ogni N minuti (N = calendar.duration_minutes, default 30)
-   - Per ogni slot [slot_start, slot_end]:
-     - Controlla se esiste un appointment che si sovrappone
-     - Se libero, aggiungilo alla lista
-3. Mostra i slot liberi come bottoni cliccabili
+Aggiungere a `BUILT_IN_FIELDS`:
+```
+{ key: "appointment_date", label: "Data appuntamento", section: "other" }
 ```
 
-### Appuntamento esistente per il contatto
-- Query: `appointments` dove `contact_id = X` e `appointment_date >= oggi` e `calendar_id` nel set dei calendari aziendali
-- Se trovato: mostra dettagli con pulsanti "Modifica" / "Elimina"
+### 4. `src/components/opportunities/OpportunityCard.tsx` - CardDetailRows
+
+Aggiungere nel `fieldMap` del componente `CardDetailRows` il campo `appointment_date` che mostra la data del prossimo appuntamento come chip stilizzato (sfondo chiaro, bordo, icona calendario).
 
 ---
 
@@ -98,6 +46,7 @@ Le tabelle `appointments`, `marketing_calendars` e `marketing_calendar_availabil
 
 | File | Azione |
 |------|--------|
-| `src/components/opportunities/OpportunityDetailDialog.tsx` | Modifica: abilita tab, aggiungi render |
-| `src/components/opportunities/OpportunityAppointmentTab.tsx` | Nuovo: form prenotazione con check disponibilita |
+| `src/hooks/useOpportunitiesData.ts` | Modifica: fetch prossimo appuntamento per contatto |
+| `src/hooks/useCardFieldPreferences.tsx` | Modifica: aggiungere campo `appointment_date` |
+| `src/components/opportunities/OpportunityCard.tsx` | Modifica: badge calendario, chip data, click apre tab |
 | Database | Nessuna modifica |
