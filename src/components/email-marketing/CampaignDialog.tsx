@@ -1,11 +1,10 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,13 +21,25 @@ export function CampaignDialog({ open, onOpenChange, campaign }: CampaignDialogP
   const qc = useQueryClient();
   const isEdit = !!campaign;
 
-  const [name, setName] = useState(campaign?.name || "");
-  const [subject, setSubject] = useState(campaign?.subject || "");
-  const [type, setType] = useState(campaign?.type || "broadcast");
-  const [templateId, setTemplateId] = useState(campaign?.template_id || "none");
-  const [abEnabled, setAbEnabled] = useState(campaign?.ab_test_enabled || false);
-  const [abSubjectB, setAbSubjectB] = useState(campaign?.ab_subject_b || "");
-  const [scheduledAt, setScheduledAt] = useState(campaign?.scheduled_at?.slice(0, 16) || "");
+  const [name, setName] = useState("");
+  const [subject, setSubject] = useState("");
+  const [type, setType] = useState("broadcast");
+  const [templateId, setTemplateId] = useState("none");
+  const [abEnabled, setAbEnabled] = useState(false);
+  const [abSubjectB, setAbSubjectB] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setName(campaign?.name || "");
+      setSubject(campaign?.subject || "");
+      setType(campaign?.type || "broadcast");
+      setTemplateId(campaign?.template_id || "none");
+      setAbEnabled(campaign?.ab_test_enabled || false);
+      setAbSubjectB(campaign?.ab_subject_b || "");
+      setScheduledAt(campaign?.scheduled_at?.slice(0, 16) || "");
+    }
+  }, [open, campaign]);
 
   const { data: templates = [] } = useQuery({
     queryKey: ["email-templates-select", company?.id],
@@ -74,6 +85,9 @@ export function CampaignDialog({ open, onOpenChange, campaign }: CampaignDialogP
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Modifica campagna" : "Nuova campagna"}</DialogTitle>
+          <DialogDescription>
+            {isEdit ? "Modifica i dettagli della campagna" : "Configura i dettagli della nuova campagna email"}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -93,6 +107,7 @@ export function CampaignDialog({ open, onOpenChange, campaign }: CampaignDialogP
                 <SelectContent>
                   <SelectItem value="broadcast">Broadcast</SelectItem>
                   <SelectItem value="automation">Automazione</SelectItem>
+                  <SelectItem value="bulk">Azione in blocco</SelectItem>
                 </SelectContent>
               </Select>
             </div>

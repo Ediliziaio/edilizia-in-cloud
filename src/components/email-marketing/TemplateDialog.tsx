@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,10 +20,19 @@ export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogP
   const qc = useQueryClient();
   const isEdit = !!template;
 
-  const [name, setName] = useState(template?.name || "");
-  const [subject, setSubject] = useState(template?.subject || "");
-  const [htmlContent, setHtmlContent] = useState(template?.html_content || "");
-  const [folder, setFolder] = useState(template?.folder || "Home");
+  const [name, setName] = useState("");
+  const [subject, setSubject] = useState("");
+  const [htmlContent, setHtmlContent] = useState("");
+  const [folder, setFolder] = useState("Home");
+
+  useEffect(() => {
+    if (open) {
+      setName(template?.name || "");
+      setSubject(template?.subject || "");
+      setHtmlContent(template?.html_content || "");
+      setFolder(template?.folder || "Home");
+    }
+  }, [open, template]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -57,6 +66,9 @@ export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogP
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Modifica template" : "Nuovo template"}</DialogTitle>
+          <DialogDescription>
+            {isEdit ? "Modifica il contenuto del template email" : "Crea un nuovo template email personalizzato"}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
