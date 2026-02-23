@@ -18,6 +18,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { Zap, Plus, ExternalLink, MoreHorizontal, Pencil, Copy, Archive, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { AutomationFlow } from "@/types/automationBuilder";
@@ -193,10 +194,10 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
     );
   }
 
-  const STATUS_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
-    draft: { label: "Draft", variant: "secondary" },
-    published: { label: "Published", variant: "default" },
-    archived: { label: "Archived", variant: "outline" },
+  const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+    draft: { label: "Draft", className: "bg-muted text-muted-foreground border-border" },
+    published: { label: "Published", className: "bg-green-100 text-green-700 border-green-200 hover:bg-green-100" },
+    archived: { label: "Archived", className: "border text-muted-foreground" },
   };
 
   return (
@@ -205,7 +206,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30">
+              <TableRow className="bg-muted/20">
                 <TableHead className="w-10">
                   <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                 </TableHead>
@@ -242,10 +243,10 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={badge.variant} className="text-xs">{badge.label}</Badge>
+                      <Badge className={cn("text-xs", badge.className)}>{badge.label}</Badge>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{counts.total}</TableCell>
-                    <TableCell className="text-right tabular-nums">{counts.active}</TableCell>
+                    <TableCell className="text-right tabular-nums text-primary">{counts.total}</TableCell>
+                    <TableCell className="text-right tabular-nums text-primary">{counts.active}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{formatDate(flow.updated_at)}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{formatDate(flow.created_at)}</TableCell>
                     <TableCell className="text-center">
@@ -291,10 +292,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "" }: Props) {
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between border-t px-4 py-2 bg-muted/20">
-          <div className="text-xs text-muted-foreground">
-            {filtered.length} risultat{filtered.length === 1 ? "o" : "i"}
-          </div>
+        <div className="flex items-center justify-end border-t px-4 py-2 bg-muted/10">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
