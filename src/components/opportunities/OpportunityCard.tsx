@@ -115,7 +115,7 @@ export const OpportunityCard = memo(function OpportunityCard({ opportunity, onCl
       badge: tags.length > 0 ? tags.length : null,
     },
     { icon: StickyNote, tooltip: opportunity.notes_count > 0 ? `Note (${opportunity.notes_count})` : "Note", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("notes"); }, badge: opportunity.notes_count > 0 ? opportunity.notes_count : null },
-    { icon: Calendar, tooltip: "Calendario", action: handleComingSoon("Calendario") },
+    { icon: Calendar, tooltip: opportunity.next_appointment ? "Appuntamento programmato" : "Calendario", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("appointments"); }, badge: opportunity.next_appointment ? 1 : null },
     { icon: Folder, tooltip: opportunity.documents_count > 0 ? `Documenti (${opportunity.documents_count})` : "Documenti", action: (e: React.MouseEvent) => { stopProp(e); onOpenTab?.("documents"); }, badge: opportunity.documents_count > 0 ? opportunity.documents_count : null },
     { icon: Trash2, tooltip: "Elimina", action: handleDeleteClick },
   ];
@@ -249,6 +249,14 @@ function CardDetailRows({ opportunity, contact, activeFields, layout, isFieldAct
       status: () => ({ label: "Stato", value: opportunity.status || "—" }),
       pipeline: () => ({ label: "Sequenza", value: opportunity.pipeline_name || "—" }),
       stage: () => ({ label: "Fase", value: opportunity.stage_name || "—" }),
+      appointment_date: () => {
+        const appt = opportunity.next_appointment;
+        if (!appt) return { label: "Appuntamento", value: "—" };
+        const d = new Date(appt.date);
+        const dayMonth = d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+        const time = appt.time ? appt.time.slice(0, 5) : "";
+        return { label: "📅 Appuntamento", value: time ? `${dayMonth}, ${time}` : dayMonth, highlight: true };
+      },
     };
 
     for (const key of activeFields) {

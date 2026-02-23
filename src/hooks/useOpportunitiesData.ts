@@ -53,10 +53,14 @@ export function useOpportunities(pipelineId: string | null) {
         }
       }
 
-      // Fetch notes counts per opportunity
+      // Fetch notes counts, docs counts, and next appointments
       const oppIds = data.map((o: any) => o.id);
+      const contactIds = [...new Set(data.filter((o: any) => o.contact_id).map((o: any) => o.contact_id))];
       let notesCountMap: Record<string, number> = {};
       let docsCountMap: Record<string, number> = {};
+      let appointmentMap: Record<string, { date: string; time: string | null }> = {};
+
+      const today = new Date().toISOString().split("T")[0];
 
       if (oppIds.length > 0) {
         const [notesRes, docsRes] = await Promise.all([
@@ -72,6 +76,19 @@ export function useOpportunities(pipelineId: string | null) {
             .limit(5000),
         ]);
 
+        let apptRes: any = null;
+        if (contactIds.length > 0) {
+          apptRes = await supabase
+            .from("appointments")
+            .select("contact_id, appointment_date, appointment_time")
+            .in("contact_id", contactIds)
+            .gte("appointment_date", today)
+            .neq("status", "annullato")
+            .order("appointment_date", { ascending: true })
+            .order("appointment_time", { ascending: true, nullsFirst: false })
+            .limit(5000);
+        }
+
         if (notesRes.data) {
           notesRes.data.forEach((n: any) => {
             if (n.opportunity_id) notesCountMap[n.opportunity_id] = (notesCountMap[n.opportunity_id] || 0) + 1;
@@ -82,6 +99,14 @@ export function useOpportunities(pipelineId: string | null) {
             if (d.opportunity_id) docsCountMap[d.opportunity_id] = (docsCountMap[d.opportunity_id] || 0) + 1;
           });
         }
+        if (apptRes?.data) {
+          apptRes.data.forEach((a: any) => {
+            // Keep only the first (nearest) appointment per contact
+            if (a.contact_id && !appointmentMap[a.contact_id]) {
+              appointmentMap[a.contact_id] = { date: a.appointment_date, time: a.appointment_time };
+            }
+          });
+        }
       }
 
       return data.map((o: any) => ({
@@ -89,6 +114,7 @@ export function useOpportunities(pipelineId: string | null) {
         assigned_profile: o.assigned_to ? profilesMap[o.assigned_to] || null : null,
         notes_count: notesCountMap[o.id] || 0,
         documents_count: docsCountMap[o.id] || 0,
+        next_appointment: o.contact_id ? appointmentMap[o.contact_id] || null : null,
       }));
     },
     enabled: !!companyId && !!pipelineId,
