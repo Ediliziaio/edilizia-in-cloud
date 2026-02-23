@@ -17,12 +17,12 @@ export function EmailStatsTab() {
   const [dateTo, setDateTo] = useState("");
 
   const { data: campaigns = [] } = useQuery({
-    queryKey: ["email-campaigns-list", company?.id],
+    queryKey: ["email-campaigns", company?.id],
     enabled: !!company?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_campaigns")
-        .select("id, name, type, sent_at, total_recipients")
+        .select("*")
         .eq("company_id", company!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -78,36 +78,71 @@ export function EmailStatsTab() {
       };
     });
 
-  // Build chart data aggregated by date
-  const chartData = useMemo(() => {
-    if (logs.length === 0) return [];
+  // Build chart datasets for all 3 metrics
+  const chartDatasets = useMemo(() => {
+    if (logs.length === 0) return { open_rate: [], click_rate: [], delivery_rate: [] };
 
     const campaignTypeMap = new Map<string, string>();
     campaigns.forEach((c: any) => campaignTypeMap.set(c.id, c.type));
 
-    const byDate = new Map<string, { all: number; broadcast: number; automation: number; bulk: number; total: number }>();
+    const byDate = new Map<string, {
+      total: number;
+      delivered: number;
+      opened: number;
+      clicked: number;
+      byType: Record<string, { delivered: number; opened: number; clicked: number }>;
+    }>();
 
     logs.forEach((l: any) => {
       const date = format(new Date(l.event_timestamp), "dd/MM");
-      if (!byDate.has(date)) byDate.set(date, { all: 0, broadcast: 0, automation: 0, bulk: 0, total: 0 });
+      if (!byDate.has(date)) {
+        byDate.set(date, {
+          total: 0, delivered: 0, opened: 0, clicked: 0,
+          byType: { broadcast: { delivered: 0, opened: 0, clicked: 0 }, automation: { delivered: 0, opened: 0, clicked: 0 }, bulk: { delivered: 0, opened: 0, clicked: 0 } },
+        });
+      }
       const entry = byDate.get(date)!;
       entry.total++;
-      if (l.status === "opened" || l.status === "clicked") {
-        entry.all++;
-        const cType = campaignTypeMap.get(l.campaign_id) || "broadcast";
-        if (cType === "broadcast") entry.broadcast++;
-        else if (cType === "automation") entry.automation++;
-        else if (cType === "bulk") entry.bulk++;
-      }
+
+      const cType = campaignTypeMap.get(l.campaign_id) || "broadcast";
+      const isDelivered = l.status === "delivered" || l.status === "opened" || l.status === "clicked";
+      const isOpened = l.status === "opened" || l.status === "clicked";
+      const isClicked = l.status === "clicked";
+
+      if (isDelivered) { entry.delivered++; entry.byType[cType] && entry.byType[cType].delivered++; }
+      if (isOpened) { entry.opened++; entry.byType[cType] && entry.byType[cType].opened++; }
+      if (isClicked) { entry.clicked++; entry.byType[cType] && entry.byType[cType].clicked++; }
     });
 
-    return Array.from(byDate.entries()).map(([date, v]) => ({
+    const pct = (n: number, d: number) => d > 0 ? Math.round((n / d) * 100) : 0;
+
+    const entries = Array.from(byDate.entries());
+
+    const open_rate = entries.map(([date, v]) => ({
       date,
-      all: v.total > 0 ? Math.round((v.all / v.total) * 100) : 0,
-      broadcast: v.total > 0 ? Math.round((v.broadcast / v.total) * 100) : 0,
-      automation: v.total > 0 ? Math.round((v.automation / v.total) * 100) : 0,
-      bulk: v.total > 0 ? Math.round((v.bulk / v.total) * 100) : 0,
+      all: pct(v.opened, v.total),
+      broadcast: pct(v.byType.broadcast.opened, v.total),
+      automation: pct(v.byType.automation.opened, v.total),
+      bulk: pct(v.byType.bulk.opened, v.total),
     }));
+
+    const click_rate = entries.map(([date, v]) => ({
+      date,
+      all: pct(v.clicked, v.total),
+      broadcast: pct(v.byType.broadcast.clicked, v.total),
+      automation: pct(v.byType.automation.clicked, v.total),
+      bulk: pct(v.byType.bulk.clicked, v.total),
+    }));
+
+    const delivery_rate = entries.map(([date, v]) => ({
+      date,
+      all: pct(v.delivered, v.total),
+      broadcast: pct(v.byType.broadcast.delivered, v.total),
+      automation: pct(v.byType.automation.delivered, v.total),
+      bulk: pct(v.byType.bulk.delivered, v.total),
+    }));
+
+    return { open_rate, click_rate, delivery_rate };
   }, [logs, campaigns]);
 
   return (
@@ -147,7 +182,7 @@ export function EmailStatsTab() {
       </div>
 
       {/* Performance chart */}
-      <EmailPerformanceChart data={chartData} />
+      <EmailPerformanceChart datasets={chartDatasets} />
 
       {/* Top campaigns table */}
       <EmailTopCampaignsTable campaigns={campaignPerf} />

@@ -3,31 +3,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useState } from "react";
 
+type ChartDataPoint = { date: string; all: number; broadcast: number; automation: number; bulk: number };
+
 interface EmailPerformanceChartProps {
-  data: Array<{ date: string; all: number; broadcast: number; automation: number; bulk: number }>;
+  datasets: {
+    open_rate: ChartDataPoint[];
+    click_rate: ChartDataPoint[];
+    delivery_rate: ChartDataPoint[];
+  };
 }
 
 const METRICS = [
   { value: "open_rate", label: "Tasso di apertura" },
   { value: "click_rate", label: "Tasso di clic" },
   { value: "delivery_rate", label: "Tasso di consegna" },
-];
+] as const;
 
-export function EmailPerformanceChart({ data }: EmailPerformanceChartProps) {
-  const [metric, setMetric] = useState("open_rate");
+type MetricKey = typeof METRICS[number]["value"];
 
+export function EmailPerformanceChart({ datasets }: EmailPerformanceChartProps) {
+  const [metric, setMetric] = useState<MetricKey>("open_rate");
+
+  const data = datasets[metric] || [];
   const hasData = data.length > 0 && data.some(d => d.all > 0);
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
-        <CardTitle className="text-base">
-          {METRICS.find(m => m.value === metric)?.label || "Tasso di apertura"}
-        </CardTitle>
+          <CardTitle className="text-base">
+            {METRICS.find(m => m.value === metric)?.label || "Tasso di apertura"}
+          </CardTitle>
           <p className="text-sm text-muted-foreground">Andamento nel tempo per tipo di campagna</p>
         </div>
-        <Select value={metric} onValueChange={setMetric}>
+        <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             {METRICS.map(m => (
