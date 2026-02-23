@@ -105,8 +105,8 @@ export function CampaignDialog({ open, onOpenChange, campaign }: CampaignDialogP
               <Select value={type} onValueChange={setType}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="broadcast">Broadcast</SelectItem>
-                  <SelectItem value="automation">Automazione</SelectItem>
+                  <SelectItem value="broadcast">Campagna Email</SelectItem>
+                  <SelectItem value="automation">Campagna Flusso</SelectItem>
                   <SelectItem value="bulk">Azione in blocco</SelectItem>
                 </SelectContent>
               </Select>

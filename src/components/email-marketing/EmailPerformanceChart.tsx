@@ -22,7 +22,9 @@ export function EmailPerformanceChart({ data }: EmailPerformanceChartProps) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
-          <CardTitle className="text-base">Tasso di apertura</CardTitle>
+        <CardTitle className="text-base">
+          {METRICS.find(m => m.value === metric)?.label || "Tasso di apertura"}
+        </CardTitle>
           <p className="text-sm text-muted-foreground">Andamento nel tempo per tipo di campagna</p>
         </div>
         <Select value={metric} onValueChange={setMetric}>

@@ -219,7 +219,9 @@ export function EmailTemplatesTab() {
                   <TableCell className="text-muted-foreground">
                     {format(new Date(t.updated_at), "dd MMM yyyy", { locale: it })}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{t.folder || "Home"}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {t.folder_id ? (folders.find((f: any) => f.id === t.folder_id)?.name || "—") : "Home"}
+                  </TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -279,8 +281,11 @@ export function EmailTemplatesTab() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}>
-              Elimina
+            <AlertDialogAction
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
