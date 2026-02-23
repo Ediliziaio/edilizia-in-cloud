@@ -684,6 +684,7 @@ export type Database = {
           folder_id: string | null
           html_content: string
           id: string
+          json_content: Json | null
           name: string
           preview_text: string | null
           recipient_filter: Json | null
@@ -712,6 +713,7 @@ export type Database = {
           folder_id?: string | null
           html_content?: string
           id?: string
+          json_content?: Json | null
           name: string
           preview_text?: string | null
           recipient_filter?: Json | null
@@ -740,6 +742,7 @@ export type Database = {
           folder_id?: string | null
           html_content?: string
           id?: string
+          json_content?: Json | null
           name?: string
           preview_text?: string | null
           recipient_filter?: Json | null

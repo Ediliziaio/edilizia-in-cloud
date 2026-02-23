@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, FileText, LayoutTemplate, FolderOpen, Search, Loader2 } from "lucide-react";
+import { Plus, FileText, LayoutTemplate, FolderOpen, Search, Loader2, Palette } from "lucide-react";
 import { toast } from "sonner";
 
 interface CampaignCreateDropdownProps {
@@ -48,7 +48,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
   });
 
   const createDraftMut = useMutation({
-    mutationFn: async (htmlContent?: string) => {
+    mutationFn: async (opts?: { htmlContent?: string; navigateTo?: "editor" | "builder" }) => {
       const { data, error } = await supabase
         .from("email_campaigns")
         .insert({
@@ -57,15 +57,19 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
           name: "Campagna senza titolo",
           status: "draft",
           type: "broadcast",
-          html_content: htmlContent || "",
+          html_content: opts?.htmlContent || "",
         })
         .select("id")
         .single();
       if (error) throw error;
-      return data;
+      return { id: data.id, navigateTo: opts?.navigateTo || "editor" };
     },
     onSuccess: (data) => {
-      navigate(`/azienda/marketing/email/campagna/${data.id}/editor`);
+      if (data.navigateTo === "builder") {
+        navigate(`/azienda/marketing/email/campagna/${data.id}/builder`);
+      } else {
+        navigate(`/azienda/marketing/email/campagna/${data.id}/editor`);
+      }
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -110,9 +114,13 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onClick={() => { setOpen(false); createDraftMut.mutate(undefined); }}>
+          <DropdownMenuItem onClick={() => { setOpen(false); createDraftMut.mutate({ navigateTo: "editor" }); }}>
             <FileText className="h-4 w-4 mr-2" />
-            Vuoto
+            Editor standard
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => { setOpen(false); createDraftMut.mutate({ navigateTo: "builder" }); }}>
+            <Palette className="h-4 w-4 mr-2" />
+            Progettazione custom
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => { setOpen(false); toast.info("Funzionalità in arrivo"); }}>
             <LayoutTemplate className="h-4 w-4 mr-2" />

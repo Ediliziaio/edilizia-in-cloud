@@ -76,6 +76,7 @@ import MarketingTasks from "@/pages/azienda/marketing/MarketingTasks";
 import EmailMarketing from "@/pages/azienda/marketing/EmailMarketing";
 import CampaignEditor from "@/pages/azienda/marketing/CampaignEditor";
 import CampaignSendSettings from "@/pages/azienda/marketing/CampaignSendSettings";
+import DragDropEmailBuilder from "@/pages/azienda/marketing/DragDropEmailBuilder";
 
 // Customer Pages
 import CustomerOrders from "@/pages/cliente/CustomerOrders";
@@ -214,6 +215,7 @@ const App = () => (
               <Route path="marketing/agente-ai" element={<MarketingAiAgent />} />
               <Route path="marketing/email" element={<EmailMarketing />} />
               <Route path="marketing/email/campagna/:id/editor" element={<CampaignEditor />} />
+              <Route path="marketing/email/campagna/:id/builder" element={<DragDropEmailBuilder />} />
               <Route path="marketing/email/campagna/:id/impostazioni" element={<CampaignSendSettings />} />
               
               <Route path="impostazioni" element={<SettingsLayout />}>
