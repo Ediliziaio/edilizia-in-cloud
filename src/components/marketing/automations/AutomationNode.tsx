@@ -1,0 +1,95 @@
+import { memo, useCallback, useRef } from "react";
+import type { AutomationNode as NodeType } from "@/types/automationBuilder";
+import { NODE_TYPE_COLORS, NODE_TYPE_LABELS } from "@/types/automationBuilder";
+import { Zap, Mail, Clock, GitBranch, Target, Trash2, Copy, Plus, Bell, Tag, ArrowRightLeft, ListTodo, UserCheck, ExternalLink, StopCircle, MessageCircle, FileEdit, PlusCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const ACTION_ICONS: Record<string, typeof Zap> = {
+  send_email: Mail, send_whatsapp: MessageCircle, send_notification: Bell,
+  create_opportunity: PlusCircle, move_opportunity: ArrowRightLeft, update_field: FileEdit,
+  add_tag: Tag, remove_tag: Tag, assign_user: UserCheck, create_task: ListTodo,
+  delay: Clock, if_else: GitBranch, end_automation: StopCircle,
+  webhook_out: ExternalLink,
+};
+
+function getNodeIcon(node: NodeType) {
+  if (node.node_type === "trigger") return Zap;
+  if (node.node_type === "condition") return GitBranch;
+  if (node.node_type === "delay") return Clock;
+  if (node.node_type === "goal") return Target;
+  const actionType = node.config_json?.action_type || node.config_json?.trigger_event;
+  return ACTION_ICONS[actionType] || Zap;
+}
+
+function getNodeSummary(node: NodeType): string {
+  const cfg = node.config_json;
+  if (node.node_type === "delay") return `Attendi ${cfg?.delay_value || "?"} ${cfg?.delay_unit === "hours" ? "ore" : "giorni"}`;
+  if (node.node_type === "condition") return "Se condizione...";
+  return node.label || NODE_TYPE_LABELS[node.node_type] || "";
+}
+
+interface Props {
+  node: NodeType;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+  onDuplicate: (id: string) => void;
+  onAddAfter: (id: string) => void;
+  onDragStart: (id: string, e: React.MouseEvent) => void;
+}
+
+export const AutomationNodeComponent = memo(function AutomationNodeComponent({
+  node, isSelected, onSelect, onDelete, onDuplicate, onAddAfter, onDragStart,
+}: Props) {
+  const Icon = getNodeIcon(node);
+  const colorClass = NODE_TYPE_COLORS[node.node_type] || "border-border bg-card";
+
+  return (
+    <div
+      className="absolute group"
+      style={{ left: node.position_x, top: node.position_y, zIndex: isSelected ? 20 : 10 }}
+      onMouseDown={e => { e.stopPropagation(); onDragStart(node.id, e); }}
+    >
+      {/* Input handle */}
+      <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-border border-2 border-background z-30" />
+
+      <div
+        onClick={e => { e.stopPropagation(); onSelect(node.id); }}
+        className={cn(
+          "w-56 rounded-lg border-2 shadow-sm cursor-pointer transition-all select-none",
+          colorClass,
+          isSelected && "ring-2 ring-primary ring-offset-2"
+        )}
+      >
+        <div className="px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {NODE_TYPE_LABELS[node.node_type]}
+            </span>
+          </div>
+          <p className="text-sm font-medium mt-1 truncate">{node.label || getNodeSummary(node)}</p>
+        </div>
+
+        {/* Hover actions */}
+        <div className="absolute -right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={e => { e.stopPropagation(); onDuplicate(node.id); }} className="p-1 rounded bg-background border shadow-sm hover:bg-accent">
+            <Copy className="h-3 w-3" />
+          </button>
+          <button onClick={e => { e.stopPropagation(); onDelete(node.id); }} className="p-1 rounded bg-background border shadow-sm hover:bg-destructive/10">
+            <Trash2 className="h-3 w-3 text-destructive" />
+          </button>
+        </div>
+      </div>
+
+      {/* Output handle + Add button */}
+      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-border border-2 border-background z-30" />
+      <button
+        onClick={e => { e.stopPropagation(); onAddAfter(node.id); }}
+        className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+});
