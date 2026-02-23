@@ -1,12 +1,12 @@
 import { useMemo } from "react";
-import { format, addDays, startOfWeek, isSameDay, parseISO } from "date-fns";
+import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TravelLeg } from "@/components/marketing/MarketingCalendarDayView";
 
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 8); // 08:00 - 21:00
+const HOURS = Array.from({ length: 14 }, (_, i) => i + 8);
 
 const CALENDAR_COLORS = [
   "bg-blue-500/20 border-blue-500 text-blue-900 dark:text-blue-200",
@@ -65,7 +65,6 @@ export default function MarketingCalendarWeekView({
     return map;
   }, [calendarIds]);
 
-  // Build travel leg lookup per day: toId -> TravelLeg
   const travelLegMaps = useMemo(() => {
     const maps: Record<string, Record<string, TravelLeg>> = {};
     Object.entries(travelLegs).forEach(([dateKey, legs]) => {
@@ -79,7 +78,7 @@ export default function MarketingCalendarWeekView({
   const getAppointmentsForSlot = (day: Date, hour: number) =>
     appointments.filter((a) => {
       if (!isSameDay(parseISO(a.appointment_date), day)) return false;
-      if (!a.appointment_time) return hour === 9; // default to 9am
+      if (!a.appointment_time) return hour === 9;
       const h = parseInt(a.appointment_time.split(":")[0], 10);
       return h === hour;
     });
@@ -88,122 +87,131 @@ export default function MarketingCalendarWeekView({
 
   return (
     <div className="flex-1 overflow-auto border rounded-lg bg-background">
-      {/* Header */}
-      <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b sticky top-0 z-10 bg-background">
-        <div className="p-2 border-r text-xs text-muted-foreground" />
-        {days.map((day) => (
-          <div
-            key={day.toISOString()}
-            className={cn(
-              "p-2 text-center border-r last:border-r-0",
-              isSameDay(day, today) && "bg-primary/5"
-            )}
-          >
-            <div className="text-xs text-muted-foreground uppercase">
-              {format(day, "EEE", { locale: it })}
-            </div>
+      <div className="min-w-[700px]">
+        {/* Header */}
+        <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b sticky top-0 z-10 bg-background">
+          <div className="p-2 border-r text-xs text-muted-foreground" />
+          {days.map((day) => (
             <div
+              key={day.toISOString()}
               className={cn(
-                "text-sm font-semibold mt-0.5 w-7 h-7 flex items-center justify-center mx-auto rounded-full",
-                isSameDay(day, today) && "bg-primary text-primary-foreground"
+                "p-2 text-center border-r last:border-r-0",
+                isSameDay(day, today) && "bg-primary/5"
               )}
             >
-              {format(day, "d")}
+              <div className="text-xs text-muted-foreground uppercase">
+                {format(day, "EEE", { locale: it })}
+              </div>
+              <div
+                className={cn(
+                  "text-sm font-semibold mt-0.5 w-7 h-7 flex items-center justify-center mx-auto rounded-full",
+                  isSameDay(day, today) && "bg-primary text-primary-foreground"
+                )}
+              >
+                {format(day, "d")}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-[60px_repeat(7,1fr)]">
-        {HOURS.map((hour) => (
-          <div key={hour} className="contents">
-            <div className="p-1 pr-2 text-right text-xs text-muted-foreground border-r h-16 flex items-start justify-end pt-0">
-              <span className="-mt-2">{String(hour).padStart(2, "0")}:00</span>
+        {/* Grid */}
+        <div className="grid grid-cols-[60px_repeat(7,1fr)]">
+          {HOURS.map((hour) => (
+            <div key={hour} className="contents">
+              <div className="p-1 pr-2 text-right text-xs text-muted-foreground border-r h-16 flex items-start justify-end pt-0">
+                <span className="-mt-2">{String(hour).padStart(2, "0")}:00</span>
+              </div>
+              {days.map((day) => {
+                const slotApts = getAppointmentsForSlot(day, hour);
+                const dateKey = format(day, "yyyy-MM-dd");
+                const dayLegMap = travelLegMaps[dateKey] || {};
+
+                return (
+                  <div
+                    key={`${day.toISOString()}-${hour}`}
+                    className={cn(
+                      "border-b border-r last:border-r-0 h-16 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors relative",
+                      isSameDay(day, today) && "bg-primary/[0.02]"
+                    )}
+                    onClick={() => onClickSlot(day, hour)}
+                  >
+                    {slotApts.map((apt) => {
+                      const leg = dayLegMap[apt.id];
+                      const hasNoCoords = apt.lat == null || apt.lng == null;
+
+                      const tooltipLines: string[] = [apt.title];
+                      if (apt.appointment_time) tooltipLines.unshift(apt.appointment_time.slice(0, 5));
+                      if (apt.formatted_address) tooltipLines.push(apt.formatted_address);
+                      if (leg) {
+                        tooltipLines.push(`${leg.duration_text} • ${leg.distance_text}`);
+                        if (leg.isLate) tooltipLines.push(`Ritardo stimato: +${leg.delayMinutes} min`);
+                      }
+                      if (hasNoCoords && !apt.is_blocked_slot && !leg) {
+                        tooltipLines.push("Indirizzo mancante");
+                      }
+
+                      return (
+                        <Tooltip key={apt.id}>
+                          <TooltipTrigger asChild>
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onClickAppointment(apt);
+                              }}
+                              className={cn(
+                                "flex items-center gap-1 text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 cursor-pointer hover:opacity-80 mb-0.5 min-w-0",
+                                apt.is_blocked_slot
+                                  ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
+                                  : apt.calendar_id && colorMap[apt.calendar_id]
+                                    ? colorMap[apt.calendar_id]
+                                    : "bg-muted border-muted-foreground/40 text-foreground"
+                              )}
+                            >
+                              {hasNoCoords && !apt.is_blocked_slot && !leg && (
+                                <MapPinOff className="h-2.5 w-2.5 shrink-0 text-yellow-600 dark:text-yellow-400" />
+                              )}
+                              <span className="truncate">
+                                {apt.appointment_time && (
+                                  <span className="font-medium">{apt.appointment_time.slice(0, 5)} </span>
+                                )}
+                                {apt.title}
+                              </span>
+                              {leg && (
+                                <span
+                                  className={cn(
+                                    "ml-auto shrink-0 flex items-center gap-0.5 text-[9px] leading-none px-1 py-px rounded",
+                                    leg.isLate
+                                      ? "bg-destructive/15 text-destructive"
+                                      : "bg-muted/80 text-muted-foreground"
+                                  )}
+                                >
+                                  {leg.isLate ? (
+                                    <AlertTriangle className="h-2.5 w-2.5" />
+                                  ) : (
+                                    <Car className="h-2.5 w-2.5" />
+                                  )}
+                                  {leg.duration_text}
+                                </span>
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs max-w-[250px]">
+                            {tooltipLines.map((line, i) => (
+                              <p key={i} className={cn(
+                                i === 0 && "font-medium",
+                                line.startsWith("Ritardo") && "text-destructive font-medium"
+                              )}>{line}</p>
+                            ))}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
-            {days.map((day) => {
-              const slotApts = getAppointmentsForSlot(day, hour);
-              const dateKey = format(day, "yyyy-MM-dd");
-              const dayLegMap = travelLegMaps[dateKey] || {};
-
-              return (
-                <div
-                  key={`${day.toISOString()}-${hour}`}
-                  className={cn(
-                    "border-b border-r last:border-r-0 h-16 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors relative",
-                    isSameDay(day, today) && "bg-primary/[0.02]"
-                  )}
-                  onClick={() => onClickSlot(day, hour)}
-                >
-                  {slotApts.map((apt) => {
-                    const leg = dayLegMap[apt.id];
-                    const hasNoCoords = apt.lat == null || apt.lng == null;
-
-                    return (
-                      <div key={apt.id}>
-                        {/* Compact travel pill */}
-                        {leg && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div
-                                className={cn(
-                                  "flex items-center gap-0.5 text-[9px] leading-tight px-1 py-0 rounded mb-0.5 w-fit max-w-full",
-                                  leg.isLate
-                                    ? "bg-destructive/10 text-destructive"
-                                    : "bg-muted/60 text-muted-foreground"
-                                )}
-                              >
-                                {leg.isLate ? (
-                                  <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
-                                ) : (
-                                  <Car className="h-2.5 w-2.5 shrink-0" />
-                                )}
-                                <span className="truncate">{leg.duration_text}</span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">
-                              <p>{leg.duration_text} • {leg.distance_text}</p>
-                              {leg.isLate && <p className="text-destructive font-medium">Ritardo stimato: +{leg.delayMinutes} min</p>}
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                        {/* Missing address badge */}
-                        {hasNoCoords && !apt.is_blocked_slot && !leg && (
-                          <div className="flex items-center gap-0.5 text-[9px] px-1 py-0 rounded mb-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 w-fit">
-                            <MapPinOff className="h-2.5 w-2.5" />
-                          </div>
-                        )}
-                        {/* Appointment block */}
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onClickAppointment(apt);
-                          }}
-                          className={cn(
-                            "text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 mb-0.5",
-                            apt.is_blocked_slot
-                              ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
-                              : apt.calendar_id && colorMap[apt.calendar_id]
-                                ? colorMap[apt.calendar_id]
-                                : "bg-muted border-muted-foreground/40 text-foreground"
-                          )}
-                          title={apt.title}
-                        >
-                          {apt.appointment_time && (
-                            <span className="font-medium">
-                              {apt.appointment_time.slice(0, 5)}{" "}
-                            </span>
-                          )}
-                          {apt.title}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
