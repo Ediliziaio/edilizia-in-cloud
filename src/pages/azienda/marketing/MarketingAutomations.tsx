@@ -31,9 +31,11 @@ export default function MarketingAutomations() {
 
   const createFolderMutation = useMutation({
     mutationFn: async (name: string) => {
+      const safeName = name.trim().slice(0, 100);
+      if (!safeName) throw new Error("Il nome della cartella non può essere vuoto.");
       const { error } = await supabase.from("automation_folders").insert({
         company_id: effectiveCompany!.id,
-        name,
+        name: safeName,
         parent_id: currentFolderId,
       });
       if (error) throw error;
