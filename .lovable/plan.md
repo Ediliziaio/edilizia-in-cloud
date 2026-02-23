@@ -1,88 +1,160 @@
 
 
-# Allineamento Tab Impostazioni, Cronologia Iscrizioni e Registro Esecuzione a GHL
+# Condition Builder Avanzato per Trigger Automazioni
 
-## Analisi degli screenshot GHL
+## Panoramica
 
-### Tab "Impostazioni" (GHL)
-La schermata GHL mostra un form ricco con card separate:
-- **Contatto**: Toggle "Abilita reinserimento", Toggle "Consenti piu opportunita", Toggle "Interrompi la risposta Attivo"
-- **Comunicazione**: Select "Fuso orario", Toggle "Periodo di tempo - Dati specifici", Input "Da Nome" + "Da Email", Select "Da numero"
-- **Conversazioni**: Toggle "Segna come letto"
+Implementare un sistema di condizioni logiche avanzato (AND/OR/gruppi annidati) nel pannello di configurazione dei trigger, ispirato a GoHighLevel. Quando si clicca su un nodo trigger nel canvas, il pannello laterale destro mostra: titolo trigger, descrizione, select trigger type, nome trigger, e sotto una sezione **FILTRI** con condition builder completo.
 
-Attualmente il nostro tab Impostazioni ha solo nome + descrizione in un form basico.
+## Architettura
 
-### Tab "Cronologia delle iscrizioni" (GHL)
-La schermata GHL mostra:
-- Titolo "Cronologia delle iscrizioni" + sottotitolo descrittivo
-- **Filtri**: Date range picker (Data di inizio -> Data di fine) + Select "ogni Eventi" + Select "Seleziona Contatto" + bottone refresh
-- **Tabella** con colonne: Contatto | Iscrizione Ragione | Data Iscritto (CET +01:00) | Azione Attuale | Stato Attuale | Successivo esecuzione Attivo (CET +01:00) | attivita
-- Empty state: "Nessuna Iscrizione Trovato" + "La cronologia delle iscrizioni e disponibile fino agli ultimi 30 giorni."
+### 1. Tipi e definizioni (`src/types/automationBuilder.ts`)
 
-Attualmente il nostro tab mostra solo un'icona centrata con testo generico.
+Aggiungere i seguenti tipi:
 
-### Tab "Registro di esecuzione" (GHL)
-La schermata GHL mostra:
-- Titolo "Registro di esecuzione" + sottotitolo descrittivo
-- **Filtri**: Date range picker + Select "ogni attivita" + Select "ogni Stato" + Select "Seleziona Contatto" + bottone refresh
-- **Tabella** con colonne: Contatto | Azione | Stato | Eseguito Attivo (CET +01:00) | attivita
-- Empty state: "Nessun registro di controllo trovato" + "I registri di esecuzione sono disponibili fino agli ultimi 30 giorni."
+```typescript
+interface TriggerCondition {
+  id: string;
+  field: string;
+  operator: string;
+  value: any;
+}
 
-Attualmente il nostro tab mostra solo un'icona centrata con testo generico.
+interface TriggerConditionGroup {
+  id: string;
+  logic: "AND" | "OR";
+  conditions: (TriggerCondition | TriggerConditionGroup)[];
+}
 
-### Header GHL
-L'header GHL ha:
-- Sinistra: "< Indietro a Flussi di lavoro" (testo link, non solo icona)
-- Centro: nome flusso + icona matita
-- Destra: avatar utente, icona salva, undo, redo, "Archivia" (testo)
-- Tab row: Builder | Impostazioni | Cronologia delle iscrizioni | Registro di esecuzione (con underline blu sulla tab attiva, non background)
+interface TriggerFilters {
+  logic: "AND" | "OR";
+  conditions: (TriggerCondition | TriggerConditionGroup)[];
+}
+```
 
----
+Aggiungere definizioni campi per categoria trigger:
 
-## Modifiche da implementare
+```typescript
+// Definizione campi per trigger "contact"
+CONTACT_TRIGGER_FIELDS = [
+  { key: "email", label: "Email", type: "text", group: "Campi standard" },
+  { key: "phone", label: "Phone", type: "text", group: "Campi standard" },
+  { key: "contact_type", label: "Contact Type", type: "select", group: "Campi standard" },
+  { key: "tags", label: "Tag", type: "tags", group: "Campi standard" },
+  { key: "source", label: "Fonte Lead", type: "text", group: "Campi standard" },
+  { key: "assigned_to", label: "Utente assegnato", type: "user", group: "Campi standard" },
+  { key: "created_at", label: "Data creazione", type: "date", group: "Campi standard" },
+  // + custom fields dinamici caricati da DB
+]
 
-### File: `src/components/marketing/automations/AutomationBuilder.tsx`
+// Definizione operatori per tipo
+TEXT_OPERATORS = ["equals", "not_equals", "contains", "not_contains", "starts_with", "ends_with", "is_empty", "is_not_empty"]
+NUMBER_OPERATORS = ["equals", "not_equals", "gt", "gte", "lt", "lte", "between"]
+DATE_OPERATORS = ["on", "before", "after", "between", "today", "yesterday", "in_last_x_days", "in_next_x_days", "is_empty", "is_not_empty"]
+BOOLEAN_OPERATORS = ["is_true", "is_false"]
+TAG_OPERATORS = ["contains", "not_contains"]
+USER_OPERATORS = ["equals", "not_equals", "is_assigned", "is_not_assigned"]
+```
 
-**Header Row 1**:
-- Sostituire il bottone freccia con un link testuale "< Indietro a Flussi di lavoro"
-- Spostare il nome flusso al centro con icona matita
-- A destra: icona avatar, icona salva, undo, redo, testo "Archivia"
+Stessa struttura per trigger `opportunity`, `appointment`, `communication`.
 
-**Tab Row**:
-- Cambiare lo stile tab da "background accent" a "underline blu" sulla tab attiva (come GHL)
+### 2. Componente Condition Builder (`src/components/marketing/automations/TriggerConditionBuilder.tsx`) - NUOVO
 
-**Tab "Impostazioni"** - Riscrivere completamente con card GHL:
-- Card **Contatto**: 3 toggle con titolo + descrizione lunga + link "Scopri Piu"
-  - "Abilita reinserimento"
-  - "Consenti piu opportunita"
-  - "Interrompi la risposta Attivo"
-- Card **Comunicazione**: Select fuso orario, toggle periodo di tempo, input Da Nome/Da Email, select Da numero
-- Card **Conversazioni**: Toggle "Segna come letto"
+Componente principale che renderizza il builder condizioni. Struttura UI:
 
-**Tab "Cronologia iscrizioni"** - Riscrivere con filtri + tabella:
-- Titolo + sottotitolo descrittivo
-- Barra filtri: Date range (inizio -> fine) + Select "ogni Eventi" + Select "Seleziona Contatto" + bottone refresh
-- Tabella con colonne: Contatto | Iscrizione Ragione | Data Iscritto | Azione Attuale | Stato Attuale | Successivo esecuzione | attivita
-- Empty state centrato con icona + "Nessuna Iscrizione Trovato" + nota 30 giorni
+- **Sezione "FILTRI"** con label
+- Per ogni condizione nella lista:
+  - **Select campo**: dropdown con ricerca, raggruppato per "Campi standard" e "Campo personalizzato" (come nello screenshot GHL)
+  - **Select operatore**: cambia dinamicamente in base al tipo di campo selezionato
+  - **Input valore**: cambia dinamicamente (text input, number input, date picker, tag multi-select, user select) in base al campo + operatore
+  - **Bottone elimina** (icona cestino)
+- **Selettore AND/OR** tra condizioni (pill toggle)
+- **"+ Aggiungi Filtri"** per aggiungere nuova condizione
+- **"+ Aggiungi Gruppo"** per aggiungere gruppo annidato (indentato visivamente con bordo sinistro)
 
-**Tab "Registro esecuzione"** - Riscrivere con filtri + tabella:
-- Titolo + sottotitolo descrittivo
-- Barra filtri: Date range + Select "ogni attivita" + Select "ogni Stato" + Select "Seleziona Contatto" + bottone refresh
-- Tabella con colonne: Contatto | Azione | Stato | Eseguito Attivo | attivita
-- Empty state centrato con icona + "Nessun registro di controllo trovato" + nota 30 giorni
+Props:
+- `triggerCategory: string` - per determinare quali campi mostrare
+- `conditions: TriggerFilters` - stato corrente
+- `onChange: (filters: TriggerFilters) => void`
+- `companyId: string` - per caricare custom fields
 
----
+### 3. Componente Value Input dinamico (`src/components/marketing/automations/ConditionValueInput.tsx`) - NUOVO
 
-## Riepilogo
+Renderizza l'input corretto in base al tipo di campo:
+- **text**: Input standard
+- **number**: Input type="number"
+- **date**: DatePicker (per "on", "before", "after") o 2 DatePicker (per "between") o Input numero (per "in_last_x_days")
+- **select**: Select con opzioni del campo
+- **tags**: Dropdown multi-select con ricerca (carica tag da `marketing_tags`)
+- **user**: Select che carica utenti dell'azienda da `profiles`
+- **boolean**: Nessun input (operatore e sufficiente)
 
-| Elemento | Prima | Dopo (GHL) |
-|----------|-------|------------|
-| Link indietro | Icona freccia | "< Indietro a Flussi di lavoro" testo |
-| Tab style | Background accent | Underline blu |
-| Impostazioni | Nome + descrizione | 3 card (Contatto, Comunicazione, Conversazioni) con toggle/input |
-| Cronologia iscrizioni | Icona + testo generico | Filtri + tabella 7 colonne + empty state GHL |
-| Registro esecuzione | Icona + testo generico | Filtri + tabella 5 colonne + empty state GHL |
+Per operatori "is_empty" / "is_not_empty" / "is_assigned" / "is_not_assigned" / "today" / "yesterday": non mostrare input valore.
 
-**File modificato**: `src/components/marketing/automations/AutomationBuilder.tsx`
+### 4. Modifica `AutomationNodeConfig.tsx`
 
-Nessun file nuovo. Nessuna modifica al database.
+Quando `node.node_type === "trigger"`:
+- Mostrare titolo trigger + descrizione (es. "Si attiva nel momento in cui viene aggiunto un nuovo record di contatto.")
+- Mostrare select "SELEZIONARE UN TRIGGER DEL FLUSSO DI LAVORO" (dropdown con tutti i trigger della stessa categoria)
+- Mostrare input "NOME DEL TRIGGER FLUSSO DI LAVORO" editabile
+- Mostrare sezione **FILTRI** con il `TriggerConditionBuilder`
+- Footer: bottoni "Annulla" + "Salva il trigger" (come GHL)
+
+Il pannello laterale deve essere piu largo quando si configura un trigger: da `w-80` a `w-[420px]`.
+
+Le condizioni vengono salvate in `config_json.filters` del nodo trigger:
+```json
+{
+  "trigger_event": "contact_created",
+  "trigger_category": "contact",
+  "trigger_name": "Contatto Creato",
+  "filters": {
+    "logic": "AND",
+    "conditions": [
+      { "id": "...", "field": "email", "operator": "contains", "value": "gmail.com" },
+      { "id": "...", "field": "tags", "operator": "contains", "value": "Lead Caldo" }
+    ]
+  }
+}
+```
+
+### 5. Campi per categoria trigger
+
+**Contatto** (`contact`):
+- Campi standard: Contact Type, Email, Phone, Tag, Fonte Lead, Utente assegnato, Data creazione, DND status
+- Campi personalizzati: caricati dinamicamente da `marketing_custom_fields` dove `object_type = 'contact'`
+
+**Opportunita** (`opportunity`):
+- Pipeline, Fase, Valore opportunita (number), Stato (select: Aperta/Vinta/Persa), Data creazione (date), Data chiusura (date), Utente assegnato (user), Tag
+
+**Appuntamento** (`appointment`):
+- Calendario, Stato appuntamento, Data appuntamento (date), Tipo appuntamento, Utente assegnato (user), Fonte prenotazione
+
+**Comunicazioni** (`communication`):
+- Tipo comunicazione (select: email_opened, email_clicked, whatsapp_received, etc.)
+- Per email: link specifico (text)
+- Per WhatsApp: tempo risposta (number)
+- Per chiamate: durata (number), esito (select)
+
+**Sistema** (`system`):
+- Webhook URL (text), Form ID (text), Survey ID (text)
+
+### 6. Validazioni
+
+- Non salvare condizioni con campo vuoto
+- Non salvare condizioni con operatore vuoto
+- Non salvare condizioni con valore vuoto (tranne operatori che non richiedono valore: is_empty, is_not_empty, today, yesterday, is_assigned, is_not_assigned, is_true, is_false)
+- Non salvare gruppi senza condizioni
+- Mostrare bordo rosso + tooltip su campi invalidi al click "Salva"
+- JSON sempre valido e normalizzato prima del salvataggio
+
+## Riepilogo file
+
+| File | Operazione | Descrizione |
+|------|------------|-------------|
+| `src/types/automationBuilder.ts` | Modifica | Aggiungere tipi TriggerCondition, TriggerConditionGroup, TriggerFilters, definizioni campi/operatori per categoria |
+| `src/components/marketing/automations/TriggerConditionBuilder.tsx` | Nuovo | Componente condition builder con AND/OR, gruppi, annidamento |
+| `src/components/marketing/automations/ConditionValueInput.tsx` | Nuovo | Input valore dinamico per tipo campo |
+| `src/components/marketing/automations/AutomationNodeConfig.tsx` | Modifica | Ristrutturare sezione trigger con layout GHL (titolo, select trigger, nome, filtri, footer) |
+
+Nessuna modifica al database. I filtri sono salvati come JSON nel campo `config_json` del nodo trigger che gia supporta `jsonb`.
