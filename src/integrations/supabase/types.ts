@@ -680,6 +680,7 @@ export type Database = {
           company_id: string
           created_at: string
           created_by: string
+          folder_id: string | null
           id: string
           name: string
           recipient_filter: Json | null
@@ -698,6 +699,7 @@ export type Database = {
           company_id: string
           created_at?: string
           created_by: string
+          folder_id?: string | null
           id?: string
           name: string
           recipient_filter?: Json | null
@@ -716,6 +718,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           created_by?: string
+          folder_id?: string | null
           id?: string
           name?: string
           recipient_filter?: Json | null
@@ -737,10 +740,59 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "email_campaigns_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "email_folders"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "email_campaigns_template_id_fkey"
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_folders: {
+        Row: {
+          company_id: string
+          created_at: string
+          folder_type: string
+          id: string
+          name: string
+          parent_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          folder_type?: string
+          id?: string
+          name: string
+          parent_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          folder_type?: string
+          id?: string
+          name?: string
+          parent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_folders_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "email_folders"
             referencedColumns: ["id"]
           },
         ]
@@ -806,6 +858,7 @@ export type Database = {
           created_at: string
           created_by: string
           folder: string
+          folder_id: string | null
           html_content: string
           id: string
           json_content: Json | null
@@ -819,6 +872,7 @@ export type Database = {
           created_at?: string
           created_by: string
           folder?: string
+          folder_id?: string | null
           html_content?: string
           id?: string
           json_content?: Json | null
@@ -832,6 +886,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           folder?: string
+          folder_id?: string | null
           html_content?: string
           id?: string
           json_content?: Json | null
@@ -846,6 +901,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_templates_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "email_folders"
             referencedColumns: ["id"]
           },
         ]
