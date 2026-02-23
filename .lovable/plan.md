@@ -1,58 +1,48 @@
 
+# Rimozione "Crea tramite AI" + Integrazione "Crea Cartella" funzionante
 
-# Full-Screen Automation Builder (stile GHL) + Fix Stabilita
+## Cosa faremo
 
-## Obiettivo
-Quando l'utente apre il builder di automazione (`/nuova` o `/:id`), la pagina deve essere full-screen senza sidebar, header o padding -- esattamente come GoHighLevel. Il bottone "indietro" nel builder stesso riporta alla lista.
+### 1. Rimozione bottone "Crea tramite AI"
+File: `src/pages/azienda/marketing/MarketingAutomations.tsx`
+- Eliminare il bottone `<Button variant="outline" size="sm"><Sparkles .../> Crea tramite AI</Button>` (righe 65-67)
+- Rimuovere l'import `Sparkles` da lucide-react (non piu usato)
 
-## Approccio tecnico
+### 2. Creare tabella `automation_folders` nel database
+Migrazione SQL per creare una tabella cartelle dedicata alle automazioni:
+- `id` UUID PK
+- `company_id` UUID (FK companies)
+- `name` TEXT NOT NULL
+- `parent_id` UUID nullable (self-referencing per sotto-cartelle)
+- `created_at` TIMESTAMPTZ
+- RLS: accesso solo alla propria company
 
-### 1. Spostare le route del builder FUORI dal CompanyLayout
-File: `src/App.tsx`
+Aggiungere colonna `folder_id` nullable su `automation_flows` con FK verso `automation_folders`.
 
-Le route `marketing/automazioni/nuova` e `marketing/automazioni/:id` sono attualmente annidate dentro `<CompanyLayout>`, che aggiunge sidebar, header, padding, banner di impersonificazione ecc.
+### 3. Integrare il dialog "Crea Cartella" nella pagina automazioni
+File: `src/pages/azienda/marketing/MarketingAutomations.tsx`
+- Aggiungere stato `folderDialogOpen`
+- Aggiungere mutation per inserire nella tabella `automation_folders` con `company_id`
+- Collegare il bottone "Crea Cartella" esistente al dialog
+- Riutilizzare il componente `CreateFolderDialog` gia esistente in `src/components/email-marketing/CreateFolderDialog.tsx`
 
-**Intervento**: spostare queste due route come route indipendenti allo stesso livello di `CompanyLayout`, protette dallo stesso `ProtectedRoute` ma senza il layout wrapper:
+### 4. Visualizzare le cartelle nella lista
+File: `src/components/marketing/automations/AutomationFlowsList.tsx`
+- Aggiungere prop `folderId` (nullable) per filtrare i flussi
+- Caricare le sotto-cartelle della cartella corrente
+- Mostrare le cartelle come righe cliccabili sopra i flussi (icona cartella + nome)
+- Al click su una cartella, navigare dentro (aggiornando `folderId`)
 
-```
-<Route element={<ProtectedRoute .../>}>
-  {/* Full-screen builder routes - FUORI dal CompanyLayout */}
-  <Route path="azienda/marketing/automazioni/nuova" element={<MarketingAutomationBuilder />} />
-  <Route path="azienda/marketing/automazioni/:id" element={<MarketingAutomationBuilder />} />
-  
-  {/* CompanyLayout con sidebar per tutto il resto */}
-  <Route path="azienda" element={<CompanyLayout />}>
-    ...tutte le altre route...
-  </Route>
-</Route>
-```
-
-**Risultato**: il builder si renderizza a schermo intero (100vw x 100vh), senza sidebar, senza header, senza padding. Tutta la navigazione e gestita internamente dal componente `AutomationBuilder` (che ha gia il suo header con bottone "indietro alla lista").
-
-### 2. Assicurare che AutomationBuilder gestisca il proprio layout full-screen
-File: `src/components/marketing/automations/AutomationBuilder.tsx`
-
-Il componente ha gia un proprio header con:
-- Bottone indietro (navigate alla lista)
-- Nome del flow editabile
-- Bottoni Salva/Bozza/Archivia
-- Tabs (Builder/Impostazioni/etc.)
-
-Serve solo assicurarsi che il container root occupi `h-screen w-screen` invece di dipendere dal layout padre. Aggiungere le classi appropriate al div radice del builder.
-
-### 3. Nessuna modifica al CompanyLayout
-Il `CompanyLayout` resta invariato. Semplicemente le due route del builder non passano piu attraverso di esso.
-
-## Vantaggi
-- Il builder ha tutto lo spazio disponibile (come GHL)
-- Nessuna sidebar che toglie spazio al canvas
-- Nessun header duplicato
-- La navigazione "Torna alla lista" e gia integrata nel builder
-- Zero regressioni sulle altre pagine
-- Il banner di impersonificazione puo essere integrato minimalmente nel builder se necessario
+### 5. Breadcrumb dinamici
+File: `src/pages/azienda/marketing/MarketingAutomations.tsx`
+- Il breadcrumb gia presente (Home > Automazione) diventa dinamico
+- Navigando dentro le cartelle: Home > Automazione > NomeCartella
+- Click su un livello per risalire
 
 ## File modificati
-1. `src/App.tsx` -- spostamento route
-2. `src/components/marketing/automations/AutomationBuilder.tsx` -- classi full-screen sul container root
-3. `src/pages/azienda/marketing/MarketingAutomationBuilder.tsx` -- eventuale wrapper minimo per layout standalone
+1. **Migrazione SQL** -- nuova tabella `automation_folders` + colonna `folder_id` su `automation_flows`
+2. **`src/pages/azienda/marketing/MarketingAutomations.tsx`** -- rimozione AI button, stato folder, dialog, breadcrumb dinamici
+3. **`src/components/marketing/automations/AutomationFlowsList.tsx`** -- filtro per `folder_id`, rendering cartelle inline
 
+## Nessun nuovo componente
+Riutilizziamo `CreateFolderDialog` gia esistente nel progetto. Zero duplicazione.
