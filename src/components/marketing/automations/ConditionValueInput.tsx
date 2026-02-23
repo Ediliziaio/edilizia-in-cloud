@@ -170,12 +170,12 @@ function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; 
     const next = selectedTags.includes(tagName)
       ? selectedTags.filter((t) => t !== tagName)
       : [...selectedTags, tagName];
-    onChange(next.length > 0 ? next : "");
+    onChange(next.length > 0 ? next : []);
   };
 
   const removeTag = (tagName: string) => {
     const next = selectedTags.filter((t) => t !== tagName);
-    onChange(next.length > 0 ? next : "");
+    onChange(next.length > 0 ? next : []);
   };
 
   const filtered = tags.filter((t) => t.name.toLowerCase().includes(search.toLowerCase()));

@@ -10,7 +10,6 @@ import {
   type TriggerCondition,
   type TriggerConditionGroup,
   type TriggerFieldDef,
-  type FieldType,
   isConditionGroup,
   getFieldsForCategory,
   getOperatorsForType,
@@ -31,7 +30,7 @@ function genId() {
 }
 
 // Map marketing_custom_fields field_type to our FieldType
-function mapCustomFieldType(fieldType: string): FieldType {
+function mapCustomFieldType(fieldType: string): TriggerFieldDef["type"] {
   switch (fieldType) {
     case "number": return "number";
     case "date": return "date";
@@ -59,7 +58,12 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
       .select("id, field_key, field_label, field_type, options")
       .eq("company_id", companyId)
       .eq("object_type", objectType)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error loading custom fields:", error.message);
+          setCustomFields([]);
+          return;
+        }
         if (data && data.length > 0) {
           setCustomFields(
             data.map((f: any) => {
