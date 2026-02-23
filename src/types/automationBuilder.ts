@@ -177,3 +177,204 @@ export const NODE_TYPE_LABELS: Record<string, string> = {
   goal: "Obiettivo",
   split: "Split",
 };
+
+// ── Trigger Condition Builder Types ──
+
+export interface TriggerCondition {
+  id: string;
+  field: string;
+  operator: string;
+  value: any;
+}
+
+export interface TriggerConditionGroup {
+  id: string;
+  logic: "AND" | "OR";
+  conditions: (TriggerCondition | TriggerConditionGroup)[];
+}
+
+export interface TriggerFilters {
+  logic: "AND" | "OR";
+  conditions: (TriggerCondition | TriggerConditionGroup)[];
+}
+
+export function isConditionGroup(c: TriggerCondition | TriggerConditionGroup): c is TriggerConditionGroup {
+  return "logic" in c && "conditions" in c;
+}
+
+// ── Field / Operator definitions ──
+
+export type FieldType = "text" | "number" | "date" | "select" | "tags" | "user" | "boolean";
+
+export interface TriggerFieldDef {
+  key: string;
+  label: string;
+  type: FieldType;
+  group: string;
+  options?: { value: string; label: string }[];
+}
+
+export interface OperatorDef {
+  value: string;
+  label: string;
+  needsValue: boolean;
+}
+
+export const TEXT_OPERATORS: OperatorDef[] = [
+  { value: "equals", label: "Uguale a", needsValue: true },
+  { value: "not_equals", label: "Diverso da", needsValue: true },
+  { value: "contains", label: "Contiene", needsValue: true },
+  { value: "not_contains", label: "Non contiene", needsValue: true },
+  { value: "starts_with", label: "Inizia con", needsValue: true },
+  { value: "ends_with", label: "Termina con", needsValue: true },
+  { value: "is_empty", label: "È vuoto", needsValue: false },
+  { value: "is_not_empty", label: "Non è vuoto", needsValue: false },
+];
+
+export const NUMBER_OPERATORS: OperatorDef[] = [
+  { value: "equals", label: "=", needsValue: true },
+  { value: "not_equals", label: "≠", needsValue: true },
+  { value: "gt", label: ">", needsValue: true },
+  { value: "gte", label: "≥", needsValue: true },
+  { value: "lt", label: "<", needsValue: true },
+  { value: "lte", label: "≤", needsValue: true },
+  { value: "between", label: "Tra", needsValue: true },
+];
+
+export const DATE_OPERATORS: OperatorDef[] = [
+  { value: "on", label: "Il giorno", needsValue: true },
+  { value: "before", label: "Prima di", needsValue: true },
+  { value: "after", label: "Dopo il", needsValue: true },
+  { value: "between", label: "Tra", needsValue: true },
+  { value: "today", label: "Oggi", needsValue: false },
+  { value: "yesterday", label: "Ieri", needsValue: false },
+  { value: "in_last_x_days", label: "Negli ultimi X giorni", needsValue: true },
+  { value: "in_next_x_days", label: "Nei prossimi X giorni", needsValue: true },
+  { value: "is_empty", label: "È vuoto", needsValue: false },
+  { value: "is_not_empty", label: "Non è vuoto", needsValue: false },
+];
+
+export const BOOLEAN_OPERATORS: OperatorDef[] = [
+  { value: "is_true", label: "Vero", needsValue: false },
+  { value: "is_false", label: "Falso", needsValue: false },
+];
+
+export const TAG_OPERATORS: OperatorDef[] = [
+  { value: "contains", label: "Contiene", needsValue: true },
+  { value: "not_contains", label: "Non contiene", needsValue: true },
+];
+
+export const USER_OPERATORS: OperatorDef[] = [
+  { value: "equals", label: "Uguale a", needsValue: true },
+  { value: "not_equals", label: "Diverso da", needsValue: true },
+  { value: "is_assigned", label: "È assegnato", needsValue: false },
+  { value: "is_not_assigned", label: "Non è assegnato", needsValue: false },
+];
+
+export const SELECT_OPERATORS: OperatorDef[] = [
+  { value: "equals", label: "Uguale a", needsValue: true },
+  { value: "not_equals", label: "Diverso da", needsValue: true },
+  { value: "is_empty", label: "È vuoto", needsValue: false },
+  { value: "is_not_empty", label: "Non è vuoto", needsValue: false },
+];
+
+export function getOperatorsForType(type: FieldType): OperatorDef[] {
+  switch (type) {
+    case "text": return TEXT_OPERATORS;
+    case "number": return NUMBER_OPERATORS;
+    case "date": return DATE_OPERATORS;
+    case "boolean": return BOOLEAN_OPERATORS;
+    case "tags": return TAG_OPERATORS;
+    case "user": return USER_OPERATORS;
+    case "select": return SELECT_OPERATORS;
+    default: return TEXT_OPERATORS;
+  }
+}
+
+// ── Field definitions per trigger category ──
+
+export const CONTACT_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "email", label: "Email", type: "text", group: "Campi standard" },
+  { key: "phone", label: "Telefono", type: "text", group: "Campi standard" },
+  { key: "contact_type", label: "Tipo contatto", type: "select", group: "Campi standard", options: [{ value: "lead", label: "Lead" }, { value: "cliente", label: "Cliente" }, { value: "prospect", label: "Prospect" }] },
+  { key: "tags", label: "Tag", type: "tags", group: "Campi standard" },
+  { key: "source", label: "Fonte Lead", type: "text", group: "Campi standard" },
+  { key: "dnd_status", label: "Stato DND", type: "boolean", group: "Campi standard" },
+  { key: "assigned_to", label: "Utente assegnato", type: "user", group: "Campi standard" },
+  { key: "created_at", label: "Data creazione", type: "date", group: "Campi standard" },
+];
+
+export const OPPORTUNITY_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "pipeline", label: "Pipeline", type: "select", group: "Opportunità" },
+  { key: "stage", label: "Fase", type: "select", group: "Opportunità" },
+  { key: "value", label: "Valore opportunità", type: "number", group: "Opportunità" },
+  { key: "status", label: "Stato", type: "select", group: "Opportunità", options: [{ value: "open", label: "Aperta" }, { value: "won", label: "Vinta" }, { value: "lost", label: "Persa" }] },
+  { key: "created_at", label: "Data creazione", type: "date", group: "Opportunità" },
+  { key: "closed_at", label: "Data chiusura", type: "date", group: "Opportunità" },
+  { key: "assigned_to", label: "Utente assegnato", type: "user", group: "Opportunità" },
+  { key: "tags", label: "Tag", type: "tags", group: "Opportunità" },
+];
+
+export const APPOINTMENT_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "calendar", label: "Calendario", type: "select", group: "Appuntamento" },
+  { key: "status", label: "Stato appuntamento", type: "select", group: "Appuntamento", options: [{ value: "confirmed", label: "Confermato" }, { value: "pending", label: "In attesa" }, { value: "cancelled", label: "Cancellato" }, { value: "completed", label: "Completato" }] },
+  { key: "appointment_date", label: "Data appuntamento", type: "date", group: "Appuntamento" },
+  { key: "appointment_type", label: "Tipo appuntamento", type: "select", group: "Appuntamento", options: [{ value: "visita", label: "Visita" }, { value: "call", label: "Chiamata" }, { value: "meeting", label: "Meeting" }] },
+  { key: "assigned_to", label: "Utente assegnato", type: "user", group: "Appuntamento" },
+  { key: "source", label: "Fonte prenotazione", type: "text", group: "Appuntamento" },
+];
+
+export const COMMUNICATION_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "comm_type", label: "Tipo comunicazione", type: "select", group: "Comunicazione", options: [{ value: "email_opened", label: "Email aperta" }, { value: "email_clicked", label: "Email cliccata" }, { value: "email_not_opened", label: "Email non aperta" }, { value: "whatsapp_received", label: "WhatsApp ricevuto" }, { value: "whatsapp_not_replied", label: "WhatsApp non risposto" }, { value: "call_completed", label: "Chiamata completata" }, { value: "call_missed", label: "Chiamata persa" }] },
+  { key: "link_clicked", label: "Link specifico", type: "text", group: "Comunicazione" },
+  { key: "reply_time", label: "Tempo risposta (min)", type: "number", group: "Comunicazione" },
+  { key: "call_duration", label: "Durata chiamata (sec)", type: "number", group: "Comunicazione" },
+  { key: "call_outcome", label: "Esito chiamata", type: "select", group: "Comunicazione", options: [{ value: "answered", label: "Risposta" }, { value: "no_answer", label: "Senza risposta" }, { value: "busy", label: "Occupato" }, { value: "voicemail", label: "Segreteria" }] },
+];
+
+export const SYSTEM_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "webhook_url", label: "Webhook URL", type: "text", group: "Sistema" },
+  { key: "form_id", label: "Form ID", type: "text", group: "Sistema" },
+  { key: "survey_id", label: "Survey ID", type: "text", group: "Sistema" },
+];
+
+export function getFieldsForCategory(category: string): TriggerFieldDef[] {
+  switch (category) {
+    case "contact": return CONTACT_TRIGGER_FIELDS;
+    case "opportunity": return OPPORTUNITY_TRIGGER_FIELDS;
+    case "appointment": return APPOINTMENT_TRIGGER_FIELDS;
+    case "communication": return COMMUNICATION_TRIGGER_FIELDS;
+    case "system": return SYSTEM_TRIGGER_FIELDS;
+    default: return CONTACT_TRIGGER_FIELDS;
+  }
+}
+
+export const NO_VALUE_OPERATORS = ["is_empty", "is_not_empty", "today", "yesterday", "is_assigned", "is_not_assigned", "is_true", "is_false"];
+
+// Trigger descriptions
+export const TRIGGER_DESCRIPTIONS: Record<string, string> = {
+  contact_created: "Si attiva nel momento in cui viene aggiunto un nuovo record di contatto.",
+  contact_updated: "Si attiva quando un contatto esistente viene modificato.",
+  tag_added: "Si attiva quando un tag viene aggiunto ad un contatto.",
+  tag_removed: "Si attiva quando un tag viene rimosso da un contatto.",
+  custom_field_updated: "Si attiva quando un campo personalizzato viene aggiornato.",
+  custom_date: "Si attiva ad una data personalizzata specifica.",
+  birthday_reminder: "Si attiva come promemoria prima del compleanno del contatto.",
+  opportunity_created: "Si attiva quando viene creata una nuova opportunità.",
+  pipeline_stage_change: "Si attiva quando un'opportunità cambia fase nella pipeline.",
+  opportunity_won: "Si attiva quando un'opportunità viene segnata come vinta.",
+  opportunity_lost: "Si attiva quando un'opportunità viene segnata come persa.",
+  opportunity_stale: "Si attiva quando un'opportunità resta inattiva per troppo tempo.",
+  appointment_booked: "Si attiva quando viene prenotato un nuovo appuntamento.",
+  appointment_status_changed: "Si attiva quando lo stato di un appuntamento cambia.",
+  appointment_canceled: "Si attiva quando un appuntamento viene cancellato.",
+  email_opened: "Si attiva quando un'email viene aperta dal destinatario.",
+  email_clicked: "Si attiva quando un link nell'email viene cliccato.",
+  whatsapp_received: "Si attiva quando viene ricevuto un messaggio WhatsApp.",
+  customer_replied: "Si attiva quando un cliente risponde ad un messaggio.",
+  call_registered: "Si attiva quando viene registrata una chiamata.",
+  webhook_incoming: "Si attiva quando viene ricevuto un webhook in entrata.",
+  scheduler: "Si attiva ad intervalli programmati.",
+  form_submitted: "Si attiva quando un modulo viene inviato.",
+  survey_submitted: "Si attiva quando un sondaggio viene completato.",
+};
