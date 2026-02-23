@@ -19,6 +19,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
   const [history, setHistory] = useState<BuilderState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveAllRef = useRef<() => Promise<void>>(async () => {});
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
@@ -111,11 +112,13 @@ export function useAutomationBuilder(flowId: string | undefined) {
   }, [history, historyIndex]);
 
   // Auto-save with debounce
+
+  // Auto-save with debounce
   const triggerAutoSave = useCallback(() => {
     setHasUnsavedChanges(true);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveAll();
+      saveAllRef.current();
     }, 2000);
   }, []);
 
@@ -191,6 +194,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
       await supabase.from("automation_flows").update({ updated_at: new Date().toISOString() }).eq("id", flowId);
 
       setHasUnsavedChanges(false);
+      toast({ title: "Salvato con successo" });
       queryClient.invalidateQueries({ queryKey: ["automation-nodes", flowId] });
       queryClient.invalidateQueries({ queryKey: ["automation-connections", flowId] });
     } catch (err: any) {
@@ -199,6 +203,11 @@ export function useAutomationBuilder(flowId: string | undefined) {
       setIsSaving(false);
     }
   }, [flowId, effectiveCompany, nodes, connections, dbNodes, dbConnections, queryClient]);
+
+  // Keep saveAllRef in sync
+  useEffect(() => {
+    saveAllRef.current = saveAll;
+  }, [saveAll]);
 
   // Add node
   const addNode = useCallback((node: AutomationNode) => {
@@ -266,10 +275,14 @@ export function useAutomationBuilder(flowId: string | undefined) {
   // Publish / Unpublish
   const togglePublish = useCallback(async () => {
     if (!flow) return;
-    const newStatus = flow.status === "published" ? "draft" : "published";
-    const newVersion = newStatus === "published" ? flow.version + 1 : flow.version;
-    await updateFlowMutation.mutateAsync({ status: newStatus, version: newVersion });
-    toast({ title: newStatus === "published" ? "Automazione pubblicata" : "Automazione in bozza" });
+    try {
+      const newStatus = flow.status === "published" ? "draft" : "published";
+      const newVersion = newStatus === "published" ? flow.version + 1 : flow.version;
+      await updateFlowMutation.mutateAsync({ status: newStatus, version: newVersion });
+      toast({ title: newStatus === "published" ? "Automazione pubblicata" : "Automazione in bozza" });
+    } catch (err: any) {
+      toast({ title: "Errore aggiornamento stato", description: err.message, variant: "destructive" });
+    }
   }, [flow, updateFlowMutation]);
 
   const isLoading = flowLoading || nodesLoading || connectionsLoading;

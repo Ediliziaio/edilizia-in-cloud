@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { toast } from "@/hooks/use-toast";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
 import { AutomationCanvas } from "./AutomationCanvas";
@@ -253,7 +254,20 @@ export function AutomationBuilder() {
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={saveAll} disabled={isSaving}>
             <Save className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={async () => {
+              try {
+                await updateFlowMutation.mutateAsync({ status: "archived" });
+                toast({ title: "Automazione archiviata con successo" });
+                navigate("/azienda/marketing/automazioni");
+              } catch (err: any) {
+                toast({ title: "Errore durante l'archiviazione", description: err.message, variant: "destructive" });
+              }
+            }}
+          >
             <Archive className="h-4 w-4 mr-1" /> Archivia
           </Button>
         </div>
