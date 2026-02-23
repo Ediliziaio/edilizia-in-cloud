@@ -1,42 +1,47 @@
 
 
-# Stabilizzazione e Pulizia - MarketingAppointmentDialog e Modulo Calendario
+# Fix Vista Settimana: Allineamento Colonne + Travel Pill Inline
 
-## Problemi identificati
+## Problemi identificati dallo screenshot
 
-### 1. Console Warning: "Function components cannot be given refs"
-- **Causa**: Il componente `Select` di Radix UI nella sezione "Seleziona Contatto" del `MarketingAppointmentDialog` riceve un ref internamente dal `DialogContent`. Questo e un warning noto di Radix UI quando `Select` viene usato direttamente dentro un `Dialog`.
-- **Fix**: Wrappare il `Select` del contatto con `React.forwardRef` o usare un div intermedio per assorbire il ref.
+1. **Colonne header disallineate dal body**: L'header e il body usano lo stesso grid ma il body ha lo scrollbar verticale che sposta le colonne. Fix: aggiungere `overflow-y: scroll` anche all'header oppure usare un layout table-like.
+2. **Travel pill su riga separata**: Attualmente la pill "9 min" e sopra l'appuntamento su una riga a parte. L'utente vuole tutto su una riga: `12:00 appuntamento prova 2 🚗 9 min`
+3. **Tooltip mancante sull'appuntamento**: Al passaggio del mouse si deve vedere il titolo completo + dettagli travel
 
-### 2. Nessun altro bug funzionale critico
-Dopo analisi del codice:
-- Le query `useQuery` sono tutte correttamente configurate con `enabled`, `staleTime`, e gestione errori
-- Il salvataggio funziona con validazioni pre-save
-- Il sync indirizzo verso contatto e operativo
-- Le distanze inter-appuntamento sono calcolate correttamente con `Promise.all`
-- Il dialog ha dimensioni `sm:max-w-4xl` (gia corretto nell'ultimo edit)
+## Modifiche
 
-### 3. UX miglioramenti minori
-- La sezione "Altri appuntamenti del giorno" potrebbe avere un loading state quando le distanze sono in calcolo
-- Aggiungere `Loader2` spinner accanto alle pill mentre `interDistances` sta caricando
+### File: `src/components/marketing/MarketingCalendarWeekView.tsx`
 
----
+**1. Fix allineamento colonne**
+- Rimuovere la separazione header/body in due div con grid separati
+- Usare un singolo container con `overflow-auto` che contiene sia header che body
+- L'header resta `sticky top-0` dentro lo stesso container scrollabile
+- Aggiungere `min-w-[700px]` per evitare compressione eccessiva su schermi piccoli
 
-## Modifiche pianificate
+**2. Travel pill inline nell'appuntamento**
+- Rimuovere il blocco separato della travel pill (righe 144-169)
+- Integrare l'icona auto + durata DENTRO il blocco dell'appuntamento, sulla stessa riga
+- Layout: `12:00 titolo... [🚗 9 min]` tutto in una singola riga con `flex` e `truncate`
+- La pill travel e un `span` inline a destra con `ml-auto shrink-0`
 
-### File: `src/components/marketing/MarketingAppointmentDialog.tsx`
+**3. Tooltip completo al hover**
+- Wrappare ogni blocco appuntamento in un `Tooltip`
+- Il tooltip mostra: titolo completo, orario, indirizzo (se presente), e dettagli travel (durata + distanza + eventuale ritardo)
+- Rimuovere l'attributo `title` nativo e usare il Radix `Tooltip` per consistenza
 
-| Modifica | Dettaglio |
-|----------|-----------|
-| Fix ref warning | Wrappare il `Select` del contatto con un div per evitare il forward ref issue |
-| Loading state distanze | Mostrare un micro-spinner accanto a ogni appuntamento same-day mentre `interDistances` e in loading (`isFetching`) |
-| Pulizia `any` types | Tipizzare correttamente `sameDayAppointments` e `geocodedSameDay` per rimuovere i cast `as any` |
+**4. Badge indirizzo mancante inline**
+- Spostare anche il badge `MapPinOff` dentro la riga dell'appuntamento (come icona piccola prima del titolo)
 
-### Nessun file da rimuovere
-Non ci sono file/componenti/funzioni morte nel perimetro analizzato. Tutti gli import sono utilizzati.
+### Risultato visivo atteso
 
-### Sequenza
-1. Fix ref warning sul Select contatto
-2. Aggiungere loading state per distanze inter-appuntamento
-3. Pulizia tipi
+```
+| 12:00 | [12:00 appuntamento prova 2  🚗 9 min] |
+| 14:00 | [14:00 appuntamento prova 3  🚗 41 min] |
+```
+
+Hover su qualsiasi appuntamento mostra tooltip con:
+- Titolo completo
+- Indirizzo
+- Durata viaggio + distanza
+- Eventuale ritardo
 
