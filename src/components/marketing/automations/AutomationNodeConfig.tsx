@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { X, Filter } from "lucide-react";
 import { TriggerConditionBuilder } from "./TriggerConditionBuilder";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   node: AutomationNode;
@@ -51,6 +52,8 @@ function validateFilters(filters: TriggerFilters): Set<string> {
 }
 
 export function AutomationNodeConfig({ node, onUpdate, onClose }: Props) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
 
   const updateConfig = (key: string, value: any) => {
@@ -162,6 +165,7 @@ export function AutomationNodeConfig({ node, onUpdate, onClose }: Props) {
               filters={filters}
               onChange={handleFiltersChange}
               errors={validationErrors}
+              companyId={companyId}
             />
           </div>
         </div>

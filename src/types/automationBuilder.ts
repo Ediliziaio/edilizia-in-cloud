@@ -185,6 +185,7 @@ export interface TriggerCondition {
   field: string;
   operator: string;
   value: any;
+  negate?: boolean;
 }
 
 export interface TriggerConditionGroup {
