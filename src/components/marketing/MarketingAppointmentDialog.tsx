@@ -228,6 +228,41 @@ export default function MarketingAppointmentDialog({
     staleTime: 5 * 60 * 1000,
   });
 
+  // Inter-appointment distances (current → each same-day appointment)
+  const geocodedSameDay = useMemo(
+    () => sameDayAppointments.filter((a: any) => a.lat != null && a.lng != null),
+    [sameDayAppointments]
+  );
+
+  const { data: interDistances = {} } = useQuery<Record<string, { duration_text: string; distance_text: string }>>({
+    queryKey: ["mkt-apt-inter-dist", addressData.lat, addressData.lng, geocodedSameDay.map((a: any) => a.id).join(",")],
+    queryFn: async () => {
+      if (!addressData.lat || !addressData.lng || geocodedSameDay.length === 0) return {};
+      const results: Record<string, { duration_text: string; distance_text: string }> = {};
+      await Promise.all(
+        geocodedSameDay.map(async (a: any) => {
+          try {
+            const { data, error } = await supabase.functions.invoke("maps-proxy", {
+              body: {
+                action: "directions",
+                waypoints: [
+                  { lat: addressData.lat, lng: addressData.lng },
+                  { lat: a.lat, lng: a.lng },
+                ],
+              },
+            });
+            if (!error && data?.legs?.[0]) {
+              results[a.id] = { duration_text: data.legs[0].duration_text, distance_text: data.legs[0].distance_text };
+            }
+          } catch { /* ignore */ }
+        })
+      );
+      return results;
+    },
+    enabled: open && !!addressData.lat && geocodedSameDay.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const handleSave = async () => {
     const isBlocked = activeTab === "blocked";
 
@@ -339,7 +374,7 @@ export default function MarketingAppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing
@@ -418,13 +453,22 @@ export default function MarketingAppointmentDialog({
                 {sameDayAppointments.length > 0 && (
                   <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
                     <p className="text-xs font-semibold text-foreground">Altri appuntamenti del giorno</p>
-                    {sameDayAppointments.map((a: any) => (
-                      <div key={a.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3 shrink-0" />
-                        <span>{a.appointment_time?.substring(0, 5) || "—"}</span>
-                        <span className="truncate">{a.title || a.formatted_address || "Appuntamento"}</span>
-                      </div>
-                    ))}
+                    {sameDayAppointments.map((a: any) => {
+                      const dist = interDistances[a.id];
+                      return (
+                        <div key={a.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3 shrink-0" />
+                          <span>{a.appointment_time?.substring(0, 5) || "—"}</span>
+                          <span className="truncate">{a.title || a.formatted_address || "Appuntamento"}</span>
+                          {dist && (
+                            <span className="ml-auto shrink-0 inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[11px] font-medium">
+                              <Car className="h-3 w-3" />
+                              {dist.duration_text} - {dist.distance_text}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
