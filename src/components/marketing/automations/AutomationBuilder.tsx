@@ -479,7 +479,18 @@ export function AutomationBuilder() {
           </div>
         )}
 
-        {activeTab === "settings" && <AutomationSettingsTab />}
+        {activeTab === "settings" && (
+          <AutomationSettingsTab
+            initialSettings={(flow as any)?.config_json?.settings}
+            onSave={(settings) => {
+              if (!canPersist) return;
+              updateFlowMutation.mutate({
+                config_json: { ...((flow as any)?.config_json || {}), settings },
+              } as any);
+            }}
+            isSaving={updateFlowMutation.isPending}
+          />
+        )}
         {activeTab === "enrollments" && <AutomationEnrollmentsTab />}
         {activeTab === "logs" && <AutomationLogsTab />}
       </div>

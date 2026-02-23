@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,14 +19,21 @@ export default function MarketingAutomations() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [mainTab, setMainTab] = useState<MainTab>("workflows");
-  const [listFilter, setListFilter] = useState<ListFilterType>("all");
+  const [listFilter, setListFilter] = useState<ListFilterType>(() => {
+    const f = searchParams.get("filter");
+    if (f === "published") return "all";
+    if (f === "draft") return "needs_review";
+    return "all";
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
 
-  const statusFilter = listFilter === "deleted" ? "archived" : listFilter === "needs_review" ? "draft" : "all";
+  const urlFilter = searchParams.get("filter");
+  const statusFilter = urlFilter === "published" ? "published" : listFilter === "deleted" ? "archived" : listFilter === "needs_review" ? "draft" : "all";
 
 
   const createFolderMutation = useMutation({
