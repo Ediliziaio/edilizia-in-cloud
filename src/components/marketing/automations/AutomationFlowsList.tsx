@@ -37,6 +37,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -223,6 +224,20 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
       ", " + date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
   };
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("automation_flows").delete().in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
+      toast({ title: "Automazioni eliminate" });
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+    },
+    onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+  });
+
   if (isLoading) {
     return <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>;
   }
@@ -250,6 +265,14 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
 
   return (
     <>
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 mb-2 border rounded-lg bg-muted/30">
+          <span className="text-sm font-medium">{selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}</span>
+          <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => setBulkDeleteOpen(true)}>
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Elimina selezionati
+          </Button>
+        </div>
+      )}
       <div className="border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
@@ -439,6 +462,20 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteFolderId && deleteFolderMutation.mutate(deleteFolderId)}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete dialog */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina {selectedIds.size} automazion{selectedIds.size === 1 ? "e" : "i"}</AlertDialogTitle>
+            <AlertDialogDescription>Questa azione è irreversibile. Tutti i nodi e le connessioni verranno eliminati.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}>Elimina</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

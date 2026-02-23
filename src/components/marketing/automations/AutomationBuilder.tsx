@@ -15,7 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import { Save, Loader2, Undo2, Redo2, PlayCircle, Pencil, Archive, AlertTriangle } from "lucide-react";
+import { Save, Loader2, Undo2, Redo2, PlayCircle, Pencil, Archive, AlertTriangle, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useMutation } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
 type RightPanel = "none" | "trigger" | "action" | "config";
@@ -42,7 +48,21 @@ export function AutomationBuilder() {
   const [flowName, setFlowName] = useState("");
   const [activeTab, setActiveTab] = useState<BuilderTab>("builder");
   const [isEditingName, setIsEditingName] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const creationAttemptedRef = useRef(false);
+
+  const deleteFlowMutation = useMutation({
+    mutationFn: async () => {
+      if (!flowId) throw new Error("No flow ID");
+      const { error } = await supabase.from("automation_flows").delete().eq("id", flowId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Automazione eliminata" });
+      navigate("/azienda/marketing/automazioni");
+    },
+    onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
+  });
 
   useEffect(() => {
     if (flow) setFlowName(flow.name);
@@ -358,6 +378,15 @@ export function AutomationBuilder() {
                 <TooltipContent>Caricamento in corso…</TooltipContent>
               )}
             </Tooltip>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              disabled={!canPersist || deleteFlowMutation.isPending}
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-1" /> Elimina
+            </Button>
           </div>
         </div>
 
@@ -453,6 +482,19 @@ export function AutomationBuilder() {
         {activeTab === "enrollments" && <AutomationEnrollmentsTab />}
         {activeTab === "logs" && <AutomationLogsTab />}
       </div>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina automazione</AlertDialogTitle>
+            <AlertDialogDescription>Questa azione è irreversibile. Tutti i nodi e le connessioni verranno eliminati.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteFlowMutation.mutate()}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
   );
 }
