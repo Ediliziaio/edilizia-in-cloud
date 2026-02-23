@@ -11,7 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CalendarIcon, Loader2, Trash2, Clock, Car } from "lucide-react";
+import { CalendarIcon, Loader2, Trash2, Clock, Car, Pencil } from "lucide-react";
 import { format, getDay, addMinutes, parse, isAfter } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -303,9 +303,13 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
               <Clock className="h-4 w-4 text-primary" />
               Appuntamento già fissato
             </h4>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(existingContactAppointment.id); }} disabled={deleteMutation.isPending}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground hidden sm:inline">Clicca per modificare</span>
+              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(existingContactAppointment.id); }} disabled={deleteMutation.isPending}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
           <div className="text-sm text-muted-foreground space-y-0.5">
             <p><strong>{existingContactAppointment.title}</strong></p>
