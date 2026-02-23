@@ -446,6 +446,7 @@ export type Database = {
       automation_flows: {
         Row: {
           company_id: string
+          config_json: Json
           created_at: string
           created_by: string
           description: string | null
@@ -459,6 +460,7 @@ export type Database = {
         }
         Insert: {
           company_id: string
+          config_json?: Json
           created_at?: string
           created_by: string
           description?: string | null
@@ -472,6 +474,7 @@ export type Database = {
         }
         Update: {
           company_id?: string
+          config_json?: Json
           created_at?: string
           created_by?: string
           description?: string | null
@@ -535,6 +538,32 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "automation_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_global_settings: {
+        Row: {
+          company_id: string
+          config_json: Json
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          config_json?: Json
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          config_json?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_global_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
