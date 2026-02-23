@@ -1,15 +1,21 @@
-import { memo, useCallback, useRef } from "react";
+import { memo } from "react";
 import type { AutomationNode as NodeType } from "@/types/automationBuilder";
 import { NODE_TYPE_COLORS, NODE_TYPE_LABELS } from "@/types/automationBuilder";
-import { Zap, Mail, Clock, GitBranch, Target, Trash2, Copy, Plus, Bell, Tag, ArrowRightLeft, ListTodo, UserCheck, ExternalLink, StopCircle, MessageCircle, FileEdit, PlusCircle } from "lucide-react";
+import {
+  Zap, Mail, Clock, GitBranch, Target, Trash2, Copy, Plus, Bell, Tag,
+  ArrowRightLeft, ListTodo, UserCheck, ExternalLink, StopCircle, MessageCircle,
+  FileEdit, PlusCircle, Smartphone, Bot, Percent, CornerDownRight, Globe, RefreshCw,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ACTION_ICONS: Record<string, typeof Zap> = {
-  send_email: Mail, send_whatsapp: MessageCircle, send_notification: Bell,
+  send_email: Mail, send_whatsapp: MessageCircle, send_sms: Smartphone,
+  send_notification: Bell, send_ai_message: Bot,
   create_opportunity: PlusCircle, move_opportunity: ArrowRightLeft, update_field: FileEdit,
   add_tag: Tag, remove_tag: Tag, assign_user: UserCheck, create_task: ListTodo,
   delay: Clock, if_else: GitBranch, end_automation: StopCircle,
-  webhook_out: ExternalLink,
+  split_percentage: Percent, goal: Target, jump_to_step: CornerDownRight,
+  webhook_out: ExternalLink, external_api: Globe, sync_google: RefreshCw, sync_meta_lead: RefreshCw,
 };
 
 function getNodeIcon(node: NodeType) {
@@ -17,6 +23,7 @@ function getNodeIcon(node: NodeType) {
   if (node.node_type === "condition") return GitBranch;
   if (node.node_type === "delay") return Clock;
   if (node.node_type === "goal") return Target;
+  if (node.node_type === "split") return Percent;
   const actionType = node.config_json?.action_type || node.config_json?.trigger_event;
   return ACTION_ICONS[actionType] || Zap;
 }
@@ -25,6 +32,7 @@ function getNodeSummary(node: NodeType): string {
   const cfg = node.config_json;
   if (node.node_type === "delay") return `Attendi ${cfg?.delay_value || "?"} ${cfg?.delay_unit === "hours" ? "ore" : "giorni"}`;
   if (node.node_type === "condition") return "Se condizione...";
+  if (node.node_type === "split") return `Split ${cfg?.split_a || 50}% / ${cfg?.split_b || 50}%`;
   return node.label || NODE_TYPE_LABELS[node.node_type] || "";
 }
 
