@@ -1,12 +1,17 @@
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, X, Check, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
 import type { TriggerFieldDef } from "@/types/automationBuilder";
 import { NO_VALUE_OPERATORS } from "@/types/automationBuilder";
 
@@ -16,9 +21,10 @@ interface Props {
   value: any;
   onChange: (value: any) => void;
   hasError?: boolean;
+  companyId?: string;
 }
 
-export function ConditionValueInput({ field, operator, value, onChange, hasError }: Props) {
+export function ConditionValueInput({ field, operator, value, onChange, hasError, companyId }: Props) {
   if (!field || !operator || NO_VALUE_OPERATORS.includes(operator)) {
     return null;
   }
@@ -119,28 +125,14 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
     );
   }
 
-  // Tags (simple text input for now – could be enhanced with multi-select)
+  // Tags – multi-select from marketing_tags
   if (field.type === "tags") {
-    return (
-      <Input
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Nome tag..."
-        className={cn("h-8 text-xs", errorClass)}
-      />
-    );
+    return <TagMultiSelect value={value} onChange={onChange} companyId={companyId} hasError={hasError} />;
   }
 
-  // User (simple text for now – could load from profiles)
+  // User – select from profiles
   if (field.type === "user") {
-    return (
-      <Input
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="ID o nome utente..."
-        className={cn("h-8 text-xs", errorClass)}
-      />
-    );
+    return <UserSelect value={value} onChange={onChange} companyId={companyId} hasError={hasError} />;
   }
 
   // Default: text input
@@ -151,6 +143,125 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
       placeholder="Valore..."
       className={cn("h-8 text-xs", errorClass)}
     />
+  );
+}
+
+// ── Tag Multi-Select ──
+function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; onChange: (v: any) => void; companyId?: string; hasError?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [search, setSearch] = useState("");
+
+  const selectedTags: string[] = Array.isArray(value) ? value : value ? [value] : [];
+
+  useEffect(() => {
+    if (!companyId) return;
+    supabase
+      .from("marketing_tags")
+      .select("id, name, color")
+      .eq("company_id", companyId)
+      .order("name")
+      .then(({ data }) => {
+        if (data) setTags(data);
+      });
+  }, [companyId]);
+
+  const toggleTag = (tagName: string) => {
+    const next = selectedTags.includes(tagName)
+      ? selectedTags.filter((t) => t !== tagName)
+      : [...selectedTags, tagName];
+    onChange(next.length > 0 ? next : "");
+  };
+
+  const removeTag = (tagName: string) => {
+    const next = selectedTags.filter((t) => t !== tagName);
+    onChange(next.length > 0 ? next : "");
+  };
+
+  const filtered = tags.filter((t) => t.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="space-y-1">
+      {selectedTags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {selectedTags.map((tag) => (
+            <Badge key={tag} variant="secondary" className="text-[10px] h-5 gap-0.5 pr-1">
+              {tag}
+              <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn("h-8 text-xs w-full justify-between font-normal", hasError && "border-destructive")}
+          >
+            Seleziona tag...
+            <ChevronsUpDown className="h-3 w-3 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[200px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Cerca tag..." value={search} onValueChange={setSearch} className="h-8 text-xs" />
+            <CommandList>
+              <CommandEmpty className="text-xs p-2 text-center text-muted-foreground">Nessun tag trovato</CommandEmpty>
+              <CommandGroup>
+                <ScrollArea className="max-h-[160px]">
+                  {filtered.map((tag) => (
+                    <CommandItem key={tag.id} value={tag.name} onSelect={() => toggleTag(tag.name)} className="text-xs">
+                      <Check className={cn("h-3 w-3 mr-1.5", selectedTags.includes(tag.name) ? "opacity-100" : "opacity-0")} />
+                      <span
+                        className="w-2 h-2 rounded-full mr-1.5 shrink-0"
+                        style={{ backgroundColor: tag.color || "hsl(var(--primary))" }}
+                      />
+                      {tag.name}
+                    </CommandItem>
+                  ))}
+                </ScrollArea>
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+// ── User Select ──
+function UserSelect({ value, onChange, companyId, hasError }: { value: any; onChange: (v: any) => void; companyId?: string; hasError?: boolean }) {
+  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .eq("company_id", companyId)
+      .then(({ data }) => {
+        if (data) {
+          setUsers(data.map((u) => ({ id: u.id, name: `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.id })));
+        }
+      });
+  }, [companyId]);
+
+  return (
+    <Select value={value || ""} onValueChange={onChange}>
+      <SelectTrigger className={cn("h-8 text-xs", hasError && "border-destructive")}>
+        <SelectValue placeholder="Seleziona utente..." />
+      </SelectTrigger>
+      <SelectContent>
+        {users.map((u) => (
+          <SelectItem key={u.id} value={u.id} className="text-xs">
+            {u.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

@@ -1,13 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, FolderPlus, Copy } from "lucide-react";
+import { Trash2, Plus, FolderPlus, Copy, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 import {
   type TriggerFilters,
   type TriggerCondition,
   type TriggerConditionGroup,
   type TriggerFieldDef,
+  type FieldType,
   isConditionGroup,
   getFieldsForCategory,
   getOperatorsForType,
@@ -20,14 +23,72 @@ interface Props {
   filters: TriggerFilters;
   onChange: (filters: TriggerFilters) => void;
   errors?: Set<string>;
+  companyId?: string;
 }
 
 function genId() {
   return crypto.randomUUID().slice(0, 8);
 }
 
-export function TriggerConditionBuilder({ triggerCategory, filters, onChange, errors }: Props) {
-  const fields = getFieldsForCategory(triggerCategory);
+// Map marketing_custom_fields field_type to our FieldType
+function mapCustomFieldType(fieldType: string): FieldType {
+  switch (fieldType) {
+    case "number": return "number";
+    case "date": return "date";
+    case "boolean": case "checkbox": return "boolean";
+    case "select": case "dropdown": return "select";
+    default: return "text";
+  }
+}
+
+export function TriggerConditionBuilder({ triggerCategory, filters, onChange, errors, companyId }: Props) {
+  const [customFields, setCustomFields] = useState<TriggerFieldDef[]>([]);
+  const baseFields = getFieldsForCategory(triggerCategory);
+
+  // Load custom fields from DB
+  useEffect(() => {
+    if (!companyId) return;
+    // Map trigger category to object_type
+    const objectType = triggerCategory === "contact" ? "contact" : triggerCategory === "opportunity" ? "opportunity" : null;
+    if (!objectType) {
+      setCustomFields([]);
+      return;
+    }
+    supabase
+      .from("marketing_custom_fields")
+      .select("id, field_key, field_label, field_type, options")
+      .eq("company_id", companyId)
+      .eq("object_type", objectType)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setCustomFields(
+            data.map((f: any) => {
+              const def: TriggerFieldDef = {
+                key: `custom_field.${f.field_key}`,
+                label: f.field_label,
+                type: mapCustomFieldType(f.field_type),
+                group: "Campi personalizzati",
+              };
+              if (def.type === "select" && f.options) {
+                try {
+                  const opts = typeof f.options === "string" ? JSON.parse(f.options) : f.options;
+                  if (Array.isArray(opts)) {
+                    def.options = opts.map((o: any) =>
+                      typeof o === "string" ? { value: o, label: o } : { value: o.value || o, label: o.label || o.value || o }
+                    );
+                  }
+                } catch { /* ignore */ }
+              }
+              return def;
+            })
+          );
+        } else {
+          setCustomFields([]);
+        }
+      });
+  }, [companyId, triggerCategory]);
+
+  const fields = [...baseFields, ...customFields];
 
   const addCondition = () => {
     onChange({
@@ -64,7 +125,6 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
   const duplicateAt = (index: number) => {
     const item = filters.conditions[index];
     const clone = JSON.parse(JSON.stringify(item));
-    // regenerate ids
     const regenIds = (obj: any) => {
       if (obj.id) obj.id = genId();
       if (obj.conditions) obj.conditions.forEach(regenIds);
@@ -111,6 +171,7 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
               group={item}
               fields={fields}
               triggerCategory={triggerCategory}
+              companyId={companyId}
               onUpdate={(g) => updateItemAt(index, g)}
               onRemove={() => removeAt(index)}
               onDuplicate={() => duplicateAt(index)}
@@ -120,6 +181,7 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
             <ConditionRow
               condition={item as TriggerCondition}
               fields={fields}
+              companyId={companyId}
               onUpdate={(c) => updateItemAt(index, c)}
               onRemove={() => removeAt(index)}
               errors={errors}
@@ -163,12 +225,14 @@ function LogicToggle({ value, onChange }: { value: "AND" | "OR"; onChange: (v: "
 function ConditionRow({
   condition,
   fields,
+  companyId,
   onUpdate,
   onRemove,
   errors,
 }: {
   condition: TriggerCondition;
   fields: TriggerFieldDef[];
+  companyId?: string;
   onUpdate: (c: TriggerCondition) => void;
   onRemove: () => void;
   errors?: Set<string>;
@@ -187,13 +251,23 @@ function ConditionRow({
   }, {});
 
   return (
-    <div className="flex flex-col gap-1.5 p-2 rounded-md border bg-muted/30">
+    <div className={cn("flex flex-col gap-1.5 p-2 rounded-md border bg-muted/30", condition.negate && "border-destructive/40 bg-destructive/5")}>
       <div className="flex gap-1.5 items-start">
+        {/* NOT toggle */}
+        <Button
+          variant={condition.negate ? "destructive" : "ghost"}
+          size="icon"
+          className={cn("h-7 w-7 shrink-0 text-[9px] font-bold", !condition.negate && "text-muted-foreground")}
+          onClick={() => onUpdate({ ...condition, negate: !condition.negate })}
+          title={condition.negate ? "Rimuovi negazione" : "Nega condizione (NOT)"}
+        >
+          <Ban className="h-3 w-3" />
+        </Button>
+
         {/* Field select */}
         <Select
           value={condition.field || ""}
           onValueChange={(v) => {
-            const newField = fields.find((f) => f.key === v);
             onUpdate({ ...condition, field: v, operator: "", value: "" });
           }}
         >
@@ -216,6 +290,11 @@ function ConditionRow({
           <Trash2 className="h-3.5 w-3.5 text-destructive" />
         </Button>
       </div>
+
+      {/* Negate badge */}
+      {condition.negate && (
+        <Badge variant="destructive" className="text-[9px] h-4 w-fit">NOT</Badge>
+      )}
 
       {condition.field && (
         <Select
@@ -243,6 +322,7 @@ function ConditionRow({
           value={condition.value}
           onChange={(v) => onUpdate({ ...condition, value: v })}
           hasError={hasValErr}
+          companyId={companyId}
         />
       )}
     </div>
@@ -254,6 +334,7 @@ function GroupRow({
   group,
   fields,
   triggerCategory,
+  companyId,
   onUpdate,
   onRemove,
   onDuplicate,
@@ -262,6 +343,7 @@ function GroupRow({
   group: TriggerConditionGroup;
   fields: TriggerFieldDef[];
   triggerCategory: string;
+  companyId?: string;
   onUpdate: (g: TriggerConditionGroup) => void;
   onRemove: () => void;
   onDuplicate: () => void;
@@ -325,6 +407,7 @@ function GroupRow({
               group={item}
               fields={fields}
               triggerCategory={triggerCategory}
+              companyId={companyId}
               onUpdate={(g) => updateItemAt(index, g)}
               onRemove={() => removeAt(index)}
               onDuplicate={() => {
@@ -341,6 +424,7 @@ function GroupRow({
             <ConditionRow
               condition={item as TriggerCondition}
               fields={fields}
+              companyId={companyId}
               onUpdate={(c) => updateItemAt(index, c)}
               onRemove={() => removeAt(index)}
               errors={errors}
