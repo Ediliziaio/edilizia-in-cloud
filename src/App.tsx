@@ -173,6 +173,28 @@ const App = () => (
               <Route path="implementazioni" element={<Implementations />} />
             </Route>
 
+            {/* Full-screen Automation Builder routes - OUTSIDE CompanyLayout */}
+            <Route
+              path="/azienda/marketing/automazioni/nuova"
+              element={
+                <ProtectedRoute allowedRoles={["company_admin", "company_staff", "super_admin"]}>
+                  <ErrorBoundary title="Errore nel builder automazioni">
+                    <MarketingAutomationBuilder />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/azienda/marketing/automazioni/:id"
+              element={
+                <ProtectedRoute allowedRoles={["company_admin", "company_staff", "super_admin"]}>
+                  <ErrorBoundary title="Errore nel builder automazioni">
+                    <MarketingAutomationBuilder />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              }
+            />
+
             {/* Company Admin and Staff Routes */}
             <Route
               path="/azienda"
@@ -213,8 +235,6 @@ const App = () => (
               <Route path="marketing/attivita" element={<MarketingTasks />} />
               <Route path="marketing/calendario" element={<MarketingCalendar />} />
               <Route path="marketing/automazioni" element={<MarketingAutomations />} />
-              <Route path="marketing/automazioni/nuova" element={<MarketingAutomationBuilder />} />
-              <Route path="marketing/automazioni/:id" element={<MarketingAutomationBuilder />} />
               <Route path="marketing/agente-ai" element={<MarketingAiAgent />} />
               <Route path="marketing/email" element={<EmailMarketing />} />
               <Route path="marketing/email/campagna/:id/editor" element={<CampaignEditor />} />
