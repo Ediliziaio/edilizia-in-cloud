@@ -317,6 +317,7 @@ export function AutomationBuilder() {
               node={selectedNode}
               onUpdate={updateNode}
               onClose={closeRightPanel}
+              allNodes={nodes}
             />
           )}
 
