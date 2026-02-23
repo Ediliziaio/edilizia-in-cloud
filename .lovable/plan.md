@@ -1,81 +1,71 @@
 
 
-# Fix Errori Frequenti e Validazione Automazioni
+# Fix Bug "Flow non disponibile" - Salvataggio Non Funzionante
 
-## Problemi identificati
+## Causa radice
 
-### 1. Warning `forwardRef` frequente (TagSelector dentro PopoverContent)
-Il warning React "Function components cannot be given refs" appare ogni volta che si apre il pannello config di un nodo. La causa e che `Command` (da cmdk) dentro `PopoverContent` tenta di passare un ref a un child che non lo supporta. TagSelector gia usa `forwardRef`, ma il componente wrapping dentro AutomationNodeConfig non gestisce il ref correttamente quando usato come child di Popover.
+Quando l'utente va su `/nuova`, il flow viene creato nel database e il `navigate` verso `/:uuid` viene chiamato. Ma nel frattempo, il loading screen scompare perche `createFlowMutation.data` e truthy, mostrando il builder con `flowId = undefined`. Qualsiasi azione dell'utente (rinominare, salvare, aggiungere nodi + autosave) chiama mutazioni che falliscono perche `flowId` non esiste.
 
-**Fix**: Il problema non e in TagSelector (gia corretto) ma nel modo in cui viene usato dentro `AutomationNodeConfig`. Verificare che non ci siano function components usati come `asChild` senza `forwardRef`. In realta il warning punta a `PopoverContent` -> TagSelector nel config panel. Dato che TagSelector e gia `forwardRef`, il warning potrebbe venire da un livello intermedio. Servira wrappare il container div con `forwardRef` se necessario, oppure rimuovere l'uso improprio di `asChild`.
+Il toast "Operazione non riuscita: Flow non disponibile" viene dal `MutationCache.onError` globale in `App.tsx`.
 
-### 2. Si puo creare/pubblicare un'automazione vuota (CRITICO)
-Attualmente:
-- `togglePublish` non verifica se ci sono nodi nel flusso
-- `saveAll` salva anche flow vuoti senza avvertire
-- Si puo pubblicare un'automazione senza trigger ne azioni
+## Fix (2 file)
 
-**Fix**:
-- In `togglePublish`: aggiungere validazione che richieda almeno 1 trigger prima di pubblicare
-- In `saveAll`: permettere il salvataggio bozza vuota ma avvisare l'utente
-- Aggiungere validazione completa prima della pubblicazione:
-  - Almeno 1 trigger obbligatorio
-  - Warning se nessuna azione collegata
-  - Tutti i nodi devono avere configurazione minima valida
+### 1. `src/components/marketing/automations/AutomationBuilder.tsx` - Linea 268
 
-### 3. Bottone Salva/Bozza che a volte non funziona
-Il problema persiste quando:
-- `canPersist` e `false` perche `effectiveCompany` non e ancora caricato al mount
-- Il flow esiste nel DB ma la query non ha ancora restituito i dati
-- L'utente clicca troppo presto prima che il flow sia completamente caricato
+Cambiare la condizione di loading per mantenere lo spinner **sempre** quando `id === "nuova"`:
 
-**Fix**:
-- Aggiungere loading state visibile sui bottoni quando `canPersist` e false
-- Mostrare tooltip "Caricamento in corso..." quando i bottoni sono disabilitati
-- Assicurarsi che `canPersist` diventi true non appena il flow e caricato
-
-## Modifiche tecniche
-
-### File: `src/hooks/useAutomationBuilder.ts`
-
-1. **Aggiungere validazione pre-pubblicazione**:
+**Prima:**
 ```typescript
-const validateForPublish = useCallback((): string[] => {
-  const errors: string[] = [];
-  const hasTrigger = nodes.some(n => n.node_type === "trigger");
-  if (!hasTrigger) errors.push("Aggiungi almeno un trigger prima di pubblicare.");
-  if (nodes.length < 2) errors.push("Aggiungi almeno un'azione dopo il trigger.");
-  return errors;
-}, [nodes]);
+if (isLoading || (id === "nuova" && (createFlowMutation.isPending || !createFlowMutation.data))) {
 ```
 
-2. **Modificare `togglePublish`** per usare la validazione:
-- Se si vuole pubblicare (da draft a published): eseguire `validateForPublish()`. Se ci sono errori, mostrare toast e bloccare.
-- Se si vuole mettere in bozza (da published a draft): consentire sempre.
+**Dopo:**
+```typescript
+if (isLoading || id === "nuova") {
+```
 
-3. **Modificare `saveAll`** per non mostrare toast distruttivo su flow vuoti in bozza - solo un avviso leggero.
+Questo impedisce al builder di renderizzarsi mentre siamo ancora su `/nuova`. L'utente vede "Creazione automazione in corso..." fino a quando il `navigate` cambia l'URL a `/:uuid`, a quel punto il componente si ri-monta con il `flowId` corretto.
 
-### File: `src/components/marketing/automations/AutomationBuilder.tsx`
+### 2. `src/hooks/useAutomationBuilder.ts` - Linea 293
 
-1. **Aggiungere `validateForPublish` dall'hook** e usarlo nel toggle
-2. **Tooltip sui bottoni disabilitati** per spiegare perche non sono cliccabili
-3. **Feedback visivo** quando `canPersist` diventa true (bottoni si attivano)
+Aggiungere un guard silenzioso nel `updateFlowMutation` invece di lanciare un errore (che poi viene catturato dal `MutationCache` globale):
 
-### File: `src/components/marketing/automations/AutomationNodeConfig.tsx`
+**Prima:**
+```typescript
+mutationFn: async (updates: Partial<AutomationFlow>) => {
+  if (!flowId) throw new Error("Flow non disponibile.");
+```
 
-1. **Fix warning ref**: Il `TagSelector` e usato dentro il config panel che e gia dentro un contesto Popover. Il warning viene dal fatto che `PopoverContent` nel TagSelector cerca di passare il ref ma c'e un livello intermedio. Assicurarsi che il div wrapper nel TagSelector gestisca il ref correttamente (gia fatto con forwardRef, ma verificare che non ci sia un secondo Popover annidato che causa conflitto).
+**Dopo:**
+```typescript
+mutationFn: async (updates: Partial<AutomationFlow>) => {
+  if (!flowId || flowId === "nuova") {
+    console.warn("updateFlowMutation called without valid flowId, skipping");
+    return;
+  }
+```
 
-## Sequenza implementazione
+### 3. `src/components/marketing/automations/AutomationBuilder.tsx` - `handleFlowNameBlur`
 
-1. Fix validazione `togglePublish` nel hook (impedire pubblicazione vuota)
-2. Fix `saveAll` messaging per bozze vuote
-3. Aggiungere `validateForPublish` come export dall'hook
-4. Aggiornare UI builder per usare validazione e feedback
-5. Fix warning ref nel config panel
+Aggiungere guard per impedire la chiamata a `updateFlowMutation` quando il flow non e pronto:
+
+**Prima:**
+```typescript
+if (flowName && flowName !== flow?.name) {
+  updateFlowMutation.mutate({ name: flowName });
+}
+```
+
+**Dopo:**
+```typescript
+if (flowName && flowName !== flow?.name && canPersist && flow) {
+  updateFlowMutation.mutate({ name: flowName });
+}
+```
 
 ## Risultato atteso
 
-- Non si puo pubblicare un'automazione senza almeno un trigger
-- Il salvataggio funziona sempre per le bozze con feedback chiaro
-- I bottoni mostrano stato chiaro (disabilitati con motivo, attivi quando pronti)
-- Warning ref eliminato dalla console
+- Lo spinner "Creazione automazione in corso..." resta visibile fino al redirect
+- Nessun errore "Flow non disponibile" mai piu
+- Il salvataggio funziona correttamente una volta su `/:uuid`
+- Le mutazioni non lanciano errori quando il contesto non e pronto
