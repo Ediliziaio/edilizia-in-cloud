@@ -2,6 +2,9 @@ import { useMemo } from "react";
 import { format, addDays, startOfWeek, isSameDay, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { Car, AlertTriangle, MapPinOff } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { TravelLeg } from "@/components/marketing/MarketingCalendarDayView";
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 8); // 08:00 - 21:00
 
@@ -27,6 +30,9 @@ interface Appointment {
   description: string | null;
   is_completed: boolean;
   is_blocked_slot?: boolean;
+  lat?: number | null;
+  lng?: number | null;
+  formatted_address?: string | null;
 }
 
 interface Props {
@@ -35,6 +41,7 @@ interface Props {
   calendarIds: string[];
   onClickAppointment: (apt: Appointment) => void;
   onClickSlot: (date: Date, hour: number) => void;
+  travelLegs?: Record<string, TravelLeg[]>;
 }
 
 export default function MarketingCalendarWeekView({
@@ -43,6 +50,7 @@ export default function MarketingCalendarWeekView({
   calendarIds,
   onClickAppointment,
   onClickSlot,
+  travelLegs = {},
 }: Props) {
   const days = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -56,6 +64,17 @@ export default function MarketingCalendarWeekView({
     });
     return map;
   }, [calendarIds]);
+
+  // Build travel leg lookup per day: toId -> TravelLeg
+  const travelLegMaps = useMemo(() => {
+    const maps: Record<string, Record<string, TravelLeg>> = {};
+    Object.entries(travelLegs).forEach(([dateKey, legs]) => {
+      const m: Record<string, TravelLeg> = {};
+      legs.forEach((leg) => { m[leg.toId] = leg; });
+      maps[dateKey] = m;
+    });
+    return maps;
+  }, [travelLegs]);
 
   const getAppointmentsForSlot = (day: Date, hour: number) =>
     appointments.filter((a) => {
@@ -104,6 +123,9 @@ export default function MarketingCalendarWeekView({
             </div>
             {days.map((day) => {
               const slotApts = getAppointmentsForSlot(day, hour);
+              const dateKey = format(day, "yyyy-MM-dd");
+              const dayLegMap = travelLegMaps[dateKey] || {};
+
               return (
                 <div
                   key={`${day.toISOString()}-${hour}`}
@@ -113,31 +135,70 @@ export default function MarketingCalendarWeekView({
                   )}
                   onClick={() => onClickSlot(day, hour)}
                 >
-                  {slotApts.map((apt) => (
-                    <div
-                      key={apt.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onClickAppointment(apt);
-                      }}
-                      className={cn(
-                        "text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 mb-0.5",
-                        apt.is_blocked_slot
-                          ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
-                          : apt.calendar_id && colorMap[apt.calendar_id]
-                            ? colorMap[apt.calendar_id]
-                            : "bg-muted border-muted-foreground/40 text-foreground"
-                      )}
-                      title={apt.title}
-                    >
-                      {apt.appointment_time && (
-                        <span className="font-medium">
-                          {apt.appointment_time.slice(0, 5)}{" "}
-                        </span>
-                      )}
-                      {apt.title}
-                    </div>
-                  ))}
+                  {slotApts.map((apt) => {
+                    const leg = dayLegMap[apt.id];
+                    const hasNoCoords = apt.lat == null || apt.lng == null;
+
+                    return (
+                      <div key={apt.id}>
+                        {/* Compact travel pill */}
+                        {leg && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div
+                                className={cn(
+                                  "flex items-center gap-0.5 text-[9px] leading-tight px-1 py-0 rounded mb-0.5 w-fit max-w-full",
+                                  leg.isLate
+                                    ? "bg-destructive/10 text-destructive"
+                                    : "bg-muted/60 text-muted-foreground"
+                                )}
+                              >
+                                {leg.isLate ? (
+                                  <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                                ) : (
+                                  <Car className="h-2.5 w-2.5 shrink-0" />
+                                )}
+                                <span className="truncate">{leg.duration_text}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              <p>{leg.duration_text} • {leg.distance_text}</p>
+                              {leg.isLate && <p className="text-destructive font-medium">Ritardo stimato: +{leg.delayMinutes} min</p>}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {/* Missing address badge */}
+                        {hasNoCoords && !apt.is_blocked_slot && !leg && (
+                          <div className="flex items-center gap-0.5 text-[9px] px-1 py-0 rounded mb-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 w-fit">
+                            <MapPinOff className="h-2.5 w-2.5" />
+                          </div>
+                        )}
+                        {/* Appointment block */}
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onClickAppointment(apt);
+                          }}
+                          className={cn(
+                            "text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 mb-0.5",
+                            apt.is_blocked_slot
+                              ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
+                              : apt.calendar_id && colorMap[apt.calendar_id]
+                                ? colorMap[apt.calendar_id]
+                                : "bg-muted border-muted-foreground/40 text-foreground"
+                          )}
+                          title={apt.title}
+                        >
+                          {apt.appointment_time && (
+                            <span className="font-medium">
+                              {apt.appointment_time.slice(0, 5)}{" "}
+                            </span>
+                          )}
+                          {apt.title}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}

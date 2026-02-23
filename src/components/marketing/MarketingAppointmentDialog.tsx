@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CalendarDays, Trash2, Plus, Clock, Ban } from "lucide-react";
+import { CalendarDays, Trash2, Plus, Clock, Ban, Car } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,9 @@ import AddressMapPreview from "@/components/shared/AddressMapPreview";
 interface CalendarOption {
   id: string;
   name: string;
+  base_lat?: number | null;
+  base_lng?: number | null;
+  base_formatted_address?: string | null;
 }
 
 interface UserOption {
@@ -67,6 +70,7 @@ interface Props {
   users: UserOption[];
   defaultDate?: string;
   defaultTime?: string;
+  defaultContactId?: string;
 }
 
 function addMinutesToTime(time: string, minutes: number): string {
@@ -86,6 +90,7 @@ export default function MarketingAppointmentDialog({
   users,
   defaultDate,
   defaultTime,
+  defaultContactId,
 }: Props) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -112,6 +117,11 @@ export default function MarketingAppointmentDialog({
     if (calendars.length === 1) return calendars[0].id;
     return "";
   }, [calendars]);
+
+  // Selected calendar object
+  const selectedCalendar = useMemo(() => {
+    return calendars.find((c) => c.id === calendarId) || null;
+  }, [calendars, calendarId]);
 
   useEffect(() => {
     if (!open) return;
@@ -150,13 +160,13 @@ export default function MarketingAppointmentDialog({
       setAppointmentDate(defaultDate ? new Date(defaultDate) : new Date());
       setCalendarId(defaultCalendarId);
       setAssignedTo("");
-      setContactId("");
+      setContactId(defaultContactId || "");
       setStatus("confermato");
       setInternalNotes("");
       setShowInternalNotes(false);
       setAddressData(emptyAddress);
     }
-  }, [appointment, open, defaultDate, defaultTime, defaultCalendarId]);
+  }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId]);
 
   // Contacts search
   const { data: contacts = [] } = useQuery({
@@ -172,6 +182,50 @@ export default function MarketingAppointmentDialog({
       return data || [];
     },
     enabled: open && !!companyId,
+  });
+
+  // Distance from calendar base
+  const { data: baseDistance } = useQuery({
+    queryKey: ["mkt-apt-base-distance", calendarId, addressData.lat, addressData.lng],
+    queryFn: async () => {
+      if (!selectedCalendar?.base_lat || !selectedCalendar?.base_lng || !addressData.lat || !addressData.lng) return null;
+      try {
+        const { data, error } = await supabase.functions.invoke("maps-proxy", {
+          body: {
+            action: "directions",
+            waypoints: [
+              { lat: selectedCalendar.base_lat, lng: selectedCalendar.base_lng },
+              { lat: addressData.lat, lng: addressData.lng },
+            ],
+          },
+        });
+        if (error || !data?.legs?.[0]) return null;
+        return { duration_text: data.legs[0].duration_text, distance_text: data.legs[0].distance_text };
+      } catch {
+        return null;
+      }
+    },
+    enabled: open && !!selectedCalendar?.base_lat && !!addressData.lat,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Same-day appointments
+  const dateStr = appointmentDate ? format(appointmentDate, "yyyy-MM-dd") : null;
+  const { data: sameDayAppointments = [] } = useQuery({
+    queryKey: ["mkt-apt-same-day", calendarId, dateStr],
+    queryFn: async () => {
+      if (!calendarId || !dateStr) return [];
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, title, appointment_time, formatted_address, lat, lng")
+        .eq("calendar_id", calendarId)
+        .eq("appointment_date", dateStr)
+        .neq("status", "annullato");
+      if (error) return [];
+      return (data || []).filter((a: any) => a.id !== appointment?.id);
+    },
+    enabled: open && !!calendarId && !!dateStr,
+    staleTime: 5 * 60 * 1000,
   });
 
   const handleSave = async () => {
@@ -342,13 +396,37 @@ export default function MarketingAppointmentDialog({
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                   <AddressAutocomplete value={addressData} onChange={setAddressData} />
                   {addressData.lat != null && addressData.lng != null && (
-                    <AddressMapPreview
-                      lat={addressData.lat}
-                      lng={addressData.lng}
-                      formattedAddress={addressData.formatted_address}
-                    />
+                    <>
+                      <AddressMapPreview
+                        lat={addressData.lat}
+                        lng={addressData.lng}
+                        formattedAddress={addressData.formatted_address}
+                      />
+                      {baseDistance && (
+                        <div className="flex items-center gap-2 text-sm bg-background rounded-md border px-3 py-1.5">
+                          <Car className="h-3.5 w-3.5 text-primary" />
+                          <span className="font-medium">{baseDistance.duration_text}</span>
+                          <span className="text-muted-foreground">- {baseDistance.distance_text}</span>
+                          <span className="text-xs text-muted-foreground ml-auto">dalla base calendario</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
+
+                {/* Same-day appointments */}
+                {sameDayAppointments.length > 0 && (
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
+                    <p className="text-xs font-semibold text-foreground">Altri appuntamenti del giorno</p>
+                    {sameDayAppointments.map((a: any) => (
+                      <div key={a.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3 shrink-0" />
+                        <span>{a.appointment_time?.substring(0, 5) || "—"}</span>
+                        <span className="truncate">{a.title || a.formatted_address || "Appuntamento"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Membro del team</Label>
