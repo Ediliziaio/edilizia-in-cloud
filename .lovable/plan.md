@@ -1,141 +1,65 @@
 
 
-# Redesign Dialog Appuntamento Marketing (stile GHL)
+# Pulizia, Fix e Stabilizzazione - Marketing Calendar
 
-## Panoramica
+## Analisi completata
 
-Ricostruire completamente il dialog degli appuntamenti nel contesto Marketing per replicare il layout e le funzionalita di GoHighLevel, con due tab (Appuntamento / Tempo bloccato), layout a due colonne, e datetime inizio/fine.
-
----
-
-## Modifiche al Database
-
-### Nuova colonna: `appointment_end_time`
-
-La tabella `appointments` ha solo `appointment_time` (ora inizio). Serve aggiungere `appointment_end_time` (tipo `time`, nullable) per l'ora di fine. Default: 30 minuti dopo l'ora di inizio (gestito lato frontend).
-
-```sql
-ALTER TABLE public.appointments
-  ADD COLUMN appointment_end_time time WITHOUT TIME ZONE;
-```
-
-### Nuova colonna: `is_blocked_slot`
-
-Per distinguere "tempo bloccato" da appuntamenti normali:
-
-```sql
-ALTER TABLE public.appointments
-  ADD COLUMN is_blocked_slot boolean NOT NULL DEFAULT false;
-```
-
-### Nuova colonna: `internal_notes`
-
-Note interne separate dalla descrizione (visibili solo al team, non sincronizzate con calendari terzi):
-
-```sql
-ALTER TABLE public.appointments
-  ADD COLUMN internal_notes text;
-```
+Ho analizzato il codebase della sezione Marketing Calendar e identificato i seguenti problemi:
 
 ---
 
-## Nuovo componente: `MarketingAppointmentDialog.tsx`
+## 1. Bug da correggere
 
-Dialog dedicato al contesto Marketing, separato dall'`AppointmentDialog` esistente (che resta invariato per la Gestione Interna).
+### Console Warning: "Function components cannot be given refs"
+Nel tab "Tempo bloccato" del `MarketingAppointmentDialog.tsx` (riga 424), il `Popover` per la selezione data non chiude dopo la selezione e non ha lo state gestito (a differenza del tab Appuntamento che usa `datePickerOpen`). Il `PopoverTrigger` wrappa un `Button` ma la mancanza di stato controllato causa il warning.
 
-### Struttura
+**Fix**: Riutilizzare lo stesso state `datePickerOpen` per il Popover nel tab blocked, con chiusura automatica alla selezione della data.
 
-```text
-+------------------------------------------------------+
-| Prenota appuntamento                              [X] |
-| [Appuntamento]  [Tempo bloccato]                      |
-|------------------------------------------------------|
-|  LEFT COLUMN (60%)        |  RIGHT COLUMN (40%)       |
-|                           |                           |
-|  Calendario *             |  Seleziona Contatto *     |
-|  [Select calendario]      |  [Search contatto]        |
-|                           |                           |
-|  Titolo dell'appuntamento |  Note Interno             |
-|  [Input]                  |  [+ Aggiungi Nota]        |
-|                           |  [Textarea]               |
-|  Descrizione              |                           |
-|  [Textarea]               |                           |
-|                           |                           |
-|  Membro del team          |                           |
-|  [Select utente]          |                           |
-|                           |                           |
-|  Data e ora               |                           |
-|  [bg card]                |                           |
-|  Fuso orario: CET         |                           |
-|  Ora inizio    Ora fine   |                           |
-|  [datetime]    [datetime] |                           |
-|------------------------------------------------------|
-| Stato: [Confermato v]   [Annulla] [Prenota appunt.]  |
-+------------------------------------------------------+
-```
+### Date picker nel tab "Tempo bloccato" non si chiude
+La `Calendar` nel tab blocked (riga 435) chiama `setAppointmentDate` direttamente ma non chiude il popover. Il tab Appuntamento invece lo chiude correttamente (riga 324).
 
-### Tab "Tempo bloccato"
-
-```text
-+------------------------------------------------------+
-| Aggiungi tempo bloccato                           [X] |
-| [Appuntamento]  [Tempo bloccato]                      |
-|------------------------------------------------------|
-|  Testo descrittivo: "Vai in vacanza? ..."            |
-|                                                       |
-|  Utente/Calendario                                    |
-|  [Select calendario]                                  |
-|                                                       |
-|  Titolo dell'appuntamento                             |
-|  [Input]                                              |
-|                                                       |
-|  Data e ora                                           |
-|  [bg card] Fuso orario: CET                           |
-|  Ora inizio        Ora fine                           |
-|  [datetime]        [datetime]                         |
-|------------------------------------------------------|
-|               [Annulla]  [Blocca tempo]               |
-+------------------------------------------------------+
-```
-
-### Logica principale
-
-- **Calendario**: obbligatorio, pre-selezionato se solo 1 calendario attivo
-- **Ora inizio/fine**: due date-time picker. Ora fine default = inizio + 30 min. Validazione: fine > inizio
-- **Contatto**: select con ricerca tra `marketing_contacts`
-- **Note Interno**: textarea collassabile (toggle con "+ Aggiungi Nota Interno")
-- **Stato**: nel footer, select inline (Confermato, Annullato, Riprogrammato, Completato)
-- **Tempo bloccato**: salva con `is_blocked_slot = true`, `appointment_type = "blocked"`
-- **CTA**: "Prenota appuntamento" (tab 1) / "Blocca tempo" (tab 2)
+**Fix**: Allineare il comportamento: `onSelect={(d) => { setAppointmentDate(d); setDatePickerOpen(false); }}`
 
 ---
 
-## Modifiche a `MarketingCalendar.tsx`
+## 2. Pulizia codice
 
-- Sostituire `AppointmentDialog` con `MarketingAppointmentDialog`
-- Passare `calendars` come prop per pre-selezionare il calendario
-- Rimuovere le prop `requireTime` e `showOrderSelect` (non servono piu)
+### Import non utilizzati
+- `MarketingAppointmentDialog.tsx`: l'import della vecchia `MarketingAppointmentData` type nel file precedente `MarketingAppointmentDialog` (in `components/marketing/`) - gia verificato, nessun conflitto con il vecchio dialog generico.
+- Nessun file orfano trovato: il vecchio `AppointmentDialog` e ancora usato dal Calendario Lavori interno (3 file lo importano correttamente).
 
----
-
-## Modifiche alle viste calendario
-
-Aggiornare `MarketingCalendarWeekView`, `MarketingCalendarDayView` e `MarketingCalendarMonthView` per:
-- Mostrare i blocked slots con stile diverso (sfondo tratteggiato/grigio)
-- Calcolare la durata blocco usando `appointment_time` + `appointment_end_time`
+### Codice legacy
+- Nessuna struttura legacy identificata in questa sezione. Il refactoring precedente ha gia separato correttamente marketing da gestione interna.
 
 ---
 
-## Riepilogo file
+## 3. Miglioramenti UX
+
+### Footer dialog: layout migliorato
+Quando si edita un appuntamento, il pulsante "Elimina" e il selettore "Stato" possono sovrapporsi su mobile. Ottimizzare con layout responsive.
+
+### Feedback salvataggio
+Il pulsante mostra "Salvataggio..." ma non c'e un loading spinner visivo. Aggiungere spinner al pulsante durante il salvataggio.
+
+---
+
+## Riepilogo modifiche
 
 | File | Azione |
 |------|--------|
-| Migrazione SQL | Crea: 3 nuove colonne |
-| `src/components/marketing/MarketingAppointmentDialog.tsx` | Nuovo |
-| `src/pages/azienda/marketing/MarketingCalendar.tsx` | Modifica: usa nuovo dialog |
-| `src/components/marketing/MarketingCalendarWeekView.tsx` | Modifica: stile blocked slots |
-| `src/components/marketing/MarketingCalendarDayView.tsx` | Modifica: stile blocked slots |
-| `src/components/marketing/MarketingCalendarMonthView.tsx` | Modifica: stile blocked slots |
+| `src/components/marketing/MarketingAppointmentDialog.tsx` | Fix: Popover blocked tab usa state controllato, chiusura automatica, fix ref warning, spinner loading |
 
-Il componente `AppointmentDialog.tsx` esistente resta invariato per l'uso nella Gestione Interna.
+### Dettagli tecnici
+
+**File: `MarketingAppointmentDialog.tsx`**
+
+1. **Riga 424-440** (Tab Blocked - Popover Data): Sostituire il `<Popover>` senza stato con `<Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>` e aggiungere la chiusura automatica su `onSelect`
+
+2. **Riga 490** (Button Salva): Aggiungere una classe `disabled:opacity-50` e icona loader durante il salvataggio
+
+### Cosa NON viene modificato
+- `AppointmentDialog.tsx` (gestione interna) - rimane invariato
+- `MarketingCalendar.tsx` - gia corretto nelle iterazioni precedenti
+- Schema database - nessuna modifica necessaria
+- Nessun file rimosso (tutto il codice e attualmente in uso)
 
