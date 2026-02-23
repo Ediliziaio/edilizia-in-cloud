@@ -143,7 +143,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
   });
 
   // Whether persist actions are possible
-  const canPersist = Boolean(flowId && flowId !== "nuova" && effectiveCompany);
+  const canPersist = Boolean(flowId && flowId !== "nuova" && flow);
 
   // Validation before publishing
   const validateForPublish = useCallback((): string[] => {

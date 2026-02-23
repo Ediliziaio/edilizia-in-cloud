@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -15,7 +15,7 @@ interface Props {
   onSelect: (item: PickerItem) => void;
 }
 
-export function TriggerPickerDialog({ open, onClose, onSelect }: Props) {
+export const TriggerPickerDialog = forwardRef<HTMLDivElement, Props>(({ open, onClose, onSelect }, ref) => {
   const [search, setSearch] = useState("");
   const [openCats, setOpenCats] = useState<string[]>(TRIGGER_CATEGORIES.map(c => c.key));
 
@@ -30,9 +30,8 @@ export function TriggerPickerDialog({ open, onClose, onSelect }: Props) {
 
   if (!open) return null;
 
-
   return (
-    <div className="w-80 border-l bg-background flex flex-col overflow-hidden shrink-0">
+    <div ref={ref} className="w-80 border-l bg-background flex flex-col overflow-hidden shrink-0">
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <h3 className="font-semibold text-sm flex items-center gap-2">
           <Zap className="h-4 w-4 text-orange-500" />
@@ -83,4 +82,6 @@ export function TriggerPickerDialog({ open, onClose, onSelect }: Props) {
       </div>
     </div>
   );
-}
+});
+
+TriggerPickerDialog.displayName = "TriggerPickerDialog";
