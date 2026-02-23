@@ -37,6 +37,122 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
+import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
+
+// ── Contact Appointments Panel ──
+function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars, users }: {
+  contactId: string; companyId: string; contactName: string;
+  calendars: { id: string; name: string; base_lat?: number | null; base_lng?: number | null; base_formatted_address?: string | null }[];
+  users: { id: string; first_name: string; last_name: string }[];
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingApt, setEditingApt] = useState<MarketingAppointmentData | null>(null);
+  const queryClient = useQueryClient();
+
+  const { data: appointments = [], isLoading } = useQuery({
+    queryKey: ["contact_appointments", contactId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("*, marketing_calendars:calendar_id(name)")
+        .eq("contact_id", contactId)
+        .eq("company_id", companyId)
+        .order("appointment_date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!contactId && !!companyId,
+  });
+
+  const now = new Date();
+  const upcoming = appointments.filter((a: any) => new Date(a.appointment_date) >= now && a.status !== "annullato");
+  const past = appointments.filter((a: any) => new Date(a.appointment_date) < now || a.status === "annullato");
+
+  const openEdit = (apt: any) => {
+    setEditingApt({
+      id: apt.id, title: apt.title, description: apt.description,
+      appointment_date: apt.appointment_date, appointment_time: apt.appointment_time,
+      appointment_end_time: apt.appointment_end_time, appointment_type: apt.appointment_type,
+      assigned_to: apt.assigned_to, calendar_id: apt.calendar_id, contact_id: apt.contact_id,
+      status: apt.status, is_completed: apt.is_completed, is_blocked_slot: apt.is_blocked_slot,
+      internal_notes: apt.internal_notes, address_line: apt.address_line, address_city: apt.address_city,
+      address_postal_code: apt.address_postal_code, address_province: apt.address_province,
+      address_country: apt.address_country, formatted_address: apt.formatted_address,
+      lat: apt.lat, lng: apt.lng, place_id: apt.place_id,
+    });
+    setDialogOpen(true);
+  };
+
+  const renderApt = (apt: any) => (
+    <div
+      key={apt.id}
+      className="rounded bg-muted/50 p-2 space-y-0.5 cursor-pointer hover:bg-muted/80 transition-colors"
+      onClick={() => openEdit(apt)}
+    >
+      <p className="text-[11px] font-medium truncate">{apt.title}</p>
+      <p className="text-[10px] text-muted-foreground">
+        {format(new Date(apt.appointment_date), "d MMM yyyy", { locale: it })}
+        {apt.appointment_time && ` · ${apt.appointment_time.substring(0, 5)}`}
+      </p>
+      <div className="flex items-center gap-1">
+        <Badge
+          variant={apt.status === "completato" ? "default" : apt.status === "annullato" ? "destructive" : "secondary"}
+          className="text-[9px] h-4 px-1"
+        >
+          {apt.status}
+        </Badge>
+        {(apt as any).marketing_calendars?.name && (
+          <span className="text-[9px] text-muted-foreground">{(apt as any).marketing_calendars.name}</span>
+        )}
+      </div>
+      {apt.formatted_address && (
+        <p className="text-[9px] text-muted-foreground truncate">{apt.formatted_address}</p>
+      )}
+    </div>
+  );
+
+  if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">Caricamento...</p>;
+
+  return (
+    <div className="space-y-2.5">
+      <Button
+        size="sm"
+        className="w-full h-7 text-[11px]"
+        onClick={() => { setEditingApt(null); setDialogOpen(true); }}
+      >
+        <Plus className="h-3 w-3 mr-1" /> Prenota appuntamento
+      </Button>
+
+      {upcoming.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase">Prossimi</p>
+          {upcoming.map(renderApt)}
+        </div>
+      )}
+
+      {past.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase">Passati</p>
+          {past.map(renderApt)}
+        </div>
+      )}
+
+      {appointments.length === 0 && (
+        <p className="text-[11px] text-muted-foreground text-center py-4">Nessun appuntamento</p>
+      )}
+
+      <MarketingAppointmentDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        appointment={editingApt}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ["contact_appointments", contactId] })}
+        calendars={calendars}
+        users={users}
+        defaultContactId={contactId}
+      />
+    </div>
+  );
+}
 
 // ── Inline editable field ──
 function InlineField({ label, value, onSave, type = "text", options }: {
@@ -219,7 +335,44 @@ export default function MarketingContactDetail() {
   const [newNote, setNewNote] = useState("");
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState("");
-  
+
+  // ── Fetch calendars for appointment dialog ──
+  const { data: calendarsList = [] } = useQuery({
+    queryKey: ["marketing-calendars-for-contact", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("marketing_calendars")
+        .select("id, name, base_lat, base_lng, base_formatted_address")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .order("name");
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  // ── Fetch staff users for appointment dialog ──
+  const { data: staffUsers = [] } = useQuery({
+    queryKey: ["staff-users-for-contact", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId)
+        .order("last_name");
+      if (!profiles?.length) return [];
+      const userIds = profiles.map((p) => p.id);
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds);
+      const validIds = roles?.filter((r) => r.role === "company_admin" || r.role === "company_staff").map((r) => r.user_id) || [];
+      return profiles.filter((p) => validIds.includes(p.id));
+    },
+    enabled: !!companyId,
+  });
 
   // ── Fetch contact ──
   const { data: contact, isLoading, isError, refetch } = useQuery({
@@ -907,9 +1060,15 @@ export default function MarketingContactDetail() {
                 </div>
               )}
 
-              {/* Appointments placeholder */}
-              {rightTab === "appointments" && (
-                <p className="text-[11px] text-muted-foreground text-center py-8">Prossimamente: appuntamenti</p>
+              {/* Appointments panel */}
+              {rightTab === "appointments" && id && companyId && (
+                <ContactAppointmentsPanel
+                  contactId={id}
+                  companyId={companyId}
+                  contactName={fullName}
+                  calendars={calendarsList}
+                  users={staffUsers}
+                />
               )}
 
               {rightTab === "opportunities" && (

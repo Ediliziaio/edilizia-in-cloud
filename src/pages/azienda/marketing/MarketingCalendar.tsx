@@ -164,20 +164,6 @@ export default function MarketingCalendar() {
     });
   }, [appointments, selectedCalendarIds, selectedUserIds]);
 
-  // ── Travel time calculation for day view ──
-  const dayAppointmentsWithCoords = useMemo(() => {
-    if (calendarView !== "day") return [];
-    return filteredAppointments
-      .filter(
-        (a: any) =>
-          isSameDay(parseISO(a.appointment_date), currentDate) &&
-          a.lat != null &&
-          a.lng != null &&
-          !a.is_blocked_slot
-      )
-      .sort((a: any, b: any) => (a.appointment_time || "09:00").localeCompare(b.appointment_time || "09:00"));
-  }, [filteredAppointments, currentDate, calendarView]);
-
   // Get base waypoint from selected calendar
   const baseCalendarWaypoint = useMemo(() => {
     if (selectedCalendarIds.length === 1) {
@@ -189,51 +175,105 @@ export default function MarketingCalendar() {
     return null;
   }, [selectedCalendarIds, calendars]);
 
+  // ── Helper: get appointments with coords for a specific date ──
+  const getApptsWithCoordsForDate = useCallback((targetDate: Date) => {
+    return filteredAppointments
+      .filter(
+        (a: any) =>
+          isSameDay(parseISO(a.appointment_date), targetDate) &&
+          a.lat != null &&
+          a.lng != null &&
+          !a.is_blocked_slot
+      )
+      .sort((a: any, b: any) => (a.appointment_time || "09:00").localeCompare(b.appointment_time || "09:00"));
+  }, [filteredAppointments]);
+
+  // ── Compute travel legs for a given date ──
+  const computeTravelLegsForDate = useCallback(async (aptsWithCoords: any[]): Promise<TravelLeg[]> => {
+    const waypoints: { lat: number; lng: number }[] = [];
+    if (baseCalendarWaypoint) waypoints.push(baseCalendarWaypoint);
+    waypoints.push(...aptsWithCoords.map((a: any) => ({ lat: a.lat, lng: a.lng })));
+    if (waypoints.length < 2) return [];
+    try {
+      const { data, error } = await supabase.functions.invoke("maps-proxy", {
+        body: { action: "directions", waypoints },
+      });
+      if (error || !data?.legs) return [];
+      const offset = baseCalendarWaypoint ? 1 : 0;
+      return data.legs.map((leg: any, i: number) => {
+        const fromIdx = i - offset;
+        const toIdx = i - offset + 1;
+        if (fromIdx < -1 || toIdx >= aptsWithCoords.length) return null;
+        const fromApt = fromIdx >= 0 ? aptsWithCoords[fromIdx] as any : null;
+        const toApt = aptsWithCoords[toIdx] as any;
+        if (!toApt) return null;
+        const fromEnd = fromApt ? (fromApt.appointment_end_time?.slice(0, 5) || addMinutesToTimeStr(fromApt.appointment_time?.slice(0, 5) || "09:00", 60)) : "08:00";
+        const travelMin = Math.ceil(leg.duration_s / 60);
+        const arrivalMin = timeToMinutes(fromEnd) + travelMin;
+        const toStart = timeToMinutes(toApt.appointment_time?.slice(0, 5) || "09:00");
+        const isLate = arrivalMin > toStart;
+        const delayMinutes = isLate ? arrivalMin - toStart : 0;
+        return {
+          duration_s: leg.duration_s,
+          distance_m: leg.distance_m,
+          duration_text: leg.duration_text,
+          distance_text: leg.distance_text,
+          fromId: fromApt?.id || "base",
+          toId: toApt.id,
+          isLate,
+          delayMinutes,
+        } as TravelLeg;
+      }).filter(Boolean);
+    } catch {
+      return [];
+    }
+  }, [baseCalendarWaypoint]);
+
+  // ── Day view travel legs ──
+  const dayAppointmentsWithCoords = useMemo(() => {
+    if (calendarView !== "day") return [];
+    return getApptsWithCoordsForDate(currentDate);
+  }, [calendarView, currentDate, getApptsWithCoordsForDate]);
+
   const { data: travelLegs = [] } = useQuery({
-    queryKey: ["travel-legs", baseCalendarWaypoint?.lat, dayAppointmentsWithCoords.map((a: any) => a.id).join(",")],
-    queryFn: async (): Promise<TravelLeg[]> => {
-      const waypoints: { lat: number; lng: number }[] = [];
-      if (baseCalendarWaypoint) waypoints.push(baseCalendarWaypoint);
-      waypoints.push(...dayAppointmentsWithCoords.map((a: any) => ({ lat: a.lat, lng: a.lng })));
-      if (waypoints.length < 2) return [];
-      try {
-        const { data, error } = await supabase.functions.invoke("maps-proxy", {
-          body: { action: "directions", waypoints },
-        });
-        if (error || !data?.legs) return [];
-        const offset = baseCalendarWaypoint ? 1 : 0;
-        return data.legs.map((leg: any, i: number) => {
-          const fromIdx = i - offset;
-          const toIdx = i - offset + 1;
-          // Skip legs that don't map to actual appointments
-          if (fromIdx < -1 || toIdx >= dayAppointmentsWithCoords.length) return null;
-          const fromApt = fromIdx >= 0 ? dayAppointmentsWithCoords[fromIdx] as any : null;
-          const toApt = dayAppointmentsWithCoords[toIdx] as any;
-          if (!toApt) return null;
-          // Check if late: endTime of from + travel > startTime of to
-          const fromEnd = fromApt ? (fromApt.appointment_end_time?.slice(0, 5) || addMinutesToTimeStr(fromApt.appointment_time?.slice(0, 5) || "09:00", 60)) : "08:00";
-          const travelMin = Math.ceil(leg.duration_s / 60);
-          const arrivalMin = timeToMinutes(fromEnd) + travelMin;
-          const toStart = timeToMinutes(toApt.appointment_time?.slice(0, 5) || "09:00");
-          const isLate = arrivalMin > toStart;
-          const delayMinutes = isLate ? arrivalMin - toStart : 0;
-          return {
-            duration_s: leg.duration_s,
-            distance_m: leg.distance_m,
-            duration_text: leg.duration_text,
-            distance_text: leg.distance_text,
-            fromId: fromApt?.id || "base",
-            toId: toApt.id,
-            isLate,
-            delayMinutes,
-          } as TravelLeg;
-        }).filter(Boolean);
-      } catch {
-        return [];
-      }
-    },
+    queryKey: ["travel-legs-day", baseCalendarWaypoint?.lat, dayAppointmentsWithCoords.map((a: any) => a.id).join(",")],
+    queryFn: () => computeTravelLegsForDate(dayAppointmentsWithCoords),
     enabled: calendarView === "day" && (dayAppointmentsWithCoords.length >= 2 || (dayAppointmentsWithCoords.length >= 1 && !!baseCalendarWaypoint)),
-    staleTime: 5 * 60 * 1000, // cache 5 min
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // ── Week view travel legs ──
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart]
+  );
+
+  const weekDaysWithAppts = useMemo(() => {
+    if (calendarView !== "week") return [];
+    return weekDays
+      .map((day) => ({
+        dateKey: format(day, "yyyy-MM-dd"),
+        aptsWithCoords: getApptsWithCoordsForDate(day),
+      }))
+      .filter((d) => d.aptsWithCoords.length >= 2 || (d.aptsWithCoords.length >= 1 && !!baseCalendarWaypoint));
+  }, [calendarView, weekDays, getApptsWithCoordsForDate, baseCalendarWaypoint]);
+
+  const weekTravelQueryKey = useMemo(() => {
+    return weekDaysWithAppts.map((d) => `${d.dateKey}:${d.aptsWithCoords.map((a: any) => a.id).join(",")}`).join("|");
+  }, [weekDaysWithAppts]);
+
+  const { data: weekTravelLegs = {} } = useQuery({
+    queryKey: ["travel-legs-week", baseCalendarWaypoint?.lat, weekTravelQueryKey],
+    queryFn: async (): Promise<Record<string, TravelLeg[]>> => {
+      const result: Record<string, TravelLeg[]> = {};
+      // Process sequentially to avoid rate limits
+      for (const { dateKey, aptsWithCoords } of weekDaysWithAppts) {
+        result[dateKey] = await computeTravelLegsForDate(aptsWithCoords);
+      }
+      return result;
+    },
+    enabled: calendarView === "week" && weekDaysWithAppts.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
   const handleToggleCalendar = useCallback((id: string) => {
@@ -299,7 +339,6 @@ export default function MarketingCalendar() {
       is_completed: apt.is_completed,
       is_blocked_slot: apt.is_blocked_slot,
       internal_notes: apt.internal_notes,
-      // Address fields
       address_line: apt.address_line,
       address_city: apt.address_city,
       address_postal_code: apt.address_postal_code,
@@ -405,6 +444,7 @@ export default function MarketingCalendar() {
                 calendarIds={calendars.map((c) => c.id)}
                 onClickAppointment={openEditDialog}
                 onClickSlot={(date, hour) => openNewDialog(date, hour)}
+                travelLegs={weekTravelLegs}
               />
             )}
             {calendarView === "day" && (
