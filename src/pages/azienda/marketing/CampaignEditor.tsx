@@ -74,6 +74,7 @@ export default function CampaignEditor() {
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fontFamily, setFontFamily] = useState("Arial");
   const [fontSize, setFontSize] = useState("14");
+  const [blockFormat, setBlockFormat] = useState("paragraph");
 
   // Dialog states for link and image insertion
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
@@ -281,7 +282,8 @@ export default function CampaignEditor() {
 
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-4 py-1.5 bg-background border-b flex-wrap shrink-0">
-        <Select value="paragraph" onValueChange={(v) => {
+        <Select value={blockFormat} onValueChange={(v) => {
+          setBlockFormat(v);
           if (v === "paragraph") {
             execCmd("formatBlock", "p");
           } else {
