@@ -407,7 +407,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
-                <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Previous
+                <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Precedente
               </Button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 5).map(p => (
                 <Button
@@ -421,7 +421,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                 </Button>
               ))}
               <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
-                Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                Successivo <ChevronRight className="h-3.5 w-3.5 ml-1" />
               </Button>
             </div>
             <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(1); }}>
@@ -429,9 +429,9 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="10">10 / page</SelectItem>
-                <SelectItem value="25">25 / page</SelectItem>
-                <SelectItem value="50">50 / page</SelectItem>
+                <SelectItem value="10">10 / pagina</SelectItem>
+                <SelectItem value="25">25 / pagina</SelectItem>
+                <SelectItem value="50">50 / pagina</SelectItem>
               </SelectContent>
             </Select>
           </div>

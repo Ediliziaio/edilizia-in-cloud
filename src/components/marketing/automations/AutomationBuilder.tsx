@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Save, Loader2, Undo2, Redo2, PlayCircle, Pencil, Archive, AlertTriangle, Trash2 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -305,7 +305,7 @@ export function AutomationBuilder() {
   ];
 
   return (
-    <TooltipProvider delayDuration={300}>
+    <>
       <div className="h-screen w-screen fixed inset-0 z-50 flex flex-col bg-background">
         {/* Row 1: back link + name center + actions right */}
         <div className="flex items-center gap-3 px-4 py-2 border-b bg-background shrink-0">
@@ -321,6 +321,7 @@ export function AutomationBuilder() {
               <Input
                 value={flowName}
                 onChange={e => setFlowName(e.target.value)}
+                maxLength={100}
                 onBlur={handleFlowNameBlur}
                 onKeyDown={e => { if (e.key === "Enter") handleFlowNameBlur(); }}
                 autoFocus
@@ -495,6 +496,6 @@ export function AutomationBuilder() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </TooltipProvider>
+    </>
   );
 }

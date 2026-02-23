@@ -16,12 +16,21 @@ export function useAutomationBuilder(flowId: string | undefined) {
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [history, setHistory] = useState<BuilderState[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveAllRef = useRef<() => Promise<void>>(async () => {});
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Use refs for history to avoid callback recreation cascades
+  const historyRef = useRef<BuilderState[]>([]);
+  const historyIndexRef = useRef(-1);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const updateUndoRedoState = useCallback(() => {
+    setCanUndo(historyIndexRef.current > 0);
+    setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
+  }, []);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -88,37 +97,38 @@ export function useAutomationBuilder(flowId: string | undefined) {
     if (dbConnections) setConnections(dbConnections);
   }, [dbConnections]);
 
-  // Push to history
+  // Push to history (no state deps — uses refs)
   const pushHistory = useCallback((newNodes: AutomationNode[], newConns: AutomationConnection[]) => {
-    setHistory(prev => {
-      const truncated = prev.slice(0, historyIndex + 1);
-      const next = [...truncated, { nodes: newNodes, connections: newConns }];
-      if (next.length > MAX_HISTORY) next.shift();
-      return next;
-    });
-    setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
-  }, [historyIndex]);
+    const truncated = historyRef.current.slice(0, historyIndexRef.current + 1);
+    const next = [...truncated, { nodes: newNodes, connections: newConns }];
+    if (next.length > MAX_HISTORY) next.shift();
+    historyRef.current = next;
+    historyIndexRef.current = Math.min(historyIndexRef.current + 1, MAX_HISTORY - 1);
+    updateUndoRedoState();
+  }, [updateUndoRedoState]);
 
   // Undo / Redo
   const undo = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const prev = history[historyIndex - 1];
+    if (historyIndexRef.current <= 0) return;
+    historyIndexRef.current--;
+    const prev = historyRef.current[historyIndexRef.current];
     setNodes(prev.nodes);
     setConnections(prev.connections);
-    setHistoryIndex(i => i - 1);
     setHasUnsavedChanges(true);
-  }, [history, historyIndex]);
+    updateUndoRedoState();
+  }, [updateUndoRedoState]);
 
   const redo = useCallback(() => {
-    if (historyIndex >= history.length - 1) return;
-    const next = history[historyIndex + 1];
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    historyIndexRef.current++;
+    const next = historyRef.current[historyIndexRef.current];
     setNodes(next.nodes);
     setConnections(next.connections);
-    setHistoryIndex(i => i + 1);
     setHasUnsavedChanges(true);
-  }, [history, historyIndex]);
+    updateUndoRedoState();
+  }, [updateUndoRedoState]);
 
-  // Auto-save with debounce (uses ref to always call latest saveAll)
+  // Auto-save with debounce
   const triggerAutoSave = useCallback(() => {
     setHasUnsavedChanges(true);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -127,14 +137,15 @@ export function useAutomationBuilder(flowId: string | undefined) {
     }, 2000);
   }, []);
 
-  // Create flow - with guards for effectiveCompany and user
+  // Create flow - with input validation
   const createFlowMutation = useMutation({
     mutationFn: async (name: string) => {
-      if (!effectiveCompany) throw new Error("Nessuna azienda selezionata. Seleziona un'azienda prima di creare un'automazione.");
+      if (!effectiveCompany) throw new Error("Nessuna azienda selezionata.");
       if (!user) throw new Error("Utente non autenticato.");
+      const safeName = name.trim().slice(0, 100) || "Nuova Automazione";
       const { data, error } = await supabase
         .from("automation_flows")
-        .insert({ name, company_id: effectiveCompany.id, created_by: user.id })
+        .insert({ name: safeName, company_id: effectiveCompany.id, created_by: user.id })
         .select()
         .single();
       if (error) throw error;
@@ -142,7 +153,6 @@ export function useAutomationBuilder(flowId: string | undefined) {
     },
   });
 
-  // Whether persist actions are possible
   const canPersist = Boolean(flowId && flowId !== "nuova" && flow);
 
   // Validation before publishing
@@ -156,13 +166,10 @@ export function useAutomationBuilder(flowId: string | undefined) {
 
   // Save all nodes + connections
   const saveAll = useCallback(async () => {
-    // Silent return during creation/redirect phase
-    if (!flowId || flowId === "nuova") {
-      return;
-    }
+    if (!flowId || flowId === "nuova") return;
     const persistCompanyId = effectiveCompany?.id ?? flow?.company_id;
     if (!persistCompanyId) {
-      toast({ title: "Impossibile salvare", description: "Nessuna azienda attiva. Seleziona un'azienda.", variant: "destructive" });
+      toast({ title: "Impossibile salvare", description: "Nessuna azienda attiva.", variant: "destructive" });
       return;
     }
     if (nodes.length === 0) {
@@ -170,7 +177,6 @@ export function useAutomationBuilder(flowId: string | undefined) {
     }
     setIsSaving(true);
     try {
-      // Upsert nodes
       if (nodes.length > 0) {
         const { error: nErr } = await supabase
           .from("automation_nodes")
@@ -187,7 +193,6 @@ export function useAutomationBuilder(flowId: string | undefined) {
         if (nErr) throw nErr;
       }
 
-      // Delete removed nodes
       const nodeIds = nodes.map(n => n.id);
       if (dbNodes && dbNodes.length > 0) {
         const removedIds = dbNodes.filter(n => !nodeIds.includes(n.id)).map(n => n.id);
@@ -196,7 +201,6 @@ export function useAutomationBuilder(flowId: string | undefined) {
         }
       }
 
-      // Upsert connections
       if (connections.length > 0) {
         const { error: cErr } = await supabase
           .from("automation_connections")
@@ -211,7 +215,6 @@ export function useAutomationBuilder(flowId: string | undefined) {
         if (cErr) throw cErr;
       }
 
-      // Delete removed connections
       const connIds = connections.map(c => c.id);
       if (dbConnections && dbConnections.length > 0) {
         const removedConnIds = dbConnections.filter(c => !connIds.includes(c.id)).map(c => c.id);
@@ -220,7 +223,6 @@ export function useAutomationBuilder(flowId: string | undefined) {
         }
       }
 
-      // Update flow updated_at
       await supabase.from("automation_flows").update({ updated_at: new Date().toISOString() }).eq("id", flowId);
 
       setHasUnsavedChanges(false);
@@ -239,67 +241,83 @@ export function useAutomationBuilder(flowId: string | undefined) {
     saveAllRef.current = saveAll;
   }, [saveAll]);
 
-  // Add node
+  // Add node (uses functional updates to avoid deps on nodes/connections)
   const addNode = useCallback((node: AutomationNode) => {
     setNodes(prev => {
       const next = [...prev, node];
-      pushHistory(next, connections);
+      setConnections(currentConns => {
+        pushHistory(next, currentConns);
+        return currentConns;
+      });
       return next;
     });
     triggerAutoSave();
-  }, [connections, pushHistory, triggerAutoSave]);
+  }, [pushHistory, triggerAutoSave]);
 
   // Update node
   const updateNode = useCallback((id: string, updates: Partial<AutomationNode>) => {
     setNodes(prev => {
       const next = prev.map(n => n.id === id ? { ...n, ...updates } : n);
-      pushHistory(next, connections);
+      setConnections(currentConns => {
+        pushHistory(next, currentConns);
+        return currentConns;
+      });
       return next;
     });
     triggerAutoSave();
-  }, [connections, pushHistory, triggerAutoSave]);
+  }, [pushHistory, triggerAutoSave]);
 
   // Remove node
   const removeNode = useCallback((id: string) => {
     setNodes(prev => {
       const next = prev.filter(n => n.id !== id);
-      const newConns = connections.filter(c => c.from_node_id !== id && c.to_node_id !== id);
-      setConnections(newConns);
-      pushHistory(next, newConns);
+      setConnections(currentConns => {
+        const newConns = currentConns.filter(c => c.from_node_id !== id && c.to_node_id !== id);
+        pushHistory(next, newConns);
+        return newConns;
+      });
       return next;
     });
-    if (selectedNodeId === id) setSelectedNodeId(null);
+    setSelectedNodeId(prev => prev === id ? null : prev);
     triggerAutoSave();
-  }, [connections, pushHistory, selectedNodeId, triggerAutoSave]);
+  }, [pushHistory, triggerAutoSave]);
 
   // Add connection
   const addConnection = useCallback((conn: AutomationConnection) => {
     setConnections(prev => {
       const next = [...prev, conn];
-      pushHistory(nodes, next);
+      setNodes(currentNodes => {
+        pushHistory(currentNodes, next);
+        return currentNodes;
+      });
       return next;
     });
     triggerAutoSave();
-  }, [nodes, pushHistory, triggerAutoSave]);
+  }, [pushHistory, triggerAutoSave]);
 
   // Remove connection
   const removeConnection = useCallback((id: string) => {
     setConnections(prev => {
       const next = prev.filter(c => c.id !== id);
-      pushHistory(nodes, next);
+      setNodes(currentNodes => {
+        pushHistory(currentNodes, next);
+        return currentNodes;
+      });
       return next;
     });
     triggerAutoSave();
-  }, [nodes, pushHistory, triggerAutoSave]);
+  }, [pushHistory, triggerAutoSave]);
 
-  // Update flow name/description
+  // Update flow name/description - with input validation
   const updateFlowMutation = useMutation({
     mutationFn: async (updates: Partial<AutomationFlow>) => {
-      if (!flowId || flowId === "nuova") {
-        console.warn("updateFlowMutation called without valid flowId, skipping");
-        return;
+      if (!flowId || flowId === "nuova") return;
+      const safeUpdates = { ...updates };
+      if (safeUpdates.name) {
+        safeUpdates.name = safeUpdates.name.trim().slice(0, 100);
+        if (!safeUpdates.name) delete safeUpdates.name;
       }
-      const { error } = await supabase.from("automation_flows").update(updates).eq("id", flowId);
+      const { error } = await supabase.from("automation_flows").update(safeUpdates).eq("id", flowId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -317,7 +335,6 @@ export function useAutomationBuilder(flowId: string | undefined) {
     if (updateFlowMutation.isPending) return;
     try {
       const newStatus = flow.status === "published" ? "draft" : "published";
-      // Validate before publishing
       if (newStatus === "published") {
         const errors = validateForPublish();
         if (errors.length > 0) {
@@ -341,7 +358,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
     selectedNodeId, selectedNode, setSelectedNodeId,
     addNode, updateNode, removeNode,
     addConnection, removeConnection,
-    undo, redo, canUndo: historyIndex > 0, canRedo: historyIndex < history.length - 1,
+    undo, redo, canUndo, canRedo,
     saveAll, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish,
     effectiveCompany, user,
   };
