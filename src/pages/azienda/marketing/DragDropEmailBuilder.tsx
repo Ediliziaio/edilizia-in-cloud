@@ -147,6 +147,8 @@ export default function DragDropEmailBuilder() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const active = document.activeElement;
+      if (active && (active as HTMLElement).isContentEditable) return;
       const isMod = e.ctrlKey || e.metaKey;
       if (isMod && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
