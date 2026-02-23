@@ -379,3 +379,127 @@ export const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   form_submitted: "Si attiva quando un modulo viene inviato.",
   survey_submitted: "Si attiva quando un sondaggio viene completato.",
 };
+
+// ── Action descriptions ──
+
+export const ACTION_DESCRIPTIONS: Record<string, string> = {
+  send_email: "Invia un'email personalizzata al contatto utilizzando un template o contenuto personalizzato.",
+  send_whatsapp: "Invia un messaggio WhatsApp al contatto.",
+  send_sms: "Invia un SMS al contatto con testo personalizzato.",
+  send_notification: "Invia una notifica interna agli utenti del sistema.",
+  send_ai_message: "Genera e invia un messaggio con intelligenza artificiale.",
+  create_opportunity: "Crea una nuova opportunità nella pipeline selezionata.",
+  move_opportunity: "Sposta un'opportunità in una fase o pipeline diversa.",
+  update_field: "Aggiorna un campo specifico del contatto o dell'opportunità.",
+  add_tag: "Aggiunge uno o più tag al contatto nell'automazione.",
+  remove_tag: "Rimuove uno o più tag dal contatto nell'automazione.",
+  assign_user: "Assegna un utente specifico o tramite round robin.",
+  create_task: "Crea una nuova attività assegnata ad un utente.",
+  delay: "Attende un periodo di tempo prima di proseguire nel flusso.",
+  if_else: "Valuta una condizione e divide il flusso in due rami.",
+  split_percentage: "Divide il flusso in base a percentuali definite (A/B test).",
+  goal: "Definisce un punto obiettivo nell'automazione con timeout opzionale.",
+  jump_to_step: "Salta ad un altro nodo specifico del flusso.",
+  end_automation: "Termina l'automazione per il contatto corrente.",
+  webhook_out: "Invia una richiesta HTTP ad un endpoint esterno.",
+  external_api: "Chiama un'API esterna con metodo e payload personalizzati.",
+  sync_google: "Sincronizza i dati con Google (placeholder per futura integrazione).",
+  sync_meta_lead: "Sincronizza i dati con Meta Lead Ads (placeholder per futura integrazione).",
+};
+
+// ── Action validation ──
+
+export interface ActionValidationError {
+  field: string;
+  message: string;
+}
+
+export function validateActionConfig(actionType: string, config: Record<string, any>): ActionValidationError[] {
+  const errors: ActionValidationError[] = [];
+
+  switch (actionType) {
+    case "send_email":
+      if (!config.subject_override && !config.template_id) {
+        errors.push({ field: "subject_override", message: "Oggetto email o template obbligatorio" });
+      }
+      break;
+    case "send_whatsapp":
+      if (!config.whatsapp_text && !config.whatsapp_template) {
+        errors.push({ field: "whatsapp_text", message: "Testo o template WhatsApp obbligatorio" });
+      }
+      break;
+    case "send_sms":
+      if (!config.sms_text) {
+        errors.push({ field: "sms_text", message: "Testo SMS obbligatorio" });
+      }
+      break;
+    case "send_notification":
+      if (!config.notification_title) {
+        errors.push({ field: "notification_title", message: "Titolo notifica obbligatorio" });
+      }
+      break;
+    case "send_ai_message":
+      if (!config.ai_prompt) {
+        errors.push({ field: "ai_prompt", message: "Prompt AI obbligatorio" });
+      }
+      break;
+    case "create_opportunity":
+      if (!config.opportunity_name) {
+        errors.push({ field: "opportunity_name", message: "Nome opportunità obbligatorio" });
+      }
+      if (!config.pipeline_id) {
+        errors.push({ field: "pipeline_id", message: "Pipeline obbligatoria" });
+      }
+      break;
+    case "move_opportunity":
+      if (!config.target_pipeline_id) {
+        errors.push({ field: "target_pipeline_id", message: "Pipeline destinazione obbligatoria" });
+      }
+      break;
+    case "update_field":
+      if (!config.entity_type) {
+        errors.push({ field: "entity_type", message: "Entità obbligatoria" });
+      }
+      if (!config.field_key) {
+        errors.push({ field: "field_key", message: "Campo obbligatorio" });
+      }
+      break;
+    case "add_tag":
+    case "remove_tag":
+      if (!config.tags || (Array.isArray(config.tags) && config.tags.length === 0)) {
+        errors.push({ field: "tags", message: "Seleziona almeno un tag" });
+      }
+      break;
+    case "assign_user":
+      if (config.assign_method === "specific" && !config.assign_user_id) {
+        errors.push({ field: "assign_user_id", message: "Seleziona un utente" });
+      }
+      break;
+    case "create_task":
+      if (!config.task_title) {
+        errors.push({ field: "task_title", message: "Titolo attività obbligatorio" });
+      }
+      break;
+    case "webhook_out":
+      if (!config.webhook_url) {
+        errors.push({ field: "webhook_url", message: "URL obbligatorio" });
+      } else {
+        try { new URL(config.webhook_url); } catch {
+          errors.push({ field: "webhook_url", message: "URL non valido" });
+        }
+      }
+      break;
+    case "external_api":
+      if (!config.api_url) {
+        errors.push({ field: "api_url", message: "URL API obbligatorio" });
+      }
+      break;
+    case "jump_to_step":
+      if (!config.target_node_id) {
+        errors.push({ field: "target_node_id", message: "Seleziona un nodo destinazione" });
+      }
+      break;
+  }
+
+  return errors;
+}
