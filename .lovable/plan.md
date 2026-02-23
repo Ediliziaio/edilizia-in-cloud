@@ -1,48 +1,88 @@
 
-# QA e Stabilizzazione - Email Marketing Module
+# Piano: Custom Fields + Blocchi in Colonne + Undo/Redo
 
-## Risultato Analisi
+## 1. Variabili di personalizzazione (Custom Fields) nel Builder
 
-Il modulo e ben strutturato e funzionale. Ho identificato **3 bug** e **1 miglioramento UX** da correggere.
+Attualmente il `CampaignEditor` (editor standard) ha gia un dropdown "Variabili" con tag come `{{contact.first_name}}`. Il builder drag-and-drop non ha questa funzionalita.
 
----
+### Implementazione
 
-## 1. Bug: Duplicazione campagna perde `json_content`
+**File: `BuilderPropertiesPanel.tsx`**
+- Aggiungere un dropdown "Inserisci variabile" nel pannello proprieta per i blocchi di tipo **text** e **button**
+- Le variabili disponibili sono le stesse del CampaignEditor: `{{contact.first_name}}`, `{{contact.last_name}}`, `{{contact.email}}`, `{{contact.phone}}`, `{{company.name}}`, `{{unsubscribe_url}}`
+- Al click su una variabile, il tag viene appeso al contenuto del blocco testo (nel campo "Contenuto") o al testo del pulsante
+- Le variabili vengono mantenute come testo nel JSON e passate inalterate nell'HTML generato (la sostituzione avviene lato server al momento dell'invio)
 
-In `EmailCampaignsTab.tsx` (riga 121-134), la mutation `duplicateMutation` non include il campo `json_content` nel payload di inserimento. Se una campagna e stata creata con il builder drag-and-drop, la copia perde tutto il design visuale.
-
-**Fix**: Aggiungere `json_content: campaign.json_content` nel payload della duplicazione.
-
----
-
-## 2. Bug: Click su campagna builder porta all'editor sbagliato
-
-In `EmailCampaignsTab.tsx` (riga 310), il click su una campagna naviga sempre a `/editor`. Se la campagna ha `json_content` popolato (creata con il builder), dovrebbe navigare a `/builder` per riaprire il design visuale.
-
-**Fix**: Condizionare la navigazione: se `c.json_content` esiste e non e vuoto, navigare a `/builder`, altrimenti a `/editor`.
+### Dettaglio tecnico
+- Estrarre la lista `VARIABLES` in un file condiviso (`builderTypes.ts`) per riutilizzarla sia nel CampaignEditor che nel PropertiesPanel
+- Nel `TextProperties`: aggiungere un `DropdownMenu` sotto il campo "Contenuto" con le variabili
+- Nel `ButtonProperties`: aggiungere lo stesso dropdown sotto il campo "Testo"
 
 ---
 
-## 3. Bug: Select formato blocco nel CampaignEditor ha valore statico
+## 2. Blocchi dentro le Colonne (Column Children)
 
-In `CampaignEditor.tsx` (riga 284), il `Select` per il formato testo ha `value="paragraph"` hardcoded. Nonostante il `onValueChange` funzioni correttamente per applicare il formato, il valore mostrato nel dropdown rimane sempre "Paragrafo" indipendentemente dalla selezione effettiva.
+Attualmente le colonne nel canvas mostrano placeholder "Colonna 1", "Colonna 2" ma non permettono di aggiungere elementi al loro interno. L'utente non puo trascinare blocchi dentro le colonne.
 
-**Fix**: Gestire lo stato del formato con un `useState` e aggiornarlo sia alla selezione che al focus nel contenuto.
+### Implementazione
+
+**File: `BuilderBlock.tsx`**
+- Ogni colonna diventa un mini-canvas con un pulsante "+" per aggiungere elementi
+- Al click su "+" si apre un piccolo menu (DropdownMenu) con la lista degli elementi disponibili (Testo, Immagine, Pulsante, etc.)
+- L'elemento viene creato e aggiunto ai `children[colIndex]` del blocco colonne
+
+**File: `DragDropEmailBuilder.tsx`**
+- Aggiungere una funzione `handleAddChildBlock(parentBlockId: string, colIndex: number, childType: BlockType)` che:
+  1. Trova il blocco colonne
+  2. Crea un nuovo blocco figlio con `createBlock(childType)`
+  3. Lo inserisce in `children[colIndex]`
+  4. Aggiorna lo stato e triggera l'auto-save
+- Aggiungere `handleDeleteChildBlock(parentBlockId: string, colIndex: number, childBlockId: string)` per rimuovere blocchi figli
+- Aggiungere `handleUpdateChildBlockProps(parentBlockId: string, colIndex: number, childBlockId: string, partial)` per aggiornare le proprieta dei blocchi figli
+- Passare queste funzioni al `BuilderCanvas` e poi al `BuilderBlock`
+
+**File: `BuilderCanvas.tsx`**
+- Passare le nuove callback per la gestione dei blocchi figli
+
+**File: `BuilderBlock.tsx`**
+- Nella sezione `case "columns"`, ogni colonna renderizza:
+  - I blocchi figli esistenti con toolbar (elimina)
+  - Un pulsante "+" in fondo per aggiungere nuovi elementi
+  - Click su un blocco figlio seleziona quel blocco nel pannello proprieta
+
+**File: `BuilderPropertiesPanel.tsx`**
+- Il pannello deve poter mostrare le proprieta di un blocco figlio (non solo dei blocchi root)
+- Aggiornare la logica di selezione per supportare `selectedBlock` che puo essere un figlio
 
 ---
 
-## 4. UX: Duplica campagna con feedback navigazione
+## 3. Undo/Redo (Ctrl+Z / Ctrl+Y)
 
-Quando si duplica una campagna, aggiungere il messaggio "Campagna duplicata" nel toast (gia presente) - confermato ok.
+### Implementazione
+
+**File: `DragDropEmailBuilder.tsx`**
+- Creare un hook/logica di history con due stack: `undoStack` e `redoStack` (array di `BuilderBlock[]`)
+- Ogni volta che `updateBlocks` viene chiamato, pushare lo stato **precedente** nell'`undoStack` e svuotare il `redoStack`
+- Limitare la history a 50 step per evitare consumo memoria eccessivo
+- Funzioni:
+  - `handleUndo()`: pop dall'undoStack, push stato corrente nel redoStack, setBlocks
+  - `handleRedo()`: pop dal redoStack, push stato corrente nell'undoStack, setBlocks
+- Registrare un event listener `keydown` per:
+  - `Ctrl+Z` (o `Cmd+Z` su Mac): chiama `handleUndo()`
+  - `Ctrl+Y` (o `Cmd+Shift+Z` su Mac): chiama `handleRedo()`
+- Aggiungere nella top bar due pulsanti icona (Undo/Redo) con stato disabled quando lo stack corrispondente e vuoto
+- Le operazioni di undo/redo triggerano l'auto-save
 
 ---
 
-## Riepilogo Modifiche
+## 4. Riepilogo File da Modificare
 
-| Azione | File | Dettaglio |
-|--------|------|-----------|
-| Bug fix | `EmailCampaignsTab.tsx` | Aggiungere `json_content` alla duplicazione |
-| Bug fix | `EmailCampaignsTab.tsx` | Navigazione condizionale editor/builder |
-| Bug fix | `CampaignEditor.tsx` | Stato reattivo per formato blocco |
+| File | Modifiche |
+|------|-----------|
+| `src/components/email-builder/builderTypes.ts` | Aggiungere costante `PERSONALIZATION_VARIABLES` condivisa |
+| `src/components/email-builder/BuilderPropertiesPanel.tsx` | Dropdown variabili per testo e pulsante |
+| `src/components/email-builder/BuilderBlock.tsx` | Pulsante "+" per aggiungere blocchi nelle colonne, click su figli per selezionarli, eliminazione figli |
+| `src/components/email-builder/BuilderCanvas.tsx` | Passare callback per gestione blocchi figli |
+| `src/pages/azienda/marketing/DragDropEmailBuilder.tsx` | Logica undo/redo con history stack, handler per blocchi figli nelle colonne, shortcut tastiera, pulsanti undo/redo nella top bar |
 
 ### Nessuna modifica database necessaria
