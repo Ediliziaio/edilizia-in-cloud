@@ -1,0 +1,130 @@
+import { useState, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
+import { IntegrationCard } from "@/components/integrations/IntegrationCard";
+import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
+import type { Integration } from "@/types/integrations";
+
+export default function SettingsIntegrations() {
+  const { effectiveCompany } = useAuth();
+  const companyId = (effectiveCompany as any)?.id;
+  const [search, setSearch] = useState("");
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  const { data: integrations = [], refetch } = useQuery({
+    queryKey: ["integrations", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("integrations")
+        .select("*")
+        .eq("company_id", companyId);
+      if (error) throw error;
+      return (data || []) as Integration[];
+    },
+    enabled: !!companyId,
+  });
+
+  const metaIntegration = integrations.find((i) => i.provider === "meta");
+
+  // Count connected pages and active forms
+  const { data: stats } = useQuery({
+    queryKey: ["integration-meta-stats", companyId, metaIntegration?.id],
+    queryFn: async () => {
+      if (!companyId || !metaIntegration?.id) return { pages: 0, forms: 0 };
+      const [pagesRes, formsRes] = await Promise.all([
+        supabase
+          .from("meta_assets")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("integration_id", metaIntegration.id)
+          .eq("asset_type", "page")
+          .eq("selected", true),
+        supabase
+          .from("meta_lead_forms")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("integration_id", metaIntegration.id)
+          .eq("status", "active"),
+      ]);
+      return {
+        pages: pagesRes.count || 0,
+        forms: formsRes.count || 0,
+      };
+    },
+    enabled: !!companyId && !!metaIntegration?.id,
+  });
+
+  const availableIntegrations = useMemo(() => {
+    const items = [
+      {
+        provider: "meta" as const,
+        name: "Meta (Facebook & Instagram Lead Ads)",
+        description: "Sincronizza i lead dai moduli Lead Ads di Facebook e Instagram direttamente nel tuo CRM.",
+        icon: "meta",
+        integration: metaIntegration || null,
+        stats: metaIntegration ? stats : null,
+      },
+    ];
+    if (!search.trim()) return items;
+    const q = search.toLowerCase();
+    return items.filter(
+      (i) => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q)
+    );
+  }, [search, metaIntegration, stats]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Integrazioni</h1>
+        <p className="text-muted-foreground mt-1">
+          Collega servizi esterni per sincronizzare dati e automatizzare i processi.
+        </p>
+      </div>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Cerca integrazioni..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {availableIntegrations.map((item) => (
+          <IntegrationCard
+            key={item.provider}
+            name={item.name}
+            description={item.description}
+            provider={item.provider}
+            integration={item.integration}
+            stats={item.stats}
+            onConnect={() => setWizardOpen(true)}
+            onManage={() => setWizardOpen(true)}
+          />
+        ))}
+      </div>
+
+      {availableIntegrations.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          Nessuna integrazione trovata per "{search}"
+        </div>
+      )}
+
+      <MetaIntegrationWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        integration={metaIntegration || null}
+        onComplete={() => {
+          refetch();
+          setWizardOpen(false);
+        }}
+      />
+    </div>
+  );
+}
