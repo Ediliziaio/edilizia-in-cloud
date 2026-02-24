@@ -1,65 +1,82 @@
 
 
-# Aggiunta card Google Maps API Key e WhatsApp Verify Token
+# Implementazione Fallback DB per maps-proxy e whatsapp-*
 
-## Obiettivo
-Estendere il pannello Piattaforma Super Admin con due nuove card di configurazione per Google Maps e WhatsApp, seguendo lo stesso pattern della card Meta esistente.
+## Stato attuale
 
-## Modifiche necessarie
+Le card UI e le chiavi consentite nell'edge function `manage-super-admins` sono gia' implementate correttamente. Manca solo il fallback da DB (come `getMetaCredentials.ts`) per le seguenti Edge Functions:
 
-### 1. Edge Function `manage-super-admins` — Estendere le chiavi consentite
+| Edge Function | Chiave(i) da leggere da DB | Attuale sorgente |
+|---|---|---|
+| `maps-proxy` | `google_maps_api_key` | `Deno.env.get("GOOGLE_MAPS_API_KEY")` (riga 39) |
+| `whatsapp-webhook` | `whatsapp_verify_token`, `meta_app_secret` | `Deno.env.get` top-level (righe 3-4) |
+| `whatsapp-connect` | `meta_app_secret` | `Deno.env.get("META_APP_SECRET")` (riga 3) |
+| `whatsapp-status` | Nessuna chiave piattaforma diretta | Nessuna modifica necessaria |
 
-Il codice attuale filtra le chiavi con `allowedKeys = ["meta_app_id", "meta_app_secret"]` sia in `get-settings` che in `update-settings`. Basta aggiungere `google_maps_api_key` e `whatsapp_verify_token` a entrambe le liste.
+## Modifiche
 
-**File**: `supabase/functions/manage-super-admins/index.ts`
-- Riga 355: estendere la lista `.in("key", [...])` per includere le nuove chiavi
-- Riga 381: aggiungere le nuove chiavi a `allowedKeys`
-- Trattare `google_maps_api_key` e `whatsapp_verify_token` come secret (mascherati con `••••` + ultimi 4 char)
+### 1. Nuovo helper: `_shared/getPlatformSetting.ts`
 
-### 2. Frontend — Due nuove card in `PlatformInfoTab.tsx`
+Funzione generica riutilizzabile che legge una singola chiave da `platform_settings` con fallback a env:
 
-Per evitare duplicazione di codice, estrarre un componente generico `ApiKeyCard` riutilizzabile dalle 3 card (Meta, Google Maps, WhatsApp).
+```typescript
+export async function getPlatformSetting(key: string, envFallback?: string): Promise<string>
+```
 
-**File**: `src/components/admin/settings/PlatformInfoTab.tsx`
+- Crea un client service_role
+- Query `platform_settings` per la chiave
+- Se trovata, restituisce il valore
+- Altrimenti fallback a `Deno.env.get(envFallback || key.toUpperCase())`
+- Gestisce errori con `console.warn` e fallback silenzioso
 
-Il componente `ApiKeyCard` accettera':
-- `icon`: icona Lucide
-- `title`: nome dell'integrazione
-- `description`: descrizione breve
-- `tooltipText`: spiegazione per il tooltip
-- `fields`: array di campi `{ key, label, isSecret }` che descrivono quali chiavi gestire
-- `settings`: i dati dal backend
-- `isLoading`: stato caricamento
-- `onSave(updates)`: callback per il salvataggio
+### 2. `maps-proxy/index.ts`
 
-Le 3 card:
+**Prima** (riga 39):
+```typescript
+const GOOGLE_MAPS_API_KEY = Deno.env.get("GOOGLE_MAPS_API_KEY");
+```
 
-| Card | Chiavi | Campi |
-|------|--------|-------|
-| Meta | `meta_app_id`, `meta_app_secret` | App ID (testo), App Secret (password) |
-| Google Maps | `google_maps_api_key` | API Key (password) |
-| WhatsApp | `whatsapp_verify_token` | Verify Token (password) |
+**Dopo**: Spostare la lettura dentro `Deno.serve`, chiamare `getPlatformSetting("google_maps_api_key", "GOOGLE_MAPS_API_KEY")` per ottenere la chiave dinamicamente ad ogni richiesta (non piu' top-level statico).
 
-La query `get-settings` viene condivisa: una singola chiamata carica tutte le chiavi, evitando 3 richieste separate. La mutation `update-settings` resta identica (invia solo le chiavi modificate).
+### 3. `whatsapp-webhook/index.ts`
 
-### 3. Edge Functions Maps/WhatsApp — Fallback da DB (opzionale, fase successiva)
+**Prima** (righe 3-4):
+```typescript
+const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN")!;
+const APP_SECRET = Deno.env.get("META_APP_SECRET")!;
+```
 
-Analogamente a quanto fatto per Meta con `getMetaCredentials.ts`, le Edge Functions `maps-proxy`, `whatsapp-connect`, `whatsapp-webhook` e `whatsapp-status` potranno leggere prima da `platform_settings` e poi fare fallback su `Deno.env`. Questo e' un miglioramento incrementale che puo' essere fatto in un secondo momento senza bloccare la UI.
+**Dopo**: Rimuovere le costanti top-level. Dentro `Deno.serve`, caricare i valori dinamicamente:
+- GET (verifica webhook): `getPlatformSetting("whatsapp_verify_token", "WHATSAPP_VERIFY_TOKEN")`
+- POST (HMAC): usare `getMetaCredentials()` per `metaAppSecret` (riutilizza helper esistente)
 
-### 4. Nessuna migrazione DB necessaria
+### 4. `whatsapp-connect/index.ts`
 
-La tabella `platform_settings` e' gia' una key-value store generica. Le nuove chiavi (`google_maps_api_key`, `whatsapp_verify_token`) vengono semplicemente inserite come nuove righe, senza alterazioni di schema.
+**Prima** (riga 3):
+```typescript
+const APP_SECRET = Deno.env.get("META_APP_SECRET")!;
+```
+
+**Dopo**: Rimuovere la costante top-level. Dentro il handler, usare `getMetaCredentials()` per ottenere `metaAppSecret` (stesso pattern gia' usato per `meta-oauth-start` ecc.).
+
+### 5. `whatsapp-status/index.ts`
+
+Nessuna modifica necessaria: questa funzione non usa direttamente `META_APP_SECRET` ne' `WHATSAPP_VERIFY_TOKEN`. Usa solo il token di accesso specifico dell'azienda salvato in `messaging_whatsapp_config`.
 
 ---
 
-## Riepilogo file da modificare
+## Riepilogo file
 
-| File | Modifica |
-|------|----------|
-| `supabase/functions/manage-super-admins/index.ts` | Aggiungere chiavi a `get-settings` e `allowedKeys` in `update-settings`, mascherare le nuove chiavi |
-| `src/components/admin/settings/PlatformInfoTab.tsx` | Estrarre `ApiKeyCard` generico, aggiungere card Google Maps e WhatsApp |
+| File | Azione |
+|------|--------|
+| `supabase/functions/_shared/getPlatformSetting.ts` | **Nuovo** - helper generico per leggere una chiave da DB con fallback env |
+| `supabase/functions/maps-proxy/index.ts` | Sostituire `Deno.env.get` con `getPlatformSetting` |
+| `supabase/functions/whatsapp-webhook/index.ts` | Sostituire costanti top-level con lettura dinamica da DB |
+| `supabase/functions/whatsapp-connect/index.ts` | Sostituire `APP_SECRET` con `getMetaCredentials()` |
 
-## Sicurezza
-- Stesse protezioni della card Meta: RLS su `platform_settings`, verifica `super_admin`, audit trail, mascheramento secret
-- Nessuna nuova superficie di attacco
+## Sicurezza e retrocompatibilita'
+
+- Fallback a `Deno.env` garantisce che tutto funzioni anche senza configurazione da UI
+- Nessuna modifica alla tabella DB o alle RLS policy
+- Nessuna modifica al frontend
 
