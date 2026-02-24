@@ -50,6 +50,7 @@ export default function MarketingCalendarDayView({
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
   const slotInfo = getSlotHeight(slotDurationMinutes);
+  const pxPerMinute = slotInfo.px / slotDurationMinutes;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -68,7 +69,6 @@ export default function MarketingCalendarDayView({
     return map;
   }, [travelLegs]);
 
-  // Group appointments by their starting slot
   const getAppointmentsForSlot = (slotTime: string) => {
     const slotStart = timeToMin(slotTime);
     const slotEnd = slotStart + slotDurationMinutes;
@@ -79,17 +79,31 @@ export default function MarketingCalendarDayView({
     });
   };
 
-  // Calculate how many slots an appointment spans
-  const getSpanSlots = (apt: MarketingAppointment): number => {
-    if (!apt.appointment_time) return 1;
+  /** Get precise height in px based on actual duration */
+  const getHeightPx = (apt: MarketingAppointment): number | undefined => {
+    if (!apt.appointment_time) return undefined;
     const startMin = timeToMin(apt.appointment_time);
     if (apt.appointment_end_time) {
       const endMin = timeToMin(apt.appointment_end_time);
       if (endMin > startMin) {
-        return Math.max(1, Math.round((endMin - startMin) / slotDurationMinutes));
+        const durationMin = endMin - startMin;
+        const height = durationMin * pxPerMinute;
+        // Only return explicit height if it exceeds one slot
+        if (durationMin > slotDurationMinutes) return height;
+        return height;
       }
     }
-    return 1;
+    return undefined;
+  };
+
+  /** Get top offset within the slot in px */
+  const getTopOffsetPx = (apt: MarketingAppointment, slotTime: string): number => {
+    if (!apt.appointment_time) return 0;
+    const aptMin = timeToMin(apt.appointment_time);
+    const slotMin = timeToMin(slotTime);
+    const offset = aptMin - slotMin;
+    if (offset <= 0) return 0;
+    return offset * pxPerMinute;
   };
 
   const todayFlag = isToday(date);
@@ -161,8 +175,8 @@ export default function MarketingCalendarDayView({
                   {slotApts.map((apt) => {
                     const leg = travelLegMap[apt.id];
                     const hasNoCoords = apt.lat == null || apt.lng == null;
-                    const spanSlots = getSpanSlots(apt);
-                    const spanHeight = spanSlots > 1 ? spanSlots * slotInfo.px : undefined;
+                    const heightPx = getHeightPx(apt);
+                    const topOffset = getTopOffsetPx(apt, slotTime);
 
                     return (
                       <DraggableAppointment
@@ -172,9 +186,10 @@ export default function MarketingCalendarDayView({
                         slotDurationMinutes={slotDurationMinutes}
                         slotHeightPx={slotInfo.px}
                         startTime={apt.appointment_time?.slice(0, 5)}
-                        spanHeight={spanHeight}
+                        spanHeight={heightPx}
+                        topOffsetPx={topOffset}
                       >
-                        <div className={spanHeight ? "h-full relative" : undefined}>
+                        <div className="h-full relative">
                           {leg && (
                             <div
                               className={cn(
@@ -207,7 +222,7 @@ export default function MarketingCalendarDayView({
                             }}
                             className={cn(
                               "text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 mb-0.5",
-                              spanHeight ? "h-full overflow-hidden" : "",
+                              heightPx ? "h-full overflow-hidden" : "",
                               apt.is_blocked_slot
                                 ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
                                 : apt.calendar_id && colorMap[apt.calendar_id]
