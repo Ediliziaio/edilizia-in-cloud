@@ -1,70 +1,76 @@
 
 
-# Piano: Slot griglia dinamici in base alla durata del calendario
+# Piano: Fix click vs drag + Ridimensionamento appuntamenti
 
-## Situazione attuale
+## Problema 1: Click non apre il dialog di modifica
 
-- La griglia Day/Week usa `HALF_HOURS` fisso (slot da 30 min)
-- I calendari hanno un campo `duration_minutes` (es. 60 min = 1 ora, 30 min, ecc.)
-- Gli appuntamenti si possono creare a qualsiasi orario libero (input manuale)
-- Il drag & drop invece "snappa" sullo slot della griglia
+**Causa**: Il componente `DraggableAppointment` applica `{...listeners}` direttamente sul wrapper, intercettando tutti gli eventi mouse (compreso il click). Un click rapido viene interpretato come drag start/end e l'`onClick` interno non viene mai raggiunto.
 
-## Cosa cambia
+**Soluzione**: Usare `PointerSensor` con `activationConstraint: { distance: 5 }` nel `DndContext`. Così il drag si attiva solo se il mouse si muove di almeno 5px — un click rapido passa attraverso normalmente.
 
-Il drag & drop e la griglia devono adattarsi alla durata del calendario selezionato:
-- Se il calendario ha `duration_minutes = 60` → slot da 1 ora (griglia `h-16`)
-- Se `duration_minutes = 30` → slot da 30 min (griglia `h-8`)
-- Se più calendari sono selezionati con durate diverse → usa il minimo (slot più granulare)
+File coinvolti:
+- `MarketingCalendarDayView.tsx` — aggiungere `useSensors` con `PointerSensor` e `distance: 5`
+- `MarketingCalendarWeekView.tsx` — stessa modifica
+- `MarketingCalendarMonthView.tsx` — stessa modifica
 
-## Interventi
+## Problema 2: Ridimensionamento appuntamenti (durata)
 
-### 1. `marketingCalendarConstants.ts` — funzione generatrice dinamica
+**Obiettivo**: Trascinando il bordo inferiore di un appuntamento si modifica `appointment_end_time`.
 
-Aggiungere:
-```typescript
-export function buildTimeSlots(slotMinutes: number): string[] {
-  const slots: string[] = [];
-  for (let m = 8 * 60; m < 22 * 60; m += slotMinutes) {
-    const h = Math.floor(m / 60);
-    const min = m % 60;
-    slots.push(`${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
-  }
-  return slots;
-}
+**Approccio**: Aggiungere un handle di resize sul bordo inferiore della pill. Al mousedown sull'handle, tracciare il movimento verticale e calcolare il nuovo `appointment_end_time` in base alla griglia degli slot. Al mouseup, salvare su DB.
+
+### Dettaglio implementazione
+
+**Prerequisito**: Gli appuntamenti devono occupare visivamente più righe se la loro durata copre più slot. Attualmente ogni appuntamento è mostrato solo nello slot del suo `appointment_time`. Serve calcolare l'altezza in base a `appointment_time` → `appointment_end_time`.
+
+### Modifiche componenti
+
+**`DraggableAppointment.tsx`** — Aggiungere:
+- Prop `onResize: (id: string, newEndTime: string) => void`
+- Prop `slotDurationMinutes: number`
+- Prop `slotHeightPx: number` (altezza in px di uno slot per calcolo proporzionale)
+- Un div handle `.resize-handle` posizionato sul bordo inferiore (`cursor-s-resize`, `h-1.5`)
+- Logica mousedown/mousemove/mouseup sull'handle per calcolare il delta in minuti e il nuovo end time
+- L'handle non propaga l'evento al drag (stopPropagation)
+
+**`MarketingCalendarDayView.tsx`** e **`MarketingCalendarWeekView.tsx`**:
+- Calcolare l'altezza visiva dell'appuntamento: `spanSlots = (endMin - startMin) / slotDurationMinutes`, poi `height = spanSlots * slotHeightPx`
+- Posizionare l'appuntamento con `position: absolute` dentro lo slot, con `top` calcolato dall'offset e `height` dalla durata
+- Lo slot droppable diventa `position: relative` per contenere gli appuntamenti posizionati
+- Nuova prop `onResizeAppointment: (id: string, newEndTime: string) => void`
+
+**`MarketingCalendar.tsx`**:
+- Nuova funzione `handleResizeAppointment(id, newEndTime)`:
+  - Update su DB: `supabase.from("appointments").update({ appointment_end_time: newEndTime }).eq("id", id)`
+  - Toast di conferma
+  - `refetchAppointments()`
+- Passare `onResizeAppointment` alle viste Day e Week
+
+### Struttura visiva
+
+```text
+Prima (ogni apt in 1 slot):
+  09:00  ▏ [Apt A - 09:00]
+  09:30  ▏ 
+  10:00  ▏ [Apt B - 10:00]
+
+Dopo (apt con altezza proporzionale):
+  09:00  ▏ ┌─ Apt A ──────────┐
+  09:30  ▏ │                  │
+  10:00  ▏ └──── ═══ resize ──┘  ← handle
+         ▏ ┌─ Apt B ──────────┐
+  10:30  ▏ └──── ═══ resize ──┘
 ```
-
-Mantenere `HALF_HOURS` e `HOURS` per retrocompatibilità.
-
-### 2. `MarketingCalendar.tsx` — calcolo `slotDurationMinutes`
-
-- Calcolare `slotDurationMinutes` dal minimo dei `duration_minutes` dei calendari selezionati (default 30 se nessuno selezionato)
-- Passare `slotDurationMinutes` come prop a `DayView` e `WeekView`
-
-### 3. `MarketingCalendarDayView.tsx` — slot dinamici
-
-- Nuova prop `slotDurationMinutes: number`
-- Usare `buildTimeSlots(slotDurationMinutes)` al posto di `HALF_HOURS`
-- Altezza slot: `h-16` per 60 min, `h-8` per 30 min, `h-6` per 15 min (proporzionale)
-- `getAppointmentsForSlot` usa `slotDurationMinutes` come range
-- Label laterale: mostra orario su ogni slot (per 60 min) o solo su `:00` (per 30 min)
-
-### 4. `MarketingCalendarWeekView.tsx` — stessa logica
-
-- Nuova prop `slotDurationMinutes: number`
-- Stessa logica del DayView: slot dinamici, altezza proporzionale
-
-### 5. Nessuna modifica alla creazione/modifica appuntamenti
-
-Gli appuntamenti continuano a poter essere creati a qualsiasi orario (input libero nel dialog). Solo la griglia di visualizzazione e il drag & drop usano gli slot.
 
 ## File coinvolti
 
 | File | Azione |
 |------|--------|
-| `src/lib/marketingCalendarConstants.ts` | Aggiunta `buildTimeSlots()` |
-| `src/components/marketing/MarketingCalendarDayView.tsx` | Prop `slotDurationMinutes`, slot dinamici |
-| `src/components/marketing/MarketingCalendarWeekView.tsx` | Prop `slotDurationMinutes`, slot dinamici |
-| `src/pages/azienda/marketing/MarketingCalendar.tsx` | Calcolo e passaggio `slotDurationMinutes` |
+| `src/components/marketing/DraggableAppointment.tsx` | Aggiunta handle resize + logica mouse tracking |
+| `src/components/marketing/MarketingCalendarDayView.tsx` | `useSensors` con distance, appuntamenti con altezza proporzionale, prop `onResizeAppointment` |
+| `src/components/marketing/MarketingCalendarWeekView.tsx` | Stesse modifiche del DayView |
+| `src/components/marketing/MarketingCalendarMonthView.tsx` | Solo `useSensors` con distance (no resize nella vista mese) |
+| `src/pages/azienda/marketing/MarketingCalendar.tsx` | Nuova `handleResizeAppointment` + passaggio prop |
 
-Nessuna modifica DB. Nessuna modifica backend.
+Nessuna modifica DB (il campo `appointment_end_time` esiste già nella tabella `appointments`).
 
