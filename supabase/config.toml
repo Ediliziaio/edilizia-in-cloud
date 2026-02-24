@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.meta-health-check]
 verify_jwt = false
+
+[functions.suggest-calendars]
+verify_jwt = false
