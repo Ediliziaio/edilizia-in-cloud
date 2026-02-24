@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Wand2 } from "lucide-react";
+import { Loader2, Wand2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { CRM_STANDARD_FIELDS } from "@/types/integrations";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -35,6 +35,19 @@ const AUTO_MAP: Record<string, string> = {
   company_name: "company_name",
 };
 
+const EXAMPLE_VALUES: Record<string, string> = {
+  full_name: "Mario Rossi",
+  first_name: "Mario",
+  last_name: "Rossi",
+  email: "mario.rossi@email.it",
+  phone_number: "+39 333 1234567",
+  city: "Roma",
+  street_address: "Via Roma 1",
+  zip: "00100",
+  state: "RM",
+  company_name: "Rossi Srl",
+};
+
 export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
   const { callProxy, mappings, saveMapping } = hook;
   const { effectiveCompany } = useAuth();
@@ -51,6 +64,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
   const [tags, setTags] = useState("");
   const [loading, setLoading] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   // Fetch pipelines
   const { data: pipelines = [] } = useQuery({
@@ -103,7 +117,6 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
   }, [formId]);
 
   useEffect(() => {
-    // Load existing mapping
     const existing = mappings.find((m: any) => m.form_id === formId);
     if (existing?.rules) {
       const r = existing.rules as any;
@@ -129,7 +142,6 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
       }));
       setQuestions(qs);
 
-      // Auto-map if no existing mapping
       const existing = mappings.find((m: any) => m.form_id === formId);
       if (!existing?.rules?.field_map) {
         const autoMap: Record<string, string> = {};
@@ -174,6 +186,29 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
     });
   };
 
+  // Build preview data
+  const buildPreview = () => {
+    const contact: Record<string, string> = {};
+    const unmapped: string[] = [];
+    const selectedPipeline = pipelines.find((p: any) => p.id === pipelineId);
+    const selectedStage = stages.find((s: any) => s.id === stageId);
+
+    for (const q of questions) {
+      const crmField = fieldMap[q.key];
+      const exampleVal = EXAMPLE_VALUES[q.key] || `Valore ${q.label}`;
+      if (crmField) {
+        const crmLabel = allCrmFields.find((f) => f.key === crmField)?.label || crmField;
+        contact[crmLabel] = exampleVal;
+      } else {
+        unmapped.push(q.label);
+      }
+    }
+    contact["Fonte"] = source;
+    if (tags.trim()) contact["Tag"] = tags;
+
+    return { contact, unmapped, pipeline: selectedPipeline?.name, stage: selectedStage?.name };
+  };
+
   if (loading) {
     return (
       <div className="text-center py-8">
@@ -182,6 +217,8 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
       </div>
     );
   }
+
+  const preview = previewOpen ? buildPreview() : null;
 
   return (
     <div className="space-y-4">
@@ -230,6 +267,45 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
           </div>
         ))}
       </div>
+
+      {/* Preview mapping */}
+      <Collapsible open={previewOpen} onOpenChange={setPreviewOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" size="sm" className="text-xs gap-1">
+            <Eye className="h-3 w-3" />
+            Anteprima risultato
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          {preview && (
+            <div className="border rounded-lg p-3 bg-muted/30 space-y-3 text-sm">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Contatto risultante:</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  {Object.entries(preview.contact).map(([key, val]) => (
+                    <div key={key} className="contents">
+                      <span className="text-xs text-muted-foreground">{key}</span>
+                      <span className="text-xs font-medium">{val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {preview.pipeline && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Opportunità:</p>
+                  <p className="text-xs">Pipeline: <span className="font-medium">{preview.pipeline}</span></p>
+                  {preview.stage && <p className="text-xs">Fase: <span className="font-medium">{preview.stage}</span></p>}
+                </div>
+              )}
+              {preview.unmapped.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Campi non mappati: {preview.unmapped.join(", ")}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Advanced settings */}
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
