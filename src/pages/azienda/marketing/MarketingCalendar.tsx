@@ -366,10 +366,10 @@ export default function MarketingCalendar() {
     return format(currentDate, "MMMM yyyy", { locale: it });
   }, [calendarView, currentDate, weekStart]);
 
-  const openNewDialog = (date?: Date, hour?: number) => {
+  const openNewDialog = (date?: Date, hour?: number, minute?: number) => {
     setEditingAppointment(null);
     setDefaultDate(date ? format(date, "yyyy-MM-dd") : undefined);
-    setDefaultTime(hour !== undefined ? `${String(hour).padStart(2, "0")}:00` : undefined);
+    setDefaultTime(hour !== undefined ? `${String(hour).padStart(2, "0")}:${String(minute ?? 0).padStart(2, "0")}` : undefined);
     setDialogOpen(true);
   };
 
@@ -405,13 +405,15 @@ export default function MarketingCalendar() {
 
   // ── Drag & Drop handler ──
   const handleDropAppointment = useCallback(async (appointmentId: string, newDate: string, newTime?: string) => {
-    // Find current appointment to check if anything changed
     const current = appointments.find((a: any) => a.id === appointmentId);
     if (current) {
       const sameDate = current.appointment_date === newDate;
       const sameTime = !newTime || (current.appointment_time?.slice(0, 5) === newTime.slice(0, 5));
-      if (sameDate && sameTime) return; // No change
+      if (sameDate && sameTime) return;
     }
+
+    const oldDate = current?.appointment_date;
+    const oldTime = current?.appointment_time;
 
     const updateData: Record<string, string> = { appointment_date: newDate };
     if (newTime) updateData.appointment_time = newTime;
@@ -427,7 +429,26 @@ export default function MarketingCalendar() {
     }
 
     const label = newTime ? `${newDate} alle ${newTime}` : newDate;
-    toast.success(`Appuntamento spostato al ${label}`);
+    toast.success(`Appuntamento spostato al ${label}`, {
+      action: {
+        label: "Annulla",
+        onClick: async () => {
+          const rollback: Record<string, string> = {};
+          if (oldDate) rollback.appointment_date = oldDate;
+          if (oldTime) rollback.appointment_time = oldTime;
+          const { error: undoError } = await supabase
+            .from("appointments")
+            .update(rollback)
+            .eq("id", appointmentId);
+          if (undoError) {
+            toast.error("Errore nell'annullamento");
+          } else {
+            toast.info("Spostamento annullato");
+            refetchAppointments();
+          }
+        },
+      },
+    });
     refetchAppointments();
   }, [appointments, refetchAppointments]);
 
@@ -521,7 +542,7 @@ export default function MarketingCalendar() {
                 appointments={filteredAppointments}
                 calendarIds={calendars.map((c) => c.id)}
                 onClickAppointment={openEditDialog}
-                onClickSlot={(date, hour) => openNewDialog(date, hour)}
+                onClickSlot={(date, hour, minute) => openNewDialog(date, hour, minute)}
                 travelLegs={weekTravelLegs}
                 onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
               />
@@ -532,7 +553,7 @@ export default function MarketingCalendar() {
                 appointments={filteredAppointments}
                 calendarIds={calendars.map((c) => c.id)}
                 onClickAppointment={openEditDialog}
-                onClickSlot={(date, hour) => openNewDialog(date, hour)}
+                onClickSlot={(date, hour, minute) => openNewDialog(date, hour, minute)}
                 travelLegs={travelLegs}
                 onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
               />

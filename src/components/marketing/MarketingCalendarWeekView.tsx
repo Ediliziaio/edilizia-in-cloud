@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
-import { HOURS, buildColorMap } from "@/lib/marketingCalendarConstants";
+import { HALF_HOURS, buildColorMap } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
 
@@ -15,7 +15,7 @@ interface Props {
   appointments: MarketingAppointment[];
   calendarIds: string[];
   onClickAppointment: (apt: MarketingAppointment) => void;
-  onClickSlot: (date: Date, hour: number) => void;
+  onClickSlot: (date: Date, hour: number, minute?: number) => void;
   travelLegs?: Record<string, TravelLeg[]>;
   onDropAppointment?: (id: string, newDate: string, newTime: string) => void;
 }
@@ -48,13 +48,18 @@ export default function MarketingCalendarWeekView({
     return maps;
   }, [travelLegs]);
 
-  const getAppointmentsForSlot = (day: Date, hour: number) =>
-    appointments.filter((a) => {
+  const getAppointmentsForSlot = (day: Date, slotTime: string) => {
+    const [slotH, slotM] = slotTime.split(":").map(Number);
+    const slotStart = slotH * 60 + slotM;
+    const slotEnd = slotStart + 30;
+    return appointments.filter((a) => {
       if (!isSameDay(parseISO(a.appointment_date), day)) return false;
-      if (!a.appointment_time) return hour === 9;
-      const h = parseInt(a.appointment_time.split(":")[0], 10);
-      return h === hour;
+      if (!a.appointment_time) return slotTime === "09:00";
+      const [ah, am] = a.appointment_time.split(":").map(Number);
+      const aptMin = ah * 60 + (am || 0);
+      return aptMin >= slotStart && aptMin < slotEnd;
     });
+  };
 
   const today = new Date();
 
@@ -70,12 +75,9 @@ export default function MarketingCalendarWeekView({
     const aptId = (active.id as string).replace("apt-", "");
     const overId = over.id as string;
     if (!overId.startsWith("slot-")) return;
-    // slot-YYYY-MM-DD-HH
-    const match = overId.match(/^slot-(\d{4}-\d{2}-\d{2})-(\d+)$/);
+    const match = overId.match(/^slot-(\d{4}-\d{2}-\d{2})-(\d{2}:\d{2})$/);
     if (!match) return;
-    const newDate = match[1];
-    const newTime = `${match[2].padStart(2, "0")}:00`;
-    onDropAppointment(aptId, newDate, newTime);
+    onDropAppointment(aptId, match[1], match[2]);
   };
 
   return (
@@ -110,104 +112,111 @@ export default function MarketingCalendarWeekView({
 
           {/* Grid */}
           <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))]">
-            {HOURS.map((hour) => (
-              <div key={hour} className="contents">
-                <div className="p-1 pr-2 text-right text-xs text-muted-foreground border-r h-16 flex items-start justify-end pt-0">
-                  <span className="-mt-2">{String(hour).padStart(2, "0")}:00</span>
-                </div>
-                {days.map((day) => {
-                  const slotApts = getAppointmentsForSlot(day, hour);
-                  const dateKey = format(day, "yyyy-MM-dd");
-                  const dayLegMap = travelLegMaps[dateKey] || {};
+            {HALF_HOURS.map((slotTime) => {
+              const isHour = slotTime.endsWith(":00");
+              const [h, m] = slotTime.split(":").map(Number);
+              return (
+                <div key={slotTime} className="contents">
+                  <div className={cn(
+                    "p-1 pr-2 text-right text-xs text-muted-foreground border-r h-8 flex items-start justify-end pt-0",
+                  )}>
+                    {isHour && <span className="-mt-2">{slotTime}</span>}
+                  </div>
+                  {days.map((day) => {
+                    const slotApts = getAppointmentsForSlot(day, slotTime);
+                    const dateKey = format(day, "yyyy-MM-dd");
+                    const dayLegMap = travelLegMaps[dateKey] || {};
 
-                  return (
-                    <DroppableSlot
-                      key={`${day.toISOString()}-${hour}`}
-                      id={`slot-${dateKey}-${hour}`}
-                      className={cn(
-                        "border-b border-r last:border-r-0 h-16 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors relative min-w-0",
-                        isSameDay(day, today) && "bg-primary/[0.02]"
-                      )}
-                      onClick={() => onClickSlot(day, hour)}
-                    >
-                      {slotApts.map((apt) => {
-                        const leg = dayLegMap[apt.id];
-                        const hasNoCoords = apt.lat == null || apt.lng == null;
+                    return (
+                      <DroppableSlot
+                        key={`${dateKey}-${slotTime}`}
+                        id={`slot-${dateKey}-${slotTime}`}
+                        className={cn(
+                          "border-r last:border-r-0 h-8 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors relative min-w-0",
+                          isHour ? "border-b" : "border-b border-dashed border-border/40",
+                          isSameDay(day, today) && "bg-primary/[0.02]"
+                        )}
+                        onClick={() => onClickSlot(day, h, m)}
+                      >
+                        {slotApts.map((apt) => {
+                          const leg = dayLegMap[apt.id];
+                          const hasNoCoords = apt.lat == null || apt.lng == null;
 
-                        const tooltipLines: string[] = [apt.title];
-                        if (apt.appointment_time) tooltipLines.unshift(apt.appointment_time.slice(0, 5));
-                        if (apt.formatted_address) tooltipLines.push(apt.formatted_address);
-                        if (leg) {
-                          tooltipLines.push(`${leg.duration_text} • ${leg.distance_text}`);
-                          if (leg.isLate) tooltipLines.push(`Ritardo stimato: +${leg.delayMinutes} min`);
-                        }
-                        if (hasNoCoords && !apt.is_blocked_slot && !leg) {
-                          tooltipLines.push("Indirizzo mancante");
-                        }
+                          const tooltipLines: string[] = [apt.title];
+                          if (apt.appointment_time) tooltipLines.unshift(apt.appointment_time.slice(0, 5));
+                          if (apt.formatted_address) tooltipLines.push(apt.formatted_address);
+                          if (leg) {
+                            tooltipLines.push(`${leg.duration_text} • ${leg.distance_text}`);
+                            if (leg.isLate) tooltipLines.push(`Ritardo stimato: +${leg.delayMinutes} min`);
+                          }
+                          if (hasNoCoords && !apt.is_blocked_slot && !leg) {
+                            tooltipLines.push("Indirizzo mancante");
+                          }
 
-                        return (
-                          <DraggableAppointment key={apt.id} appointment={apt}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onClickAppointment(apt);
-                                  }}
-                                  className={cn(
-                                    "flex items-center gap-1 text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 cursor-pointer hover:opacity-80 mb-0.5 min-w-0",
-                                    apt.is_blocked_slot
-                                      ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
-                                      : apt.calendar_id && colorMap[apt.calendar_id]
-                                        ? colorMap[apt.calendar_id]
-                                        : "bg-muted border-muted-foreground/40 text-foreground"
-                                  )}
-                                >
-                                  {hasNoCoords && !apt.is_blocked_slot && !leg && (
-                                    <MapPinOff className="h-2.5 w-2.5 shrink-0 text-yellow-600 dark:text-yellow-400" />
-                                  )}
-                                  <span className="truncate">
-                                    {apt.appointment_time && (
-                                      <span className="font-medium">{apt.appointment_time.slice(0, 5)} </span>
+                          return (
+                            <DraggableAppointment key={apt.id} appointment={apt}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onClickAppointment(apt);
+                                    }}
+                                    className={cn(
+                                      "flex items-center gap-1 text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 cursor-pointer hover:opacity-80 mb-0.5 min-w-0",
+                                      apt.is_blocked_slot
+                                        ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
+                                        : apt.calendar_id && colorMap[apt.calendar_id]
+                                          ? colorMap[apt.calendar_id]
+                                          : "bg-muted border-muted-foreground/40 text-foreground"
                                     )}
-                                    {apt.title}
-                                  </span>
-                                  {leg && (
-                                    <span
-                                      className={cn(
-                                        "ml-auto shrink-0 flex items-center gap-0.5 text-[9px] leading-none px-1 py-px rounded",
-                                        leg.isLate
-                                          ? "bg-destructive/15 text-destructive"
-                                          : "bg-muted/80 text-muted-foreground"
+                                  >
+                                    {hasNoCoords && !apt.is_blocked_slot && !leg && (
+                                      <MapPinOff className="h-2.5 w-2.5 shrink-0 text-yellow-600 dark:text-yellow-400" />
+                                    )}
+                                    <span className="truncate">
+                                      {apt.appointment_time && (
+                                        <span className="font-medium">{apt.appointment_time.slice(0, 5)} </span>
                                       )}
-                                    >
-                                      {leg.isLate ? (
-                                        <AlertTriangle className="h-2.5 w-2.5" />
-                                      ) : (
-                                        <Car className="h-2.5 w-2.5" />
-                                      )}
-                                      {leg.duration_text}
+                                      {apt.title}
                                     </span>
-                                  )}
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs max-w-[250px]">
-                                {tooltipLines.map((line, i) => (
-                                  <p key={i} className={cn(
-                                    i === 0 && "font-medium",
-                                    line.startsWith("Ritardo") && "text-destructive font-medium"
-                                  )}>{line}</p>
-                                ))}
-                              </TooltipContent>
-                            </Tooltip>
-                          </DraggableAppointment>
-                        );
-                      })}
-                    </DroppableSlot>
-                  );
-                })}
-              </div>
-            ))}
+                                    {leg && (
+                                      <span
+                                        className={cn(
+                                          "ml-auto shrink-0 flex items-center gap-0.5 text-[9px] leading-none px-1 py-px rounded",
+                                          leg.isLate
+                                            ? "bg-destructive/15 text-destructive"
+                                            : "bg-muted/80 text-muted-foreground"
+                                        )}
+                                      >
+                                        {leg.isLate ? (
+                                          <AlertTriangle className="h-2.5 w-2.5" />
+                                        ) : (
+                                          <Car className="h-2.5 w-2.5" />
+                                        )}
+                                        {leg.duration_text}
+                                      </span>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs max-w-[250px]">
+                                  {tooltipLines.map((line, i) => (
+                                    <p key={i} className={cn(
+                                      i === 0 && "font-medium",
+                                      line.startsWith("Ritardo") && "text-destructive font-medium"
+                                    )}>{line}</p>
+                                  ))}
+                                </TooltipContent>
+                              </Tooltip>
+                            </DraggableAppointment>
+                          );
+                        })}
+                      </DroppableSlot>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -5,7 +5,7 @@ import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from 
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
-import { HOURS, buildColorMap } from "@/lib/marketingCalendarConstants";
+import { HALF_HOURS, buildColorMap } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
 
@@ -14,7 +14,7 @@ interface Props {
   appointments: MarketingAppointment[];
   calendarIds: string[];
   onClickAppointment: (apt: MarketingAppointment) => void;
-  onClickSlot: (date: Date, hour: number) => void;
+  onClickSlot: (date: Date, hour: number, minute?: number) => void;
   travelLegs?: TravelLeg[];
   onDropAppointment?: (id: string, newDate: string, newTime: string) => void;
 }
@@ -44,11 +44,17 @@ export default function MarketingCalendarDayView({
     return map;
   }, [travelLegs]);
 
-  const getAppointmentsForHour = (hour: number) =>
-    dayAppointments.filter((a) => {
-      if (!a.appointment_time) return hour === 9;
-      return parseInt(a.appointment_time.split(":")[0], 10) === hour;
+  const getAppointmentsForSlot = (slotTime: string) => {
+    const [slotH, slotM] = slotTime.split(":").map(Number);
+    const slotStart = slotH * 60 + slotM;
+    const slotEnd = slotStart + 30;
+    return dayAppointments.filter((a) => {
+      if (!a.appointment_time) return slotTime === "09:00";
+      const [ah, am] = a.appointment_time.split(":").map(Number);
+      const aptMin = ah * 60 + (am || 0);
+      return aptMin >= slotStart && aptMin < slotEnd;
     });
+  };
 
   const todayFlag = isToday(date);
   const dateStr = format(date, "yyyy-MM-dd");
@@ -65,10 +71,9 @@ export default function MarketingCalendarDayView({
     const aptId = (active.id as string).replace("apt-", "");
     const overId = over.id as string;
     if (!overId.startsWith("slot-")) return;
-    const parts = overId.split("-");
-    const hour = parts[parts.length - 1];
-    const newTime = `${hour.padStart(2, "0")}:00`;
-    onDropAppointment(aptId, dateStr, newTime);
+    const match = overId.match(/^slot-\d{4}-\d{2}-\d{2}-(\d{2}:\d{2})$/);
+    if (!match) return;
+    onDropAppointment(aptId, dateStr, match[1]);
   };
 
   return (
@@ -94,20 +99,25 @@ export default function MarketingCalendarDayView({
 
         {/* Grid */}
         <div className="grid grid-cols-[60px_1fr]">
-          {HOURS.map((hour) => {
-            const slotApts = getAppointmentsForHour(hour);
+          {HALF_HOURS.map((slotTime) => {
+            const isHour = slotTime.endsWith(":00");
+            const [h, m] = slotTime.split(":").map(Number);
+            const slotApts = getAppointmentsForSlot(slotTime);
             return (
-              <div key={hour} className="contents">
-                <div className="p-1 pr-2 text-right text-xs text-muted-foreground border-r h-16 flex items-start justify-end pt-0">
-                  <span className="-mt-2">{String(hour).padStart(2, "0")}:00</span>
+              <div key={slotTime} className="contents">
+                <div className={cn(
+                  "p-1 pr-2 text-right text-xs text-muted-foreground border-r h-8 flex items-start justify-end pt-0",
+                )}>
+                  {isHour && <span className="-mt-2">{slotTime}</span>}
                 </div>
                 <DroppableSlot
-                  id={`slot-${dateStr}-${hour}`}
+                  id={`slot-${dateStr}-${slotTime}`}
                   className={cn(
-                    "border-b h-16 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors",
+                    "h-8 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors",
+                    isHour ? "border-b" : "border-b border-dashed border-border/40",
                     todayFlag && "bg-primary/[0.02]"
                   )}
-                  onClick={() => onClickSlot(date, hour)}
+                  onClick={() => onClickSlot(date, h, m)}
                 >
                   {slotApts.map((apt) => {
                     const leg = travelLegMap[apt.id];
@@ -116,7 +126,6 @@ export default function MarketingCalendarDayView({
                     return (
                       <DraggableAppointment key={apt.id} appointment={apt}>
                         <div>
-                          {/* Travel time pill before appointment */}
                           {leg && (
                             <div
                               className={cn(
@@ -136,14 +145,12 @@ export default function MarketingCalendarDayView({
                               )}
                             </div>
                           )}
-                          {/* Missing address badge */}
                           {hasNoCoords && !apt.is_blocked_slot && (
                             <div className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded mb-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-700">
                               <MapPinOff className="h-3 w-3" />
                               <span>Indirizzo mancante</span>
                             </div>
                           )}
-                          {/* Appointment block */}
                           <div
                             onClick={(e) => {
                               e.stopPropagation();

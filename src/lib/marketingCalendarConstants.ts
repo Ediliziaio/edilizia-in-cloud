@@ -9,6 +9,11 @@ export const CALENDAR_COLORS = [
 
 export const HOURS = Array.from({ length: 14 }, (_, i) => i + 8);
 
+export const HALF_HOURS: string[] = HOURS.flatMap((h) => [
+  `${String(h).padStart(2, "0")}:00`,
+  `${String(h).padStart(2, "0")}:30`,
+]);
+
 export function buildColorMap(calendarIds: string[]): Record<string, string> {
   const map: Record<string, string> = {};
   calendarIds.forEach((id, i) => {
