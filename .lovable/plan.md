@@ -1,82 +1,65 @@
 
 
-# Implementazione Fallback DB per maps-proxy e whatsapp-*
+# Correzione Label Audit Log + Filtri Data e Ricerca
 
-## Stato attuale
+## Analisi stato attuale
 
-Le card UI e le chiavi consentite nell'edge function `manage-super-admins` sono gia' implementate correttamente. Manca solo il fallback da DB (come `getMetaCredentials.ts`) per le seguenti Edge Functions:
+**AuditLogTab.tsx** (Super Admin):
+- Manca la label `update_platform_settings` nel dizionario `actionLabels` — quando l'azione viene registrata, appare il testo raw
+- Nessun filtro per intervallo date
+- Nessuna ricerca testuale (per admin o dettaglio)
+- Stesse lacune nel **CompanyActivityLogTab.tsx** (lato azienda) per coerenza
 
-| Edge Function | Chiave(i) da leggere da DB | Attuale sorgente |
-|---|---|---|
-| `maps-proxy` | `google_maps_api_key` | `Deno.env.get("GOOGLE_MAPS_API_KEY")` (riga 39) |
-| `whatsapp-webhook` | `whatsapp_verify_token`, `meta_app_secret` | `Deno.env.get` top-level (righe 3-4) |
-| `whatsapp-connect` | `meta_app_secret` | `Deno.env.get("META_APP_SECRET")` (riga 3) |
-| `whatsapp-status` | Nessuna chiave piattaforma diretta | Nessuna modifica necessaria |
+**Componente riutilizzabile disponibile**: `DateRangeFilter` gia' esiste in `src/components/orders/DateRangeFilter.tsx` con filtri rapidi (oggi, settimana, mese) e doppio calendario.
 
 ## Modifiche
 
-### 1. Nuovo helper: `_shared/getPlatformSetting.ts`
+### 1. `AuditLogTab.tsx` — Label + filtri data + ricerca
 
-Funzione generica riutilizzabile che legge una singola chiave da `platform_settings` con fallback a env:
-
-```typescript
-export async function getPlatformSetting(key: string, envFallback?: string): Promise<string>
+**Label mancanti da aggiungere**:
+```
+update_platform_settings → "Modifica Impostazioni"  (color: "outline")
+update_settings          → "Modifica Impostazioni"  (color: "outline")
 ```
 
-- Crea un client service_role
-- Query `platform_settings` per la chiave
-- Se trovata, restituisce il valore
-- Altrimenti fallback a `Deno.env.get(envFallback || key.toUpperCase())`
-- Gestisce errori con `console.warn` e fallback silenzioso
+**Nuovi state**:
+- `searchQuery: string` — ricerca libera su nome admin o dettaglio
+- `dateRange: { from: Date | undefined, to: Date | undefined }` — intervallo date
 
-### 2. `maps-proxy/index.ts`
+**Query**: aggiungere filtri condizionali:
+- `dateRange.from` → `.gte("created_at", dateRange.from.toISOString())`
+- `dateRange.to` → `.lte("created_at", dateRange.to.toISOString())`
+- La ricerca testuale viene applicata client-side (filtra `profiles[log.user_id]` e `details` sui risultati della pagina), poiche' il campo admin e' risolto post-query. In alternativa, se le performance lo richiedono, si puo' usare `.ilike()` sulla colonna `details` come filtro parziale server-side.
 
-**Prima** (riga 39):
-```typescript
-const GOOGLE_MAPS_API_KEY = Deno.env.get("GOOGLE_MAPS_API_KEY");
-```
+**UI**: barra filtri sotto l'header con:
+- `Input` con icona `Search` per la ricerca
+- `DateRangeFilter` (riutilizzato da orders) per l'intervallo date
+- Il `Select` azione gia' esistente resta invariato
 
-**Dopo**: Spostare la lettura dentro `Deno.serve`, chiamare `getPlatformSetting("google_maps_api_key", "GOOGLE_MAPS_API_KEY")` per ottenere la chiave dinamicamente ad ogni richiesta (non piu' top-level statico).
+**queryKey** aggiornata per includere `searchQuery` e `dateRange`.
 
-### 3. `whatsapp-webhook/index.ts`
+### 2. `CompanyActivityLogTab.tsx` — Stesse migliorie per coerenza
 
-**Prima** (righe 3-4):
-```typescript
-const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN")!;
-const APP_SECRET = Deno.env.get("META_APP_SECRET")!;
-```
+Applicare le stesse modifiche:
+- Aggiungere eventuali label mancanti
+- Aggiungere ricerca testuale e filtro date
+- Riutilizzare `DateRangeFilter`
 
-**Dopo**: Rimuovere le costanti top-level. Dentro `Deno.serve`, caricare i valori dinamicamente:
-- GET (verifica webhook): `getPlatformSetting("whatsapp_verify_token", "WHATSAPP_VERIFY_TOKEN")`
-- POST (HMAC): usare `getMetaCredentials()` per `metaAppSecret` (riutilizza helper esistente)
+### 3. Nessuna migrazione DB necessaria
 
-### 4. `whatsapp-connect/index.ts`
-
-**Prima** (riga 3):
-```typescript
-const APP_SECRET = Deno.env.get("META_APP_SECRET")!;
-```
-
-**Dopo**: Rimuovere la costante top-level. Dentro il handler, usare `getMetaCredentials()` per ottenere `metaAppSecret` (stesso pattern gia' usato per `meta-oauth-start` ecc.).
-
-### 5. `whatsapp-status/index.ts`
-
-Nessuna modifica necessaria: questa funzione non usa direttamente `META_APP_SECRET` ne' `WHATSAPP_VERIFY_TOKEN`. Usa solo il token di accesso specifico dell'azienda salvato in `messaging_whatsapp_config`.
+La tabella `admin_audit_log` ha gia' la colonna `created_at` con indice implicito (PK + order). Le query con `.gte`/`.lte` su `created_at` sono efficienti.
 
 ---
 
-## Riepilogo file
+## Riepilogo file da modificare
 
-| File | Azione |
-|------|--------|
-| `supabase/functions/_shared/getPlatformSetting.ts` | **Nuovo** - helper generico per leggere una chiave da DB con fallback env |
-| `supabase/functions/maps-proxy/index.ts` | Sostituire `Deno.env.get` con `getPlatformSetting` |
-| `supabase/functions/whatsapp-webhook/index.ts` | Sostituire costanti top-level con lettura dinamica da DB |
-| `supabase/functions/whatsapp-connect/index.ts` | Sostituire `APP_SECRET` con `getMetaCredentials()` |
+| File | Modifica |
+|------|----------|
+| `src/components/admin/settings/AuditLogTab.tsx` | Aggiungere label `update_platform_settings`, filtro date con `DateRangeFilter`, input ricerca |
+| `src/components/settings/CompanyActivityLogTab.tsx` | Stesse migliorie per coerenza |
 
 ## Sicurezza e retrocompatibilita'
-
-- Fallback a `Deno.env` garantisce che tutto funzioni anche senza configurazione da UI
-- Nessuna modifica alla tabella DB o alle RLS policy
-- Nessuna modifica al frontend
+- Nessuna nuova superficie di attacco
+- I filtri sono additivi: senza valori, il comportamento e' identico a prima
+- La ricerca client-side non espone dati aggiuntivi (opera sui risultati gia' paginati)
 
