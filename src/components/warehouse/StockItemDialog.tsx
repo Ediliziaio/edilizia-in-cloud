@@ -23,7 +23,7 @@ import { VAT_RATES } from "@/lib/vatUtils";
 import type { StockItem } from "@/types/warehouse";
 import { format } from "date-fns";
 
-const COST_CATEGORIES = ["Materiali", "Magazzino", "Attrezzature", "Consumabili", "Altro"];
+import { COST_CATEGORIES } from "@/types/warehouse";
 
 interface StockItemDialogProps {
   open: boolean;

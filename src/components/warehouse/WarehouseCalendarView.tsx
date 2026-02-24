@@ -23,14 +23,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { WarehouseItem } from "@/types/warehouse";
+import type { WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
-interface OrderGroup {
-  orderId: string;
-  orderCode: string | null;
-  customerName: string;
-  expectedDate: string;
-  items: WarehouseItem[];
+interface CalendarOrderGroup extends OrderWithItems {
+  expectedDate: string; // override: non-null in calendar context
   readyCount: number;
   pendingCount: number;
 }
@@ -44,10 +40,10 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
 
   // Group items by expected date
   const ordersByDate = useMemo(() => {
-    const grouped = new Map<string, OrderGroup[]>();
+    const grouped = new Map<string, CalendarOrderGroup[]>();
 
     // First, group items by order
-    const orderMap = new Map<string, OrderGroup>();
+    const orderMap = new Map<string, CalendarOrderGroup>();
     items.forEach((item) => {
       const expectedDate = item.order.expected_date || item.order.work_start_date;
       if (!expectedDate) return;

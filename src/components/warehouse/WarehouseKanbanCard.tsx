@@ -1,5 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
-import { differenceInDays, format } from "date-fns";
+import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { GripVertical, FileText, User, Calendar, Building2, MoreVertical } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { getDaysUntilPosa, isItemUrgent, isItemCritical, getUrgencyLabel } from "@/types/warehouse";
 import type { WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseKanbanCardProps {
@@ -29,24 +30,12 @@ export default function WarehouseKanbanCard({ item, supplierName }: WarehouseKan
     isDragging,
   } = useDraggable({ id: item.id });
 
-  const expectedDate = item.order.expected_date || item.order.work_start_date;
-  const today = new Date();
-  const daysUntil = expectedDate 
-    ? differenceInDays(new Date(expectedDate), today)
-    : null;
-
-  const isUrgent = daysUntil !== null && daysUntil <= 7 && daysUntil >= 0 && 
-    (item.status === "da_ordinare" || item.status === "ordinato");
-  const isCritical = daysUntil !== null && daysUntil <= 3 && daysUntil >= 0 &&
-    (item.status === "da_ordinare" || item.status === "ordinato");
-
-  const getUrgencyLabel = () => {
-    if (daysUntil === 0) return "OGGI";
-    if (daysUntil === 1) return "Domani";
-    return `${daysUntil}g`;
-  };
+  const daysUntil = getDaysUntilPosa(item);
+  const isUrgent = isItemUrgent(item);
+  const isCritical = isItemCritical(item);
 
   const customerName = `${item.order.customer.first_name} ${item.order.customer.last_name}`;
+  const expectedDate = item.order.expected_date || item.order.work_start_date;
   const formattedDate = expectedDate 
     ? format(new Date(expectedDate), "d MMM yyyy", { locale: it })
     : null;
@@ -91,7 +80,7 @@ export default function WarehouseKanbanCard({ item, supplierName }: WarehouseKan
                 !isCritical && "bg-amber-500 hover:bg-amber-600 text-white"
               )}
             >
-              {getUrgencyLabel()}
+              {daysUntil !== null && getUrgencyLabel(daysUntil)}
             </Badge>
           )}
           

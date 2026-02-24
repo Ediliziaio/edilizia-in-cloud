@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, differenceInDays, startOfWeek, endOfWeek, addWeeks } from "date-fns";
-import { STATUS_CONFIG } from "@/types/warehouse";
+import { STATUS_CONFIG, isItemUrgent } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
 export type ViewMode = "list" | "kanban" | "calendar" | "stock";
@@ -275,14 +275,7 @@ export function useWarehouseData() {
 
   // Count urgent items
   const urgentItemsCount = useMemo(() => {
-    const today = new Date();
-    return items.filter((item) => {
-      if (item.status === "in_magazzino" || item.status === "installato") return false;
-      const expectedDate = item.order.expected_date || item.order.work_start_date;
-      if (!expectedDate) return false;
-      const daysUntil = differenceInDays(new Date(expectedDate), today);
-      return daysUntil <= 7 && daysUntil >= 0;
-    }).length;
+    return items.filter(isItemUrgent).length;
   }, [items]);
 
   // Export to CSV

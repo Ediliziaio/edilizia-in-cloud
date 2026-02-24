@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 
-const COST_CATEGORIES = ["Materiali", "Magazzino", "Attrezzature", "Consumabili", "Altro"];
+import { COST_CATEGORIES } from "@/types/warehouse";
 
 interface StockMovementDialogProps {
   open: boolean;

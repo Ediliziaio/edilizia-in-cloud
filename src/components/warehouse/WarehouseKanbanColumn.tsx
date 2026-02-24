@@ -1,9 +1,9 @@
 import { useDroppable } from "@dnd-kit/core";
-import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import WarehouseKanbanCard from "./WarehouseKanbanCard";
+import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseKanbanColumnProps {
@@ -11,38 +11,6 @@ interface WarehouseKanbanColumnProps {
   items: WarehouseItem[];
   getSupplierName: (supplierId: string | null) => string | null;
 }
-
-const STATUS_CONFIG: Record<OrderItemStatus, { 
-  label: string; 
-  color: string; 
-  bgColor: string;
-  icon: typeof Package;
-}> = {
-  da_ordinare: {
-    label: "Da Ordinare",
-    color: "text-amber-600",
-    bgColor: "bg-amber-50/50 dark:bg-amber-950/20",
-    icon: ShoppingCart,
-  },
-  ordinato: {
-    label: "Ordinato",
-    color: "text-blue-600",
-    bgColor: "bg-blue-50/50 dark:bg-blue-950/20",
-    icon: Truck,
-  },
-  in_magazzino: {
-    label: "In Magazzino",
-    color: "text-green-600",
-    bgColor: "bg-green-50/50 dark:bg-green-950/20",
-    icon: Package,
-  },
-  installato: {
-    label: "Installato",
-    color: "text-muted-foreground",
-    bgColor: "bg-muted/30",
-    icon: CheckCircle2,
-  },
-};
 
 export default function WarehouseKanbanColumn({ 
   status, 
