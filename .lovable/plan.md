@@ -1,113 +1,65 @@
 
 
-# Configurazione API Meta da UI Super Admin
+# Aggiunta card Google Maps API Key e WhatsApp Verify Token
 
 ## Obiettivo
-Aggiungere una sezione "Integrazioni Piattaforma" nel tab "Piattaforma" delle Impostazioni Super Admin, dove configurare META_APP_ID e META_APP_SECRET direttamente dalla UI invece di gestirli come secrets backend.
+Estendere il pannello Piattaforma Super Admin con due nuove card di configurazione per Google Maps e WhatsApp, seguendo lo stesso pattern della card Meta esistente.
 
-## Architettura
+## Modifiche necessarie
 
-I valori vengono salvati in una nuova tabella `platform_settings` (key-value store) accessibile solo ai super admin. Le Edge Functions Meta leggono da questa tabella (con fallback ai secrets di ambiente per retrocompatibilita').
+### 1. Edge Function `manage-super-admins` — Estendere le chiavi consentite
 
-```text
-+---------------------------+
-|  Super Admin UI           |
-|  (PlatformInfoTab.tsx)    |
-|  - Meta App ID input      |
-|  - Meta App Secret input  |
-|  - Salva button           |
-+----------+----------------+
-           |
-           v
-+----------+----------------+
-|  Edge Function             |
-|  manage-super-admins       |
-|  action: "get-settings"    |
-|  action: "update-settings" |
-+----------+-----------------+
-           |
-           v
-+----------+-----------------+
-|  DB: platform_settings     |
-|  key | value | updated_by  |
-+----------------------------+
-```
+Il codice attuale filtra le chiavi con `allowedKeys = ["meta_app_id", "meta_app_secret"]` sia in `get-settings` che in `update-settings`. Basta aggiungere `google_maps_api_key` e `whatsapp_verify_token` a entrambe le liste.
 
----
+**File**: `supabase/functions/manage-super-admins/index.ts`
+- Riga 355: estendere la lista `.in("key", [...])` per includere le nuove chiavi
+- Riga 381: aggiungere le nuove chiavi a `allowedKeys`
+- Trattare `google_maps_api_key` e `whatsapp_verify_token` come secret (mascherati con `••••` + ultimi 4 char)
 
-## Dettagli Tecnici
+### 2. Frontend — Due nuove card in `PlatformInfoTab.tsx`
 
-### 1. Nuova tabella DB: `platform_settings`
+Per evitare duplicazione di codice, estrarre un componente generico `ApiKeyCard` riutilizzabile dalle 3 card (Meta, Google Maps, WhatsApp).
 
-```sql
-CREATE TABLE public.platform_settings (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  updated_by UUID REFERENCES auth.users(id)
-);
+**File**: `src/components/admin/settings/PlatformInfoTab.tsx`
 
-ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
+Il componente `ApiKeyCard` accettera':
+- `icon`: icona Lucide
+- `title`: nome dell'integrazione
+- `description`: descrizione breve
+- `tooltipText`: spiegazione per il tooltip
+- `fields`: array di campi `{ key, label, isSecret }` che descrivono quali chiavi gestire
+- `settings`: i dati dal backend
+- `isLoading`: stato caricamento
+- `onSave(updates)`: callback per il salvataggio
 
--- Solo super admin possono leggere/scrivere
-CREATE POLICY "Super admins can manage platform settings"
-  ON public.platform_settings
-  FOR ALL
-  TO authenticated
-  USING (public.has_role(auth.uid(), 'super_admin'))
-  WITH CHECK (public.has_role(auth.uid(), 'super_admin'));
-```
+Le 3 card:
 
-### 2. Edge Function `manage-super-admins` -- nuove azioni
+| Card | Chiavi | Campi |
+|------|--------|-------|
+| Meta | `meta_app_id`, `meta_app_secret` | App ID (testo), App Secret (password) |
+| Google Maps | `google_maps_api_key` | API Key (password) |
+| WhatsApp | `whatsapp_verify_token` | Verify Token (password) |
 
-- **`get-settings`**: Legge le chiavi `meta_app_id` e `meta_app_secret` dalla tabella, restituendo il valore mascherato per il secret (solo ultimi 4 char).
-- **`update-settings`**: Salva/aggiorna le chiavi. Valida che i valori non siano vuoti. Logga nell'audit trail.
+La query `get-settings` viene condivisa: una singola chiamata carica tutte le chiavi, evitando 3 richieste separate. La mutation `update-settings` resta identica (invia solo le chiavi modificate).
 
-### 3. Edge Functions Meta -- fallback chain
+### 3. Edge Functions Maps/WhatsApp — Fallback da DB (opzionale, fase successiva)
 
-Le 6 Edge Functions Meta (`meta-oauth-start`, `meta-oauth-callback`, `meta-api-proxy`, `meta-webhook`, `meta-process-leads`, `meta-health-check`) verranno aggiornate per:
-1. Leggere prima da `platform_settings` (query con service role)
-2. Se non trovato, fallback a `Deno.env.get("META_APP_ID")` / `Deno.env.get("META_APP_SECRET")`
+Analogamente a quanto fatto per Meta con `getMetaCredentials.ts`, le Edge Functions `maps-proxy`, `whatsapp-connect`, `whatsapp-webhook` e `whatsapp-status` potranno leggere prima da `platform_settings` e poi fare fallback su `Deno.env`. Questo e' un miglioramento incrementale che puo' essere fatto in un secondo momento senza bloccare la UI.
 
-Questo garantisce retrocompatibilita' totale.
+### 4. Nessuna migrazione DB necessaria
 
-### 4. UI -- Nuova card in PlatformInfoTab
-
-Aggiungere una card "Integrazioni Meta" sotto le info piattaforma esistenti con:
-- Campo `Meta App ID` (input text, visibile)
-- Campo `Meta App Secret` (input password, mascherato, mostra ultimi 4 char quando salvato)
-- Bottone "Salva configurazione"
-- Stato: indicatore se configurato o meno
-- Info tooltip: "Queste credenziali vengono usate da tutte le aziende per il collegamento OAuth Meta"
-
-### 5. Sicurezza
-
-- I valori sono salvati in chiaro nella tabella ma protetti da RLS (solo super admin)
-- Il secret viene mascherato nella risposta API (solo ultimi 4 caratteri visibili)
-- Audit trail su ogni modifica
-- Nessun secret esposto nel client oltre alla risposta dell'edge function autenticata
+La tabella `platform_settings` e' gia' una key-value store generica. Le nuove chiavi (`google_maps_api_key`, `whatsapp_verify_token`) vengono semplicemente inserite come nuove righe, senza alterazioni di schema.
 
 ---
 
-## File da creare/modificare
+## Riepilogo file da modificare
 
-| File | Azione |
-|------|--------|
-| Migrazione SQL | Crea tabella `platform_settings` con RLS |
-| `supabase/functions/manage-super-admins/index.ts` | Aggiungi azioni `get-settings` e `update-settings` |
-| `src/components/admin/settings/PlatformInfoTab.tsx` | Aggiungi card "Integrazioni Meta" con form |
-| `supabase/functions/meta-oauth-start/index.ts` | Fallback: DB prima, env dopo |
-| `supabase/functions/meta-oauth-callback/index.ts` | Fallback: DB prima, env dopo |
-| `supabase/functions/meta-api-proxy/index.ts` | Fallback: DB prima, env dopo |
-| `supabase/functions/meta-webhook/index.ts` | Fallback: DB prima, env dopo |
-| `supabase/functions/meta-process-leads/index.ts` | Fallback: DB prima, env dopo (per page token refresh) |
-| `supabase/functions/meta-health-check/index.ts` | Fallback: DB prima, env dopo |
+| File | Modifica |
+|------|----------|
+| `supabase/functions/manage-super-admins/index.ts` | Aggiungere chiavi a `get-settings` e `allowedKeys` in `update-settings`, mascherare le nuove chiavi |
+| `src/components/admin/settings/PlatformInfoTab.tsx` | Estrarre `ApiKeyCard` generico, aggiungere card Google Maps e WhatsApp |
 
----
+## Sicurezza
+- Stesse protezioni della card Meta: RLS su `platform_settings`, verifica `super_admin`, audit trail, mascheramento secret
+- Nessuna nuova superficie di attacco
 
-## Impatto
-
-- Nessuna rottura: i secrets di ambiente continuano a funzionare come fallback
-- Centralizzazione: il Super Admin puo' aggiornare le credenziali Meta senza toccare i secrets backend
-- Audit: ogni modifica e' tracciata
-- UX: flusso chiaro e coerente con il resto del pannello Piattaforma
