@@ -27,7 +27,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Hammer, Package, Wrench, Users, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { hasLogisticRisk, getEmployeeInitials } from "@/lib/calendarUtils";
+import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT } from "@/lib/calendarUtils";
 import type { CalendarOrder } from "@/types/calendar";
 
 interface CalendarHeatmapViewProps {
@@ -122,7 +122,7 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
     };
   }, [currentDate, dayWorkloads]);
 
-  const weekDays = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+  const weekDays = WEEK_DAYS_IT;
 
   return (
     <div className="space-y-4">

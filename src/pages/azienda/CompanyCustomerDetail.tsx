@@ -59,17 +59,18 @@ export default function CompanyCustomerDetail() {
   });
 
   const { data: orders = [] } = useQuery({
-    queryKey: ["customer-orders-history", id],
+    queryKey: ["customer-orders-history", id, effectiveCompany?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
         .select("id, order_code, description, total_amount, created_at, current_status_id, order_statuses:current_status_id(name, color)")
         .eq("customer_id", id!)
+        .eq("company_id", effectiveCompany!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !!effectiveCompany?.id,
   });
 
   const orderCount = orders.length;

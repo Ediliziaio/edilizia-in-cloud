@@ -15,7 +15,7 @@ import {
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, Package, AlertTriangle, Users, UsersRound, CalendarClock, Search, Truck, UserCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, AlertTriangle, Users, UsersRound, CalendarClock } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -23,7 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { hasLogisticRisk, getEmployeeInitials } from "@/lib/calendarUtils";
+import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
@@ -35,13 +35,7 @@ interface CalendarEvent {
   color: string;
 }
 
-const APPOINTMENT_ICONS: Record<string, typeof CalendarClock> = {
-  sopralluogo: Search,
-  consegna: Truck,
-  riunione: Users,
-  cliente: UserCheck,
-  generico: CalendarClock,
-};
+
 
 interface CalendarMonthViewProps {
   orders: CalendarOrder[];
@@ -86,7 +80,7 @@ export function CalendarMonthView({
     return events;
   };
 
-  const weekDays = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+  const weekDays = WEEK_DAYS_IT;
 
   return (
     <Card className="p-4">
@@ -146,12 +140,7 @@ export function CalendarMonthView({
                           <TooltipTrigger asChild>
                             <button
                               onClick={() => {
-                                setEditingAppointment({
-                                  id: apt.id, title: apt.title, description: apt.description,
-                                  appointment_date: apt.appointment_date, appointment_time: apt.appointment_time,
-                                  appointment_type: apt.appointment_type, assigned_to: apt.assigned_to,
-                                  order_id: apt.order_id, is_completed: apt.is_completed,
-                                });
+                                setEditingAppointment(mapAppointmentToEditData(apt));
                                 setAppointmentDialogOpen(true);
                               }}
                               className={cn("w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate", apt.is_completed && "opacity-50")}
