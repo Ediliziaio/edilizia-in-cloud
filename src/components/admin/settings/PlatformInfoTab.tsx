@@ -1,15 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users, ShoppingCart, Server, Copy, Check, Shield, Eye, EyeOff, Info } from "lucide-react";
+import { Building2, Users, ShoppingCart, Server, Copy, Check, Shield, Eye, EyeOff, Info, MapPin, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import type { LucideIcon } from "lucide-react";
 
-function StatCard({ icon: Icon, label, value, loading }: { icon: typeof Building2; label: string; value: number; loading: boolean }) {
+function StatCard({ icon: Icon, label, value, loading }: { icon: LucideIcon; label: string; value: number; loading: boolean }) {
   return (
     <Card>
       <CardContent className="flex items-center gap-4 p-6">
@@ -39,123 +40,108 @@ function CopyField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MetaIntegrationCard() {
-  const queryClient = useQueryClient();
-  const [metaAppId, setMetaAppId] = useState("");
-  const [metaAppSecret, setMetaAppSecret] = useState("");
-  const [showSecret, setShowSecret] = useState(false);
+type SettingsMap = Record<string, { value: string; masked?: string; updated_at?: string }>;
 
-  const { data: settings, isLoading } = useQuery({
-    queryKey: ["platform-settings-meta"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("manage-super-admins", {
-        body: { action: "get-settings" },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) throw new Error(res.error.message);
-      return res.data?.settings as Record<string, { value: string; masked?: string; updated_at?: string }> | undefined;
-    },
-    staleTime: 60 * 1000,
+interface ApiKeyField {
+  key: string;
+  label: string;
+  isSecret: boolean;
+}
+
+interface ApiKeyCardProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  tooltipText: string;
+  fields: ApiKeyField[];
+  settings: SettingsMap | undefined;
+  isLoading: boolean;
+  onSave: (updates: Record<string, string>) => void;
+  isSaving: boolean;
+}
+
+function ApiKeyCard({ icon: Icon, title, description, tooltipText, fields, settings, isLoading, onSave, isSaving }: ApiKeyCardProps) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+
+  const isConfigured = fields.some(f => {
+    const s = settings?.[f.key];
+    return !!(s?.value || s?.masked);
   });
 
-  const isConfigured = !!(settings?.meta_app_id?.value || settings?.meta_app_secret?.value);
+  const hasInput = fields.some(f => values[f.key]?.trim());
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const updates: Record<string, string> = {};
-      if (metaAppId.trim()) updates.meta_app_id = metaAppId.trim();
-      if (metaAppSecret.trim()) updates.meta_app_secret = metaAppSecret.trim();
-      if (Object.keys(updates).length === 0) throw new Error("Inserisci almeno un valore");
-
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("manage-super-admins", {
-        body: { action: "update-settings", settings: updates },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) throw new Error(res.error.message);
-      return res.data;
-    },
-    onSuccess: () => {
-      toast.success("Configurazione Meta salvata");
-      setMetaAppId("");
-      setMetaAppSecret("");
-      queryClient.invalidateQueries({ queryKey: ["platform-settings-meta"] });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+  const handleSave = () => {
+    const updates: Record<string, string> = {};
+    fields.forEach(f => { if (values[f.key]?.trim()) updates[f.key] = values[f.key].trim(); });
+    if (Object.keys(updates).length === 0) return;
+    onSave(updates);
+    setValues({});
+  };
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
-            <CardTitle>Integrazioni Meta</CardTitle>
+            <Icon className="h-5 w-5 text-primary" />
+            <CardTitle>{title}</CardTitle>
           </div>
           <Badge variant={isConfigured ? "default" : "secondary"}>
             {isLoading ? "..." : isConfigured ? "Configurato" : "Non configurato"}
           </Badge>
         </div>
         <CardDescription className="flex items-center gap-1">
-          Credenziali Meta App per OAuth (Lead Ads)
+          {description}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                Queste credenziali vengono usate da tutte le aziende per il collegamento OAuth Meta.
-                Ogni azienda ottiene i propri token di accesso specifici.
-              </TooltipContent>
+              <TooltipContent className="max-w-xs">{tooltipText}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Meta App ID</label>
-          <Input
-            placeholder={settings?.meta_app_id?.value || "Inserisci App ID"}
-            value={metaAppId}
-            onChange={(e) => setMetaAppId(e.target.value)}
-          />
-          {settings?.meta_app_id?.value && !metaAppId && (
-            <p className="text-xs text-muted-foreground">Valore attuale: {settings.meta_app_id.value}</p>
-          )}
-        </div>
+        {fields.map(field => {
+          const current = settings?.[field.key];
+          const displayValue = current?.masked || current?.value;
+          const isSecret = field.isSecret;
+          const show = showSecrets[field.key];
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Meta App Secret</label>
-          <div className="relative">
-            <Input
-              type={showSecret ? "text" : "password"}
-              placeholder={settings?.meta_app_secret?.masked || "Inserisci App Secret"}
-              value={metaAppSecret}
-              onChange={(e) => setMetaAppSecret(e.target.value)}
-              className="pr-10"
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-0 top-0 h-10 w-10"
-              onClick={() => setShowSecret(!showSecret)}
-              type="button"
-            >
-              {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </Button>
-          </div>
-          {settings?.meta_app_secret?.masked && !metaAppSecret && (
-            <p className="text-xs text-muted-foreground">Valore attuale: {settings.meta_app_secret.masked}</p>
-          )}
-        </div>
+          return (
+            <div key={field.key} className="space-y-2">
+              <label className="text-sm font-medium">{field.label}</label>
+              <div className="relative">
+                <Input
+                  type={isSecret && !show ? "password" : "text"}
+                  placeholder={displayValue || `Inserisci ${field.label}`}
+                  value={values[field.key] || ""}
+                  onChange={(e) => setValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  className={isSecret ? "pr-10" : ""}
+                />
+                {isSecret && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-10 w-10"
+                    onClick={() => setShowSecrets(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
+                    type="button"
+                  >
+                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                )}
+              </div>
+              {displayValue && !values[field.key] && (
+                <p className="text-xs text-muted-foreground">Valore attuale: {displayValue}</p>
+              )}
+            </div>
+          );
+        })}
 
-        <Button
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending || (!metaAppId.trim() && !metaAppSecret.trim())}
-          className="w-full"
-        >
-          {saveMutation.isPending ? "Salvataggio..." : "Salva configurazione"}
+        <Button onClick={handleSave} disabled={isSaving || !hasInput} className="w-full">
+          {isSaving ? "Salvataggio..." : "Salva configurazione"}
         </Button>
 
         <p className="text-xs text-muted-foreground">
@@ -166,7 +152,40 @@ function MetaIntegrationCard() {
   );
 }
 
+const API_CARDS = [
+  {
+    icon: Shield,
+    title: "Integrazioni Meta",
+    description: "Credenziali Meta App per OAuth (Lead Ads)",
+    tooltipText: "Queste credenziali vengono usate da tutte le aziende per il collegamento OAuth Meta. Ogni azienda ottiene i propri token di accesso specifici.",
+    fields: [
+      { key: "meta_app_id", label: "Meta App ID", isSecret: false },
+      { key: "meta_app_secret", label: "Meta App Secret", isSecret: true },
+    ],
+  },
+  {
+    icon: MapPin,
+    title: "Google Maps",
+    description: "API Key per geocoding e autocompletamento indirizzi",
+    tooltipText: "La chiave viene usata dal proxy server-side per le API Places, Geocoding e Directions. Deve avere le relative API abilitate nel Google Cloud Console.",
+    fields: [
+      { key: "google_maps_api_key", label: "Google Maps API Key", isSecret: true },
+    ],
+  },
+  {
+    icon: MessageSquare,
+    title: "WhatsApp",
+    description: "Verify Token per il webhook WhatsApp Business API",
+    tooltipText: "Il Verify Token viene usato per la validazione iniziale del webhook Meta/WhatsApp. Deve corrispondere al token configurato nell'app Meta Business.",
+    fields: [
+      { key: "whatsapp_verify_token", label: "Verify Token", isSecret: true },
+    ],
+  },
+] as const;
+
 export default function PlatformInfoTab() {
+  const queryClient = useQueryClient();
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ["platform-stats"],
     queryFn: async () => {
@@ -181,6 +200,37 @@ export default function PlatformInfoTab() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: settings, isLoading: settingsLoading } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("manage-super-admins", {
+        body: { action: "get-settings" },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.error) throw new Error(res.error.message);
+      return res.data?.settings as SettingsMap | undefined;
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (updates: Record<string, string>) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("manage-super-admins", {
+        body: { action: "update-settings", settings: updates },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.error) throw new Error(res.error.message);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Configurazione salvata");
+      queryClient.invalidateQueries({ queryKey: ["platform-settings"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
   const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
 
@@ -192,7 +242,20 @@ export default function PlatformInfoTab() {
         <StatCard icon={ShoppingCart} label="Ordini totali" value={stats?.totalOrders || 0} loading={isLoading} />
       </div>
 
-      <MetaIntegrationCard />
+      {API_CARDS.map(card => (
+        <ApiKeyCard
+          key={card.title}
+          icon={card.icon}
+          title={card.title}
+          description={card.description}
+          tooltipText={card.tooltipText}
+          fields={[...card.fields]}
+          settings={settings}
+          isLoading={settingsLoading}
+          onSave={(updates) => saveMutation.mutate(updates)}
+          isSaving={saveMutation.isPending}
+        />
+      ))}
 
       <Card>
         <CardHeader>
