@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -19,6 +19,22 @@ interface Props {
   travelLegs?: Record<string, TravelLeg[]>;
   onDropAppointment?: (id: string, newDate: string, newTime: string) => void;
   slotDurationMinutes?: number;
+  onResizeAppointment?: (id: string, newEndTime: string) => void;
+}
+
+const SLOT_HEIGHT: Record<number, { className: string; px: number }> = {
+  60: { className: "h-16", px: 64 },
+  30: { className: "h-8", px: 32 },
+  15: { className: "h-6", px: 24 },
+};
+
+function getSlotHeight(minutes: number) {
+  return SLOT_HEIGHT[minutes] || SLOT_HEIGHT[30];
+}
+
+function timeToMin(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
 }
 
 export default function MarketingCalendarWeekView({
@@ -30,8 +46,14 @@ export default function MarketingCalendarWeekView({
   travelLegs = {},
   onDropAppointment,
   slotDurationMinutes = 30,
+  onResizeAppointment,
 }: Props) {
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
+  const slotInfo = getSlotHeight(slotDurationMinutes);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   const days = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -52,20 +74,29 @@ export default function MarketingCalendarWeekView({
   }, [travelLegs]);
 
   const getAppointmentsForSlot = (day: Date, slotTime: string) => {
-    const [slotH, slotM] = slotTime.split(":").map(Number);
-    const slotStart = slotH * 60 + slotM;
+    const slotStart = timeToMin(slotTime);
     const slotEnd = slotStart + slotDurationMinutes;
     return appointments.filter((a) => {
       if (!isSameDay(parseISO(a.appointment_date), day)) return false;
       if (!a.appointment_time) return slotTime === "09:00";
-      const [ah, am] = a.appointment_time.split(":").map(Number);
-      const aptMin = ah * 60 + (am || 0);
+      const aptMin = timeToMin(a.appointment_time);
       return aptMin >= slotStart && aptMin < slotEnd;
     });
   };
 
+  const getSpanSlots = (apt: MarketingAppointment): number => {
+    if (!apt.appointment_time) return 1;
+    const startMin = timeToMin(apt.appointment_time);
+    if (apt.appointment_end_time) {
+      const endMin = timeToMin(apt.appointment_end_time);
+      if (endMin > startMin) {
+        return Math.max(1, Math.round((endMin - startMin) / slotDurationMinutes));
+      }
+    }
+    return 1;
+  };
+
   const today = new Date();
-  const slotHeight = slotDurationMinutes >= 60 ? "h-16" : slotDurationMinutes >= 30 ? "h-8" : "h-6";
 
   const handleDragStart = (event: DragStartEvent) => {
     const apt = (event.active.data.current as any)?.appointment as MarketingAppointment;
@@ -85,7 +116,7 @@ export default function MarketingCalendarWeekView({
   };
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex-1 overflow-auto border rounded-lg bg-background relative isolate">
         <div className="min-w-[900px]">
           {/* Header */}
@@ -124,7 +155,7 @@ export default function MarketingCalendarWeekView({
                 <div key={slotTime} className="contents">
                   <div className={cn(
                     "p-1 pr-2 text-right text-xs text-muted-foreground border-r flex items-start justify-end pt-0",
-                    slotHeight,
+                    slotInfo.className,
                   )}>
                     {showLabel && <span className="-mt-2">{slotTime}</span>}
                   </div>
@@ -139,7 +170,7 @@ export default function MarketingCalendarWeekView({
                         id={`slot-${dateKey}-${slotTime}`}
                         className={cn(
                           "border-r last:border-r-0 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors relative min-w-0",
-                          slotHeight,
+                          slotInfo.className,
                           isHour ? "border-b" : "border-b border-dashed border-border/40",
                           isSameDay(day, today) && "bg-primary/[0.02]"
                         )}
@@ -148,9 +179,12 @@ export default function MarketingCalendarWeekView({
                         {slotApts.map((apt) => {
                           const leg = dayLegMap[apt.id];
                           const hasNoCoords = apt.lat == null || apt.lng == null;
+                          const spanSlots = getSpanSlots(apt);
+                          const spanHeight = spanSlots > 1 ? spanSlots * slotInfo.px : undefined;
 
                           const tooltipLines: string[] = [apt.title];
                           if (apt.appointment_time) tooltipLines.unshift(apt.appointment_time.slice(0, 5));
+                          if (apt.appointment_end_time) tooltipLines[0] += ` – ${apt.appointment_end_time.slice(0, 5)}`;
                           if (apt.formatted_address) tooltipLines.push(apt.formatted_address);
                           if (leg) {
                             tooltipLines.push(`${leg.duration_text} • ${leg.distance_text}`);
@@ -161,7 +195,14 @@ export default function MarketingCalendarWeekView({
                           }
 
                           return (
-                            <DraggableAppointment key={apt.id} appointment={apt}>
+                            <DraggableAppointment
+                              key={apt.id}
+                              appointment={apt}
+                              onResize={onResizeAppointment}
+                              slotDurationMinutes={slotDurationMinutes}
+                              slotHeightPx={slotInfo.px}
+                              startTime={apt.appointment_time?.slice(0, 5)}
+                            >
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <div
@@ -169,8 +210,10 @@ export default function MarketingCalendarWeekView({
                                       e.stopPropagation();
                                       onClickAppointment(apt);
                                     }}
+                                    style={spanHeight ? { height: spanHeight, zIndex: 5 } : undefined}
                                     className={cn(
                                       "flex items-center gap-1 text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 cursor-pointer hover:opacity-80 mb-0.5 min-w-0",
+                                      spanHeight ? "overflow-hidden relative" : "",
                                       apt.is_blocked_slot
                                         ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
                                         : apt.calendar_id && colorMap[apt.calendar_id]
