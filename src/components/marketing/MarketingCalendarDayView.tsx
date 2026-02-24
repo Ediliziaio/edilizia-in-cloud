@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, isSameDay, parseISO, isToday } from "date-fns";
 import { it } from "date-fns/locale";
-import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
@@ -18,6 +18,22 @@ interface Props {
   travelLegs?: TravelLeg[];
   onDropAppointment?: (id: string, newDate: string, newTime: string) => void;
   slotDurationMinutes?: number;
+  onResizeAppointment?: (id: string, newEndTime: string) => void;
+}
+
+const SLOT_HEIGHT: Record<number, { className: string; px: number }> = {
+  60: { className: "h-16", px: 64 },
+  30: { className: "h-8", px: 32 },
+  15: { className: "h-6", px: 24 },
+};
+
+function getSlotHeight(minutes: number) {
+  return SLOT_HEIGHT[minutes] || SLOT_HEIGHT[30];
+}
+
+function timeToMin(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
 }
 
 export default function MarketingCalendarDayView({
@@ -29,9 +45,15 @@ export default function MarketingCalendarDayView({
   travelLegs = [],
   onDropAppointment,
   slotDurationMinutes = 30,
+  onResizeAppointment,
 }: Props) {
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
+  const slotInfo = getSlotHeight(slotDurationMinutes);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   const timeSlots = useMemo(() => buildTimeSlots(slotDurationMinutes), [slotDurationMinutes]);
 
@@ -42,28 +64,36 @@ export default function MarketingCalendarDayView({
 
   const travelLegMap = useMemo(() => {
     const map: Record<string, TravelLeg> = {};
-    travelLegs.forEach((leg) => {
-      map[leg.toId] = leg;
-    });
+    travelLegs.forEach((leg) => { map[leg.toId] = leg; });
     return map;
   }, [travelLegs]);
 
+  // Group appointments by their starting slot
   const getAppointmentsForSlot = (slotTime: string) => {
-    const [slotH, slotM] = slotTime.split(":").map(Number);
-    const slotStart = slotH * 60 + slotM;
+    const slotStart = timeToMin(slotTime);
     const slotEnd = slotStart + slotDurationMinutes;
     return dayAppointments.filter((a) => {
       if (!a.appointment_time) return slotTime === "09:00";
-      const [ah, am] = a.appointment_time.split(":").map(Number);
-      const aptMin = ah * 60 + (am || 0);
+      const aptMin = timeToMin(a.appointment_time);
       return aptMin >= slotStart && aptMin < slotEnd;
     });
   };
 
+  // Calculate how many slots an appointment spans
+  const getSpanSlots = (apt: MarketingAppointment): number => {
+    if (!apt.appointment_time) return 1;
+    const startMin = timeToMin(apt.appointment_time);
+    if (apt.appointment_end_time) {
+      const endMin = timeToMin(apt.appointment_end_time);
+      if (endMin > startMin) {
+        return Math.max(1, Math.round((endMin - startMin) / slotDurationMinutes));
+      }
+    }
+    return 1;
+  };
+
   const todayFlag = isToday(date);
   const dateStr = format(date, "yyyy-MM-dd");
-
-  const slotHeight = slotDurationMinutes >= 60 ? "h-16" : slotDurationMinutes >= 30 ? "h-8" : "h-6";
 
   const handleDragStart = (event: DragStartEvent) => {
     const apt = (event.active.data.current as any)?.appointment as MarketingAppointment;
@@ -83,7 +113,7 @@ export default function MarketingCalendarDayView({
   };
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex-1 overflow-auto border rounded-lg bg-background">
         {/* Header */}
         <div className="grid grid-cols-[60px_1fr] border-b sticky top-0 z-10 bg-background">
@@ -114,15 +144,15 @@ export default function MarketingCalendarDayView({
               <div key={slotTime} className="contents">
                 <div className={cn(
                   "p-1 pr-2 text-right text-xs text-muted-foreground border-r flex items-start justify-end pt-0",
-                  slotHeight,
+                  slotInfo.className,
                 )}>
                   {showLabel && <span className="-mt-2">{slotTime}</span>}
                 </div>
                 <DroppableSlot
                   id={`slot-${dateStr}-${slotTime}`}
                   className={cn(
-                    "p-0.5 cursor-pointer hover:bg-muted/30 transition-colors",
-                    slotHeight,
+                    "p-0.5 cursor-pointer hover:bg-muted/30 transition-colors relative",
+                    slotInfo.className,
                     isHour ? "border-b" : "border-b border-dashed border-border/40",
                     todayFlag && "bg-primary/[0.02]"
                   )}
@@ -131,10 +161,22 @@ export default function MarketingCalendarDayView({
                   {slotApts.map((apt) => {
                     const leg = travelLegMap[apt.id];
                     const hasNoCoords = apt.lat == null || apt.lng == null;
+                    const spanSlots = getSpanSlots(apt);
+                    const spanHeight = spanSlots > 1 ? spanSlots * slotInfo.px : undefined;
 
                     return (
-                      <DraggableAppointment key={apt.id} appointment={apt}>
-                        <div>
+                      <DraggableAppointment
+                        key={apt.id}
+                        appointment={apt}
+                        onResize={onResizeAppointment}
+                        slotDurationMinutes={slotDurationMinutes}
+                        slotHeightPx={slotInfo.px}
+                        startTime={apt.appointment_time?.slice(0, 5)}
+                      >
+                        <div
+                          style={spanHeight ? { height: spanHeight, zIndex: 5 } : undefined}
+                          className={spanHeight ? "relative" : undefined}
+                        >
                           {leg && (
                             <div
                               className={cn(
@@ -167,6 +209,7 @@ export default function MarketingCalendarDayView({
                             }}
                             className={cn(
                               "text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80 mb-0.5",
+                              spanHeight ? "h-full overflow-hidden" : "",
                               apt.is_blocked_slot
                                 ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
                                 : apt.calendar_id && colorMap[apt.calendar_id]
@@ -179,6 +222,9 @@ export default function MarketingCalendarDayView({
                               <span className="font-medium">{apt.appointment_time.slice(0, 5)} </span>
                             )}
                             {apt.title}
+                            {apt.appointment_end_time && (
+                              <span className="text-[10px] opacity-70"> – {apt.appointment_end_time.slice(0, 5)}</span>
+                            )}
                           </div>
                         </div>
                       </DraggableAppointment>

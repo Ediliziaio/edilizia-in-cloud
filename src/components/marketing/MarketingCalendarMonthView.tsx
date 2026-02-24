@@ -11,7 +11,7 @@ import {
   format,
   parseISO,
 } from "date-fns";
-import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import type { MarketingAppointment } from "@/types/marketingCalendar";
 import { buildColorMap } from "@/lib/marketingCalendarConstants";
@@ -39,6 +39,9 @@ export default function MarketingCalendarMonthView({
 }: Props) {
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   const weeks = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
@@ -79,7 +82,7 @@ export default function MarketingCalendarMonthView({
   };
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex-1 overflow-auto border rounded-lg bg-background">
         {/* Header */}
         <div className="grid grid-cols-7 border-b sticky top-0 z-10 bg-background">

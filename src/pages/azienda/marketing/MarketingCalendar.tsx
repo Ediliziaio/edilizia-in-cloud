@@ -462,6 +462,21 @@ export default function MarketingCalendar() {
     refetchAppointments();
   }, [appointments, refetchAppointments]);
 
+  // ── Resize handler ──
+  const handleResizeAppointment = useCallback(async (appointmentId: string, newEndTime: string) => {
+    const { error } = await supabase
+      .from("appointments")
+      .update({ appointment_end_time: newEndTime })
+      .eq("id", appointmentId);
+
+    if (error) {
+      toast.error("Errore nel ridimensionamento");
+      return;
+    }
+    toast.success(`Durata aggiornata fino alle ${newEndTime}`);
+    refetchAppointments();
+  }, [refetchAppointments]);
+
   const tabs = [
     { key: "calendar" as const, label: "Visualizza calendario" },
     { key: "list" as const, label: "Vista elenco" },
@@ -556,6 +571,7 @@ export default function MarketingCalendar() {
                 travelLegs={weekTravelLegs}
                 onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
                 slotDurationMinutes={slotDurationMinutes}
+                onResizeAppointment={handleResizeAppointment}
               />
             )}
             {calendarView === "day" && (
@@ -568,6 +584,7 @@ export default function MarketingCalendar() {
                 travelLegs={travelLegs}
                 onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
                 slotDurationMinutes={slotDurationMinutes}
+                onResizeAppointment={handleResizeAppointment}
               />
             )}
             {calendarView === "month" && (
