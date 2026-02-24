@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 
 const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -27,8 +28,7 @@ serve(async (req) => {
     }
 
     try {
-      const metaAppSecret = Deno.env.get("META_APP_SECRET")!;
-      const metaAppId = Deno.env.get("META_APP_ID")!;
+      const { metaAppId, metaAppSecret } = await getMetaCredentials();
 
       // Validate HMAC-signed state
       const dotIndex = signedState.lastIndexOf(".");

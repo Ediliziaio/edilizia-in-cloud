@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 
 serve(async (req) => {
   const url = new URL(req.url);
@@ -27,7 +28,7 @@ serve(async (req) => {
 
       // Validate X-Hub-Signature-256
       const signature = req.headers.get("x-hub-signature-256");
-      const appSecret = Deno.env.get("META_APP_SECRET");
+      const { metaAppSecret: appSecret } = await getMetaCredentials();
 
       if (appSecret && signature) {
         const encoder = new TextEncoder();
