@@ -133,7 +133,7 @@ export function IntegrationLogsPanel({ integration }: IntegrationLogsPanelProps)
           <CardContent className="p-3 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
             <div>
-              <p className="text-xs text-muted-foreground">Tasso successo</p>
+              <p className="text-xs text-muted-foreground">Tasso successo (ultimi 100)</p>
               <p className="text-lg font-bold">
                 {stats.total > 0 ? Math.round((stats.processed / stats.total) * 100) : 0}%
               </p>
