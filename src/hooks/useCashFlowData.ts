@@ -475,10 +475,11 @@ export function useCashFlowData() {
     });
   }, [supplierBalances]);
 
-  // Project recurring costs into a future month
-  const projectCostsForMonth = (monthDate: Date) => {
+  // Project recurring costs into a future month, optionally filtered by cost_type
+  const projectCostsForMonth = (monthDate: Date, costTypeFilter?: "fixed" | "variable") => {
     let total = 0;
     companyCosts.forEach((cost: any) => {
+      if (costTypeFilter && cost.cost_type !== costTypeFilter) return;
       const dueDate = new Date(cost.due_date);
       if (cost.recurrence === "monthly") {
         total += Number(cost.amount);
@@ -620,29 +621,8 @@ export function useCashFlowData() {
         .filter((c) => c.expectedDate && isSameMonth(c.expectedDate, monthDate))
         .reduce((sum, c) => sum + c.amount, 0);
 
-      const monthFixedCosts = companyCosts
-        .filter((c: any) => {
-          if (c.cost_type !== "fixed") return false;
-          const dueDate = new Date(c.due_date);
-          if (c.recurrence === "monthly") return true;
-          if (c.recurrence === "quarterly" && dueDate.getMonth() % 3 === monthDate.getMonth() % 3) return true;
-          if (c.recurrence === "yearly" && dueDate.getMonth() === monthDate.getMonth()) return true;
-          if (c.recurrence === "once" && isSameMonth(dueDate, monthDate)) return true;
-          return false;
-        })
-        .reduce((s: number, c: any) => s + Number(c.amount), 0);
-
-      const monthVariableCosts = companyCosts
-        .filter((c: any) => {
-          if (c.cost_type !== "variable") return false;
-          const dueDate = new Date(c.due_date);
-          if (c.recurrence === "monthly") return true;
-          if (c.recurrence === "quarterly" && dueDate.getMonth() % 3 === monthDate.getMonth() % 3) return true;
-          if (c.recurrence === "yearly" && dueDate.getMonth() === monthDate.getMonth()) return true;
-          if (c.recurrence === "once" && isSameMonth(dueDate, monthDate)) return true;
-          return false;
-        })
-        .reduce((s: number, c: any) => s + Number(c.amount), 0);
+      const monthFixedCosts = projectCostsForMonth(monthDate, "fixed");
+      const monthVariableCosts = projectCostsForMonth(monthDate, "variable");
 
       const monthSupplier = expectedSupplierPayments
         .filter((p) => !p.isPaid && p.expectedDate && isSameMonth(p.expectedDate, monthDate))

@@ -20,14 +20,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/formatters";
+import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
-
-const RECURRENCE_LABELS: Record<string, string> = {
-  once: "Una tantum",
-  monthly: "Mensile",
-  quarterly: "Trimestrale",
-  yearly: "Annuale",
-};
 
 interface CostsTableProps {
   items: UnifiedCost[];

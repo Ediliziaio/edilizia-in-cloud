@@ -4,6 +4,7 @@ import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, subMonth
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
+import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
 
 export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all";
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
@@ -460,9 +461,6 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const exportCostsCSV = () => {
     const allForExport = [...filteredCosts, ...filteredOrderItemCosts];
     const rows = [["Nome", "Tipo", "Categoria", "Imponibile", "IVA%", "Totale Lordo", "Fornitore", "Ricorrenza", "Scadenza", "Stato", "Origine"]];
-    const RECURRENCE_LABELS: Record<string, string> = {
-      once: "Una tantum", monthly: "Mensile", quarterly: "Trimestrale", yearly: "Annuale",
-    };
     allForExport.forEach((c: any) => {
       const vatRate = Number(c.vat_rate) || 0;
       const gross = calculateGrossFromNet(Number(c.amount), vatRate);

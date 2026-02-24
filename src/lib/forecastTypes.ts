@@ -132,6 +132,23 @@ export interface Supplier {
   name: string;
 }
 
+export const RECURRENCE_LABELS: Record<string, string> = {
+  once: "Una tantum",
+  monthly: "Mensile",
+  quarterly: "Trimestrale",
+  yearly: "Annuale",
+};
+
+export function recurrenceMultiplier(recurrence: string): number {
+  switch (recurrence) {
+    case "weekly": return 4.33;
+    case "monthly": return 1;
+    case "quarterly": return 1 / 3;
+    case "yearly": return 1 / 12;
+    default: return 1;
+  }
+}
+
 export interface TreasuryCategory {
   id: string;
   company_id: string;

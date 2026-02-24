@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { calculateNetFromGross } from "@/lib/vatUtils";
+import { recurrenceMultiplier } from "@/lib/forecastTypes";
 
 export interface OrderMargin {
   orderId: string;
@@ -232,16 +233,7 @@ export function useMarginData(): MarginData {
       )
     : 0;
 
-  // Fixed costs aggregation (normalize to monthly)
-  const recurrenceMultiplier = (rec: string): number => {
-    switch (rec) {
-      case "weekly": return 4.33;
-      case "monthly": return 1;
-      case "quarterly": return 1 / 3;
-      case "yearly": return 1 / 12;
-      default: return 1;
-    }
-  };
+  // Fixed costs aggregation (normalize to monthly using shared utility)
 
   const fixedCostsByCategory = new Map<string, number>();
   (fixedCostsRaw || []).forEach(cost => {
