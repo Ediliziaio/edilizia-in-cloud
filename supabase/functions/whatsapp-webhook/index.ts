@@ -1,7 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN")!;
-const APP_SECRET = Deno.env.get("META_APP_SECRET")!;
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,10 +8,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function verifyHmac(body: string, signature: string): Promise<boolean> {
+async function verifyHmac(body: string, signature: string, appSecret: string): Promise<boolean> {
   const key = await crypto.subtle.importKey(
     "raw",
-    new TextEncoder().encode(APP_SECRET),
+    new TextEncoder().encode(appSecret),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
@@ -42,6 +41,7 @@ Deno.serve(async (req) => {
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
+    const VERIFY_TOKEN = await getPlatformSetting("whatsapp_verify_token", "WHATSAPP_VERIFY_TOKEN");
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
       console.log("Webhook verified");
       return new Response(challenge, { status: 200 });
@@ -54,7 +54,8 @@ Deno.serve(async (req) => {
     const bodyText = await req.text();
     const signature = req.headers.get("x-hub-signature-256") || "";
 
-    if (!(await verifyHmac(bodyText, signature))) {
+    const { metaAppSecret } = await getMetaCredentials();
+    if (!(await verifyHmac(bodyText, signature, metaAppSecret))) {
       console.error("Invalid HMAC signature");
       return new Response("Unauthorized", { status: 401 });
     }

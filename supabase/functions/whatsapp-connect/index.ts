@@ -1,6 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const APP_SECRET = Deno.env.get("META_APP_SECRET")!;
+import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,6 +92,7 @@ Deno.serve(async (req) => {
     }
 
     // 1. Exchange code for access token
+    const { metaAppSecret: APP_SECRET } = await getMetaCredentials();
     const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${meta_app_id}&client_secret=${APP_SECRET}&code=${code}`;
     const tokenRes = await fetch(tokenUrl);
     const tokenData = await tokenRes.json();
