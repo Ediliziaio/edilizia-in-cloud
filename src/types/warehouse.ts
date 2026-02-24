@@ -1,3 +1,6 @@
+import { differenceInDays } from "date-fns";
+import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
+
 export type OrderItemStatus = "da_ordinare" | "ordinato" | "in_magazzino" | "installato";
 
 export interface WarehouseItem {
@@ -31,12 +34,71 @@ export interface OrderWithItems {
   items: WarehouseItem[];
 }
 
-export const STATUS_CONFIG: Record<OrderItemStatus, { label: string }> = {
-  da_ordinare: { label: "Da Ordinare" },
-  ordinato: { label: "Ordinato" },
-  in_magazzino: { label: "In Magazzino" },
-  installato: { label: "Installato" },
+export const STATUS_CONFIG: Record<OrderItemStatus, {
+  label: string;
+  color: string;
+  bgColor: string;
+  icon: typeof Package;
+}> = {
+  da_ordinare: {
+    label: "Da Ordinare",
+    color: "text-amber-600",
+    bgColor: "bg-amber-50/50 dark:bg-amber-950/20",
+    icon: ShoppingCart,
+  },
+  ordinato: {
+    label: "Ordinato",
+    color: "text-blue-600",
+    bgColor: "bg-blue-50/50 dark:bg-blue-950/20",
+    icon: Truck,
+  },
+  in_magazzino: {
+    label: "In Magazzino",
+    color: "text-green-600",
+    bgColor: "bg-green-50/50 dark:bg-green-950/20",
+    icon: Package,
+  },
+  installato: {
+    label: "Installato",
+    color: "text-muted-foreground",
+    bgColor: "bg-muted/30",
+    icon: CheckCircle2,
+  },
 };
+
+export const COST_CATEGORIES = ["Materiali", "Magazzino", "Attrezzature", "Consumabili", "Altro"];
+
+// --- Urgency utilities ---
+
+/** Returns days until posa (expected_date or work_start_date), or null if no date */
+export function getDaysUntilPosa(item: WarehouseItem): number | null {
+  const expectedDate = item.order.expected_date || item.order.work_start_date;
+  if (!expectedDate) return null;
+  return differenceInDays(new Date(expectedDate), new Date());
+}
+
+/** True if item is urgent: posa <= 7 days away and status is not ready */
+export function isItemUrgent(item: WarehouseItem): boolean {
+  if (item.status === "in_magazzino" || item.status === "installato") return false;
+  const daysUntil = getDaysUntilPosa(item);
+  if (daysUntil === null) return false;
+  return daysUntil <= 7 && daysUntil >= 0;
+}
+
+/** True if item is critical: posa <= 3 days away and status is not ready */
+export function isItemCritical(item: WarehouseItem): boolean {
+  if (item.status === "in_magazzino" || item.status === "installato") return false;
+  const daysUntil = getDaysUntilPosa(item);
+  if (daysUntil === null) return false;
+  return daysUntil <= 3 && daysUntil >= 0;
+}
+
+/** Returns urgency label: "OGGI", "Domani", or "{n}g" */
+export function getUrgencyLabel(daysUntil: number): string {
+  if (daysUntil === 0) return "OGGI";
+  if (daysUntil === 1) return "Domani";
+  return `${daysUntil}g`;
+}
 
 // Stock types
 export interface StockItem {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { format, differenceInDays } from "date-fns";
+import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Calendar,
@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { STATUS_CONFIG } from "@/types/warehouse";
+import { STATUS_CONFIG, isItemUrgent, isItemCritical, getDaysUntilPosa, getUrgencyLabel } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
 interface WarehouseListViewProps {
@@ -85,20 +85,9 @@ function WarehouseListView({
     setSelectedItems(new Set());
   };
 
-  // Check if order is urgent (posa <= 7 days and has items not ready)
-  const isOrderUrgent = (group: OrderWithItems) => {
-    if (!group.expectedDate) return false;
-    const daysUntil = differenceInDays(new Date(group.expectedDate), new Date());
-    const hasNotReady = group.items.some(i => i.status === "da_ordinare" || i.status === "ordinato");
-    return daysUntil <= 7 && daysUntil >= 0 && hasNotReady;
-  };
-
-  const isOrderCritical = (group: OrderWithItems) => {
-    if (!group.expectedDate) return false;
-    const daysUntil = differenceInDays(new Date(group.expectedDate), new Date());
-    const hasNotReady = group.items.some(i => i.status === "da_ordinare" || i.status === "ordinato");
-    return daysUntil <= 3 && daysUntil >= 0 && hasNotReady;
-  };
+  // Check if order is urgent (any item urgent/critical)
+  const isOrderUrgent = (group: OrderWithItems) => group.items.some(isItemUrgent);
+  const isOrderCritical = (group: OrderWithItems) => group.items.some(isItemCritical);
 
   if (orderGroups.length === 0) {
     return (
@@ -155,9 +144,11 @@ function WarehouseListView({
         const isExpanded = expandedOrders.has(group.orderId);
         const urgent = isOrderUrgent(group);
         const critical = isOrderCritical(group);
-        const daysUntil = group.expectedDate 
-          ? differenceInDays(new Date(group.expectedDate), new Date())
-          : null;
+        // Get min daysUntil from urgent items for display
+        const urgentDays = group.items
+          .map(getDaysUntilPosa)
+          .filter((d): d is number => d !== null && d >= 0 && d <= 7);
+        const daysUntil = urgentDays.length > 0 ? Math.min(...urgentDays) : null;
 
         return (
           <Collapsible 
@@ -195,7 +186,7 @@ function WarehouseListView({
                               !critical && "bg-amber-500 hover:bg-amber-600"
                             )}
                           >
-                            {daysUntil === 0 ? "OGGI" : daysUntil === 1 ? "Domani" : `${daysUntil}g`}
+                            {daysUntil !== null && getUrgencyLabel(daysUntil)}
                           </Badge>
                         )}
                       </div>

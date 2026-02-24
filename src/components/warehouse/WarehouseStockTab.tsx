@@ -74,10 +74,8 @@ export default function WarehouseStockTab() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const getSupplierName = (id: string | null) => {
-    if (!id) return "—";
-    return suppliers.find((s) => s.id === id)?.name || "—";
-  };
+  const getSupplierName = (id: string | null) =>
+    !id ? "—" : (suppliers.find((s) => s.id === id)?.name || "—");
 
   // Helper to insert a company_cost record
   const insertCostRecord = async (itemName: string, unitCost: number, qty: number, vatRate: number, supplierId?: string, costPaidDate?: string, costCategory?: string) => {
