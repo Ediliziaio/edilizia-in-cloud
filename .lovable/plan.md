@@ -1,44 +1,40 @@
 
 
-# Stato: Tutte le correzioni P1 sono gia' implementate
+# Stato: Tutto gia' implementato
 
-Dopo verifica puntuale dei file e del database, tutte e tre le correzioni richieste risultano gia' presenti:
+## 1. DB Functions Aggregate
 
-## 1. Label `sign_in_as_user` nell'Audit Log
+Le tre funzioni RPC esistono gia' nel database:
 
-**File**: `AuditLogTab.tsx`, riga 23
-```
-sign_in_as_user: "Accesso come Utente"  (color: secondary)
-```
-Presente e corretto. Anche `update_platform_settings` ("Modifica Impostazioni Piattaforma") e' mappato a riga 24.
+| Funzione | Stato |
+|----------|-------|
+| `get_total_orders_value()` | Presente — restituisce `total_count` + `total_value` aggregati |
+| `get_company_order_stats()` | Presente — restituisce count, sum e last_order_date per company_id |
+| `get_company_user_counts()` | Presente — restituisce user_count per company_id |
 
-## 2. Ottimizzazione `sign-in-as-user` Edge Function
+## 2. Codice Frontend gia' aggiornato
 
-**File**: `sign-in-as-user/index.ts`, righe 83-88
+- **`useAdminDashboardData.ts`** (riga 60): usa `supabase.rpc("get_total_orders_value")` — nessun caricamento massivo client-side
+- **`CompaniesList.tsx`** (righe 68-100): usa `supabase.rpc("get_company_order_stats")` e `supabase.rpc("get_company_user_counts")` — eliminato il vecchio `.limit(50000)` su ordini e profili
 
-La vecchia chiamata `auth.admin.listUsers()` e' stata gia' sostituita con:
-```typescript
-adminClient.from("profiles").select("id").eq("email", email).maybeSingle()
-```
-Query mirata per email, nessun caricamento di tutti gli utenti.
+Le query pesanti sono state sostituite con aggregate server-side nelle iterazioni precedenti.
 
-## 3. Tabella `admin_notification_prefs`
+## 3. Leaked Password Protection
 
-La tabella esiste nel database con la struttura corretta:
+Questa configurazione risiede nelle impostazioni di autenticazione del backend (Lovable Cloud). Non e' modificabile via codice o migration SQL. Deve essere abilitata manualmente dal pannello backend.
 
-| Colonna | Tipo | Default |
-|---------|------|---------|
-| id | uuid | gen_random_uuid() |
-| user_id | uuid | NOT NULL |
-| new_company | boolean | true |
-| trial_expiring | boolean | true |
-| new_ticket | boolean | true |
-| created_at | timestamptz | now() |
-| updated_at | timestamptz | now() |
+## 4. Verifica end-to-end
 
-Il componente `NotificationsTab.tsx` usa `as any` perche' la tabella non e' nei tipi generati automaticamente, ma funziona correttamente a runtime. L'uso di `as any` e' un workaround accettabile per tabelle non incluse nel type generator.
+Non posso effettuare login come Super Admin in modalita' plan (read-only). La verifica end-to-end deve essere eseguita manualmente accedendo come Super Admin e navigando tutte le sezioni:
+- Dashboard (`/admin`)
+- Lista Aziende (`/admin/aziende`)
+- Impostazioni (`/admin/impostazioni`) — tutte e 5 le tab
+- Assistenza (`/admin/ticket`)
+- Piani (`/admin/piani`)
+- Referral (`/admin/referral`)
+- Implementazioni (`/admin/implementazioni`)
 
 ## Conclusione
 
-Nessuna modifica necessaria. Tutti e tre i punti P1 sono stati risolti nelle iterazioni precedenti.
+Nessuna modifica necessaria. Le DB functions aggregate sono gia' create e il codice frontend le utilizza correttamente. L'unico punto pendente e' l'abilitazione manuale della Leaked Password Protection nelle impostazioni auth del backend.
 
