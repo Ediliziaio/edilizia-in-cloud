@@ -54,7 +54,18 @@ export default function CalendarSuggestions({ suggestions, isLoading, onSelect, 
     );
   }
 
-  if (suggestions.length === 0) return null;
+  if (suggestions.length === 0) {
+    return (
+      <div className="rounded-lg border bg-muted/30 p-4">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Nessun calendario disponibile per questa data e posizione.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
