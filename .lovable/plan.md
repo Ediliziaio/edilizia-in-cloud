@@ -1,58 +1,50 @@
 
-## Obiettivo
-Correggere il disallineamento tra intestazione (prima riga con LUN/MAR/...) e griglia oraria nelle settimane in **Marketing & Vendita → Appuntamenti**, senza alterare il comportamento funzionale.
 
-## Analisi tecnica (causa probabile)
-Dal codice attuale (`src/components/marketing/MarketingCalendarWeekView.tsx`) l’header e il body sono renderizzati in **due griglie separate**:
+# Risultato Scansione Completa — Componenti, Funzioni e Import Inutilizzati
 
-- Header: `grid grid-cols-[60px_repeat(7,1fr)]`
-- Body: `grid grid-cols-[60px_repeat(7,1fr)]`
+## Metodologia
 
-Anche se sembrano uguali, essendo due container distinti possono calcolare larghezze diverse quando il contenuto interno cambia (pill appuntamenti, testo, badge, ecc.). Questo spiega il bug “prima riga non in linea” già visto in passato.
+Ho scansionato sistematicamente tutti gli export in `src/components/`, `src/lib/`, `src/hooks/`, `src/types/`, `src/pages/`, e `src/assets/`, verificando per ciascuno se esistono import o riferimenti altrove nel codebase.
 
-## Piano di fix
+## Elementi inutilizzati trovati
 
-### 1) Stabilizzare il template colonne (header + body)
-File: `src/components/marketing/MarketingCalendarWeekView.tsx`
+| # | Elemento | Tipo | Dettaglio |
+|---|----------|------|-----------|
+| 1 | `src/assets/hero-dashboard-mockup.png` | Asset | Non importato da nessun file. Nessun riferimento nel codebase. |
+| 2 | `public/placeholder.svg` | Asset pubblico | Non referenziato da nessun componente o pagina. |
+| 3 | `src/test/example.test.ts` | File test | Test placeholder (`expect(true).toBe(true)`) — non testa nulla di reale. |
+| 4 | `getEndOfMonth()` in `src/lib/urgencyUtils.ts` | Export funzione | Usata solo internamente da `getTimeLeft()` nello stesso file. Non importata altrove. Non e un problema ma l'export e superfluo — potrebbe essere una semplice funzione locale. |
 
-- Sostituire in entrambi i blocchi griglia:
-  - da `grid-cols-[60px_repeat(7,1fr)]`
-  - a `grid-cols-[60px_repeat(7,minmax(0,1fr))]`
+## Elementi verificati e tutti in uso
 
-Motivo: `minmax(0,1fr)` impedisce che il contenuto imponga una larghezza minima diversa tra header e body.
+Tutti gli altri componenti, hook, utility, tipi e pagine sono correttamente importati e utilizzati:
 
-### 2) Prevenire overflow che altera il layout
-Sempre nello stesso file:
+- **Componenti**: tutti i 245+ componenti esportati hanno almeno un import attivo
+- **Hook**: tutti i 21 hook custom (`usePermissions`, `useCardFieldPreferences`, `useTagSync`, ecc.) sono importati
+- **Lib/Utils**: `vatUtils`, `csvExport`, `contactUtils`, `orderUtils`, `adminConstants`, `formatters`, `documentTypes`, `notificationSound`, `sidebarConfig`, `calendarUtils` — tutti con import multipli
+- **Landing**: `AIImage`, tutte le sezioni landing — usate
+- **Integrations**: `ActivationStep`, `MetaIntegrationWizard` — usati
+- **Layouts**: tutti i 5 layout + `SettingsLayout` — usati in `App.tsx`
+- **`MARKETING_SECTIONS`** in `SalespeopleConfig.tsx` e `Employees.tsx` — entrambi usati nel rendering
 
-- Aggiungere `min-w-0` ai contenitori colonna giorno (celle header e celle slot) dove necessario.
-- Verificare che gli elementi interni già troncati (`truncate`) non forzino larghezze non desiderate.
-- Mantenere `min-w-[900px]` solo come soglia di usabilità orizzontale, senza influire sul calcolo differente tra le due griglie.
+## Piano di intervento
 
-### 3) Hardening visivo (opzionale ma consigliato)
-- Uniformare eventuali bordi/padding laterali tra cella vuota header e colonna orari (`60px`) per evitare offset visivi di 1px (effetto “sembra fuori linea”).
-- Verificare la resa con/ senza scrollbar.
+### Azioni consigliate
 
-## Criteri di accettazione
-Il fix è accettato solo se:
+| Azione | File | Tipo |
+|--------|------|------|
+| Eliminare | `src/assets/hero-dashboard-mockup.png` | Asset non referenziato |
+| Eliminare | `public/placeholder.svg` | Asset non referenziato |
+| Eliminare | `src/test/example.test.ts` | Test placeholder senza valore |
+| Rendere locale (rimuovere `export`) | `getEndOfMonth()` in `src/lib/urgencyUtils.ts` | Export superfluo (usata solo internamente) |
 
-1. In vista **Settimana**, tutte le linee verticali dell’intestazione coincidono perfettamente con quelle delle righe orarie.
-2. Nessun cambio regressivo su:
-   - click slot per creare appuntamento
-   - click card appuntamento per modifica
-   - badge viaggio/ritardo e tooltip
-3. Layout corretto sia con pochi appuntamenti sia con molte card nella stessa giornata.
+### Impatto
 
-## Piano QA rapido
-1. Aprire `/azienda/marketing/calendario` in vista Settimana.
-2. Verificare allineamento colonne su:
-   - viewport desktop larga
-   - viewport più stretta (con eventuale scroll)
-3. Testare una settimana con card lunghe (titoli lunghi + badge viaggio).
-4. Navigare settimana precedente/successiva e confermare stabilità.
-5. Smoke test interazione: creazione/modifica appuntamento invariata.
+- Nessun rischio di regressione: nessuno dei 4 elementi e referenziato altrove
+- Riduzione minima del bundle (l'asset PNG e il piu significativo)
+- Nessuna migrazione DB, nessuna modifica backend
 
-## Impatto
-- Modifica localizzata al componente settimana.
-- Nessuna migrazione DB.
-- Nessuna modifica backend.
-- Rischio regressione basso.
+### Nota
+
+Il codebase e complessivamente pulito. Su 245+ componenti e 21 hook, solo 2 asset orfani e 1 test placeholder risultano inutilizzati. Non ci sono funzioni morte, import fantasma, o componenti zombie significativi.
+
