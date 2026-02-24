@@ -119,8 +119,10 @@ function CompanySidebar() {
     });
   };
 
-  const visibleInternalItems = useMemo(() => filterNavItems(internalNavItems), [permissions, isModuleEnabled, effectiveCompany]);
-  const visibleMarketingItems = useMemo(() => filterNavItems(marketingNavItems), [permissions, isModuleEnabled, effectiveCompany]);
+  const companyId = effectiveCompany?.id;
+  const messagingBetaEnabled = (effectiveCompany as any)?.messaging_beta_enabled;
+  const visibleInternalItems = useMemo(() => filterNavItems(internalNavItems), [permissions, isModuleEnabled, companyId, messagingBetaEnabled]);
+  const visibleMarketingItems = useMemo(() => filterNavItems(marketingNavItems), [permissions, isModuleEnabled, companyId, messagingBetaEnabled]);
 
   return (
     <Sidebar className="border-r">

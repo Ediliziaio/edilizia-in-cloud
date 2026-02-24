@@ -6,12 +6,20 @@ interface PageSelectionStepProps {
 }
 
 export function PageSelectionStep({ hook }: PageSelectionStepProps) {
-  const { pages, togglePageSelection } = hook;
+  const { pages, togglePageSelection, isLoadingPages } = hook;
+
+  if (isLoadingPages) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+        <p className="text-sm">Caricamento pagine...</p>
+      </div>
+    );
+  }
 
   if (!pages || pages.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
         <p className="text-sm">Nessuna pagina trovata. Verifica i permessi del tuo account Meta.</p>
       </div>
     );
