@@ -1,4 +1,5 @@
 import { GripVertical, Copy, Trash2, ChevronUp, ChevronDown, Plus, Type, ImageIcon, MousePointerClick, Minus, Code } from "lucide-react";
+import DOMPurify from "dompurify";
 import { BuilderBlock as BuilderBlockType, TextProps, ImageProps, ButtonProps, DividerProps, SpacerProps, HtmlProps, ColumnsProps, getColumnWidths, BlockType, createBlock } from "./builderTypes";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -40,7 +41,7 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
             contentEditable={isSelected}
             suppressContentEditableWarning
             style={{ fontFamily: p.fontFamily, fontSize: p.fontSize, color: p.color, textAlign: p.textAlign, fontWeight: p.fontWeight, lineHeight: 1.5, outline: "none", cursor: isSelected ? "text" : "pointer" }}
-            dangerouslySetInnerHTML={{ __html: p.content }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.content) }}
             onBlur={(e) => onInlineEdit?.(block.id, { content: e.currentTarget.innerHTML })}
             onClick={(e) => { if (isSelected) e.stopPropagation(); }}
           />
@@ -88,7 +89,7 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
       }
       case "html": {
         const p = block.props as HtmlProps;
-        return <div dangerouslySetInnerHTML={{ __html: p.code }} />;
+        return <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.code) }} />;
       }
       case "columns": {
         const p = block.props as ColumnsProps;
