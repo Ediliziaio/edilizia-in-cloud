@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -70,37 +70,65 @@ interface UserWithRole {
   company_name: string | null;
 }
 
+function useDebounce(value: string, delay: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
 export function QuickLoginPopover() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const { profile: currentProfile } = useAuth();
+  const { profile: currentProfile, refreshAuth } = useAuth();
+  const debouncedSearch = useDebounce(search, 300);
 
   const { data: users = [] } = useQuery({
-    queryKey: ["admin-all-users-for-login"],
+    queryKey: ["admin-all-users-for-login", debouncedSearch],
     queryFn: async () => {
-      // Fetch profiles with roles and company names
-      const { data: profiles, error: profilesError } = await supabase
+      // Build profiles query with server-side filtering + limit
+      let profilesQuery = supabase
         .from("profiles")
         .select("id, first_name, last_name, email, company_id")
-        .order("first_name");
+        .order("first_name")
+        .limit(50);
 
+      if (debouncedSearch) {
+        profilesQuery = profilesQuery.or(
+          `first_name.ilike.%${debouncedSearch}%,last_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%`
+        );
+      }
+
+      const { data: profiles, error: profilesError } = await profilesQuery;
       if (profilesError) throw profilesError;
+
+      const profileIds = profiles.map((p) => p.id);
+      if (profileIds.length === 0) return [];
 
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
-        .select("user_id, role");
+        .select("user_id, role")
+        .in("user_id", profileIds);
 
       if (rolesError) throw rolesError;
 
-      const { data: companies, error: companiesError } = await supabase
-        .from("companies")
-        .select("id, name");
+      // Collect unique company_ids to fetch names
+      const companyIds = [...new Set(profiles.map((p) => p.company_id).filter(Boolean))] as string[];
+      let companyMap = new Map<string, string>();
 
-      if (companiesError) throw companiesError;
+      if (companyIds.length > 0) {
+        const { data: companies, error: companiesError } = await supabase
+          .from("companies")
+          .select("id, name")
+          .in("id", companyIds);
+        if (companiesError) throw companiesError;
+        companyMap = new Map(companies.map((c) => [c.id, c.name]));
+      }
 
-      const companyMap = new Map(companies.map((c) => [c.id, c.name]));
       const roleMap = new Map(roles.map((r) => [r.user_id, r.role as AppRole]));
 
       return profiles
@@ -118,24 +146,11 @@ export function QuickLoginPopover() {
     enabled: open,
   });
 
-  const filtered = users.filter((u) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      u.first_name.toLowerCase().includes(q) ||
-      u.last_name.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      (u.company_name && u.company_name.toLowerCase().includes(q))
-    );
-  });
-
   const grouped = ROLE_ORDER.map((role) => ({
     role,
     label: ROLE_LABELS[role],
-    users: filtered.filter((u) => u.role === role),
+    users: users.filter((u) => u.role === role),
   })).filter((g) => g.users.length > 0);
-
-  const { refreshAuth } = useAuth();
 
   const handleSignInAs = async (user: UserWithRole) => {
     setLoading(true);
@@ -146,13 +161,11 @@ export function QuickLoginPopover() {
 
       if (error) throw error;
 
-      // Save current admin session info before swapping
       if (currentProfile?.email) {
         const adminName = `${currentProfile.first_name || ""} ${currentProfile.last_name || ""}`.trim();
         saveQuickLoginSession(currentProfile.email, adminName || currentProfile.email);
       }
 
-      // Verify OTP — Supabase replaces the session automatically, no signOut needed
       const { error: otpError } = await supabase.auth.verifyOtp({
         type: "magiclink",
         token_hash: data.hashed_token,
@@ -160,14 +173,12 @@ export function QuickLoginPopover() {
 
       if (otpError) throw otpError;
 
-      // Refresh auth context with new user data
       await refreshAuth();
 
       setOpen(false);
       setSearch("");
       toast.success(`Accesso effettuato come ${user.first_name} ${user.last_name}`);
 
-      // Navigate without reload
       const target = REDIRECT_MAP[user.role] || "/";
       navigate(target, { replace: true });
     } catch (err: any) {
