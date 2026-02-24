@@ -26,6 +26,7 @@ interface CalendarOption {
   base_lat?: number | null;
   base_lng?: number | null;
   base_formatted_address?: string | null;
+  duration_minutes?: number | null;
 }
 
 interface UserOption {
@@ -295,7 +296,7 @@ export default function MarketingAppointmentDialog({
       setStartTime(suggestedTime);
       // Find calendar duration to set end time
       const cal = calendars.find((c) => c.id === sugCalendarId);
-      const duration = 30; // default
+      const duration = cal?.duration_minutes || 60;
       setEndTime(addMinutesToTime(suggestedTime, duration));
     }
   }, [calendars]);

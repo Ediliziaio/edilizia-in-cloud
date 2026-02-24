@@ -85,7 +85,7 @@ export default function MarketingCalendar() {
       if (!companyId) return [];
       const { data } = await supabase
         .from("marketing_calendars")
-        .select("id, name, is_active, base_lat, base_lng, base_formatted_address")
+        .select("id, name, is_active, base_lat, base_lng, base_formatted_address, duration_minutes")
         .eq("company_id", companyId)
         .eq("is_active", true)
         .order("name");
