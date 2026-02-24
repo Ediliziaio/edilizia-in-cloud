@@ -1,94 +1,113 @@
 
-# Verifica Finale Completa -- Sistema PRONTO PER PRODUZIONE
 
-## RISULTATO: TUTTO PULITO E CORRETTO
+# Configurazione API Meta da UI Super Admin
 
-Nessun bug, nessun codice morto, nessun problema di sicurezza residuo. Tutti i 6 fix del piano precedente sono stati applicati correttamente.
+## Obiettivo
+Aggiungere una sezione "Integrazioni Piattaforma" nel tab "Piattaforma" delle Impostazioni Super Admin, dove configurare META_APP_ID e META_APP_SECRET direttamente dalla UI invece di gestirli come secrets backend.
 
----
+## Architettura
 
-## Checklist Verifica Componente per Componente
+I valori vengono salvati in una nuova tabella `platform_settings` (key-value store) accessibile solo ai super admin. Le Edge Functions Meta leggono da questa tabella (con fallback ai secrets di ambiente per retrocompatibilita').
 
-### Edge Functions (6/6) -- PULITE
-
-| Function | CORS | Auth | Logica | Stato |
-|----------|------|------|--------|-------|
-| `meta-oauth-start` | Moderno (7 headers) | getClaims | HMAC-signed state | OK |
-| `meta-oauth-callback` | N/A (redirect HTML) | Stateless HMAC + 10min expiry | Token exchange + page tokens sicuri | OK |
-| `meta-api-proxy` | Moderno | getClaims | 6 actions incl. `backfill-leads` | OK |
-| `meta-webhook` | N/A | HMAC-SHA256 signature | Idempotent upsert, risponde 200 subito | OK |
-| `meta-process-leads` | Moderno | Service role | Lock/unlock, 10x retry, deduplica | OK |
-| `meta-health-check` | Moderno | Service role | Token expiry + failure rate check | OK |
-
-### Frontend UI (11 componenti) -- PULITI
-
-| Componente | Pattern corretto | Stato |
-|-----------|-----------------|-------|
-| `SettingsIntegrations.tsx` | effectiveCompany, query con enabled guard | OK |
-| `IntegrationCard.tsx` | Status badge, stats, azioni contestuali | OK |
-| `MetaStatusBadge.tsx` | 4 stati + health override (warn/critical) | OK |
-| `MetaIntegrationWizard.tsx` | 6 step, tabs, unsaved changes AlertDialog | OK |
-| `OAuthStep.tsx` | Popup + postMessage + closed detection polling | OK |
-| `PageSelectionStep.tsx` | isLoadingPages vs empty state (fix applicato) | OK |
-| `ConnectionConfirmStep.tsx` | Riepilogo pagine selezionate | OK |
-| `FormListStep.tsx` | Dependency stabilizzata, backfill UI con date picker | OK |
-| `FieldMappingStep.tsx` | Auto-map, custom fields, pipeline, preview collapsible | OK |
-| `ActivationStep.tsx` | Riepilogo finale con conteggi | OK |
-| `IntegrationLogsPanel.tsx` | Stats label "(ultimi 100)" (fix applicato) | OK |
-
-### Hook (`useMetaIntegration.ts`) -- PULITO
-
-- Tutte le query usano `effectiveCompany?.id` (primitiva stabile)
-- `enabled` guard su tutte le query
-- `callProxy` e `startOAuth` wrapped in `useCallback`
-- Mutations con `onSuccess` che invalida cache
-- Nessun import inutile, nessuna variabile morta
-
-### CompanyLayout.tsx -- FIX VERIFICATO
-
-- `useMemo` ora dipende da `companyId` e `messagingBetaEnabled` (primitivi stabili) invece dell'oggetto `effectiveCompany`
-- Elimina re-render inutili della sidebar
-
-### Sicurezza -- CONFERMATA
-
-- OAuth: HMAC-signed state con timestamp 10min
-- Webhook: HMAC-SHA256 con META_APP_SECRET
-- Page tokens: salvati in `integration_credentials.meta_page_tokens` (tabella con `USING(false)`)
-- RLS: 9/9 tabelle Meta con isolamento multi-tenant
-- Nessun secret nel codice client
-- Nessun token nei log (solo `error.message`)
-
-### Cron Jobs -- ATTIVI
-
-- `meta-process-leads`: ogni minuto
-- `meta-health-check`: ogni ora
-- `check-due-dates`: ogni giorno alle 7
-
-### Console -- PULITA
-
-Zero errori runtime nella console del browser.
+```text
++---------------------------+
+|  Super Admin UI           |
+|  (PlatformInfoTab.tsx)    |
+|  - Meta App ID input      |
+|  - Meta App Secret input  |
+|  - Salva button           |
++----------+----------------+
+           |
+           v
++----------+----------------+
+|  Edge Function             |
+|  manage-super-admins       |
+|  action: "get-settings"    |
+|  action: "update-settings" |
++----------+-----------------+
+           |
+           v
++----------+-----------------+
+|  DB: platform_settings     |
+|  key | value | updated_by  |
++----------------------------+
+```
 
 ---
 
-## Nessun Fix Necessario
+## Dettagli Tecnici
 
-Tutti i problemi identificati nelle verifiche precedenti sono stati risolti:
-1. backfill-leads action nel proxy -- RISOLTO
-2. PageSelectionStep loading vs empty -- RISOLTO
-3. IntegrationLogsPanel stats label -- RISOLTO
-4. CompanyLayout useMemo dependency -- RISOLTO
-5. RLS profiles/order_salespeople/article_templates -- VERIFICATE (policy esistenti corrette)
-6. Unsaved changes warning -- IMPLEMENTATO
+### 1. Nuova tabella DB: `platform_settings`
 
-## Debiti Tecnici Documentati (non bloccanti)
+```sql
+CREATE TABLE public.platform_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  updated_by UUID REFERENCES auth.users(id)
+);
 
-| Debito | Priorita' | Nota |
-|--------|-----------|------|
-| Token encryption base64 | P3 | Documentato come MVP, pgcrypto raccomandato per produzione |
-| Business Manager / Ad Account selection | P3 | Solo pagine, espansione futura |
+ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
 
-## DICHIARAZIONE FINALE
+-- Solo super admin possono leggere/scrivere
+CREATE POLICY "Super admins can manage platform settings"
+  ON public.platform_settings
+  FOR ALL
+  TO authenticated
+  USING (public.has_role(auth.uid(), 'super_admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'super_admin'));
+```
 
-**SISTEMA COMPLETO, PULITO E PRONTO PER PRODUZIONE.**
+### 2. Edge Function `manage-super-admins` -- nuove azioni
 
-Nessun bug, nessun codice morto, nessuna vulnerabilita' critica. L'integrazione Meta Lead Ads e' funzionante end-to-end: OAuth, asset selection, form activation, field mapping con preview, webhook real-time, lead processing automatico, health monitoring, audit trail, e backfill storico.
+- **`get-settings`**: Legge le chiavi `meta_app_id` e `meta_app_secret` dalla tabella, restituendo il valore mascherato per il secret (solo ultimi 4 char).
+- **`update-settings`**: Salva/aggiorna le chiavi. Valida che i valori non siano vuoti. Logga nell'audit trail.
+
+### 3. Edge Functions Meta -- fallback chain
+
+Le 6 Edge Functions Meta (`meta-oauth-start`, `meta-oauth-callback`, `meta-api-proxy`, `meta-webhook`, `meta-process-leads`, `meta-health-check`) verranno aggiornate per:
+1. Leggere prima da `platform_settings` (query con service role)
+2. Se non trovato, fallback a `Deno.env.get("META_APP_ID")` / `Deno.env.get("META_APP_SECRET")`
+
+Questo garantisce retrocompatibilita' totale.
+
+### 4. UI -- Nuova card in PlatformInfoTab
+
+Aggiungere una card "Integrazioni Meta" sotto le info piattaforma esistenti con:
+- Campo `Meta App ID` (input text, visibile)
+- Campo `Meta App Secret` (input password, mascherato, mostra ultimi 4 char quando salvato)
+- Bottone "Salva configurazione"
+- Stato: indicatore se configurato o meno
+- Info tooltip: "Queste credenziali vengono usate da tutte le aziende per il collegamento OAuth Meta"
+
+### 5. Sicurezza
+
+- I valori sono salvati in chiaro nella tabella ma protetti da RLS (solo super admin)
+- Il secret viene mascherato nella risposta API (solo ultimi 4 caratteri visibili)
+- Audit trail su ogni modifica
+- Nessun secret esposto nel client oltre alla risposta dell'edge function autenticata
+
+---
+
+## File da creare/modificare
+
+| File | Azione |
+|------|--------|
+| Migrazione SQL | Crea tabella `platform_settings` con RLS |
+| `supabase/functions/manage-super-admins/index.ts` | Aggiungi azioni `get-settings` e `update-settings` |
+| `src/components/admin/settings/PlatformInfoTab.tsx` | Aggiungi card "Integrazioni Meta" con form |
+| `supabase/functions/meta-oauth-start/index.ts` | Fallback: DB prima, env dopo |
+| `supabase/functions/meta-oauth-callback/index.ts` | Fallback: DB prima, env dopo |
+| `supabase/functions/meta-api-proxy/index.ts` | Fallback: DB prima, env dopo |
+| `supabase/functions/meta-webhook/index.ts` | Fallback: DB prima, env dopo |
+| `supabase/functions/meta-process-leads/index.ts` | Fallback: DB prima, env dopo (per page token refresh) |
+| `supabase/functions/meta-health-check/index.ts` | Fallback: DB prima, env dopo |
+
+---
+
+## Impatto
+
+- Nessuna rottura: i secrets di ambiente continuano a funzionare come fallback
+- Centralizzazione: il Super Admin puo' aggiornare le credenziali Meta senza toccare i secrets backend
+- Audit: ogni modifica e' tracciata
+- UX: flusso chiaro e coerente con il resto del pannello Piattaforma
