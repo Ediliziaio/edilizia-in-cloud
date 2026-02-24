@@ -1,50 +1,67 @@
 
 
-# Risultato Scansione Completa — Componenti, Funzioni e Import Inutilizzati
+# Piano: Aggiungere Suggerimenti Calendario con Distanze in Opportunità e Contatti
 
-## Metodologia
+## Situazione attuale
 
-Ho scansionato sistematicamente tutti gli export in `src/components/`, `src/lib/`, `src/hooks/`, `src/types/`, `src/pages/`, e `src/assets/`, verificando per ciascuno se esistono import o riferimenti altrove nel codebase.
+| Contesto | Suggerimenti calendari | Distanza base | Percorso giornaliero |
+|----------|----------------------|---------------|---------------------|
+| MarketingAppointmentDialog (Calendario) | ✅ | ✅ | ✅ |
+| ContactAppointmentsPanel (Contatti) | ✅ già presente (usa MarketingAppointmentDialog) | ✅ | ✅ |
+| OpportunityAppointmentTab (Opportunità) | ❌ mancante | ✅ parziale | ❌ |
 
-## Elementi inutilizzati trovati
+Il **form contatti** già usa `MarketingAppointmentDialog` che include tutto. Il problema è solo nel **tab Appuntamenti delle Opportunità** che ha un form inline custom senza `CalendarSuggestions`.
 
-| # | Elemento | Tipo | Dettaglio |
-|---|----------|------|-----------|
-| 1 | `src/assets/hero-dashboard-mockup.png` | Asset | Non importato da nessun file. Nessun riferimento nel codebase. |
-| 2 | `public/placeholder.svg` | Asset pubblico | Non referenziato da nessun componente o pagina. |
-| 3 | `src/test/example.test.ts` | File test | Test placeholder (`expect(true).toBe(true)`) — non testa nulla di reale. |
-| 4 | `getEndOfMonth()` in `src/lib/urgencyUtils.ts` | Export funzione | Usata solo internamente da `getTimeLeft()` nello stesso file. Non importata altrove. Non e un problema ma l'export e superfluo — potrebbe essere una semplice funzione locale. |
+## Intervento
 
-## Elementi verificati e tutti in uso
+### File: `src/components/opportunities/OpportunityAppointmentTab.tsx`
 
-Tutti gli altri componenti, hook, utility, tipi e pagine sono correttamente importati e utilizzati:
+1. **Importare `CalendarSuggestions`** e il tipo `CalendarSuggestion`
 
-- **Componenti**: tutti i 245+ componenti esportati hanno almeno un import attivo
-- **Hook**: tutti i 21 hook custom (`usePermissions`, `useCardFieldPreferences`, `useTagSync`, ecc.) sono importati
-- **Lib/Utils**: `vatUtils`, `csvExport`, `contactUtils`, `orderUtils`, `adminConstants`, `formatters`, `documentTypes`, `notificationSound`, `sidebarConfig`, `calendarUtils` — tutti con import multipli
-- **Landing**: `AIImage`, tutte le sezioni landing — usate
-- **Integrations**: `ActivationStep`, `MetaIntegrationWizard` — usati
-- **Layouts**: tutti i 5 layout + `SettingsLayout` — usati in `App.tsx`
-- **`MARKETING_SECTIONS`** in `SalespeopleConfig.tsx` e `Employees.tsx` — entrambi usati nel rendering
+2. **Aggiungere la query `suggest-calendars`** — stessa logica del `MarketingAppointmentDialog`:
+   - Si attiva quando `addressData.lat`, `addressData.lng` e `date` sono valorizzati
+   - Chiama la Edge Function `suggest-calendars` con `company_id`, `client_lat`, `client_lng`, `date`, `client_address`
+   - `staleTime: 2 min`
 
-## Piano di intervento
+3. **Aggiungere handler `handleSuggestionSelect`** — quando l'utente clicca un suggerimento:
+   - Imposta `calendarId` al calendario suggerito
+   - Imposta `selectedSlot` all'orario suggerito
+   - Resetta la selezione slot manuale
 
-### Azioni consigliate
+4. **Renderizzare il componente `CalendarSuggestions`** tra la sezione indirizzo e il date picker (dopo la card con la distanza dalla base), condizionato a `addressData.lat != null && date != null`
 
-| Azione | File | Tipo |
-|--------|------|------|
-| Eliminare | `src/assets/hero-dashboard-mockup.png` | Asset non referenziato |
-| Eliminare | `public/placeholder.svg` | Asset non referenziato |
-| Eliminare | `src/test/example.test.ts` | Test placeholder senza valore |
-| Rendere locale (rimuovere `export`) | `getEndOfMonth()` in `src/lib/urgencyUtils.ts` | Export superfluo (usata solo internamente) |
+5. **Aggiungere inter-distanze tra appuntamenti** — mostrare per ogni appuntamento dello stesso giorno la distanza dal nuovo indirizzo (come già fatto nel dialog marketing), usando le stesse query `maps-proxy` con `staleTime: 5 min`
 
-### Impatto
+### Nessuna modifica necessaria per Contatti
 
-- Nessun rischio di regressione: nessuno dei 4 elementi e referenziato altrove
-- Riduzione minima del bundle (l'asset PNG e il piu significativo)
-- Nessuna migrazione DB, nessuna modifica backend
+Il form di creazione appuntamento da `MarketingContactDetail` già utilizza `MarketingAppointmentDialog`, che include CalendarSuggestions, DailyRoutePanel e tutte le distanze. Non serve alcun intervento.
 
-### Nota
+## Dettaglio tecnico
 
-Il codebase e complessivamente pulito. Su 245+ componenti e 21 hook, solo 2 asset orfani e 1 test placeholder risultano inutilizzati. Non ci sono funzioni morte, import fantasma, o componenti zombie significativi.
+```text
+OpportunityAppointmentTab.tsx — struttura UI aggiornata:
+
+  ┌─ Appuntamento già fissato (se esiste)
+  ├─ Calendario select
+  ├─ Titolo
+  ├─ Indirizzo + Mappa + Distanza base
+  ├─ 🆕 CalendarSuggestions (se lat+lng+data presenti)
+  ├─ Altri appuntamenti del giorno (con distanze inter-appuntamento)
+  ├─ Data picker
+  ├─ Slot disponibili
+  ├─ Descrizione
+  └─ Pulsante Prenota
+```
+
+La query `suggest-calendars` restituisce per ogni calendario: `travel_km`, `travel_minutes`, `daily_km_if_assigned`, `suggested_times`, `status` (OK/WARNING/BLOCKED) e `daily_route`. Il componente `CalendarSuggestions` già renderizza tutto questo con progress bar km, badge status, e pannello percorso espandibile.
+
+Quando l'utente seleziona un suggerimento, il calendario e lo slot vengono pre-compilati nel form, stessa UX del dialog marketing.
+
+## File coinvolti
+
+| File | Azione |
+|------|--------|
+| `src/components/opportunities/OpportunityAppointmentTab.tsx` | Aggiunta CalendarSuggestions + inter-distanze |
+
+Nessuna modifica DB. Nessuna modifica backend.
 
