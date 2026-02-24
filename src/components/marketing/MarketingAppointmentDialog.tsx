@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import AddressAutocomplete, { type AddressData, emptyAddress } from "@/components/shared/AddressAutocomplete";
 import AddressMapPreview from "@/components/shared/AddressMapPreview";
+import CalendarSuggestions, { type CalendarSuggestion } from "./CalendarSuggestions";
 
 interface CalendarOption {
   id: string;
@@ -263,6 +264,42 @@ export default function MarketingAppointmentDialog({
     staleTime: 5 * 60 * 1000,
   });
 
+  // Calendar suggestions
+  const { data: calendarSuggestions = [], isFetching: isSuggestionsLoading } = useQuery<CalendarSuggestion[]>({
+    queryKey: ["mkt-apt-suggestions", companyId, addressData.lat, addressData.lng, dateStr],
+    queryFn: async () => {
+      if (!companyId || !addressData.lat || !addressData.lng || !dateStr) return [];
+      try {
+        const { data, error } = await supabase.functions.invoke("suggest-calendars", {
+          body: {
+            company_id: companyId,
+            client_lat: addressData.lat,
+            client_lng: addressData.lng,
+            date: dateStr,
+            client_address: addressData.formatted_address || "",
+          },
+        });
+        if (error || !data?.suggestions) return [];
+        return data.suggestions as CalendarSuggestion[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: open && !!companyId && !!addressData.lat && !!addressData.lng && !!dateStr,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const handleSuggestionSelect = useCallback((sugCalendarId: string, suggestedTime?: string) => {
+    setCalendarId(sugCalendarId);
+    if (suggestedTime) {
+      setStartTime(suggestedTime);
+      // Find calendar duration to set end time
+      const cal = calendars.find((c) => c.id === sugCalendarId);
+      const duration = 30; // default
+      setEndTime(addMinutesToTime(suggestedTime, duration));
+    }
+  }, [calendars]);
+
   const handleSave = async () => {
     const isBlocked = activeTab === "blocked";
 
@@ -448,6 +485,16 @@ export default function MarketingAppointmentDialog({
                     </>
                   )}
                 </div>
+
+                {/* Calendar Suggestions */}
+                {addressData.lat != null && addressData.lng != null && appointmentDate && (
+                  <CalendarSuggestions
+                    suggestions={calendarSuggestions}
+                    isLoading={isSuggestionsLoading}
+                    onSelect={handleSuggestionSelect}
+                    selectedCalendarId={calendarId}
+                  />
+                )}
 
                 {/* Same-day appointments */}
                 {sameDayAppointments.length > 0 && (

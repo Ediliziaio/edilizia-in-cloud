@@ -695,6 +695,8 @@ export type Database = {
           notes: string | null
           operational_address: string | null
           operational_city: string | null
+          operational_lat: number | null
+          operational_lng: number | null
           operational_postal_code: string | null
           operational_province: string | null
           payment_method: string
@@ -731,6 +733,8 @@ export type Database = {
           notes?: string | null
           operational_address?: string | null
           operational_city?: string | null
+          operational_lat?: number | null
+          operational_lng?: number | null
           operational_postal_code?: string | null
           operational_province?: string | null
           payment_method?: string
@@ -767,6 +771,8 @@ export type Database = {
           notes?: string | null
           operational_address?: string | null
           operational_city?: string | null
+          operational_lat?: number | null
+          operational_lng?: number | null
           operational_postal_code?: string | null
           operational_province?: string | null
           payment_method?: string
@@ -1935,8 +1941,11 @@ export type Database = {
         Row: {
           company_id: string
           created_at: string
+          default_appointment_duration_minutes: number
+          default_max_daily_km: number
           id: string
           language: string
+          max_travel_minutes: number
           show_equipment: boolean
           show_rooms: boolean
           show_services_menu: boolean
@@ -1947,8 +1956,11 @@ export type Database = {
         Insert: {
           company_id: string
           created_at?: string
+          default_appointment_duration_minutes?: number
+          default_max_daily_km?: number
           id?: string
           language?: string
+          max_travel_minutes?: number
           show_equipment?: boolean
           show_rooms?: boolean
           show_services_menu?: boolean
@@ -1959,8 +1971,11 @@ export type Database = {
         Update: {
           company_id?: string
           created_at?: string
+          default_appointment_duration_minutes?: number
+          default_max_daily_km?: number
           id?: string
           language?: string
+          max_travel_minutes?: number
           show_equipment?: boolean
           show_rooms?: boolean
           show_services_menu?: boolean
@@ -1998,6 +2013,7 @@ export type Database = {
           group_name: string | null
           id: string
           is_active: boolean
+          max_daily_km: number | null
           name: string
           owner_id: string | null
           updated_at: string
@@ -2021,6 +2037,7 @@ export type Database = {
           group_name?: string | null
           id?: string
           is_active?: boolean
+          max_daily_km?: number | null
           name: string
           owner_id?: string | null
           updated_at?: string
@@ -2044,6 +2061,7 @@ export type Database = {
           group_name?: string | null
           id?: string
           is_active?: boolean
+          max_daily_km?: number | null
           name?: string
           owner_id?: string | null
           updated_at?: string

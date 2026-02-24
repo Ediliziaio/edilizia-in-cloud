@@ -18,6 +18,7 @@ export interface CalendarFormData {
   description: string;
   owner_id: string;
   duration_minutes: number;
+  max_daily_km: number | null;
   base_address_line: string;
   base_address_city: string;
   base_address_postal_code: string;
@@ -64,6 +65,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
     description: "",
     owner_id: "",
     duration_minutes: 30,
+    max_daily_km: null,
     base_address_line: "",
     base_address_city: "",
     base_address_postal_code: "",
@@ -140,6 +142,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
         description: initialData.description || "",
         owner_id: initialData.owner_id || "",
         duration_minutes: mins,
+        max_daily_km: initialData.max_daily_km ?? null,
         base_address_line: initialData.base_address_line || "",
         base_address_city: initialData.base_address_city || "",
         base_address_postal_code: initialData.base_address_postal_code || "",
@@ -154,7 +157,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
       setDurationUnit(isHours ? "hours" : "minutes");
       setDurationValue(isHours ? mins / 60 : mins);
     } else {
-      setForm({ name: "", description: "", owner_id: "", duration_minutes: 30, base_address_line: "", base_address_city: "", base_address_postal_code: "", base_address_province: "", base_address_country: "IT", base_formatted_address: "", base_lat: null, base_lng: null, base_place_id: "" });
+      setForm({ name: "", description: "", owner_id: "", duration_minutes: 30, max_daily_km: null, base_address_line: "", base_address_city: "", base_address_postal_code: "", base_address_province: "", base_address_country: "IT", base_formatted_address: "", base_lat: null, base_lng: null, base_place_id: "" });
       setShowDescription(false);
       setDurationUnit("minutes");
       setDurationValue(30);
@@ -268,6 +271,21 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Km massimi giornalieri */}
+          <div className="space-y-2">
+            <Label className="flex items-center">
+              Km massimi giornalieri A/R
+              <InfoTooltip text="Limite km giornalieri per questo calendario. Lascia vuoto per usare il valore globale dalle preferenze." />
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              value={form.max_daily_km ?? ""}
+              onChange={(e) => setForm(f => ({ ...f, max_daily_km: e.target.value ? parseInt(e.target.value) : null }))}
+              placeholder="Usa default globale"
+            />
           </div>
 
           {/* Indirizzo base */}

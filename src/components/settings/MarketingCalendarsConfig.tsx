@@ -147,6 +147,7 @@ export default function MarketingCalendarsConfig() {
         description: data.description || null,
         owner_id: data.owner_id || null,
         duration_minutes: data.duration_minutes,
+        max_daily_km: data.max_daily_km ?? null,
         calendar_type: "personal",
         group_name: null,
         base_address_line: data.base_address_line || null,
@@ -175,6 +176,7 @@ export default function MarketingCalendarsConfig() {
         description: data.description || null,
         owner_id: data.owner_id || null,
         duration_minutes: data.duration_minutes,
+        max_daily_km: data.max_daily_km ?? null,
         base_address_line: data.base_address_line || null,
         base_address_city: data.base_address_city || null,
         base_address_postal_code: data.base_address_postal_code || null,
@@ -305,6 +307,9 @@ export default function MarketingCalendarsConfig() {
     show_services_menu: true,
     show_rooms: true,
     show_equipment: true,
+    default_max_daily_km: 250,
+    max_travel_minutes: 60,
+    default_appointment_duration_minutes: 90,
   });
 
   // Sync preferences from query data
@@ -317,6 +322,9 @@ export default function MarketingCalendarsConfig() {
         show_services_menu: preferences.show_services_menu,
         show_rooms: preferences.show_rooms,
         show_equipment: preferences.show_equipment,
+        default_max_daily_km: (preferences as any).default_max_daily_km ?? 250,
+        max_travel_minutes: (preferences as any).max_travel_minutes ?? 60,
+        default_appointment_duration_minutes: (preferences as any).default_appointment_duration_minutes ?? 90,
       });
     }
   }, [preferences]);
@@ -514,6 +522,47 @@ export default function MarketingCalendarsConfig() {
                       <SelectItem value="sunday">Domenica</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Spostamenti e percorrenza</CardTitle>
+              <CardDescription>Configura i limiti per il suggerimento automatico dei calendari negli appuntamenti</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Km massimi giornalieri A/R (default)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={localPrefs.default_max_daily_km}
+                    onChange={(e) => setLocalPrefs(p => ({ ...p, default_max_daily_km: parseInt(e.target.value) || 250 }))}
+                  />
+                  <p className="text-xs text-muted-foreground">Limite km per commerciale se non specificato sul calendario</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tempo max spostamento tra appuntamenti (min)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={localPrefs.max_travel_minutes}
+                    onChange={(e) => setLocalPrefs(p => ({ ...p, max_travel_minutes: parseInt(e.target.value) || 60 }))}
+                  />
+                  <p className="text-xs text-muted-foreground">Oltre questo tempo il calendario viene marcato come bloccato</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Durata appuntamento di default (min)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={localPrefs.default_appointment_duration_minutes}
+                    onChange={(e) => setLocalPrefs(p => ({ ...p, default_appointment_duration_minutes: parseInt(e.target.value) || 90 }))}
+                  />
+                  <p className="text-xs text-muted-foreground">Usata quando il calendario non ha una durata specifica</p>
                 </div>
               </div>
             </CardContent>
