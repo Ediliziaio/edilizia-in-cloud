@@ -5,12 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Lock, GripVertical } from "lucide-react";
 import { COLUMNS } from "./ContactsTable";
-
-export interface CustomFieldDef {
-  id: string;
-  name: string;
-  field_type: string;
-}
+import type { CustomFieldDef } from "@/lib/contactUtils";
 
 interface ContactFieldsSheetProps {
   open: boolean;

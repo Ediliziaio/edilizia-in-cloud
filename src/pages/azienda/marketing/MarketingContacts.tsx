@@ -110,8 +110,54 @@ export default function MarketingContacts() {
   const [fieldsSheetOpen, setFieldsSheetOpen] = useState(false);
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ContactFilters>(EMPTY_CONTACT_FILTERS);
+  const [exporting, setExporting] = useState(false);
 
   const activeFilterCount = countActiveContactFilters(filters);
+
+  const handleExport = useCallback(async () => {
+    if (!companyId || exporting) return;
+    setExporting(true);
+    try {
+      const { data: all, error } = await supabase
+        .from("marketing_contacts")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const rows = (all || []).map((c: any) => ({
+        first_name: c.first_name || "",
+        last_name: c.last_name || "",
+        phone: c.phone || "",
+        email: c.email || "",
+        company_name: c.company_name || "",
+        city: c.city || "",
+        province: c.province || "",
+        tags: (c.tags || []).join(", "),
+        notes: c.notes || "",
+        source: c.source || "",
+        created_at: c.created_at ? new Date(c.created_at).toLocaleDateString("it-IT") : "",
+      }));
+      const today = new Date().toISOString().slice(0, 10);
+      exportToCSV(rows, [
+        { key: "first_name", label: "Nome" },
+        { key: "last_name", label: "Cognome" },
+        { key: "phone", label: "Telefono" },
+        { key: "email", label: "Email" },
+        { key: "company_name", label: "Azienda" },
+        { key: "city", label: "Città" },
+        { key: "province", label: "Provincia" },
+        { key: "tags", label: "Tag" },
+        { key: "notes", label: "Note" },
+        { key: "source", label: "Fonte" },
+        { key: "created_at", label: "Data Creazione" },
+      ], `contatti_${today}.csv`);
+      toast.success(`${rows.length} contatti esportati`);
+    } catch {
+      toast.error("Errore durante l'esportazione");
+    } finally {
+      setExporting(false);
+    }
+  }, [companyId, exporting]);
 
   // Pipelines with stages for opportunity filters
   const { data: pipelines = [] } = useQuery({
@@ -545,48 +591,8 @@ export default function MarketingContacts() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={async () => {
-            if (!companyId) return;
-            try {
-              const { data: all, error } = await supabase
-                .from("marketing_contacts")
-                .select("*")
-                .eq("company_id", companyId)
-                .order("created_at", { ascending: false });
-              if (error) throw error;
-              const rows = (all || []).map((c: any) => ({
-                first_name: c.first_name || "",
-                last_name: c.last_name || "",
-                phone: c.phone || "",
-                email: c.email || "",
-                company_name: c.company_name || "",
-                city: c.city || "",
-                province: c.province || "",
-                tags: (c.tags || []).join(", "),
-                notes: c.notes || "",
-                source: c.source || "",
-                created_at: c.created_at ? new Date(c.created_at).toLocaleDateString("it-IT") : "",
-              }));
-              const today = new Date().toISOString().slice(0, 10);
-              exportToCSV(rows, [
-                { key: "first_name", label: "Nome" },
-                { key: "last_name", label: "Cognome" },
-                { key: "phone", label: "Telefono" },
-                { key: "email", label: "Email" },
-                { key: "company_name", label: "Azienda" },
-                { key: "city", label: "Città" },
-                { key: "province", label: "Provincia" },
-                { key: "tags", label: "Tag" },
-                { key: "notes", label: "Note" },
-                { key: "source", label: "Fonte" },
-                { key: "created_at", label: "Data Creazione" },
-              ], `contatti_${today}.csv`);
-              toast.success(`${rows.length} contatti esportati`);
-            } catch {
-              toast.error("Errore durante l'esportazione");
-            }
-          }}>
-            <Download className="h-4 w-4 mr-2" /> Esporta
+          <Button variant="outline" onClick={handleExport} disabled={exporting}>
+            <Download className="h-4 w-4 mr-2" /> {exporting ? "Esportando..." : "Esporta"}
           </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-2" /> Importa

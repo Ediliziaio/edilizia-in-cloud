@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { STATUS_OPTIONS } from "@/types/opportunities";
 
 // --- Types ---
 
@@ -39,13 +40,8 @@ export interface PipelineWithStages {
   marketing_pipeline_stages: { id: string; name: string; position: number }[];
 }
 
-export interface CustomFieldDef {
-  id: string;
-  name: string;
-  field_type: string;
-  section: string;
-  options: string[] | null;
-}
+import type { CustomFieldDef } from "@/lib/contactUtils";
+export type { CustomFieldDef };
 
 interface FieldDef {
   key: string;
@@ -69,12 +65,7 @@ const STANDARD_FIELDS: FieldDef[] = [
   { key: "tags", label: "Tag", group: "Tag", type: "tags" },
 ];
 
-const OPP_STATUSES = [
-  { value: "open", label: "Aperta" },
-  { value: "won", label: "Vinta" },
-  { value: "lost", label: "Persa" },
-  { value: "abandoned", label: "Abbandonata" },
-];
+const OPP_STATUSES: { value: string; label: string }[] = [...STATUS_OPTIONS];
 
 const OPERATOR_LABELS: Record<string, string> = {
   is: "è",

@@ -1,6 +1,4 @@
 import { useMemo } from "react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { Trash2, Pencil, ChevronUp, ChevronDown } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
@@ -13,7 +11,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import type { CustomFieldDef } from "./ContactFieldsSheet";
+import { getInitials, getAvatarColor, formatContactDate, type CustomFieldDef } from "@/lib/contactUtils";
 
 export interface MarketingContact {
   id: string;
@@ -113,31 +111,6 @@ interface ContactsTableProps {
   customFieldValues?: Record<string, Record<string, string>>;
 }
 
-const AVATAR_COLORS = [
-  "bg-blue-500", "bg-emerald-500", "bg-violet-500", "bg-amber-500",
-  "bg-rose-500", "bg-cyan-500", "bg-indigo-500", "bg-orange-500",
-];
-
-function getInitials(first: string, last?: string | null) {
-  const f = first?.[0]?.toUpperCase() || "";
-  const l = last?.[0]?.toUpperCase() || "";
-  return f + l || "?";
-}
-
-function getAvatarColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return "—";
-  try {
-    return format(new Date(dateStr), "dd MMM yyyy", { locale: it });
-  } catch {
-    return "—";
-  }
-}
 
 function SortIcon({ field, currentField, direction }: { field: string; currentField: string; direction: SortDirection }) {
   const isActive = field === currentField;
@@ -172,9 +145,9 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
     case "company_name":
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.company_name || "—"}</TableCell>;
     case "created_at":
-      return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.created_at)}</TableCell>;
+      return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatContactDate(c.created_at)}</TableCell>;
     case "last_activity_at":
-      return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.last_activity_at)}</TableCell>;
+      return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatContactDate(c.last_activity_at)}</TableCell>;
     case "tags":
       return (
         <TableCell key={col.key} className={cls}>
@@ -204,7 +177,7 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
         </TableCell>
       );
     case "date_of_birth":
-      return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatDate(c.date_of_birth)}</TableCell>;
+      return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatContactDate(c.date_of_birth)}</TableCell>;
     case "website":
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.website || "—"}</TableCell>;
     case "notes_col":
