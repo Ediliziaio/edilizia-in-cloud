@@ -1,101 +1,86 @@
 
 
-# Audit Enterprise - Sezioni Calendario e Clienti
+# Audit Enterprise - Sezione Previsionale (Forecast)
 
 ## Stato Attuale (AS-IS)
 
-### Calendario
-La sezione Calendario e' funzionalmente completa con:
-- 4 viste: Mese, Settimana (mobile-friendly con collapsible), Heatmap (con statistiche carico), Gantt (con drag & drop dnd-kit)
-- Filtri: stato ordine, cliente, operaio, squadra esterna
-- Appuntamenti integrati con dialog CRUD
-- EditOrderDatesDialog per modifica rapida date
-- LeadTimeStats con calcolo lead time medio/min/max
-- DraggableOrderBar con tooltip e rischio logistico
-- Utility centralizzate in `calendarUtils.ts` (hasLogisticRisk, getEmployeeInitials)
-- Tipi centralizzati in `types/calendar.ts`
-- Multi-tenancy con effectiveCompany
-
-### Clienti
-La sezione Clienti comprende:
-- Lista clienti (492 righe) con ricerca, import/export CSV, reset password, delete con protezione ordini
-- Dettaglio cliente (363 righe) con form modifica, storico ordini, delete protetta
-- Creazione cliente (247 righe) con dialog password generata
-- Edge Function `create-customer` per creazione atomica
-- Edge Function `reset-customer-password` per reset password
+La sezione Previsionale e' il modulo finanziario piu' complesso del progetto, con:
+- Pagina principale `CashFlowForecast.tsx` con 5 tab: Incassato, Marginalita', Previsionale Costi, Previsione di Cassa, Tesoreria
+- Pagina `CompanyCosts.tsx` (wrapper di `CompanyCostsManager`)
+- 3 hook dati pesanti: `useCashFlowData` (730 righe, 12 query), `useMarginData` (296 righe, 6 query), `useCompanyCostsData` (511 righe, 7 query)
+- 1 hook mutazioni: `useCompanyCostsMutations` (435 righe, 14 mutazioni)
+- Tipi centralizzati in `forecastTypes.ts` (155 righe)
+- Componenti tab: CollectedTab, CostsForecastTab, CashForecastTab, TreasuryTab (783 righe), MarginTab
+- Componenti shared: CostsTable, CostsStatsCards, CostFormDialog, CostsDialogs, DatePickerButton, CompanyCostsManager
 - Multi-tenancy con effectiveCompany
 
 ## Problemi Identificati
 
-### P1 - Duplicazione: `APPOINTMENT_ICONS` in 2 file
-**File**: `CalendarMonthView.tsx` (righe 38-44), `CalendarWeekView.tsx` (righe 40-46)
-**Problema**: Mappa identica `{ sopralluogo: Search, consegna: Truck, riunione: Users, cliente: UserCheck, generico: CalendarClock }` copiata in 2 file.
-**Fix**: Estrarre in `calendarUtils.ts` e importare in entrambi.
+### P1 - Duplicazione: `RECURRENCE_LABELS` in 2 file
+**File**: `CostsTable.tsx` (riga 25), `useCompanyCostsData.ts` (riga 463)
+**Problema**: Mappa identica `{ once: "Una tantum", monthly: "Mensile", quarterly: "Trimestrale", yearly: "Annuale" }` definita in 2 file.
+**Fix**: Estrarre in `forecastTypes.ts` e importare in entrambi.
 
-### P1 - Duplicazione: `weekDays` array in 3 file
-**File**: `CalendarMonthView.tsx` (riga 89), `CalendarHeatmapView.tsx` (riga 125), `WarehouseCalendarView.tsx` (riga 91)
-**Problema**: Array identico `["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]` definito 3 volte.
-**Fix**: Estrarre costante `WEEK_DAYS_IT` in `calendarUtils.ts` e importare ovunque.
+### P1 - Duplicazione: `DatePickerButton` in 2 file (versioni diverse)
+**File**: `DatePickerButton.tsx` (componente shared, 35 righe), `TreasuryTab.tsx` (righe 65-112, versione locale con `onClear` e `placeholder`)
+**Problema**: TreasuryTab ha una propria versione di DatePickerButton con API diversa (onClear, placeholder vs label). Due componenti con lo stesso nome ma API incompatibili.
+**Fix**: Estendere il componente shared `DatePickerButton.tsx` per supportare opzionalmente `onClear` e `placeholder`, poi rimuovere la versione locale da TreasuryTab.
 
-### P1 - Duplicazione: logica mapping appointment per editing in 2 file
-**File**: `CalendarMonthView.tsx` (righe 149-154), `CalendarWeekView.tsx` (righe 130-140)
-**Problema**: Lo stesso blocco di mapping `setEditingAppointment({ id, title, description, appointment_date, appointment_time, appointment_type, assigned_to, order_id, is_completed })` e' copiato identico in entrambi i file.
-**Fix**: Estrarre funzione utility `mapAppointmentToEditData(apt: CalendarAppointment): AppointmentData` in `calendarUtils.ts`.
+### P1 - Duplicazione: logica ricorrenza costi in 2 file
+**File**: `useCashFlowData.ts` (righe 479-494, `projectCostsForMonth`), `useCashFlowData.ts` (righe 623-645, inline nel chartData)
+**Problema**: La stessa logica di proiezione costi ricorrenti (monthly/quarterly/yearly/once match) e' implementata 2 volte nello stesso file con pattern identico. La funzione `projectCostsForMonth` la fa per un singolo totale, il chartData lo fa separatamente per fissi e variabili.
+**Fix**: Rifattorizzare `projectCostsForMonth` per accettare un filtro opzionale `cost_type` e riusarla nel calcolo del chartData.
 
-### P1 - Duplicazione: state pattern `[editingOrder, editingAppointment, appointmentDialogOpen]` in 2 file
-**File**: `CalendarMonthView.tsx` (righe 59-61), `CalendarWeekView.tsx` (righe 55-57)
-**Problema**: Lo stesso pattern di 3 state hooks per gestire editing ordini e appuntamenti e' ripetuto in 2 file. Il boilerplate di gestione (setState + dialog open/close + AppointmentDialog rendering) e' identico.
-**Stato**: Documentato come candidato per un custom hook futuro (`useCalendarEditing`). L'estrazione della funzione `mapAppointmentToEditData` riduce gia' la duplicazione piu' critica. Nessun intervento strutturale per minimizzare rischio regressione.
+### P1 - Duplicazione: `recurrenceMultiplier` isolata in useMarginData
+**File**: `useMarginData.ts` (righe 236-243)
+**Problema**: Funzione utility per convertire ricorrenza a moltiplicatore mensile. Utile anche altrove ma definita solo in useMarginData. Non duplicata ma candidata per centralizzazione.
+**Fix**: Estrarre in `forecastTypes.ts` come utility condivisa.
 
-### P2 - `CalendarEvent` interface locale in MonthView
-**File**: `CalendarMonthView.tsx` (righe 31-36)
-**Problema**: Tipo `CalendarEvent` definito localmente. Il WeekView usa `WeekEvent` (righe 34-38) con struttura simile ma non identica (aggiunge tipo "lavoro"). Sono divergenze reali.
-**Stato**: Le interfacce hanno campi diversi per viste diverse. Nessun intervento.
+### P2 - TreasuryTab molto grande (783 righe)
+**File**: `TreasuryTab.tsx`
+**Problema**: Componente molto complesso con tree builder, calcolo dati mensili, filtri date, rendering tabella gerarchica, tooltip dettagli. Non duplicato ma complesso.
+**Stato**: Non si interviene per ridurre il rischio di regressione. Il componente e' funzionalmente coeso.
 
-### P2 - `CustomerWithOrders` interface locale in CustomersList
-**File**: `CustomersList.tsx` (righe 27-38)
-**Problema**: Tipo definito localmente. Usato solo in questo file. Non duplicato altrove.
-**Stato**: Accettabile. Nessun intervento.
-
-### P2 - CompanyCustomerDetail: query ordini senza company_id filter
-**File**: `CompanyCustomerDetail.tsx` (righe 61-72)
-**Problema**: La query ordini filtra solo per `customer_id` senza filtrare per `company_id`. Tuttavia, RLS sulla tabella `orders` garantisce l'isolamento multi-tenant. Non e' un bug di sicurezza ma una best practice mancante per consistenza.
-**Fix**: Aggiungere `.eq("company_id", effectiveCompany.id)` alla query ordini per coerenza architetturale (defense in depth), aggiungendo anche la dipendenza dalla query key.
+### P2 - `useCashFlowData` molto grande (730 righe, 12 query)
+**File**: `useCashFlowData.ts`
+**Problema**: Hook monolitico con 12 query separate, calcoli complessi su entrate/uscite/stats/chart. Candidato per splitting futuro (es. `useTreasuryData` separato).
+**Stato**: Le query condividono `companyId` e i dati derivati sono interdipendenti. Splitting rischioso. Documentato come P2.
 
 ---
 
 ## Piano Interventi
 
-### Intervento 1 - Estendere `calendarUtils.ts` con costanti e utility condivise
+### Intervento 1 - Centralizzare costanti in `forecastTypes.ts`
 
-Aggiornare `src/lib/calendarUtils.ts` con:
-- `WEEK_DAYS_IT` costante array
-- `APPOINTMENT_ICONS` mappa (con import icone lucide necessarie)
-- `mapAppointmentToEditData(apt: CalendarAppointment): AppointmentData` funzione di mapping
+Aggiornare `src/lib/forecastTypes.ts` con:
+- `RECURRENCE_LABELS: Record<string, string>` - mappa etichette ricorrenza
+- `recurrenceMultiplier(recurrence: string): number` - utility conversione a moltiplicatore mensile
 
-### Intervento 2 - Aggiornare CalendarMonthView.tsx
-- Rimuovere `APPOINTMENT_ICONS` locale (righe 38-44)
-- Rimuovere `weekDays` locale (riga 89)
-- Importare `APPOINTMENT_ICONS`, `WEEK_DAYS_IT`, `mapAppointmentToEditData` da `calendarUtils.ts`
-- Usare `mapAppointmentToEditData` nel click handler degli appuntamenti
+### Intervento 2 - Aggiornare CostsTable.tsx
+- Rimuovere `RECURRENCE_LABELS` locale (riga 25)
+- Importare da `forecastTypes.ts`
 
-### Intervento 3 - Aggiornare CalendarWeekView.tsx
-- Rimuovere `APPOINTMENT_ICONS` locale (righe 40-46)
-- Importare `APPOINTMENT_ICONS`, `mapAppointmentToEditData` da `calendarUtils.ts`
-- Usare `mapAppointmentToEditData` nel click handler degli appuntamenti
+### Intervento 3 - Aggiornare useCompanyCostsData.ts
+- Rimuovere `RECURRENCE_LABELS` locale (riga 463)
+- Importare da `forecastTypes.ts`
 
-### Intervento 4 - Aggiornare CalendarHeatmapView.tsx
-- Rimuovere `weekDays` locale (riga 125)
-- Importare `WEEK_DAYS_IT` da `calendarUtils.ts`
+### Intervento 4 - Aggiornare useMarginData.ts
+- Rimuovere `recurrenceMultiplier` locale (righe 236-243)
+- Importare da `forecastTypes.ts`
 
-### Intervento 5 - Aggiornare WarehouseCalendarView.tsx
-- Rimuovere `weekDays` locale (riga 91)
-- Importare `WEEK_DAYS_IT` da `calendarUtils.ts`
+### Intervento 5 - Estendere DatePickerButton.tsx
+- Aggiungere props opzionali: `onClear?: () => void`, `placeholder?: string`, `formatStr?: string`
+- Quando `onClear` e' fornito, mostrare pulsante X inline
+- Mantenere retrocompatibilita' con API esistente (label-based)
 
-### Intervento 6 - CompanyCustomerDetail: defense-in-depth su query ordini
-- Aggiungere filtro `company_id` alla query ordini
-- Aggiungere `effectiveCompany?.id` alla queryKey per invalidazione corretta
-- Aggiungere `enabled: !!id && !!effectiveCompany?.id`
+### Intervento 6 - Aggiornare TreasuryTab.tsx
+- Rimuovere la funzione locale `DatePickerButton` (righe 65-112)
+- Importare il componente shared `DatePickerButton` esteso
+- Adattare le chiamate per usare le nuove props opzionali
+
+### Intervento 7 - Deduplicare logica proiezione costi in useCashFlowData.ts
+- Rifattorizzare `projectCostsForMonth` per accettare un filtro opzionale `costTypeFilter?: "fixed" | "variable"`
+- Riusare nel calcolo `chartData` al posto della logica inline duplicata (righe 623-645)
 
 ---
 
@@ -103,47 +88,46 @@ Aggiornare `src/lib/calendarUtils.ts` con:
 
 | Area | Stato |
 |------|-------|
-| company_id su query calendar-orders | OK |
-| company_id su query appointments | OK |
-| company_id su query order-statuses | OK |
-| company_id su query employees-filter | OK |
-| company_id su query external-teams-filter | OK |
-| company_id su query customers-list | OK |
-| company_id su query customer-detail (profilo) | N/A (query per ID + RLS) |
-| company_id su query customer-orders | MIGLIORATO (Intervento 6) |
-| company_id su insert customer (edge function) | OK |
-| company_id su import CSV clienti | OK |
-| company_id su export CSV clienti | OK (filtra su dati gia' caricati) |
+| company_id su query orders (forecast) | OK |
+| company_id su query external_teams | OK (inner join) |
+| company_id su query commissions | OK (inner join) |
+| company_id su query order_items | OK (inner join) |
+| company_id su query company_costs | OK |
+| company_id su query employees | OK |
+| company_id su query treasury_categories | OK |
+| company_id su query suppliers | OK |
+| company_id su insert company_costs | OK |
+| company_id su delete company_costs | OK |
+| RLS su company_costs | OK |
 | RLS su orders | OK |
-| RLS su appointments | OK |
-| RLS su profiles | OK |
-| Validazione input (nome, cognome, email) | OK |
+| RLS su order_items | OK |
+| Validazione input (importo, nome, date) | OK |
 | Nessuna API key esposta | OK |
 | effectiveCompany per impersonificazione | OK |
-| Delete cliente protetta (ordini > 0 bloccata) | OK |
-| Reset password via edge function sicura | OK |
+| Query limit (1000/5000) | OK (documentato) |
 
 ## Checklist Performance
 
 | Area | Stato attuale | Dopo intervento |
 |------|--------------|-----------------|
-| APPOINTMENT_ICONS | 2 copie | 1 in calendarUtils.ts |
-| weekDays array | 3 copie | 1 costante condivisa |
-| Mapping appointment edit | 2 copie inline | 1 funzione condivisa |
-| Calendar staleTime (5min) | OK | Invariato |
-| Customers staleTime (5min) | OK | Invariato |
-| Customer orders query | Senza company_id | Con company_id (defense in depth) |
+| RECURRENCE_LABELS | 2 copie | 1 in forecastTypes.ts |
+| recurrenceMultiplier | 1 copia isolata | 1 utility condivisa |
+| DatePickerButton | 2 versioni (API diversa) | 1 componente esteso |
+| Logica proiezione costi | 2 implementazioni inline | 1 funzione parametrica |
+| staleTime (5min) su tutte le query | OK | Invariato |
+| 12 query parallele in useCashFlowData | OK (React Query) | Invariato |
 
 ## File Modificati (Previsti)
 
-1. `src/lib/calendarUtils.ts` - aggiunta WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData
-2. `src/components/calendar/CalendarMonthView.tsx` - import centralizzati
-3. `src/components/calendar/CalendarWeekView.tsx` - import centralizzati
-4. `src/components/calendar/CalendarHeatmapView.tsx` - import WEEK_DAYS_IT
-5. `src/components/warehouse/WarehouseCalendarView.tsx` - import WEEK_DAYS_IT
-6. `src/pages/azienda/CompanyCustomerDetail.tsx` - defense-in-depth query ordini
+1. `src/lib/forecastTypes.ts` - aggiunta RECURRENCE_LABELS, recurrenceMultiplier
+2. `src/components/forecast/CostsTable.tsx` - import RECURRENCE_LABELS
+3. `src/hooks/useCompanyCostsData.ts` - import RECURRENCE_LABELS
+4. `src/hooks/useMarginData.ts` - import recurrenceMultiplier
+5. `src/components/forecast/DatePickerButton.tsx` - estensione props (onClear, placeholder, formatStr)
+6. `src/components/forecast/TreasuryTab.tsx` - rimozione DatePickerButton locale, import shared
+7. `src/hooks/useCashFlowData.ts` - deduplicazione projectCostsForMonth nel chartData
 
 ## Note
 
-Nessuna modifica strutturale al database. Nessuna modifica al comportamento funzionale. Tutti gli interventi sono refactor behavior-preserving. La sezione Clienti risulta gia' ben strutturata con separazione pulita tra lista, dettaglio e creazione. Il pattern di editing appuntamenti/ordini nel calendario e' candidato per un custom hook futuro ma l'intervento non viene fatto ora per minimizzare il rischio di regressione.
+Nessuna modifica strutturale al database. Nessuna modifica al comportamento funzionale. Tutti gli interventi sono refactor behavior-preserving. Il TreasuryTab (783 righe) e useCashFlowData (730 righe) restano invariati nella struttura per minimizzare rischio regressione, con l'eccezione della deduplicazione interna della logica di proiezione costi. I commenti TODO nel codice (filtro data rolling, paginazione server-side) sono documentati come candidati per interventi futuri.
 
