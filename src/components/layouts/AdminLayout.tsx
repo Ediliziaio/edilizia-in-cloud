@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -67,19 +67,33 @@ function AdminSidebar() {
   const { permissions } = useSuperAdminPermissions();
   const navigate = useNavigate();
   const [companySearch, setCompanySearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
+
+  // Debounce search input
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const handleSearchChange = (value: string) => {
+    setCompanySearch(value);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
+  };
 
   const filteredNavItems = allNavItems.filter(
     (item) => permissions[item.permission]
   );
 
   const { data: companies = [] } = useQuery({
-    queryKey: ["admin-sidebar-companies"],
+    queryKey: ["admin-sidebar-companies", debouncedSearch],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("companies")
         .select("id, name, logo_url")
-        .order("name");
+        .order("name")
+        .limit(50);
+      if (debouncedSearch) {
+        query = query.ilike("name", `%${debouncedSearch}%`);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -87,17 +101,9 @@ function AdminSidebar() {
     enabled: permissions.can_manage_companies,
   });
 
-  const visibleCompanies = companies
-    .filter((c) => {
-      if (permissions.allowed_company_ids && permissions.allowed_company_ids.length > 0) {
-        if (!permissions.allowed_company_ids.includes(c.id)) return false;
-      }
-      if (companySearch) {
-        return c.name.toLowerCase().includes(companySearch.toLowerCase());
-      }
-      return true;
-    })
-    .slice(0, 20);
+  const visibleCompanies = permissions.allowed_company_ids?.length
+    ? companies.filter((c) => permissions.allowed_company_ids!.includes(c.id))
+    : companies;
 
   const handleImpersonate = async (companyId: string) => {
     setPopoverOpen(false);
@@ -134,7 +140,7 @@ function AdminSidebar() {
                     <Input
                       placeholder="Cerca un'azienda..."
                       value={companySearch}
-                      onChange={(e) => setCompanySearch(e.target.value)}
+                      onChange={(e) => handleSearchChange(e.target.value)}
                       className="pl-9 h-9 text-sm"
                       autoFocus
                     />

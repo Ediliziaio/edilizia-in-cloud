@@ -4898,6 +4898,13 @@ export type Database = {
           user_count: number
         }[]
       }
+      get_plan_company_counts: {
+        Args: never
+        Returns: {
+          company_count: number
+          subscription_plan_id: string
+        }[]
+      }
       get_total_orders_value: {
         Args: never
         Returns: {

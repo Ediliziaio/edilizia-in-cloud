@@ -78,15 +78,11 @@ export default function SubscriptionPlans() {
   const { data: companyCounts } = useQuery({
     queryKey: ["admin-plan-usage"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("subscription_plan_id");
+      const { data, error } = await supabase.rpc("get_plan_company_counts");
       if (error) throw error;
       const counts: Record<string, number> = {};
-      data?.forEach((c) => {
-        if (c.subscription_plan_id) {
-          counts[c.subscription_plan_id] = (counts[c.subscription_plan_id] || 0) + 1;
-        }
+      data?.forEach((row: { subscription_plan_id: string; company_count: number }) => {
+        counts[row.subscription_plan_id] = row.company_count;
       });
       return counts;
     },
