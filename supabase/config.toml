@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.meta-process-leads]
 verify_jwt = false
+
+[functions.meta-health-check]
+verify_jwt = false
