@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
@@ -45,8 +45,9 @@ serve(async (req) => {
     }
 
     const metaAppId = Deno.env.get("META_APP_ID");
-    if (!metaAppId) {
-      return new Response(JSON.stringify({ error: "META_APP_ID not configured" }), {
+    const metaAppSecret = Deno.env.get("META_APP_SECRET");
+    if (!metaAppId || !metaAppSecret) {
+      return new Response(JSON.stringify({ error: "META_APP_ID or META_APP_SECRET not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -55,24 +56,21 @@ serve(async (req) => {
     // Build callback URL
     const callbackUrl = `${supabaseUrl}/functions/v1/meta-oauth-callback`;
 
-    // Build state with company_id + user_id + nonce for CSRF protection
-    const nonce = crypto.randomUUID();
-    const statePayload = JSON.stringify({ company_id, user_id: userId, nonce });
+    // Build HMAC-signed state (stateless, no DB needed)
+    const timestamp = Date.now();
+    const statePayload = JSON.stringify({ company_id, user_id: userId, ts: timestamp });
     const stateB64 = btoa(statePayload);
 
-    // Store nonce in DB for validation
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    // Sign state with HMAC-SHA256 using META_APP_SECRET
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw", encoder.encode(metaAppSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(stateB64));
+    const hmac = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
 
-    // Store state nonce temporarily (we'll validate in callback)
-    await adminClient.from("integration_sync_jobs").insert({
-      company_id,
-      integration_id: "00000000-0000-0000-0000-000000000000", // placeholder, will be created on callback
-      job_type: "oauth_state",
-      params: { nonce, user_id: userId },
-      status: "queued",
-      scheduled_at: new Date().toISOString(),
-    });
+    // State = base64payload.hmac
+    const signedState = `${stateB64}.${hmac}`;
 
     const scopes = [
       "pages_show_list",
@@ -83,9 +81,9 @@ serve(async (req) => {
       "business_management",
     ].join(",");
 
-    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(stateB64)}&scope=${encodeURIComponent(scopes)}&response_type=code`;
+    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(signedState)}&scope=${encodeURIComponent(scopes)}&response_type=code`;
 
-    return new Response(JSON.stringify({ oauth_url: oauthUrl, state: stateB64 }), {
+    return new Response(JSON.stringify({ oauth_url: oauthUrl, state: signedState }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -1557,6 +1557,7 @@ export type Database = {
           granted_scopes: Json | null
           id: string
           integration_id: string
+          meta_page_tokens: Json | null
           meta_user_id: string | null
           meta_user_name: string | null
           token_type: string
@@ -1569,6 +1570,7 @@ export type Database = {
           granted_scopes?: Json | null
           id?: string
           integration_id: string
+          meta_page_tokens?: Json | null
           meta_user_id?: string | null
           meta_user_name?: string | null
           token_type?: string
@@ -1581,6 +1583,7 @@ export type Database = {
           granted_scopes?: Json | null
           id?: string
           integration_id?: string
+          meta_page_tokens?: Json | null
           meta_user_id?: string | null
           meta_user_name?: string | null
           token_type?: string

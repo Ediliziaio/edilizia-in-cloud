@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const MAX_RETRIES = 10;
@@ -20,7 +20,7 @@ serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const workerId = crypto.randomUUID().slice(0, 8);
-    const lockTimeout = new Date(Date.now() - 5 * 60 * 1000).toISOString(); // 5 min lock timeout
+    const lockTimeout = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
     // Unlock stale locks
     await adminClient
@@ -56,6 +56,7 @@ serve(async (req) => {
 
     let processed = 0;
     let failed = 0;
+    const successfulIntegrationIds = new Set<string>();
 
     for (const event of events) {
       try {
@@ -72,6 +73,9 @@ serve(async (req) => {
           .eq("id", event.id);
 
         processed++;
+        if (event.integration_id) {
+          successfulIntegrationIds.add(event.integration_id);
+        }
       } catch (error) {
         console.error(`Failed to process event ${event.id}:`, error);
 
@@ -93,9 +97,8 @@ serve(async (req) => {
       }
     }
 
-    // Update last_sync_at on integrations that had successful processing
-    const integrationIds = [...new Set(events.filter((e) => e.integration_id).map((e) => e.integration_id!))];
-    for (const integId of integrationIds) {
+    // Update last_sync_at ONLY for integrations with successful processing
+    for (const integId of successfulIntegrationIds) {
       await adminClient
         .from("integrations")
         .update({ last_sync_at: new Date().toISOString() })
@@ -124,7 +127,6 @@ async function processLeadEvent(adminClient: any, event: any) {
     throw new Error("Missing leadgen_id or integration_id");
   }
 
-  // Get credentials
   const { data: creds } = await adminClient
     .from("integration_credentials")
     .select("access_token_encrypted")
@@ -135,7 +137,6 @@ async function processLeadEvent(adminClient: any, event: any) {
 
   const accessToken = atob(creds.access_token_encrypted);
 
-  // Fetch lead details from Meta
   const leadRes = await fetch(
     `https://graph.facebook.com/v21.0/${leadgenId}?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&access_token=${accessToken}`
   );
@@ -145,7 +146,6 @@ async function processLeadEvent(adminClient: any, event: any) {
     throw new Error(`Meta API error: ${lead.error.message}`);
   }
 
-  // Get field mapping for this form
   const actualFormId = lead.form_id || formId;
   const { data: mapping } = await adminClient
     .from("integration_field_mappings")
@@ -155,18 +155,15 @@ async function processLeadEvent(adminClient: any, event: any) {
     .eq("form_id", actualFormId)
     .single();
 
-  // Build field data map from lead
   const fieldData: Record<string, string> = {};
   for (const field of lead.field_data || []) {
     fieldData[field.name] = Array.isArray(field.values) ? field.values[0] : field.values;
   }
 
-  // Apply mapping (or use defaults)
   const rules = mapping?.rules || {};
   const fieldMap: Record<string, string> = rules.field_map || {};
   const defaultValues: Record<string, string> = rules.default_values || {};
 
-  // Build contact data
   const mappedData: Record<string, string> = {};
   for (const [metaKey, crmKey] of Object.entries(fieldMap)) {
     if (fieldData[metaKey] !== undefined) {
@@ -174,7 +171,6 @@ async function processLeadEvent(adminClient: any, event: any) {
     }
   }
 
-  // Auto-map common fields if no mapping exists
   if (Object.keys(fieldMap).length === 0) {
     if (fieldData.full_name) mappedData.full_name = fieldData.full_name;
     if (fieldData.email) mappedData.email = fieldData.email;
@@ -184,7 +180,6 @@ async function processLeadEvent(adminClient: any, event: any) {
     if (fieldData.last_name) mappedData.last_name = fieldData.last_name;
   }
 
-  // Split full name if needed
   let firstName = mappedData.first_name || defaultValues.first_name || "";
   let lastName = mappedData.last_name || defaultValues.last_name || "";
 
@@ -201,11 +196,9 @@ async function processLeadEvent(adminClient: any, event: any) {
   const postalCode = mappedData.postal_code || defaultValues.postal_code || null;
   const province = mappedData.province || defaultValues.province || null;
 
-  // Dedupe policy
   const dedupePolicy = rules.dedupe_policy || "email";
   const updatePolicy = rules.update_policy || "upsert";
 
-  // Check for existing contact
   let existingContact = null;
   if (dedupePolicy === "email" && email) {
     const { data } = await adminClient
@@ -252,7 +245,6 @@ async function processLeadEvent(adminClient: any, event: any) {
   let contactId: string;
 
   if (existingContact && updatePolicy !== "create_only") {
-    // Update existing contact
     const updateData: Record<string, any> = {};
     if (updatePolicy === "overwrite_non_empty" || updatePolicy === "upsert") {
       if (firstName) updateData.first_name = firstName;
@@ -271,7 +263,6 @@ async function processLeadEvent(adminClient: any, event: any) {
 
     contactId = existingContact.id;
   } else if (!existingContact) {
-    // Create new contact
     const { data: newContact, error: contactErr } = await adminClient
       .from("marketing_contacts")
       .insert({
@@ -299,9 +290,7 @@ async function processLeadEvent(adminClient: any, event: any) {
     contactId = existingContact.id;
   }
 
-  // Create opportunity if pipeline configured
   if (pipelineSettings.pipeline_id && pipelineSettings.stage_id) {
-    // Check if opportunity already exists for this lead (idempotency)
     const { data: existingOpp } = await adminClient
       .from("marketing_opportunities")
       .select("id")
@@ -325,7 +314,6 @@ async function processLeadEvent(adminClient: any, event: any) {
     }
   }
 
-  // Audit log
   await adminClient.from("integration_audit_log").insert({
     company_id,
     actor_user_id: null,
@@ -344,9 +332,7 @@ async function processLeadEvent(adminClient: any, event: any) {
 
 function normalizePhone(phone: string): string {
   if (!phone) return "";
-  // Remove non-digit chars except leading +
-  let normalized = phone.replace(/[^\d+]/g, "");
-  // Basic E.164-like normalization for Italian numbers
+  let normalized = phone.replace(/[^\\d+]/g, "");
   if (normalized.startsWith("00")) {
     normalized = "+" + normalized.slice(2);
   }

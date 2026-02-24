@@ -14,9 +14,11 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
   const [metaForms, setMetaForms] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const selectedPageIds = selectedPages.map((p: any) => p.id).sort().join(",");
+
   useEffect(() => {
     loadForms();
-  }, [selectedPages]);
+  }, [selectedPageIds]);
 
   const loadForms = async () => {
     if (selectedPages.length === 0) return;
