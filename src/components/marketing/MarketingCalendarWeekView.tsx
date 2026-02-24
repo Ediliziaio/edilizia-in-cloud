@@ -50,6 +50,7 @@ export default function MarketingCalendarWeekView({
 }: Props) {
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
   const slotInfo = getSlotHeight(slotDurationMinutes);
+  const pxPerMinute = slotInfo.px / slotDurationMinutes;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -84,16 +85,25 @@ export default function MarketingCalendarWeekView({
     });
   };
 
-  const getSpanSlots = (apt: MarketingAppointment): number => {
-    if (!apt.appointment_time) return 1;
+  const getHeightPx = (apt: MarketingAppointment): number | undefined => {
+    if (!apt.appointment_time) return undefined;
     const startMin = timeToMin(apt.appointment_time);
     if (apt.appointment_end_time) {
       const endMin = timeToMin(apt.appointment_end_time);
       if (endMin > startMin) {
-        return Math.max(1, Math.round((endMin - startMin) / slotDurationMinutes));
+        return (endMin - startMin) * pxPerMinute;
       }
     }
-    return 1;
+    return undefined;
+  };
+
+  const getTopOffsetPx = (apt: MarketingAppointment, slotTime: string): number => {
+    if (!apt.appointment_time) return 0;
+    const aptMin = timeToMin(apt.appointment_time);
+    const slotMin = timeToMin(slotTime);
+    const offset = aptMin - slotMin;
+    if (offset <= 0) return 0;
+    return offset * pxPerMinute;
   };
 
   const today = new Date();
@@ -179,8 +189,8 @@ export default function MarketingCalendarWeekView({
                         {slotApts.map((apt) => {
                           const leg = dayLegMap[apt.id];
                           const hasNoCoords = apt.lat == null || apt.lng == null;
-                          const spanSlots = getSpanSlots(apt);
-                          const spanHeight = spanSlots > 1 ? spanSlots * slotInfo.px : undefined;
+                          const heightPx = getHeightPx(apt);
+                          const topOffset = getTopOffsetPx(apt, slotTime);
 
                           const tooltipLines: string[] = [apt.title];
                           if (apt.appointment_time) tooltipLines.unshift(apt.appointment_time.slice(0, 5));
@@ -202,7 +212,8 @@ export default function MarketingCalendarWeekView({
                               slotDurationMinutes={slotDurationMinutes}
                               slotHeightPx={slotInfo.px}
                               startTime={apt.appointment_time?.slice(0, 5)}
-                              spanHeight={spanHeight}
+                              spanHeight={heightPx}
+                              topOffsetPx={topOffset}
                             >
                               <Tooltip>
                                 <TooltipTrigger asChild>

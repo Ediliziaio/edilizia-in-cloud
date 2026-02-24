@@ -6,13 +6,14 @@ import type { MarketingAppointment } from "@/types/marketingCalendar";
 interface Props {
   appointment: MarketingAppointment;
   children: React.ReactNode;
-  /** If provided, shows a resize handle at the bottom */
   onResize?: (id: string, newEndTime: string) => void;
   slotDurationMinutes?: number;
   slotHeightPx?: number;
-  startTime?: string; // appointment_time e.g. "09:00"
-  /** Height in px for multi-slot appointments */
+  startTime?: string; // e.g. "09:00"
+  /** Precise height in px (pixel-per-minute based) */
   spanHeight?: number;
+  /** Offset from top of the containing slot in px */
+  topOffsetPx?: number;
 }
 
 function minutesToTimeStr(totalMin: number): string {
@@ -30,6 +31,7 @@ export default function DraggableAppointment({
   slotHeightPx = 32,
   startTime,
   spanHeight,
+  topOffsetPx,
 }: Props) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `apt-${appointment.id}`,
@@ -38,7 +40,9 @@ export default function DraggableAppointment({
 
   const resizing = useRef(false);
   const startY = useRef(0);
-  const startMinutes = useRef(0);
+  const startEndMinutes = useRef(0);
+
+  const pxPerMinute = slotHeightPx / slotDurationMinutes;
 
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -49,31 +53,31 @@ export default function DraggableAppointment({
       resizing.current = true;
       startY.current = e.clientY;
 
-      // Calculate current end in minutes
       const [sh, sm] = startTime.split(":").map(Number);
       const aptStart = sh * 60 + (sm || 0);
       const endTime = appointment.appointment_end_time;
       if (endTime) {
         const [eh, em] = endTime.split(":").map(Number);
-        startMinutes.current = eh * 60 + (em || 0);
+        startEndMinutes.current = eh * 60 + (em || 0);
       } else {
-        startMinutes.current = aptStart + slotDurationMinutes;
+        startEndMinutes.current = aptStart + slotDurationMinutes;
       }
 
       const handleMouseMove = (ev: MouseEvent) => {
         if (!resizing.current) return;
         const deltaY = ev.clientY - startY.current;
-        const deltaSlots = Math.round(deltaY / slotHeightPx);
-        const newEndMin = startMinutes.current + deltaSlots * slotDurationMinutes;
-        // Clamp: at least one slot after start
+        // Convert pixel delta to minutes (not slots)
+        const deltaMinutes = Math.round(deltaY / pxPerMinute);
+        const newEndMin = startEndMinutes.current + deltaMinutes;
         const [sh2, sm2] = startTime.split(":").map(Number);
-        const minEnd = sh2 * 60 + (sm2 || 0) + slotDurationMinutes;
+        const minEnd = sh2 * 60 + (sm2 || 0) + 15; // minimum 15 min
         const clamped = Math.max(minEnd, Math.min(newEndMin, 22 * 60));
-        // Show preview via CSS custom property on the element
+        // Live preview
         const el = document.querySelector(`[data-resize-id="${appointment.id}"]`) as HTMLElement;
         if (el) {
-          const newSlots = (clamped - (sh2 * 60 + (sm2 || 0))) / slotDurationMinutes;
-          el.style.height = `${newSlots * slotHeightPx}px`;
+          const aptStartMin = sh2 * 60 + (sm2 || 0);
+          const newHeight = (clamped - aptStartMin) * pxPerMinute;
+          el.style.height = `${newHeight}px`;
         }
       };
 
@@ -86,10 +90,10 @@ export default function DraggableAppointment({
         document.body.style.userSelect = "";
 
         const deltaY = ev.clientY - startY.current;
-        const deltaSlots = Math.round(deltaY / slotHeightPx);
-        const newEndMin = startMinutes.current + deltaSlots * slotDurationMinutes;
+        const deltaMinutes = Math.round(deltaY / pxPerMinute);
+        const newEndMin = startEndMinutes.current + deltaMinutes;
         const [sh3, sm3] = startTime.split(":").map(Number);
-        const minEnd = sh3 * 60 + (sm3 || 0) + slotDurationMinutes;
+        const minEnd = sh3 * 60 + (sm3 || 0) + 15;
         const clamped = Math.max(minEnd, Math.min(newEndMin, 22 * 60));
         onResize(appointment.id, minutesToTimeStr(clamped));
       };
@@ -99,7 +103,7 @@ export default function DraggableAppointment({
       document.body.style.cursor = "s-resize";
       document.body.style.userSelect = "none";
     },
-    [onResize, startTime, appointment, slotDurationMinutes, slotHeightPx]
+    [onResize, startTime, appointment, slotDurationMinutes, pxPerMinute]
   );
 
   return (
@@ -110,7 +114,8 @@ export default function DraggableAppointment({
       className={cn("relative", isDragging && "opacity-30")}
       style={{
         touchAction: "none",
-        ...(spanHeight ? { height: spanHeight, zIndex: 5 } : {}),
+        ...(spanHeight != null ? { height: spanHeight, zIndex: 5 } : {}),
+        ...(topOffsetPx ? { marginTop: topOffsetPx } : {}),
       }}
       data-resize-id={appointment.id}
     >
@@ -118,9 +123,9 @@ export default function DraggableAppointment({
       {onResize && startTime && (
         <div
           onMouseDown={handleResizeStart}
-          className="absolute bottom-0 left-0 right-0 h-1.5 cursor-s-resize group z-10 flex items-center justify-center"
+          className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize group z-10 flex items-center justify-center"
         >
-          <div className="w-6 h-0.5 rounded-full bg-muted-foreground/30 group-hover:bg-muted-foreground/60 transition-colors" />
+          <div className="w-8 h-1 rounded-full bg-muted-foreground/30 group-hover:bg-muted-foreground/60 transition-colors" />
         </div>
       )}
     </div>
