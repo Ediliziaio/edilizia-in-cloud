@@ -5,7 +5,7 @@ import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from 
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
-import { HALF_HOURS, buildColorMap } from "@/lib/marketingCalendarConstants";
+import { buildTimeSlots, buildColorMap } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
 
@@ -17,6 +17,7 @@ interface Props {
   onClickSlot: (date: Date, hour: number, minute?: number) => void;
   travelLegs?: TravelLeg[];
   onDropAppointment?: (id: string, newDate: string, newTime: string) => void;
+  slotDurationMinutes?: number;
 }
 
 export default function MarketingCalendarDayView({
@@ -27,9 +28,12 @@ export default function MarketingCalendarDayView({
   onClickSlot,
   travelLegs = [],
   onDropAppointment,
+  slotDurationMinutes = 30,
 }: Props) {
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
+
+  const timeSlots = useMemo(() => buildTimeSlots(slotDurationMinutes), [slotDurationMinutes]);
 
   const dayAppointments = useMemo(
     () => appointments.filter((a) => isSameDay(parseISO(a.appointment_date), date)),
@@ -47,7 +51,7 @@ export default function MarketingCalendarDayView({
   const getAppointmentsForSlot = (slotTime: string) => {
     const [slotH, slotM] = slotTime.split(":").map(Number);
     const slotStart = slotH * 60 + slotM;
-    const slotEnd = slotStart + 30;
+    const slotEnd = slotStart + slotDurationMinutes;
     return dayAppointments.filter((a) => {
       if (!a.appointment_time) return slotTime === "09:00";
       const [ah, am] = a.appointment_time.split(":").map(Number);
@@ -58,6 +62,8 @@ export default function MarketingCalendarDayView({
 
   const todayFlag = isToday(date);
   const dateStr = format(date, "yyyy-MM-dd");
+
+  const slotHeight = slotDurationMinutes >= 60 ? "h-16" : slotDurationMinutes >= 30 ? "h-8" : "h-6";
 
   const handleDragStart = (event: DragStartEvent) => {
     const apt = (event.active.data.current as any)?.appointment as MarketingAppointment;
@@ -99,21 +105,24 @@ export default function MarketingCalendarDayView({
 
         {/* Grid */}
         <div className="grid grid-cols-[60px_1fr]">
-          {HALF_HOURS.map((slotTime) => {
+          {timeSlots.map((slotTime) => {
             const isHour = slotTime.endsWith(":00");
             const [h, m] = slotTime.split(":").map(Number);
             const slotApts = getAppointmentsForSlot(slotTime);
+            const showLabel = slotDurationMinutes >= 60 || isHour;
             return (
               <div key={slotTime} className="contents">
                 <div className={cn(
-                  "p-1 pr-2 text-right text-xs text-muted-foreground border-r h-8 flex items-start justify-end pt-0",
+                  "p-1 pr-2 text-right text-xs text-muted-foreground border-r flex items-start justify-end pt-0",
+                  slotHeight,
                 )}>
-                  {isHour && <span className="-mt-2">{slotTime}</span>}
+                  {showLabel && <span className="-mt-2">{slotTime}</span>}
                 </div>
                 <DroppableSlot
                   id={`slot-${dateStr}-${slotTime}`}
                   className={cn(
-                    "h-8 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors",
+                    "p-0.5 cursor-pointer hover:bg-muted/30 transition-colors",
+                    slotHeight,
                     isHour ? "border-b" : "border-b border-dashed border-border/40",
                     todayFlag && "bg-primary/[0.02]"
                   )}

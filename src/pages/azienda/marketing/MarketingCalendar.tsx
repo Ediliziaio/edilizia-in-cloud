@@ -214,6 +214,16 @@ export default function MarketingCalendar() {
     });
   }, [appointments, selectedCalendarIds, selectedUserIds]);
 
+  // Compute slot duration from selected calendars
+  const slotDurationMinutes = useMemo(() => {
+    const selected = calendars.filter((c) => selectedCalendarIds.includes(c.id));
+    const durations = selected
+      .map((c) => (c as any).duration_minutes as number | null)
+      .filter((d): d is number => d != null && d > 0);
+    if (durations.length === 0) return 30;
+    return Math.min(...durations);
+  }, [calendars, selectedCalendarIds]);
+
   // Get base waypoint from selected calendar
   const baseCalendarWaypoint = useMemo(() => {
     if (selectedCalendarIds.length === 1) {
@@ -545,6 +555,7 @@ export default function MarketingCalendar() {
                 onClickSlot={(date, hour, minute) => openNewDialog(date, hour, minute)}
                 travelLegs={weekTravelLegs}
                 onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
+                slotDurationMinutes={slotDurationMinutes}
               />
             )}
             {calendarView === "day" && (
@@ -556,6 +567,7 @@ export default function MarketingCalendar() {
                 onClickSlot={(date, hour, minute) => openNewDialog(date, hour, minute)}
                 travelLegs={travelLegs}
                 onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
+                slotDurationMinutes={slotDurationMinutes}
               />
             )}
             {calendarView === "month" && (

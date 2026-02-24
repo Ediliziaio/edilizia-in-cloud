@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
-import { HALF_HOURS, buildColorMap } from "@/lib/marketingCalendarConstants";
+import { buildTimeSlots, buildColorMap } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
 
@@ -18,6 +18,7 @@ interface Props {
   onClickSlot: (date: Date, hour: number, minute?: number) => void;
   travelLegs?: Record<string, TravelLeg[]>;
   onDropAppointment?: (id: string, newDate: string, newTime: string) => void;
+  slotDurationMinutes?: number;
 }
 
 export default function MarketingCalendarWeekView({
@@ -28,6 +29,7 @@ export default function MarketingCalendarWeekView({
   onClickSlot,
   travelLegs = {},
   onDropAppointment,
+  slotDurationMinutes = 30,
 }: Props) {
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
 
@@ -37,6 +39,7 @@ export default function MarketingCalendarWeekView({
   );
 
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
+  const timeSlots = useMemo(() => buildTimeSlots(slotDurationMinutes), [slotDurationMinutes]);
 
   const travelLegMaps = useMemo(() => {
     const maps: Record<string, Record<string, TravelLeg>> = {};
@@ -51,7 +54,7 @@ export default function MarketingCalendarWeekView({
   const getAppointmentsForSlot = (day: Date, slotTime: string) => {
     const [slotH, slotM] = slotTime.split(":").map(Number);
     const slotStart = slotH * 60 + slotM;
-    const slotEnd = slotStart + 30;
+    const slotEnd = slotStart + slotDurationMinutes;
     return appointments.filter((a) => {
       if (!isSameDay(parseISO(a.appointment_date), day)) return false;
       if (!a.appointment_time) return slotTime === "09:00";
@@ -62,6 +65,7 @@ export default function MarketingCalendarWeekView({
   };
 
   const today = new Date();
+  const slotHeight = slotDurationMinutes >= 60 ? "h-16" : slotDurationMinutes >= 30 ? "h-8" : "h-6";
 
   const handleDragStart = (event: DragStartEvent) => {
     const apt = (event.active.data.current as any)?.appointment as MarketingAppointment;
@@ -112,15 +116,17 @@ export default function MarketingCalendarWeekView({
 
           {/* Grid */}
           <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))]">
-            {HALF_HOURS.map((slotTime) => {
+            {timeSlots.map((slotTime) => {
               const isHour = slotTime.endsWith(":00");
               const [h, m] = slotTime.split(":").map(Number);
+              const showLabel = slotDurationMinutes >= 60 || isHour;
               return (
                 <div key={slotTime} className="contents">
                   <div className={cn(
-                    "p-1 pr-2 text-right text-xs text-muted-foreground border-r h-8 flex items-start justify-end pt-0",
+                    "p-1 pr-2 text-right text-xs text-muted-foreground border-r flex items-start justify-end pt-0",
+                    slotHeight,
                   )}>
-                    {isHour && <span className="-mt-2">{slotTime}</span>}
+                    {showLabel && <span className="-mt-2">{slotTime}</span>}
                   </div>
                   {days.map((day) => {
                     const slotApts = getAppointmentsForSlot(day, slotTime);
@@ -132,7 +138,8 @@ export default function MarketingCalendarWeekView({
                         key={`${dateKey}-${slotTime}`}
                         id={`slot-${dateKey}-${slotTime}`}
                         className={cn(
-                          "border-r last:border-r-0 h-8 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors relative min-w-0",
+                          "border-r last:border-r-0 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors relative min-w-0",
+                          slotHeight,
                           isHour ? "border-b" : "border-b border-dashed border-border/40",
                           isSameDay(day, today) && "bg-primary/[0.02]"
                         )}
