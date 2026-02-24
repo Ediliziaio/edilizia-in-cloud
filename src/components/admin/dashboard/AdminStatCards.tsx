@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building, Users, ClipboardList, MessageSquare } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
@@ -8,6 +9,8 @@ interface Props {
 }
 
 export function AdminStatCards({ stats }: Props) {
+  const navigate = useNavigate();
+
   const statCards = [
     {
       title: "Aziende Attive",
@@ -16,6 +19,7 @@ export function AdminStatCards({ stats }: Props) {
       description: "Registrate sulla piattaforma",
       color: "text-blue-600",
       bgColor: "bg-blue-100",
+      href: "/admin/aziende",
     },
     {
       title: "Ordini Totali",
@@ -24,6 +28,7 @@ export function AdminStatCards({ stats }: Props) {
       description: formatCurrency(stats.totalOrdersValue) + " valore totale",
       color: "text-green-600",
       bgColor: "bg-green-100",
+      href: "/admin/aziende",
     },
     {
       title: "Clienti Totali",
@@ -32,6 +37,7 @@ export function AdminStatCards({ stats }: Props) {
       description: "Utenti registrati",
       color: "text-purple-600",
       bgColor: "bg-purple-100",
+      href: "/admin/aziende",
     },
     {
       title: "Supporto Aperto",
@@ -40,13 +46,18 @@ export function AdminStatCards({ stats }: Props) {
       description: "Conversazioni da gestire",
       color: stats.openSupportConversations > 0 ? "text-orange-600" : "text-green-600",
       bgColor: stats.openSupportConversations > 0 ? "bg-orange-100" : "bg-green-100",
+      href: "/admin/ticket",
     },
   ];
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {statCards.map((stat) => (
-        <Card key={stat.title} className="relative overflow-hidden">
+        <Card
+          key={stat.title}
+          className="relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => navigate(stat.href)}
+        >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               {stat.title}
