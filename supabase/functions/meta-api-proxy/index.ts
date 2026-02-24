@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
@@ -49,10 +49,10 @@ serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Get access token
+    // Get access token and page tokens
     const { data: creds } = await adminClient
       .from("integration_credentials")
-      .select("access_token_encrypted, meta_user_id")
+      .select("access_token_encrypted, meta_user_id, meta_page_tokens")
       .eq("integration_id", integration_id)
       .single();
 
@@ -69,13 +69,11 @@ serve(async (req) => {
 
     switch (action) {
       case "get-assets": {
-        // Fetch pages from Meta
         const pagesRes = await fetchWithRetry(
           `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,instagram_business_account{id,name,username}&limit=100&access_token=${accessToken}`
         );
         const pagesData = await pagesRes.json();
         
-        // Also fetch existing assets from DB to get selection state
         const { data: dbAssets } = await adminClient
           .from("meta_assets")
           .select("*")
@@ -97,7 +95,6 @@ serve(async (req) => {
           });
         }
 
-        // Get page asset to find page_id and page access token
         const { data: pageAsset } = await adminClient
           .from("meta_assets")
           .select("*")
@@ -111,8 +108,10 @@ serve(async (req) => {
           });
         }
 
-        const pageAccessToken = pageAsset.metadata?.page_access_token
-          ? atob(pageAsset.metadata.page_access_token as string)
+        // Get page access token from credentials (secure storage), not from meta_assets
+        const pageTokens = (creds as any).meta_page_tokens || {};
+        const pageAccessToken = pageTokens[pageAsset.asset_id]
+          ? atob(pageTokens[pageAsset.asset_id])
           : accessToken;
 
         const formsRes = await fetchWithRetry(
@@ -120,7 +119,6 @@ serve(async (req) => {
         );
         const formsData = await formsRes.json();
 
-        // Get existing form configs from DB
         const { data: dbForms } = await adminClient
           .from("meta_lead_forms")
           .select("*")
@@ -170,7 +168,6 @@ serve(async (req) => {
       }
 
       case "disconnect": {
-        // Revoke token
         try {
           await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${accessToken}`, {
             method: "DELETE",
@@ -179,7 +176,6 @@ serve(async (req) => {
           console.warn("Token revocation failed (may already be expired):", e);
         }
 
-        // Update integration status
         await adminClient
           .from("integrations")
           .update({
@@ -191,19 +187,16 @@ serve(async (req) => {
           })
           .eq("id", integration_id);
 
-        // Delete credentials
         await adminClient
           .from("integration_credentials")
           .delete()
           .eq("integration_id", integration_id);
 
-        // Deactivate all forms
         await adminClient
           .from("meta_lead_forms")
           .update({ status: "inactive" })
           .eq("integration_id", integration_id);
 
-        // Audit
         await adminClient.from("integration_audit_log").insert({
           company_id,
           actor_user_id: claimsData.claims.sub,
@@ -237,23 +230,16 @@ serve(async (req) => {
   }
 });
 
-// Fetch with retry for Meta API rate limits
 async function fetchWithRetry(url: string, options?: RequestInit, maxRetries = 3): Promise<Response> {
   for (let i = 0; i < maxRetries; i++) {
     const res = await fetch(url, options);
-    if (res.status === 429) {
+    if (res.status === 429 || res.status >= 500) {
       const waitMs = Math.pow(2, i) * 1000;
-      console.warn(`Rate limited, retrying in ${waitMs}ms...`);
-      await new Promise((r) => setTimeout(r, waitMs));
-      continue;
-    }
-    if (res.status >= 500) {
-      const waitMs = Math.pow(2, i) * 1000;
-      console.warn(`Server error ${res.status}, retrying in ${waitMs}ms...`);
+      console.warn(`HTTP ${res.status}, retrying in ${waitMs}ms...`);
       await new Promise((r) => setTimeout(r, waitMs));
       continue;
     }
     return res;
   }
-  return fetch(url, options); // last attempt
+  return fetch(url, options);
 }

@@ -1,24 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
+
 serve(async (req) => {
   const url = new URL(req.url);
 
   // Handle GET (browser redirect from Meta)
   if (req.method === "GET") {
     const code = url.searchParams.get("code");
-    const stateB64 = url.searchParams.get("state");
+    const signedState = url.searchParams.get("state");
     const errorParam = url.searchParams.get("error");
 
     if (errorParam) {
-      // User denied permissions
       return new Response(buildRedirectHtml("error", errorParam), {
         status: 200,
         headers: { "Content-Type": "text/html" },
       });
     }
 
-    if (!code || !stateB64) {
+    if (!code || !signedState) {
       return new Response(buildRedirectHtml("error", "missing_params"), {
         status: 200,
         headers: { "Content-Type": "text/html" },
@@ -26,12 +27,51 @@ serve(async (req) => {
     }
 
     try {
+      const metaAppSecret = Deno.env.get("META_APP_SECRET")!;
+      const metaAppId = Deno.env.get("META_APP_ID")!;
+
+      // Validate HMAC-signed state
+      const dotIndex = signedState.lastIndexOf(".");
+      if (dotIndex === -1) {
+        return new Response(buildRedirectHtml("error", "invalid_state"), {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+
+      const stateB64 = signedState.slice(0, dotIndex);
+      const receivedHmac = signedState.slice(dotIndex + 1);
+
+      // Verify HMAC
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw", encoder.encode(metaAppSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(stateB64));
+      const expectedHmac = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+
+      if (receivedHmac !== expectedHmac) {
+        console.error("State HMAC validation failed");
+        return new Response(buildRedirectHtml("error", "invalid_state_signature"), {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+
       // Decode state
       const statePayload = JSON.parse(atob(stateB64));
-      const { company_id, user_id, nonce } = statePayload;
+      const { company_id, user_id, ts } = statePayload;
 
-      if (!company_id || !user_id || !nonce) {
+      if (!company_id || !user_id || !ts) {
         return new Response(buildRedirectHtml("error", "invalid_state"), {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+
+      // Check timestamp (10 min max)
+      if (Date.now() - ts > STATE_MAX_AGE_MS) {
+        return new Response(buildRedirectHtml("error", "state_expired"), {
           status: 200,
           headers: { "Content-Type": "text/html" },
         });
@@ -39,31 +79,7 @@ serve(async (req) => {
 
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const metaAppId = Deno.env.get("META_APP_ID")!;
-      const metaAppSecret = Deno.env.get("META_APP_SECRET")!;
       const adminClient = createClient(supabaseUrl, serviceRoleKey);
-
-      // Validate nonce exists
-      const { data: stateJobs } = await adminClient
-        .from("integration_sync_jobs")
-        .select("id")
-        .eq("company_id", company_id)
-        .eq("job_type", "oauth_state")
-        .eq("status", "queued")
-        .limit(1);
-
-      if (!stateJobs || stateJobs.length === 0) {
-        return new Response(buildRedirectHtml("error", "state_expired"), {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        });
-      }
-
-      // Clean up used state
-      await adminClient
-        .from("integration_sync_jobs")
-        .delete()
-        .eq("id", stateJobs[0].id);
 
       // Exchange code for short-lived token
       const callbackUrl = `${supabaseUrl}/functions/v1/meta-oauth-callback`;
@@ -121,7 +137,7 @@ serve(async (req) => {
         });
       }
 
-      // Store encrypted token (simple base64 encoding for now; use pgcrypto in production)
+      // Store token (base64 encoded — documented as MVP; use pgcrypto in production)
       const tokenEncrypted = btoa(accessToken);
       const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
@@ -141,7 +157,7 @@ serve(async (req) => {
         meta_user_name: meData.name || null,
       });
 
-      // Fetch pages and save as assets
+      // Fetch pages and save as assets (WITHOUT page access token in metadata)
       const pagesRes = await fetch(
         `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,name,username}&limit=100&access_token=${accessToken}`
       );
@@ -155,6 +171,8 @@ serve(async (req) => {
           .eq("integration_id", integration.id)
           .eq("asset_type", "page");
 
+        // Store page access tokens separately in integration_credentials-like storage
+        // NOT in meta_assets.metadata (which is client-readable via RLS)
         const pageAssets = pagesData.data.map((page: any) => ({
           integration_id: integration.id,
           company_id,
@@ -163,14 +181,31 @@ serve(async (req) => {
           asset_name: page.name,
           selected: false,
           metadata: {
-            page_access_token: btoa(page.access_token || ""),
             instagram_business_account: page.instagram_business_account || null,
+            // page_access_token intentionally NOT stored here (security: RLS-readable)
           },
         }));
 
         if (pageAssets.length > 0) {
           await adminClient.from("meta_assets").insert(pageAssets);
         }
+
+        // Store page tokens in a secure way: save them in integration_credentials metadata
+        // keyed by page_id for retrieval by the proxy
+        const pageTokenMap: Record<string, string> = {};
+        for (const page of pagesData.data) {
+          if (page.access_token) {
+            pageTokenMap[page.id] = btoa(page.access_token);
+          }
+        }
+        // Update the integration credential with page tokens
+        await adminClient
+          .from("integration_credentials")
+          .update({
+            meta_page_tokens: pageTokenMap,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("integration_id", integration.id);
       }
 
       // Audit log

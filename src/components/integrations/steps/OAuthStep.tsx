@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface OAuthStepProps {
   onSuccess: () => void;
@@ -9,6 +9,8 @@ interface OAuthStepProps {
 
 export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
   const [loading, setLoading] = useState(false);
+  const popupRef = useRef<Window | null>(null);
+  const pollRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -17,10 +19,15 @@ export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
           onSuccess();
         }
         setLoading(false);
+        popupRef.current = null;
+        if (pollRef.current) clearInterval(pollRef.current);
       }
     };
     window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
+    return () => {
+      window.removeEventListener("message", handler);
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, [onSuccess]);
 
   const handleConnect = async () => {
@@ -30,7 +37,17 @@ export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
       const w = 600, h = 700;
       const left = (screen.width - w) / 2;
       const top = (screen.height - h) / 2;
-      window.open(oauthUrl, "meta_oauth", `width=${w},height=${h},left=${left},top=${top}`);
+      const popup = window.open(oauthUrl, "meta_oauth", `width=${w},height=${h},left=${left},top=${top}`);
+      popupRef.current = popup;
+
+      // Poll for popup closed without completing OAuth
+      pollRef.current = window.setInterval(() => {
+        if (popupRef.current && popupRef.current.closed) {
+          setLoading(false);
+          popupRef.current = null;
+          if (pollRef.current) clearInterval(pollRef.current);
+        }
+      }, 1000);
     } else {
       setLoading(false);
     }

@@ -3,8 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
@@ -17,7 +16,6 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    // Get all connected integrations
     const { data: integrations, error: intErr } = await admin
       .from("integrations")
       .select("id, company_id, status, health, last_sync_at, updated_at")
@@ -34,7 +32,6 @@ serve(async (req) => {
       let newStatus: string | undefined;
       let reason: string | undefined;
 
-      // 1. Check token expiry
       const { data: creds } = await admin
         .from("integration_credentials")
         .select("expires_at")
@@ -57,7 +54,6 @@ serve(async (req) => {
         }
       }
 
-      // 2. Check recent failures (last 24h)
       if (newHealth !== "critical") {
         const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
         const { count: failedCount } = await admin
@@ -71,12 +67,11 @@ serve(async (req) => {
           newHealth = "critical";
           reason = `${failedCount} eventi falliti nelle ultime 24h`;
         } else if ((failedCount || 0) >= 3) {
-          newHealth = newHealth === "warn" ? "warn" : "warn";
+          newHealth = "warn";
           reason = reason || `${failedCount} eventi falliti nelle ultime 24h`;
         }
       }
 
-      // 3. Update if changed
       if (newHealth !== integ.health || (newStatus && newStatus !== integ.status)) {
         const updateData: Record<string, any> = {
           health: newHealth,
@@ -89,7 +84,6 @@ serve(async (req) => {
 
         await admin.from("integrations").update(updateData).eq("id", integ.id);
 
-        // Audit log
         await admin.from("integration_audit_log").insert({
           company_id: integ.company_id,
           action: "health_check",
