@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -64,7 +64,7 @@ function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars
     enabled: !!contactId && !!companyId,
   });
 
-  const now = new Date();
+  const now = useMemo(() => new Date(), []);
   const upcoming = appointments.filter((a: any) => new Date(a.appointment_date) >= now && a.status !== "annullato");
   const past = appointments.filter((a: any) => new Date(a.appointment_date) < now || a.status === "annullato");
 
@@ -216,16 +216,7 @@ function InlineField({ label, value, onSave, type = "text", options }: {
   );
 }
 
-// ── AVATAR COLORS ──
-const AVATAR_COLORS = [
-  "bg-blue-500", "bg-emerald-500", "bg-violet-500", "bg-amber-500",
-  "bg-rose-500", "bg-cyan-500", "bg-indigo-500", "bg-orange-500",
-];
-function getAvatarColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
+import { getAvatarColor } from "@/lib/contactUtils";
 
 // ── Activity type icons & labels ──
 function getActivityIcon(type: string) {
