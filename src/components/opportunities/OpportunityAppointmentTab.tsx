@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import AddressAutocomplete, { type AddressData, emptyAddress } from "@/components/shared/AddressAutocomplete";
 import AddressMapPreview from "@/components/shared/AddressMapPreview";
 import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
+import CalendarSuggestions, { type CalendarSuggestion } from "@/components/marketing/CalendarSuggestions";
 
 interface Props {
   contactId: string;
@@ -191,6 +192,35 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
     staleTime: 5 * 60 * 1000,
   });
 
+  // Calendar suggestions
+  const { data: calendarSuggestions = [], isLoading: suggestionsLoading } = useQuery({
+    queryKey: ["suggest-calendars", companyId, addressData.lat, addressData.lng, dateStr],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("suggest-calendars", {
+        body: {
+          company_id: companyId,
+          client_lat: addressData.lat,
+          client_lng: addressData.lng,
+          date: dateStr,
+          client_address: addressData.formatted_address || "",
+        },
+      });
+      if (error) throw error;
+      return (data?.suggestions || []) as CalendarSuggestion[];
+    },
+    enabled: !!companyId && addressData.lat != null && addressData.lng != null && !!dateStr,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const handleSuggestionSelect = (suggCalendarId: string, suggestedTime?: string) => {
+    setCalendarId(suggCalendarId);
+    if (suggestedTime) {
+      setSelectedSlot(suggestedTime);
+    } else {
+      setSelectedSlot("");
+    }
+  };
+
   // Same-day appointments distances
   const sameDayWithCoords = useMemo(() => {
     if (!date) return [];
@@ -358,6 +388,16 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           </>
         )}
       </div>
+
+      {/* Calendar Suggestions */}
+      {addressData.lat != null && addressData.lng != null && date && (
+        <CalendarSuggestions
+          suggestions={calendarSuggestions}
+          isLoading={suggestionsLoading}
+          onSelect={handleSuggestionSelect}
+          selectedCalendarId={calendarId}
+        />
+      )}
 
       {/* Same-day appointments with distances */}
       {sameDayWithCoords.length > 0 && addressData.lat != null && (
