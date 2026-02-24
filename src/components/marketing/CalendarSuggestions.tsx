@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -37,7 +37,7 @@ const statusConfig = {
   BLOCKED: { icon: Ban, color: "text-destructive", bg: "bg-red-50 border-red-200", badge: "bg-red-100 text-red-800" },
 };
 
-export default function CalendarSuggestions({ suggestions, isLoading, onSelect, selectedCalendarId }: Props) {
+const CalendarSuggestions = forwardRef<HTMLDivElement, Props>(({ suggestions, isLoading, onSelect, selectedCalendarId }, ref) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (isLoading) {
@@ -195,4 +195,8 @@ export default function CalendarSuggestions({ suggestions, isLoading, onSelect, 
       </div>
     </div>
   );
-}
+});
+
+CalendarSuggestions.displayName = "CalendarSuggestions";
+
+export default CalendarSuggestions;
