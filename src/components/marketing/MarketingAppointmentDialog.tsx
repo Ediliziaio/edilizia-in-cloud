@@ -170,6 +170,16 @@ export default function MarketingAppointmentDialog({
     }
   }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId]);
 
+  // Update end time when calendar changes (non-editing only)
+  useEffect(() => {
+    if (!isEditing && calendarId && calendarId !== "none" && calendarId !== defaultCalendarId) {
+      const cal = calendars.find((c) => c.id === calendarId);
+      if (cal?.duration_minutes && startTime) {
+        setEndTime(addMinutesToTime(startTime, cal.duration_minutes));
+      }
+    }
+  }, [calendarId]);
+
   // Contacts search
   const { data: contacts = [] } = useQuery({
     queryKey: ["mkt-apt-contacts", companyId],
@@ -569,7 +579,10 @@ export default function MarketingAppointmentDialog({
                       <Label htmlFor="start-time" className="text-xs">Ora inizio *</Label>
                       <Input id="start-time" type="time" value={startTime} onChange={(e) => {
                         setStartTime(e.target.value);
-                        if (e.target.value) setEndTime(addMinutesToTime(e.target.value, 30));
+                        if (e.target.value) {
+                          const dur = selectedCalendar?.duration_minutes || 60;
+                          setEndTime(addMinutesToTime(e.target.value, dur));
+                        }
                       }} />
                     </div>
                     <div className="space-y-1">
