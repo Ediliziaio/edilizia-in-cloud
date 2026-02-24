@@ -55,13 +55,13 @@ export default function MarketingCalendarWeekView({
     <div className="flex-1 overflow-auto border rounded-lg bg-background relative isolate">
       <div className="min-w-[900px]">
         {/* Header */}
-        <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b sticky top-0 z-10 bg-background">
+        <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b sticky top-0 z-10 bg-background">
           <div className="p-2 border-r text-xs text-muted-foreground" />
           {days.map((day) => (
             <div
               key={day.toISOString()}
               className={cn(
-                "p-2 text-center border-r last:border-r-0",
+                "p-2 text-center border-r last:border-r-0 min-w-0",
                 isSameDay(day, today) && "bg-primary/5"
               )}
             >
@@ -81,7 +81,7 @@ export default function MarketingCalendarWeekView({
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-[60px_repeat(7,1fr)]">
+        <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))]">
           {HOURS.map((hour) => (
             <div key={hour} className="contents">
               <div className="p-1 pr-2 text-right text-xs text-muted-foreground border-r h-16 flex items-start justify-end pt-0">
@@ -96,7 +96,7 @@ export default function MarketingCalendarWeekView({
                   <div
                     key={`${day.toISOString()}-${hour}`}
                     className={cn(
-                      "border-b border-r last:border-r-0 h-16 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors relative",
+                      "border-b border-r last:border-r-0 h-16 p-0.5 cursor-pointer hover:bg-muted/30 transition-colors relative min-w-0",
                       isSameDay(day, today) && "bg-primary/[0.02]"
                     )}
                     onClick={() => onClickSlot(day, hour)}
