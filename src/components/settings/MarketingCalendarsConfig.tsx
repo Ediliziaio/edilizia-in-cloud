@@ -53,6 +53,9 @@ type CalendarPreferences = {
   show_services_menu: boolean;
   show_rooms: boolean;
   show_equipment: boolean;
+  default_max_daily_km: number;
+  max_travel_minutes: number;
+  default_appointment_duration_minutes: number;
 };
 
 type CalendarAvailability = {
@@ -322,9 +325,9 @@ export default function MarketingCalendarsConfig() {
         show_services_menu: preferences.show_services_menu,
         show_rooms: preferences.show_rooms,
         show_equipment: preferences.show_equipment,
-        default_max_daily_km: (preferences as any).default_max_daily_km ?? 250,
-        max_travel_minutes: (preferences as any).max_travel_minutes ?? 60,
-        default_appointment_duration_minutes: (preferences as any).default_appointment_duration_minutes ?? 90,
+        default_max_daily_km: preferences.default_max_daily_km ?? 250,
+        max_travel_minutes: preferences.max_travel_minutes ?? 60,
+        default_appointment_duration_minutes: preferences.default_appointment_duration_minutes ?? 90,
       });
     }
   }, [preferences]);
