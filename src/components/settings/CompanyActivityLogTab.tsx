@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, ScrollText, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, RefreshCw, ScrollText, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { DateRangeFilter } from "@/components/orders/DateRangeFilter";
 
 const PAGE_SIZE = 20;
 
@@ -25,7 +27,7 @@ const actionLabels: Record<string, string> = {
   delete_supplier: "Fornitore Eliminato",
   create_employee: "Dipendente Creato",
   update_employee: "Dipendente Modificato",
-  update_settings: "Impostazioni Modificate",
+  update_settings: "Modifica Impostazioni",
 };
 
 const actionColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -48,9 +50,11 @@ export default function CompanyActivityLogTab() {
   const companyId = effectiveCompany?.id;
   const [page, setPage] = useState(0);
   const [actionFilter, setActionFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["company-activity-log", companyId, page, actionFilter],
+    queryKey: ["company-activity-log", companyId, page, actionFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString()],
     queryFn: async () => {
       if (!companyId) throw new Error("No company");
       const from = page * PAGE_SIZE;
@@ -66,11 +70,16 @@ export default function CompanyActivityLogTab() {
       if (actionFilter !== "all") {
         query = query.eq("action", actionFilter);
       }
+      if (dateRange.from) {
+        query = query.gte("created_at", dateRange.from.toISOString());
+      }
+      if (dateRange.to) {
+        query = query.lte("created_at", dateRange.to.toISOString());
+      }
 
       const { data, error, count } = await query;
       if (error) throw error;
 
-      // Fetch user profiles for display names
       const userIds = [...new Set((data || []).map((l: any) => l.user_id))];
       let profiles: Record<string, string> = {};
       if (userIds.length > 0) {
@@ -89,6 +98,17 @@ export default function CompanyActivityLogTab() {
     staleTime: 30_000,
   });
 
+  const filteredLogs = useMemo(() => {
+    if (!data?.logs || !searchQuery.trim()) return data?.logs || [];
+    const q = searchQuery.toLowerCase();
+    return data.logs.filter((log: any) => {
+      const userName = (data.profiles[log.user_id] || "").toLowerCase();
+      const details = log.details as Record<string, any> | null;
+      const detailStr = (details?.name || details?.description || details?.order_code || log.target_id || "").toLowerCase();
+      return userName.includes(q) || detailStr.includes(q);
+    });
+  }, [data, searchQuery]);
+
   const totalPages = Math.ceil((data?.total || 0) / PAGE_SIZE);
 
   return (
@@ -98,7 +118,26 @@ export default function CompanyActivityLogTab() {
           <ScrollText className="h-5 w-5 text-primary" />
           <CardTitle>Registro Attività</CardTitle>
         </div>
-        <div className="flex items-center gap-2">
+        <Button variant="outline" size="icon" onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca utente o dettaglio..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <DateRangeFilter
+            label="Periodo"
+            range={dateRange}
+            onRangeChange={(r) => { setDateRange(r); setPage(0); }}
+          />
           <Select value={actionFilter} onValueChange={(v) => { setActionFilter(v); setPage(0); }}>
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Filtra azione" />
@@ -110,12 +149,8 @@ export default function CompanyActivityLogTab() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
         </div>
-      </CardHeader>
-      <CardContent>
+
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -125,7 +160,7 @@ export default function CompanyActivityLogTab() {
             Errore nel caricamento.{" "}
             <Button variant="link" onClick={() => refetch()}>Riprova</Button>
           </div>
-        ) : data?.logs.length === 0 ? (
+        ) : filteredLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <ScrollText className="h-10 w-10 mb-3 opacity-40" />
             <p className="font-medium">Nessuna attività registrata</p>
@@ -143,7 +178,7 @@ export default function CompanyActivityLogTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data?.logs.map((log: any) => {
+                {filteredLogs.map((log: any) => {
                   const details = log.details as Record<string, any> | null;
                   return (
                     <TableRow key={log.id}>
@@ -151,7 +186,7 @@ export default function CompanyActivityLogTab() {
                         {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it })}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {data.profiles[log.user_id] || "Sistema"}
+                        {data!.profiles[log.user_id] || "Sistema"}
                       </TableCell>
                       <TableCell>
                         <Badge variant={actionColors[log.action] || "outline"}>
