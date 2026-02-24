@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import DOMPurify from "dompurify";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -406,7 +407,7 @@ export default function CampaignEditor() {
           </DialogHeader>
           <div
             className="border rounded-md p-6 bg-background"
-            dangerouslySetInnerHTML={{ __html: editorRef.current?.innerHTML || "" }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editorRef.current?.innerHTML || "") }}
           />
         </DialogContent>
       </Dialog>

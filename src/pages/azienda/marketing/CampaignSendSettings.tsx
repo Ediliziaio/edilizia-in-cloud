@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import DOMPurify from "dompurify";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -429,7 +430,7 @@ export default function CampaignSendSettings() {
                 {campaign?.html_content ? (
                   <div
                     className="border rounded-md p-3 text-xs max-h-64 overflow-auto bg-background"
-                    dangerouslySetInnerHTML={{ __html: campaign.html_content }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(campaign.html_content) }}
                   />
                 ) : (
                   <p className="text-xs text-muted-foreground text-center py-6">Nessun contenuto</p>
