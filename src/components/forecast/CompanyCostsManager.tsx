@@ -3,6 +3,7 @@ import { format, addMonths } from "date-fns";
 import { Building2, Plus, Search, Download, Upload } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { resolveCostOrigin } from "@/lib/forecastTypes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -154,26 +155,36 @@ export default function CompanyCostsManager() {
   const handlePaymentConfirm = () => {
     if (!payingCostId || !paymentDate) return;
     const derivedCost = data.allOrderDerivedCosts.find(c => c.id === payingCostId);
-    if (derivedCost?.realOrderItemId) {
-      const paymentType = payingCostId.startsWith("order-item-dep-") ? "deposit" as const : payingCostId.startsWith("order-item-bal-") ? "balance" as const : "single" as const;
-      mutations.markOrderItemPaidMutation.mutate({ id: derivedCost.realOrderItemId, date: paymentDate, paymentType });
-    } else if (payingCostId.startsWith("ext-team-")) {
-      mutations.markExtTeamPaidMutation.mutate({ id: payingCostId.replace("ext-team-", ""), date: paymentDate });
-    } else if (payingCostId.startsWith("commission-")) {
-      mutations.markCommissionPaidMutation.mutate({ id: payingCostId.replace("commission-", ""), date: paymentDate });
-    } else {
-      mutations.markPaidMutation.mutate({ id: payingCostId, date: paymentDate });
+    const origin = resolveCostOrigin(payingCostId, derivedCost?.realOrderItemId);
+
+    switch (origin.type) {
+      case "order-item":
+        mutations.markOrderItemPaidMutation.mutate({ id: origin.realId, date: paymentDate, paymentType: origin.paymentType! });
+        break;
+      case "ext-team":
+        mutations.markExtTeamPaidMutation.mutate({ id: origin.realId, date: paymentDate });
+        break;
+      case "commission":
+        mutations.markCommissionPaidMutation.mutate({ id: origin.realId, date: paymentDate });
+        break;
+      default:
+        mutations.markPaidMutation.mutate({ id: payingCostId, date: paymentDate });
     }
   };
 
   const handleMarkOrderItemUnpaid = (cost: UnifiedCost) => {
-    if (cost.realOrderItemId) {
-      const paymentType = cost.id.startsWith("order-item-dep-") ? "deposit" as const : cost.id.startsWith("order-item-bal-") ? "balance" as const : "single" as const;
-      mutations.markOrderItemUnpaidMutation.mutate({ id: cost.realOrderItemId, paymentType });
-    } else if (cost.id.startsWith("ext-team-")) {
-      mutations.markExtTeamUnpaidMutation.mutate(cost.id.replace("ext-team-", ""));
-    } else if (cost.id.startsWith("commission-")) {
-      mutations.markCommissionUnpaidMutation.mutate(cost.id.replace("commission-", ""));
+    const origin = resolveCostOrigin(cost.id, cost.realOrderItemId);
+
+    switch (origin.type) {
+      case "order-item":
+        mutations.markOrderItemUnpaidMutation.mutate({ id: origin.realId, paymentType: origin.paymentType! });
+        break;
+      case "ext-team":
+        mutations.markExtTeamUnpaidMutation.mutate(origin.realId);
+        break;
+      case "commission":
+        mutations.markCommissionUnpaidMutation.mutate(origin.realId);
+        break;
     }
   };
 
