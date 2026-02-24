@@ -80,8 +80,12 @@ Deno.serve(async (req) => {
       }
 
       // Verify the target email belongs to a super_admin
-      const { data: targetUser } = await adminClient.auth.admin.listUsers();
-      const targetUserId = targetUser?.users?.find((u: any) => u.email === email)?.id;
+      const { data: targetProfile } = await adminClient
+        .from("profiles")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
+      const targetUserId = targetProfile?.id;
       
       if (!targetUserId) {
         return new Response(JSON.stringify({ error: "Target user not found" }), {

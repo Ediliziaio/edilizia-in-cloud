@@ -4882,6 +4882,29 @@ export type Database = {
         }
         Returns: undefined
       }
+      get_company_order_stats: {
+        Args: never
+        Returns: {
+          company_id: string
+          last_order_date: string
+          order_count: number
+          total_value: number
+        }[]
+      }
+      get_company_user_counts: {
+        Args: never
+        Returns: {
+          company_id: string
+          user_count: number
+        }[]
+      }
+      get_total_orders_value: {
+        Args: never
+        Returns: {
+          total_count: number
+          total_value: number
+        }[]
+      }
       get_user_company_id: { Args: { _user_id: string }; Returns: string }
       has_permission: {
         Args: { _permission: string; _user_id: string }
