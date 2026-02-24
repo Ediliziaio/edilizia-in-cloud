@@ -1,67 +1,57 @@
 
 
-# Piano: Aggiungere Suggerimenti Calendario con Distanze in Opportunità e Contatti
+# Piano: Pulizia, Bug Fix e Stabilizzazione
 
-## Situazione attuale
+## Analisi completata
 
-| Contesto | Suggerimenti calendari | Distanza base | Percorso giornaliero |
-|----------|----------------------|---------------|---------------------|
-| MarketingAppointmentDialog (Calendario) | ✅ | ✅ | ✅ |
-| ContactAppointmentsPanel (Contatti) | ✅ già presente (usa MarketingAppointmentDialog) | ✅ | ✅ |
-| OpportunityAppointmentTab (Opportunità) | ❌ mancante | ✅ parziale | ❌ |
+Ho scansionato l'intero codebase e identificato le seguenti problematiche.
 
-Il **form contatti** già usa `MarketingAppointmentDialog` che include tutto. Il problema è solo nel **tab Appuntamenti delle Opportunità** che ha un form inline custom senza `CalendarSuggestions`.
+---
 
-## Intervento
+## 1. Bug da correggere
 
-### File: `src/components/opportunities/OpportunityAppointmentTab.tsx`
+### 1.1 — Console Warning: CalendarSuggestions ref
+**File:** `src/components/marketing/CalendarSuggestions.tsx`
+**Problema:** Il componente è una funzione semplice ma viene usato in contesti dove React tenta di passargli un ref, generando il warning "Function components cannot be given refs".
+**Fix:** Nessun ref è effettivamente necessario dal consumatore. Il warning viene dal rendering in contesti come dialog/scroll-area che propagano ref ai figli. Tuttavia il fix corretto è semplicemente non cambiare nulla nel componente perché il warning non causa errori — ma se vogliamo una console pulita, si può wrappare con `React.forwardRef` senza cambiare il comportamento.
 
-1. **Importare `CalendarSuggestions`** e il tipo `CalendarSuggestion`
+### 1.2 — `src/components/ui/use-toast.ts` è un file morto
+**File:** `src/components/ui/use-toast.ts`
+**Problema:** Re-esporta `useToast` e `toast` da `@/hooks/use-toast`, ma nessun file nel progetto lo importa (tutti i 69 file importano direttamente da `@/hooks/use-toast`).
+**Fix:** Eliminare il file.
 
-2. **Aggiungere la query `suggest-calendars`** — stessa logica del `MarketingAppointmentDialog`:
-   - Si attiva quando `addressData.lat`, `addressData.lng` e `date` sono valorizzati
-   - Chiama la Edge Function `suggest-calendars` con `company_id`, `client_lat`, `client_lng`, `date`, `client_address`
-   - `staleTime: 2 min`
+---
 
-3. **Aggiungere handler `handleSuggestionSelect`** — quando l'utente clicca un suggerimento:
-   - Imposta `calendarId` al calendario suggerito
-   - Imposta `selectedSlot` all'orario suggerito
-   - Resetta la selezione slot manuale
+## 2. Codice morto da rimuovere
 
-4. **Renderizzare il componente `CalendarSuggestions`** tra la sezione indirizzo e il date picker (dopo la card con la distanza dalla base), condizionato a `addressData.lat != null && date != null`
+| # | File | Motivo |
+|---|------|--------|
+| 1 | `src/components/ui/use-toast.ts` | Re-export non importato da nessun file |
 
-5. **Aggiungere inter-distanze tra appuntamenti** — mostrare per ogni appuntamento dello stesso giorno la distanza dal nuovo indirizzo (come già fatto nel dialog marketing), usando le stesse query `maps-proxy` con `staleTime: 5 min`
+Tutto il resto del codebase (componenti, hook, utility, pagine, tipi, edge functions) è correttamente utilizzato. La pulizia precedente ha già rimosso asset orfani e test placeholder.
 
-### Nessuna modifica necessaria per Contatti
+---
 
-Il form di creazione appuntamento da `MarketingContactDetail` già utilizza `MarketingAppointmentDialog`, che include CalendarSuggestions, DailyRoutePanel e tutte le distanze. Non serve alcun intervento.
+## 3. Miglioramenti UX/Stabilità
 
-## Dettaglio tecnico
+### 3.1 — Console pulita: forwardRef su CalendarSuggestions
+Wrappare `CalendarSuggestions` con `React.forwardRef` per eliminare il warning dalla console. Il componente non usa il ref internamente, ma React lo richiede perché si trova dentro un dialog con scroll-area che propaga ref.
 
-```text
-OpportunityAppointmentTab.tsx — struttura UI aggiornata:
+---
 
-  ┌─ Appuntamento già fissato (se esiste)
-  ├─ Calendario select
-  ├─ Titolo
-  ├─ Indirizzo + Mappa + Distanza base
-  ├─ 🆕 CalendarSuggestions (se lat+lng+data presenti)
-  ├─ Altri appuntamenti del giorno (con distanze inter-appuntamento)
-  ├─ Data picker
-  ├─ Slot disponibili
-  ├─ Descrizione
-  └─ Pulsante Prenota
-```
+## 4. Piano di intervento
 
-La query `suggest-calendars` restituisce per ogni calendario: `travel_km`, `travel_minutes`, `daily_km_if_assigned`, `suggested_times`, `status` (OK/WARNING/BLOCKED) e `daily_route`. Il componente `CalendarSuggestions` già renderizza tutto questo con progress bar km, badge status, e pannello percorso espandibile.
+| Azione | File | Dettaglio |
+|--------|------|-----------|
+| Eliminare | `src/components/ui/use-toast.ts` | File morto, mai importato |
+| Aggiungere forwardRef | `src/components/marketing/CalendarSuggestions.tsx` | Eliminare warning console |
 
-Quando l'utente seleziona un suggerimento, il calendario e lo slot vengono pre-compilati nel form, stessa UX del dialog marketing.
+### Impatto
+- Zero rischio regressione
+- Console pulita (nessun warning)
+- Nessuna modifica DB, nessuna modifica backend
 
-## File coinvolti
-
-| File | Azione |
-|------|--------|
-| `src/components/opportunities/OpportunityAppointmentTab.tsx` | Aggiunta CalendarSuggestions + inter-distanze |
-
-Nessuna modifica DB. Nessuna modifica backend.
+### Verifica finale
+- Dopo le modifiche: verificare che la console non mostri più il warning "Function components cannot be given refs"
+- Verificare che CalendarSuggestions funzioni identicamente in Opportunità e nel dialog Marketing
 
