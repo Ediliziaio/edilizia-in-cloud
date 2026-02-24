@@ -1,8 +1,14 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Integration, MetaWizardStep } from "@/types/integrations";
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { useMetaIntegration } from "@/hooks/useMetaIntegration";
+import { OAuthStep } from "./steps/OAuthStep";
+import { PageSelectionStep } from "./steps/PageSelectionStep";
+import { ConnectionConfirmStep } from "./steps/ConnectionConfirmStep";
+import { FormListStep } from "./steps/FormListStep";
+import { FieldMappingStep } from "./steps/FieldMappingStep";
+import { ActivationStep } from "./steps/ActivationStep";
 
 interface MetaIntegrationWizardProps {
   open: boolean;
@@ -25,28 +31,54 @@ const STEP_ORDER: MetaWizardStep[] = ["oauth", "pages", "confirm", "forms", "map
 export function MetaIntegrationWizard({ open, onOpenChange, integration, onComplete }: MetaIntegrationWizardProps) {
   const isConnected = integration?.status === "connected";
   const [step, setStep] = useState<MetaWizardStep>(isConnected ? "pages" : "oauth");
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+
+  const hook = useMetaIntegration(integration);
+
+  useEffect(() => {
+    if (open) {
+      setStep(isConnected ? "pages" : "oauth");
+      setSelectedFormId(null);
+    }
+  }, [open, isConnected]);
 
   const currentIndex = STEP_ORDER.indexOf(step);
 
-  const goNext = () => {
+  const goNext = useCallback(() => {
     if (currentIndex < STEP_ORDER.length - 1) {
       setStep(STEP_ORDER[currentIndex + 1]);
     }
-  };
+  }, [currentIndex]);
 
-  const goBack = () => {
+  const goBack = useCallback(() => {
+    // From mapping, go back to forms
+    if (step === "mapping") {
+      setStep("forms");
+      setSelectedFormId(null);
+      return;
+    }
     if (currentIndex > 0) {
       setStep(STEP_ORDER[currentIndex - 1]);
     }
-  };
+  }, [currentIndex, step]);
 
   const handleOpenChange = (v: boolean) => {
     if (!v) {
-      // Reset step on close
       setStep(isConnected ? "pages" : "oauth");
+      setSelectedFormId(null);
     }
     onOpenChange(v);
   };
+
+  const handleOAuthSuccess = useCallback(() => {
+    onComplete(); // refetch integrations
+    setStep("pages");
+  }, [onComplete]);
+
+  const handleFormMapping = useCallback((formId: string) => {
+    setSelectedFormId(formId);
+    setStep("mapping");
+  }, []);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -65,33 +97,15 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
           </div>
         </DialogHeader>
 
-        <div className="py-4 min-h-[200px] flex items-center justify-center">
-          {step === "oauth" && (
-            <div className="text-center space-y-4">
-              <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <svg viewBox="0 0 36 36" className="h-8 w-8" fill="none">
-                  <rect width="36" height="36" rx="8" fill="hsl(var(--primary))" />
-                  <text x="18" y="24" textAnchor="middle" fill="white" fontSize="18" fontWeight="700" fontFamily="system-ui">M</text>
-                </svg>
-              </div>
-              <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                Collega il tuo account Facebook per importare lead dai moduli Lead Ads delle tue pagine.
-              </p>
-              <Button disabled className="gap-2">
-                <Loader2 className="h-4 w-4" />
-                Collega con Facebook
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                L'integrazione OAuth verrà implementata nella Fase 2.
-              </p>
-            </div>
+        <div className="py-4 min-h-[200px]">
+          {step === "oauth" && <OAuthStep onSuccess={handleOAuthSuccess} hook={hook} />}
+          {step === "pages" && <PageSelectionStep hook={hook} />}
+          {step === "confirm" && <ConnectionConfirmStep hook={hook} />}
+          {step === "forms" && <FormListStep hook={hook} onMapFields={handleFormMapping} />}
+          {step === "mapping" && selectedFormId && (
+            <FieldMappingStep hook={hook} formId={selectedFormId} />
           )}
-
-          {step !== "oauth" && (
-            <div className="text-center text-muted-foreground text-sm">
-              <p>Questo step sarà implementato nella Fase 3.</p>
-            </div>
-          )}
+          {step === "activation" && <ActivationStep hook={hook} integration={integration} />}
         </div>
 
         <div className="flex justify-between pt-2 border-t">
@@ -104,7 +118,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                 Indietro
               </Button>
             )}
-            {currentIndex < STEP_ORDER.length - 1 && (
+            {step !== "oauth" && currentIndex < STEP_ORDER.length - 1 && (
               <Button onClick={goNext}>Avanti</Button>
             )}
             {currentIndex === STEP_ORDER.length - 1 && (
