@@ -167,6 +167,83 @@ serve(async (req) => {
         break;
       }
 
+      case "backfill-leads": {
+        const { form_id: bfFormId, mode, since_date } = body;
+        if (!bfFormId) {
+          return new Response(JSON.stringify({ error: "form_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Find the page asset that owns this form to get the correct page token
+        const { data: formRecord } = await adminClient
+          .from("meta_lead_forms")
+          .select("page_id")
+          .eq("form_id", bfFormId)
+          .eq("integration_id", integration_id)
+          .single();
+
+        const pageTokens = (creds as any).meta_page_tokens || {};
+        let bfToken = accessToken;
+        if (formRecord?.page_id) {
+          const { data: pageAsset } = await adminClient
+            .from("meta_assets")
+            .select("asset_id")
+            .eq("id", formRecord.page_id)
+            .single();
+          if (pageAsset && pageTokens[pageAsset.asset_id]) {
+            bfToken = atob(pageTokens[pageAsset.asset_id]);
+          }
+        }
+
+        let url = `https://graph.facebook.com/v21.0/${bfFormId}/leads?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name&limit=50&access_token=${bfToken}`;
+        if (mode === "since_date" && since_date) {
+          const sinceTs = Math.floor(new Date(since_date).getTime() / 1000);
+          url += `&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${sinceTs}}]`;
+        }
+
+        let imported = 0;
+        let nextUrl: string | null = url;
+
+        while (nextUrl) {
+          const res = await fetchWithRetry(nextUrl);
+          const data = await res.json();
+          const leads = data.data || [];
+
+          for (const lead of leads) {
+            await adminClient
+              .from("integration_webhook_events")
+              .upsert({
+                company_id,
+                integration_id,
+                provider: "meta",
+                event_type: "leadgen",
+                event_id: lead.id,
+                payload: lead,
+                received_at: new Date().toISOString(),
+                status: "pending",
+                fail_count: 0,
+              }, { onConflict: "company_id,event_id" });
+            imported++;
+          }
+
+          nextUrl = data.paging?.next || null;
+        }
+
+        await adminClient.from("integration_audit_log").insert({
+          company_id,
+          actor_user_id: claimsData.claims.sub,
+          action: "backfill_started",
+          entity_type: "form",
+          entity_id: bfFormId,
+          metadata: { mode, since_date, imported },
+        });
+
+        result = { imported };
+        break;
+      }
+
       case "disconnect": {
         try {
           await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${accessToken}`, {
