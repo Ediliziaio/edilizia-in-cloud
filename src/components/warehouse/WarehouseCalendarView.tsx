@@ -23,6 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { WEEK_DAYS_IT } from "@/lib/calendarUtils";
 import type { WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
 interface CalendarOrderGroup extends OrderWithItems {
@@ -88,7 +89,7 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
   const calendarEnd = endOfWeek(monthEnd, { locale: it });
 
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-  const weekDays = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+  const weekDays = WEEK_DAYS_IT;
 
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));

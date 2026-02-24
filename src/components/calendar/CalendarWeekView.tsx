@@ -15,10 +15,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown, CalendarClock, Search, Truck, UserCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown, CalendarClock } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { hasLogisticRisk, getEmployeeInitials } from "@/lib/calendarUtils";
+import { hasLogisticRisk, getEmployeeInitials, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
@@ -37,13 +37,7 @@ interface WeekEvent {
   type: "posa" | "merce" | "lavoro" | "appointment";
 }
 
-const APPOINTMENT_ICONS: Record<string, typeof CalendarClock> = {
-  sopralluogo: Search,
-  consegna: Truck,
-  riunione: Users,
-  cliente: UserCheck,
-  generico: CalendarClock,
-};
+
 
 export function CalendarWeekView({
   orders,
@@ -127,17 +121,7 @@ export function CalendarWeekView({
         <button
           key={`apt-${apt.id}-${idx}`}
           onClick={() => {
-            setEditingAppointment({
-              id: apt.id,
-              title: apt.title,
-              description: apt.description,
-              appointment_date: apt.appointment_date,
-              appointment_time: apt.appointment_time,
-              appointment_type: apt.appointment_type,
-              assigned_to: apt.assigned_to,
-              order_id: apt.order_id,
-              is_completed: apt.is_completed,
-            });
+            setEditingAppointment(mapAppointmentToEditData(apt));
             setAppointmentDialogOpen(true);
           }}
           className={cn(
