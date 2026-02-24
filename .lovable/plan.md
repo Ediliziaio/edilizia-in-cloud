@@ -1,76 +1,65 @@
 
 
-# Piano: Fix click vs drag + Ridimensionamento appuntamenti
+# Piano: Fix altezza appuntamenti + resize handle
 
-## Problema 1: Click non apre il dialog di modifica
+## Problemi identificati
 
-**Causa**: Il componente `DraggableAppointment` applica `{...listeners}` direttamente sul wrapper, intercettando tutti gli eventi mouse (compreso il click). Un click rapido viene interpretato come drag start/end e l'`onClick` interno non viene mai raggiunto.
+### 1. Appuntamento non copre lo spazio corretto (12:00–13:00)
+**Causa**: Il `DroppableSlot` ha un'altezza fissa (`h-8` per slot 30min). L'appuntamento che dura 1 ora (2 slot) prova a impostare `height: 64px` via inline style, ma il slot genitore lo taglia perché ha `h-8` (32px) e nessun `overflow-visible`. Il contenuto viene troncato.
 
-**Soluzione**: Usare `PointerSensor` con `activationConstraint: { distance: 5 }` nel `DndContext`. Così il drag si attiva solo se il mouse si muove di almeno 5px — un click rapido passa attraverso normalmente.
+**Fix**: 
+- Rendere il `DroppableSlot` `overflow-visible` quando contiene appuntamenti multi-slot
+- L'appuntamento multi-slot deve essere `position: absolute`, `top: 0`, `left: 0`, `right: 0` con la giusta `height` calcolata, e un `z-index` per sovrapporsi agli slot sottostanti
+- Il `DroppableSlot` deve avere `position: relative` (già presente)
 
-File coinvolti:
-- `MarketingCalendarDayView.tsx` — aggiungere `useSensors` con `PointerSensor` e `distance: 5`
-- `MarketingCalendarWeekView.tsx` — stessa modifica
-- `MarketingCalendarMonthView.tsx` — stessa modifica
+### 2. Resize handle non funziona / posizionato male
+**Causa**: Il resize handle è posizionato con `absolute bottom-0` sul wrapper `DraggableAppointment`, ma il wrapper non ha un'altezza esplicita — è il figlio interno che ha `height: spanHeight`. Quindi il handle finisce in fondo al wrapper (1 slot), non in fondo all'appuntamento visivo (N slot).
 
-## Problema 2: Ridimensionamento appuntamenti (durata)
+**Fix**:
+- Spostare il `data-resize-id` e l'altezza esplicita sul wrapper `DraggableAppointment` stesso, non sul figlio interno
+- Il `DraggableAppointment` deve ricevere la `spanHeight` come prop e applicarla come stile inline sul suo div radice
+- Così il resize handle `absolute bottom-0` si posiziona correttamente alla fine dell'appuntamento espanso
 
-**Obiettivo**: Trascinando il bordo inferiore di un appuntamento si modifica `appointment_end_time`.
+## Interventi
 
-**Approccio**: Aggiungere un handle di resize sul bordo inferiore della pill. Al mousedown sull'handle, tracciare il movimento verticale e calcolare il nuovo `appointment_end_time` in base alla griglia degli slot. Al mouseup, salvare su DB.
+### File: `src/components/marketing/DraggableAppointment.tsx`
+- Aggiungere prop `spanHeight?: number`
+- Applicare `style={{ height: spanHeight, zIndex: 5 }}` sul div radice quando `spanHeight` è definito
+- Il resize handle (già `absolute bottom-0`) funzionerà correttamente perché il wrapper ha l'altezza giusta
 
-### Dettaglio implementazione
+### File: `src/components/marketing/MarketingCalendarDayView.tsx`
+- Rimuovere `style={{ height: spanHeight }}` dal div figlio interno e passarlo come prop `spanHeight` a `DraggableAppointment`
+- Aggiungere `overflow-visible` ai `DroppableSlot` per permettere agli appuntamenti multi-slot di espandersi oltre il bordo dello slot
+- Il div interno dell'appuntamento diventa `h-full` per riempire il wrapper
 
-**Prerequisito**: Gli appuntamenti devono occupare visivamente più righe se la loro durata copre più slot. Attualmente ogni appuntamento è mostrato solo nello slot del suo `appointment_time`. Serve calcolare l'altezza in base a `appointment_time` → `appointment_end_time`.
+### File: `src/components/marketing/MarketingCalendarWeekView.tsx`
+- Stesse modifiche: passare `spanHeight` a `DraggableAppointment`, aggiungere `overflow-visible` ai slot
 
-### Modifiche componenti
+### File: `src/components/marketing/DroppableSlot.tsx`
+- Aggiungere `overflow-visible` come classe di default (gli appuntamenti multi-slot devono poter fuoriuscire dallo slot)
 
-**`DraggableAppointment.tsx`** — Aggiungere:
-- Prop `onResize: (id: string, newEndTime: string) => void`
-- Prop `slotDurationMinutes: number`
-- Prop `slotHeightPx: number` (altezza in px di uno slot per calcolo proporzionale)
-- Un div handle `.resize-handle` posizionato sul bordo inferiore (`cursor-s-resize`, `h-1.5`)
-- Logica mousedown/mousemove/mouseup sull'handle per calcolare il delta in minuti e il nuovo end time
-- L'handle non propaga l'evento al drag (stopPropagation)
-
-**`MarketingCalendarDayView.tsx`** e **`MarketingCalendarWeekView.tsx`**:
-- Calcolare l'altezza visiva dell'appuntamento: `spanSlots = (endMin - startMin) / slotDurationMinutes`, poi `height = spanSlots * slotHeightPx`
-- Posizionare l'appuntamento con `position: absolute` dentro lo slot, con `top` calcolato dall'offset e `height` dalla durata
-- Lo slot droppable diventa `position: relative` per contenere gli appuntamenti posizionati
-- Nuova prop `onResizeAppointment: (id: string, newEndTime: string) => void`
-
-**`MarketingCalendar.tsx`**:
-- Nuova funzione `handleResizeAppointment(id, newEndTime)`:
-  - Update su DB: `supabase.from("appointments").update({ appointment_end_time: newEndTime }).eq("id", id)`
-  - Toast di conferma
-  - `refetchAppointments()`
-- Passare `onResizeAppointment` alle viste Day e Week
-
-### Struttura visiva
+## Dettaglio visivo atteso
 
 ```text
-Prima (ogni apt in 1 slot):
-  09:00  ▏ [Apt A - 09:00]
-  09:30  ▏ 
-  10:00  ▏ [Apt B - 10:00]
+Prima (bug):
+  12:00  ▏ [12:00 apt...] ← troncato a 32px, resize handle invisibile
+  12:30  ▏ (vuoto)
+  13:00  ▏ (vuoto)
 
-Dopo (apt con altezza proporzionale):
-  09:00  ▏ ┌─ Apt A ──────────┐
-  09:30  ▏ │                  │
-  10:00  ▏ └──── ═══ resize ──┘  ← handle
-         ▏ ┌─ Apt B ──────────┐
-  10:30  ▏ └──── ═══ resize ──┘
+Dopo (fix):
+  12:00  ▏ ┌─ 12:00 appuntamento ──┐ ← 64px, sovrappone il 12:30
+  12:30  ▏ └──── ═══ resize ───────┘ ← handle visibile in fondo
+  13:00  ▏ (vuoto)
 ```
 
 ## File coinvolti
 
 | File | Azione |
 |------|--------|
-| `src/components/marketing/DraggableAppointment.tsx` | Aggiunta handle resize + logica mouse tracking |
-| `src/components/marketing/MarketingCalendarDayView.tsx` | `useSensors` con distance, appuntamenti con altezza proporzionale, prop `onResizeAppointment` |
-| `src/components/marketing/MarketingCalendarWeekView.tsx` | Stesse modifiche del DayView |
-| `src/components/marketing/MarketingCalendarMonthView.tsx` | Solo `useSensors` con distance (no resize nella vista mese) |
-| `src/pages/azienda/marketing/MarketingCalendar.tsx` | Nuova `handleResizeAppointment` + passaggio prop |
+| `src/components/marketing/DraggableAppointment.tsx` | Nuova prop `spanHeight`, altezza sul wrapper |
+| `src/components/marketing/MarketingCalendarDayView.tsx` | Passaggio `spanHeight` come prop, rimozione height dal div interno |
+| `src/components/marketing/MarketingCalendarWeekView.tsx` | Stesse modifiche |
+| `src/components/marketing/DroppableSlot.tsx` | Aggiunta `overflow-visible` |
 
-Nessuna modifica DB (il campo `appointment_end_time` esiste già nella tabella `appointments`).
+Nessuna modifica DB. Nessuna modifica backend.
 
