@@ -14,7 +14,7 @@ export default function DroppableSlot({ id, children, className, onClick }: Prop
   return (
     <div
       ref={setNodeRef}
-      className={cn(className, isOver && "ring-2 ring-primary/50 bg-primary/5")}
+      className={cn("overflow-visible", className, isOver && "ring-2 ring-primary/50 bg-primary/5")}
       onClick={onClick}
     >
       {children}

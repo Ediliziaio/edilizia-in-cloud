@@ -172,11 +172,9 @@ export default function MarketingCalendarDayView({
                         slotDurationMinutes={slotDurationMinutes}
                         slotHeightPx={slotInfo.px}
                         startTime={apt.appointment_time?.slice(0, 5)}
+                        spanHeight={spanHeight}
                       >
-                        <div
-                          style={spanHeight ? { height: spanHeight, zIndex: 5 } : undefined}
-                          className={spanHeight ? "relative" : undefined}
-                        >
+                        <div className={spanHeight ? "h-full relative" : undefined}>
                           {leg && (
                             <div
                               className={cn(
