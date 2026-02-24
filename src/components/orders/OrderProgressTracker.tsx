@@ -2,13 +2,13 @@ import React, { useMemo } from "react";
 import { Check, icons } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AvailableIcon } from "@/lib/orderStatusTemplates";
+import type { OrderStatus } from "@/lib/orderUtils";
 
-export interface OrderStatus {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-  position: number;
+export type { OrderStatus };
+
+export interface StatusHistoryItem {
+  status_id: string;
+  changed_at: string;
 }
 
 export interface StatusHistoryItem {

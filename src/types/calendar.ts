@@ -32,11 +32,7 @@ export interface CalendarOrder {
   }>;
 }
 
-export interface OrderStatus {
-  id: string;
-  name: string;
-  color: string;
-}
+export type { OrderStatus } from "@/lib/orderUtils";
 
 export interface CustomerFilter {
   id: string;

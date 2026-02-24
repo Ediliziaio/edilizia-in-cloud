@@ -43,7 +43,8 @@ import { OrderErrors } from "@/components/orders/OrderErrors";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
-import type { OrderStatus, StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
+import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
+import { type OrderStatus, type OrderItemData, deleteOrderCascading } from "@/lib/orderUtils";
 
 // Order Alert Interface
 interface OrderAlert {
@@ -173,32 +174,7 @@ interface StatusHistoryEntry {
   };
 }
 
-interface OrderItemData {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity: number;
-  status: string;
-  position: number;
-  supplier_id: string | null;
-  purchase_price: number | null;
-  vat_rate: number | null;
-  stock_item_id: string | null;
-  is_paid: boolean | null;
-  paid_date: string | null;
-  payment_method: string | null;
-  unit_price: number | null;
-  discount_percent: number | null;
-  standard_cost: number | null;
-  deposit_amount: number | null;
-  deposit_paid: boolean | null;
-  deposit_paid_date: string | null;
-  balance_amount: number | null;
-  balance_paid: boolean | null;
-  balance_paid_date: string | null;
-  balance_expected_date: string | null;
-  deposit_expected_date: string | null;
-}
+// OrderItemData imported from @/lib/orderUtils
 
 interface OrderItemAttachmentData {
   id: string;
@@ -388,29 +364,7 @@ export default function OrderDetail() {
 
   // Delete order mutation (cascading: items, attachments, history, staff)
   const deleteOrderMutation = useMutation({
-    mutationFn: async () => {
-      // First get item IDs to delete their attachments
-      const { data: items } = await supabase.from("order_items").select("id").eq("order_id", id!);
-      if (items && items.length > 0) {
-        const itemIds = items.map(i => i.id);
-        await supabase.from("order_item_attachments").delete().in("order_item_id", itemIds);
-      }
-      // Delete all related records in parallel
-      await Promise.all([
-        supabase.from("order_items").delete().eq("order_id", id!),
-        supabase.from("order_status_history").delete().eq("order_id", id!),
-        supabase.from("order_employees").delete().eq("order_id", id!),
-        supabase.from("order_external_teams").delete().eq("order_id", id!),
-        supabase.from("order_salespeople").delete().eq("order_id", id!),
-        supabase.from("order_attachments").delete().eq("order_id", id!),
-        supabase.from("order_errors").delete().eq("order_id", id!),
-        supabase.from("tasks").delete().eq("order_id", id!),
-        supabase.from("appointments").delete().eq("order_id", id!),
-      ]);
-      // Finally delete the order itself
-      const { error } = await supabase.from("orders").delete().eq("id", id!);
-      if (error) throw error;
-    },
+    mutationFn: () => deleteOrderCascading(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
