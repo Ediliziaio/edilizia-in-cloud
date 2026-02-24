@@ -1,132 +1,87 @@
 
 
-# Audit Tecnico Completo — Report AS-IS e Piano Interventi
+# Piano: DOMPurify XSS Hardening + Security Findings Cleanup
 
-## Stato Attuale Post-Ottimizzazioni
+## Parte 1 — DOMPurify sui 4 `dangerouslySetInnerHTML`
 
-Le ottimizzazioni P0/P2 delle sessioni precedenti sono tutte implementate e verificate:
-- RLS `order_salespeople` e `article_templates` migrate a `TO authenticated`
-- Quick Login Popover: `.limit(50)` + ricerca server-side + debounce 300ms
-- Admin Stat Cards: click handler navigazione rapida
-- AdminSidebar: `.limit(50)` + `.ilike()` + debounce 300ms
-- SubscriptionPlans: RPC `get_plan_company_counts()` aggregata
-- DB functions aggregate: `get_total_orders_value`, `get_company_order_stats`, `get_company_user_counts`
-- Tutte le pagine lazy-loaded (~60 route)
-- ErrorBoundary su ogni area principale
-- QueryClient con retry:1, staleTime:2min, refetchOnWindowFocus:false
+### Dipendenza
+Installare `dompurify` + `@types/dompurify`.
 
----
+### File da modificare
 
-## Risultati Audit Corrente
+**1. `src/pages/azienda/marketing/CampaignEditor.tsx` (riga 409)**
+```tsx
+// PRIMA
+dangerouslySetInnerHTML={{ __html: editorRef.current?.innerHTML || "" }}
 
-### A) Sicurezza — Security Scan
+// DOPO
+dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editorRef.current?.innerHTML || "") }}
+```
 
-| Livello | Trovati | Dettaglio |
-|---------|---------|-----------|
-| WARN (linter) | 1 | Leaked Password Protection disabilitata |
-| ERROR (scan) | 10 | Dati sensibili esposti a utenti autenticati con permessi troppo ampi |
-| WARN (scan) | 7 | Esposizione moderata dati (commissioni, telefoni, indirizzi, token) |
-| INFO (scan) | 1 | Email campaign tracking |
+**2. `src/pages/azienda/marketing/CampaignSendSettings.tsx` (riga 432)**
+```tsx
+// PRIMA
+dangerouslySetInnerHTML={{ __html: campaign.html_content }}
 
-**Analisi critica**: I 10 finding "ERROR" NON sono vulnerabilita' di accesso pubblico. Sono segnalazioni che utenti autenticati con permessi legittimi (company_admin, staff con permessi specifici) possono accedere a dati della propria azienda. Questo e' il comportamento atteso per un gestionale multi-tenant: un admin aziendale DEVE poter vedere stipendi, costi, ordini, contatti della propria azienda.
+// DOPO
+dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(campaign.html_content) }}
+```
 
-Questi finding sono **falsi positivi nel contesto applicativo**:
-- `profiles`: RLS gia' scoped per `company_id` + ruolo
-- `companies`: admin vede solo la propria azienda
-- `employees`, `suppliers`, `orders`, `order_items`, `company_costs`: tutti filtrati per `company_id` via RLS
-- `marketing_contacts`: filtrato per `company_id` via RLS
-- `referrers`: accessibile solo a `super_admin`
+**3. `src/components/email-builder/BuilderBlock.tsx` — 2 occorrenze**
 
-**Azione raccomandata**: Ignorare i finding con motivazione contestuale. L'unico finding reale resta la Leaked Password Protection.
+Riga 43 (blocco testo contentEditable):
+```tsx
+// PRIMA
+dangerouslySetInnerHTML={{ __html: p.content }}
 
-### B) XSS — `dangerouslySetInnerHTML`
+// DOPO
+dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.content) }}
+```
 
-Trovate 4 occorrenze in 3 file:
-1. `CampaignEditor.tsx` — rendering preview HTML dell'editor email (contenuto generato internamente dall'utente admin)
-2. `CampaignSendSettings.tsx` — preview HTML campagna (stesso contenuto)
-3. `BuilderBlock.tsx` — rendering blocchi email builder (2 occorrenze: testo editabile + blocco HTML custom)
+Riga 91 (blocco HTML custom):
+```tsx
+// PRIMA
+return <div dangerouslySetInnerHTML={{ __html: p.code }} />;
 
-**Valutazione rischio**: BASSO. Il contenuto HTML proviene dall'editor interno dell'admin aziendale, non da input utente esterno. L'admin sta costruendo le proprie email. Non c'e' vettore XSS da utente esterno. L'aggiunta di DOMPurify sarebbe un miglioramento difensivo ma non e' P0.
+// DOPO
+return <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.code) }} />;
+```
 
-### C) Database — Log Errori
-
-Zero errori PostgreSQL nei log recenti. Database stabile.
-
-### D) Console — Errori Runtime
-
-Zero errori runtime nella console del browser.
-
-### E) Performance
-
-Tutte le ottimizzazioni P2 sono gia' implementate:
-- Server-side filtering con `.limit(50)` su tutte le query admin pesanti
-- RPC aggregate per conteggi e statistiche
-- Lazy loading su tutte le 60+ pagine
-- `staleTime` configurato per ridurre refetch
-
-### F) Multi-Tenancy
-
-- `company_id` presente su tutte le entita' principali
-- RLS policies attive su tutte le tabelle con filtro `company_id`
-- Super Admin accede via Edge Functions con `service_role_key`, non tramite bypass RLS client-side
-- Impersonazione loggata nell'audit log
-
-### G) Backup & Restore
-
-Il progetto utilizza Lovable Cloud (Supabase managed). I backup sono gestiti automaticamente dall'infrastruttura:
-- **Backup giornalieri automatici** inclusi nel piano Supabase
-- **Point-in-Time Recovery (PITR)** disponibile su piani Pro+
-- **Retention**: 7 giorni (standard) o 30 giorni (Pro)
-- **Restore**: eseguibile dal pannello Lovable Cloud
-- Non sono necessarie configurazioni aggiuntive lato codice
-
-### H) Osservabilita'
-
-- Error tracking client: `ErrorBoundary` React su tutte le aree + `QueryCache.onError` + `MutationCache.onError` con toast
-- Audit log: `admin_audit_log` per azioni super admin + `company_activity_log` per azioni aziendali (trigger DB)
-- Edge Function logs: disponibili in Lovable Cloud
-- Database logs: monitorati via analytics query
+### Nota importante
+La sanitizzazione si applica solo al **rendering nel browser** (preview e canvas). L'HTML salvato nel database resta invariato per garantire che l'output email generato da `builderHtmlGenerator.ts` non venga alterato. DOMPurify protegge il contesto del browser dell'admin, non il contenuto email finale.
 
 ---
 
-## Piano Interventi Residui
+## Parte 2 — Chiusura Security Findings (14 falsi positivi)
 
-### P0 — Azione Manuale (non codice)
-| # | Azione | Come |
-|---|--------|------|
-| 1 | Abilitare Leaked Password Protection | Lovable Cloud -> Authentication -> Security |
+Tutti i finding verranno marcati come `ignore: true` con motivazione contestuale. Sono tutti accessi legittimi per ruoli aziendali in un gestionale multi-tenant.
 
-### P1 — Hardening Difensivo (opzionale, raccomandato)
-| # | Azione | File | Rischio se non fatto |
-|---|--------|------|---------------------|
-| 1 | Aggiungere DOMPurify sui 4 `dangerouslySetInnerHTML` | `CampaignEditor.tsx`, `CampaignSendSettings.tsx`, `BuilderBlock.tsx` | Basso: contenuto da admin interno |
-
-### P2 — Security Findings Cleanup
-| # | Azione |
-|---|--------|
-| 1 | Ignorare/chiudere i 17 finding della security scan con motivazione contestuale ("accesso legittimo per ruolo aziendale in contesto multi-tenant") |
-
-### Nessun Intervento Necessario
-- Dead code: non rilevato (codebase pulita)
-- Dipendenze obsolete: tutte aggiornate
-- Anti-pattern: nessuno rilevato (state management corretto, query ottimizzate)
-- Bug: zero errori runtime
-- UX: coerente, stati loading/error gestiti ovunque
-- Mobile: layout responsive con sidebar collassabile
+| Finding | Motivazione |
+|---------|-------------|
+| profiles — PUBLIC_USER_DATA | RLS scoped per company_id. Staff vede solo colleghi della propria azienda. Comportamento atteso per gestionale. |
+| companies — EXPOSED_SENSITIVE_DATA | Admin vede solo la propria azienda. IBAN/dati fiscali necessari per fatturazione. |
+| referrers — PUBLIC_USER_DATA | Accessibile solo a super_admin via Edge Functions con service_role. Non esposto a utenti normali. |
+| employees — EXPOSED_SENSITIVE_DATA | Stipendi visibili solo a chi ha permesso can_view_employees (tipicamente admin/HR). Comportamento atteso. |
+| salespeople — EXPOSED_SENSITIVE_DATA | Commissioni visibili a chi ha can_view_settings. Decisione di business dell'admin aziendale. |
+| suppliers — EXPOSED_SENSITIVE_DATA | Dati fornitori necessari per operativita' aziendale. Filtrati per company_id. |
+| marketing_contacts — PUBLIC_USER_DATA | CRM contacts scoped per company_id. Staff autorizzato deve poter lavorare sui contatti. |
+| orders — EXPOSED_SENSITIVE_DATA (warn) | Importi ordini necessari per gestione operativa. Filtrati per company_id + permesso. |
+| order_salespeople — EXPOSED_SENSITIVE_DATA (warn) | Commissioni filtrate per company_id. Policy gia' migrata a TO authenticated. |
+| company_costs — EXPOSED_SENSITIVE_DATA (warn) | Costi aziendali visibili a chi ha can_view_forecast. Accesso controllato. |
+| warehouse_stock — EXPOSED_SENSITIVE_DATA (warn) | Costi unitari necessari per gestione magazzino. Filtrati per company_id. |
+| integration_credentials — EXPOSED_SENSITIVE_DATA (info) | Policy USING(false) e' intenzionale: i token sono gestiti solo server-side via Edge Functions. |
+| messaging_whatsapp_config — MISSING_RLS_PROTECTION (info) | Token crittografato, mai decifrato client-side. Gestito via Edge Functions. |
+| staff_permissions — MISSING_RLS_PROTECTION (info) | Ogni utente legge solo i propri permessi. Necessario per rendering UI. Enforcement server-side via RLS. |
 
 ---
 
-## Dichiarazione Finale
+## Riepilogo modifiche
 
-**PRONTO PER PRODUZIONE** con una sola azione manuale pendente:
-- Abilitare Leaked Password Protection dal pannello Lovable Cloud
+| Categoria | Azione | File/Strumento |
+|-----------|--------|---------------|
+| Dipendenza | Installare `dompurify` + `@types/dompurify` | package.json |
+| XSS Hardening | Wrappare 4 `dangerouslySetInnerHTML` con `DOMPurify.sanitize()` | CampaignEditor.tsx, CampaignSendSettings.tsx, BuilderBlock.tsx |
+| Security Cleanup | Ignorare 14 finding con motivazione documentata | Security scan tool |
 
-Tutti gli altri criteri sono soddisfatti:
-- Zero errori runtime
-- Zero bug funzionali
-- Performance ottimizzate (server-side filtering, RPC aggregate, lazy loading)
-- Sicurezza: RLS attive e correttamente scoped per `company_id`, segreti in secret manager
-- Multi-tenancy: isolamento completo via RLS + filtri applicativi
-- Backup: automatici via infrastruttura managed
-- Osservabilita': ErrorBoundary + audit log + toast feedback
+Zero rischio di regressione: DOMPurify sanitizza solo il rendering nel browser, non altera i dati salvati.
 
