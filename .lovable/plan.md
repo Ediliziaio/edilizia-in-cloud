@@ -1,86 +1,76 @@
 
 
-# Audit Enterprise - Sezione Previsionale (Forecast)
+# Audit Enterprise - Area Costi Aziendali
 
 ## Stato Attuale (AS-IS)
 
-La sezione Previsionale e' il modulo finanziario piu' complesso del progetto, con:
-- Pagina principale `CashFlowForecast.tsx` con 5 tab: Incassato, Marginalita', Previsionale Costi, Previsione di Cassa, Tesoreria
-- Pagina `CompanyCosts.tsx` (wrapper di `CompanyCostsManager`)
-- 3 hook dati pesanti: `useCashFlowData` (730 righe, 12 query), `useMarginData` (296 righe, 6 query), `useCompanyCostsData` (511 righe, 7 query)
-- 1 hook mutazioni: `useCompanyCostsMutations` (435 righe, 14 mutazioni)
-- Tipi centralizzati in `forecastTypes.ts` (155 righe)
-- Componenti tab: CollectedTab, CostsForecastTab, CashForecastTab, TreasuryTab (783 righe), MarginTab
-- Componenti shared: CostsTable, CostsStatsCards, CostFormDialog, CostsDialogs, DatePickerButton, CompanyCostsManager
-- Multi-tenancy con effectiveCompany
+L'area Costi e' il modulo di gestione uscite piu' completo del progetto, con:
+- Pagina wrapper `CompanyCosts.tsx` che monta `CompanyCostsManager`
+- Orchestratore principale `CompanyCostsManager.tsx` (354 righe) con 12 state hooks, filtri, bulk selection
+- Tabella `CostsTable.tsx` (358 righe) con selezione multipla, azioni, badge stato
+- Stats `CostsStatsCards.tsx` (95 righe) con 5 card + grafico distribuzione mensile
+- Form `CostFormDialog.tsx` (351 righe) con IVA, ricorrenza, preview periodi, combobox categorie
+- Dialogs `CostsDialogs.tsx` (149 righe) con conferma delete, pagamento, task collegate
+- Data hook `useCompanyCostsData.ts` (509 righe, 7 query) con UnifiedCost, filtri, CSV export
+- Mutations hook `useCompanyCostsMutations.ts` (290 righe, 14 mutazioni + CSV import)
+- Tab previsionale `CostsForecastTab.tsx` (233 righe) con date filter e tabelle dettaglio
+- Multi-tenancy con effectiveCompany e company_id su tutte le query
 
 ## Problemi Identificati
 
-### P1 - Duplicazione: `RECURRENCE_LABELS` in 2 file
-**File**: `CostsTable.tsx` (riga 25), `useCompanyCostsData.ts` (riga 463)
-**Problema**: Mappa identica `{ once: "Una tantum", monthly: "Mensile", quarterly: "Trimestrale", yearly: "Annuale" }` definita in 2 file.
-**Fix**: Estrarre in `forecastTypes.ts` e importare in entrambi.
+### P1 - Duplicazione: logica routing pagamento per tipo ID (2 blocchi identici)
+**File**: `CompanyCostsManager.tsx` (righe 154-167 `handlePaymentConfirm`, righe 169-178 `handleMarkOrderItemUnpaid`)
+**Problema**: La stessa logica di risoluzione tipo costo basata su prefisso ID (`order-item-dep-`, `order-item-bal-`, `ext-team-`, `commission-`) e' implementata 2 volte con pattern identico (startsWith + replace). Entrambi i blocchi determinano il tipo di pagamento e chiamano la mutazione corrispondente.
+**Fix**: Estrarre una funzione utility `resolveCostOrigin(cost: UnifiedCost)` che restituisce `{ type: "manual" | "order-item" | "ext-team" | "commission", realId: string, paymentType?: "deposit" | "balance" | "single" }`. Usarla in entrambi i handler.
 
-### P1 - Duplicazione: `DatePickerButton` in 2 file (versioni diverse)
-**File**: `DatePickerButton.tsx` (componente shared, 35 righe), `TreasuryTab.tsx` (righe 65-112, versione locale con `onClear` e `placeholder`)
-**Problema**: TreasuryTab ha una propria versione di DatePickerButton con API diversa (onClear, placeholder vs label). Due componenti con lo stesso nome ma API incompatibili.
-**Fix**: Estendere il componente shared `DatePickerButton.tsx` per supportare opzionalmente `onClear` e `placeholder`, poi rimuovere la versione locale da TreasuryTab.
+### P1 - Duplicazione: calcolo `paymentType` da prefisso ID (2 occorrenze identiche)
+**File**: `CompanyCostsManager.tsx` (riga 158 e riga 171)
+**Problema**: L'espressione `id.startsWith("order-item-dep-") ? "deposit" : id.startsWith("order-item-bal-") ? "balance" : "single"` e' copiata identica in 2 punti.
+**Fix**: Inclusa nella utility `resolveCostOrigin` sopra.
 
-### P1 - Duplicazione: logica ricorrenza costi in 2 file
-**File**: `useCashFlowData.ts` (righe 479-494, `projectCostsForMonth`), `useCashFlowData.ts` (righe 623-645, inline nel chartData)
-**Problema**: La stessa logica di proiezione costi ricorrenti (monthly/quarterly/yearly/once match) e' implementata 2 volte nello stesso file con pattern identico. La funzione `projectCostsForMonth` la fa per un singolo totale, il chartData lo fa separatamente per fissi e variabili.
-**Fix**: Rifattorizzare `projectCostsForMonth` per accettare un filtro opzionale `cost_type` e riusarla nel calcolo del chartData.
+### P1 - Prefissi ID magici sparsi senza costanti
+**File**: `useCompanyCostsData.ts` (righe 168, 186, 205, 230, 270), `CompanyCostsManager.tsx` (righe 158-176)
+**Problema**: I prefissi `"order-item-dep-"`, `"order-item-bal-"`, `"order-item-"`, `"ext-team-"`, `"commission-"`, `"employee-salary-"` sono stringhe magiche sparse in 2 file. Un refuso in uno di questi prefissi causerebbe bug silenziosi nella logica di pagamento.
+**Fix**: Estrarre costanti `COST_ID_PREFIX` in `forecastTypes.ts` e usarle sia nel data hook (creazione ID) che nel manager (risoluzione tipo).
 
-### P1 - Duplicazione: `recurrenceMultiplier` isolata in useMarginData
-**File**: `useMarginData.ts` (righe 236-243)
-**Problema**: Funzione utility per convertire ricorrenza a moltiplicatore mensile. Utile anche altrove ma definita solo in useMarginData. Non duplicata ma candidata per centralizzazione.
-**Fix**: Estrarre in `forecastTypes.ts` come utility condivisa.
+### P2 - `CostsTable.tsx`: calcolo IVA inline (righe 170-172)
+**File**: `CostsTable.tsx`
+**Problema**: `vatAmount = cost.amount * (vatRate / 100)` e `grossAmount = cost.amount + vatAmount` calcolati inline per ogni riga. La funzione `calculateGrossFromNet` esiste gia' in `vatUtils.ts` ma non viene usata qui.
+**Fix**: Usare `calculateGrossFromNet` da `vatUtils.ts` per coerenza. Riduce rischio di divergenza nel calcolo IVA.
 
-### P2 - TreasuryTab molto grande (783 righe)
-**File**: `TreasuryTab.tsx`
-**Problema**: Componente molto complesso con tree builder, calcolo dati mensili, filtri date, rendering tabella gerarchica, tooltip dettagli. Non duplicato ma complesso.
-**Stato**: Non si interviene per ridurre il rischio di regressione. Il componente e' funzionalmente coeso.
+### P2 - `CompanyCostsManager.tsx`: 12 state hooks nel componente
+**File**: `CompanyCostsManager.tsx` (righe 39-61)
+**Problema**: 12 useState separati per gestire dialog, selezione, filtri. Funzionalmente corretto ma complesso da manutenere. Gli state di dialog/pagamento (dialogOpen, editingCost, formData, deleteConfirmId, payDialogOpen, payingCostId, paymentDate, taskCostId) sono candidati per un reducer.
+**Stato**: Documentato come P2. Il componente e' funzionalmente coeso e il pattern attuale e' idiomatico React. Non si interviene per minimizzare rischio regressione.
 
-### P2 - `useCashFlowData` molto grande (730 righe, 12 query)
-**File**: `useCashFlowData.ts`
-**Problema**: Hook monolitico con 12 query separate, calcoli complessi su entrate/uscite/stats/chart. Candidato per splitting futuro (es. `useTreasuryData` separato).
-**Stato**: Le query condividono `companyId` e i dati derivati sono interdipendenti. Splitting rischioso. Documentato come P2.
+### P2 - `useCompanyCostsData.ts`: uso di `any` su costi e items
+**File**: `useCompanyCostsData.ts` (righe 89, 104, 137, 299, etc.)
+**Problema**: Diversi cast `as any[]` su dati di ritorno delle query. I tipi Supabase sono disponibili ma non usati per i join complessi.
+**Stato**: Accettabile. I tipi Supabase per join nested sono complessi e fragili. Il tipo `UnifiedCost` copre il layer di trasformazione. Nessun intervento.
 
 ---
 
 ## Piano Interventi
 
-### Intervento 1 - Centralizzare costanti in `forecastTypes.ts`
+### Intervento 1 - Estrarre costanti prefissi ID in `forecastTypes.ts`
 
-Aggiornare `src/lib/forecastTypes.ts` con:
-- `RECURRENCE_LABELS: Record<string, string>` - mappa etichette ricorrenza
-- `recurrenceMultiplier(recurrence: string): number` - utility conversione a moltiplicatore mensile
+Aggiungere a `src/lib/forecastTypes.ts`:
+- `COST_ID_PREFIX` oggetto con chiavi: `ORDER_ITEM_DEPOSIT`, `ORDER_ITEM_BALANCE`, `ORDER_ITEM`, `EXT_TEAM`, `COMMISSION`, `EMPLOYEE_SALARY`
+- `resolveCostOrigin(costId: string, cost?: UnifiedCost)` funzione utility che restituisce il tipo di origine e il real ID estratto
 
-### Intervento 2 - Aggiornare CostsTable.tsx
-- Rimuovere `RECURRENCE_LABELS` locale (riga 25)
-- Importare da `forecastTypes.ts`
+### Intervento 2 - Aggiornare `useCompanyCostsData.ts`
+- Importare `COST_ID_PREFIX` da `forecastTypes.ts`
+- Usare le costanti al posto delle stringhe magiche nella creazione degli ID (righe 168, 186, 205, 230, 270)
 
-### Intervento 3 - Aggiornare useCompanyCostsData.ts
-- Rimuovere `RECURRENCE_LABELS` locale (riga 463)
-- Importare da `forecastTypes.ts`
+### Intervento 3 - Aggiornare `CompanyCostsManager.tsx`
+- Importare `resolveCostOrigin` da `forecastTypes.ts`
+- Sostituire `handlePaymentConfirm` (righe 154-167) con versione che usa `resolveCostOrigin`
+- Sostituire `handleMarkOrderItemUnpaid` (righe 169-178) con versione che usa `resolveCostOrigin`
+- Eliminare la duplicazione dei blocchi `startsWith`/`replace`
 
-### Intervento 4 - Aggiornare useMarginData.ts
-- Rimuovere `recurrenceMultiplier` locale (righe 236-243)
-- Importare da `forecastTypes.ts`
-
-### Intervento 5 - Estendere DatePickerButton.tsx
-- Aggiungere props opzionali: `onClear?: () => void`, `placeholder?: string`, `formatStr?: string`
-- Quando `onClear` e' fornito, mostrare pulsante X inline
-- Mantenere retrocompatibilita' con API esistente (label-based)
-
-### Intervento 6 - Aggiornare TreasuryTab.tsx
-- Rimuovere la funzione locale `DatePickerButton` (righe 65-112)
-- Importare il componente shared `DatePickerButton` esteso
-- Adattare le chiamate per usare le nuove props opzionali
-
-### Intervento 7 - Deduplicare logica proiezione costi in useCashFlowData.ts
-- Rifattorizzare `projectCostsForMonth` per accettare un filtro opzionale `costTypeFilter?: "fixed" | "variable"`
-- Riusare nel calcolo `chartData` al posto della logica inline duplicata (righe 623-645)
+### Intervento 4 - Usare `calculateGrossFromNet` in `CostsTable.tsx`
+- Importare `calculateGrossFromNet` da `vatUtils.ts`
+- Sostituire il calcolo inline IVA (righe 170-172) con la funzione centralizzata
 
 ---
 
@@ -88,46 +78,48 @@ Aggiornare `src/lib/forecastTypes.ts` con:
 
 | Area | Stato |
 |------|-------|
-| company_id su query orders (forecast) | OK |
-| company_id su query external_teams | OK (inner join) |
-| company_id su query commissions | OK (inner join) |
-| company_id su query order_items | OK (inner join) |
 | company_id su query company_costs | OK |
+| company_id su query order_items (inner join) | OK |
+| company_id su query external_teams (inner join) | OK |
+| company_id su query commissions (inner join) | OK |
 | company_id su query employees | OK |
-| company_id su query treasury_categories | OK |
 | company_id su query suppliers | OK |
+| company_id su query orders-for-costs | OK |
 | company_id su insert company_costs | OK |
+| company_id su update company_costs | OK |
 | company_id su delete company_costs | OK |
+| company_id su delete group | OK |
 | RLS su company_costs | OK |
-| RLS su orders | OK |
 | RLS su order_items | OK |
-| Validazione input (importo, nome, date) | OK |
+| RLS su order_external_teams | OK |
+| RLS su order_salespeople | OK |
+| Validazione input (importo > 0, nome, data) | OK |
+| CSV import: company_id su insert | OK |
+| CSV export: dati gia' filtrati per tenant | OK |
 | Nessuna API key esposta | OK |
 | effectiveCompany per impersonificazione | OK |
-| Query limit (1000/5000) | OK (documentato) |
+| Query limit (5000 costi, 50 ordini) | OK |
 
 ## Checklist Performance
 
 | Area | Stato attuale | Dopo intervento |
 |------|--------------|-----------------|
-| RECURRENCE_LABELS | 2 copie | 1 in forecastTypes.ts |
-| recurrenceMultiplier | 1 copia isolata | 1 utility condivisa |
-| DatePickerButton | 2 versioni (API diversa) | 1 componente esteso |
-| Logica proiezione costi | 2 implementazioni inline | 1 funzione parametrica |
-| staleTime (5min) su tutte le query | OK | Invariato |
-| 12 query parallele in useCashFlowData | OK (React Query) | Invariato |
+| Prefissi ID | 6 stringhe magiche sparse | 1 oggetto costanti |
+| Logica routing pagamento | 2 blocchi identici | 1 funzione utility |
+| Calcolo IVA in tabella | Inline (divergente) | `calculateGrossFromNet` (coerente) |
+| staleTime (5min) tutte le query | OK | Invariato |
+| 7 query parallele in useCompanyCostsData | OK (React Query) | Invariato |
+| useMemo su trasformazioni | OK | Invariato |
+| Bulk operations | OK | Invariato |
 
 ## File Modificati (Previsti)
 
-1. `src/lib/forecastTypes.ts` - aggiunta RECURRENCE_LABELS, recurrenceMultiplier
-2. `src/components/forecast/CostsTable.tsx` - import RECURRENCE_LABELS
-3. `src/hooks/useCompanyCostsData.ts` - import RECURRENCE_LABELS
-4. `src/hooks/useMarginData.ts` - import recurrenceMultiplier
-5. `src/components/forecast/DatePickerButton.tsx` - estensione props (onClear, placeholder, formatStr)
-6. `src/components/forecast/TreasuryTab.tsx` - rimozione DatePickerButton locale, import shared
-7. `src/hooks/useCashFlowData.ts` - deduplicazione projectCostsForMonth nel chartData
+1. `src/lib/forecastTypes.ts` - aggiunta COST_ID_PREFIX, resolveCostOrigin
+2. `src/hooks/useCompanyCostsData.ts` - import e uso COST_ID_PREFIX
+3. `src/components/forecast/CompanyCostsManager.tsx` - import e uso resolveCostOrigin
+4. `src/components/forecast/CostsTable.tsx` - import e uso calculateGrossFromNet
 
 ## Note
 
-Nessuna modifica strutturale al database. Nessuna modifica al comportamento funzionale. Tutti gli interventi sono refactor behavior-preserving. Il TreasuryTab (783 righe) e useCashFlowData (730 righe) restano invariati nella struttura per minimizzare rischio regressione, con l'eccezione della deduplicazione interna della logica di proiezione costi. I commenti TODO nel codice (filtro data rolling, paginazione server-side) sono documentati come candidati per interventi futuri.
+Nessuna modifica strutturale al database. Nessuna modifica al comportamento funzionale. Tutti gli interventi sono refactor behavior-preserving. I 12 state hooks nel CompanyCostsManager restano invariati (P2 accettabile, pattern idiomatico). I cast `as any` nel data hook restano invariati (P2, i tipi Supabase per join nested sono complessi). L'area Costi risulta gia' ben architetturata con separazione netta tra data layer (hook), mutations (hook), UI (componenti), e dialogs (componente dedicato).
 
