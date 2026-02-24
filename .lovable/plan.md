@@ -1,88 +1,87 @@
 
 
-# Piano: Drag & Drop Appuntamenti nel Calendario Marketing
+# Piano: Slot da 30 minuti + Annulla spostamento
 
 ## Situazione attuale
 
-Le 3 viste calendario (Giorno, Settimana, Mese) mostrano gli appuntamenti ma non supportano drag & drop. Il progetto ha già `@dnd-kit/core` e `@dnd-kit/utilities` installati.
+- Le viste Giorno e Settimana hanno slot da 1 ora (h-16, droppable id = `slot-YYYY-MM-DD-HH`)
+- Il drop genera sempre orari `:00` (es. `09:00`, `10:00`)
+- Il toast di conferma non ha pulsante "Annulla"
 
-## Intervento
+## Interventi
 
-### 1. Componente wrapper draggabile — `DraggableAppointment.tsx` (nuovo)
+### 1. Slot da 30 minuti — `HOURS` e griglia
 
-Componente che wrappa ogni pill appuntamento con `useDraggable` di dnd-kit. Durante il drag mostra un overlay semitrasparente con titolo e orario.
+**File: `src/lib/marketingCalendarConstants.ts`**
+- Aggiungere un array `HALF_HOURS` che genera slot ogni 30 min: `["08:00", "08:30", "09:00", "09:30", ..., "21:30"]`
+- Mantenere `HOURS` per compatibilità (label laterali)
 
-### 2. Vista Mese — `MarketingCalendarMonthView.tsx`
+### 2. Vista Giorno — `MarketingCalendarDayView.tsx`
 
-- Wrappare il componente con `DndContext` + `DragOverlay`
-- Ogni cella giorno diventa un `useDroppable` con id = `day-YYYY-MM-DD`
-- Ogni pill appuntamento diventa draggabile con id = `apt-{id}`
-- Al drop: callback `onDropAppointment(appointmentId, newDate)` → aggiorna solo `appointment_date`
-- Highlight visivo della cella target durante il drag (bordo colorato)
+- Ogni ora diventa 2 righe da `h-8` ciascuna (`:00` e `:30`)
+- Droppable id cambia in `slot-YYYY-MM-DD-HH:MM` (es. `slot-2025-02-24-09:30`)
+- Label orario mostrata solo sulla riga `:00`, riga `:30` ha bordo più leggero
+- `getAppointmentsForSlot` matcha sia ora che mezz'ora
+- `handleDragEnd` parsa `HH:MM` dal droppable id
+- `onClickSlot` passa anche i minuti (30 o 0)
 
 ### 3. Vista Settimana — `MarketingCalendarWeekView.tsx`
 
-- Wrappare con `DndContext` + `DragOverlay`
-- Ogni slot ora/giorno diventa droppable con id = `slot-YYYY-MM-DD-HH`
-- Al drop: callback `onDropAppointment(appointmentId, newDate, newTime)` → aggiorna `appointment_date` + `appointment_time`
+- Stessa logica: 2 righe per ora, droppable id `slot-YYYY-MM-DD-HH:MM`
+- Label laterale solo su `:00`
+- Regex di parsing aggiornata per estrarre `HH:MM`
 
-### 4. Vista Giorno — `MarketingCalendarDayView.tsx`
+### 4. Vista Mese — invariata
 
-- Wrappare con `DndContext` + `DragOverlay`
-- Ogni slot ora diventa droppable con id = `slot-YYYY-MM-DD-HH`
-- Al drop: callback `onDropAppointment(appointmentId, newDate, newTime)` → aggiorna `appointment_time`
+La vista mese sposta solo la data, non l'orario. Nessun cambiamento.
 
-### 5. Pagina `MarketingCalendar.tsx`
+### 5. Toast con Annulla — `MarketingCalendar.tsx`
 
-- Aggiungere la funzione `handleDropAppointment(appointmentId, newDate, newTime?)`:
-  - Update su DB: `supabase.from("appointments").update({ appointment_date, appointment_time }).eq("id", appointmentId)`
-  - Toast di conferma con undo (opzionale)
-  - `refetchAppointments()` per ricalcolare tutto (travel legs, filtri, ecc.)
-- Passare `onDropAppointment` come prop a tutte e 3 le viste
-
-### 6. UX durante il drag
-
-- L'elemento originale diventa semi-trasparente (`opacity-30`)
-- Un `DragOverlay` mostra una pill compatta con titolo e orario
-- La cella/slot target si evidenzia con bordo primario
-- Al rilascio: toast "Appuntamento spostato al {data}" con feedback immediato
-- Se il drop è sulla stessa posizione: nessun update
-
-## Dettaglio tecnico
+In `handleDropAppointment`:
+- Salvare i valori precedenti (`oldDate`, `oldTime`) prima dell'update
+- Nel toast di successo, aggiungere un'action "Annulla" che esegue il rollback:
 
 ```text
-MarketingCalendar.tsx
-  └─ handleDropAppointment(id, newDate, newTime?)
-       ├─ supabase.update({ appointment_date, appointment_time })
-       ├─ toast("Spostato al ...")
-       └─ refetchAppointments()
-
-MonthView / WeekView / DayView
-  └─ DndContext
-       ├─ onDragEnd → parse droppableId → call onDropAppointment
-       ├─ Droppable cells/slots
-       ├─ Draggable appointment pills
-       └─ DragOverlay (floating pill)
+toast.success("Appuntamento spostato al ...", {
+  action: {
+    label: "Annulla",
+    onClick: async () => {
+      await supabase.from("appointments").update({ old values }).eq("id", id);
+      refetchAppointments();
+      toast.info("Spostamento annullato");
+    }
+  }
+});
 ```
 
-## Props aggiunte alle viste
+### 6. Callback `onClickSlot` aggiornamento
 
-| Componente | Nuova prop |
-|------------|-----------|
-| `MarketingCalendarMonthView` | `onDropAppointment: (id: string, newDate: string) => void` |
-| `MarketingCalendarWeekView` | `onDropAppointment: (id: string, newDate: string, newTime: string) => void` |
-| `MarketingCalendarDayView` | `onDropAppointment: (id: string, newDate: string, newTime: string) => void` |
+In `MarketingCalendar.tsx`, `openNewDialog` già accetta `hour` come numero. Aggiornare per accettare anche i minuti:
+- Cambiare la firma di `onClickSlot` da `(date, hour)` a `(date, hour, minute?)`
+- Generare `defaultTime` come `HH:MM` corretto
+
+## Dettaglio tecnico — struttura griglia
+
+```text
+Prima (1 ora = 1 riga):
+  08:00  ▏ ██████████████████ h-16
+  09:00  ▏ ██████████████████ h-16
+
+Dopo (1 ora = 2 righe da 30 min):
+  08:00  ▏ ██████████████████ h-8  (droppable slot-...-08:00)
+         ▏ ·················· h-8  (droppable slot-...-08:30, bordo leggero)
+  09:00  ▏ ██████████████████ h-8  (droppable slot-...-09:00)
+         ▏ ·················· h-8  (droppable slot-...-09:30, bordo leggero)
+```
 
 ## File coinvolti
 
 | File | Azione |
 |------|--------|
-| `src/components/marketing/DraggableAppointment.tsx` | Nuovo — componente draggabile |
-| `src/components/marketing/DroppableSlot.tsx` | Nuovo — componente droppable generico |
-| `src/components/marketing/MarketingCalendarMonthView.tsx` | Aggiunta DndContext + draggable/droppable |
-| `src/components/marketing/MarketingCalendarWeekView.tsx` | Aggiunta DndContext + draggable/droppable |
-| `src/components/marketing/MarketingCalendarDayView.tsx` | Aggiunta DndContext + draggable/droppable |
-| `src/pages/azienda/marketing/MarketingCalendar.tsx` | Aggiunta handleDropAppointment + prop passing |
+| `src/lib/marketingCalendarConstants.ts` | Aggiunta array `HALF_HOURS` |
+| `src/components/marketing/MarketingCalendarDayView.tsx` | Slot 30 min + parsing HH:MM |
+| `src/components/marketing/MarketingCalendarWeekView.tsx` | Slot 30 min + parsing HH:MM |
+| `src/pages/azienda/marketing/MarketingCalendar.tsx` | Toast con Annulla + onClickSlot con minuti |
 
-Nessuna modifica DB. Nessun nuovo endpoint. Usa solo `@dnd-kit/core` già installato.
+Nessuna modifica DB. Nessuna modifica backend.
 
