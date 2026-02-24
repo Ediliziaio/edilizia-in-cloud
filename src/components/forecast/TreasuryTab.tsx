@@ -7,11 +7,9 @@ import {
   eachMonthOfInterval,
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { ChevronRight, ChevronDown, CalendarIcon, X, Eye, EyeOff } from "lucide-react";
+import { ChevronRight, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +25,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { DatePickerButton } from "@/components/forecast/DatePickerButton";
 import type {
   ExpectedPayment,
   ExpectedExpense,
@@ -60,52 +59,6 @@ interface TreeNode {
   isIncome?: boolean;
   monthlyAmounts: Record<string, number>;
   children: TreeNode[];
-}
-
-function DatePickerButton({
-  date,
-  onSelect,
-  onClear,
-  placeholder,
-}: {
-  date: Date | undefined;
-  onSelect: (d: Date | undefined) => void;
-  onClear: () => void;
-  placeholder: string;
-}) {
-  return (
-    <div className="flex items-center gap-1">
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-8 gap-1 text-xs font-normal",
-              !date && "text-muted-foreground"
-            )}
-          >
-            <CalendarIcon className="h-3.5 w-3.5" />
-            {date ? format(date, "MMM yyyy", { locale: it }) : placeholder}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            selected={date}
-            onSelect={onSelect}
-            initialFocus
-            className={cn("p-3 pointer-events-auto")}
-          />
-        </PopoverContent>
-      </Popover>
-      {date && (
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClear}>
-          <X className="h-3 w-3" />
-        </Button>
-      )}
-    </div>
-  );
 }
 
 export function TreasuryTab({
