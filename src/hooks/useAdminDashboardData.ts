@@ -48,20 +48,18 @@ export function useAdminDashboardData() {
     queryFn: async () => {
       const [
         companiesRes,
-        ordersRes,
+        ordersAggRes,
         customersRes,
         ticketsRes,
-        ordersValueRes,
         recentCompaniesRes,
         recentOrdersRes,
         recentTicketsRes,
         allCompaniesRes,
       ] = await Promise.all([
         supabase.from("companies").select("id", { count: "exact", head: true }),
-        supabase.from("orders").select("id", { count: "exact", head: true }),
+        supabase.rpc("get_total_orders_value"),
         supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "customer"),
         supabase.from("support_conversations").select("id", { count: "exact", head: true }).not("status", "in", '("resolved","closed")'),
-        supabase.from("orders").select("total_amount"),
         supabase.from("companies").select("*").order("created_at", { ascending: false }).limit(5),
         supabase.from("orders").select(`
           id,
@@ -78,7 +76,9 @@ export function useAdminDashboardData() {
         supabase.from("companies").select("id, status, trial_ends_at, subscription_plan_id, created_at, subscription_plans:subscription_plan_id(price_monthly)"),
       ]);
 
-      const totalValue = ordersValueRes.data?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+      const aggRow = (ordersAggRes.data as any)?.[0];
+      const totalOrders = Number(aggRow?.total_count) || 0;
+      const totalValue = Number(aggRow?.total_value) || 0;
 
       const allCompanies = allCompaniesRes.data || [];
       const activeCompanies = allCompanies.filter((c) => c.status === "active");
@@ -148,7 +148,7 @@ export function useAdminDashboardData() {
       return {
         stats: {
           totalCompanies: companiesRes.count || 0,
-          totalOrders: ordersRes.count || 0,
+          totalOrders: totalOrders,
           totalOrdersValue: totalValue,
           totalCustomers: customersRes.count || 0,
           openSupportConversations: ticketsRes.count || 0,

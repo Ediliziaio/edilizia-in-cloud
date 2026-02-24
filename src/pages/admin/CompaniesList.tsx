@@ -68,19 +68,15 @@ export default function CompaniesList() {
   const { data: orderStats = {} } = useQuery({
     queryKey: ["admin-companies-order-stats"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("orders").select("company_id, total_amount, created_at").limit(50000);
+      const { data, error } = await supabase.rpc("get_company_order_stats");
       if (error) throw error;
       const stats: Record<string, { count: number; totalValue: number; lastOrderDate: string | null }> = {};
-      (data || []).forEach((o) => {
-        if (!stats[o.company_id]) {
-          stats[o.company_id] = { count: 0, totalValue: 0, lastOrderDate: null };
-        }
-        const s = stats[o.company_id];
-        s.count += 1;
-        s.totalValue += Number(o.total_amount) || 0;
-        if (!s.lastOrderDate || o.created_at > s.lastOrderDate) {
-          s.lastOrderDate = o.created_at;
-        }
+      (data || []).forEach((row: any) => {
+        stats[row.company_id] = {
+          count: Number(row.order_count) || 0,
+          totalValue: Number(row.total_value) || 0,
+          lastOrderDate: row.last_order_date || null,
+        };
       });
       return stats;
     },
@@ -90,12 +86,12 @@ export default function CompaniesList() {
   const { data: userCounts = {} } = useQuery({
     queryKey: ["admin-companies-user-counts"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("company_id").limit(50000);
+      const { data, error } = await supabase.rpc("get_company_user_counts");
       if (error) throw error;
       const counts: Record<string, number> = {};
-      (data || []).forEach((p) => {
-        if (p.company_id) {
-          counts[p.company_id] = (counts[p.company_id] || 0) + 1;
+      (data || []).forEach((row: any) => {
+        if (row.company_id) {
+          counts[row.company_id] = Number(row.user_count) || 0;
         }
       });
       return counts;

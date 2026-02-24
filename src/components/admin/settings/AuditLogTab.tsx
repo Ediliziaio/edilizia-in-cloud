@@ -20,7 +20,8 @@ const actionLabels: Record<string, string> = {
   reset_password: "Reset Password",
   update_permissions: "Modifica Permessi",
   impersonate_company: "Impersonazione Azienda",
-  update_platform_settings: "Modifica Impostazioni",
+  sign_in_as_user: "Accesso come Utente",
+  update_platform_settings: "Modifica Impostazioni Piattaforma",
   update_settings: "Modifica Impostazioni",
 };
 
@@ -30,6 +31,7 @@ const actionColors: Record<string, "default" | "secondary" | "destructive" | "ou
   reset_password: "secondary",
   update_permissions: "outline",
   impersonate_company: "secondary",
+  sign_in_as_user: "secondary",
   update_platform_settings: "outline",
   update_settings: "outline",
 };
