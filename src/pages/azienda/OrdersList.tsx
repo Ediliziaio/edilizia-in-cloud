@@ -18,7 +18,7 @@ import { OrdersFilters } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { useToast } from "@/hooks/use-toast";
-import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments } from "@/lib/orderUtils";
+import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading } from "@/lib/orderUtils";
 
 interface DateRange {
   from: Date | undefined;
@@ -237,29 +237,8 @@ export default function OrdersList() {
     },
   });
 
-  const deleteOneOrder = async (orderId: string) => {
-    const { data: items } = await supabase.from("order_items").select("id").eq("order_id", orderId);
-    if (items && items.length > 0) {
-      const itemIds = items.map(i => i.id);
-      await supabase.from("order_item_attachments").delete().in("order_item_id", itemIds);
-    }
-    await Promise.all([
-      supabase.from("order_items").delete().eq("order_id", orderId),
-      supabase.from("order_status_history").delete().eq("order_id", orderId),
-      supabase.from("order_employees").delete().eq("order_id", orderId),
-      supabase.from("order_external_teams").delete().eq("order_id", orderId),
-      supabase.from("order_salespeople").delete().eq("order_id", orderId),
-      supabase.from("order_attachments").delete().eq("order_id", orderId),
-      supabase.from("order_errors").delete().eq("order_id", orderId),
-      supabase.from("tasks").delete().eq("order_id", orderId),
-      supabase.from("appointments").delete().eq("order_id", orderId),
-    ]);
-    const { error } = await supabase.from("orders").delete().eq("id", orderId);
-    if (error) throw error;
-  };
-
   const deleteOrderMutation = useMutation({
-    mutationFn: deleteOneOrder,
+    mutationFn: deleteOrderCascading,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({ title: "Ordine eliminato", description: "L'ordine è stato eliminato con successo" });
@@ -291,7 +270,7 @@ export default function OrdersList() {
   const handleBulkDelete = async (orderIds: string[]) => {
     setIsBulkUpdating(true);
     try {
-      await Promise.all(orderIds.map(deleteOneOrder));
+      await Promise.all(orderIds.map(deleteOrderCascading));
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
         title: "Ordini eliminati",

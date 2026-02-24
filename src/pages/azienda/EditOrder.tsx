@@ -35,13 +35,7 @@ import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { usePermissions } from "@/hooks/usePermissions";
-
-interface Customer {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-}
+import { type OrderCustomer as Customer, type OrderItemData, mapDbItemToOrderItem } from "@/lib/orderUtils";
 
 interface OrderData {
   id: string;
@@ -77,55 +71,7 @@ interface OrderData {
   assigned_to: string | null;
 }
 
-interface OrderItemData {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity: number;
-  status: string;
-  position: number;
-  supplier_id: string | null;
-  purchase_price: number | null;
-  vat_rate: number | null;
-  stock_item_id: string | null;
-  is_paid: boolean | null;
-  paid_date: string | null;
-  payment_method: string | null;
-  deposit_amount: number | null;
-  deposit_paid: boolean | null;
-  deposit_paid_date: string | null;
-  balance_amount: number | null;
-  balance_paid: boolean | null;
-  balance_paid_date: string | null;
-  balance_expected_date: string | null;
-  deposit_expected_date: string | null;
-}
-
-function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
-  return {
-    id: item.id,
-    name: item.name,
-    description: item.description || undefined,
-    quantity: item.quantity,
-    status: item.status as OrderItem['status'],
-    position: item.position,
-    supplier_id: item.supplier_id || undefined,
-    purchase_price: item.purchase_price || undefined,
-    vat_rate: item.vat_rate ?? undefined,
-    stock_item_id: item.stock_item_id || undefined,
-    is_paid: item.is_paid || false,
-    paid_date: item.paid_date || undefined,
-    payment_method: item.payment_method || undefined,
-    deposit_amount: item.deposit_amount || 0,
-    deposit_paid: item.deposit_paid || false,
-    deposit_paid_date: item.deposit_paid_date || undefined,
-    balance_amount: item.balance_amount || 0,
-    balance_paid: item.balance_paid || false,
-    balance_paid_date: item.balance_paid_date || undefined,
-    balance_expected_date: item.balance_expected_date || undefined,
-    deposit_expected_date: item.deposit_expected_date || undefined,
-  };
-}
+// OrderItemData and mapDbItemToOrderItem imported from @/lib/orderUtils
 
 export default function EditOrder() {
   const { id } = useParams<{ id: string }>();

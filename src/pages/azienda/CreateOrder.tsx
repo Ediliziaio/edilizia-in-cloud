@@ -35,19 +35,7 @@ import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { usePermissions } from "@/hooks/usePermissions";
-
-interface Customer {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-}
-
-interface OrderStatus {
-  id: string;
-  name: string;
-  position: number;
-}
+import { type OrderCustomer as Customer, type OrderStatus } from "@/lib/orderUtils";
 
 export default function CreateOrder() {
   const navigate = useNavigate();

@@ -31,18 +31,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card } from "@/components/ui/card";
-import { type OrderWithDetails, getPendingPayments, getAmountDue, getAmountCollected } from "@/lib/orderUtils";
+import { type OrderWithDetails, type OrderStatus, getPendingPayments, getAmountDue, getAmountCollected } from "@/lib/orderUtils";
 
 export interface OrderCosts {
   variableCosts: number;
   grossMargin: number;
-}
-
-interface OrderStatus {
-  id: string;
-  name: string;
-  color: string;
-  position: number;
 }
 
 interface OrdersTableProps {
