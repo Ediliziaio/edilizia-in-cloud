@@ -347,6 +347,74 @@ Deno.serve(async (req) => {
       });
     }
 
+    // === GET SETTINGS ===
+    if (action === "get-settings") {
+      const { data: settings } = await supabaseAdmin
+        .from("platform_settings")
+        .select("key, value, updated_at")
+        .in("key", ["meta_app_id", "meta_app_secret"]);
+
+      const result: Record<string, { value: string; masked?: string; updated_at?: string }> = {};
+      for (const s of settings || []) {
+        if (s.key === "meta_app_secret") {
+          const masked = s.value.length > 4 ? "••••" + s.value.slice(-4) : "••••";
+          result[s.key] = { value: masked, masked: masked, updated_at: s.updated_at };
+        } else {
+          result[s.key] = { value: s.value, updated_at: s.updated_at };
+        }
+      }
+
+      return new Response(JSON.stringify({ settings: result }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // === UPDATE SETTINGS ===
+    if (action === "update-settings") {
+      const { settings: newSettings } = body;
+      if (!newSettings || typeof newSettings !== "object") {
+        return new Response(JSON.stringify({ error: "settings object required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const allowedKeys = ["meta_app_id", "meta_app_secret"];
+      const updates: { key: string; oldValue?: string }[] = [];
+
+      for (const [key, value] of Object.entries(newSettings)) {
+        if (!allowedKeys.includes(key)) continue;
+        if (!value || typeof value !== "string" || (value as string).trim() === "") continue;
+
+        // Get old value for audit
+        const { data: existing } = await supabaseAdmin
+          .from("platform_settings")
+          .select("value")
+          .eq("key", key)
+          .maybeSingle();
+
+        await supabaseAdmin
+          .from("platform_settings")
+          .upsert({
+            key,
+            value: (value as string).trim(),
+            updated_at: new Date().toISOString(),
+            updated_by: callerId,
+          }, { onConflict: "key" });
+
+        updates.push({ key, oldValue: existing?.value ? "***" : undefined });
+      }
+
+      if (updates.length > 0) {
+        await logAudit(supabaseAdmin, callerId, "update_platform_settings", "platform_settings", null, {
+          keys_updated: updates.map(u => u.key),
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, updated: updates.length }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Azione non valida" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

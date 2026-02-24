@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,8 +45,7 @@ serve(async (req) => {
       });
     }
 
-    const metaAppId = Deno.env.get("META_APP_ID");
-    const metaAppSecret = Deno.env.get("META_APP_SECRET");
+    const { metaAppId, metaAppSecret } = await getMetaCredentials();
     if (!metaAppId || !metaAppSecret) {
       return new Response(JSON.stringify({ error: "META_APP_ID or META_APP_SECRET not configured" }), {
         status: 500,
