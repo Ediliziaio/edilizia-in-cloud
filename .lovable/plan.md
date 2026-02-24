@@ -1,40 +1,68 @@
 
 
-# Stato: Tutto gia' implementato
+# Ottimizzazioni P2: Quick Login Popover + Stat Card Navigation
 
-## 1. DB Functions Aggregate
+## Modifiche da implementare
 
-Le tre funzioni RPC esistono gia' nel database:
+### 1. Quick Login Popover — Limite 50 risultati + ricerca server-side
 
-| Funzione | Stato |
-|----------|-------|
-| `get_total_orders_value()` | Presente — restituisce `total_count` + `total_value` aggregati |
-| `get_company_order_stats()` | Presente — restituisce count, sum e last_order_date per company_id |
-| `get_company_user_counts()` | Presente — restituisce user_count per company_id |
+**File**: `src/components/admin/QuickLoginPopover.tsx`
 
-## 2. Codice Frontend gia' aggiornato
+**Problema attuale**: Il popover carica TUTTI i profili, ruoli e aziende (3 query senza `.limit()`) e filtra client-side. Non scala su database con centinaia di utenti.
 
-- **`useAdminDashboardData.ts`** (riga 60): usa `supabase.rpc("get_total_orders_value")` — nessun caricamento massivo client-side
-- **`CompaniesList.tsx`** (righe 68-100): usa `supabase.rpc("get_company_order_stats")` e `supabase.rpc("get_company_user_counts")` — eliminato il vecchio `.limit(50000)` su ordini e profili
+**Correzione**:
+- Aggiungere `.limit(50)` alle query `profiles` e `user_roles`
+- Quando l'utente digita nella barra di ricerca, filtrare server-side con `.or()` su `first_name`, `last_name`, `email` invece di filtrare l'array completo in memoria
+- Usare `debouncedSearch` con un ritardo di 300ms per evitare troppe chiamate
+- La `queryKey` diventa `["admin-all-users-for-login", debouncedSearch]` per re-fetch automatico al cambio ricerca
+- Logica: se `search` e' vuoto, carica i primi 50 profili ordinati per nome; se `search` ha testo, filtra server-side con `.ilike()` o `.or()` e limita a 50 risultati
 
-Le query pesanti sono state sostituite con aggregate server-side nelle iterazioni precedenti.
+**Struttura query ottimizzata**:
+```
+profiles query:
+  .select("id, first_name, last_name, email, company_id")
+  .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`)
+  .order("first_name")
+  .limit(50)
+```
 
-## 3. Leaked Password Protection
+### 2. Admin Stat Cards — Click handler per navigazione rapida
 
-Questa configurazione risiede nelle impostazioni di autenticazione del backend (Lovable Cloud). Non e' modificabile via codice o migration SQL. Deve essere abilitata manualmente dal pannello backend.
+**File**: `src/components/admin/dashboard/AdminStatCards.tsx`
 
-## 4. Verifica end-to-end
+**Problema attuale**: Le stat card sono statiche, non cliccabili. L'utente deve navigare manualmente alla sezione desiderata.
 
-Non posso effettuare login come Super Admin in modalita' plan (read-only). La verifica end-to-end deve essere eseguita manualmente accedendo come Super Admin e navigando tutte le sezioni:
+**Correzione**:
+- Aggiungere un campo `href` a ogni stat card:
+  - "Aziende Attive" -> `/admin/aziende`
+  - "Ordini Totali" -> `/admin/aziende` (non esiste una pagina ordini globale)
+  - "Clienti Totali" -> `/admin/aziende`
+  - "Supporto Aperto" -> `/admin/ticket`
+- Wrappare ogni `Card` con `useNavigate` + `onClick` handler
+- Aggiungere `cursor-pointer hover:shadow-md transition-shadow` per feedback visivo
+- Non usare `<Link>` per evitare di cambiare la semantica del componente Card
+
+### 3. Verifica end-to-end
+
+Dopo l'implementazione, navigare tutte le sezioni admin per verificare che nulla sia rotto:
 - Dashboard (`/admin`)
 - Lista Aziende (`/admin/aziende`)
-- Impostazioni (`/admin/impostazioni`) — tutte e 5 le tab
+- Impostazioni (`/admin/impostazioni`)
 - Assistenza (`/admin/ticket`)
 - Piani (`/admin/piani`)
 - Referral (`/admin/referral`)
 - Implementazioni (`/admin/implementazioni`)
 
-## Conclusione
+## File da modificare
 
-Nessuna modifica necessaria. Le DB functions aggregate sono gia' create e il codice frontend le utilizza correttamente. L'unico punto pendente e' l'abilitazione manuale della Leaked Password Protection nelle impostazioni auth del backend.
+| File | Modifica |
+|------|----------|
+| `src/components/admin/QuickLoginPopover.tsx` | Aggiungere `.limit(50)`, ricerca server-side con debounce, queryKey dinamica |
+| `src/components/admin/dashboard/AdminStatCards.tsx` | Aggiungere `href` + `onClick` + `useNavigate` + hover styles |
+
+## Impatto stimato
+
+- **Quick Login**: riduzione payload da N profili illimitati a max 50 per request
+- **Stat Cards**: navigazione 1-click verso sezioni rilevanti, UX migliorata
+- **Rischio regressione**: zero — entrambe le modifiche sono additive e behavior-preserving
 
