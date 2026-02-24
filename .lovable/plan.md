@@ -1,68 +1,95 @@
 
 
-# Revisione Completa del Prompt — Stato Implementazione
+# Piano: Debug Logging Strutturato + Unit Test per suggest-calendars
 
-## Verdetto: TUTTO GIA IMPLEMENTATO E FUNZIONANTE
+## Problema
 
-Ho verificato ogni singolo punto del prompt contro il codice esistente. Ecco il mapping completo:
+La Edge Function `suggest-calendars` non ha:
+1. Un sistema di logging strutturato con flag on/off per tracciare origini, destinazioni e motivazioni del ranking
+2. Unit test per le funzioni pure di scoring, calcolo km e utilita
 
----
+## Modifiche
 
-## Checklist punto per punto
+### 1. Refactor: Estrarre funzioni pure in un modulo testabile
 
-| # | Requisito del prompt | Stato | Dove |
-|---|----------------------|-------|------|
-| **1** | Contesto: calendari legati a commerciali, base, km max | ✅ | `marketing_calendars` (base_lat, base_lng, max_daily_km, owner_id) |
-| **2.1** | Indirizzo Cliente autocomplete Google Places | ✅ | `AddressAutocomplete` in MarketingAppointmentDialog riga 19 |
-| **2.2** | Auto-trigger suggerimenti su indirizzo+data | ✅ | useQuery con `enabled: !!addressData.lat && !!addressData.lng && !!dateStr` (riga 289) |
-| **2.3** | Sezione "Calendari consigliati" ordinata | ✅ | `CalendarSuggestions` component (riga 492) |
-| **2.4** | Nome + Distanza + Tempo + Badge OK/WARNING/BLOCKED | ✅ | CalendarSuggestions.tsx (header, stats, badge) |
-| **2.5** | Selezione auto-compila calendario + orario | ✅ | `handleSuggestionSelect` (riga 293-302) con `duration_minutes` |
-| **2.6** | Pannello Percorso giornaliero | ✅ | `DailyRoutePanel` espandibile per ogni suggerimento |
-| **3.1** | Dati base/lat/lng per commerciale | ✅ | Colonne in `marketing_calendars` |
-| **3.2** | Vincolo 60 min configurabile | ✅ | `max_travel_minutes` in preferences (default 60) |
-| **3.3** | Score = travel_minutes * 2 + travel_km | ✅ | Edge Function riga 417 |
-| **3.3** | Penalita se > 60 min o > max_daily_km | ✅ | Righe 418-419 |
-| **4** | Calcolo km A/R: Base→App1→...→AppN→Base | ✅ | Edge Function righe 257-263, 289-305 |
-| **4** | Alert se supera max_daily_km | ✅ | Status BLOCKED + reason (righe 396-398) |
-| **5** | Google Directions API | ✅ | `getDirections()` con API key (righe 33-88) |
-| **5** | Fallback Haversine * 1.3 | ✅ | `haversineEstimate()` (righe 22-26) |
-| **5** | Marcatura "stima" | ✅ | `is_estimate` nel response e UI |
-| **6** | DB: base_lat/lng, max_daily_km, preferences | ✅ | Colonne verificate nel DB |
-| **7** | Endpoint suggest-calendars | ✅ | `supabase/functions/suggest-calendars/index.ts` (472 righe) |
-| **7** | Output: suggested_times, travel_km, status, reason, daily_route | ✅ | Response object righe 442-457 |
-| **8** | Algoritmo step-by-step con slot generation | ✅ | Righe 322-387 (3 strategie di slot) |
-| **9** | Edge case: senza base → WARNING | ✅ | Righe 222-240 |
-| **9** | Edge case: nessuno slot → BLOCKED | ✅ | Righe 411-414 |
-| **9** | Durata variabile con default | ✅ | `calDuration = cal.duration_minutes \|\| defaultDuration` (riga 220) |
-| **10** | QA: almeno 1 risultato o messaggio | ✅ | Ritorna sempre array (anche vuoto con messaggio) |
-| **10** | QA: BLOCKED non selezionabile | ✅ | `disabled={s.status === "BLOCKED"}` in CalendarSuggestions |
-| **10** | QA: Nessuna regressione | ✅ | Dialog originale `AppointmentDialog` non modificato |
-| **11.1** | FE completo | ✅ | MarketingAppointmentDialog + CalendarSuggestions + DailyRoutePanel |
-| **11.2** | BE completo | ✅ | Edge Function suggest-calendars |
-| **11.3** | Impostazioni preferenze | ✅ | MarketingCalendarsConfig (card "Spostamenti e percorrenza") |
-| **11.4** | Type safety | ✅ | CalendarPreferences con 3 campi, nessun cast `as any` |
+**Nuovo file: `supabase/functions/suggest-calendars/scoring.ts`**
 
-## Bug fix gia applicato
+Estrarre le seguenti funzioni pure da `index.ts`:
+- `haversineKm(lat1, lng1, lat2, lng2)` — distanza in km
+- `haversineEstimate(lat1, lng1, lat2, lng2)` — stima km * 1.3 + minuti
+- `timeToMinutes(t)` — "HH:MM" → minuti
+- `minutesToTime(m)` — minuti → "HH:MM"
+- `calculateScore(travel_minutes, travel_km, maxTravelMinutes, simTotalKm, maxKm)` — punteggio + penalita
+- `determineStatus(travel_minutes, maxTravelMinutes, simTotalKm, maxKm, hasSuggestedTimes)` — OK/WARNING/BLOCKED + reason
 
-- `handleSuggestionSelect` usa `cal?.duration_minutes || 60` (riga 299) invece del precedente hardcoded 30 min
+### 2. Debug Logging Strutturato
 
-## Unico punto non implementato
+**File: `supabase/functions/suggest-calendars/index.ts`**
 
-| Requisito | Stato | Note |
-|-----------|-------|------|
-| Unit test per algoritmo scoring | ❌ Non presente | Il prompt lo richiede ma non e stato implementato |
-| Log di debug disattivabile | ⚠️ Parziale | La Edge Function non ha logging strutturato on/off |
+Aggiungere un parametro opzionale `debug: boolean` nel body della request. Quando attivo:
 
-## Come verificare end-to-end
+```typescript
+const debugLog: any[] = [];
+const log = (entry: object) => { if (debug) debugLog.push({ ts: Date.now(), ...entry }); };
+```
 
-1. **Impostazioni → Calendari Marketing → Tab Preferenze** → Sezione "Spostamenti e percorrenza" → Imposta valori → Salva
-2. **Marketing → Calendario** → Click su un giorno → "Prenota appuntamento"
-3. Inserisci indirizzo cliente nell'autocomplete e seleziona una data
-4. La sezione "Calendari consigliati" appare automaticamente con ranking, badge e percorso espandibile
-5. Clicca su un orario suggerito → calendario e orari vengono compilati automaticamente
+Per ogni calendario valutato, registrare:
+- `origin` (base lat/lng o closest appt)
+- `destination` (client lat/lng)
+- `travel_km`, `travel_minutes`, `is_estimate`
+- `daily_km_current`, `daily_km_simulated`, `max_daily_km`
+- `score`, `status`, `reason`
+- `slot_generation` (quanti slot trovati e perche)
 
-## Conclusione
+Il debug log viene incluso nella response solo se `debug: true`:
+```json
+{ "suggestions": [...], "debug_log": [...] }
+```
 
-L'implementazione copre il 95%+ del prompt. I due punti mancanti (unit test e debug logging) sono miglioramenti di qualita, non funzionalita core. Se vuoi procedere con quelli, posso preparare un piano specifico.
+### 3. Unit Test
+
+**Nuovo file: `supabase/functions/suggest-calendars/scoring.test.ts`**
+
+Scenari coperti:
+
+| Test | Descrizione |
+|------|-------------|
+| haversineKm accuracy | Milano-Roma ~480 km |
+| haversineEstimate | Verifica fattore * 1.3 e velocita 50 km/h |
+| timeToMinutes | "09:30" → 570, "00:00" → 0 |
+| minutesToTime | 570 → "09:30", 1440 → "00:00" |
+| calculateScore base | score = minutes*2 + km |
+| calculateScore penalty travel | +1000 se travel > maxTravelMinutes |
+| calculateScore penalty km | +500 se simKm > maxKm |
+| determineStatus OK | Valori sotto soglia |
+| determineStatus WARNING travel | 80-100% del limite minuti |
+| determineStatus WARNING km | 80-100% del limite km |
+| determineStatus BLOCKED travel | Oltre limite minuti |
+| determineStatus BLOCKED km | Oltre limite km |
+| determineStatus BLOCKED no slots | Nessuno slot + non gia BLOCKED |
+
+### 4. Aggiornare index.ts
+
+- Importare le funzioni da `scoring.ts` invece di definirle inline
+- Aggiungere le chiamate `log()` nei punti chiave del loop calendari
+- Aggiungere `debug_log` alla response se flag attivo
+
+## Dettaglio tecnico
+
+Le funzioni estratte sono pure (nessuna dipendenza da Supabase o fetch), quindi testabili con `Deno.test()` senza mock. Il file di test usa:
+
+```typescript
+import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { haversineKm, calculateScore, determineStatus, timeToMinutes, minutesToTime } from "./scoring.ts";
+```
+
+## File coinvolti
+
+| File | Azione |
+|------|--------|
+| `supabase/functions/suggest-calendars/scoring.ts` | NUOVO — funzioni pure estratte |
+| `supabase/functions/suggest-calendars/scoring.test.ts` | NUOVO — 13 test case |
+| `supabase/functions/suggest-calendars/index.ts` | MODIFICA — import da scoring.ts + debug logging |
+
+Nessuna migrazione DB. Nessuna modifica al frontend.
 
