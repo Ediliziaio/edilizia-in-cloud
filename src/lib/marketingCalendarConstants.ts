@@ -14,6 +14,16 @@ export const HALF_HOURS: string[] = HOURS.flatMap((h) => [
   `${String(h).padStart(2, "0")}:30`,
 ]);
 
+export function buildTimeSlots(slotMinutes: number): string[] {
+  const slots: string[] = [];
+  for (let m = 8 * 60; m < 22 * 60; m += slotMinutes) {
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    slots.push(`${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
+  }
+  return slots;
+}
+
 export function buildColorMap(calendarIds: string[]): Record<string, string> {
   const map: Record<string, string> = {};
   calendarIds.forEach((id, i) => {
