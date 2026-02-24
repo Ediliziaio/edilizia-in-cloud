@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -402,6 +403,34 @@ export default function MarketingCalendar() {
     setDialogOpen(true);
   };
 
+  // ── Drag & Drop handler ──
+  const handleDropAppointment = useCallback(async (appointmentId: string, newDate: string, newTime?: string) => {
+    // Find current appointment to check if anything changed
+    const current = appointments.find((a: any) => a.id === appointmentId);
+    if (current) {
+      const sameDate = current.appointment_date === newDate;
+      const sameTime = !newTime || (current.appointment_time?.slice(0, 5) === newTime.slice(0, 5));
+      if (sameDate && sameTime) return; // No change
+    }
+
+    const updateData: Record<string, string> = { appointment_date: newDate };
+    if (newTime) updateData.appointment_time = newTime;
+
+    const { error } = await supabase
+      .from("appointments")
+      .update(updateData)
+      .eq("id", appointmentId);
+
+    if (error) {
+      toast.error("Errore nello spostamento dell'appuntamento");
+      return;
+    }
+
+    const label = newTime ? `${newDate} alle ${newTime}` : newDate;
+    toast.success(`Appuntamento spostato al ${label}`);
+    refetchAppointments();
+  }, [appointments, refetchAppointments]);
+
   const tabs = [
     { key: "calendar" as const, label: "Visualizza calendario" },
     { key: "list" as const, label: "Vista elenco" },
@@ -494,6 +523,7 @@ export default function MarketingCalendar() {
                 onClickAppointment={openEditDialog}
                 onClickSlot={(date, hour) => openNewDialog(date, hour)}
                 travelLegs={weekTravelLegs}
+                onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
               />
             )}
             {calendarView === "day" && (
@@ -504,6 +534,7 @@ export default function MarketingCalendar() {
                 onClickAppointment={openEditDialog}
                 onClickSlot={(date, hour) => openNewDialog(date, hour)}
                 travelLegs={travelLegs}
+                onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
               />
             )}
             {calendarView === "month" && (
@@ -513,6 +544,7 @@ export default function MarketingCalendar() {
                 calendarIds={calendars.map((c) => c.id)}
                 onClickAppointment={openEditDialog}
                 onClickDay={(date) => openNewDialog(date)}
+                onDropAppointment={(id, date) => handleDropAppointment(id, date)}
               />
             )}
           </div>
