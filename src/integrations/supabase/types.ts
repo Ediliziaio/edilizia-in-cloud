@@ -1508,6 +1508,375 @@ export type Database = {
           },
         ]
       }
+      integration_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          company_id: string
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          company_id: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          company_id?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_credentials: {
+        Row: {
+          access_token_encrypted: string
+          created_at: string
+          expires_at: string | null
+          granted_scopes: Json | null
+          id: string
+          integration_id: string
+          meta_user_id: string | null
+          meta_user_name: string | null
+          token_type: string
+          updated_at: string
+        }
+        Insert: {
+          access_token_encrypted: string
+          created_at?: string
+          expires_at?: string | null
+          granted_scopes?: Json | null
+          id?: string
+          integration_id: string
+          meta_user_id?: string | null
+          meta_user_name?: string | null
+          token_type?: string
+          updated_at?: string
+        }
+        Update: {
+          access_token_encrypted?: string
+          created_at?: string
+          expires_at?: string | null
+          granted_scopes?: Json | null
+          id?: string
+          integration_id?: string
+          meta_user_id?: string | null
+          meta_user_name?: string | null
+          token_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_credentials_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_field_mappings: {
+        Row: {
+          company_id: string
+          created_at: string
+          form_id: string
+          id: string
+          integration_id: string
+          mapping_version: number
+          rules: Json
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          form_id: string
+          id?: string
+          integration_id: string
+          mapping_version?: number
+          rules?: Json
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          form_id?: string
+          id?: string
+          integration_id?: string
+          mapping_version?: number
+          rules?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_field_mappings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_field_mappings_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_sync_jobs: {
+        Row: {
+          attempts: number
+          company_id: string
+          created_at: string
+          finished_at: string | null
+          id: string
+          integration_id: string
+          job_type: string
+          params: Json | null
+          result: Json | null
+          scheduled_at: string
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          company_id: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          integration_id: string
+          job_type: string
+          params?: Json | null
+          result?: Json | null
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          company_id?: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          integration_id?: string
+          job_type?: string
+          params?: Json | null
+          result?: Json | null
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_sync_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_sync_jobs_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_webhook_events: {
+        Row: {
+          company_id: string | null
+          event_id: string | null
+          event_type: string
+          fail_count: number
+          id: string
+          integration_id: string | null
+          last_fail_reason: string | null
+          locked_at: string | null
+          locked_by: string | null
+          payload: Json
+          processed_at: string | null
+          provider: string
+          received_at: string
+          status: string
+        }
+        Insert: {
+          company_id?: string | null
+          event_id?: string | null
+          event_type?: string
+          fail_count?: number
+          id?: string
+          integration_id?: string | null
+          last_fail_reason?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+          received_at?: string
+          status?: string
+        }
+        Update: {
+          company_id?: string | null
+          event_id?: string | null
+          event_type?: string
+          fail_count?: number
+          id?: string
+          integration_id?: string | null
+          last_fail_reason?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+          received_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_webhook_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_webhook_events_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_webhook_subscriptions: {
+        Row: {
+          callback_url: string | null
+          company_id: string
+          created_at: string
+          fields: Json | null
+          id: string
+          integration_id: string
+          object: string
+          provider: string
+          status: string
+          updated_at: string
+          verify_token_hash: string | null
+        }
+        Insert: {
+          callback_url?: string | null
+          company_id: string
+          created_at?: string
+          fields?: Json | null
+          id?: string
+          integration_id: string
+          object?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+          verify_token_hash?: string | null
+        }
+        Update: {
+          callback_url?: string | null
+          company_id?: string
+          created_at?: string
+          fields?: Json | null
+          id?: string
+          integration_id?: string
+          object?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+          verify_token_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_webhook_subscriptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_webhook_subscriptions_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integrations: {
+        Row: {
+          company_id: string
+          connected_by: string | null
+          created_at: string
+          health: string
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          last_sync_at: string | null
+          provider: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          connected_by?: string | null
+          created_at?: string
+          health?: string
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_sync_at?: string | null
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          connected_by?: string | null
+          created_at?: string
+          health?: string
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_sync_at?: string | null
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_calendar_availability: {
         Row: {
           calendar_id: string
@@ -2652,6 +3021,127 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: true
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_assets: {
+        Row: {
+          asset_id: string
+          asset_name: string
+          asset_type: string
+          company_id: string
+          created_at: string
+          id: string
+          integration_id: string
+          metadata: Json | null
+          selected: boolean
+          updated_at: string
+        }
+        Insert: {
+          asset_id: string
+          asset_name: string
+          asset_type: string
+          company_id: string
+          created_at?: string
+          id?: string
+          integration_id: string
+          metadata?: Json | null
+          selected?: boolean
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string
+          asset_name?: string
+          asset_type?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          integration_id?: string
+          metadata?: Json | null
+          selected?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_assets_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_lead_forms: {
+        Row: {
+          company_id: string
+          created_at: string
+          form_id: string
+          form_name: string
+          id: string
+          integration_id: string
+          last_pull_at: string | null
+          page_asset_id: string | null
+          since_date: string | null
+          status: string
+          sync_mode: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          form_id: string
+          form_name: string
+          id?: string
+          integration_id: string
+          last_pull_at?: string | null
+          page_asset_id?: string | null
+          since_date?: string | null
+          status?: string
+          sync_mode?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          form_id?: string
+          form_name?: string
+          id?: string
+          integration_id?: string
+          last_pull_at?: string | null
+          page_asset_id?: string | null
+          since_date?: string | null
+          status?: string
+          sync_mode?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_lead_forms_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_lead_forms_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_lead_forms_page_asset_id_fkey"
+            columns: ["page_asset_id"]
+            isOneToOne: false
+            referencedRelation: "meta_assets"
             referencedColumns: ["id"]
           },
         ]
