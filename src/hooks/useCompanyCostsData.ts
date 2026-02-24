@@ -4,7 +4,7 @@ import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, subMonth
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
-import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
+import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
 
 export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all";
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
@@ -165,7 +165,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
 
       if (pm === "50_50" || pm === "30_70") {
         rows.push({
-          id: `order-item-dep-${item.id}`,
+          id: `${COST_ID_PREFIX.ORDER_ITEM_DEPOSIT}${item.id}`,
           realOrderItemId: item.id,
           name: `Acconto - ${item.name}`,
           cost_type: "variable",
@@ -183,7 +183,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
           supplierName,
         });
         rows.push({
-          id: `order-item-bal-${item.id}`,
+          id: `${COST_ID_PREFIX.ORDER_ITEM_BALANCE}${item.id}`,
           realOrderItemId: item.id,
           name: `Saldo - ${item.name}`,
           cost_type: "variable",
@@ -202,7 +202,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
         });
       } else {
         rows.push({
-          id: `order-item-${item.id}`,
+          id: `${COST_ID_PREFIX.ORDER_ITEM}${item.id}`,
           realOrderItemId: item.id,
           name: item.name,
           cost_type: "variable",
@@ -227,7 +227,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   // Transform external teams into unified cost format
   const externalTeamAsVariableCosts: UnifiedCost[] = useMemo(() => {
     return externalTeamCosts.map((item: any): UnifiedCost => ({
-      id: `ext-team-${item.id}`,
+      id: `${COST_ID_PREFIX.EXT_TEAM}${item.id}`,
       name: item.external_team?.name || "Squadra Esterna",
       cost_type: "variable",
       amount: Number(item.total_cost) || 0,
@@ -247,7 +247,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   // Transform active employees into fixed monthly salary costs
   const employeeAsFixedCosts: UnifiedCost[] = useMemo(() => {
     return activeEmployees.map((emp): UnifiedCost => ({
-      id: `employee-salary-${emp.id}`,
+      id: `${COST_ID_PREFIX.EMPLOYEE_SALARY}${emp.id}`,
       name: `${emp.first_name} ${emp.last_name} (stipendio)`,
       cost_type: "fixed",
       amount: Number(emp.gross_salary) || 0,
@@ -267,7 +267,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   // Transform commissions into unified cost format
   const commissionAsVariableCosts: UnifiedCost[] = useMemo(() => {
     return commissionCosts.map((item: any): UnifiedCost => ({
-      id: `commission-${item.id}`,
+      id: `${COST_ID_PREFIX.COMMISSION}${item.id}`,
       name: `${item.salesperson?.first_name || ""} ${item.salesperson?.last_name || ""}`.trim() || "Venditore",
       cost_type: "variable",
       amount: Number(item.commission_amount) || 0,

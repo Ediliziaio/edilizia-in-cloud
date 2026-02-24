@@ -149,6 +149,65 @@ export function recurrenceMultiplier(recurrence: string): number {
   }
 }
 
+/** Prefixes used to build synthetic UnifiedCost IDs */
+export const COST_ID_PREFIX = {
+  ORDER_ITEM_DEPOSIT: "order-item-dep-",
+  ORDER_ITEM_BALANCE: "order-item-bal-",
+  ORDER_ITEM: "order-item-",
+  EXT_TEAM: "ext-team-",
+  COMMISSION: "commission-",
+  EMPLOYEE_SALARY: "employee-salary-",
+} as const;
+
+export type CostOriginType = "manual" | "order-item" | "ext-team" | "commission";
+
+export interface CostOrigin {
+  type: CostOriginType;
+  realId: string;
+  paymentType?: "deposit" | "balance" | "single";
+}
+
+/**
+ * Resolves the origin of a UnifiedCost from its synthetic ID.
+ * Returns the origin type, real DB id, and payment type (for order items).
+ */
+export function resolveCostOrigin(costId: string, realOrderItemId?: string): CostOrigin {
+  if (costId.startsWith(COST_ID_PREFIX.ORDER_ITEM_DEPOSIT)) {
+    return {
+      type: "order-item",
+      realId: realOrderItemId || costId.replace(COST_ID_PREFIX.ORDER_ITEM_DEPOSIT, ""),
+      paymentType: "deposit",
+    };
+  }
+  if (costId.startsWith(COST_ID_PREFIX.ORDER_ITEM_BALANCE)) {
+    return {
+      type: "order-item",
+      realId: realOrderItemId || costId.replace(COST_ID_PREFIX.ORDER_ITEM_BALANCE, ""),
+      paymentType: "balance",
+    };
+  }
+  if (costId.startsWith(COST_ID_PREFIX.ORDER_ITEM)) {
+    return {
+      type: "order-item",
+      realId: realOrderItemId || costId.replace(COST_ID_PREFIX.ORDER_ITEM, ""),
+      paymentType: "single",
+    };
+  }
+  if (costId.startsWith(COST_ID_PREFIX.EXT_TEAM)) {
+    return {
+      type: "ext-team",
+      realId: costId.replace(COST_ID_PREFIX.EXT_TEAM, ""),
+    };
+  }
+  if (costId.startsWith(COST_ID_PREFIX.COMMISSION)) {
+    return {
+      type: "commission",
+      realId: costId.replace(COST_ID_PREFIX.COMMISSION, ""),
+    };
+  }
+  return { type: "manual", realId: costId };
+}
+
 export interface TreasuryCategory {
   id: string;
   company_id: string;

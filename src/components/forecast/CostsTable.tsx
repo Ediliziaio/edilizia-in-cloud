@@ -20,6 +20,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/formatters";
+import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
 
@@ -168,8 +169,7 @@ export function CostsTable({
             <TableBody>
               {items.map((cost) => {
                 const vatRate = Number((cost as any).vat_rate) || 0;
-                const vatAmount = cost.amount * (vatRate / 100);
-                const grossAmount = cost.amount + vatAmount;
+                const { grossAmount, vatAmount } = calculateGrossFromNet(cost.amount, vatRate);
                 const isSelected = selectedIds.has(cost.id);
                 return (
                   <TableRow key={cost.id} className={`${cost.isFromOrder ? "bg-orange-50/50 dark:bg-orange-900/5" : ""} ${isSelected ? "bg-muted/50" : ""}`}>
