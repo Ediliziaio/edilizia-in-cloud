@@ -202,6 +202,7 @@ export default function MarketingCalendarWeekView({
                               slotDurationMinutes={slotDurationMinutes}
                               slotHeightPx={slotInfo.px}
                               startTime={apt.appointment_time?.slice(0, 5)}
+                              spanHeight={spanHeight}
                             >
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -210,10 +211,8 @@ export default function MarketingCalendarWeekView({
                                       e.stopPropagation();
                                       onClickAppointment(apt);
                                     }}
-                                    style={spanHeight ? { height: spanHeight, zIndex: 5 } : undefined}
                                     className={cn(
-                                      "flex items-center gap-1 text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 cursor-pointer hover:opacity-80 mb-0.5 min-w-0",
-                                      spanHeight ? "overflow-hidden relative" : "",
+                                      "flex items-center gap-1 text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 cursor-pointer hover:opacity-80 mb-0.5 min-w-0 h-full",
                                       apt.is_blocked_slot
                                         ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
                                         : apt.calendar_id && colorMap[apt.calendar_id]

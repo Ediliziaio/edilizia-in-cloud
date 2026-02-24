@@ -11,6 +11,8 @@ interface Props {
   slotDurationMinutes?: number;
   slotHeightPx?: number;
   startTime?: string; // appointment_time e.g. "09:00"
+  /** Height in px for multi-slot appointments */
+  spanHeight?: number;
 }
 
 function minutesToTimeStr(totalMin: number): string {
@@ -27,6 +29,7 @@ export default function DraggableAppointment({
   slotDurationMinutes = 30,
   slotHeightPx = 32,
   startTime,
+  spanHeight,
 }: Props) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `apt-${appointment.id}`,
@@ -105,7 +108,10 @@ export default function DraggableAppointment({
       {...listeners}
       {...attributes}
       className={cn("relative", isDragging && "opacity-30")}
-      style={{ touchAction: "none" }}
+      style={{
+        touchAction: "none",
+        ...(spanHeight ? { height: spanHeight, zIndex: 5 } : {}),
+      }}
       data-resize-id={appointment.id}
     >
       {children}
