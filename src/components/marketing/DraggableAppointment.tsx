@@ -109,7 +109,6 @@ export default function DraggableAppointment({
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
       {...attributes}
       className={cn("relative", isDragging && "opacity-30")}
       style={{
@@ -119,7 +118,9 @@ export default function DraggableAppointment({
       }}
       data-resize-id={appointment.id}
     >
-      {children}
+      <div {...listeners} style={{ touchAction: "none" }}>
+        {children}
+      </div>
       {onResize && startTime && (
         <div
           onMouseDown={handleResizeStart}
