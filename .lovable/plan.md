@@ -1,62 +1,43 @@
 
 
-# Fix: Resize handle non funziona — ristrutturazione completa stile Google Calendar
+# Fix: Il drag apre il form "nuovo appuntamento" invece di spostare
 
-## Analisi del problema
+## Problema
 
-Ho analizzato il codice attuale di `DraggableAppointment.tsx` e identificato **due problemi strutturali**:
+Quando trascini un appuntamento su un nuovo slot, succedono **due cose insieme**:
 
-1. **Il div dei `{...listeners}` (drag) non ha `h-full`** — occupa solo l'altezza del testo, non tutto il blocco appuntamento. L'area vuota tra il testo e il resize handle non è né trascinabile né ridimensionabile.
+1. `handleDragEnd` → sposta correttamente l'appuntamento (funziona)
+2. `onClick` del `DroppableSlot` sottostante → si attiva subito dopo il drop, aprendo il dialog "Prenota appuntamento"
 
-2. **Il resize handle (`h-2` = 8px) è troppo piccolo** e non visibile — l'utente non riesce a trovarlo e quando lo trova non ha feedback visivo.
+Il click sul slot non viene bloccato dopo un drag, quindi il browser lo interpreta come un click normale.
 
-```text
-Stato attuale (bug):
-┌─ root div (height: spanHeight) ──────────┐
-│  ┌─ listeners div (altezza auto) ──────┐ │
-│  │  "10:00 appuntamento..."            │ │  ← solo qui è cliccabile per drag
-│  └─────────────────────────────────────┘ │
-│                                          │  ← zona morta: niente funziona
-│  [═══ handle 8px invisibile ═══]         │  ← troppo piccolo, non si vede
-└──────────────────────────────────────────┘
+Inoltre l'utente vuole un **messaggio di conferma** prima dello spostamento: _"Confermi di voler spostare l'appuntamento dalle X alle Y?"_
 
-Dopo il fix (Google Calendar):
-┌─ root div (height: spanHeight) ──────────┐
-│  ┌─ listeners div (h-full, pb-3) ──────┐ │
-│  │  "10:00 appuntamento..."            │ │  ← drag su tutta l'area
-│  │                                     │ │
-│  └─────────────────────────────────────┘ │
-│  [═══ handle 12px, visibile su hover ═] │  ← resize chiaro e accessibile
-└──────────────────────────────────────────┘
-```
+## Fix
 
-## Piano di implementazione
+### 1. Bloccare il click dopo un drag (WeekView + DayView)
 
-### File: `src/components/marketing/DraggableAppointment.tsx`
+In `MarketingCalendarWeekView.tsx` e `MarketingCalendarDayView.tsx`:
 
-1. **Drag area a tutta altezza**: aggiungere `className="h-full"` e `pb-3` (padding-bottom per lasciare spazio alla handle) al div con `{...listeners}`
+- Aggiungere un `useRef<boolean>` chiamato `justDragged`
+- In `handleDragEnd`: impostare `justDragged.current = true` e resettarlo dopo 100ms con `setTimeout`
+- Nell'`onClick` del `DroppableSlot`: controllare `justDragged.current` e se `true`, non chiamare `onClickSlot`
 
-2. **Resize handle più grande e visibile su hover**:
-   - Da `h-2` a `h-3` (12px) — area di click più ampia
-   - Indicatore visivo (la barretta) mostrato solo su hover del blocco appuntamento (non del handle singolo), usando `group-hover` dalla root
-   - Aggiungere `className="group"` al div root
+Questo impedisce che il click post-drag apra il form di creazione.
 
-3. **Snapping a 15 minuti**: nella logica `handlePointerMove` e `handlePointerUp`, arrotondare il `newEndMin` al multiplo di 15 più vicino:
-   ```typescript
-   const snapped = Math.round(clamped / 15) * 15;
-   ```
+### 2. Conferma prima dello spostamento (MarketingCalendar.tsx)
 
-4. **Feedback visivo durante il resize**: aggiungere un piccolo indicatore orario che mostra l'ora di fine mentre si trascina (opzionale ma utile)
+In `handleDropAppointment`:
 
-### File: `src/components/marketing/MarketingCalendarWeekView.tsx` e `MarketingCalendarDayView.tsx`
+- Prima di eseguire l'update su database, mostrare un **dialog di conferma** (usando `window.confirm` per semplicità, o un toast interattivo)
+- Messaggio: _"Confermi di voler spostare l'appuntamento dalle {ora originale} alle {nuova ora}?"_
+- Se l'utente annulla, non fare nulla
 
-Nessuna modifica necessaria — il rendering è corretto, il problema è tutto in `DraggableAppointment`.
-
-## Riepilogo modifiche
+## File da modificare
 
 | File | Modifica |
 |------|----------|
-| `DraggableAppointment.tsx` | Drag area `h-full` + handle più grande + hover-only + snap 15min |
-
-Un solo file, tre correzioni puntuali.
+| `MarketingCalendarWeekView.tsx` | Ref `justDragged` + guard su onClick slot |
+| `MarketingCalendarDayView.tsx` | Stessa logica di WeekView |
+| `MarketingCalendar.tsx` | Aggiungere `window.confirm` in `handleDropAppointment` prima dell'update |
 
