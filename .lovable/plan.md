@@ -1,42 +1,40 @@
 
 
-# Piano: Fix Drag & Drop che altera la durata dell'appuntamento
+# Fix: Resize handle attiva il drag invece del resize
 
 ## Problema
 
-Quando trascini un appuntamento per spostarlo (es. da 10:00 a 11:00), il sistema aggiorna solo `appointment_time` ma **non ricalcola `appointment_end_time`**. Risultato: la durata originale viene persa.
-
-Esempio concreto:
-- Appuntamento: 10:00–11:00 (1 ora)
-- Lo trascini allo slot 11:00
-- `appointment_time` → 11:00, ma `appointment_end_time` resta 11:00 (o peggio, un valore incoerente)
-- Il rendering mostra un appuntamento enorme o sballato
+In `DraggableAppointment.tsx`, le prop `{...listeners}` di dnd-kit sono applicate sul div radice che contiene **tutto**, incluso il resize handle. Quando clicchi sul resize handle, dnd-kit cattura l'evento prima che il `handleResizeStart` possa agire, attivando il drag invece del resize.
 
 ## Fix
 
-Nel `handleDropAppointment` in `MarketingCalendar.tsx`:
+Separare le aree di interazione:
 
-1. Calcolare la durata originale: `originalDuration = end_time - start_time`
-2. Quando si sposta con un nuovo orario, ricalcolare: `newEndTime = newTime + originalDuration`
-3. Includere `appointment_end_time` nell'update al database
-4. Includere il vecchio `appointment_end_time` nel rollback "Annulla"
+1. **Root div**: solo `ref={setNodeRef}` e `{...attributes}` (necessari per dnd-kit), ma **senza** `{...listeners}`
+2. **Content area** (children): wrappato in un div con `{...listeners}` — qui si attiva il drag
+3. **Resize handle**: resta separato, senza listeners di drag — qui si attiva solo il resize
 
-```typescript
-// Pseudocodice del fix
-const oldStartMin = timeToMin(current.appointment_time);
-const oldEndMin = timeToMin(current.appointment_end_time);
-const durationMin = oldEndMin - oldStartMin;
-const newStartMin = timeToMin(newTime);
-const newEndTime = minutesToTimeStr(newStartMin + durationMin);
+```text
+Prima (bug):
+┌─ div root {...listeners} {...attributes} ─────┐
+│  [contenuto appuntamento]                      │
+│  [═══ resize handle ═══]  ← anche qui drag!    │
+└────────────────────────────────────────────────┘
 
-updateData.appointment_end_time = newEndTime;
+Dopo (fix):
+┌─ div root {...attributes} (NO listeners) ──────┐
+│  ┌─ div drag-area {...listeners} ────────────┐ │
+│  │  [contenuto appuntamento]                 │ │
+│  └───────────────────────────────────────────┘ │
+│  [═══ resize handle ═══]  ← solo resize        │
+└────────────────────────────────────────────────┘
 ```
 
 ## File coinvolto
 
 | File | Modifica |
 |------|----------|
-| `src/pages/azienda/marketing/MarketingCalendar.tsx` | Ricalcolo `appointment_end_time` nel drop handler + rollback completo |
+| `src/components/marketing/DraggableAppointment.tsx` | Spostare `{...listeners}` dal root div a un wrapper interno che avvolge solo `{children}` |
 
-Nessun altro file da toccare. Il rendering e il resize sono già corretti.
+Un singolo file, una modifica chirurgica.
 
