@@ -1,43 +1,32 @@
 
 
-# Fix: Il drag apre il form "nuovo appuntamento" invece di spostare
+# Fix: Il resize apre il dialog "nuovo appuntamento"
 
 ## Problema
 
-Quando trascini un appuntamento su un nuovo slot, succedono **due cose insieme**:
-
-1. `handleDragEnd` → sposta correttamente l'appuntamento (funziona)
-2. `onClick` del `DroppableSlot` sottostante → si attiva subito dopo il drop, aprendo il dialog "Prenota appuntamento"
-
-Il click sul slot non viene bloccato dopo un drag, quindi il browser lo interpreta come un click normale.
-
-Inoltre l'utente vuole un **messaggio di conferma** prima dello spostamento: _"Confermi di voler spostare l'appuntamento dalle X alle Y?"_
+Quando l'utente rilascia il resize handle, il browser genera un evento `click` che risale fino al `DroppableSlot` sottostante. Il guard `justDragged` protegge solo dal drag-and-drop, non dal resize. Risultato: dopo ogni resize si apre il form di creazione appuntamento.
 
 ## Fix
 
-### 1. Bloccare il click dopo un drag (WeekView + DayView)
+### 1. `DraggableAppointment.tsx` — Segnalare la fine del resize al parent
 
-In `MarketingCalendarWeekView.tsx` e `MarketingCalendarDayView.tsx`:
+Aggiungere una prop opzionale `onResizeEnd?: () => void` che viene chiamata in `handlePointerUp`, subito dopo `onResize`. I view parent (WeekView, DayView) passeranno una callback che imposta `justDragged.current = true`.
 
-- Aggiungere un `useRef<boolean>` chiamato `justDragged`
-- In `handleDragEnd`: impostare `justDragged.current = true` e resettarlo dopo 100ms con `setTimeout`
-- Nell'`onClick` del `DroppableSlot`: controllare `justDragged.current` e se `true`, non chiamare `onClickSlot`
+### 2. `MarketingCalendarWeekView.tsx` e `MarketingCalendarDayView.tsx`
 
-Questo impedisce che il click post-drag apra il form di creazione.
+Passare a `DraggableAppointment` una nuova prop `onResizeEnd` che setta `justDragged.current = true` + timeout 200ms (identico al drag). Così il click post-resize viene bloccato.
 
-### 2. Conferma prima dello spostamento (MarketingCalendar.tsx)
+### 3. `MarketingCalendar.tsx` — Conferma anche per il resize
 
-In `handleDropAppointment`:
-
-- Prima di eseguire l'update su database, mostrare un **dialog di conferma** (usando `window.confirm` per semplicità, o un toast interattivo)
-- Messaggio: _"Confermi di voler spostare l'appuntamento dalle {ora originale} alle {nuova ora}?"_
-- Se l'utente annulla, non fare nulla
+Aggiungere `window.confirm` in `handleResizeAppointment`:
+_"Confermi di voler modificare la durata dell'appuntamento fino alle [nuova ora]?"_
 
 ## File da modificare
 
 | File | Modifica |
 |------|----------|
-| `MarketingCalendarWeekView.tsx` | Ref `justDragged` + guard su onClick slot |
+| `DraggableAppointment.tsx` | Aggiungere prop `onResizeEnd`, chiamarla in `handlePointerUp` |
+| `MarketingCalendarWeekView.tsx` | Passare `onResizeEnd={() => { justDragged.current = true; setTimeout(...) }}` |
 | `MarketingCalendarDayView.tsx` | Stessa logica di WeekView |
-| `MarketingCalendar.tsx` | Aggiungere `window.confirm` in `handleDropAppointment` prima dell'update |
+| `MarketingCalendar.tsx` | Aggiungere `window.confirm` in `handleResizeAppointment` |
 
