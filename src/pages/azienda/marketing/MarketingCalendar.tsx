@@ -424,9 +424,27 @@ export default function MarketingCalendar() {
 
     const oldDate = current?.appointment_date;
     const oldTime = current?.appointment_time;
+    const oldEndTime = current?.appointment_end_time;
 
-    const updateData: Record<string, string> = { appointment_date: newDate };
-    if (newTime) updateData.appointment_time = newTime;
+    const updateData: Record<string, string | null> = { appointment_date: newDate };
+    if (newTime) {
+      updateData.appointment_time = newTime;
+      // Preserve original duration: recalculate appointment_end_time
+      if (current?.appointment_time && current?.appointment_end_time) {
+        const toMin = (t: string) => {
+          const [h, m] = t.split(':').map(Number);
+          return h * 60 + m;
+        };
+        const durationMin = toMin(current.appointment_end_time) - toMin(current.appointment_time);
+        if (durationMin > 0) {
+          const newStartMin = toMin(newTime);
+          const newEndMin = newStartMin + durationMin;
+          const eh = Math.floor(newEndMin / 60);
+          const em = newEndMin % 60;
+          updateData.appointment_end_time = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+        }
+      }
+    }
 
     const { error } = await supabase
       .from("appointments")
@@ -443,9 +461,10 @@ export default function MarketingCalendar() {
       action: {
         label: "Annulla",
         onClick: async () => {
-          const rollback: Record<string, string> = {};
+          const rollback: Record<string, string | null> = {};
           if (oldDate) rollback.appointment_date = oldDate;
           if (oldTime) rollback.appointment_time = oldTime;
+          if (oldEndTime !== undefined) rollback.appointment_end_time = oldEndTime;
           const { error: undoError } = await supabase
             .from("appointments")
             .update(rollback)
