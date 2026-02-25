@@ -45,10 +45,12 @@ export default function DraggableAppointment({
   const pxPerMinute = slotHeightPx / slotDurationMinutes;
 
   const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.PointerEvent) => {
       e.stopPropagation();
       e.preventDefault();
       if (!onResize || !startTime) return;
+
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
       resizing.current = true;
       startY.current = e.clientY;
@@ -63,16 +65,14 @@ export default function DraggableAppointment({
         startEndMinutes.current = aptStart + slotDurationMinutes;
       }
 
-      const handleMouseMove = (ev: MouseEvent) => {
+      const handlePointerMove = (ev: PointerEvent) => {
         if (!resizing.current) return;
         const deltaY = ev.clientY - startY.current;
-        // Convert pixel delta to minutes (not slots)
         const deltaMinutes = Math.round(deltaY / pxPerMinute);
         const newEndMin = startEndMinutes.current + deltaMinutes;
         const [sh2, sm2] = startTime.split(":").map(Number);
-        const minEnd = sh2 * 60 + (sm2 || 0) + 15; // minimum 15 min
+        const minEnd = sh2 * 60 + (sm2 || 0) + 15;
         const clamped = Math.max(minEnd, Math.min(newEndMin, 22 * 60));
-        // Live preview
         const el = document.querySelector(`[data-resize-id="${appointment.id}"]`) as HTMLElement;
         if (el) {
           const aptStartMin = sh2 * 60 + (sm2 || 0);
@@ -81,11 +81,11 @@ export default function DraggableAppointment({
         }
       };
 
-      const handleMouseUp = (ev: MouseEvent) => {
+      const handlePointerUp = (ev: PointerEvent) => {
         if (!resizing.current) return;
         resizing.current = false;
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
+        document.removeEventListener("pointermove", handlePointerMove);
+        document.removeEventListener("pointerup", handlePointerUp);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
 
@@ -98,8 +98,8 @@ export default function DraggableAppointment({
         onResize(appointment.id, minutesToTimeStr(clamped));
       };
 
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener("pointermove", handlePointerMove);
+      document.addEventListener("pointerup", handlePointerUp);
       document.body.style.cursor = "s-resize";
       document.body.style.userSelect = "none";
     },
@@ -123,7 +123,7 @@ export default function DraggableAppointment({
       </div>
       {onResize && startTime && (
         <div
-          onMouseDown={handleResizeStart}
+          onPointerDown={handleResizeStart}
           className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize group z-10 flex items-center justify-center"
         >
           <div className="w-8 h-1 rounded-full bg-muted-foreground/30 group-hover:bg-muted-foreground/60 transition-colors" />
