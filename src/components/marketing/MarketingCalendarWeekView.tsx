@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
@@ -48,6 +48,7 @@ export default function MarketingCalendarWeekView({
   slotDurationMinutes = 30,
   onResizeAppointment,
 }: Props) {
+  const justDragged = useRef(false);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
   const slotInfo = getSlotHeight(slotDurationMinutes);
   const pxPerMinute = slotInfo.px / slotDurationMinutes;
@@ -117,6 +118,8 @@ export default function MarketingCalendarWeekView({
     setActiveApt(null);
     const { active, over } = event;
     if (!over || !onDropAppointment) return;
+    justDragged.current = true;
+    setTimeout(() => { justDragged.current = false; }, 200);
     const aptId = (active.id as string).replace("apt-", "");
     const overId = over.id as string;
     if (!overId.startsWith("slot-")) return;
@@ -184,7 +187,7 @@ export default function MarketingCalendarWeekView({
                           isHour ? "border-b" : "border-b border-dashed border-border/40",
                           isSameDay(day, today) && "bg-primary/[0.02]"
                         )}
-                        onClick={() => onClickSlot(day, h, m)}
+                        onClick={() => { if (!justDragged.current) onClickSlot(day, h, m); }}
                       >
                         {slotApts.map((apt) => {
                           const leg = dayLegMap[apt.id];

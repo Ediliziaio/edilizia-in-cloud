@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { format, isSameDay, parseISO, isToday } from "date-fns";
 import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
@@ -48,6 +48,7 @@ export default function MarketingCalendarDayView({
   onResizeAppointment,
 }: Props) {
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
+  const justDragged = useRef(false);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
   const slotInfo = getSlotHeight(slotDurationMinutes);
   const pxPerMinute = slotInfo.px / slotDurationMinutes;
@@ -118,6 +119,8 @@ export default function MarketingCalendarDayView({
     setActiveApt(null);
     const { active, over } = event;
     if (!over || !onDropAppointment) return;
+    justDragged.current = true;
+    setTimeout(() => { justDragged.current = false; }, 200);
     const aptId = (active.id as string).replace("apt-", "");
     const overId = over.id as string;
     if (!overId.startsWith("slot-")) return;
@@ -170,7 +173,7 @@ export default function MarketingCalendarDayView({
                     isHour ? "border-b" : "border-b border-dashed border-border/40",
                     todayFlag && "bg-primary/[0.02]"
                   )}
-                  onClick={() => onClickSlot(date, h, m)}
+                  onClick={() => { if (!justDragged.current) onClickSlot(date, h, m); }}
                 >
                   {slotApts.map((apt) => {
                     const leg = travelLegMap[apt.id];
