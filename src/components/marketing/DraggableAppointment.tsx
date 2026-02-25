@@ -7,6 +7,7 @@ interface Props {
   appointment: MarketingAppointment;
   children: React.ReactNode;
   onResize?: (id: string, newEndTime: string) => void;
+  onResizeEnd?: () => void;
   slotDurationMinutes?: number;
   slotHeightPx?: number;
   startTime?: string;
@@ -25,6 +26,7 @@ export default function DraggableAppointment({
   appointment,
   children,
   onResize,
+  onResizeEnd,
   slotDurationMinutes = 30,
   slotHeightPx = 32,
   startTime,
@@ -101,6 +103,7 @@ export default function DraggableAppointment({
         const clamped = Math.max(minEnd, Math.min(newEndMin, 22 * 60));
         const snapped = Math.round(clamped / 15) * 15;
         onResize(appointment.id, minutesToTimeStr(snapped));
+        onResizeEnd?.();
       };
 
       document.addEventListener("pointermove", handlePointerMove);
