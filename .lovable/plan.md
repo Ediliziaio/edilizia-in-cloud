@@ -1,33 +1,62 @@
 
 
-# Fix: Resize handle intercettato dal drag
+# Fix: Resize handle non funziona — ristrutturazione completa stile Google Calendar
 
-## Problema
+## Analisi del problema
 
-Il resize handle usa `onMouseDown` ma dnd-kit usa `onPointerDown` (che si attiva **prima** di `mousedown`). Quando clicchi sulla barra di resize, il `pointerdown` raggiunge il div con `{...listeners}` sottostante (che è visivamente sovrapposto) prima che `mousedown` del resize possa agire. Risultato: il drag si attiva al posto del resize.
+Ho analizzato il codice attuale di `DraggableAppointment.tsx` e identificato **due problemi strutturali**:
 
-## Fix
+1. **Il div dei `{...listeners}` (drag) non ha `h-full`** — occupa solo l'altezza del testo, non tutto il blocco appuntamento. L'area vuota tra il testo e il resize handle non è né trascinabile né ridimensionabile.
 
-In `DraggableAppointment.tsx`:
-
-1. Cambiare il resize handle da `onMouseDown` a `onPointerDown` — così intercetta l'evento allo stesso livello di priorità di dnd-kit
-2. Aggiungere `onPointerDown` con `e.stopPropagation()` per bloccare la propagazione
-3. Aggiornare corrispondentemente i listener interni da `mousemove/mouseup` a `pointermove/pointerup`
-4. Usare `setPointerCapture` per garantire che tutti gli eventi successivi vadano al resize handle, non al drag
-
-## Dettaglio tecnico
+2. **Il resize handle (`h-2` = 8px) è troppo piccolo** e non visibile — l'utente non riesce a trovarlo e quando lo trova non ha feedback visivo.
 
 ```text
-Prima (bug):
-  pointerdown → colpisce listeners div (dnd-kit drag!) 
-  mousedown   → arriva al resize handle (troppo tardi)
+Stato attuale (bug):
+┌─ root div (height: spanHeight) ──────────┐
+│  ┌─ listeners div (altezza auto) ──────┐ │
+│  │  "10:00 appuntamento..."            │ │  ← solo qui è cliccabile per drag
+│  └─────────────────────────────────────┘ │
+│                                          │  ← zona morta: niente funziona
+│  [═══ handle 8px invisibile ═══]         │  ← troppo piccolo, non si vede
+└──────────────────────────────────────────┘
 
-Dopo (fix):
-  pointerdown → resize handle lo cattura e stoppa propagazione
-  dnd-kit     → non riceve mai l'evento
+Dopo il fix (Google Calendar):
+┌─ root div (height: spanHeight) ──────────┐
+│  ┌─ listeners div (h-full, pb-3) ──────┐ │
+│  │  "10:00 appuntamento..."            │ │  ← drag su tutta l'area
+│  │                                     │ │
+│  └─────────────────────────────────────┘ │
+│  [═══ handle 12px, visibile su hover ═] │  ← resize chiaro e accessibile
+└──────────────────────────────────────────┘
 ```
+
+## Piano di implementazione
+
+### File: `src/components/marketing/DraggableAppointment.tsx`
+
+1. **Drag area a tutta altezza**: aggiungere `className="h-full"` e `pb-3` (padding-bottom per lasciare spazio alla handle) al div con `{...listeners}`
+
+2. **Resize handle più grande e visibile su hover**:
+   - Da `h-2` a `h-3` (12px) — area di click più ampia
+   - Indicatore visivo (la barretta) mostrato solo su hover del blocco appuntamento (non del handle singolo), usando `group-hover` dalla root
+   - Aggiungere `className="group"` al div root
+
+3. **Snapping a 15 minuti**: nella logica `handlePointerMove` e `handlePointerUp`, arrotondare il `newEndMin` al multiplo di 15 più vicino:
+   ```typescript
+   const snapped = Math.round(clamped / 15) * 15;
+   ```
+
+4. **Feedback visivo durante il resize**: aggiungere un piccolo indicatore orario che mostra l'ora di fine mentre si trascina (opzionale ma utile)
+
+### File: `src/components/marketing/MarketingCalendarWeekView.tsx` e `MarketingCalendarDayView.tsx`
+
+Nessuna modifica necessaria — il rendering è corretto, il problema è tutto in `DraggableAppointment`.
+
+## Riepilogo modifiche
 
 | File | Modifica |
 |------|----------|
-| `DraggableAppointment.tsx` | `onMouseDown` → `onPointerDown` + `stopPropagation` + listener `pointermove/pointerup` + `setPointerCapture` |
+| `DraggableAppointment.tsx` | Drag area `h-full` + handle più grande + hover-only + snap 15min |
+
+Un solo file, tre correzioni puntuali.
 
