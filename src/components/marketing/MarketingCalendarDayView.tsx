@@ -186,6 +186,7 @@ export default function MarketingCalendarDayView({
                         key={apt.id}
                         appointment={apt}
                         onResize={onResizeAppointment}
+                        onResizeEnd={() => { justDragged.current = true; setTimeout(() => { justDragged.current = false; }, 200); }}
                         slotDurationMinutes={slotDurationMinutes}
                         slotHeightPx={slotInfo.px}
                         startTime={apt.appointment_time?.slice(0, 5)}

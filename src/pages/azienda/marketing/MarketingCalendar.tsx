@@ -488,6 +488,12 @@ export default function MarketingCalendar() {
 
   // ── Resize handler ──
   const handleResizeAppointment = useCallback(async (appointmentId: string, newEndTime: string) => {
+    const confirmed = window.confirm(`Confermi di voler modificare la durata dell'appuntamento fino alle ${newEndTime}?`);
+    if (!confirmed) {
+      refetchAppointments();
+      return;
+    }
+
     const { error } = await supabase
       .from("appointments")
       .update({ appointment_end_time: newEndTime })
