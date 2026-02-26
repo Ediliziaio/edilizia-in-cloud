@@ -14,7 +14,8 @@ import {
   Gift,
   Blocks,
   Search,
-  ChevronsUpDown
+  ChevronsUpDown,
+  RefreshCw
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ const allNavItems = [
   { title: "Piani", url: "/admin/piani", icon: CreditCard, permission: "can_manage_plans" as const },
   { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals" as const },
   { title: "Implementazioni", url: "/admin/implementazioni", icon: Blocks, permission: "can_manage_companies" as const },
+  { title: "Sync Logs", url: "/admin/sync-logs", icon: RefreshCw, permission: "can_view_platform_stats" as const },
 ];
 
 const accountItems = [

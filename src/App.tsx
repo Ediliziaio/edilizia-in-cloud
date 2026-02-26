@@ -41,6 +41,7 @@ const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
 const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
 const Implementations = lazy(() => import("@/pages/admin/Implementations"));
+const SyncLogs = lazy(() => import("@/pages/admin/SyncLogs"));
 
 // Company
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
@@ -177,6 +178,7 @@ const App = () => (
                 <Route path="piani" element={<SubscriptionPlans />} />
                 <Route path="referral" element={<ReferralDashboard />} />
                 <Route path="implementazioni" element={<Implementations />} />
+                <Route path="sync-logs" element={<SyncLogs />} />
               </Route>
 
               {/* Full-screen Automation Builder routes - OUTSIDE CompanyLayout */}
