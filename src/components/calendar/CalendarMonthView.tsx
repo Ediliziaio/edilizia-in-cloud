@@ -15,7 +15,7 @@ import {
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, Package, AlertTriangle, Users, UsersRound, CalendarClock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, AlertTriangle, Users, UsersRound, CalendarClock, Check } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -44,6 +44,7 @@ interface CalendarMonthViewProps {
   busySlots?: GoogleBusySlot[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
+  syncedAppointmentIds?: Set<string>;
 }
 
 export function CalendarMonthView({
@@ -52,6 +53,7 @@ export function CalendarMonthView({
   busySlots = [],
   currentDate,
   onDateChange,
+  syncedAppointmentIds,
 }: CalendarMonthViewProps) {
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
@@ -161,6 +163,7 @@ export function CalendarMonthView({
                     if (event.type === "appointment" && event.appointment) {
                       const apt = event.appointment;
                       const AptIcon = APPOINTMENT_ICONS[apt.appointment_type] || CalendarClock;
+                      const isSynced = syncedAppointmentIds?.has(apt.id);
                       return (
                         <Tooltip key={`apt-${apt.id}-${eventIdx}`}>
                           <TooltipTrigger asChild>
@@ -174,12 +177,14 @@ export function CalendarMonthView({
                             >
                               <AptIcon className="h-3 w-3 flex-shrink-0" />
                               <span className="truncate font-medium">{apt.title}</span>
+                              {isSynced && <Check className="h-3 w-3 flex-shrink-0 text-green-200" />}
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="right" className="max-w-xs">
                             <p className="font-semibold">{apt.title}</p>
                             {apt.appointment_time && <p className="text-xs">Ore: {apt.appointment_time.slice(0, 5)}</p>}
                             {apt.description && <p className="text-xs text-muted-foreground">{apt.description}</p>}
+                            {isSynced && <p className="text-xs text-green-500 flex items-center gap-1"><Check className="h-3 w-3" />Sincronizzato con Google</p>}
                             <p className="text-xs text-primary mt-1">Clicca per modificare</p>
                           </TooltipContent>
                         </Tooltip>

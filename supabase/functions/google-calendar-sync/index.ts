@@ -206,7 +206,6 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
 
   // Clean up stale slots — delete events no longer returned by Google
   if (allGoogleEventIds.length > 0) {
-    // Get all existing slots for this user
     const { data: existingSlots } = await admin
       .from("google_calendar_busy_slots")
       .select("id, google_event_id")
@@ -221,7 +220,6 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
       await admin.from("google_calendar_busy_slots").delete().in("id", staleIds);
     }
   } else {
-    // No events found at all — clear all slots for this user
     await admin
       .from("google_calendar_busy_slots")
       .delete()
@@ -250,7 +248,6 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   const settings = await getSettings(admin, userId, companyId);
   if (!settings?.primary_calendar_id) return json({ error: "No primary calendar configured" }, 400);
 
-  // Get appointment
   const { data: apt } = await admin
     .from("appointments")
     .select("*")
@@ -258,7 +255,6 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     .single();
   if (!apt) return json({ error: "Appointment not found" }, 404);
 
-  // Check if mapping already exists
   const { data: existing } = await admin
     .from("google_calendar_event_map")
     .select("id")
@@ -267,7 +263,6 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     .maybeSingle();
   if (existing) return json({ error: "Already synced", mappingId: existing.id }, 409);
 
-  // Build Google event
   const googleEvent = buildGoogleEvent(apt);
 
   const res = await fetch(
@@ -293,7 +288,6 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
 
   const created = await res.json();
 
-  // Save mapping
   await admin.from("google_calendar_event_map").insert({
     company_id: companyId,
     user_id: userId,
@@ -318,7 +312,6 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
   const accessToken = await getValidAccessToken(admin, conn);
   if (!accessToken) return json({ error: "Token expired" }, 401);
 
-  // Get mapping
   const { data: mapping } = await admin
     .from("google_calendar_event_map")
     .select("*")
@@ -327,7 +320,6 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
     .maybeSingle();
   if (!mapping) return json({ error: "No mapping found, use push-event" }, 404);
 
-  // Get appointment
   const { data: apt } = await admin
     .from("appointments")
     .select("*")
@@ -401,10 +393,184 @@ async function deleteEvent(userId: string, companyId: string, appointmentId: str
     console.error("Delete event error:", e);
   }
 
-  // Remove mapping regardless
   await admin.from("google_calendar_event_map").delete().eq("id", mapping.id);
 
   return json({ success: true });
+}
+
+// ---- RECONCILE PRIMARY (Two-Way Sync) ----
+async function reconcilePrimary(userId: string, companyId: string): Promise<{ created: number; updated: number; removed: number }> {
+  const admin = getSupabaseAdmin();
+
+  // Check platform policy
+  const allowTwoWay = await getPlatformSetting("google_calendar_allow_two_way");
+  if (allowTwoWay !== "true") {
+    console.log("Two-way sync disabled by platform policy");
+    return { created: 0, updated: 0, removed: 0 };
+  }
+
+  const settings = await getSettings(admin, userId, companyId);
+  if (!settings?.primary_calendar_id || settings.sync_mode !== "two_way") {
+    return { created: 0, updated: 0, removed: 0 };
+  }
+
+  const allowImport = (await getPlatformSetting("google_calendar_allow_google_to_crm_import")) === "true";
+
+  const conn = await getConnection(admin, userId, companyId);
+  if (!conn) return { created: 0, updated: 0, removed: 0 };
+
+  const accessToken = await getValidAccessToken(admin, conn);
+  if (!accessToken) return { created: 0, updated: 0, removed: 0 };
+
+  const calId = settings.primary_calendar_id;
+  const now = new Date();
+  const timeMin = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const timeMax = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+
+  const params = new URLSearchParams({
+    timeMin,
+    timeMax,
+    singleEvents: "true",
+    orderBy: "startTime",
+    maxResults: "500",
+  });
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?${params}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!res.ok) {
+    console.error("reconcilePrimary: failed to fetch events", await res.text());
+    return { created: 0, updated: 0, removed: 0 };
+  }
+
+  const data = await res.json();
+  const googleEvents: any[] = (data.items || []).filter((e: any) => e.status !== "cancelled");
+
+  // Load all existing mappings for this user
+  const { data: existingMappings } = await admin
+    .from("google_calendar_event_map")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("user_id", userId)
+    .eq("google_calendar_id", calId);
+
+  const mappingsByGoogleId = new Map<string, any>();
+  (existingMappings || []).forEach((m: any) => mappingsByGoogleId.set(m.google_event_id, m));
+
+  const seenGoogleIds = new Set<string>();
+  let created = 0, updated = 0, removed = 0;
+
+  for (const gEvent of googleEvents) {
+    const googleEventId = gEvent.id;
+    seenGoogleIds.add(googleEventId);
+
+    const mapping = mappingsByGoogleId.get(googleEventId);
+    const crmOriginated = isCrmOriginated(gEvent);
+    const currentEtag = gEvent.etag || null;
+
+    if (mapping) {
+      // Already mapped — check if changed
+      if (mapping.etag === currentEtag) {
+        // No change, skip
+        continue;
+      }
+
+      // Etag differs — conflict resolution
+      if (mapping.last_updated_by === "crm") {
+        // CRM was last to update, but Google etag changed → user edited on Google → Google wins
+      }
+
+      // Google wins: update CRM appointment
+      const fields = parseGoogleEventToCrmFields(gEvent);
+      await admin
+        .from("appointments")
+        .update({
+          title: fields.title,
+          appointment_date: fields.date,
+          appointment_time: fields.time,
+          appointment_end_time: fields.endTime,
+          description: fields.description,
+          formatted_address: fields.location,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", mapping.appointment_id);
+
+      await admin
+        .from("google_calendar_event_map")
+        .update({
+          etag: currentEtag,
+          last_synced_at: new Date().toISOString(),
+          last_updated_by: "google",
+        })
+        .eq("id", mapping.id);
+
+      updated++;
+    } else if (crmOriginated) {
+      // CRM-originated but mapping lost — re-link
+      const aptId = extractCrmAppointmentId(gEvent);
+      if (aptId) {
+        await admin.from("google_calendar_event_map").insert({
+          company_id: companyId,
+          user_id: userId,
+          appointment_id: aptId,
+          google_event_id: googleEventId,
+          google_calendar_id: calId,
+          etag: currentEtag,
+          source: "crm",
+          last_synced_at: new Date().toISOString(),
+          last_updated_by: "google",
+        });
+      }
+    } else if (allowImport) {
+      // New Google-only event → import to CRM
+      const fields = parseGoogleEventToCrmFields(gEvent);
+      const { data: newApt } = await admin
+        .from("appointments")
+        .insert({
+          company_id: companyId,
+          created_by: userId,
+          title: fields.title || "Evento Google",
+          appointment_date: fields.date,
+          appointment_time: fields.time,
+          appointment_end_time: fields.endTime,
+          description: fields.description,
+          formatted_address: fields.location,
+          appointment_type: "altro",
+          status: "confermato",
+          is_completed: false,
+          is_blocked_slot: false,
+        })
+        .select("id")
+        .single();
+
+      if (newApt) {
+        await admin.from("google_calendar_event_map").insert({
+          company_id: companyId,
+          user_id: userId,
+          appointment_id: newApt.id,
+          google_event_id: googleEventId,
+          google_calendar_id: calId,
+          etag: currentEtag,
+          source: "google",
+          last_synced_at: new Date().toISOString(),
+          last_updated_by: "google",
+        });
+        created++;
+      }
+    }
+  }
+
+  // Clean up mappings for events deleted on Google
+  for (const [gId, mapping] of mappingsByGoogleId.entries()) {
+    if (!seenGoogleIds.has(gId)) {
+      await admin.from("google_calendar_event_map").delete().eq("id", mapping.id);
+      removed++;
+    }
+  }
+
+  return { created, updated, removed };
 }
 
 // ---- FULL SYNC ----
@@ -412,7 +578,10 @@ async function fullSync(userId: string, companyId: string): Promise<Response> {
   const pullRes = await pullBusySlots(userId, companyId);
   const pullData = await pullRes.json();
 
-  return json({ ...pullData, action: "full-sync" });
+  // Run two-way reconciliation if enabled
+  const reconcileResult = await reconcilePrimary(userId, companyId);
+
+  return json({ ...pullData, reconcile: reconcileResult, action: "full-sync" });
 }
 
 // ---- HELPERS ----
@@ -425,7 +594,6 @@ function buildGoogleEvent(apt: any) {
 
   if (hasTime) {
     const startDateTime = `${dateStr}T${apt.appointment_time}:00`;
-    // Default 1 hour duration
     const endTime = apt.appointment_end_time
       ? `${dateStr}T${apt.appointment_end_time}:00`
       : addHour(startDateTime);
@@ -458,6 +626,59 @@ function addHour(dateTime: string): string {
   d.setHours(d.getHours() + 1);
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+}
+
+function isCrmOriginated(gEvent: any): boolean {
+  const desc = gEvent.description || "";
+  return desc.includes("crm_sync=true");
+}
+
+function extractCrmAppointmentId(gEvent: any): string | null {
+  const desc = gEvent.description || "";
+  const match = desc.match(/crm_appointment_id=([0-9a-f-]{36})/i);
+  return match ? match[1] : null;
+}
+
+function parseGoogleEventToCrmFields(gEvent: any): {
+  title: string | null;
+  date: string;
+  time: string | null;
+  endTime: string | null;
+  description: string | null;
+  location: string | null;
+} {
+  const title = gEvent.summary || null;
+  const location = gEvent.location || null;
+
+  // Strip CRM metadata from description
+  let description = gEvent.description || "";
+  description = description
+    .replace(/crm_appointment_id=[0-9a-f-]{36}/gi, "")
+    .replace(/crm_sync=true/gi, "")
+    .replace(/crm_last_update=[^\n]*/gi, "")
+    .replace(/\n{2,}/g, "\n")
+    .trim() || null;
+
+  const isAllDay = !!gEvent.start?.date;
+  let date: string;
+  let time: string | null = null;
+  let endTime: string | null = null;
+
+  if (isAllDay) {
+    date = gEvent.start.date; // YYYY-MM-DD
+  } else {
+    const dt = new Date(gEvent.start.dateTime);
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    date = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+
+    if (gEvent.end?.dateTime) {
+      const edt = new Date(gEvent.end.dateTime);
+      endTime = `${pad(edt.getHours())}:${pad(edt.getMinutes())}`;
+    }
+  }
+
+  return { title, date, time, endTime, description, location };
 }
 
 // ---- MAIN ----
@@ -504,6 +725,9 @@ Deno.serve(async (req) => {
         return deleteEvent(userId, companyId, appointmentId);
       case "full-sync":
         return fullSync(userId, companyId);
+      case "reconcile":
+        const result = await reconcilePrimary(userId, companyId);
+        return json({ success: true, reconcile: result });
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
     }

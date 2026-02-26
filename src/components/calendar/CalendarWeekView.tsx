@@ -15,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown, CalendarClock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown, CalendarClock, Check } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
@@ -30,6 +30,7 @@ interface CalendarWeekViewProps {
   busySlots?: GoogleBusySlot[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
+  syncedAppointmentIds?: Set<string>;
 }
 
 interface WeekEvent {
@@ -47,6 +48,7 @@ export function CalendarWeekView({
   busySlots = [],
   currentDate,
   onDateChange,
+  syncedAppointmentIds,
 }: CalendarWeekViewProps) {
   const isMobile = useIsMobile();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
@@ -147,6 +149,7 @@ export function CalendarWeekView({
       const apt = event.appointment;
       const style = getEventStyle("appointment");
       const AptIcon = APPOINTMENT_ICONS[apt.appointment_type] || CalendarClock;
+      const isSynced = syncedAppointmentIds?.has(apt.id);
 
       return (
         <button
@@ -165,6 +168,7 @@ export function CalendarWeekView({
           <div className="flex items-center gap-1 font-medium">
             <AptIcon className="h-3 w-3 flex-shrink-0" />
             <span className="truncate">{apt.title}</span>
+            {isSynced && <Check className="h-3 w-3 flex-shrink-0 text-green-500" />}
           </div>
           {apt.appointment_time && (
             <div className="truncate mt-0.5 opacity-80 text-[10px]">
