@@ -129,6 +129,9 @@ export default function GoogleCalendarConnectionTab() {
   // Listen for OAuth result
   useEffect(() => {
     const handler = (event: MessageEvent) => {
+      // Validate origin to prevent cross-origin message injection
+      const trustedOrigins = [window.location.origin, "https://edilizia-in-cloud.lovable.app"];
+      if (!trustedOrigins.includes(event.origin)) return;
       if (event.data?.type === "GOOGLE_OAUTH_RESULT") {
         if (event.data.status === "success") {
           toast.success("Google Calendar collegato!");

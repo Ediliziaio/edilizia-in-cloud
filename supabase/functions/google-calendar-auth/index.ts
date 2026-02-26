@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,35 +20,7 @@ function getSupabaseAdmin() {
   );
 }
 
-function getEncryptionKey(): string {
-  const key = Deno.env.get("GOOGLE_TOKEN_ENCRYPTION_KEY");
-  if (key) return key;
-  // Fallback: derive from service role key (always available)
-  const srk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "default-dev-key";
-  return srk.substring(0, 32);
-}
-
-// Simple XOR-based obfuscation with base64 (lightweight encryption for tokens at rest)
-// In production, consider pgcrypto or Vault
-function encrypt(text: string, key: string): string {
-  const textBytes = new TextEncoder().encode(text);
-  const keyBytes = new TextEncoder().encode(key);
-  const encrypted = new Uint8Array(textBytes.length);
-  for (let i = 0; i < textBytes.length; i++) {
-    encrypted[i] = textBytes[i] ^ keyBytes[i % keyBytes.length];
-  }
-  return btoa(String.fromCharCode(...encrypted));
-}
-
-function decrypt(encoded: string, key: string): string {
-  const encrypted = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
-  const keyBytes = new TextEncoder().encode(key);
-  const decrypted = new Uint8Array(encrypted.length);
-  for (let i = 0; i < encrypted.length; i++) {
-    decrypted[i] = encrypted[i] ^ keyBytes[i % keyBytes.length];
-  }
-  return new TextDecoder().decode(decrypted);
-}
+// encrypt/decrypt/getEncryptionKey imported from _shared/encryption.ts
 
 async function getRedirectUri(): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -116,6 +89,7 @@ async function handleCallback(req: Request): Promise<Response> {
       redirect_uri: redirectUri,
       grant_type: "authorization_code",
     }),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!tokenRes.ok) {
@@ -130,6 +104,7 @@ async function handleCallback(req: Request): Promise<Response> {
   // Get user info from Google
   const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
+    signal: AbortSignal.timeout(15000),
   });
   const userInfo = userInfoRes.ok ? await userInfoRes.json() : {};
 
@@ -205,7 +180,7 @@ async function handleDisconnect(userId: string, companyId: string): Promise<Resp
     try {
       const encKey = getEncryptionKey();
       const token = decrypt(conn.access_token_encrypted, encKey);
-      await fetch(`https://oauth2.googleapis.com/revoke?token=${token}`, { method: "POST" });
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${token}`, { method: "POST", signal: AbortSignal.timeout(10000) });
     } catch (e) {
       console.warn("Token revoke failed (non-critical):", e);
     }
@@ -253,6 +228,7 @@ async function handleRefresh(userId: string, companyId: string): Promise<Respons
       refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!tokenRes.ok) {
@@ -321,7 +297,7 @@ async function handleListCalendars(userId: string, companyId: string): Promise<R
 
   const calRes = await fetch(
     "https://www.googleapis.com/calendar/v3/users/me/calendarList",
-    { headers: { Authorization: `Bearer ${accessToken}` } }
+    { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15000) }
   );
 
   if (!calRes.ok) {
@@ -348,8 +324,24 @@ async function handleListCalendars(userId: string, companyId: string): Promise<R
 }
 
 function buildCallbackHtml(status: string, error?: string): Response {
+  // Use Supabase URL origin as a safe fallback for postMessage target
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  // Extract the project ref to build the preview/published origins
+  const projectRef = supabaseUrl.replace("https://", "").split(".")[0];
+  const allowedOrigins = [
+    `https://${projectRef}.supabase.co`,
+    "https://edilizia-in-cloud.lovable.app",
+  ];
   const html = `<!DOCTYPE html><html><body><script>
-    window.opener?.postMessage({ type: "GOOGLE_OAUTH_RESULT", status: "${status}", error: ${JSON.stringify(error || null)} }, "*");
+    var allowedOrigins = ${JSON.stringify(allowedOrigins)};
+    var msg = { type: "GOOGLE_OAUTH_RESULT", status: "${status}", error: ${JSON.stringify(error || null)} };
+    if (window.opener) {
+      allowedOrigins.forEach(function(origin) {
+        try { window.opener.postMessage(msg, origin); } catch(e) {}
+      });
+      // Also try current origin for preview URLs
+      try { window.opener.postMessage(msg, window.location.origin); } catch(e) {}
+    }
     window.close();
   </script><p>${status === "success" ? "Connesso! Puoi chiudere questa finestra." : "Errore: " + (error || "sconosciuto")}</p></body></html>`;
   return new Response(html, {

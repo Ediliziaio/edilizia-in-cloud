@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,32 +22,7 @@ function getSupabaseAdmin() {
   );
 }
 
-function getEncryptionKey(): string {
-  const key = Deno.env.get("GOOGLE_TOKEN_ENCRYPTION_KEY");
-  if (key) return key;
-  const srk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "default-dev-key";
-  return srk.substring(0, 32);
-}
-
-function encrypt(text: string, key: string): string {
-  const textBytes = new TextEncoder().encode(text);
-  const keyBytes = new TextEncoder().encode(key);
-  const encrypted = new Uint8Array(textBytes.length);
-  for (let i = 0; i < textBytes.length; i++) {
-    encrypted[i] = textBytes[i] ^ keyBytes[i % keyBytes.length];
-  }
-  return btoa(String.fromCharCode(...encrypted));
-}
-
-function decrypt(encoded: string, key: string): string {
-  const encrypted = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
-  const keyBytes = new TextEncoder().encode(key);
-  const decrypted = new Uint8Array(encrypted.length);
-  for (let i = 0; i < encrypted.length; i++) {
-    decrypted[i] = encrypted[i] ^ keyBytes[i % keyBytes.length];
-  }
-  return new TextDecoder().decode(decrypted);
-}
+// encrypt/decrypt/getEncryptionKey imported from _shared/encryption.ts
 
 // Get a valid access token, refreshing if expired
 async function getValidAccessToken(
@@ -79,6 +55,7 @@ async function getValidAccessToken(
       refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!tokenRes.ok) {
@@ -161,7 +138,7 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
 
       const res = await fetch(
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?${params}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
+        { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15000) }
       );
 
       if (!res.ok) {
@@ -274,6 +251,7 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
         "Content-Type": "application/json",
       },
       body: JSON.stringify(googleEvent),
+      signal: AbortSignal.timeout(15000),
     }
   );
 
@@ -338,6 +316,7 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
         "Content-Type": "application/json",
       },
       body: JSON.stringify(googleEvent),
+      signal: AbortSignal.timeout(15000),
     }
   );
 
@@ -383,6 +362,7 @@ async function deleteEvent(userId: string, companyId: string, appointmentId: str
       {
         method: "DELETE",
         headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(15000),
       }
     );
     if (!res.ok && res.status !== 404 && res.status !== 410) {
@@ -437,7 +417,7 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
 
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?${params}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
+    { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15000) }
   );
 
   if (!res.ok) {
@@ -797,8 +777,13 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    // Cron full-sync: no JWT user needed, just valid auth header (anon key from pg_cron)
+    // Cron full-sync: validate that the token is the anon key (from pg_cron)
     if (action === "cron-full-sync") {
+      const token = authHeader.replace("Bearer ", "");
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      if (token !== anonKey) {
+        return json({ error: "Unauthorized for cron" }, 403);
+      }
       return cronFullSync();
     }
 

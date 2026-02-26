@@ -165,17 +165,17 @@ function SyncLogs() {
                               <div className="space-y-2">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dettaglio per utente</p>
                                 <div className="grid gap-2">
-                                  {results.map((r: any, i: number) => (
-                                    <div key={i} className="flex items-center gap-3 text-sm rounded-md border bg-background p-3">
-                                      <span className="font-medium">{r.user_id?.slice(0, 8)}…</span>
-                                      {r.error ? (
-                                        <span className="text-destructive text-xs">{r.error}</span>
-                                      ) : (
-                                        <span className="text-muted-foreground text-xs">
-                                          Push: {r.pushed ?? 0} | Pull: {r.pulled ?? 0} | Deleted: {r.deleted ?? 0}
-                                        </span>
-                                      )}
-                                    </div>
+                                    {results.map((r: any, i: number) => (
+                                     <div key={i} className="flex items-center gap-3 text-sm rounded-md border bg-background p-3">
+                                       <span className="font-medium">{(r.userId || r.user_id)?.slice(0, 8)}…</span>
+                                       {r.error ? (
+                                         <span className="text-destructive text-xs">{r.error}</span>
+                                       ) : (
+                                         <span className="text-muted-foreground text-xs">
+                                           Pull: {r.pull?.pulled ?? 0} | Created: {r.reconcile?.created ?? 0} | Updated: {r.reconcile?.updated ?? 0} | Removed: {r.reconcile?.removed ?? 0}
+                                         </span>
+                                       )}
+                                     </div>
                                   ))}
                                 </div>
                               </div>
