@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
-import type { Integration } from "@/types/integrations";
+import type { Integration, IntegrationStatus, IntegrationHealth } from "@/types/integrations";
 
 export default function SettingsIntegrations() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
+  const userId = user?.id;
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
   const navigate = useNavigate();
@@ -28,6 +29,22 @@ export default function SettingsIntegrations() {
       return (data || []) as Integration[];
     },
     enabled: !!companyId,
+  });
+
+  // Google Calendar connection status for current user
+  const { data: gcalConnection } = useQuery({
+    queryKey: ["google-calendar-connection", companyId, userId],
+    queryFn: async () => {
+      if (!companyId || !userId) return null;
+      const { data } = await supabase
+        .from("google_calendar_connections")
+        .select("id, status, google_account_email, updated_at")
+        .eq("company_id", companyId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!companyId && !!userId,
   });
 
   const metaIntegration = integrations.find((i) => i.provider === "meta");
@@ -60,6 +77,23 @@ export default function SettingsIntegrations() {
     enabled: !!companyId && !!metaIntegration?.id,
   });
 
+  // Build a fake Integration-like object for Google Calendar card
+  const gcalIntegrationLike: Integration | null = gcalConnection
+    ? {
+        id: gcalConnection.id,
+        company_id: companyId,
+        provider: "google_calendar" as const,
+        status: gcalConnection.status as IntegrationStatus,
+        connected_by: null,
+        health: "ok" as IntegrationHealth,
+        last_sync_at: null,
+        last_error_code: null,
+        last_error_message: null,
+        created_at: "",
+        updated_at: gcalConnection.updated_at,
+      }
+    : null;
+
   const availableIntegrations = useMemo(() => {
     const items = [
       {
@@ -75,7 +109,7 @@ export default function SettingsIntegrations() {
         name: "Google Calendar",
         description: "Sincronizza appuntamenti e blocca slot occupati. Gestisci il collegamento da Impostazioni > Calendari > Collegamenti.",
         icon: "google_calendar",
-        integration: null as Integration | null,
+        integration: gcalIntegrationLike,
         stats: null as { pages: number; forms: number } | null,
       },
     ];
@@ -84,7 +118,7 @@ export default function SettingsIntegrations() {
     return items.filter(
       (i) => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q)
     );
-  }, [search, metaIntegration, stats]);
+  }, [search, metaIntegration, stats, gcalIntegrationLike]);
 
   return (
     <div className="space-y-6">
