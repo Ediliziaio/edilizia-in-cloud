@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Building2, Users, ShoppingCart, Server, Copy, Check, Shield, Eye, EyeOff, Info, MapPin, MessageSquare, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -193,6 +194,71 @@ const API_CARDS = [
   },
 ] as const;
 
+const GOOGLE_POLICY_TOGGLES = [
+  {
+    key: "google_calendar_allow_two_way",
+    label: "Sincronizzazione bidirezionale (Two-Way)",
+    description: "Permette agli utenti di abilitare la sincronizzazione bidirezionale tra CRM e Google Calendar.",
+  },
+  {
+    key: "google_calendar_allow_guest_contact_create",
+    label: "Crea contatti da invitati",
+    description: "Permette di creare automaticamente contatti CRM dai partecipanti degli eventi Google.",
+  },
+  {
+    key: "google_calendar_allow_google_to_crm_import",
+    label: "Importa eventi Google come appuntamenti CRM",
+    description: "Permette di trasformare eventi Google (con regole di import) in appuntamenti CRM.",
+  },
+] as const;
+
+function GoogleCalendarPoliciesCard({
+  settings,
+  isLoading,
+  onToggle,
+  isSaving,
+}: {
+  settings: SettingsMap | undefined;
+  isLoading: boolean;
+  onToggle: (key: string, value: boolean) => void;
+  isSaving: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <CalendarDays className="h-5 w-5 text-primary" />
+          <CardTitle>Policy Google Calendar</CardTitle>
+        </div>
+        <CardDescription>
+          Abilita o disabilita le funzionalità avanzate di sincronizzazione Google Calendar per tutte le aziende.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {GOOGLE_POLICY_TOGGLES.map((toggle) => {
+          const currentValue = settings?.[toggle.key]?.value === "true";
+          return (
+            <div key={toggle.key} className="flex items-center justify-between gap-4 py-2">
+              <div className="flex-1">
+                <p className="text-sm font-medium">{toggle.label}</p>
+                <p className="text-xs text-muted-foreground">{toggle.description}</p>
+              </div>
+              <Switch
+                checked={currentValue}
+                onCheckedChange={(checked) => onToggle(toggle.key, checked)}
+                disabled={isSaving || isLoading}
+              />
+            </div>
+          );
+        })}
+        <p className="text-xs text-muted-foreground pt-2 border-t">
+          Queste policy controllano le opzioni disponibili nella modale "Preferenze di sincronizzazione" di ogni utente.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PlatformInfoTab() {
   const queryClient = useQueryClient();
 
@@ -266,6 +332,14 @@ export default function PlatformInfoTab() {
           isSaving={saveMutation.isPending}
         />
       ))}
+
+      {/* Google Calendar Policy Toggles */}
+      <GoogleCalendarPoliciesCard
+        settings={settings}
+        isLoading={settingsLoading}
+        onToggle={(key, value) => saveMutation.mutate({ [key]: value ? "true" : "false" })}
+        isSaving={saveMutation.isPending}
+      />
 
       <Card>
         <CardHeader>
