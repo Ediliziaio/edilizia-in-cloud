@@ -204,14 +204,29 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
     }
   }
 
-  // Clean up stale slots
+  // Clean up stale slots — delete events no longer returned by Google
   if (allGoogleEventIds.length > 0) {
+    // Get all existing slots for this user
+    const { data: existingSlots } = await admin
+      .from("google_calendar_busy_slots")
+      .select("id, google_event_id")
+      .eq("company_id", companyId)
+      .eq("user_id", userId);
+
+    const staleIds = (existingSlots || [])
+      .filter((s: any) => !allGoogleEventIds.includes(s.google_event_id))
+      .map((s: any) => s.id);
+
+    if (staleIds.length > 0) {
+      await admin.from("google_calendar_busy_slots").delete().in("id", staleIds);
+    }
+  } else {
+    // No events found at all — clear all slots for this user
     await admin
       .from("google_calendar_busy_slots")
       .delete()
       .eq("company_id", companyId)
-      .eq("user_id", userId)
-      .not("google_event_id", "in", `(${allGoogleEventIds.map(id => `"${id}"`).join(",")})`);
+      .eq("user_id", userId);
   }
 
   // Update last_sync_at
@@ -463,12 +478,13 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData?.user) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims) {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    const userId = userData.user.id;
+    const userId = claimsData.claims.sub as string;
     const body = await req.json();
     const { action, companyId, appointmentId } = body;
 
