@@ -1,41 +1,59 @@
 
 
-# Procedere senza GOOGLE_TOKEN_ENCRYPTION_KEY
+# Analisi Gap — Google Calendar Integration (Batch 1)
 
-## Problema
-L'edge function `google-calendar-auth` attualmente lancia un errore se `GOOGLE_TOKEN_ENCRYPTION_KEY` non è configurato. L'utente vuole procedere senza, aggiungendolo in seguito dalla UI SuperAdmin.
+Ho esaminato tutti i file implementati. Ecco cosa manca o ha bug rispetto ai requisiti.
 
-## Interventi
+---
 
-### 1. Edge function `google-calendar-auth/index.ts` — fallback encryption key
-Modificare `getEncryptionKey()` per usare un fallback deterministico derivato dal `SUPABASE_SERVICE_ROLE_KEY` (primi 32 char) quando il secret dedicato non è configurato. Questo permette l'encrypt/decrypt dei token anche senza il secret, con upgrade trasparente quando verrà aggiunto.
+## Problemi Critici (bloccanti)
 
-```typescript
-function getEncryptionKey(): string {
-  const key = Deno.env.get("GOOGLE_TOKEN_ENCRYPTION_KEY");
-  if (key) return key;
-  // Fallback: derive from service role key (always available)
-  const srk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "default-dev-key";
-  return srk.substring(0, 32);
-}
-```
+### 1. `supabase/config.toml` — entry mancante
+La function `google-calendar-auth` non ha la sua entry in config.toml. Senza di essa non verrà deployata correttamente.
 
-Rimuovere il `throw` — non blocca più l'esecuzione.
+**Fix**: aggiungere `[functions.google-calendar-auth] verify_jwt = false`
 
-### 2. `supabase/config.toml` — aggiungere entry function
-Aggiungere:
-```toml
-[functions.google-calendar-auth]
-verify_jwt = false
-```
+### 2. Edge function — `supabase.auth.getClaims()` non esiste
+Alla riga 392, il codice usa `supabase.auth.getClaims()` che non esiste nel client Supabase JS v2. La function crasherà con un errore runtime su ogni chiamata POST autenticata.
 
-Attualmente mancante — senza questo la function non si deploya correttamente.
+**Fix**: sostituire con `supabase.auth.getUser()` e leggere `data.user.id` per ottenere lo userId.
 
-### File modificati
-| File | Modifica |
-|------|----------|
-| `supabase/functions/google-calendar-auth/index.ts` | Fallback encryption key senza throw |
-| `supabase/config.toml` | Aggiungere entry function |
+---
 
-Nessuna regressione: il comportamento è identico quando il secret è presente, e funziona con fallback quando non lo è.
+## Problemi UI (funzionali)
+
+### 3. PlatformInfoTab — mancano i 3 toggle policy SuperAdmin
+La card Google Calendar ha solo i campi client_id e client_secret, ma manca la sezione con i 3 toggle obbligatori:
+- `google_calendar_allow_two_way` (default false)
+- `google_calendar_allow_guest_contact_create` (default false)  
+- `google_calendar_allow_google_to_crm_import` (default false)
+
+Senza questi toggle, il componente `GoogleCalendarSyncPrefsDialog` non può leggere le policy e mostrerà sempre tutto disabilitato.
+
+**Fix**: aggiungere una sezione toggle dedicata sotto la card API di Google Calendar in `PlatformInfoTab.tsx`, con switch persistiti come `platform_settings`.
+
+### 4. IntegrationCard — card Google Calendar mostra sempre "Collega"
+L'`integration` per Google Calendar è hardcodata come `null` (riga 78 di SettingsIntegrations). Quindi il bottone mostra sempre "Collega" anche quando l'utente ha già collegato Google. Dovrebbe leggere lo stato dalla tabella `google_calendar_connections`.
+
+**Fix**: query `google_calendar_connections` per lo user corrente e passare lo stato alla card. Se connesso, mostrare "Gestisci" invece di "Collega".
+
+---
+
+## Riepilogo interventi
+
+| # | File | Intervento | Criticità |
+|---|------|-----------|-----------|
+| 1 | `supabase/config.toml` | Aggiungere entry function | Bloccante |
+| 2 | `supabase/functions/google-calendar-auth/index.ts` | Fix `getClaims` → `getUser` | Bloccante |
+| 3 | `src/components/admin/settings/PlatformInfoTab.tsx` | Aggiungere sezione toggle policy Google Calendar | Funzionale |
+| 4 | `src/pages/azienda/settings/SettingsIntegrations.tsx` | Query stato connessione Google per mostrare "Gestisci" vs "Collega" | Funzionale |
+
+### Non necessario ora (Batch 2-3)
+- Sync engine pull/push (Batch 2)
+- Appointment hooks CRM→Google (Batch 2)
+- Two-way reconciliation e anti-loop (Batch 3)
+- Badge "Google Synced" nel calendario (Batch 3)
+- Availability engine aggregation (Batch 2)
+
+Tutti gli elementi di Batch 1 (DB, OAuth, UI base) sono implementati correttamente tranne questi 4 fix.
 
