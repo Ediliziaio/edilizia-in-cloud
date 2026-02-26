@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import {
   startOfMonth,
   endOfMonth,
@@ -39,6 +39,7 @@ export default function MarketingCalendarMonthView({
 }: Props) {
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
+  const justDragged = useRef(false);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
@@ -74,6 +75,8 @@ export default function MarketingCalendarMonthView({
     setActiveApt(null);
     const { active, over } = event;
     if (!over || !onDropAppointment) return;
+    justDragged.current = true;
+    setTimeout(() => { justDragged.current = false; }, 200);
     const aptId = (active.id as string).replace("apt-", "");
     const overId = over.id as string;
     if (!overId.startsWith("day-")) return;
@@ -111,7 +114,7 @@ export default function MarketingCalendarMonthView({
                     !inMonth && "opacity-40",
                     isToday(day) && "bg-primary/5"
                   )}
-                  onClick={() => onClickDay(day)}
+                  onClick={() => { if (!justDragged.current) onClickDay(day); }}
                 >
                   <div
                     className={cn(

@@ -5,7 +5,7 @@ import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type Dra
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
-import { buildTimeSlots, buildColorMap } from "@/lib/marketingCalendarConstants";
+import { buildTimeSlots, buildColorMap, timeToMin } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
 
@@ -31,10 +31,6 @@ function getSlotHeight(minutes: number) {
   return SLOT_HEIGHT[minutes] || SLOT_HEIGHT[30];
 }
 
-function timeToMin(t: string) {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + (m || 0);
-}
 
 export default function MarketingCalendarDayView({
   date,
@@ -87,11 +83,7 @@ export default function MarketingCalendarDayView({
     if (apt.appointment_end_time) {
       const endMin = timeToMin(apt.appointment_end_time);
       if (endMin > startMin) {
-        const durationMin = endMin - startMin;
-        const height = durationMin * pxPerMinute;
-        // Only return explicit height if it exceeds one slot
-        if (durationMin > slotDurationMinutes) return height;
-        return height;
+    return (endMin - startMin) * pxPerMinute;
       }
     }
     return undefined;

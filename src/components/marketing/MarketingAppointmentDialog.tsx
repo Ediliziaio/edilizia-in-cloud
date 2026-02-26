@@ -75,13 +75,7 @@ interface Props {
   defaultContactId?: string;
 }
 
-function addMinutesToTime(time: string, minutes: number): string {
-  const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m + minutes;
-  const nh = Math.floor(total / 60) % 24;
-  const nm = total % 60;
-  return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
-}
+import { addMinutesToTimeStr as addMinutesToTime } from "@/lib/marketingCalendarConstants";
 
 export default function MarketingAppointmentDialog({
   open,
@@ -371,7 +365,7 @@ export default function MarketingAppointmentDialog({
       };
 
       if (isEditing && appointment?.id) {
-        const { error } = await supabase.from("appointments").update(payload).eq("id", appointment.id);
+        const { error } = await supabase.from("appointments").update(payload).eq("id", appointment.id).eq("company_id", companyId!);
         if (error) throw error;
         toast({ title: isBlocked ? "Tempo bloccato aggiornato" : "Appuntamento aggiornato" });
       } else {
@@ -403,10 +397,12 @@ export default function MarketingAppointmentDialog({
   };
 
   const handleDelete = async () => {
-    if (!appointment?.id) return;
+    if (!appointment?.id || !companyId) return;
+    const confirmed = window.confirm("Sei sicuro di voler eliminare questo appuntamento? L'azione non è reversibile.");
+    if (!confirmed) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from("appointments").delete().eq("id", appointment.id);
+      const { error } = await supabase.from("appointments").delete().eq("id", appointment.id).eq("company_id", companyId);
       if (error) throw error;
       toast({ title: "Eliminato con successo" });
       onSaved();

@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import type { MarketingAppointment } from "@/types/marketingCalendar";
 
@@ -27,9 +28,9 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 
 const ROWS_OPTIONS = [10, 25, 50];
 
-const TODAY_STR = new Date().toDateString();
-
 export default function MarketingAppointmentsList({ appointments, onRefresh, onClickAppointment }: Props) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   const [subTab, setSubTab] = useState<"prossimo" | "annullato" | "tutti">("prossimo");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -39,8 +40,10 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
     let list = appointments;
 
     if (subTab === "prossimo") {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
       list = list.filter(
-        (a) => a.status !== "annullato" && isAfter(parseISO(a.appointment_date), new Date(TODAY_STR))
+        (a) => a.status !== "annullato" && isAfter(parseISO(a.appointment_date), todayStart)
       );
     } else if (subTab === "annullato") {
       list = list.filter((a) => a.status === "annullato");
@@ -64,7 +67,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
   const paged = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
 
   const handleStatusChange = async (id: string, newStatus: string) => {
-    const { error } = await supabase.from("appointments").update({ status: newStatus } as any).eq("id", id);
+    const { error } = await supabase.from("appointments").update({ status: newStatus } as any).eq("id", id).eq("company_id", companyId);
     if (error) {
       toast({ title: "Errore", description: error.message, variant: "destructive" });
     } else {
