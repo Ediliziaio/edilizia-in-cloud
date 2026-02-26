@@ -1,77 +1,44 @@
 
 
-# Cron Job per Google Calendar Full-Sync Automatico
+# Cron Job 5min + Audit Trail per Google Calendar Sync
 
-## Problema
-Il sync attuale richiede che un utente autenticato clicchi "Sync Google" manualmente. Serve un cron job che esegua `full-sync` per **tutti** gli utenti connessi ogni 15 minuti.
+## Modifiche
 
-## Approccio
+### 1. Nuova tabella: `google_calendar_sync_log`
+Tabella dedicata per salvare ogni esecuzione del cron sync.
 
-### 1. Nuova Edge Function: `google-calendar-cron-sync`
-
-Una function dedicata (senza autenticazione utente) che:
-- Viene invocata dal cron job con un semplice header di autorizzazione (anon key)
-- Legge tutte le righe da `google_calendar_connections` con `status = 'connected'`
-- Per ognuna, invoca internamente le stesse funzioni `pullBusySlots(userId, companyId)` e `reconcilePrimary(userId, companyId)` — duplicandone la logica inline oppure richiamando la function esistente via HTTP
-- Logga risultati per utente e ritorna un riepilogo
-
-**Scelta architetturale**: la function chiamerà internamente `google-calendar-sync` via HTTP con un service-role token per ogni connessione, così riusa tutta la logica esistente senza duplicarla.
-
-### 2. Modifica `google-calendar-sync/index.ts`
-
-Aggiungere una nuova action `"cron-full-sync"` che:
-- Accetta autenticazione via service role (non richiede JWT utente)
-- Riceve `userId` e `companyId` nel body (passati dalla cron function)
-- Esegue `fullSync(userId, companyId)` direttamente
-
-Questo evita di creare una function separata: il cron job chiama direttamente la stessa function con action speciale.
-
-### 3. Cron Job via `pg_cron` + `pg_net`
-
-SQL insert (non migration) per schedulare ogni 15 minuti:
 ```sql
-SELECT cron.schedule(
-  'google-calendar-auto-sync',
-  '*/15 * * * *',
-  $$ SELECT net.http_post(
-    url := 'https://guqgszwelffntrgtsycm.supabase.co/functions/v1/google-calendar-sync',
-    headers := '{"Content-Type":"application/json","Authorization":"Bearer <anon_key>"}'::jsonb,
-    body := '{"action":"cron-full-sync"}'::jsonb
-  ) AS request_id; $$
+CREATE TABLE public.google_calendar_sync_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  started_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  connections_found integer NOT NULL DEFAULT 0,
+  connections_synced integer NOT NULL DEFAULT 0,
+  connections_failed integer NOT NULL DEFAULT 0,
+  results jsonb DEFAULT '[]'::jsonb,
+  status text NOT NULL DEFAULT 'running', -- running, completed, failed
+  error_message text
 );
 ```
 
-### 4. Logica `cron-full-sync` nell'edge function
+No RLS needed — only accessed by service role from edge function.
 
-Dentro il main handler, quando `action === "cron-full-sync"`:
-- Verifica che la richiesta provenga dal service role o anon key (non serve un utente specifico)
-- Usa `getSupabaseAdmin()` per leggere tutte le connessioni attive
-- Per ogni connessione: esegue `pullBusySlots` + `reconcilePrimary` con i rispettivi `user_id` e `company_id`
-- Ritorna un array di risultati
+### 2. Modifica `supabase/functions/google-calendar-sync/index.ts`
+Update `cronFullSync()` to:
+- Create a log row at start (`status = 'running'`)
+- Update it at end with `completed_at`, counts, results array, and final status
+- On error, mark `status = 'failed'` with error message
 
-## File da modificare/creare
+### 3. Aggiorna cron job da 15min a 5min
+SQL insert (non migration) to:
+- `cron.unschedule('google-calendar-auto-sync')` — remove old schedule
+- `cron.schedule(...)` with `*/5 * * * *`
+
+## File da modificare
 
 | File | Azione |
 |------|--------|
-| `supabase/functions/google-calendar-sync/index.ts` | **Modifica** — aggiungere action `cron-full-sync` con loop su tutte le connessioni |
-| Database (SQL insert, non migration) | **Nuovo** — cron job `pg_cron` ogni 15 minuti |
-
-## Dettaglio implementativo
-
-### Action `cron-full-sync` nel main handler
-
-```text
-case "cron-full-sync":
-  // Skip JWT user validation — use service role
-  admin = getSupabaseAdmin()
-  connections = SELECT * FROM google_calendar_connections WHERE status = 'connected'
-  results = []
-  for each conn:
-    pull = pullBusySlots(conn.user_id, conn.company_id)
-    reconcile = reconcilePrimary(conn.user_id, conn.company_id)
-    results.push({ userId, companyId, pull, reconcile })
-  return json({ synced: results.length, results })
-```
-
-Il cron-full-sync bypass the JWT check (il cron job non ha un utente autenticato) ma valida che la richiesta contenga almeno l'anon key.
+| Migration SQL | Crea tabella `google_calendar_sync_log` |
+| `supabase/functions/google-calendar-sync/index.ts` | Modifica `cronFullSync` per scrivere audit log |
+| SQL insert (non migration) | Reschedule cron a 5 minuti |
 
