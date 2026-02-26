@@ -21,8 +21,10 @@ function getSupabaseAdmin() {
 
 function getEncryptionKey(): string {
   const key = Deno.env.get("GOOGLE_TOKEN_ENCRYPTION_KEY");
-  if (!key) throw new Error("GOOGLE_TOKEN_ENCRYPTION_KEY not configured");
-  return key;
+  if (key) return key;
+  // Fallback: derive from service role key (always available)
+  const srk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "default-dev-key";
+  return srk.substring(0, 32);
 }
 
 // Simple XOR-based obfuscation with base64 (lightweight encryption for tokens at rest)
