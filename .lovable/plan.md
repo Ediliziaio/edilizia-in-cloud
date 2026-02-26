@@ -1,44 +1,36 @@
 
 
-# Cron Job 5min + Audit Trail per Google Calendar Sync
+# Cron 5min + Pagina SuperAdmin Sync Logs
+
+## Stato attuale
+- La tabella `google_calendar_sync_log` esiste già nel database
+- La funzione `cronFullSync()` nell'edge function scrive già l'audit trail
+- Il cron job è schedulato a 15 minuti — va rischedulato a 5
 
 ## Modifiche
 
-### 1. Nuova tabella: `google_calendar_sync_log`
-Tabella dedicata per salvare ogni esecuzione del cron sync.
+### 1. Reschedule cron job a 5 minuti
+SQL insert (non migration) per rimuovere il vecchio job e crearne uno nuovo con `*/5 * * * *`.
 
-```sql
-CREATE TABLE public.google_calendar_sync_log (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  started_at timestamptz NOT NULL DEFAULT now(),
-  completed_at timestamptz,
-  connections_found integer NOT NULL DEFAULT 0,
-  connections_synced integer NOT NULL DEFAULT 0,
-  connections_failed integer NOT NULL DEFAULT 0,
-  results jsonb DEFAULT '[]'::jsonb,
-  status text NOT NULL DEFAULT 'running', -- running, completed, failed
-  error_message text
-);
-```
+### 2. Nuova pagina: `src/pages/admin/SyncLogs.tsx`
+Pagina SuperAdmin che mostra i log dalla tabella `google_calendar_sync_log`:
+- Tabella con colonne: Data avvio, Durata, Stato, Connessioni trovate/sincronizzate/fallite, Errore
+- Filtri: selezione stato (all/running/completed/failed) + date range (ultimo giorno/settimana/mese)
+- Badge colorati per stato (running=giallo, completed=verde, failed=rosso)
+- Espansione riga per mostrare il JSON `results` con dettaglio per-utente
+- Paginazione (ultime 50 esecuzioni)
+- Bottone "Aggiorna" per refresh manuale
 
-No RLS needed — only accessed by service role from edge function.
+### 3. Route + navigazione
+- Aggiungere lazy import e route `sync-logs` sotto `/admin` in `App.tsx`
+- Aggiungere voce di menu nella sidebar admin (`AdminLayout.tsx`) con icona `RefreshCw` e permesso `can_view_platform_stats`
 
-### 2. Modifica `supabase/functions/google-calendar-sync/index.ts`
-Update `cronFullSync()` to:
-- Create a log row at start (`status = 'running'`)
-- Update it at end with `completed_at`, counts, results array, and final status
-- On error, mark `status = 'failed'` with error message
-
-### 3. Aggiorna cron job da 15min a 5min
-SQL insert (non migration) to:
-- `cron.unschedule('google-calendar-auto-sync')` — remove old schedule
-- `cron.schedule(...)` with `*/5 * * * *`
-
-## File da modificare
+## File
 
 | File | Azione |
 |------|--------|
-| Migration SQL | Crea tabella `google_calendar_sync_log` |
-| `supabase/functions/google-calendar-sync/index.ts` | Modifica `cronFullSync` per scrivere audit log |
-| SQL insert (non migration) | Reschedule cron a 5 minuti |
+| SQL insert | Reschedule cron `*/5 * * * *` |
+| `src/pages/admin/SyncLogs.tsx` | **Nuovo** — pagina log sync |
+| `src/App.tsx` | **Modifica** — aggiungere lazy import + route |
+| `src/components/layouts/AdminLayout.tsx` | **Modifica** — aggiungere voce navigazione |
 
