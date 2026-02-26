@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   startOfWeek,
   addWeeks,
@@ -59,6 +59,7 @@ export default function MarketingCalendar() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
@@ -479,12 +480,18 @@ export default function MarketingCalendar() {
           } else {
             toast.info("Spostamento annullato");
             refetchAppointments();
+            queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+            queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
+            queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
           }
         },
       },
     });
     refetchAppointments();
-  }, [appointments, refetchAppointments]);
+    queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+    queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
+    queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
+  }, [appointments, refetchAppointments, queryClient]);
 
   // ── Resize handler ──
   const handleResizeAppointment = useCallback(async (appointmentId: string, newEndTime: string) => {
@@ -505,7 +512,10 @@ export default function MarketingCalendar() {
     }
     toast.success(`Durata aggiornata fino alle ${newEndTime}`);
     refetchAppointments();
-  }, [refetchAppointments]);
+    queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+    queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
+    queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
+  }, [refetchAppointments, queryClient]);
 
   const tabs = [
     { key: "calendar" as const, label: "Visualizza calendario" },
