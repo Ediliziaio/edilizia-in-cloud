@@ -685,48 +685,101 @@ function parseGoogleEventToCrmFields(gEvent: any): {
 async function cronFullSync(): Promise<Response> {
   const admin = getSupabaseAdmin();
 
-  const { data: connections, error } = await admin
-    .from("google_calendar_connections")
-    .select("user_id, company_id")
-    .eq("status", "connected");
+  // Create audit log row
+  const { data: logRow, error: logErr } = await admin
+    .from("google_calendar_sync_log")
+    .insert({ status: "running" })
+    .select("id")
+    .single();
 
-  if (error) {
-    console.error("cronFullSync: failed to fetch connections", error);
-    return json({ error: "Failed to fetch connections" }, 500);
-  }
+  const logId = logRow?.id;
+  if (logErr) console.error("cronFullSync: failed to create log row", logErr);
 
-  if (!connections || connections.length === 0) {
-    return json({ synced: 0, message: "No active connections" });
-  }
+  try {
+    const { data: connections, error } = await admin
+      .from("google_calendar_connections")
+      .select("user_id, company_id")
+      .eq("status", "connected");
 
-  const results: any[] = [];
-
-  for (const conn of connections) {
-    try {
-      console.log(`cronFullSync: syncing user=${conn.user_id} company=${conn.company_id}`);
-      const pullRes = await pullBusySlots(conn.user_id, conn.company_id);
-      const pullData = await pullRes.json();
-      const reconcileResult = await reconcilePrimary(conn.user_id, conn.company_id);
-      results.push({
-        userId: conn.user_id,
-        companyId: conn.company_id,
-        pull: pullData,
-        reconcile: reconcileResult,
-        status: "ok",
-      });
-    } catch (e: any) {
-      console.error(`cronFullSync: error for user=${conn.user_id}`, e);
-      results.push({
-        userId: conn.user_id,
-        companyId: conn.company_id,
-        status: "error",
-        error: e.message || "Unknown error",
-      });
+    if (error) {
+      console.error("cronFullSync: failed to fetch connections", error);
+      if (logId) {
+        await admin.from("google_calendar_sync_log").update({
+          status: "failed",
+          error_message: error.message,
+          completed_at: new Date().toISOString(),
+        }).eq("id", logId);
+      }
+      return json({ error: "Failed to fetch connections" }, 500);
     }
-  }
 
-  console.log(`cronFullSync: completed. Synced ${results.length} connections.`);
-  return json({ synced: results.length, results });
+    const total = connections?.length ?? 0;
+    if (total === 0) {
+      if (logId) {
+        await admin.from("google_calendar_sync_log").update({
+          status: "completed",
+          connections_found: 0,
+          completed_at: new Date().toISOString(),
+        }).eq("id", logId);
+      }
+      return json({ synced: 0, message: "No active connections" });
+    }
+
+    const results: any[] = [];
+    let synced = 0;
+    let failed = 0;
+
+    for (const conn of connections!) {
+      try {
+        console.log(`cronFullSync: syncing user=${conn.user_id} company=${conn.company_id}`);
+        const pullRes = await pullBusySlots(conn.user_id, conn.company_id);
+        const pullData = await pullRes.json();
+        const reconcileResult = await reconcilePrimary(conn.user_id, conn.company_id);
+        results.push({
+          userId: conn.user_id,
+          companyId: conn.company_id,
+          pull: pullData,
+          reconcile: reconcileResult,
+          status: "ok",
+        });
+        synced++;
+      } catch (e: any) {
+        console.error(`cronFullSync: error for user=${conn.user_id}`, e);
+        results.push({
+          userId: conn.user_id,
+          companyId: conn.company_id,
+          status: "error",
+          error: e.message || "Unknown error",
+        });
+        failed++;
+      }
+    }
+
+    // Update audit log
+    if (logId) {
+      await admin.from("google_calendar_sync_log").update({
+        status: "completed",
+        connections_found: total,
+        connections_synced: synced,
+        connections_failed: failed,
+        results: results,
+        completed_at: new Date().toISOString(),
+      }).eq("id", logId);
+    }
+
+    console.log(`cronFullSync: completed. Synced ${synced}, failed ${failed}.`);
+    return json({ synced, failed, total, results });
+  } catch (globalErr: any) {
+    console.error("cronFullSync: global error", globalErr);
+    if (logId) {
+      await admin.from("google_calendar_sync_log").update({
+        status: "failed",
+        error_message: globalErr.message || "Unknown global error",
+        completed_at: new Date().toISOString(),
+      }).eq("id", logId);
+    }
+    return json({ error: globalErr.message }, 500);
+  }
 }
 
 // ---- MAIN ----

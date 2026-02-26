@@ -1734,6 +1734,42 @@ export type Database = {
           },
         ]
       }
+      google_calendar_sync_log: {
+        Row: {
+          completed_at: string | null
+          connections_failed: number
+          connections_found: number
+          connections_synced: number
+          error_message: string | null
+          id: string
+          results: Json | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          connections_failed?: number
+          connections_found?: number
+          connections_synced?: number
+          error_message?: string | null
+          id?: string
+          results?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          connections_failed?: number
+          connections_found?: number
+          connections_synced?: number
+          error_message?: string | null
+          id?: string
+          results?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       integration_audit_log: {
         Row: {
           action: string
