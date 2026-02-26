@@ -681,6 +681,54 @@ function parseGoogleEventToCrmFields(gEvent: any): {
   return { title, date, time, endTime, description, location };
 }
 
+// ---- CRON FULL SYNC (all connected users) ----
+async function cronFullSync(): Promise<Response> {
+  const admin = getSupabaseAdmin();
+
+  const { data: connections, error } = await admin
+    .from("google_calendar_connections")
+    .select("user_id, company_id")
+    .eq("status", "connected");
+
+  if (error) {
+    console.error("cronFullSync: failed to fetch connections", error);
+    return json({ error: "Failed to fetch connections" }, 500);
+  }
+
+  if (!connections || connections.length === 0) {
+    return json({ synced: 0, message: "No active connections" });
+  }
+
+  const results: any[] = [];
+
+  for (const conn of connections) {
+    try {
+      console.log(`cronFullSync: syncing user=${conn.user_id} company=${conn.company_id}`);
+      const pullRes = await pullBusySlots(conn.user_id, conn.company_id);
+      const pullData = await pullRes.json();
+      const reconcileResult = await reconcilePrimary(conn.user_id, conn.company_id);
+      results.push({
+        userId: conn.user_id,
+        companyId: conn.company_id,
+        pull: pullData,
+        reconcile: reconcileResult,
+        status: "ok",
+      });
+    } catch (e: any) {
+      console.error(`cronFullSync: error for user=${conn.user_id}`, e);
+      results.push({
+        userId: conn.user_id,
+        companyId: conn.company_id,
+        status: "error",
+        error: e.message || "Unknown error",
+      });
+    }
+  }
+
+  console.log(`cronFullSync: completed. Synced ${results.length} connections.`);
+  return json({ synced: results.length, results });
+}
+
 // ---- MAIN ----
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -693,6 +741,15 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
 
+    const body = await req.json();
+    const { action } = body;
+
+    // Cron full-sync: no JWT user needed, just valid auth header (anon key from pg_cron)
+    if (action === "cron-full-sync") {
+      return cronFullSync();
+    }
+
+    // All other actions require authenticated user
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -706,8 +763,7 @@ Deno.serve(async (req) => {
     }
 
     const userId = claimsData.claims.sub as string;
-    const body = await req.json();
-    const { action, companyId, appointmentId } = body;
+    const { companyId, appointmentId } = body;
 
     if (!companyId) return json({ error: "companyId required" }, 400);
 
