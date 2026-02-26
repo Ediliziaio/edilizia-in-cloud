@@ -7,6 +7,7 @@ import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -17,14 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3, Plus } from "lucide-react";
-import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment } from "@/types/calendar";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3, Plus, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 
 export default function Calendar() {
   const { effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
+  const { isGoogleConnected, pullBusySlots } = useGoogleCalendarSync();
   const [view, setView] = useState<CalendarViewType>(isMobile ? "month" : "gantt");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -32,6 +35,7 @@ export default function Calendar() {
   const [employeeFilter, setEmployeeFilter] = useState<string>("all");
   const [externalTeamFilter, setExternalTeamFilter] = useState<string>("all");
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],
@@ -84,6 +88,22 @@ export default function Calendar() {
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch Google Calendar busy slots
+  const { data: busySlots = [] } = useQuery({
+    queryKey: ["gcal-busy-slots", effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("google_calendar_busy_slots")
+        .select("id, start_at, end_at, summary, is_all_day, user_id, google_calendar_id")
+        .eq("company_id", effectiveCompany.id);
+      if (error) throw error;
+      return (data || []) as GoogleBusySlot[];
+    },
+    enabled: !!effectiveCompany?.id && isGoogleConnected,
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: statuses = [] } = useQuery({
@@ -313,6 +333,22 @@ export default function Calendar() {
         </ToggleGroup>
 
         <div className="flex items-center gap-2">
+          {isGoogleConnected && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={syncing}
+              onClick={async () => {
+                setSyncing(true);
+                await pullBusySlots();
+                queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots"] });
+                setSyncing(false);
+              }}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
+              Sync Google
+            </Button>
+          )}
           <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Appuntamento
@@ -340,6 +376,7 @@ export default function Calendar() {
         <CalendarMonthView
           orders={scheduledOrders}
           appointments={appointments}
+          busySlots={busySlots}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
         />
@@ -347,6 +384,7 @@ export default function Calendar() {
         <CalendarWeekView
           orders={scheduledOrders}
           appointments={appointments}
+          busySlots={busySlots}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
         />

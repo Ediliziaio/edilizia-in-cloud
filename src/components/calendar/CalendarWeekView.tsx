@@ -21,12 +21,13 @@ import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
+import type { CalendarOrder, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 
 interface CalendarWeekViewProps {
   orders: CalendarOrder[];
   appointments?: CalendarAppointment[];
+  busySlots?: GoogleBusySlot[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
 }
@@ -34,7 +35,8 @@ interface CalendarWeekViewProps {
 interface WeekEvent {
   order?: CalendarOrder;
   appointment?: CalendarAppointment;
-  type: "posa" | "merce" | "lavoro" | "appointment";
+  busySlot?: GoogleBusySlot;
+  type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy";
 }
 
 
@@ -42,6 +44,7 @@ interface WeekEvent {
 export function CalendarWeekView({
   orders,
   appointments = [],
+  busySlots = [],
   currentDate,
   onDateChange,
 }: CalendarWeekViewProps) {
@@ -84,6 +87,12 @@ export function CalendarWeekView({
         events.push({ appointment: apt, type: "appointment" });
       }
     });
+    busySlots.forEach((slot) => {
+      const slotStart = parseISO(slot.start_at);
+      if (slot.is_all_day ? isSameDay(slotStart, day) : isSameDay(slotStart, day)) {
+        events.push({ busySlot: slot, type: "google_busy" });
+      }
+    });
     return events;
   };
 
@@ -94,7 +103,7 @@ export function CalendarWeekView({
     return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
   };
 
-  const getEventStyle = (type: "posa" | "merce" | "lavoro" | "appointment") => {
+  const getEventStyle = (type: WeekEvent["type"]) => {
     switch (type) {
       case "posa":
         return { bg: "bg-blue-100 dark:bg-blue-900/40", text: "text-blue-700 dark:text-blue-300", icon: Hammer };
@@ -104,6 +113,8 @@ export function CalendarWeekView({
         return { bg: "bg-green-100 dark:bg-green-900/40", text: "text-green-700 dark:text-green-300", icon: Wrench };
       case "appointment":
         return { bg: "bg-indigo-100 dark:bg-indigo-900/40", text: "text-indigo-700 dark:text-indigo-300", icon: CalendarClock };
+      case "google_busy":
+        return { bg: "bg-muted/60", text: "text-muted-foreground", icon: CalendarClock };
     }
   };
 
@@ -111,6 +122,26 @@ export function CalendarWeekView({
   const handleNextWeek = () => onDateChange(addWeeks(currentDate, 1));
 
   const renderEventCard = (event: WeekEvent, idx: number) => {
+    // Google busy slot
+    if (event.type === "google_busy" && event.busySlot) {
+      const style = getEventStyle("google_busy");
+      return (
+        <div
+          key={`busy-${event.busySlot.id}-${idx}`}
+          className={cn(
+            "w-full text-left p-2 rounded text-xs border border-dashed border-muted-foreground/40 cursor-default",
+            style.bg,
+            style.text
+          )}
+        >
+          <div className="flex items-center gap-1 font-medium">
+            <CalendarClock className="h-3 w-3 flex-shrink-0 opacity-60" />
+            <span className="truncate">{event.busySlot.summary || "Occupato (Google)"}</span>
+          </div>
+        </div>
+      );
+    }
+
     // Appointment event
     if (event.type === "appointment" && event.appointment) {
       const apt = event.appointment;
@@ -330,6 +361,10 @@ export function CalendarWeekView({
             <div className="w-3 h-3 rounded bg-indigo-100 dark:bg-indigo-900/40" />
             <CalendarClock className="h-3 w-3 text-indigo-600" />
             <span className="text-muted-foreground">Appuntamenti</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded border border-dashed border-muted-foreground/40 bg-muted/60" />
+            <span className="text-muted-foreground">Google Calendar (occupato)</span>
           </div>
         </div>
       </CardContent>

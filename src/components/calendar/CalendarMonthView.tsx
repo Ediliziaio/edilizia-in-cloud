@@ -25,13 +25,14 @@ import {
 import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
+import type { CalendarOrder, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 
 interface CalendarEvent {
-  type: "posa" | "merce" | "appointment";
+  type: "posa" | "merce" | "appointment" | "google_busy";
   order?: CalendarOrder;
   appointment?: CalendarAppointment;
+  busySlot?: GoogleBusySlot;
   color: string;
 }
 
@@ -40,6 +41,7 @@ interface CalendarEvent {
 interface CalendarMonthViewProps {
   orders: CalendarOrder[];
   appointments?: CalendarAppointment[];
+  busySlots?: GoogleBusySlot[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
 }
@@ -47,6 +49,7 @@ interface CalendarMonthViewProps {
 export function CalendarMonthView({
   orders,
   appointments = [],
+  busySlots = [],
   currentDate,
   onDateChange,
 }: CalendarMonthViewProps) {
@@ -75,6 +78,13 @@ export function CalendarMonthView({
     appointments.forEach((apt) => {
       if (isSameDay(parseISO(apt.appointment_date), day)) {
         events.push({ type: "appointment", appointment: apt, color: "#6366F1" });
+      }
+    });
+    busySlots.forEach((slot) => {
+      const slotStart = parseISO(slot.start_at);
+      const slotEnd = parseISO(slot.end_at);
+      if (slot.is_all_day ? isSameDay(slotStart, day) : (day >= slotStart && day <= slotEnd) || isSameDay(slotStart, day)) {
+        events.push({ type: "google_busy", busySlot: slot, color: "#9CA3AF" });
       }
     });
     return events;
@@ -132,6 +142,22 @@ export function CalendarMonthView({
 
                 <div className="space-y-1">
                   {dayEvents.slice(0, 4).map((event, eventIdx) => {
+                    if (event.type === "google_busy" && event.busySlot) {
+                      return (
+                        <Tooltip key={`busy-${event.busySlot.id}-${eventIdx}`}>
+                          <TooltipTrigger asChild>
+                            <div className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border border-dashed border-muted-foreground/40 bg-muted/60 text-muted-foreground truncate cursor-default">
+                              <CalendarClock className="h-3 w-3 flex-shrink-0 opacity-60" />
+                              <span className="truncate">{event.busySlot.summary || "Occupato"}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs">
+                            <p className="font-semibold">Slot occupato Google</p>
+                            {event.busySlot.summary && <p className="text-xs">{event.busySlot.summary}</p>}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
                     if (event.type === "appointment" && event.appointment) {
                       const apt = event.appointment;
                       const AptIcon = APPOINTMENT_ICONS[apt.appointment_type] || CalendarClock;
@@ -240,6 +266,10 @@ export function CalendarMonthView({
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-indigo-500 flex items-center justify-center"><CalendarClock className="h-2.5 w-2.5 text-white" /></div>
           <span className="text-muted-foreground">Appuntamenti</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded border border-dashed border-muted-foreground/40 bg-muted/60" />
+          <span className="text-muted-foreground">Google Calendar (occupato)</span>
         </div>
       </div>
 
