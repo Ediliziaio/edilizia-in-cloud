@@ -2,12 +2,12 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -27,7 +27,7 @@ export default function Calendar() {
   const { effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
-  const { isGoogleConnected, pullBusySlots } = useGoogleCalendarSync();
+  const { isGoogleConnected, pullBusySlots, reconcileSync, syncMode } = useGoogleCalendarSync();
   const [view, setView] = useState<CalendarViewType>(isMobile ? "month" : "gantt");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -101,6 +101,22 @@ export default function Calendar() {
         .eq("company_id", effectiveCompany.id);
       if (error) throw error;
       return (data || []) as GoogleBusySlot[];
+    },
+    enabled: !!effectiveCompany?.id && isGoogleConnected,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  // Fetch synced appointment IDs for badge display
+  const { data: syncedAppointmentIds } = useQuery({
+    queryKey: ["gcal-synced-ids", effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return new Set<string>();
+      const { data, error } = await supabase
+        .from("google_calendar_event_map")
+        .select("appointment_id")
+        .eq("company_id", effectiveCompany.id);
+      if (error) throw error;
+      return new Set((data || []).map((r: any) => r.appointment_id));
     },
     enabled: !!effectiveCompany?.id && isGoogleConnected,
     staleTime: 2 * 60 * 1000,
@@ -379,6 +395,7 @@ export default function Calendar() {
           busySlots={busySlots}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
+          syncedAppointmentIds={syncedAppointmentIds}
         />
       ) : view === "week" ? (
         <CalendarWeekView
@@ -387,6 +404,7 @@ export default function Calendar() {
           busySlots={busySlots}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
+          syncedAppointmentIds={syncedAppointmentIds}
         />
       ) : view === "heatmap" ? (
         <CalendarHeatmapView

@@ -42,6 +42,7 @@ export function useGoogleCalendarSync() {
   });
 
   const isGoogleConnected = !!connection && !!settings?.primary_calendar_id;
+  const syncMode = settings?.sync_mode || "one_way";
 
   async function syncToGoogle(action: string, appointmentId?: string) {
     if (!companyId) return;
@@ -80,6 +81,11 @@ export function useGoogleCalendarSync() {
     return syncToGoogle("full-sync");
   }
 
+  async function reconcileSync() {
+    if (!isGoogleConnected) return;
+    return syncToGoogle("reconcile");
+  }
+
   async function checkMapping(appointmentId: string) {
     if (!companyId || !userId) return null;
     const { data } = await supabase
@@ -95,10 +101,12 @@ export function useGoogleCalendarSync() {
     isGoogleConnected,
     connection,
     settings,
+    syncMode,
     pushEvent,
     updateEvent,
     deleteEvent,
     pullBusySlots,
+    reconcileSync,
     checkMapping,
   };
 }
