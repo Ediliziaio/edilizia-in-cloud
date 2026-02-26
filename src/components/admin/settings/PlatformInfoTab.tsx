@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users, ShoppingCart, Server, Copy, Check, Shield, Eye, EyeOff, Info, MapPin, MessageSquare } from "lucide-react";
+import { Building2, Users, ShoppingCart, Server, Copy, Check, Shield, Eye, EyeOff, Info, MapPin, MessageSquare, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
@@ -161,6 +161,16 @@ const API_CARDS = [
     fields: [
       { key: "meta_app_id", label: "Meta App ID", isSecret: false },
       { key: "meta_app_secret", label: "Meta App Secret", isSecret: true },
+    ],
+  },
+  {
+    icon: CalendarDays,
+    title: "Google Calendar",
+    description: "Credenziali OAuth per sincronizzazione calendari",
+    tooltipText: "Client ID e Client Secret per il collegamento OAuth Google Calendar. Ogni utente ottiene i propri token di accesso specifici.",
+    fields: [
+      { key: "google_calendar_client_id", label: "Google Client ID", isSecret: false },
+      { key: "google_calendar_client_secret", label: "Google Client Secret", isSecret: true },
     ],
   },
   {

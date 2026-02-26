@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,7 @@ import { Plus, Search, Pencil, Trash2, CalendarDays, Link2, Clock, Settings2, Co
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import CalendarDialog from "./CalendarDialog";
+import GoogleCalendarConnectionTab from "./GoogleCalendarConnectionTab";
 
 type MarketingCalendar = {
   id: string;
@@ -652,42 +653,7 @@ export default function MarketingCalendarsConfig() {
 
         {/* TAB: COLLEGAMENTI */}
         <TabsContent value="connections" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Calendari collegati</CardTitle>
-              <CardDescription>Collega calendari esterni come Google Calendar, Outlook, ecc.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <Link2 className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-1">Prossimamente</h3>
-              <p className="text-muted-foreground max-w-sm">
-                L'integrazione con Google Calendar e altri calendari esterni sarà disponibile in un prossimo aggiornamento.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Configurazione del calendario</CardTitle>
-              <CardDescription>Gestisci il calendario collegato e i calendari dei conflitti</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <p className="font-medium text-sm">Calendario collegato</p>
-                  <p className="text-sm text-muted-foreground">Nessun calendario collegato</p>
-                </div>
-                <Button variant="outline" size="sm" disabled>Collega</Button>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <p className="font-medium text-sm">Calendari dei conflitti</p>
-                  <p className="text-sm text-muted-foreground">Verifica disponibilità su calendari esterni</p>
-                </div>
-                <Button variant="outline" size="sm" disabled>Configura</Button>
-              </div>
-            </CardContent>
-          </Card>
+          <GoogleCalendarConnectionTab />
         </TabsContent>
       </Tabs>
 
