@@ -126,7 +126,7 @@ export default function DraggableAppointment({
       }}
       data-resize-id={appointment.id}
     >
-      <div {...listeners} className="h-full pb-3" style={{ touchAction: "none" }}>
+      <div {...listeners} className="h-full" style={{ touchAction: "none" }}>
         {children}
       </div>
       {onResize && startTime && (
