@@ -169,20 +169,26 @@ export default function MarketingCalendar() {
     enabled: !!companyId,
   });
 
-  // Fetch contacts for enrichment
+  // Extract unique contact IDs from loaded appointments
+  const contactIds = useMemo(() => {
+    const ids = rawAppointments
+      .map((a: any) => a.contact_id)
+      .filter((id: string | null): id is string => !!id);
+    return [...new Set(ids)];
+  }, [rawAppointments]);
+
+  // Fetch only referenced contacts for enrichment
   const { data: contacts = [] } = useQuery({
-    queryKey: ["marketing-contacts-lookup", companyId],
+    queryKey: ["marketing-contacts-lookup", contactIds],
     queryFn: async () => {
-      if (!companyId) return [];
+      if (contactIds.length === 0) return [];
       const { data } = await supabase
         .from("marketing_contacts")
         .select("id, first_name, last_name")
-        .eq("company_id", companyId)
-        .limit(1000);
+        .in("id", contactIds);
       return data || [];
     },
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
+    enabled: contactIds.length > 0,
   });
 
   // Enrich with names
@@ -323,10 +329,13 @@ export default function MarketingCalendar() {
     queryKey: ["travel-legs-week", baseCalendarWaypoint?.lat, weekTravelQueryKey],
     queryFn: async (): Promise<Record<string, TravelLeg[]>> => {
       const result: Record<string, TravelLeg[]> = {};
-      // Process sequentially to avoid rate limits
-      for (const { dateKey, aptsWithCoords } of weekDaysWithAppts) {
-        result[dateKey] = await computeTravelLegsForDate(aptsWithCoords);
-      }
+      const entries = await Promise.all(
+        weekDaysWithAppts.map(async ({ dateKey, aptsWithCoords }) => ({
+          dateKey,
+          legs: await computeTravelLegsForDate(aptsWithCoords),
+        }))
+      );
+      entries.forEach(({ dateKey, legs }) => { result[dateKey] = legs; });
       return result;
     },
     enabled: calendarView === "week" && weekDaysWithAppts.length > 0,
