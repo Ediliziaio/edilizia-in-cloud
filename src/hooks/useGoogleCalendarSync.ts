@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export function useGoogleCalendarSync() {
   const { user, effectiveCompany } = useAuth();
@@ -54,10 +54,8 @@ export function useGoogleCalendarSync() {
       return data;
     } catch (e: any) {
       console.error(`Google Calendar sync (${action}) failed:`, e);
-      toast({
-        title: "Errore sincronizzazione Google",
+      toast.error("Errore sincronizzazione Google", {
         description: e.message || "Operazione non riuscita",
-        variant: "destructive",
       });
     }
   }
