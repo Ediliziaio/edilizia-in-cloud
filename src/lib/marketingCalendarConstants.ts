@@ -9,11 +9,6 @@ export const CALENDAR_COLORS = [
 
 export const HOURS = Array.from({ length: 14 }, (_, i) => i + 8);
 
-export const HALF_HOURS: string[] = HOURS.flatMap((h) => [
-  `${String(h).padStart(2, "0")}:00`,
-  `${String(h).padStart(2, "0")}:30`,
-]);
-
 export function buildTimeSlots(slotMinutes: number): string[] {
   const slots: string[] = [];
   for (let m = 8 * 60; m < 22 * 60; m += slotMinutes) {
@@ -30,4 +25,23 @@ export function buildColorMap(calendarIds: string[]): Record<string, string> {
     map[id] = CALENDAR_COLORS[i % CALENDAR_COLORS.length];
   });
   return map;
+}
+
+/** Convert "HH:MM" to total minutes */
+export function timeToMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+/** Convert total minutes to "HH:MM" string */
+export function minutesToTimeStr(totalMin: number): string {
+  const clamped = Math.max(0, Math.min(totalMin, 23 * 60 + 59));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Add minutes to a "HH:MM" time string */
+export function addMinutesToTimeStr(t: string, mins: number): string {
+  return minutesToTimeStr(timeToMin(t) + mins);
 }

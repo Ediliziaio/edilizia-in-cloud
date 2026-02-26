@@ -2,6 +2,7 @@ import { useRef, useCallback, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import type { MarketingAppointment } from "@/types/marketingCalendar";
+import { minutesToTimeStr } from "@/lib/marketingCalendarConstants";
 
 interface Props {
   appointment: MarketingAppointment;
@@ -15,12 +16,6 @@ interface Props {
   topOffsetPx?: number;
 }
 
-function minutesToTimeStr(totalMin: number): string {
-  const clamped = Math.max(0, Math.min(totalMin, 23 * 60 + 59));
-  const h = Math.floor(clamped / 60);
-  const m = clamped % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
 
 export default function DraggableAppointment({
   appointment,

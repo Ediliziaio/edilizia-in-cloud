@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_appointments_company_date ON public.appointments (company_id, appointment_date);

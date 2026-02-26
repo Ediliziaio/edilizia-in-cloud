@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,6 +35,7 @@ import {
 import MarketingCalendarWeekView from "@/components/marketing/MarketingCalendarWeekView";
 import MarketingCalendarDayView from "@/components/marketing/MarketingCalendarDayView";
 import type { TravelLeg } from "@/types/marketingCalendar";
+import { timeToMin, addMinutesToTimeStr } from "@/lib/marketingCalendarConstants";
 import MarketingCalendarMonthView from "@/components/marketing/MarketingCalendarMonthView";
 import MarketingCalendarFilters from "@/components/marketing/MarketingCalendarFilters";
 import MarketingAppointmentsList from "@/components/marketing/MarketingAppointmentsList";
@@ -42,18 +43,6 @@ import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/com
 
 type TabKey = "calendar" | "list";
 type CalendarView = "day" | "week" | "month";
-
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + (m || 0);
-}
-
-function addMinutesToTimeStr(t: string, mins: number): string {
-  const total = timeToMinutes(t) + mins;
-  const h = Math.floor(total / 60) % 24;
-  const m = total % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
 
 export default function MarketingCalendar() {
   const navigate = useNavigate();
@@ -73,7 +62,7 @@ export default function MarketingCalendar() {
   // Filter state
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [filtersInitialized, setFiltersInitialized] = useState(false);
+  const filtersInitialized = useRef(false);
 
   const weekStart = useMemo(
     () => startOfWeek(currentDate, { weekStartsOn: 1 }),
@@ -91,10 +80,6 @@ export default function MarketingCalendar() {
         .eq("company_id", companyId)
         .eq("is_active", true)
         .order("name");
-      if (data && !filtersInitialized) {
-        setSelectedCalendarIds(data.map((c) => c.id));
-        setFiltersInitialized(true);
-      }
       return data || [];
     },
     enabled: !!companyId,
@@ -121,13 +106,24 @@ export default function MarketingCalendar() {
           ?.filter((r) => r.role === "company_admin" || r.role === "company_staff")
           .map((r) => r.user_id) || [];
       const result = profiles.filter((p) => validIds.includes(p.id));
-      if (!filtersInitialized && result.length) {
-        setSelectedUserIds(result.map((u) => u.id));
-      }
       return result;
     },
     enabled: !!companyId,
   });
+
+  // Initialize filters once when data loads
+  useEffect(() => {
+    if (filtersInitialized.current) return;
+    if (calendars.length > 0) {
+      setSelectedCalendarIds(calendars.map((c) => c.id));
+    }
+    if (users.length > 0) {
+      setSelectedUserIds(users.map((u) => u.id));
+    }
+    if (calendars.length > 0 && users.length > 0) {
+      filtersInitialized.current = true;
+    }
+  }, [calendars, users]);
 
   // Compute date range for query based on view
   const dateRange = useMemo(() => {
@@ -268,10 +264,10 @@ export default function MarketingCalendar() {
         const fromApt = fromIdx >= 0 ? aptsWithCoords[fromIdx] as any : null;
         const toApt = aptsWithCoords[toIdx] as any;
         if (!toApt) return null;
-        const fromEnd = fromApt ? (fromApt.appointment_end_time?.slice(0, 5) || addMinutesToTimeStr(fromApt.appointment_time?.slice(0, 5) || "09:00", 60)) : "08:00";
+      const fromEnd = fromApt ? (fromApt.appointment_end_time?.slice(0, 5) || addMinutesToTimeStr(fromApt.appointment_time?.slice(0, 5) || "09:00", 60)) : "08:00";
         const travelMin = Math.ceil(leg.duration_s / 60);
-        const arrivalMin = timeToMinutes(fromEnd) + travelMin;
-        const toStart = timeToMinutes(toApt.appointment_time?.slice(0, 5) || "09:00");
+        const arrivalMin = timeToMin(fromEnd) + travelMin;
+        const toStart = timeToMin(toApt.appointment_time?.slice(0, 5) || "09:00");
         const isLate = arrivalMin > toStart;
         const delayMinutes = isLate ? arrivalMin - toStart : 0;
         return {
@@ -435,27 +431,20 @@ export default function MarketingCalendar() {
     const updateData: Record<string, string | null> = { appointment_date: newDate };
     if (newTime) {
       updateData.appointment_time = newTime;
-      // Preserve original duration: recalculate appointment_end_time
       if (current?.appointment_time && current?.appointment_end_time) {
-        const toMin = (t: string) => {
-          const [h, m] = t.split(':').map(Number);
-          return h * 60 + m;
-        };
-        const durationMin = toMin(current.appointment_end_time) - toMin(current.appointment_time);
+        const durationMin = timeToMin(current.appointment_end_time) - timeToMin(current.appointment_time);
         if (durationMin > 0) {
-          const newStartMin = toMin(newTime);
-          const newEndMin = newStartMin + durationMin;
-          const eh = Math.floor(newEndMin / 60);
-          const em = newEndMin % 60;
-          updateData.appointment_end_time = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+          updateData.appointment_end_time = addMinutesToTimeStr(newTime, durationMin);
         }
       }
     }
 
+    if (!companyId) return;
     const { error } = await supabase
       .from("appointments")
       .update(updateData)
-      .eq("id", appointmentId);
+      .eq("id", appointmentId)
+      .eq("company_id", companyId);
 
     if (error) {
       toast.error("Errore nello spostamento dell'appuntamento");
@@ -474,7 +463,8 @@ export default function MarketingCalendar() {
           const { error: undoError } = await supabase
             .from("appointments")
             .update(rollback)
-            .eq("id", appointmentId);
+            .eq("id", appointmentId)
+            .eq("company_id", companyId!);
           if (undoError) {
             toast.error("Errore nell'annullamento");
           } else {
@@ -491,7 +481,7 @@ export default function MarketingCalendar() {
     queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
     queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
-  }, [appointments, refetchAppointments, queryClient]);
+  }, [appointments, refetchAppointments, queryClient, companyId]);
 
   // ── Resize handler ──
   const handleResizeAppointment = useCallback(async (appointmentId: string, newEndTime: string) => {
@@ -500,11 +490,13 @@ export default function MarketingCalendar() {
       refetchAppointments();
       return;
     }
+    if (!companyId) return;
 
     const { error } = await supabase
       .from("appointments")
       .update({ appointment_end_time: newEndTime })
-      .eq("id", appointmentId);
+      .eq("id", appointmentId)
+      .eq("company_id", companyId);
 
     if (error) {
       toast.error("Errore nel ridimensionamento");
@@ -515,7 +507,7 @@ export default function MarketingCalendar() {
     queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
     queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
-  }, [refetchAppointments, queryClient]);
+  }, [refetchAppointments, queryClient, companyId]);
 
   const tabs = [
     { key: "calendar" as const, label: "Visualizza calendario" },
