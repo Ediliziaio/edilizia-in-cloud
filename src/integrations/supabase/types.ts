@@ -1514,6 +1514,226 @@ export type Database = {
           },
         ]
       }
+      google_calendar_busy_slots: {
+        Row: {
+          company_id: string
+          created_at: string
+          end_at: string
+          google_calendar_id: string | null
+          google_event_id: string | null
+          id: string
+          is_all_day: boolean
+          start_at: string
+          summary: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          end_at: string
+          google_calendar_id?: string | null
+          google_event_id?: string | null
+          id?: string
+          is_all_day?: boolean
+          start_at: string
+          summary?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          end_at?: string
+          google_calendar_id?: string | null
+          google_event_id?: string | null
+          id?: string
+          is_all_day?: boolean
+          start_at?: string
+          summary?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_busy_slots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_calendar_connections: {
+        Row: {
+          access_token_encrypted: string | null
+          company_id: string
+          created_at: string
+          google_account_email: string | null
+          google_sub: string | null
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          refresh_token_encrypted: string | null
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          company_id: string
+          created_at?: string
+          google_account_email?: string | null
+          google_sub?: string | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          refresh_token_encrypted?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          company_id?: string
+          created_at?: string
+          google_account_email?: string | null
+          google_sub?: string | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          refresh_token_encrypted?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_calendar_event_map: {
+        Row: {
+          appointment_id: string | null
+          company_id: string
+          created_at: string
+          etag: string | null
+          google_calendar_id: string | null
+          google_event_id: string
+          id: string
+          last_synced_at: string | null
+          last_updated_by: string | null
+          source: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          company_id: string
+          created_at?: string
+          etag?: string | null
+          google_calendar_id?: string | null
+          google_event_id: string
+          id?: string
+          last_synced_at?: string | null
+          last_updated_by?: string | null
+          source?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          appointment_id?: string | null
+          company_id?: string
+          created_at?: string
+          etag?: string | null
+          google_calendar_id?: string | null
+          google_event_id?: string
+          id?: string
+          last_synced_at?: string | null
+          last_updated_by?: string | null
+          source?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_event_map_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_calendar_event_map_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_calendar_settings: {
+        Row: {
+          company_id: string
+          conflict_calendar_ids: string[]
+          connection_id: string | null
+          create_contacts_from_guests: boolean
+          created_at: string
+          id: string
+          import_google_events_to_crm: boolean
+          primary_calendar_id: string | null
+          sync_mode: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          conflict_calendar_ids?: string[]
+          connection_id?: string | null
+          create_contacts_from_guests?: boolean
+          created_at?: string
+          id?: string
+          import_google_events_to_crm?: boolean
+          primary_calendar_id?: string | null
+          sync_mode?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          conflict_calendar_ids?: string[]
+          connection_id?: string | null
+          create_contacts_from_guests?: boolean
+          created_at?: string
+          id?: string
+          import_google_events_to_crm?: boolean
+          primary_calendar_id?: string | null
+          sync_mode?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_calendar_settings_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "google_calendar_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_audit_log: {
         Row: {
           action: string

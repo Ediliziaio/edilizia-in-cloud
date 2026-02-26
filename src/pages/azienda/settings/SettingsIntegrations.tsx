@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
@@ -13,6 +14,7 @@ export default function SettingsIntegrations() {
   const companyId = (effectiveCompany as any)?.id;
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const navigate = useNavigate();
 
   const { data: integrations = [], refetch } = useQuery({
     queryKey: ["integrations", companyId],
@@ -68,6 +70,14 @@ export default function SettingsIntegrations() {
         integration: metaIntegration || null,
         stats: metaIntegration ? stats : null,
       },
+      {
+        provider: "google_calendar" as const,
+        name: "Google Calendar",
+        description: "Sincronizza appuntamenti e blocca slot occupati. Gestisci il collegamento da Impostazioni > Calendari > Collegamenti.",
+        icon: "google_calendar",
+        integration: null as Integration | null,
+        stats: null as { pages: number; forms: number } | null,
+      },
     ];
     if (!search.trim()) return items;
     const q = search.toLowerCase();
@@ -104,8 +114,20 @@ export default function SettingsIntegrations() {
             provider={item.provider}
             integration={item.integration}
             stats={item.stats}
-            onConnect={() => setWizardOpen(true)}
-            onManage={() => setWizardOpen(true)}
+            onConnect={() => {
+              if (item.provider === "google_calendar") {
+                navigate("/azienda/impostazioni/calendari-marketing");
+              } else {
+                setWizardOpen(true);
+              }
+            }}
+            onManage={() => {
+              if (item.provider === "google_calendar") {
+                navigate("/azienda/impostazioni/calendari-marketing");
+              } else {
+                setWizardOpen(true);
+              }
+            }}
           />
         ))}
       </div>

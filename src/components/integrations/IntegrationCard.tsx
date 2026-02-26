@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MetaStatusBadge } from "./MetaStatusBadge";
 import type { Integration, IntegrationProvider } from "@/types/integrations";
-import { ExternalLink, Settings2 } from "lucide-react";
+import { ExternalLink, Settings2, CalendarDays } from "lucide-react";
 
 interface IntegrationCardProps {
   name: string;
@@ -30,6 +30,23 @@ function MetaIcon() {
   );
 }
 
+function GoogleCalendarIcon() {
+  return (
+    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+      <CalendarDays className="h-5 w-5 text-primary" />
+    </div>
+  );
+}
+
+function ProviderIcon({ provider }: { provider: IntegrationProvider }) {
+  switch (provider) {
+    case "google_calendar":
+      return <GoogleCalendarIcon />;
+    default:
+      return <MetaIcon />;
+  }
+}
+
 export function IntegrationCard({
   name,
   description,
@@ -45,7 +62,7 @@ export function IntegrationCard({
   return (
     <Card className="flex flex-col">
       <CardHeader className="flex-row items-start gap-3 space-y-0">
-        <MetaIcon />
+        <ProviderIcon provider={provider} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <CardTitle className="text-base">{name}</CardTitle>
