@@ -1,0 +1,1 @@
+ALTER TABLE public.google_calendar_sync_log ENABLE ROW LEVEL SECURITY;
