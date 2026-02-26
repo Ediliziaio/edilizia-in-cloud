@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.suggest-calendars]
 verify_jwt = false
+
+[functions.google-calendar-auth]
+verify_jwt = false
