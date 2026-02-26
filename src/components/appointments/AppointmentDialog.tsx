@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 
 export interface AppointmentData {
   id?: string;
@@ -67,6 +68,7 @@ export function AppointmentDialog({
   const companyId = effectiveCompany?.id;
   const isEditing = !!appointment?.id;
   const { onlyAssigned } = usePermissions();
+  const { isGoogleConnected, pushEvent: gcalPush, updateEvent: gcalUpdate, deleteEvent: gcalDelete, checkMapping } = useGoogleCalendarSync();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -209,11 +211,19 @@ export function AppointmentDialog({
         const { error } = await supabase.from("appointments").update(payload).eq("id", appointment.id);
         if (error) throw error;
         toast({ title: "Appuntamento aggiornato" });
+        // Fire-and-forget Google sync
+        if (isGoogleConnected) {
+          gcalUpdate(appointment.id).catch(() => {});
+        }
       } else {
         payload.created_by = user.id;
-        const { error } = await supabase.from("appointments").insert(payload as any);
+        const { data: inserted, error } = await supabase.from("appointments").insert(payload as any).select("id").single();
         if (error) throw error;
         toast({ title: "Appuntamento creato" });
+        // Fire-and-forget Google sync
+        if (isGoogleConnected && inserted?.id) {
+          gcalPush(inserted.id).catch(() => {});
+        }
       }
 
       onSaved();
@@ -229,6 +239,10 @@ export function AppointmentDialog({
     if (!appointment?.id) return;
     setSaving(true);
     try {
+      // Fire-and-forget Google delete before CRM delete
+      if (isGoogleConnected) {
+        gcalDelete(appointment.id).catch(() => {});
+      }
       const { error } = await supabase.from("appointments").delete().eq("id", appointment.id);
       if (error) throw error;
       toast({ title: "Appuntamento eliminato" });
