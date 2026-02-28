@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/popover";
 import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES, calculateNetFromGross, calculateGrossFromNet } from "@/lib/vatUtils";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import type { CostFormData } from "@/hooks/useCompanyCostsMutations";
 import { getNextDate } from "@/hooks/useCompanyCostsMutations";
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
@@ -112,7 +112,7 @@ export function CostFormDialog({
   const handleSubmit = () => {
     const amt = parseFloat(formData.amount);
     if (isNaN(amt) || amt <= 0) {
-      toast({ title: "L'importo deve essere maggiore di zero", variant: "destructive" });
+      toast.error("L'importo deve essere maggiore di zero");
       return;
     }
     onSave(formData);

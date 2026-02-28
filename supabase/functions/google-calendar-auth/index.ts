@@ -400,6 +400,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // P0 Security: Validate companyId matches authenticated user's profile
+    const { data: profile } = getSupabaseAdmin()
+      ? await getSupabaseAdmin().from("profiles").select("company_id").eq("id", userId).single()
+      : { data: null };
+    if (!profile || profile.company_id !== companyId) {
+      return new Response(JSON.stringify({ error: "Company mismatch" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     switch (action) {
       case "start":
         return handleStart(userId, companyId);

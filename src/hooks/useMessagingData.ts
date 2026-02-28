@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export function useMessagingEnabled() {
   const { effectiveCompany } = useAuth();
@@ -164,11 +164,7 @@ export function useAnalyzeMessage() {
       queryClient.invalidateQueries({ queryKey: ["messaging-messages"] });
     },
     onError: (err: any) => {
-      toast({
-        title: "Errore analisi AI",
-        description: err?.message || "Errore durante l'analisi del messaggio",
-        variant: "destructive",
-      });
+      toast.error("Errore analisi AI", { description: err?.message || "Errore durante l'analisi del messaggio" });
     },
   });
 }
@@ -231,10 +227,10 @@ export function useConfirmAiAction() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messaging-ai-runs"] });
-      toast({ title: "Azione confermata", description: "L'azione è stata eseguita con successo." });
+      toast.success("Azione confermata", { description: "L'azione è stata eseguita con successo." });
     },
     onError: (err: any) => {
-      toast({ title: "Errore", description: err?.message || "Errore nell'esecuzione dell'azione", variant: "destructive" });
+      toast.error("Errore", { description: err?.message || "Errore nell'esecuzione dell'azione" });
     },
   });
 }

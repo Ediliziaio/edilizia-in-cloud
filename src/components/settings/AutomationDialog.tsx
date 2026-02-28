@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,11 +147,11 @@ export function AutomationDialog({ open, onOpenChange, automation, onSaved }: Pr
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.trigger_type || form.actions.length === 0) {
-      toast({ title: "Compila tutti i campi obbligatori", description: "Nome, trigger e almeno un'azione sono richiesti.", variant: "destructive" });
+      toast.error("Compila tutti i campi obbligatori", { description: "Nome, trigger e almeno un'azione sono richiesti." });
       return;
     }
     if (!effectiveCompany?.id || !user?.id) {
-      toast({ title: "Errore", description: "Seleziona un'azienda prima di creare un'automazione.", variant: "destructive" });
+      toast.error("Errore", { description: "Seleziona un'azienda prima di creare un'automazione." });
       return;
     }
     setSaving(true);
@@ -174,11 +174,11 @@ export function AutomationDialog({ open, onOpenChange, automation, onSaved }: Pr
         const { error } = await supabase.from("automations").insert(payload);
         if (error) throw error;
       }
-      toast({ title: form.id ? "Automazione aggiornata" : "Automazione creata" });
+      toast.success(form.id ? "Automazione aggiornata" : "Automazione creata");
       onSaved();
       onOpenChange(false);
     } catch (err: any) {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast.error("Errore", { description: err.message });
     } finally {
       setSaving(false);
     }

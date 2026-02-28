@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus, ListTodo, ExternalLink } from "lucide-react";
 import { format, isAfter, isBefore, addHours, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { TaskStatCards } from "@/components/tasks/TaskStatCards";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { Link } from "react-router-dom";
@@ -102,7 +102,7 @@ export default function Tasks() {
       })
       .eq("id", task.id);
     if (error) {
-      toast({ title: "Errore", description: error.message, variant: "destructive" });
+      toast.error("Errore", { description: error.message });
     } else {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
     }

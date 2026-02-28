@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Bot, Loader2, MessageSquare, Phone, Star, MoreVertical } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const AVATAR_COLORS = [
@@ -60,7 +60,7 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
       content: replyText.trim(),
     });
     if (error) {
-      toast({ title: "Errore invio", description: error.message, variant: "destructive" });
+      toast.error("Errore invio", { description: error.message });
     } else {
       setReplyText("");
     }
