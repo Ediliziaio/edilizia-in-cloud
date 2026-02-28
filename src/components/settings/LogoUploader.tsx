@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { Upload, Trash2, ImageIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Company } from "@/types/auth";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
@@ -26,21 +26,13 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
 
     // Validate file type
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      toast({
-        title: "Formato non supportato",
-        description: "Seleziona un'immagine PNG, JPG o WEBP",
-        variant: "destructive",
-      });
+      toast.error("Formato non supportato", { description: "Seleziona un'immagine PNG, JPG o WEBP" });
       return;
     }
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-      toast({
-        title: "File troppo grande",
-        description: "La dimensione massima è 2MB",
-        variant: "destructive",
-      });
+      toast.error("File troppo grande", { description: "La dimensione massima è 2MB" });
       return;
     }
 
@@ -84,19 +76,12 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
 
       if (updateError) throw updateError;
 
-      toast({
-        title: "Logo caricato",
-        description: "Il logo aziendale è stato aggiornato",
-      });
+      toast.success("Logo caricato", { description: "Il logo aziendale è stato aggiornato" });
 
       await onLogoUpdated();
     } catch (error) {
       console.error('Error uploading logo:', error);
-      toast({
-        title: "Errore",
-        description: "Impossibile caricare il logo. Riprova.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Impossibile caricare il logo. Riprova." });
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -129,19 +114,12 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
 
       if (updateError) throw updateError;
 
-      toast({
-        title: "Logo rimosso",
-        description: "Il logo aziendale è stato rimosso",
-      });
+      toast.success("Logo rimosso", { description: "Il logo aziendale è stato rimosso" });
 
       await onLogoUpdated();
     } catch (error) {
       console.error('Error removing logo:', error);
-      toast({
-        title: "Errore",
-        description: "Impossibile rimuovere il logo. Riprova.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Impossibile rimuovere il logo. Riprova." });
     } finally {
       setIsRemoving(false);
     }

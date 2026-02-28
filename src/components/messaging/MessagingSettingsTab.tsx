@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, CheckCircle2, ExternalLink, Phone, Send, CheckCheck, Loader2, Plus, Unplug, RefreshCw } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 // Public Meta App ID — configure this with your own app
 const META_APP_ID = "YOUR_META_APP_ID";
@@ -147,7 +147,7 @@ export function MessagingSettingsTab() {
 
   const handleConnectWhatsApp = useCallback(() => {
     if (!fbReady || !window.FB || !companyId) {
-      toast({ title: "Errore", description: "SDK Facebook non ancora caricato. Riprova tra un momento.", variant: "destructive" });
+      toast.error("Errore", { description: "SDK Facebook non ancora caricato. Riprova tra un momento." });
       return;
     }
 
@@ -168,8 +168,7 @@ export function MessagingSettingsTab() {
             if (error) throw error;
             if (data?.error) throw new Error(data.details || data.error);
 
-            toast({
-              title: "WhatsApp collegato!",
+            toast.success("WhatsApp collegato!", {
               description: data.phone_number
                 ? `Numero ${data.phone_number} collegato con successo.`
                 : "Account collegato con successo.",
@@ -178,14 +177,12 @@ export function MessagingSettingsTab() {
             queryClient.invalidateQueries({ queryKey: ["whatsapp-config"] });
           } catch (err: any) {
             console.error("Connect error:", err);
-            toast({
-              title: "Errore collegamento",
+            toast.error("Errore collegamento", {
               description: err?.message || "Impossibile completare il collegamento. Riprova.",
-              variant: "destructive",
             });
           }
         } else {
-          toast({ title: "Collegamento annullato", description: "Hai annullato il processo di collegamento.", variant: "destructive" });
+          toast.error("Collegamento annullato", { description: "Hai annullato il processo di collegamento." });
         }
         setConnecting(false);
       },
@@ -219,12 +216,12 @@ export function MessagingSettingsTab() {
 
       if (error) throw error;
 
-      toast({ title: "WhatsApp disconnesso", description: "Il numero è stato scollegato con successo." });
+      toast.success("WhatsApp disconnesso", { description: "Il numero è stato scollegato con successo." });
       setMessagingLimitTier(null);
       setLastStatusUpdate(null);
       queryClient.invalidateQueries({ queryKey: ["whatsapp-config"] });
     } catch (err: any) {
-      toast({ title: "Errore", description: err?.message || "Impossibile disconnettere.", variant: "destructive" });
+      toast.error("Errore", { description: err?.message || "Impossibile disconnettere." });
     }
     setDisconnecting(false);
   }, [companyId, config, queryClient]);

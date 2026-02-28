@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -57,7 +57,7 @@ export function AutomationsConfig() {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
     },
     onError: (err: any) => {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast.error("Errore", { description: err.message });
     },
   });
 
@@ -68,11 +68,11 @@ export function AutomationsConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
-      toast({ title: "Automazione eliminata" });
+      toast.success("Automazione eliminata");
       setDeleteId(null);
     },
     onError: (err: any) => {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast.error("Errore", { description: err.message });
     },
   });
 

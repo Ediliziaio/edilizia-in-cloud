@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Copy, Navigation } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface Props {
   lat: number;
@@ -21,7 +21,7 @@ export default function AddressMapPreview({ lat, lng, formattedAddress }: Props)
   const copyAddress = async () => {
     const text = formattedAddress || `${lat}, ${lng}`;
     await navigator.clipboard.writeText(text);
-    toast({ title: "Indirizzo copiato" });
+    toast.success("Indirizzo copiato");
   };
 
   return (

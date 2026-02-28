@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import type { AutomationFlow, AutomationNode, AutomationConnection } from "@/types/automationBuilder";
 
 interface BuilderState {
@@ -169,11 +169,11 @@ export function useAutomationBuilder(flowId: string | undefined) {
     if (!flowId || flowId === "nuova") return;
     const persistCompanyId = effectiveCompany?.id ?? flow?.company_id;
     if (!persistCompanyId) {
-      toast({ title: "Impossibile salvare", description: "Nessuna azienda attiva.", variant: "destructive" });
+      toast.error("Impossibile salvare", { description: "Nessuna azienda attiva." });
       return;
     }
     if (nodes.length === 0) {
-      toast({ title: "Bozza vuota", description: "Aggiungi almeno un trigger per un flusso completo." });
+      toast("Bozza vuota", { description: "Aggiungi almeno un trigger per un flusso completo." });
     }
     setIsSaving(true);
     try {
@@ -226,11 +226,11 @@ export function useAutomationBuilder(flowId: string | undefined) {
       await supabase.from("automation_flows").update({ updated_at: new Date().toISOString() }).eq("id", flowId);
 
       setHasUnsavedChanges(false);
-      toast({ title: "Salvato con successo" });
+      toast.success("Salvato con successo");
       queryClient.invalidateQueries({ queryKey: ["automation-nodes", flowId] });
       queryClient.invalidateQueries({ queryKey: ["automation-connections", flowId] });
     } catch (err: any) {
-      toast({ title: "Errore salvataggio", description: err.message, variant: "destructive" });
+      toast.error("Errore salvataggio", { description: err.message });
     } finally {
       setIsSaving(false);
     }
@@ -329,7 +329,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
   // Publish / Unpublish
   const togglePublish = useCallback(async () => {
     if (!flow) {
-      toast({ title: "Flow non ancora pronto", variant: "destructive" });
+      toast.error("Flow non ancora pronto");
       return;
     }
     if (updateFlowMutation.isPending) return;
@@ -338,15 +338,15 @@ export function useAutomationBuilder(flowId: string | undefined) {
       if (newStatus === "published") {
         const errors = validateForPublish();
         if (errors.length > 0) {
-          toast({ title: "Impossibile pubblicare", description: errors[0], variant: "destructive" });
+          toast.error("Impossibile pubblicare", { description: errors[0] });
           return;
         }
       }
       const newVersion = newStatus === "published" ? flow.version + 1 : flow.version;
       await updateFlowMutation.mutateAsync({ status: newStatus, version: newVersion });
-      toast({ title: newStatus === "published" ? "Automazione pubblicata" : "Automazione in bozza" });
+      toast.success(newStatus === "published" ? "Automazione pubblicata" : "Automazione in bozza");
     } catch (err: any) {
-      toast({ title: "Errore aggiornamento stato", description: err.message, variant: "destructive" });
+      toast.error("Errore aggiornamento stato", { description: err.message });
     }
   }, [flow, updateFlowMutation, validateForPublish]);
 

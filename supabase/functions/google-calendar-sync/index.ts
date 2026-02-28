@@ -185,9 +185,10 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
   if (allGoogleEventIds.length > 0) {
     const { data: existingSlots } = await admin
       .from("google_calendar_busy_slots")
-      .select("id, google_event_id")
+      .select("id, google_event_id, google_calendar_id")
       .eq("company_id", companyId)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .in("google_calendar_id", calendarIds);
 
     const staleIds = (existingSlots || [])
       .filter((s: any) => !allGoogleEventIds.includes(s.google_event_id))
@@ -804,6 +805,16 @@ Deno.serve(async (req) => {
     const { companyId, appointmentId } = body;
 
     if (!companyId) return json({ error: "companyId required" }, 400);
+
+    // P0 Security: Validate companyId matches authenticated user's profile
+    const { data: profile } = await getSupabaseAdmin()
+      .from("profiles")
+      .select("company_id")
+      .eq("id", userId)
+      .single();
+    if (!profile || profile.company_id !== companyId) {
+      return json({ error: "Company mismatch" }, 403);
+    }
 
     switch (action) {
       case "pull-busy-slots":
