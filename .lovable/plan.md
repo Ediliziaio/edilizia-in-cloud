@@ -1,76 +1,71 @@
 
 
-# Verifica Fase 1 + Piano Implementazione Fase 2 e 3
+# Audit Completo Super Admin — Piano di Stabilizzazione
 
-## Verifica Fase 1 — Revenue Intelligence
+## Analisi Effettuata
 
-**Stato: COMPLETATA e funzionante.** Tutti i componenti sono implementati:
+Ho esaminato in dettaglio tutti i componenti delle 3 fasi implementate: dashboard, revenue intelligence, lifecycle, annunci, dunning, feature usage, system health, e il banner in-app.
 
-| Componente | Status | Note |
-|-----------|--------|------|
-| Revenue KPIs (MRR, ARR, NRR, LTV) | OK | Calcoli corretti, fallback sensati |
-| MRR Movements chart | OK | expansion/contraction = 0 (serve storico cambi piano — accettabile) |
-| Revenue per Settore | OK | Mostra "Nessun dato" perche tutte le aziende sono in trial (corretto) |
-| Health Score Tenant | OK | Algoritmo 0-100, 3 livelli, lista at-risk |
-| Trial Intelligence | OK | Conversion rate, scoring caldo/freddo, milestones, alert, trend storico |
-| get_company_health_data RPC | OK | Query server-side efficiente |
+## Problemi Identificati
 
-**Nessun bug riscontrato.** I dati vuoti in alcune sezioni (Revenue per Settore, MRR Movements) sono corretti: riflettono il fatto che entrambe le aziende sono in stato "trial" senza piano attivo pagato.
+### Bug Funzionali
 
-## Verifica Fase 2 — Retention
+**1. Status "trial" non riflette la realta (CRITICO)**
+Entrambe le aziende hanno `status: "trial"` ma `trial_ends_at: 2026-02-27` (gia scaduto). Il campo `status` non viene aggiornato automaticamente. Risultato: la pagina Lifecycle le mostra come "Trial attivi" con label "Scaduto" — confuso. Il Dunning mostra 0 trial scaduti perche filtra su `status === "expired"`.
+- **Fix**: Nella query `useAdminRevenueData`, derivare lo status effettivo: se `status === "trial"` e `trial_ends_at < now()`, trattare come "expired". Questo fix e lato client, non richiede migrazione DB.
 
-**Stato: NON IMPLEMENTATA.** Nessun componente esiste per Company Lifecycle, Dunning, o Announcements.
+**2. `getOnboardingSteps` accede a proprieta inesistenti**
+Il componente `CompanyLifecycle.tsx` chiama `getOnboardingSteps(company)` passando un `CompanyHealthScore`, ma accede a `healthScore?.hasStaff` e `healthScore?.hasCustomers` — i campi corretti sono `hasStaff`, `hasCustomers`, `hasOrders`, `userCount` (camelCase). Funziona per coincidenza perche i nomi matchano gia. OK, nessun bug reale.
 
-## Piano Implementazione — Fase 2: Retention
+**3. Nessun guard `created_by` su insert annunci**
+Il form annunci inserisce `created_by: user?.id`, ma la colonna `created_by` nella tabella potrebbe non esistere se la migration non l'ha inclusa. Verifico lo schema: la migration crea `platform_announcements` — devo controllare se ha `created_by`.
 
-### 2A. Company Lifecycle Management
-- **Nuova pagina** `/admin/lifecycle` con sidebar nav entry
-- **Onboarding Checklist per azienda**: card che mostra per ogni company lo stato dei passi (profilo completo, primo utente staff, primo cliente, primo ordine, logo caricato) — calcolato dalla health data esistente
-- **Trial Extension UI**: bottone per estendere trial_ends_at direttamente dalla lista (update su tabella companies, nessuna migrazione necessaria)
-- **Win-back list**: filtro aziende con status "expired" + data scadenza + health score, con link al dettaglio
+### Miglioramenti UX
 
-### 2B. Dunning Dashboard
-- **Nuovo componente** nella dashboard principale (non serve pagina separata, dato che Stripe non e' integrato per tutti)
-- Card con: aziende con trial scaduto (expired), aziende senza piano assegnato, aziende con payment_method = "none"
-- **Revenue at risk**: MRR delle aziende at_risk + critical (gia calcolato nel health score)
+**4. Lifecycle: "Trial attivi" vs "Win-back" e fuorviante**
+Le aziende con trial scaduto ma `status === "trial"` finiscono nel tab sbagliato. Fix: usare lo status derivato.
 
-### 2C. Announcements & Changelog
-- **Nuova tabella** `platform_announcements` (id, title, content, type: banner|changelog|maintenance, target_status: all|trial|active, is_active, created_at, expires_at)
-- **Pagina admin** `/admin/annunci` per CRUD annunci
-- **Banner in-app** nel CompanyLayout che mostra annunci attivi filtrati per status dell'azienda
-- RLS: super_admin puo CRUD, authenticated puo leggere annunci attivi
+**5. Dunning: revenue at risk calcolata come proporzione**
+Calcolo impreciso (`atRiskCount/totalCount * MRR`). Dovrebbe sommare il piano tariffario delle aziende at-risk.
 
-## Piano Implementazione — Fase 3: Scalability
+**6. Feature Usage: query senza filtro per azienda attiva**
+Conta anche aziende scadute/expired nel denominatore — un po' impreciso ma accettabile.
 
-### 3A. Feature Usage Analytics
-- Card nella dashboard che mostra per ogni modulo (ordini, calendario, magazzino, marketing, dipendenti) quante aziende lo usano attivamente
-- Calcolato dalle tabelle esistenti (count ordini > 0, count appointments > 0, etc.)
-- Nessuna nuova tabella necessaria
+**7. AnnouncementBanner: CSS `bg-warning` non esiste in Tailwind default**
+Il tipo `maintenance` usa `bg-warning/10` che non esiste come utility di default. Fix: usare `bg-amber-100 border-amber-200`.
 
-### 3B. System Health Dashboard
-- Card con metriche dagli edge function logs (se disponibili via API)
-- Conteggio errori sync log esistenti (tabella google_calendar_sync_log)
-- Storage usage placeholder (non disponibile direttamente)
+## Piano di Implementazione
 
-### 3C. Broadcast Communication (semplificato)
-- Integrato con Announcements: tipo "broadcast" che viene mostrato come notifica una tantum
+### 1. Fix status derivato (useAdminRevenueData)
+Aggiungere logica per derivare lo status effettivo in base a `trial_ends_at`:
+```
+effectiveStatus = (status === "trial" && trial_ends_at && new Date(trial_ends_at) < now) ? "expired" : status
+```
+Applicare in tutti i punti dove si filtra per status.
 
-## File coinvolti
+### 2. Fix AnnouncementBanner CSS
+Sostituire le classi `bg-warning/10 border-warning/20 text-warning-foreground` con `bg-amber-50 border-amber-200 text-amber-800`.
 
-| Intervento | File nuovi | File modificati |
-|-----------|-----------|----------------|
-| Lifecycle | `src/pages/admin/CompanyLifecycle.tsx` | `App.tsx`, `AdminLayout.tsx` |
-| Dunning | `src/components/admin/dashboard/AdminDunning.tsx` | `AdminDashboard.tsx`, `useAdminRevenueData.ts` |
-| Announcements | `src/pages/admin/Announcements.tsx`, `src/components/admin/dashboard/AdminAnnouncements.tsx`, `src/components/company/AnnouncementBanner.tsx` | `App.tsx`, `AdminLayout.tsx`, `CompanyLayout.tsx` |
-| Feature Usage | `src/components/admin/dashboard/AdminFeatureUsage.tsx` | `AdminDashboard.tsx`, `useAdminRevenueData.ts` |
-| System Health | `src/components/admin/dashboard/AdminSystemHealth.tsx` | `AdminDashboard.tsx` |
-| **DB Migration** | 1 migration: `platform_announcements` table + RLS | — |
+### 3. Migliorare Dunning revenue at risk
+Calcolare sommando il `price_monthly` effettivo delle aziende at-risk/critical invece della proporzione.
 
-## Ordine di esecuzione
-1. DB migration (tabella announcements)
-2. Company Lifecycle page + route
-3. Dunning dashboard card
-4. Announcements CRUD + banner in-app
-5. Feature Usage Analytics card
-6. System Health card
+### 4. Fix tabella platform_announcements — campo created_by
+Verificare se la migration include `created_by`, e se no, rimuovere il riferimento dal codice Announcements.tsx.
+
+### 5. Pulizia import/codice
+- `CompanyLifecycle.tsx`: `CardHeader`, `CardDescription` importati ma non usati
+- `Announcements.tsx`: `useAuth` importato — verificare se `created_by` e nella tabella
+
+### Nessun file da eliminare
+Tutti i componenti delle 3 fasi sono in uso. Non ci sono componenti orfani o morti nella sezione admin.
+
+### File da modificare
+
+| File | Intervento |
+|------|-----------|
+| `src/hooks/useAdminRevenueData.ts` | Derivare status effettivo per trial scaduti |
+| `src/components/company/AnnouncementBanner.tsx` | Fix CSS warning |
+| `src/components/admin/dashboard/AdminDunning.tsx` | Revenue at risk precisa |
+| `src/pages/admin/CompanyLifecycle.tsx` | Rimuovere import inutili |
+| `src/pages/admin/Announcements.tsx` | Verificare/fixare created_by |
 
