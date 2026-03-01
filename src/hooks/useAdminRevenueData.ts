@@ -43,10 +43,29 @@ export interface TrialActivation {
   withOrders: number;
   withCustomers: number;
   withStaff: number;
-  hot: number; // high activity trials
-  cold: number; // no activity
+  hot: number;
+  cold: number;
   conversionRate: number;
   avgDaysToFirstOrder: number | null;
+  conversionTrend: ConversionTrendPoint[];
+  hotTrialAlerts: HotTrialAlert[];
+}
+
+export interface ConversionTrendPoint {
+  month: string;
+  trialsStarted: number;
+  converted: number;
+  expired: number;
+  rate: number;
+}
+
+export interface HotTrialAlert {
+  companyId: string;
+  companyName: string;
+  score: number;
+  daysUntilExpiry: number;
+  ordersLast30d: number;
+  userCount: number;
 }
 
 const sectorLabelsMap: Record<string, string> = {
@@ -286,7 +305,6 @@ export function useAdminRevenueData() {
         .map((c) => {
           const hd = healthDataMap.get(c.id);
           if (!hd?.last_order_date) return null;
-          // Rough: first order date approximation
           const created = new Date(c.created_at);
           const firstOrder = new Date(hd.last_order_date);
           return Math.max(0, Math.floor((firstOrder.getTime() - created.getTime()) / 86400000));
@@ -304,6 +322,63 @@ export function useAdminRevenueData() {
           ? Math.round((activeCompanies.length / totalTrialPool) * 100)
           : 0;
 
+      // ---- CONVERSION TREND (last 6 months) ----
+      const conversionTrend: ConversionTrendPoint[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = subMonths(now, i);
+        const mStart = startOfMonth(monthDate);
+        const mEnd = endOfMonth(monthDate);
+
+        const trialsStarted = companies.filter((c) => {
+          const created = new Date(c.created_at);
+          return created >= mStart && created <= mEnd;
+        }).length;
+
+        const converted = companies.filter((c) => {
+          const created = new Date(c.created_at);
+          return created >= mStart && created <= mEnd && c.status === "active";
+        }).length;
+
+        const expired = companies.filter((c) => {
+          const created = new Date(c.created_at);
+          return created >= mStart && created <= mEnd && c.status === "expired";
+        }).length;
+
+        conversionTrend.push({
+          month: format(monthDate, "MMM yy", { locale: it }),
+          trialsStarted,
+          converted,
+          expired,
+          rate: trialsStarted > 0 ? Math.round((converted / trialsStarted) * 100) : 0,
+        });
+      }
+
+      // ---- HOT TRIAL ALERTS (expiring soon with high engagement) ----
+      const hotTrialAlerts: HotTrialAlert[] = trialCompanies
+        .filter((c) => {
+          if (!c.trial_ends_at) return false;
+          const daysLeft = Math.ceil(
+            (new Date(c.trial_ends_at).getTime() - Date.now()) / 86400000
+          );
+          if (daysLeft > 7 || daysLeft < 0) return false;
+          const hd = healthDataMap.get(c.id);
+          return hd && (hd.orders_last_30d > 0 || hd.user_count >= 2);
+        })
+        .map((c) => {
+          const hd = healthDataMap.get(c.id);
+          return {
+            companyId: c.id,
+            companyName: c.name,
+            score: calculateHealthScore(c, hd).score,
+            daysUntilExpiry: Math.ceil(
+              (new Date(c.trial_ends_at!).getTime() - Date.now()) / 86400000
+            ),
+            ordersLast30d: hd?.orders_last_30d || 0,
+            userCount: hd?.user_count || 0,
+          };
+        })
+        .sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+
       const trialActivation: TrialActivation = {
         total: trialCompanies.length,
         withOrders: trialWithOrders,
@@ -313,6 +388,8 @@ export function useAdminRevenueData() {
         cold: coldTrials,
         conversionRate,
         avgDaysToFirstOrder,
+        conversionTrend,
+        hotTrialAlerts,
       };
 
       // LTV approximation: ARR / total churned (if any)

@@ -92,8 +92,8 @@ export default function AdminDashboard() {
         {revenueData && <AdminMrrMovements data={revenueData.mrrMovements} />}
       </div>
 
-      {/* Revenue by Sector + Health Scores + Trial Intelligence */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      {/* Revenue by Sector + Health Scores */}
+      <div className="grid gap-6 lg:grid-cols-2">
         {revenueData && <AdminRevenueBySector data={revenueData.revenueBySector} />}
         {revenueData && (
           <AdminHealthSummary
@@ -101,8 +101,10 @@ export default function AdminDashboard() {
             topAtRisk={topAtRisk}
           />
         )}
-        {revenueData && <AdminTrialIntelligence data={revenueData.trialActivation} />}
       </div>
+
+      {/* Trial Intelligence — full width section */}
+      {revenueData && <AdminTrialIntelligence data={revenueData.trialActivation} />}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <AdminRecentCompanies companies={recentCompanies} />
