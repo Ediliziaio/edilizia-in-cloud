@@ -1,98 +1,116 @@
 
 
-# Audit Completo Super Admin — Fasi 1-3
+# Analisi Strategica Super Admin — Prospettiva CEO / CTO / CMO
 
-## A) Report AS-IS
+## Stato Attuale (AS-IS)
 
-### Moduli implementati
-1. **Revenue Intelligence** (Fase 1): KPIs, MRR chart, MRR Movements, Revenue by Sector, Health Score, Trial Intelligence
-2. **Retention** (Fase 2): Company Lifecycle, Dunning Dashboard, Announcements CRUD + Banner in-app
-3. **Scalability** (Fase 3): Feature Usage Analytics, System Health
+La sezione Super Admin comprende 12 pagine:
 
-### Entita DB coinvolte
-- `companies` (status, trial_ends_at, subscription_plan_id)
-- `subscription_plans` (price_monthly)
-- `platform_announcements` (nuovo, con RLS)
-- `google_calendar_sync_log` (read-only per System Health)
-- RPC: `get_company_health_data`, `auto_expire_trials`
+```text
+/admin                 → Dashboard (KPI, MRR, Health, Trial, Dunning, Usage, System)
+/admin/aziende         → Lista aziende (filtri, export CSV, impersonificazione)
+/admin/aziende/:id     → Dettaglio azienda (5 tab: Panoramica, Dettagli, Team, SaaS, Abbonamento)
+/admin/aziende/nuova   → Creazione azienda
+/admin/piani           → Piani tariffari CRUD
+/admin/ticket          → Supporto chat
+/admin/referral        → Programma affiliazione
+/admin/implementazioni → Feature flags (solo Messaggistica BETA)
+/admin/lifecycle       → Trial/Win-back con onboarding progress
+/admin/annunci         → Annunci piattaforma CRUD
+/admin/sync-logs       → Log sincronizzazione Google Calendar
+/admin/impostazioni    → Profilo, Admin, Piattaforma, Notifiche, Audit Log
+```
 
-### Flussi utente verificati
-- Dashboard → tutti i widget caricano correttamente
-- Lifecycle → tab Trial/Win-back → extension +14gg → funziona
-- Annunci → CRUD → banner visibile nel CompanyLayout
-- Dunning/Feature Usage/System Health → card nella dashboard
-
----
-
-## B) Problemi Identificati
-
-### P0 — Bug funzionali
-
-| # | Problema | Impatto | Fix |
-|---|---------|---------|-----|
-| 1 | **`AdminDunning` riceve `currentMrr` ma non lo usa** | Props interface dichiara `currentMrr: number` ma il componente destruttura solo `healthScores`. TypeScript non segnala errore, ma e' dead code e confusione. | Rimuovere `currentMrr` dall'interface e dal call site in `AdminDashboard.tsx` |
-| 2 | **Console warning: CartesianGrid ref** | `recharts` CartesianGrid genera warning "Function components cannot be given refs" nella console. Non e' un bug funzionale ma inquina la console. | Warning di libreria (recharts), non risolvibile senza fork. Irrilevante. |
-| 3 | **`platform_announcements` usa CHECK constraint** | La migration usa `CHECK (type IN (...))`. Le CHECK constraint sono immutabili e possono causare problemi in restore/migrazione futura. | Sostituire con validation trigger (best practice). **P1** — non urgente, funziona correttamente. |
-| 4 | **`AnnouncementBanner` casta `effectiveCompany as any`** | `(effectiveCompany as any)?.status` — unsafe cast bypassa il type system. Se `Company` non ha `status`, fallisce silenziosamente a `"trial"`. | Verificare che il tipo `Company` includa `status`. Se si, rimuovere `as any`. |
-
-### P1 — Pulizia codice
-
-| # | Problema | Fix |
-|---|---------|-----|
-| 5 | `AdminDunning` interface ha `currentMrr` non usato | Rimuovere dal interface e dal call site |
-| 6 | `Announcements.tsx` usa `useAuth` solo per `user?.id` su insert `created_by` — OK, ma nessuna validazione che `user` esista | Aggiungere guard `if (!user) return` prima delle mutation |
-| 7 | Feature Usage fa 5 query separate con `.limit(1000)` | Potrebbe colpire il limite. Meglio usare `count` o query aggregate. Ma per ora accettabile con poche aziende. **P2** |
-
-### P2 — Performance (future)
-
-| # | Problema | Impatto | Raccomandazione |
-|---|---------|---------|-----------------|
-| 8 | `useAdminRevenueData` fa 3 query parallele, poi elaborazione pesante client-side | Con 2 aziende e' istantaneo. Con 500+ potrebbe rallentare. | Considerare RPC server-side per aggregazioni revenue. **Non urgente.** |
-| 9 | Feature Usage: 5 query separate potenzialmente lente | `.limit(1000)` potrebbe troncare dati | Sostituire con `SELECT DISTINCT company_id` count o RPC. **P2** |
-| 10 | `AdminDashboard` monta 10+ componenti con 8+ query indipendenti | Con poche aziende OK. Scalabilita' da monitorare. | Lazy load sezioni below-the-fold. **P2** |
+Copre bene: metriche finanziarie, gestione tenant, supporto, referral, lifecycle. E' una base solida.
 
 ---
 
-## C) Multi-Tenancy & Sicurezza
+## Cosa Manca — Prospettiva Multi-Ruolo
 
-| Area | Stato | Note |
-|------|-------|------|
-| RLS su `platform_announcements` | OK | Super admin CRUD, authenticated read su attivi |
-| `TrialExtensionButton` update diretto | ATTENZIONE | Nessuna RLS policy per UPDATE su `companies` da super_admin. Funziona perche' super_admin bypassa RLS? Verificare. La mutation non filtra per ruolo client-side. |
-| `AnnouncementBanner` query | OK | Solo read di annunci attivi, nessun dato sensibile |
-| `AdminFeatureUsage` query | OK | Select su tabelle con RLS, super_admin ha accesso |
-| `auto_expire_trials` function | OK | SECURITY DEFINER, solo UPDATE su companies |
+### A) CEO / Revenue (P0 — Alto impatto sul business)
+
+| Feature | Perche' | Impatto |
+|---------|---------|---------|
+| **Cohort Analysis** | Capire retention per mese di acquisizione. Oggi vedi MRR e churn globali ma non sai *quando* perdi clienti. | Decisioni strategiche su pricing e onboarding |
+| **Revenue Forecast** | Proiezione MRR a 3/6/12 mesi basata su trend attuali (crescita, churn rate, trial conversion). Un CEO vuole vedere *dove sta andando* il business. | Pianificazione finanziaria |
+| **Pipeline Dashboard** | Oggi non c'e' visibilita' su lead/prospect pre-trial. Quante demo fai? Quanti trial si convertono? Serve un mini funnel vendita. | Ottimizzazione acquisizione |
+| **NPS / Customer Satisfaction** | Nessun meccanismo per raccogliere feedback dai tenant. Un CEO vuole sapere se i clienti sono contenti *prima* che facciano churn. | Prevenzione churn |
+
+### B) CTO / Sicurezza & Scalabilita' (P0-P1)
+
+| Feature | Perche' | Impatto |
+|---------|---------|---------|
+| **Rate Limiting su Edge Functions** | Le funzioni `manage-super-admins` e `sign-in-as-user` non hanno rate limiting. Un attaccante potrebbe fare brute force. | Sicurezza enterprise |
+| **Audit Log Arricchito** | L'audit log attuale traccia attivita' aziendali ma manca: login/logout super admin, impersonificazioni, modifiche piani, azioni bulk. | Compliance e forensics |
+| **Backup Dashboard** | Il cron `auto_expire_trials` e' l'unica automazione. Non c'e' visibilita' sullo stato dei backup, ultima esecuzione, errori. | Disaster recovery |
+| **API Health Monitor** | `AdminSystemHealth` e' un placeholder. Serve: latenza API reale, error rate, uptime, stato Edge Functions. | SRE/Observability |
+
+### C) CMO / Marketing & Growth (P1)
+
+| Feature | Perche' | Impatto |
+|---------|---------|---------|
+| **Email Automatiche Lifecycle** | Quando un trial sta per scadere, quando un'azienda non accede da 14gg, quando completa l'onboarding — zero email automatiche oggi. | Conversione e retention |
+| **Self-Service Onboarding** | L'onboarding e' tracciato ma passivo. Manca una checklist interattiva visibile al tenant con CTA "completa questo step". | Attivazione utenti |
+| **Referral Analytics** | Il programma referral esiste ma manca: conversion rate per referrer, trend temporali, ROI per referrer. | Ottimizzazione canale |
+| **Landing Page / Pricing Page** | Non c'e' una pagina pubblica per i piani. Oggi tutto e' manuale (il super admin crea l'azienda). Serve un flusso self-service con checkout. | Scalabilita' acquisizione |
+
+### D) Sales Director (P1-P2)
+
+| Feature | Perche' | Impatto |
+|---------|---------|---------|
+| **CRM Interno Mini** | Tracciare prospect, demo, follow-up. Oggi non c'e' modo di gestire il pre-vendita. | Processo vendita strutturato |
+| **Segmentazione Clienti** | Tagging/segmentazione per settore, dimensione, comportamento. Permette azioni mirate (upsell, cross-sell). | Revenue expansion |
+| **Upsell Alerts** | Notifiche quando un tenant si avvicina ai limiti del piano (ordini, utenti, storage). | Espansione MRR naturale |
 
 ---
 
-## D) Piano Interventi
+## Cosa Migliorare nell'Esistente
 
-### Da implementare (scope ridotto, behavior-preserving)
+### UX/Product Improvements
 
-1. **Fix `AdminDunning` props** — rimuovere `currentMrr` dall'interface e dal call site
-2. **Fix `AnnouncementBanner` type cast** — rimuovere `as any`, usare tipo corretto
-3. **Fix `Announcements.tsx` guard** — aggiungere check `user` prima di insert
-4. **Pulizia console** — il warning CartesianGrid e' di recharts, non risolvibile. Accettabile.
+| Area | Problema | Miglioramento |
+|------|----------|---------------|
+| **Dashboard** | 10+ widget tutti visibili, nessuna personalizzazione | Dashboard configurabile con widget drag-and-drop, o almeno sezioni collassabili |
+| **Lista Aziende** | Manca ordinamento colonne (MRR, ordini, data) | Aggiungere sorting su tutte le colonne |
+| **Lifecycle** | Solo 2 tab (Trial/Expired). Mancano Active e Suspended | Aggiungere tab per stato Active (monitoraggio) e Suspended (riattivazione) |
+| **Annunci** | Nessuna preview di come apparira' il banner | Aggiungere anteprima live del banner prima della pubblicazione |
+| **Supporto** | Solo chat. Nessuna metrica (tempo risposta, SLA, soddisfazione) | Dashboard metriche supporto: TTFR, resolution time, ticket aperti per priorita' |
+| **Implementazioni** | Solo 1 modulo (Messaggistica). Feature flags statici | Rendere dinamico: creare feature flags da UI senza codice |
+| **Piani** | Nessun confronto visivo tra piani | Tabella comparativa moduli/limiti per piano |
+| **Export** | Solo CSV basico per aziende | Export avanzato: seleziona colonne, formato (CSV/Excel), scheduling automatico |
 
-### NON da fare (rischio regressione senza beneficio)
+### Sicurezza
 
-- Refactor `useAdminRevenueData` in RPC server-side (prematura optimization)
-- Sostituire CHECK constraint con trigger (funziona, cambiarlo ora rischia)
-- Lazy load dashboard sections (nessun problema di performance attuale)
+| Area | Stato | Raccomandazione |
+|------|-------|-----------------|
+| Impersonificazione | Funziona ma l'audit e' minimo | Log dettagliato di ogni azione durante impersonificazione |
+| Delete annunci | Click diretto senza conferma | Aggiungere dialog di conferma |
+| TrialExtension | Nessun limite al numero di estensioni | Contatore estensioni + alert dopo 3+ estensioni |
+| Bulk operations | `Implementations` fa update su TUTTE le aziende | Conferma esplicita con conteggio aziende impattate |
 
 ---
 
-## E) Output atteso dopo implementazione
+## Piano di Implementazione Consigliato (Prioritizzato)
 
-| Intervento | File |
-|-----------|------|
-| Rimuovere `currentMrr` da AdminDunning interface + call site | `AdminDunning.tsx`, `AdminDashboard.tsx` |
-| Rimuovere `as any` da AnnouncementBanner | `AnnouncementBanner.tsx` |
-| Guard `user` in Announcements.tsx | `Announcements.tsx` |
+### Sprint 1 — Quick Wins (1-2 giorni)
+1. **Sorting colonne** nella lista aziende
+2. **Dialog conferma** su delete annunci e bulk feature flags
+3. **Tab Active/Suspended** nel Lifecycle
+4. **Contatore estensioni trial** con alert
+5. **Metriche supporto base** (TTFR, ticket aperti)
 
-### Dichiarazione
+### Sprint 2 — Revenue Intelligence (3-5 giorni)
+6. **Cohort Analysis** (retention per mese di signup)
+7. **Revenue Forecast** (proiezione MRR lineare)
+8. **Upsell Alerts** (notifiche limiti piano)
 
-Dopo questi 3 fix minori, la sezione Super Admin (Fasi 1-3) e' **stabile e pronta per produzione**. Non ci sono bug bloccanti, non ci sono leak di dati, l'isolamento multi-tenant e' corretto, e la UX e' coerente. I warning in console sono di librerie terze (recharts) e irrilevanti.
+### Sprint 3 — Growth Engine (3-5 giorni)
+9. **Email lifecycle automatiche** (trial expiring, inactivity, welcome)
+10. **Referral analytics** (conversion rate, trend, ROI)
+11. **Self-service onboarding checklist** lato tenant
 
-Le ottimizzazioni P2 (query aggregate, lazy loading) sono raccomandate solo quando il numero di tenant supera 100+.
+### Sprint 4 — Enterprise Hardening (2-3 giorni)
+12. **Audit log arricchito** (login, impersonificazione, modifiche piani)
+13. **Rate limiting** su Edge Functions sensibili
+14. **System Health reale** (metriche API, error rate)
 
