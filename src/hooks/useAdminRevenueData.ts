@@ -69,6 +69,23 @@ export interface HotTrialAlert {
   userCount: number;
 }
 
+export interface CohortRow {
+  cohort: string; // "gen 25", "feb 25", etc.
+  total: number;
+  retained: number[];  // retained count at month 0, 1, 2, ...
+  retainedPct: number[]; // percentage at each month
+}
+
+export interface UpsellAlert {
+  companyId: string;
+  companyName: string;
+  metric: "orders" | "users";
+  current: number;
+  limit: number;
+  pct: number;
+  planName: string;
+}
+
 const sectorLabelsMap: Record<string, string> = {
   serramenti: "Serramenti",
   infissi: "Infissi",
@@ -123,26 +140,27 @@ export function useAdminRevenueData() {
   return useQuery({
     queryKey: ["admin-revenue-intelligence"],
     queryFn: async () => {
-      const [companiesRes, healthRes, subscriptionLogsRes] = await Promise.all([
+      const [companiesRes, healthRes, subscriptionLogsRes, plansRes] = await Promise.all([
         supabase
           .from("companies")
-          .select("id, name, sector, status, created_at, trial_ends_at, subscription_plan_id, subscription_plans:subscription_plan_id(price_monthly)"),
+          .select("id, name, sector, status, created_at, trial_ends_at, subscription_plan_id, trial_extensions_count, subscription_plans:subscription_plan_id(name, price_monthly, max_orders, max_users)"),
         supabase.rpc("get_company_health_data"),
         supabase
           .from("subscription_logs")
           .select("*")
           .order("created_at", { ascending: false })
           .limit(500),
+        supabase.from("subscription_plans").select("id, name, price_monthly, max_orders, max_users"),
       ]);
 
       const now = new Date();
-      // Derive effective status: if trial has expired, treat as "expired"
       const companies = (companiesRes.data || []).map((c) => ({
         ...c,
         status: c.status === "trial" && c.trial_ends_at && new Date(c.trial_ends_at) < now
           ? "expired"
           : c.status,
       }));
+      const allPlans = plansRes.data || [];
       const healthDataMap = new Map<string, any>();
       (healthRes.data || []).forEach((h: any) => {
         healthDataMap.set(h.company_id, h);
@@ -177,13 +195,14 @@ export function useAdminRevenueData() {
         critical: healthScores.filter((h) => h.health === "critical").length,
       };
 
+      const priceOf = (c: any) => (c.subscription_plans as { price_monthly: number } | null)?.price_monthly || 0;
+
       // ---- REVENUE BY SECTOR ----
       const sectorMap = new Map<string, { mrr: number; count: number }>();
       companies
         .filter((c) => c.status === "active")
         .forEach((c) => {
-          const plan = c.subscription_plans as { price_monthly: number } | null;
-          const price = plan?.price_monthly || 0;
+          const price = priceOf(c);
           const existing = sectorMap.get(c.sector) || { mrr: 0, count: 0 };
           sectorMap.set(c.sector, {
             mrr: existing.mrr + price,
@@ -202,10 +221,7 @@ export function useAdminRevenueData() {
 
       // ---- MRR & ARR & NRR ----
       const activeCompanies = companies.filter((c) => c.status === "active");
-      const currentMrr = activeCompanies.reduce((sum, c) => {
-        const plan = c.subscription_plans as { price_monthly: number } | null;
-        return sum + (plan?.price_monthly || 0);
-      }, 0);
+      const currentMrr = activeCompanies.reduce((sum, c) => sum + priceOf(c), 0);
 
       const arr = currentMrr * 12;
 
@@ -214,19 +230,15 @@ export function useAdminRevenueData() {
       const companiesExistingSixMonths = activeCompanies.filter(
         (c) => new Date(c.created_at) <= sixMonthsAgo
       );
-      const currentMrrFromExisting = companiesExistingSixMonths.reduce((sum, c) => {
-        const plan = c.subscription_plans as { price_monthly: number } | null;
-        return sum + (plan?.price_monthly || 0);
-      }, 0);
+      const currentMrrFromExisting = companiesExistingSixMonths.reduce((sum, c) => sum + priceOf(c), 0);
 
       // Estimate MRR 6mo ago from all companies that were active at that time
       const allExistingSixMonths = companies.filter(
         (c) => new Date(c.created_at) <= sixMonthsAgo
       );
       const mrrSixMonthsAgo = allExistingSixMonths.reduce((sum, c) => {
-        const plan = c.subscription_plans as { price_monthly: number } | null;
         if (c.status === "active" || c.status === "expired") {
-          return sum + (plan?.price_monthly || 0);
+          return sum + priceOf(c);
         }
         return sum;
       }, 0);
@@ -247,10 +259,7 @@ export function useAdminRevenueData() {
           const created = new Date(c.created_at);
           return created >= mStart && created <= mEnd && c.status === "active";
         });
-        const newMrr = newThisMonth.reduce((s, c) => {
-          const plan = c.subscription_plans as { price_monthly: number } | null;
-          return s + (plan?.price_monthly || 0);
-        }, 0);
+        const newMrr = newThisMonth.reduce((s, c) => s + priceOf(c), 0);
 
         // Churned: companies that expired this month (approximation)
         const churnedThisMonth = companies.filter((c) => {
@@ -260,10 +269,7 @@ export function useAdminRevenueData() {
           const churnDate = new Date(c.trial_ends_at);
           return churnDate >= mStart && churnDate <= mEnd;
         });
-        const churnMrr = churnedThisMonth.reduce((s, c) => {
-          const plan = c.subscription_plans as { price_monthly: number } | null;
-          return s + (plan?.price_monthly || 0);
-        }, 0);
+        const churnMrr = churnedThisMonth.reduce((s, c) => s + priceOf(c), 0);
 
         mrrMovements.push({
           month: format(monthDate, "MMM yy", { locale: it }),
@@ -400,12 +406,117 @@ export function useAdminRevenueData() {
         hotTrialAlerts,
       };
 
-      // LTV approximation: ARR / total churned (if any)
+      // LTV approximation
       const expiredCount = companies.filter((c) => c.status === "expired").length;
       const avgLtv =
         expiredCount > 0 && currentMrr > 0
           ? Math.round((currentMrr * activeCompanies.length) / (activeCompanies.length + expiredCount) * 12)
           : arr;
+
+      // ---- COHORT ANALYSIS (last 12 months) ----
+      const cohortData: CohortRow[] = [];
+      for (let i = 11; i >= 0; i--) {
+        const cohortMonth = subMonths(now, i);
+        const mStart = startOfMonth(cohortMonth);
+        const mEnd = endOfMonth(cohortMonth);
+
+        const cohortCompanies = companies.filter((c) => {
+          const created = new Date(c.created_at);
+          return created >= mStart && created <= mEnd;
+        });
+
+        if (cohortCompanies.length === 0) continue;
+
+        const total = cohortCompanies.length;
+        const retained: number[] = [];
+        const retainedPct: number[] = [];
+
+        // Month 0 = signup month, then check if still active at each subsequent month
+        for (let m = 0; m <= 11 - i; m++) {
+          const checkDate = subMonths(now, 11 - i - m);
+          const checkEnd = endOfMonth(checkDate);
+
+          const stillActive = cohortCompanies.filter((c) => {
+            // Active if status is active OR (trial and trial hasn't expired by checkEnd)
+            if (c.status === "active") return true;
+            if (c.status === "trial") {
+              return !c.trial_ends_at || new Date(c.trial_ends_at) > checkEnd;
+            }
+            // Expired: check if expiry happened after checkEnd
+            if (c.status === "expired" && c.trial_ends_at) {
+              return new Date(c.trial_ends_at) > checkEnd;
+            }
+            return false;
+          }).length;
+
+          retained.push(stillActive);
+          retainedPct.push(Math.round((stillActive / total) * 100));
+        }
+
+        cohortData.push({
+          cohort: format(cohortMonth, "MMM yy", { locale: it }),
+          total,
+          retained,
+          retainedPct,
+        });
+      }
+
+      // ---- REVENUE FORECAST ----
+      // Use last 6 months MRR movements to compute avg monthly growth
+      const netNewValues = mrrMovements.map((m) => m.netNew);
+      const avgMonthlyGrowth = netNewValues.length > 0
+        ? netNewValues.reduce((a, b) => a + b, 0) / netNewValues.length
+        : 0;
+      const churnRateAvg = mrrMovements.length > 0
+        ? mrrMovements.reduce((sum, m) => sum + m.churnMrr, 0) / mrrMovements.length
+        : 0;
+
+      const forecast = [3, 6, 12].map((months) => {
+        let projected = currentMrr;
+        for (let m = 1; m <= months; m++) {
+          projected = projected + avgMonthlyGrowth;
+        }
+        return { months, mrr: Math.max(0, Math.round(projected)), arr: Math.max(0, Math.round(projected * 12)) };
+      });
+
+      // ---- UPSELL ALERTS ----
+      const upsellAlerts: UpsellAlert[] = [];
+      for (const c of activeCompanies) {
+        const plan = c.subscription_plans as { name: string; price_monthly: number; max_orders: number; max_users: number } | null;
+        if (!plan) continue;
+        const hd = healthDataMap.get(c.id);
+        if (!hd) continue;
+
+        if (plan.max_orders > 0) {
+          const pct = Math.round((hd.order_count / plan.max_orders) * 100);
+          if (pct >= 70) {
+            upsellAlerts.push({
+              companyId: c.id,
+              companyName: c.name,
+              metric: "orders",
+              current: hd.order_count,
+              limit: plan.max_orders,
+              pct,
+              planName: plan.name,
+            });
+          }
+        }
+        if (plan.max_users > 0) {
+          const pct = Math.round((hd.user_count / plan.max_users) * 100);
+          if (pct >= 70) {
+            upsellAlerts.push({
+              companyId: c.id,
+              companyName: c.name,
+              metric: "users",
+              current: hd.user_count,
+              limit: plan.max_users,
+              pct,
+              planName: plan.name,
+            });
+          }
+        }
+      }
+      upsellAlerts.sort((a, b) => b.pct - a.pct);
 
       return {
         currentMrr,
@@ -417,6 +528,11 @@ export function useAdminRevenueData() {
         healthScores,
         healthSummary,
         trialActivation,
+        cohortData,
+        forecast,
+        upsellAlerts,
+        avgMonthlyGrowth,
+        churnRateAvg,
       };
     },
     staleTime: 5 * 60 * 1000,
