@@ -20,6 +20,7 @@ export interface CompanyHealthScore {
   hasStaff: boolean;
   hasOrders: boolean;
   trialEndsAt: string | null;
+  priceMonthly: number;
 }
 
 export interface MrrMovement {
@@ -166,6 +167,7 @@ export function useAdminRevenueData() {
           hasStaff: hd?.has_staff || false,
           hasOrders: (hd?.order_count || 0) > 0,
           trialEndsAt: c.trial_ends_at,
+          priceMonthly: (c.subscription_plans as { price_monthly: number } | null)?.price_monthly || 0,
         };
       });
 
