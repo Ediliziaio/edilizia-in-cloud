@@ -134,7 +134,14 @@ export function useAdminRevenueData() {
           .limit(500),
       ]);
 
-      const companies = companiesRes.data || [];
+      const now = new Date();
+      // Derive effective status: if trial has expired, treat as "expired"
+      const companies = (companiesRes.data || []).map((c) => ({
+        ...c,
+        status: c.status === "trial" && c.trial_ends_at && new Date(c.trial_ends_at) < now
+          ? "expired"
+          : c.status,
+      }));
       const healthDataMap = new Map<string, any>();
       (healthRes.data || []).forEach((h: any) => {
         healthDataMap.set(h.company_id, h);
@@ -227,7 +234,6 @@ export function useAdminRevenueData() {
         : 100;
 
       // ---- MRR MOVEMENTS (last 6 months) ----
-      const now = new Date();
       const mrrMovements: MrrMovement[] = [];
       for (let i = 5; i >= 0; i--) {
         const monthDate = subMonths(now, i);

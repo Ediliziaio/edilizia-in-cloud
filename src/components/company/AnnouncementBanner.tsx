@@ -44,7 +44,7 @@ export function AnnouncementBanner() {
   const typeStyles: Record<string, { bg: string; icon: React.ReactNode }> = {
     banner: { bg: "bg-primary/10 border-primary/20 text-primary", icon: <Info className="h-4 w-4" /> },
     changelog: { bg: "bg-accent/50 border-accent text-accent-foreground", icon: <Sparkles className="h-4 w-4" /> },
-    maintenance: { bg: "bg-warning/10 border-warning/20 text-warning-foreground", icon: <AlertTriangle className="h-4 w-4" /> },
+    maintenance: { bg: "bg-amber-50 border-amber-200 text-amber-800", icon: <AlertTriangle className="h-4 w-4" /> },
   };
 
   return (
