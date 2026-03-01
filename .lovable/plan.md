@@ -1,116 +1,108 @@
 
 
-# Analisi Strategica Super Admin — Prospettiva CEO / CTO / CMO
+# Audit Sprint 1-4: Analisi Completa e Piano di Fix
 
-## Stato Attuale (AS-IS)
+## 1) Bug e Problemi Identificati
 
-La sezione Super Admin comprende 12 pagine:
+### Sprint 1 — CompaniesList / Lifecycle / Implementations
 
-```text
-/admin                 → Dashboard (KPI, MRR, Health, Trial, Dunning, Usage, System)
-/admin/aziende         → Lista aziende (filtri, export CSV, impersonificazione)
-/admin/aziende/:id     → Dettaglio azienda (5 tab: Panoramica, Dettagli, Team, SaaS, Abbonamento)
-/admin/aziende/nuova   → Creazione azienda
-/admin/piani           → Piani tariffari CRUD
-/admin/ticket          → Supporto chat
-/admin/referral        → Programma affiliazione
-/admin/implementazioni → Feature flags (solo Messaggistica BETA)
-/admin/lifecycle       → Trial/Win-back con onboarding progress
-/admin/annunci         → Annunci piattaforma CRUD
-/admin/sync-logs       → Log sincronizzazione Google Calendar
-/admin/impostazioni    → Profilo, Admin, Piattaforma, Notifiche, Audit Log
-```
+**BUG 1: `TrialExtensionButton` in CompanyLifecycle non riceve `extensionsCount`**
+- File: `CompanyLifecycle.tsx` linea 228
+- `<TrialExtensionButton companyId={company.companyId} currentEnd={company.trialEndsAt} />` non passa `extensionsCount`
+- Il contatore funziona ma parte sempre da 0 perche il valore dal DB non viene propagato
+- **Fix:** Il `healthScores` nel hook `useAdminRevenueData` non include `trial_extensions_count`. Aggiungere il campo all'interfaccia `CompanyHealthScore`, popolarlo nel mapping, e passarlo come prop nel Lifecycle
 
-Copre bene: metriche finanziarie, gestione tenant, supporto, referral, lifecycle. E' una base solida.
+**BUG 2: `as any` in `CompanyLifecycle.tsx` linea 73**
+- `trial_extensions_count` usa `as any` nel `.update()` — indica che il tipo non e' sincronizzato con le types generate
+- **Fix:** Non possiamo modificare `types.ts`, ma possiamo aggiungere type assertion piu precisa o verificare che la migration abbia aggiornato i tipi
 
----
+**BUG 3: `as any` in `Implementations.tsx` linee 56 e 71**
+- L'update con `[field]: value` richiede `as any` — inevitabile con chiavi dinamiche ma va documentato
 
-## Cosa Manca — Prospettiva Multi-Ruolo
+**BUG 4: `Implementations.tsx` usa `@/hooks/use-toast` (legacy shim) invece di `sonner`**
+- Linea 11: `import { toast } from "@/hooks/use-toast"`
+- **Fix:** Migrare a `import { toast } from "sonner"` per coerenza con lo standard del progetto
 
-### A) CEO / Revenue (P0 — Alto impatto sul business)
+### Sprint 2 — Revenue Intelligence
 
-| Feature | Perche' | Impatto |
-|---------|---------|---------|
-| **Cohort Analysis** | Capire retention per mese di acquisizione. Oggi vedi MRR e churn globali ma non sai *quando* perdi clienti. | Decisioni strategiche su pricing e onboarding |
-| **Revenue Forecast** | Proiezione MRR a 3/6/12 mesi basata su trend attuali (crescita, churn rate, trial conversion). Un CEO vuole vedere *dove sta andando* il business. | Pianificazione finanziaria |
-| **Pipeline Dashboard** | Oggi non c'e' visibilita' su lead/prospect pre-trial. Quante demo fai? Quanti trial si convertono? Serve un mini funnel vendita. | Ottimizzazione acquisizione |
-| **NPS / Customer Satisfaction** | Nessun meccanismo per raccogliere feedback dai tenant. Un CEO vuole sapere se i clienti sono contenti *prima* che facciano churn. | Prevenzione churn |
+**BUG 5: `AdminRevenueForecast` riceve `churnRateAvg` come valore in euro, ma il nome suggerisce una percentuale**
+- In realta il componente lo gestisce correttamente (`formatCurrency`), ma la nomenclatura e ambigua
+- **Fix:** Rinominare in `avgMonthlyChurnMrr` per chiarezza
 
-### B) CTO / Sicurezza & Scalabilita' (P0-P1)
+**BUG 6: Cohort Analysis — calcolo retention potenzialmente impreciso**
+- In `useAdminRevenueData.ts` linee 435-450, il loop `for (let m = 0; m <= 11 - i; m++)` calcola `checkDate = subMonths(now, 11 - i - m)` — questo puo dare date future per coorti recenti
+- L'effetto e minore (mostra 100% per mese corrente), ma logicamente scorretto
+- **Fix:** Aggiungere guard `if (checkDate > now) break`
 
-| Feature | Perche' | Impatto |
-|---------|---------|---------|
-| **Rate Limiting su Edge Functions** | Le funzioni `manage-super-admins` e `sign-in-as-user` non hanno rate limiting. Un attaccante potrebbe fare brute force. | Sicurezza enterprise |
-| **Audit Log Arricchito** | L'audit log attuale traccia attivita' aziendali ma manca: login/logout super admin, impersonificazioni, modifiche piani, azioni bulk. | Compliance e forensics |
-| **Backup Dashboard** | Il cron `auto_expire_trials` e' l'unica automazione. Non c'e' visibilita' sullo stato dei backup, ultima esecuzione, errori. | Disaster recovery |
-| **API Health Monitor** | `AdminSystemHealth` e' un placeholder. Serve: latenza API reale, error rate, uptime, stato Edge Functions. | SRE/Observability |
+### Sprint 3 — Growth Engine
 
-### C) CMO / Marketing & Growth (P1)
+**BUG 7: `OnboardingChecklist` dismissal non persiste al refresh**
+- `setDismissed(true)` e solo in-memory (`useState`). Al refresh dell'app, la checklist riappare
+- **Fix:** Persistere dismissal in `localStorage` con chiave per company
 
-| Feature | Perche' | Impatto |
-|---------|---------|---------|
-| **Email Automatiche Lifecycle** | Quando un trial sta per scadere, quando un'azienda non accede da 14gg, quando completa l'onboarding — zero email automatiche oggi. | Conversione e retention |
-| **Self-Service Onboarding** | L'onboarding e' tracciato ma passivo. Manca una checklist interattiva visibile al tenant con CTA "completa questo step". | Attivazione utenti |
-| **Referral Analytics** | Il programma referral esiste ma manca: conversion rate per referrer, trend temporali, ROI per referrer. | Ottimizzazione canale |
-| **Landing Page / Pricing Page** | Non c'e' una pagina pubblica per i piani. Oggi tutto e' manuale (il super admin crea l'azienda). Serve un flusso self-service con checkout. | Scalabilita' acquisizione |
+**BUG 8: `LifecycleNotificationsBanner` non ha gestione errore visibile**
+- Se la query fallisce silenziosamente, l'utente non vede nulla (OK come fallback) ma il dismiss non ha feedback
+- **Fix:** Aggiungere `toast.error` su dismissMutation error
 
-### D) Sales Director (P1-P2)
+**BUG 9: `check-lifecycle-events` — logica duplicazione notifiche trial**
+- Linea 42: `if (daysLeft === 3 || (daysLeft > 0 && daysLeft <= 3))` — la condizione e ridondante (`daysLeft === 3` e gia incluso in `daysLeft <= 3 && daysLeft > 0`)
+- Genera potenzialmente sia `trial_expiring_3d` che `trial_expiring_1d` per lo stesso giorno (daysLeft=1)
+- **Fix:** Usare `if (daysLeft > 1 && daysLeft <= 3)` e separare `if (daysLeft === 1)`
 
-| Feature | Perche' | Impatto |
-|---------|---------|---------|
-| **CRM Interno Mini** | Tracciare prospect, demo, follow-up. Oggi non c'e' modo di gestire il pre-vendita. | Processo vendita strutturato |
-| **Segmentazione Clienti** | Tagging/segmentazione per settore, dimensione, comportamento. Permette azioni mirate (upsell, cross-sell). | Revenue expansion |
-| **Upsell Alerts** | Notifiche quando un tenant si avvicina ai limiti del piano (ordini, utenti, storage). | Espansione MRR naturale |
+### Sprint 4 — Enterprise Hardening
 
----
+**BUG 10: `AdminSystemHealth` — query `system_health_metrics` potrebbe non avere dati**
+- Il componente gestisce bene il caso vuoto (mostra 100%, 0ms), ma il rate_limit_hit query filtra per `metric_type = "rate_limit_hit"` che potrebbe non esistere come type — dipende se `healthMetrics.ts` lo registra
+- Nessun fix necessario, il fallback e corretto
 
-## Cosa Migliorare nell'Esistente
+**BUG 11: `AuditLogTab` — search locale ma paginazione server-side**
+- La ricerca `searchQuery` filtra solo i log della pagina corrente (20 record), non l'intero dataset
+- L'utente potrebbe non trovare log che esistono ma sono su altre pagine
+- **Fix:** O aggiungere search server-side (via `.ilike()` su join), oppure mostrare un disclaimer "Ricerca limitata alla pagina corrente"
 
-### UX/Product Improvements
+## 2) Codice Morto / Inutilizzato da Rimuovere
 
-| Area | Problema | Miglioramento |
-|------|----------|---------------|
-| **Dashboard** | 10+ widget tutti visibili, nessuna personalizzazione | Dashboard configurabile con widget drag-and-drop, o almeno sezioni collassabili |
-| **Lista Aziende** | Manca ordinamento colonne (MRR, ordini, data) | Aggiungere sorting su tutte le colonne |
-| **Lifecycle** | Solo 2 tab (Trial/Expired). Mancano Active e Suspended | Aggiungere tab per stato Active (monitoraggio) e Suspended (riattivazione) |
-| **Annunci** | Nessuna preview di come apparira' il banner | Aggiungere anteprima live del banner prima della pubblicazione |
-| **Supporto** | Solo chat. Nessuna metrica (tempo risposta, SLA, soddisfazione) | Dashboard metriche supporto: TTFR, resolution time, ticket aperti per priorita' |
-| **Implementazioni** | Solo 1 modulo (Messaggistica). Feature flags statici | Rendere dinamico: creare feature flags da UI senza codice |
-| **Piani** | Nessun confronto visivo tra piani | Tabella comparativa moduli/limiti per piano |
-| **Export** | Solo CSV basico per aziende | Export avanzato: seleziona colonne, formato (CSV/Excel), scheduling automatico |
+- **Nessun file orfano identificato** nei componenti Sprint 1-4: tutti sono importati e utilizzati
+- `import { toast } from "@/hooks/use-toast"` in `Implementations.tsx` — da migrare a `sonner`
 
-### Sicurezza
+## 3) Miglioramenti UX Proposti
 
-| Area | Stato | Raccomandazione |
-|------|-------|-----------------|
-| Impersonificazione | Funziona ma l'audit e' minimo | Log dettagliato di ogni azione durante impersonificazione |
-| Delete annunci | Click diretto senza conferma | Aggiungere dialog di conferma |
-| TrialExtension | Nessun limite al numero di estensioni | Contatore estensioni + alert dopo 3+ estensioni |
-| Bulk operations | `Implementations` fa update su TUTTE le aziende | Conferma esplicita con conteggio aziende impattate |
+| Area | Miglioramento |
+|------|---------------|
+| `TrialExtensionButton` | Aggiungere tooltip "X estensioni gia effettuate" |
+| `OnboardingChecklist` | Persistere dismissal in localStorage |
+| `LifecycleNotificationsBanner` | Toast su errore dismiss |
+| `AdminCohortAnalysis` | Tooltip su hover cella con "X di Y aziende attive" |
+| `AdminSystemHealth` | Empty state testuale quando non ci sono metriche |
+| `AuditLogTab` | Nota visiva "ricerca sulla pagina corrente" |
+| `CompanyLifecycle` edge function | Fix logica condizione duplicata |
 
----
+## 4) Piano di Implementazione
 
-## Piano di Implementazione Consigliato (Prioritizzato)
+### Task 1: Fix `extensionsCount` mancante nel Lifecycle
+- Aggiungere `trialExtensionsCount` a `CompanyHealthScore`
+- Popolare dal query companies in `useAdminRevenueData`
+- Passare come prop in `CompanyLifecycle.tsx`
 
-### Sprint 1 — Quick Wins (1-2 giorni)
-1. **Sorting colonne** nella lista aziende
-2. **Dialog conferma** su delete annunci e bulk feature flags
-3. **Tab Active/Suspended** nel Lifecycle
-4. **Contatore estensioni trial** con alert
-5. **Metriche supporto base** (TTFR, ticket aperti)
+### Task 2: Migrare `Implementations.tsx` a `sonner`
+- Sostituire `import { toast } from "@/hooks/use-toast"` con `import { toast } from "sonner"`
+- Aggiornare le chiamate da `toast({ title: "..." })` a `toast.success("...")`
 
-### Sprint 2 — Revenue Intelligence (3-5 giorni)
-6. **Cohort Analysis** (retention per mese di signup)
-7. **Revenue Forecast** (proiezione MRR lineare)
-8. **Upsell Alerts** (notifiche limiti piano)
+### Task 3: Fix cohort analysis date guard
+- Aggiungere `if (endOfMonth(checkDate) > now) break` nel loop retention
 
-### Sprint 3 — Growth Engine (3-5 giorni)
-9. **Email lifecycle automatiche** (trial expiring, inactivity, welcome)
-10. **Referral analytics** (conversion rate, trend, ROI)
-11. **Self-service onboarding checklist** lato tenant
+### Task 4: Persistere dismissal `OnboardingChecklist`
+- Usare `localStorage.getItem/setItem` con chiave `onboarding-dismissed-{companyId}`
 
-### Sprint 4 — Enterprise Hardening (2-3 giorni)
-12. **Audit log arricchito** (login, impersonificazione, modifiche piani)
-13. **Rate limiting** su Edge Functions sensibili
-14. **System Health reale** (metriche API, error rate)
+### Task 5: Fix logica duplicata `check-lifecycle-events`
+- Cambiare condizione trial_expiring_3d da `daysLeft === 3 || (daysLeft > 0 && daysLeft <= 3)` a `daysLeft > 1 && daysLeft <= 3`
+
+### Task 6: Aggiungere disclaimer search in `AuditLogTab`
+- Piccola nota sotto il campo search
+
+### Task 7: Toast errore su dismiss in `LifecycleNotificationsBanner`
+- Aggiungere `onError` alla dismissMutation
+
+### Task 8: Rinominare `churnRateAvg` in `avgMonthlyChurnMrr`
+- In hook e componente forecast per chiarezza semantica
 
