@@ -1,177 +1,136 @@
 
 
-# Audit Tecnico Enterprise — Report AS-IS e Piano Interventi
+# Analisi Strategica — Sezione Super Admin: Gap vs. Standard SaaS Enterprise
 
-## A) MAPPA ARCHITETTURA
+## Stato Attuale
+
+La sezione Super Admin copre le basi operative:
+
+| Modulo | Cosa fa |
+|--------|---------|
+| Dashboard | MRR, trial, churn rate, attività recenti |
+| Aziende | CRUD, filtri, impersonazione, export CSV |
+| Assistenza | Chat supporto multi-tenant |
+| Piani Tariffari | Gestione subscription plans + Stripe |
+| Referral | Affiliati, commissioni, payout |
+| Implementazioni | Feature flags per moduli beta |
+| Sync Logs | Log sincronizzazione Google Calendar |
+| Impostazioni | Profilo, admin users, API keys, audit log |
+
+## Cosa Manca — Prospettiva CEO/SaaS Founder
+
+### TIER 1 — Revenue Intelligence (impatto diretto su fatturato)
+
+**1. Revenue Analytics Dashboard**
+Oggi la dashboard mostra solo MRR e churn. Un CEO ha bisogno di:
+- **ARR** (Annual Recurring Revenue) proiettato
+- **LTV medio** per piano e per settore
+- **Net Revenue Retention** (NRR) — quanto crescono i clienti esistenti
+- **MRR Movements** — new, expansion, contraction, churn, reactivation
+- **Revenue per settore** — quale vertical genera di più
+- Grafici comparativi mese-su-mese con delta percentuali
+
+**2. Conversion Funnel & Trial Intelligence**
+Il trial funnel attuale mostra solo conteggi. Serve:
+- **Trial-to-Paid conversion rate** con trend storico
+- **Time-to-activation** — quanto ci mette un trial a fare il primo ordine
+- **Activation milestones** — % trial che hanno creato almeno 1 ordine, 1 cliente, 1 utente staff
+- **Trial scoring** — quali trial sono "caldi" (alta attività) vs "freddi" (nessun uso)
+- **Alert automatici** — notifica quando un trial ad alto engagement sta per scadere
+
+**3. Dunning & Payment Health**
+Oggi non c'è visibilità sui pagamenti falliti:
+- **Failed payments dashboard** con retry status
+- **Involuntary churn tracking** — clienti persi per carta scaduta vs scelta
+- **Payment recovery rate**
+- **Revenue at risk** — MRR dei clienti con pagamento in ritardo
+
+### TIER 2 — Customer Success & Retention (riduzione churn)
+
+**4. Health Score per Tenant**
+Un punteggio calcolato automaticamente basato su:
+- Frequenza login (ultimi 7/30 giorni)
+- Numero ordini creati (trend)
+- Moduli attivi utilizzati vs disponibili
+- Ticket di supporto aperti (segnale positivo o negativo)
+- Ultimo accesso dell'admin aziendale
+- Output: badge "Healthy / At Risk / Critical" sulla lista aziende e sulla dashboard
+
+**5. Company Lifecycle Management**
+Gestione proattiva del ciclo di vita:
+- **Onboarding checklist** per ogni azienda — ha completato setup profilo? Ha invitato utenti? Ha creato il primo ordine?
+- **Trial extension** con un click (oggi va fatto manualmente nel DB)
+- **Win-back campaigns** — lista aziende churned con possibilità di riattivazione
+- **Upgrade suggestions** — aziende che superano i limiti del piano attuale
+
+**6. Announcements & Changelog**
+Comunicare con i tenant dall'admin:
+- **Banner in-app** visibili a tutte le aziende o a segmenti specifici
+- **Changelog** con versioning (nuove features, fix, miglioramenti)
+- **Notifiche push** per manutenzione programmata o downtime
+
+### TIER 3 — Operational Intelligence (scalabilità)
+
+**7. Feature Usage Analytics**
+Capire come i tenant usano il prodotto:
+- Heatmap dei moduli più usati (ordini, calendario, magazzino...)
+- Moduli attivati ma mai usati (opportunità di formazione)
+- Comparativa utilizzo per piano/settore
+- Trend di adozione nuove feature nel tempo
+
+**8. System Health & Observability**
+Oggi non c'è una vista sullo stato del sistema:
+- Edge function error rate e latenza media
+- Query lente (dai sync logs, estendibile)
+- Storage usage per tenant vs limite del piano
+- API rate e picchi di utilizzo
+- Stato integrazioni esterne (Google, Meta, WhatsApp)
+
+**9. Broadcast & Communication Center**
+Oltre ai ticket di supporto:
+- **Email broadcast** a tutti i tenant o segmenti (per settore, piano, stato)
+- **Template email** predefiniti (welcome, scadenza trial, renewal reminder)
+- Log di tutte le comunicazioni inviate
+
+**10. Scheduled Executive Reports**
+Report automatici via email per il CEO/team:
+- KPI settimanali (MRR, new trials, conversions, churn)
+- Alert su anomalie (spike churn, calo attivazioni)
+- Summary mensile con confronto periodo precedente
+
+## Piano di Implementazione Suggerito
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  FRONTEND (React + Vite + TailwindCSS)                      │
-│  6 layout (Admin, Company, Customer, Employee, Salesperson, │
-│           Settings) + 70+ pagine lazy-loaded                │
-│  Auth: AuthContext + ProtectedRoute + PermissionGuard       │
-│  State: TanStack Query (staleTime 2min, retry 1)            │
-│  Toast: DUPLICATO (Radix Toaster + Sonner — entrambi attivi)│
-├─────────────────────────────────────────────────────────────┤
-│  EDGE FUNCTIONS (28 funzioni Deno)                          │
-│  Auth: create-customer, create-company, sign-in-as-user...  │
-│  Integr: google-calendar-*, meta-*, whatsapp-*, maps-proxy  │
-│  Business: check-due-dates, stripe-webhook, analyze-message │
-├─────────────────────────────────────────────────────────────┤
-│  DATABASE (Supabase/Postgres)                               │
-│  ~50+ tabelle, RLS abilitato ovunque                        │
-│  Ruoli: super_admin, company_admin, company_staff,          │
-│         customer, employee, salesperson                      │
-│  Multi-tenant: company_id su tutte le entità principali     │
-│  Funzioni: has_role(), has_permission(), check_staff_vis()  │
-│  Trigger: activity log, automation engine, contact tracking │
-└─────────────────────────────────────────────────────────────┘
+FASE 1 (impatto immediato, 2-3 sessioni)
+├── Revenue Analytics Dashboard (ARR, NRR, MRR movements)
+├── Health Score per tenant (calcolo + badge)
+└── Trial Intelligence (conversion rate, activation milestones)
+
+FASE 2 (retention, 2-3 sessioni)
+├── Company Lifecycle (onboarding checklist, trial extension UI)
+├── Dunning dashboard (failed payments, revenue at risk)
+└── Announcements/Changelog system
+
+FASE 3 (scalabilità, 2-3 sessioni)
+├── Feature Usage Analytics
+├── System Health dashboard
+└── Broadcast email + scheduled reports
 ```
 
-## B) PROBLEMI TROVATI — LISTA TO-DO
+## Riepilogo Priorità
 
-### P0 — CRITICI (bloccano produzione)
+| Feature | Impatto Revenue | Effort | Priorità |
+|---------|----------------|--------|----------|
+| Revenue Analytics | Altissimo | Medio | P0 |
+| Health Score | Alto | Medio | P0 |
+| Trial Intelligence | Alto | Basso | P0 |
+| Company Lifecycle | Alto | Medio | P1 |
+| Dunning Dashboard | Alto | Medio | P1 |
+| Announcements | Medio | Basso | P1 |
+| Feature Usage | Medio | Medio | P2 |
+| System Health | Medio | Alto | P2 |
+| Broadcast Email | Basso | Alto | P2 |
+| Scheduled Reports | Basso | Alto | P2 |
 
-**1. Sistema toast duplicato: 68 file usano `use-toast` legacy**
-- `App.tsx` renderizza SIA `<Toaster />` (Radix) SIA `<Sonner />` — doppio sistema di notifiche attivo contemporaneamente
-- 68 file importano da `@/hooks/use-toast` con API `toast({ title, description, variant })`
-- Alcuni file (come `useGoogleCalendarSync`) già migrati a `sonner`
-- **Rischio**: notifiche che appaiono in posti diversi, UX confusa, bundle size inutile
-- **Fix**: Migrare tutti i 68 file a `sonner`, rimuovere `use-toast.ts`, `toast.tsx`, `toaster.tsx`, togliere `<Toaster />` da App.tsx
-
-**2. companyId non validato server-side nelle azioni utente (google-calendar-sync)**
-- Nelle azioni `push-event`, `update-event`, `delete-event`, `full-sync`, il `companyId` viene dal body della request senza verificare che corrisponda al `company_id` del profilo dell'utente autenticato
-- Un utente autenticato potrebbe passare il `companyId` di un altro tenant
-- RLS non protegge perché le operazioni usano service role
-- **Fix**: Validare `companyId === profile.company_id` dall'utente autenticato prima di procedere
-
-### P1 — IMPORTANTI
-
-**3. Stale slot cleanup non filtra per `google_calendar_id`**
-- `pullBusySlots()` (riga 184-198): raccoglie `allGoogleEventIds` da tutti i conflict calendars, poi cancella slot stale senza filtrare per `google_calendar_id`
-- Se un utente rimuove un calendario dai conflict, gli slot di quel calendario vengono cancellati solo se i loro `google_event_id` non coincidono con quelli di altri calendari
-- **Fix**: Filtrare la query di cleanup anche per i `google_calendar_id` dei calendari attualmente configurati
-
-**4. `handleListCalendars` non usa `getValidAccessToken`**
-- In `google-calendar-auth/index.ts` riga 282: decripta il token e fa un check manuale di scadenza, poi chiama `handleRefresh` separatamente
-- Duplica la logica di refresh già presente in `getValidAccessToken` nel sync engine
-- **Fix**: Importare e usare `getValidAccessToken` dalla shared lib o ristrutturare
-
-**5. QueryClient `invalidateQueries` con chiavi parziali**
-- `GoogleCalendarConnectionTab.tsx` riga 138: `invalidateQueries({ queryKey: ["google-calendar-connection"] })` invalida TUTTE le query che iniziano con quella chiave, indipendentemente da userId/companyId
-- Non è un bug critico ma può causare refetch inutili in scenari multi-tab
-
-**6. `Employees.tsx` ha 1400+ righe — componente monolitico**
-- Mescola UI, business logic, data fetching, dialog management in un unico file
-- Difficile da mantenere e testare
-
-### P2 — MIGLIORAMENTI
-
-**7. `addHour` helper non gestisce DST**
-- `google-calendar-sync/index.ts` riga 604: usa `setHours` che è locale
-- Potrebbe dare risultati errati al cambio ora legale
-- Non critico perché il timezone è specificato nell'evento Google
-
-**8. Nessun rate limiting su edge function create-customer/create-company**
-- `verify_jwt = false` su molte funzioni (vedi config.toml)
-- Senza rate limiting, soggette ad abuse
-- Mitigato dal fatto che le operazioni richiedono comunque dati validi
-
-**9. XOR encryption per Google tokens**
-- `_shared/encryption.ts` usa XOR con base64 — non è crittografia reale
-- Documentato come "obfuscation" ma in un contesto enterprise andrebbe sostituito con AES-GCM
-- Non critico perché i token hanno scadenza breve e il DB è protetto da RLS
-
-## C) PIANO DI INTERVENTO
-
-### Intervento 1 — Migrazione toast legacy a sonner (P0)
-Migrare tutti i 68 file da `@/hooks/use-toast` a `sonner`:
-- Pattern `useToast()` + `toast({ title, description })` → `toast.success(message)` / `toast.error(message)`
-- Pattern `toast({ variant: "destructive" })` → `toast.error()`
-- Rimuovere `src/hooks/use-toast.ts`, `src/components/ui/toast.tsx`, `src/components/ui/toaster.tsx`
-- Rimuovere `<Toaster />` da `App.tsx` (mantenere solo `<Sonner />`)
-- Rimuovere dipendenza `@radix-ui/react-toast` se non usata altrove
-
-**Stima**: ~68 file da modificare, zero cambio comportamentale
-
-### Intervento 2 — Validazione companyId server-side (P0)
-Nel handler principale di `google-calendar-sync/index.ts` (riga 790-827):
-- Dopo aver ottenuto `userId` dai claims, fare una query al profilo per ottenere il `company_id` reale
-- Confrontare con il `companyId` dal body
-- Se non corrispondono, ritornare 403
-
-```typescript
-// Dopo la verifica claims
-const { data: profile } = await getSupabaseAdmin()
-  .from("profiles")
-  .select("company_id")
-  .eq("id", userId)
-  .single();
-if (profile?.company_id !== companyId) {
-  return json({ error: "Company mismatch" }, 403);
-}
-```
-
-Stesso pattern per `google-calendar-auth/index.ts`.
-
-### Intervento 3 — Fix stale slot cleanup (P1)
-In `pullBusySlots()`, filtrare la query di cleanup per i `google_calendar_id` configurati:
-
-```typescript
-const { data: existingSlots } = await admin
-  .from("google_calendar_busy_slots")
-  .select("id, google_event_id, google_calendar_id")
-  .eq("company_id", companyId)
-  .eq("user_id", userId)
-  .in("google_calendar_id", calendarIds); // ← aggiungere questo filtro
-```
-
-### Intervento 4 — Componenti monolitici (P2, differibile)
-Refactor di `Employees.tsx` e simili in sotto-componenti — non incluso in questo batch.
-
-## D) MULTI-TENANCY CHECKLIST
-
-| Area | Stato | Note |
-|------|-------|------|
-| RLS su tabelle dati principali | OK | company_id filtrato |
-| RLS su tabelle Google Calendar | OK | user_id + company_id |
-| RLS su sync_log | OK | super_admin only (P0 risolto) |
-| Edge function: companyId validato | **KO** | Trusts client body |
-| Impersonation isolata | OK | effectiveCompany pattern |
-| Staff visibility (`only_assigned`) | OK | check_staff_visibility() |
-| Customer isolation | OK | RLS su ordini, ticket |
-
-## E) SICUREZZA
-
-| Area | Stato |
-|------|-------|
-| Auth + sessioni | OK (Supabase Auth, JWT) |
-| RBAC frontend | OK (ProtectedRoute + PermissionGuard) |
-| RBAC backend (RLS) | OK (has_role, has_permission) |
-| Input validation client | Parziale (non tutti i form usano zod) |
-| XSS protection | OK (DOMPurify dove serve) |
-| Segreti nel client | OK (solo anon key, pubblicabile) |
-| Token encryption at rest | Debole (XOR) ma documentato |
-| postMessage OAuth | OK (origin restritti) |
-| Cron auth | OK (anon key validation) |
-
-## F) BACKUP & RESTORE
-
-Il progetto è su Lovable Cloud (Supabase managed):
-- **Backup automatici**: gestiti da Supabase (giornalieri, 7 giorni retention su Pro, 30 su Team/Enterprise)
-- **Point-in-time recovery**: disponibile su piani Pro+
-- **RTO stimato**: < 1 ora (restore da snapshot)
-- **RPO stimato**: < 24h (giornaliero), < 2min con PITR
-
-## G) PRIORITA' IMPLEMENTAZIONE
-
-| # | Intervento | Priorità | File coinvolti |
-|---|-----------|----------|----------------|
-| 1 | Migrazione 68 file toast → sonner | P0 | 68 file + 3 da rimuovere |
-| 2 | Validazione companyId server-side | P0 | 2 edge functions |
-| 3 | Fix stale slot cleanup | P1 | 1 edge function |
-
-**Nota**: Data la dimensione dell'intervento 1 (68 file), suggerisco di procedere in batch. L'intervento 2 e 3 sono piccoli e possono essere fatti insieme.
-
-Vuoi procedere con tutti e 3 gli interventi?
+Quale fase vuoi implementare per prima?
 
