@@ -21,8 +21,13 @@ const actionLabels: Record<string, string> = {
   update_permissions: "Modifica Permessi",
   impersonate_company: "Impersonazione Azienda",
   sign_in_as_user: "Accesso come Utente",
+  return_from_impersonation: "Ritorno da Impersonazione",
   update_platform_settings: "Modifica Impostazioni Piattaforma",
   update_settings: "Modifica Impostazioni",
+  change_plan: "Cambio Piano",
+  extend_trial: "Estensione Trial",
+  suspend_company: "Sospensione Azienda",
+  reactivate_company: "Riattivazione Azienda",
 };
 
 const actionColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -32,8 +37,13 @@ const actionColors: Record<string, "default" | "secondary" | "destructive" | "ou
   update_permissions: "outline",
   impersonate_company: "secondary",
   sign_in_as_user: "secondary",
+  return_from_impersonation: "outline",
   update_platform_settings: "outline",
   update_settings: "outline",
+  change_plan: "default",
+  extend_trial: "default",
+  suspend_company: "destructive",
+  reactivate_company: "default",
 };
 
 export default function AuditLogTab() {
