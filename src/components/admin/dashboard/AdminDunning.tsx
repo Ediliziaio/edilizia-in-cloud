@@ -8,14 +8,12 @@ interface AdminDunningProps {
   currentMrr: number;
 }
 
-export function AdminDunning({ healthScores, currentMrr }: AdminDunningProps) {
+export function AdminDunning({ healthScores }: AdminDunningProps) {
   const expired = healthScores.filter((h) => h.status === "expired");
-  const noPlan = healthScores.filter((h) => h.status === "active" && !h.trialEndsAt); // active but might not have plan
   const atRiskOrCritical = healthScores.filter((h) => h.health === "at_risk" || h.health === "critical");
 
-  // Revenue at risk: approximate MRR from at-risk companies (proportional)
-  const totalCompanies = healthScores.length || 1;
-  const revenueAtRisk = Math.round((atRiskOrCritical.length / totalCompanies) * currentMrr);
+  // Revenue at risk: sum actual plan prices of at-risk/critical companies
+  const revenueAtRisk = atRiskOrCritical.reduce((sum, c) => sum + c.priceMonthly, 0);
 
   const metrics = [
     {

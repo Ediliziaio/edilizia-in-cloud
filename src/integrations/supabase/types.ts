@@ -5180,6 +5180,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      auto_expire_trials: { Args: never; Returns: number }
       check_staff_visibility: {
         Args: { _assigned_to: string; _user_id: string }
         Returns: boolean
