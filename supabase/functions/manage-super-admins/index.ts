@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
+import { recordMetric } from "../_shared/healthMetrics.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +29,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const startTime = Date.now();
+  let statusCode = 200;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -81,6 +86,24 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Forbidden: not a super admin" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Rate limit: max 30 calls per 5 minutes for admin operations
+    const rl = await checkRateLimit({
+      functionName: "manage-super-admins",
+      callerId,
+      maxCalls: 30,
+      windowSeconds: 300,
+    });
+    if (!rl.allowed) {
+      statusCode = 429;
+      await recordMetric({
+        metricType: "rate_limit_hit",
+        functionName: "manage-super-admins",
+        statusCode: 429,
+        metadata: { caller_id: callerId },
+      });
+      return rateLimitResponse(rl.retryAfterSeconds!, corsHeaders);
     }
 
     const { action, ...body } = await req.json();
@@ -420,8 +443,16 @@ Deno.serve(async (req) => {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    statusCode = 500;
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } finally {
+    await recordMetric({
+      metricType: "edge_function_call",
+      functionName: "manage-super-admins",
+      statusCode,
+      latencyMs: Date.now() - startTime,
     });
   }
 });

@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
+import { recordMetric } from "../_shared/healthMetrics.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,9 +13,13 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  let statusCode = 200;
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
+      statusCode = 401;
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -24,7 +30,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller is super_admin
+    // Verify caller
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -46,14 +52,34 @@ Deno.serve(async (req) => {
     }
 
     if (!callerId) {
+      statusCode = 401;
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // Rate limit: max 10 calls per 5 minutes per user
+    const rl = await checkRateLimit({
+      functionName: "sign-in-as-user",
+      callerId,
+      maxCalls: 10,
+      windowSeconds: 300,
+    });
+    if (!rl.allowed) {
+      statusCode = 429;
+      await recordMetric({
+        metricType: "rate_limit_hit",
+        functionName: "sign-in-as-user",
+        statusCode: 429,
+        metadata: { caller_id: callerId },
+      });
+      return rateLimitResponse(rl.retryAfterSeconds!, corsHeaders);
+    }
+
     const { email, return_to_admin } = await req.json();
     if (!email) {
+      statusCode = 400;
       return new Response(JSON.stringify({ error: "Email is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -70,16 +96,14 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!roleData) {
-      // If not super_admin, only allow return_to_admin flow
-      // where target email must belong to a super_admin
       if (!return_to_admin) {
+        statusCode = 403;
         return new Response(JSON.stringify({ error: "Only super admins can use this feature" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Verify the target email belongs to a super_admin
       const { data: targetProfile } = await adminClient
         .from("profiles")
         .select("id")
@@ -88,6 +112,7 @@ Deno.serve(async (req) => {
       const targetUserId = targetProfile?.id;
       
       if (!targetUserId) {
+        statusCode = 404;
         return new Response(JSON.stringify({ error: "Target user not found" }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -102,6 +127,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!targetRole) {
+        statusCode = 403;
         return new Response(JSON.stringify({ error: "Can only return to a super admin account" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -117,6 +143,7 @@ Deno.serve(async (req) => {
 
     if (linkError || !linkData) {
       console.error("generateLink error:", linkError);
+      statusCode = 500;
       return new Response(
         JSON.stringify({ error: linkError?.message || "Failed to generate link" }),
         {
@@ -126,16 +153,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Log the impersonation
+    // Enhanced audit log with session details
     await adminClient.from("admin_audit_log").insert({
       user_id: callerId,
-      action: "sign_in_as_user",
+      action: return_to_admin ? "return_from_impersonation" : "sign_in_as_user",
       target_type: "user",
       target_id: email,
-      details: { target_email: email },
+      details: {
+        target_email: email,
+        return_to_admin: !!return_to_admin,
+        ip_address: req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || null,
+        user_agent: req.headers.get("user-agent")?.substring(0, 200) || null,
+      },
+      ip_address: req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || null,
     });
 
-    // Return the hashed_token and email for verifyOtp
     return new Response(
       JSON.stringify({
         hashed_token: linkData.properties?.hashed_token,
@@ -148,9 +180,17 @@ Deno.serve(async (req) => {
     );
   } catch (err) {
     console.error("sign-in-as-user error:", err);
+    statusCode = 500;
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } finally {
+    await recordMetric({
+      metricType: "edge_function_call",
+      functionName: "sign-in-as-user",
+      statusCode,
+      latencyMs: Date.now() - startTime,
     });
   }
 });

@@ -994,6 +994,27 @@ export type Database = {
           },
         ]
       }
+      edge_function_rate_limits: {
+        Row: {
+          called_at: string
+          caller_id: string
+          function_name: string
+          id: string
+        }
+        Insert: {
+          called_at?: string
+          caller_id: string
+          function_name: string
+          id?: string
+        }
+        Update: {
+          called_at?: string
+          caller_id?: string
+          function_name?: string
+          id?: string
+        }
+        Relationships: []
+      }
       email_billing: {
         Row: {
           campaign_id: string | null
@@ -4791,6 +4812,39 @@ export type Database = {
           },
         ]
       }
+      system_health_metrics: {
+        Row: {
+          error_message: string | null
+          function_name: string | null
+          id: string
+          latency_ms: number | null
+          metadata: Json | null
+          metric_type: string
+          recorded_at: string
+          status_code: number | null
+        }
+        Insert: {
+          error_message?: string | null
+          function_name?: string | null
+          id?: string
+          latency_ms?: number | null
+          metadata?: Json | null
+          metric_type: string
+          recorded_at?: string
+          status_code?: number | null
+        }
+        Update: {
+          error_message?: string | null
+          function_name?: string | null
+          id?: string
+          latency_ms?: number | null
+          metadata?: Json | null
+          metric_type?: string
+          recorded_at?: string
+          status_code?: number | null
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           assigned_to: string | null
@@ -5235,6 +5289,7 @@ export type Database = {
         Args: { _assigned_to: string; _user_id: string }
         Returns: boolean
       }
+      cleanup_rate_limits: { Args: never; Returns: undefined }
       execute_automation: {
         Args: {
           p_company_id: string

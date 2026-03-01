@@ -288,6 +288,17 @@ export function useCompanyDetail(id: string | undefined) {
         event_type: newStatus === "active" ? "activated" : newStatus === "suspended" ? "suspended" : "status_change",
         old_status: company.status, new_status: newStatus, notes, performed_by: user?.id,
       });
+      // Audit log for status changes
+      if (user?.id) {
+        const auditAction = newStatus === "suspended" ? "suspend_company" : newStatus === "active" ? "reactivate_company" : "status_change";
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id,
+          action: auditAction,
+          target_type: "company",
+          target_id: id,
+          details: { company_name: company.name, old_status: company.status, new_status: newStatus, notes },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subscription-logs", id] });
@@ -308,6 +319,22 @@ export function useCompanyDetail(id: string | undefined) {
         company_id: id, event_type: "plan_changed", old_status: company.status,
         new_status: company.status, plan_id: planId, notes: "Piano cambiato manualmente", performed_by: user?.id,
       });
+      // Audit log for plan change
+      if (user?.id) {
+        const newPlan = plans?.find((p: any) => p.id === planId);
+        const oldPlan = plans?.find((p: any) => p.id === company.subscription_plan_id);
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id,
+          action: "change_plan",
+          target_type: "company",
+          target_id: id,
+          details: {
+            company_name: company.name,
+            old_plan: oldPlan?.name || "Nessuno",
+            new_plan: newPlan?.name || planId,
+          },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company-plan"] });
@@ -332,6 +359,16 @@ export function useCompanyDetail(id: string | undefined) {
         company_id: id, event_type: "trial_extended", old_status: company.status,
         new_status: "trial", notes: `Trial esteso di ${days} giorni`, performed_by: user?.id,
       });
+      // Audit log for trial extension
+      if (user?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id,
+          action: "extend_trial",
+          target_type: "company",
+          target_id: id,
+          details: { company_name: company.name, days, new_end: newEnd.toISOString() },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subscription-logs", id] });
