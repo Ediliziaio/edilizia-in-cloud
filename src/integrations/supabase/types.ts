@@ -2145,6 +2145,53 @@ export type Database = {
           },
         ]
       }
+      lifecycle_notifications: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          is_dismissed: boolean
+          is_read: boolean
+          message: string
+          metadata: Json | null
+          notification_date: string
+          notification_type: string
+          title: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          is_dismissed?: boolean
+          is_read?: boolean
+          message: string
+          metadata?: Json | null
+          notification_date?: string
+          notification_type: string
+          title: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_dismissed?: boolean
+          is_read?: boolean
+          message?: string
+          metadata?: Json | null
+          notification_date?: string
+          notification_type?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifecycle_notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_calendar_availability: {
         Row: {
           calendar_id: string

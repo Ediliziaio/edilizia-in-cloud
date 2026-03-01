@@ -50,6 +50,8 @@ import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
 import { Badge } from "@/components/ui/badge";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
+import { OnboardingChecklist } from "@/components/company/OnboardingChecklist";
+import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { internalNavItems, marketingNavItems, type NavItem } from "@/lib/sidebarConfig";
 
@@ -474,8 +476,12 @@ export function CompanyLayout() {
               {effectiveCompany?.name}
             </span>
           </header>
+          <LifecycleNotificationsBanner />
           <main className="flex-1 p-6 bg-muted/30">
-            <Outlet />
+            <OnboardingChecklist />
+            <div className="mt-4">
+              <Outlet />
+            </div>
           </main>
         </div>
       </div>
