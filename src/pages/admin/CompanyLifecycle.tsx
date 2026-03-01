@@ -16,6 +16,7 @@ import {
   Loader2, CheckCircle2, XCircle, Clock, CalendarPlus, 
   ArrowRight, AlertTriangle, Search, Building 
 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format, addDays, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -57,30 +58,70 @@ function OnboardingProgress({ steps }: { steps: OnboardingStep[] }) {
   );
 }
 
-function TrialExtensionButton({ companyId, currentEnd }: { companyId: string; currentEnd: string | null }) {
+function TrialExtensionButton({ companyId, currentEnd, extensionsCount = 0 }: { companyId: string; currentEnd: string | null; extensionsCount?: number }) {
   const queryClient = useQueryClient();
+  const [showWarning, setShowWarning] = useState(false);
+
   const mutation = useMutation({
     mutationFn: async () => {
       const newEnd = addDays(currentEnd ? new Date(currentEnd) : new Date(), 14).toISOString();
       const { error } = await supabase
         .from("companies")
-        .update({ trial_ends_at: newEnd, status: "trial" })
+        .update({
+          trial_ends_at: newEnd,
+          status: "trial",
+          trial_extensions_count: extensionsCount + 1,
+        } as any)
         .eq("id", companyId);
       if (error) throw error;
       return newEnd;
     },
     onSuccess: () => {
       toast.success("Trial esteso di 14 giorni");
+      setShowWarning(false);
       queryClient.invalidateQueries({ queryKey: ["admin-revenue-intelligence"] });
     },
     onError: () => toast.error("Errore nell'estensione del trial"),
   });
 
+  const handleClick = () => {
+    if (extensionsCount >= 3) {
+      setShowWarning(true);
+    } else {
+      mutation.mutate();
+    }
+  };
+
   return (
-    <Button size="sm" variant="outline" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-      {mutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CalendarPlus className="h-3 w-3 mr-1" />}
-      +14gg
-    </Button>
+    <>
+      <div className="flex items-center gap-1.5">
+        <Button size="sm" variant="outline" onClick={handleClick} disabled={mutation.isPending}>
+          {mutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CalendarPlus className="h-3 w-3 mr-1" />}
+          +14gg
+        </Button>
+        {extensionsCount > 0 && (
+          <Badge variant={extensionsCount >= 3 ? "destructive" : "secondary"} className="text-[10px]">
+            {extensionsCount}x
+          </Badge>
+        )}
+      </div>
+      <AlertDialog open={showWarning} onOpenChange={setShowWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Attenzione: {extensionsCount} estensioni effettuate</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azienda ha già ricevuto {extensionsCount} estensioni trial. Proseguire con un'ulteriore estensione?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => mutation.mutate()}>
+              Estendi comunque
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -102,13 +143,16 @@ export default function CompanyLifecycle() {
   const healthScores = revenueData?.healthScores || [];
   const trialCompanies = healthScores.filter((h) => h.status === "trial");
   const expiredCompanies = healthScores.filter((h) => h.status === "expired");
+  const activeCompanies = healthScores.filter((h) => h.status === "active");
+  const suspendedCompanies = healthScores.filter((h) => h.status === "suspended");
 
-  const filteredTrial = trialCompanies.filter((c) =>
-    c.companyName.toLowerCase().includes(search.toLowerCase())
-  );
-  const filteredExpired = expiredCompanies.filter((c) =>
-    c.companyName.toLowerCase().includes(search.toLowerCase())
-  );
+  const filterBySearch = (list: typeof healthScores) =>
+    list.filter((c) => c.companyName.toLowerCase().includes(search.toLowerCase()));
+
+  const filteredTrial = filterBySearch(trialCompanies);
+  const filteredExpired = filterBySearch(expiredCompanies);
+  const filteredActive = filterBySearch(activeCompanies);
+  const filteredSuspended = filterBySearch(suspendedCompanies);
 
   return (
     <div className="space-y-6">
@@ -131,6 +175,12 @@ export default function CompanyLifecycle() {
         <TabsList>
           <TabsTrigger value="trial">
             Trial attivi ({trialCompanies.length})
+          </TabsTrigger>
+          <TabsTrigger value="active">
+            Attivi ({activeCompanies.length})
+          </TabsTrigger>
+          <TabsTrigger value="suspended">
+            Sospesi ({suspendedCompanies.length})
           </TabsTrigger>
           <TabsTrigger value="expired">
             Win-back ({expiredCompanies.length})
@@ -187,6 +237,83 @@ export default function CompanyLifecycle() {
                 </Card>
               );
             })
+          )}
+        </TabsContent>
+
+        <TabsContent value="active" className="space-y-4 mt-4">
+          {filteredActive.length === 0 ? (
+            <Card><CardContent className="py-8 text-center text-muted-foreground">Nessuna azienda attiva</CardContent></Card>
+          ) : (
+            filteredActive.map((company) => (
+              <Card key={company.companyId}>
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        </div>
+                        <div>
+                          <Link to={`/admin/aziende/${company.companyId}`} className="font-semibold hover:underline">
+                            {company.companyName}
+                          </Link>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant={company.health === "healthy" ? "default" : company.health === "at_risk" ? "secondary" : "destructive"} className="text-[10px]">
+                              Score: {company.score}
+                            </Badge>
+                            <span>{company.orderCount} ordini</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="ghost" asChild>
+                      <Link to={`/admin/aziende/${company.companyId}`}>
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="suspended" className="space-y-4 mt-4">
+          {filteredSuspended.length === 0 ? (
+            <Card><CardContent className="py-8 text-center text-muted-foreground">Nessuna azienda sospesa</CardContent></Card>
+          ) : (
+            filteredSuspended.map((company) => (
+              <Card key={company.companyId}>
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <div>
+                          <Link to={`/admin/aziende/${company.companyId}`} className="font-semibold hover:underline">
+                            {company.companyName}
+                          </Link>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="destructive" className="text-[10px]">Sospeso</Badge>
+                            <span>{company.orderCount} ordini</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <TrialExtensionButton companyId={company.companyId} currentEnd={company.trialEndsAt} />
+                      <Button size="sm" variant="ghost" asChild>
+                        <Link to={`/admin/aziende/${company.companyId}`}>
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
           )}
         </TabsContent>
 

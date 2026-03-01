@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, DollarSign, ClipboardList, Calendar, Users, TrendingUp } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, DollarSign, ClipboardList, Calendar, Users, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,6 +42,9 @@ const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string;
 );
 TrialBadge.displayName = "TrialBadge";
 
+type SortKey = "name" | "sector" | "plan" | "mrr" | "status" | "orders" | "trial";
+type SortDir = "asc" | "desc";
+
 export default function CompaniesList() {
   const { permissions } = useSuperAdminPermissions();
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,8 +52,24 @@ export default function CompaniesList() {
   const [sectorFilter, setSectorFilter] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
+
+  const toggleSort = useCallback((key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }, [sortKey]);
+
+  const SortIcon = ({ col }: { col: SortKey }) => {
+    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
 
   const { data: companies = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-companies-full"],
@@ -108,16 +127,42 @@ export default function CompaniesList() {
     return Array.from(planMap.entries()).map(([id, name]) => ({ id, name }));
   }, [companies]);
 
-  const filteredCompanies = useMemo(() => companies.filter((company) => {
-    const matchesSearch =
-      company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || company.status === statusFilter;
-    const matchesSector = sectorFilter === "all" || company.sector === sectorFilter;
-    const plan = company.subscription_plans as { id: string; name: string } | null;
-    const matchesPlan = planFilter === "all" || plan?.id === planFilter;
-    return matchesSearch && matchesStatus && matchesSector && matchesPlan;
-  }), [companies, searchQuery, statusFilter, sectorFilter, planFilter]);
+  const filteredCompanies = useMemo(() => {
+    let result = companies.filter((company) => {
+      const matchesSearch =
+        company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        company.email.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === "all" || company.status === statusFilter;
+      const matchesSector = sectorFilter === "all" || company.sector === sectorFilter;
+      const plan = company.subscription_plans as { id: string; name: string } | null;
+      const matchesPlan = planFilter === "all" || plan?.id === planFilter;
+      return matchesSearch && matchesStatus && matchesSector && matchesPlan;
+    });
+
+    if (sortKey) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      result = [...result].sort((a, b) => {
+        const planA = a.subscription_plans as { id: string; name: string; price_monthly: number } | null;
+        const planB = b.subscription_plans as { id: string; name: string; price_monthly: number } | null;
+        switch (sortKey) {
+          case "name": return dir * a.name.localeCompare(b.name);
+          case "sector": return dir * (a.sector || "").localeCompare(b.sector || "");
+          case "plan": return dir * (planA?.name || "").localeCompare(planB?.name || "");
+          case "mrr": return dir * ((planA?.price_monthly || 0) - (planB?.price_monthly || 0));
+          case "status": return dir * (a.status || "").localeCompare(b.status || "");
+          case "orders": return dir * ((orderStats[a.id]?.count || 0) - (orderStats[b.id]?.count || 0));
+          case "trial": {
+            const dateA = a.trial_ends_at ? new Date(a.trial_ends_at).getTime() : new Date(a.created_at).getTime();
+            const dateB = b.trial_ends_at ? new Date(b.trial_ends_at).getTime() : new Date(b.created_at).getTime();
+            return dir * (dateA - dateB);
+          }
+          default: return 0;
+        }
+      });
+    }
+
+    return result;
+  }, [companies, searchQuery, statusFilter, sectorFilter, planFilter, sortKey, sortDir, orderStats]);
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all";
 
@@ -260,13 +305,27 @@ export default function CompaniesList() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10" />
-                  <TableHead>Azienda</TableHead>
-                  <TableHead>Settore</TableHead>
-                  <TableHead>Piano</TableHead>
-                  <TableHead>MRR</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="text-center">Ordini</TableHead>
-                  <TableHead>Trial / Scadenza</TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("name")}>
+                    <span className="inline-flex items-center">Azienda<SortIcon col="name" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("sector")}>
+                    <span className="inline-flex items-center">Settore<SortIcon col="sector" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("plan")}>
+                    <span className="inline-flex items-center">Piano<SortIcon col="plan" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("mrr")}>
+                    <span className="inline-flex items-center">MRR<SortIcon col="mrr" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("status")}>
+                    <span className="inline-flex items-center">Stato<SortIcon col="status" /></span>
+                  </TableHead>
+                  <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("orders")}>
+                    <span className="inline-flex items-center">Ordini<SortIcon col="orders" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("trial")}>
+                    <span className="inline-flex items-center">Trial / Scadenza<SortIcon col="trial" /></span>
+                  </TableHead>
                   <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
               </TableHeader>

@@ -710,6 +710,7 @@ export type Database = {
           stripe_customer_id: string | null
           subscription_plan_id: string | null
           trial_ends_at: string | null
+          trial_extensions_count: number
           updated_at: string
           vat_number: string | null
           website: string | null
@@ -748,6 +749,7 @@ export type Database = {
           stripe_customer_id?: string | null
           subscription_plan_id?: string | null
           trial_ends_at?: string | null
+          trial_extensions_count?: number
           updated_at?: string
           vat_number?: string | null
           website?: string | null
@@ -786,6 +788,7 @@ export type Database = {
           stripe_customer_id?: string | null
           subscription_plan_id?: string | null
           trial_ends_at?: string | null
+          trial_extensions_count?: number
           updated_at?: string
           vat_number?: string | null
           website?: string | null
