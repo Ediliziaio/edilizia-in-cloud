@@ -15,7 +15,7 @@ interface Announcement {
 export function AnnouncementBanner() {
   const { effectiveCompany } = useAuth();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const companyStatus = (effectiveCompany as any)?.status || "trial";
+  const companyStatus = effectiveCompany?.status || "trial";
 
   const { data: announcements = [] } = useQuery({
     queryKey: ["active-announcements"],

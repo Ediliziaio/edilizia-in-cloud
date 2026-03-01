@@ -112,7 +112,7 @@ export default function AdminDashboard() {
       {/* Dunning + Feature Usage + System Health */}
       <div className="grid gap-6 lg:grid-cols-3">
         {revenueData && (
-          <AdminDunning healthScores={revenueData.healthScores} currentMrr={revenueData.currentMrr} />
+          <AdminDunning healthScores={revenueData.healthScores} />
         )}
         <AdminFeatureUsage />
         <AdminSystemHealth />
