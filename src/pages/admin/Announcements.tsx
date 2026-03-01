@@ -131,9 +131,10 @@ export default function Announcements() {
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
+      if (!user) throw new Error("Utente non autenticato");
       const { error } = await supabase
         .from("platform_announcements")
-        .insert({ ...data, created_by: user?.id });
+        .insert({ ...data, created_by: user.id });
       if (error) throw error;
     },
     onSuccess: () => {

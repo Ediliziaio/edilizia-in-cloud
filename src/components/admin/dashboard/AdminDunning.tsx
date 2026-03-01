@@ -5,7 +5,6 @@ import type { CompanyHealthScore } from "@/hooks/useAdminRevenueData";
 
 interface AdminDunningProps {
   healthScores: CompanyHealthScore[];
-  currentMrr: number;
 }
 
 export function AdminDunning({ healthScores }: AdminDunningProps) {
