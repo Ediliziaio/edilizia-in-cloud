@@ -5221,6 +5221,7 @@ export type Database = {
           user_count: number
         }[]
       }
+      get_feature_usage_stats: { Args: never; Returns: Json }
       get_plan_company_counts: {
         Args: never
         Returns: {
