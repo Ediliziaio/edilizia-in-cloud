@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AlertTriangle, Bell, X, Clock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface LifecycleNotification {
   id: string;
@@ -48,6 +49,9 @@ export function LifecycleNotificationsBanner() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lifecycle-notifications", companyId] });
+    },
+    onError: () => {
+      toast.error("Errore nel nascondere la notifica");
     },
   });
 

@@ -13,10 +13,10 @@ interface Props {
   currentMrr: number;
   forecast: ForecastPoint[];
   avgMonthlyGrowth: number;
-  churnRateAvg: number;
+  avgMonthlyChurnMrr: number;
 }
 
-export function AdminRevenueForecast({ currentMrr, forecast, avgMonthlyGrowth, churnRateAvg }: Props) {
+export function AdminRevenueForecast({ currentMrr, forecast, avgMonthlyGrowth, avgMonthlyChurnMrr }: Props) {
   const growthPct = currentMrr > 0 ? Math.round((avgMonthlyGrowth / currentMrr) * 100) : 0;
   const isGrowing = avgMonthlyGrowth > 0;
   const isFlat = avgMonthlyGrowth === 0;
@@ -42,7 +42,7 @@ export function AdminRevenueForecast({ currentMrr, forecast, avgMonthlyGrowth, c
         </CardTitle>
         <CardDescription>
           Proiezione MRR basata sulla crescita media degli ultimi 6 mesi
-          {churnRateAvg > 0 && ` · Churn medio: ${formatCurrency(churnRateAvg)}/mese`}
+          {avgMonthlyChurnMrr > 0 && ` · Churn medio: ${formatCurrency(avgMonthlyChurnMrr)}/mese`}
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -128,6 +128,9 @@ export default function AuditLogTab() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
             />
+            {searchQuery.trim() && (
+              <p className="absolute -bottom-5 left-0 text-[10px] text-muted-foreground">Ricerca limitata alla pagina corrente</p>
+            )}
           </div>
           <DateRangeFilter
             label="Periodo"

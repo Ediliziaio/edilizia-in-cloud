@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
       const trialEnd = new Date(company.trial_ends_at);
       const daysLeft = Math.ceil((trialEnd.getTime() - now.getTime()) / 86400000);
 
-      if (daysLeft === 3 || (daysLeft > 0 && daysLeft <= 3)) {
+      if (daysLeft > 1 && daysLeft <= 3) {
         notifications.push({
           company_id: company.id,
           notification_type: "trial_expiring_3d",

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { MessageSquare, Loader2, Eye, EyeOff, Search } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useState } from "react";
 
 interface ModuleConfig {
@@ -59,9 +59,9 @@ export default function Implementations() {
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["impl-companies"] });
-      toast({ title: vars.value ? "Modulo attivato" : "Modulo disattivato" });
+      toast.success(vars.value ? "Modulo attivato" : "Modulo disattivato");
     },
-    onError: () => toast({ title: "Errore", description: "Impossibile aggiornare il modulo.", variant: "destructive" }),
+    onError: () => toast.error("Impossibile aggiornare il modulo"),
   });
 
   const bulkMutation = useMutation({
@@ -74,9 +74,9 @@ export default function Implementations() {
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["impl-companies"] });
-      toast({ title: vars.value ? "Attivato per tutte le aziende" : "Disattivato per tutte le aziende" });
+      toast.success(vars.value ? "Attivato per tutte le aziende" : "Disattivato per tutte le aziende");
     },
-    onError: () => toast({ title: "Errore", variant: "destructive" }),
+    onError: () => toast.error("Errore nell'operazione bulk"),
   });
 
   if (isLoading) {

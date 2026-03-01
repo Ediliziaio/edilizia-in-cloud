@@ -1,15 +1,27 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, Circle, ChevronDown, ChevronUp, Rocket, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function OnboardingChecklist() {
   const { data, isLoading } = useOnboardingProgress();
-  const [dismissed, setDismissed] = useState(false);
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const storageKey = `onboarding-dismissed-${companyId}`;
+  const [dismissed, setDismissed] = useState(() => {
+    if (!companyId) return false;
+    return localStorage.getItem(storageKey) === "true";
+  });
   const [expanded, setExpanded] = useState(true);
+
+  const handleDismiss = useCallback(() => {
+    setDismissed(true);
+    if (companyId) localStorage.setItem(storageKey, "true");
+  }, [companyId, storageKey]);
 
   if (isLoading || !data || data.pct === 100 || dismissed) return null;
 
@@ -25,7 +37,7 @@ export function OnboardingChecklist() {
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExpanded(!expanded)}>
               {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setDismissed(true)}>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={handleDismiss}>
               <X className="h-4 w-4" />
             </Button>
           </div>

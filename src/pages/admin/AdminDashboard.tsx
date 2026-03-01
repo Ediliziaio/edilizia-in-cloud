@@ -118,7 +118,7 @@ export default function AdminDashboard() {
           currentMrr={revenueData.currentMrr}
           forecast={revenueData.forecast}
           avgMonthlyGrowth={revenueData.avgMonthlyGrowth}
-          churnRateAvg={revenueData.churnRateAvg}
+          avgMonthlyChurnMrr={revenueData.avgMonthlyChurnMrr}
         />
       )}
 
