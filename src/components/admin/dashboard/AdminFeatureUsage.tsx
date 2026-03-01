@@ -4,36 +4,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { BarChart3, Loader2 } from "lucide-react";
 
-interface ModuleUsage {
-  module: string;
-  label: string;
-  activeCompanies: number;
+interface FeatureUsageResult {
+  total_companies: number;
+  orders: number;
+  calendar: number;
+  employees: number;
+  marketing: number;
 }
 
 export function AdminFeatureUsage() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin-feature-usage"],
     queryFn: async () => {
-      const [companiesRes, ordersRes, appointmentsRes, employeesRes, campaignsRes] = await Promise.all([
-        supabase.from("companies").select("id").limit(1000),
-        supabase.from("orders").select("company_id").limit(1000),
-        supabase.from("appointments").select("company_id").limit(1000),
-        supabase.from("employees").select("company_id").limit(1000),
-        supabase.from("email_campaigns").select("company_id").limit(1000),
-      ]);
-
-      const totalCompanies = (companiesRes.data || []).length;
-      
-      const uniqueCompanies = (data: any[]) => new Set(data.map((r) => r.company_id)).size;
-
-      const modules: ModuleUsage[] = [
-        { module: "orders", label: "Ordini", activeCompanies: uniqueCompanies(ordersRes.data || []) },
-        { module: "calendar", label: "Calendario", activeCompanies: uniqueCompanies(appointmentsRes.data || []) },
-        { module: "employees", label: "Dipendenti", activeCompanies: uniqueCompanies(employeesRes.data || []) },
-        { module: "marketing", label: "Email Marketing", activeCompanies: uniqueCompanies(campaignsRes.data || []) },
+      const { data, error } = await supabase.rpc("get_feature_usage_stats");
+      if (error) throw error;
+      const result = data as unknown as FeatureUsageResult;
+      const modules = [
+        { module: "orders", label: "Ordini", activeCompanies: result.orders },
+        { module: "calendar", label: "Calendario", activeCompanies: result.calendar },
+        { module: "employees", label: "Dipendenti", activeCompanies: result.employees },
+        { module: "marketing", label: "Email Marketing", activeCompanies: result.marketing },
       ];
-
-      return { modules, totalCompanies };
+      return { modules, totalCompanies: result.total_companies };
     },
     staleTime: 10 * 60 * 1000,
   });
