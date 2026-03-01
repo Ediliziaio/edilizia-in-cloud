@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Gift, Plus, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
+import { Gift, Plus, AlertCircle, RefreshCw, Loader2, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { ReferralStatCards } from "@/components/admin/referral/ReferralStatCards";
 import { ReferralTable } from "@/components/admin/referral/ReferralTable";
+import { ReferralAnalytics } from "@/components/admin/referral/ReferralAnalytics";
 import { ReferrerDialog } from "@/components/admin/referral/ReferrerDialog";
 import { ReferrerDetailDialog } from "@/components/admin/referral/ReferrerDetailDialog";
 import { PayoutDialog } from "@/components/admin/referral/PayoutDialog";
@@ -217,17 +219,41 @@ export default function ReferralDashboard() {
         getMonthlyCommission={getMonthlyCommission}
       />
 
-      <ReferralTable
-        referrers={referrers}
-        isLoading={isLoading}
-        getCompanyCount={getCompanyCount}
-        getMonthlyCommission={getMonthlyCommission}
-        onEdit={handleEdit}
-        onDetail={setDetailReferrer}
-        onPayout={setPayoutReferrer}
-        isToggling={toggleActiveMutation.isPending}
-        onToggleActive={(id, active) => toggleActiveMutation.mutate({ id, is_active: active })}
-      />
+      <Tabs defaultValue="referrers">
+        <TabsList>
+          <TabsTrigger value="referrers">
+            <Gift className="h-4 w-4 mr-2" />
+            Referrer
+          </TabsTrigger>
+          <TabsTrigger value="analytics">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Analytics
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="referrers" className="space-y-4 mt-4">
+          <ReferralTable
+            referrers={referrers}
+            isLoading={isLoading}
+            getCompanyCount={getCompanyCount}
+            getMonthlyCommission={getMonthlyCommission}
+            onEdit={handleEdit}
+            onDetail={setDetailReferrer}
+            onPayout={setPayoutReferrer}
+            isToggling={toggleActiveMutation.isPending}
+            onToggleActive={(id, active) => toggleActiveMutation.mutate({ id, is_active: active })}
+          />
+        </TabsContent>
+
+        <TabsContent value="analytics" className="mt-4">
+          <ReferralAnalytics
+            referrers={referrers}
+            referralCompanies={referralCompanies}
+            payouts={payouts}
+            getMonthlyCommission={getMonthlyCommission}
+          />
+        </TabsContent>
+      </Tabs>
 
       <ReferrerDialog
         open={referrerDialogOpen}
