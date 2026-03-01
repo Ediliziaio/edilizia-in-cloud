@@ -15,6 +15,9 @@ import { AdminRecentActivity } from "@/components/admin/dashboard/AdminRecentAct
 import { AdminDunning } from "@/components/admin/dashboard/AdminDunning";
 import { AdminFeatureUsage } from "@/components/admin/dashboard/AdminFeatureUsage";
 import { AdminSystemHealth } from "@/components/admin/dashboard/AdminSystemHealth";
+import { AdminCohortAnalysis } from "@/components/admin/dashboard/AdminCohortAnalysis";
+import { AdminRevenueForecast } from "@/components/admin/dashboard/AdminRevenueForecast";
+import { AdminUpsellAlerts } from "@/components/admin/dashboard/AdminUpsellAlerts";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -109,11 +112,27 @@ export default function AdminDashboard() {
       {/* Trial Intelligence — full width section */}
       {revenueData && <AdminTrialIntelligence data={revenueData.trialActivation} />}
 
-      {/* Dunning + Feature Usage + System Health */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {revenueData && (
-          <AdminDunning healthScores={revenueData.healthScores} />
-        )}
+      {/* Revenue Forecast — full width */}
+      {revenueData && (
+        <AdminRevenueForecast
+          currentMrr={revenueData.currentMrr}
+          forecast={revenueData.forecast}
+          avgMonthlyGrowth={revenueData.avgMonthlyGrowth}
+          churnRateAvg={revenueData.churnRateAvg}
+        />
+      )}
+
+      {/* Cohort Analysis — full width */}
+      {revenueData && <AdminCohortAnalysis data={revenueData.cohortData} />}
+
+      {/* Upsell Alerts + Dunning */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {revenueData && <AdminUpsellAlerts alerts={revenueData.upsellAlerts} />}
+        {revenueData && <AdminDunning healthScores={revenueData.healthScores} />}
+      </div>
+
+      {/* Feature Usage + System Health */}
+      <div className="grid gap-6 lg:grid-cols-2">
         <AdminFeatureUsage />
         <AdminSystemHealth />
       </div>
