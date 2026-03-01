@@ -2,10 +2,14 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { useAdminDashboardData } from "@/hooks/useAdminDashboardData";
+import { useAdminRevenueData } from "@/hooks/useAdminRevenueData";
 import { AdminStatCards } from "@/components/admin/dashboard/AdminStatCards";
-import { AdminMrrStats } from "@/components/admin/dashboard/AdminMrrStats";
+import { AdminRevenueKPIs } from "@/components/admin/dashboard/AdminRevenueKPIs";
 import { AdminMrrChart } from "@/components/admin/dashboard/AdminMrrChart";
-import { AdminTrialFunnel } from "@/components/admin/dashboard/AdminTrialFunnel";
+import { AdminMrrMovements } from "@/components/admin/dashboard/AdminMrrMovements";
+import { AdminRevenueBySector } from "@/components/admin/dashboard/AdminRevenueBySector";
+import { AdminHealthSummary } from "@/components/admin/dashboard/AdminHealthSummary";
+import { AdminTrialIntelligence } from "@/components/admin/dashboard/AdminTrialIntelligence";
 import { AdminRecentCompanies } from "@/components/admin/dashboard/AdminRecentCompanies";
 import { AdminRecentActivity } from "@/components/admin/dashboard/AdminRecentActivity";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,6 +19,7 @@ import { AccessDenied } from "@/components/admin/AccessDenied";
 export default function AdminDashboard() {
   const { permissions } = useSuperAdminPermissions();
   const { data: dashboardData, isLoading, isError, refetch } = useAdminDashboardData();
+  const { data: revenueData, isLoading: revenueLoading } = useAdminRevenueData();
 
   if (!permissions.can_view_platform_stats) return <AccessDenied />;
 
@@ -50,6 +55,10 @@ export default function AdminDashboard() {
     );
   }
 
+  const topAtRisk = (revenueData?.healthScores || [])
+    .filter((h) => h.health === "at_risk" || h.health === "critical")
+    .sort((a, b) => a.score - b.score);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -66,25 +75,39 @@ export default function AdminDashboard() {
       </div>
 
       <AdminStatCards stats={stats} />
-      <AdminMrrStats mrrStats={mrrStats} />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <AdminMrrChart data={mrrChartData} currentMrr={mrrStats.mrr} />
-        </div>
-        <AdminTrialFunnel
-          trialCount={mrrStats.trialCount}
-          activeCount={mrrStats.activeCount}
-          expiredCount={mrrStats.expiredCount}
-          trialExpiringSoon={mrrStats.trialExpiringSoon}
+      {/* Revenue Intelligence KPIs */}
+      {revenueData && (
+        <AdminRevenueKPIs
+          mrr={revenueData.currentMrr}
+          arr={revenueData.arr}
+          nrr={revenueData.nrr}
+          avgLtv={revenueData.avgLtv}
         />
+      )}
+
+      {/* MRR Chart + MRR Movements */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <AdminMrrChart data={mrrChartData} currentMrr={mrrStats.mrr} />
+        {revenueData && <AdminMrrMovements data={revenueData.mrrMovements} />}
+      </div>
+
+      {/* Revenue by Sector + Health Scores + Trial Intelligence */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {revenueData && <AdminRevenueBySector data={revenueData.revenueBySector} />}
+        {revenueData && (
+          <AdminHealthSummary
+            healthSummary={revenueData.healthSummary}
+            topAtRisk={topAtRisk}
+          />
+        )}
+        {revenueData && <AdminTrialIntelligence data={revenueData.trialActivation} />}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <AdminRecentCompanies companies={recentCompanies} />
         <AdminRecentActivity activities={recentActivity} />
       </div>
-
     </div>
   );
 }
