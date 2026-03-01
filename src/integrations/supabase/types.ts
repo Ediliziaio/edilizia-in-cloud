@@ -5156,6 +5156,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      get_company_health_data: {
+        Args: never
+        Returns: {
+          company_id: string
+          has_customers: boolean
+          has_staff: boolean
+          last_order_date: string
+          order_count: number
+          orders_last_30d: number
+          user_count: number
+        }[]
+      }
       get_company_order_stats: {
         Args: never
         Returns: {
