@@ -12,6 +12,9 @@ import { AdminHealthSummary } from "@/components/admin/dashboard/AdminHealthSumm
 import { AdminTrialIntelligence } from "@/components/admin/dashboard/AdminTrialIntelligence";
 import { AdminRecentCompanies } from "@/components/admin/dashboard/AdminRecentCompanies";
 import { AdminRecentActivity } from "@/components/admin/dashboard/AdminRecentActivity";
+import { AdminDunning } from "@/components/admin/dashboard/AdminDunning";
+import { AdminFeatureUsage } from "@/components/admin/dashboard/AdminFeatureUsage";
+import { AdminSystemHealth } from "@/components/admin/dashboard/AdminSystemHealth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -105,6 +108,15 @@ export default function AdminDashboard() {
 
       {/* Trial Intelligence — full width section */}
       {revenueData && <AdminTrialIntelligence data={revenueData.trialActivation} />}
+
+      {/* Dunning + Feature Usage + System Health */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {revenueData && (
+          <AdminDunning healthScores={revenueData.healthScores} currentMrr={revenueData.currentMrr} />
+        )}
+        <AdminFeatureUsage />
+        <AdminSystemHealth />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <AdminRecentCompanies companies={recentCompanies} />

@@ -4058,6 +4058,42 @@ export type Database = {
           },
         ]
       }
+      platform_announcements: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          target_status: string
+          title: string
+          type: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          target_status?: string
+          title: string
+          type?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          target_status?: string
+          title?: string
+          type?: string
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           key: string
