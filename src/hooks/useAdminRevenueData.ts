@@ -20,6 +20,7 @@ export interface CompanyHealthScore {
   hasStaff: boolean;
   hasOrders: boolean;
   trialEndsAt: string | null;
+  trialExtensionsCount: number;
   priceMonthly: number;
 }
 
@@ -185,6 +186,7 @@ export function useAdminRevenueData() {
           hasStaff: hd?.has_staff || false,
           hasOrders: (hd?.order_count || 0) > 0,
           trialEndsAt: c.trial_ends_at,
+          trialExtensionsCount: c.trial_extensions_count || 0,
           priceMonthly: (c.subscription_plans as { price_monthly: number } | null)?.price_monthly || 0,
         };
       });
@@ -434,6 +436,7 @@ export function useAdminRevenueData() {
         // Month 0 = signup month, then check if still active at each subsequent month
         for (let m = 0; m <= 11 - i; m++) {
           const checkDate = subMonths(now, 11 - i - m);
+          if (checkDate > now) break;
           const checkEnd = endOfMonth(checkDate);
 
           const stillActive = cohortCompanies.filter((c) => {
@@ -467,7 +470,7 @@ export function useAdminRevenueData() {
       const avgMonthlyGrowth = netNewValues.length > 0
         ? netNewValues.reduce((a, b) => a + b, 0) / netNewValues.length
         : 0;
-      const churnRateAvg = mrrMovements.length > 0
+      const avgMonthlyChurnMrr = mrrMovements.length > 0
         ? mrrMovements.reduce((sum, m) => sum + m.churnMrr, 0) / mrrMovements.length
         : 0;
 
@@ -532,7 +535,7 @@ export function useAdminRevenueData() {
         forecast,
         upsellAlerts,
         avgMonthlyGrowth,
-        churnRateAvg,
+        avgMonthlyChurnMrr,
       };
     },
     staleTime: 5 * 60 * 1000,
