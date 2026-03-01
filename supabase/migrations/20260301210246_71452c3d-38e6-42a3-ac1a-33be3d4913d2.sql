@@ -1,0 +1,1 @@
+ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS trial_extensions_count integer NOT NULL DEFAULT 0;

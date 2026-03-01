@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { MessageSquare, Loader2, Eye, EyeOff, Search } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -34,6 +35,7 @@ export default function Implementations() {
   const queryClient = useQueryClient();
   const [dialogModule, setDialogModule] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [bulkConfirm, setBulkConfirm] = useState<{ field: string; value: boolean; count: number } | null>(null);
 
   const { data: companies = [], isLoading } = useQuery({
     queryKey: ["impl-companies"],
@@ -139,7 +141,7 @@ export default function Implementations() {
               </Button>
               <Button
                 size="sm"
-                onClick={() => bulkMutation.mutate({ field: mod.dbField, value: !allActive })}
+                onClick={() => setBulkConfirm({ field: mod.dbField, value: !allActive, count: companies.length })}
                 disabled={bulkMutation.isPending}
                 variant={allActive ? "destructive" : "default"}
               >
@@ -216,6 +218,34 @@ export default function Implementations() {
           </Card>
         );
       })}
+
+      <AlertDialog open={!!bulkConfirm} onOpenChange={(open) => { if (!open) setBulkConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma operazione bulk</AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkConfirm?.value
+                ? `Stai per attivare il modulo per tutte le ${bulkConfirm?.count} aziende.`
+                : `Stai per disattivare il modulo per tutte le ${bulkConfirm?.count} aziende.`}
+              {" "}Questa azione avrà effetto immediato.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (bulkConfirm) {
+                  bulkMutation.mutate({ field: bulkConfirm.field, value: bulkConfirm.value });
+                  setBulkConfirm(null);
+                }
+              }}
+              className={bulkConfirm?.value ? "" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
+            >
+              {bulkConfirm?.value ? "Attiva per tutte" : "Disattiva per tutte"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
