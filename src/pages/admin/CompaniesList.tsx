@@ -19,6 +19,10 @@ import type { CompanyStatus } from "@/types/auth";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CompanyPipelineView } from "@/components/admin/company/CompanyPipelineView";
+import { CompaniesKPIStrip } from "@/components/admin/company/CompaniesKPIStrip";
+import { CompanyTagsCell } from "@/components/admin/company/CompanyTagsCell";
+import { CompanyQuickActions } from "@/components/admin/company/CompanyQuickActions";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
@@ -43,7 +47,22 @@ const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string;
 );
 TrialBadge.displayName = "TrialBadge";
 
-type SortKey = "name" | "sector" | "plan" | "mrr" | "status" | "orders" | "trial";
+const LastAccessBadge = ({ lastAccess }: { lastAccess: string | null }) => {
+  if (!lastAccess) return <span className="text-xs text-muted-foreground">Mai</span>;
+  const days = differenceInDays(new Date(), new Date(lastAccess));
+  const color = days <= 7 ? "text-green-600" : days <= 30 ? "text-yellow-600" : "text-red-600";
+  const dotColor = days <= 7 ? "bg-green-500" : days <= 30 ? "bg-yellow-500" : "bg-red-500";
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={`h-2 w-2 rounded-full ${dotColor}`} />
+      <span className={`text-xs font-medium ${color}`}>
+        {days === 0 ? "Oggi" : `${days}gg fa`}
+      </span>
+    </div>
+  );
+};
+
+type SortKey = "name" | "sector" | "plan" | "mrr" | "status" | "orders" | "trial" | "users" | "lastAccess";
 type SortDir = "asc" | "desc";
 
 export default function CompaniesList() {
@@ -120,7 +139,6 @@ export default function CompaniesList() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Health scores from RPC
   const { data: healthData = {} } = useQuery({
     queryKey: ["admin-companies-health"],
     queryFn: async () => {
@@ -144,6 +162,65 @@ export default function CompaniesList() {
         score = Math.min(score, 100);
         const health = score >= 60 ? "healthy" : score >= 30 ? "at_risk" : "critical";
         map[h.company_id] = { score, health, lastOrderDate: h.last_order_date };
+      });
+      return map;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Last access per company
+  const { data: lastAccessData = {} } = useQuery({
+    queryKey: ["admin-companies-last-access"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_company_last_access");
+      if (error) throw error;
+      const map: Record<string, string | null> = {};
+      (data || []).forEach((row: any) => {
+        map[row.company_id] = row.last_access || null;
+      });
+      return map;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Company tags
+  const { data: companyTags = {} } = useQuery({
+    queryKey: ["company-tags"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("company_tags").select("*").order("created_at");
+      if (error) throw error;
+      const map: Record<string, Array<{ id: string; tag: string; color: string }>> = {};
+      (data || []).forEach((row: any) => {
+        if (!map[row.company_id]) map[row.company_id] = [];
+        map[row.company_id].push({ id: row.id, tag: row.tag, color: row.color });
+      });
+      return map;
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+
+  // Order sparklines
+  const { data: sparklineData = {} } = useQuery({
+    queryKey: ["admin-companies-sparklines"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_company_order_sparklines");
+      if (error) throw error;
+      const map: Record<string, Array<{ month: string; count: number }>> = {};
+      // Build 6-month keys
+      const months: string[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+      }
+      // Initialize all companies with 0s
+      const rawMap: Record<string, Record<string, number>> = {};
+      (data || []).forEach((row: any) => {
+        if (!rawMap[row.company_id]) rawMap[row.company_id] = {};
+        rawMap[row.company_id][row.month_key] = Number(row.order_count) || 0;
+      });
+      Object.entries(rawMap).forEach(([cid, mData]) => {
+        map[cid] = months.map((m) => ({ month: m, count: mData[m] || 0 }));
       });
       return map;
     },
@@ -183,6 +260,12 @@ export default function CompaniesList() {
           case "mrr": return dir * ((planA?.price_monthly || 0) - (planB?.price_monthly || 0));
           case "status": return dir * (a.status || "").localeCompare(b.status || "");
           case "orders": return dir * ((orderStats[a.id]?.count || 0) - (orderStats[b.id]?.count || 0));
+          case "users": return dir * ((userCounts[a.id] || 0) - (userCounts[b.id] || 0));
+          case "lastAccess": {
+            const la = lastAccessData[a.id] ? new Date(lastAccessData[a.id]!).getTime() : 0;
+            const lb = lastAccessData[b.id] ? new Date(lastAccessData[b.id]!).getTime() : 0;
+            return dir * (la - lb);
+          }
           case "trial": {
             const dateA = a.trial_ends_at ? new Date(a.trial_ends_at).getTime() : new Date(a.created_at).getTime();
             const dateB = b.trial_ends_at ? new Date(b.trial_ends_at).getTime() : new Date(b.created_at).getTime();
@@ -194,17 +277,17 @@ export default function CompaniesList() {
     }
 
     return result;
-  }, [companies, searchQuery, statusFilter, sectorFilter, planFilter, sortKey, sortDir, orderStats]);
+  }, [companies, searchQuery, statusFilter, sectorFilter, planFilter, sortKey, sortDir, orderStats, userCounts, lastAccessData]);
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all";
 
   const handleExportCSV = () => {
-    const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Creata il"];
+    const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Utenti", "Creata il"];
     const rows = filteredCompanies.map((c) => {
       const plan = c.subscription_plans as { id: string; name: string } | null;
       return [
         c.name, c.email, sectorLabels[c.sector] || c.sector, plan?.name || "—",
-        c.status, (orderStats[c.id]?.count || 0), format(new Date(c.created_at), "dd/MM/yyyy"),
+        c.status, (orderStats[c.id]?.count || 0), (userCounts[c.id] || 0), format(new Date(c.created_at), "dd/MM/yyyy"),
       ].join(",");
     });
     const csv = [headers.join(","), ...rows].join("\n");
@@ -259,6 +342,16 @@ export default function CompaniesList() {
           </Link>
         </Button>
       </div>
+
+      {/* KPI Strip */}
+      <CompaniesKPIStrip
+        companies={companies.map((c) => ({
+          id: c.id,
+          status: c.status,
+          subscription_plans: c.subscription_plans as { price_monthly: number } | null,
+        }))}
+        healthData={healthData}
+      />
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -368,8 +461,14 @@ export default function CompaniesList() {
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("status")}>
                     <span className="inline-flex items-center">Stato<SortIcon col="status" /></span>
                   </TableHead>
+                  <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("users")}>
+                    <span className="inline-flex items-center"><Users className="h-3 w-3 mr-1" />Utenti<SortIcon col="users" /></span>
+                  </TableHead>
                   <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("orders")}>
                     <span className="inline-flex items-center">Ordini<SortIcon col="orders" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("lastAccess")}>
+                    <span className="inline-flex items-center">Ultimo Accesso<SortIcon col="lastAccess" /></span>
                   </TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("trial")}>
                     <span className="inline-flex items-center">Trial / Scadenza<SortIcon col="trial" /></span>
@@ -377,6 +476,7 @@ export default function CompaniesList() {
                   <TableHead className="text-center">
                     <span className="inline-flex items-center"><Heart className="h-3 w-3 mr-1" />Health</span>
                   </TableHead>
+                  <TableHead>Tag</TableHead>
                   <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
@@ -386,6 +486,7 @@ export default function CompaniesList() {
                   const cfg = statusConfig[status] || statusConfig.trial;
                   const plan = company.subscription_plans as { id: string; name: string; price_monthly: number } | null;
                   const isExpanded = expandedId === company.id;
+                  const companySparkline = sparklineData[company.id];
 
                   return (
                     <React.Fragment key={company.id}>
@@ -414,7 +515,13 @@ export default function CompaniesList() {
                         <TableCell>{plan ? <Badge variant="outline">{plan.name}</Badge> : <span className="text-sm text-muted-foreground">—</span>}</TableCell>
                         <TableCell>{plan ? <span className="text-sm font-medium">{formatCurrency(plan.price_monthly)}</span> : <span className="text-sm text-muted-foreground">—</span>}</TableCell>
                         <TableCell><Badge variant={cfg.variant}>{cfg.label}</Badge></TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm font-medium">{userCounts[company.id] || 0}</span>
+                        </TableCell>
                         <TableCell className="text-center"><span className="text-sm font-medium">{orderStats[company.id]?.count || 0}</span></TableCell>
+                        <TableCell>
+                          <LastAccessBadge lastAccess={lastAccessData[company.id] || null} />
+                        </TableCell>
                         <TableCell><TrialBadge company={company} /></TableCell>
                         <TableCell className="text-center">
                           {(() => {
@@ -425,8 +532,12 @@ export default function CompaniesList() {
                             return <Badge variant="outline" className={`text-[10px] ${colors[hd.health]}`}>{labels[hd.health]} {hd.score}</Badge>;
                           })()}
                         </TableCell>
+                        <TableCell>
+                          <CompanyTagsCell companyId={company.id} tags={companyTags[company.id] || []} />
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
+                            <CompanyQuickActions company={company} />
                             <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/admin/aziende/${company.id}`); }}>
                               <ExternalLink className="h-4 w-4 mr-1" />Apri
                             </Button>
@@ -438,7 +549,7 @@ export default function CompaniesList() {
                       </TableRow>
                       {isExpanded && (
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={10} className="p-4">
+                          <TableCell colSpan={13} className="p-4">
                             {(() => {
                               const stats = orderStats[company.id];
                               const usersCount = userCounts[company.id] || 0;
@@ -449,7 +560,7 @@ export default function CompaniesList() {
 
                               return (
                                 <>
-                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
                                     <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
                                       <div className="rounded-md bg-primary/10 p-2"><DollarSign className="h-4 w-4 text-primary" /></div>
                                       <div>
@@ -483,6 +594,29 @@ export default function CompaniesList() {
                                       <div>
                                         <p className="text-xs text-muted-foreground">MRR</p>
                                         <p className="text-sm font-semibold">{plan ? `${formatCurrency(plan.price_monthly)}/mese` : "—"}</p>
+                                      </div>
+                                    </div>
+                                    {/* Sparkline */}
+                                    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+                                      <div className="flex-1">
+                                        <p className="text-xs text-muted-foreground mb-1">Trend Ordini (6m)</p>
+                                        {companySparkline && companySparkline.some((d) => d.count > 0) ? (
+                                          <div className="h-8 w-full">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                              <AreaChart data={companySparkline}>
+                                                <defs>
+                                                  <linearGradient id={`spark-${company.id}`} x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                                                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                                                  </linearGradient>
+                                                </defs>
+                                                <Area type="monotone" dataKey="count" stroke="hsl(var(--primary))" fill={`url(#spark-${company.id})`} strokeWidth={1.5} dot={false} />
+                                              </AreaChart>
+                                            </ResponsiveContainer>
+                                          </div>
+                                        ) : (
+                                          <p className="text-xs text-muted-foreground">Nessun dato</p>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
