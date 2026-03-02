@@ -247,7 +247,10 @@ export default function Announcements() {
                         </Button>
                       </DialogTrigger>
                       <DialogContent>
-                        <DialogHeader><DialogTitle>Modifica annuncio</DialogTitle></DialogHeader>
+                        <DialogHeader>
+                          <DialogTitle>Modifica annuncio</DialogTitle>
+                          <DialogDescription>Modifica i dettagli dell'annuncio selezionato</DialogDescription>
+                        </DialogHeader>
                         <AnnouncementForm
                           initial={editingAnnouncement!}
                           onSave={(d) => updateMutation.mutate({ id: a.id, ...d })}

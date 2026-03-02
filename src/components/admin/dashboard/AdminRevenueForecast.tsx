@@ -46,7 +46,7 @@ export function AdminRevenueForecast({ currentMrr, forecast, avgMonthlyGrowth, a
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Current */}
           <div className="rounded-lg border p-4 bg-muted/30">
             <p className="text-xs text-muted-foreground mb-1">Attuale</p>

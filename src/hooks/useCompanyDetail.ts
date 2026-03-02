@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { addDays, differenceInDays } from "date-fns";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
 import type { StaffUserFormData } from "@/components/users/StaffUserDialog";
@@ -47,7 +47,6 @@ export interface CompanyStats {
 
 export function useCompanyDetail(id: string | undefined) {
   const { user, impersonateCompany } = useAuth();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // UI state
@@ -244,7 +243,6 @@ export function useCompanyDetail(id: string | undefined) {
   const monthlyOrders = useMemo(() => {
     if (!allOrders || allOrders.length === 0) return [];
     const months: Record<string, { count: number; value: number }> = {};
-    // Pre-fill last 6 months
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
@@ -288,7 +286,6 @@ export function useCompanyDetail(id: string | undefined) {
         event_type: newStatus === "active" ? "activated" : newStatus === "suspended" ? "suspended" : "status_change",
         old_status: company.status, new_status: newStatus, notes, performed_by: user?.id,
       });
-      // Audit log for status changes
       if (user?.id) {
         const auditAction = newStatus === "suspended" ? "suspend_company" : newStatus === "active" ? "reactivate_company" : "status_change";
         await supabase.from("admin_audit_log").insert({
@@ -303,10 +300,10 @@ export function useCompanyDetail(id: string | undefined) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subscription-logs", id] });
       refreshCompany();
-      toast({ title: "Stato aggiornato" });
+      toast.success("Stato aggiornato");
     },
     onError: (err: any) => {
-      toast({ title: "Errore aggiornamento stato", description: err.message, variant: "destructive" });
+      toast.error("Errore aggiornamento stato", { description: err.message });
     },
   });
 
@@ -319,7 +316,6 @@ export function useCompanyDetail(id: string | undefined) {
         company_id: id, event_type: "plan_changed", old_status: company.status,
         new_status: company.status, plan_id: planId, notes: "Piano cambiato manualmente", performed_by: user?.id,
       });
-      // Audit log for plan change
       if (user?.id) {
         const newPlan = plans?.find((p: any) => p.id === planId);
         const oldPlan = plans?.find((p: any) => p.id === company.subscription_plan_id);
@@ -341,10 +337,10 @@ export function useCompanyDetail(id: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ["subscription-logs", id] });
       setChangePlanDialog(false);
       refreshCompany();
-      toast({ title: "Piano aggiornato" });
+      toast.success("Piano aggiornato");
     },
     onError: (err: any) => {
-      toast({ title: "Errore cambio piano", description: err.message, variant: "destructive" });
+      toast.error("Errore cambio piano", { description: err.message });
     },
   });
 
@@ -359,7 +355,6 @@ export function useCompanyDetail(id: string | undefined) {
         company_id: id, event_type: "trial_extended", old_status: company.status,
         new_status: "trial", notes: `Trial esteso di ${days} giorni`, performed_by: user?.id,
       });
-      // Audit log for trial extension
       if (user?.id) {
         await supabase.from("admin_audit_log").insert({
           user_id: user.id,
@@ -373,10 +368,10 @@ export function useCompanyDetail(id: string | undefined) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subscription-logs", id] });
       refreshCompany();
-      toast({ title: "Trial esteso" });
+      toast.success("Trial esteso");
     },
     onError: (err: any) => {
-      toast({ title: "Errore estensione trial", description: err.message, variant: "destructive" });
+      toast.error("Errore estensione trial", { description: err.message });
     },
   });
 
@@ -398,10 +393,10 @@ export function useCompanyDetail(id: string | undefined) {
       });
       if (resp.error || !resp.data?.success) throw new Error(resp.data?.error || resp.error?.message || "Errore creazione staff");
       queryClient.invalidateQueries({ queryKey: ["company-team", id] });
-      toast({ title: "Staff creato con successo" });
+      toast.success("Staff creato con successo");
       return { temporaryPassword: resp.data.temporary_password };
     } catch (err: any) {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast.error("Errore", { description: err.message });
       throw err;
     } finally {
       setCreateStaffLoading(false);
@@ -415,9 +410,9 @@ export function useCompanyDetail(id: string | undefined) {
       const { error } = await supabase.from("staff_permissions").update(permissions).eq("user_id", permissionsUser.id).eq("company_id", id!);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["company-team", id] });
-      toast({ title: "Permessi aggiornati" });
+      toast.success("Permessi aggiornati");
     } catch (err: any) {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast.error("Errore", { description: err.message });
     } finally {
       setSavingPermissions(false);
     }
@@ -435,10 +430,10 @@ export function useCompanyDetail(id: string | undefined) {
     onSuccess: () => {
       setCreateSalespersonOpen(false);
       queryClient.invalidateQueries({ queryKey: ["company-team", id] });
-      toast({ title: "Venditore creato" });
+      toast.success("Venditore creato");
     },
     onError: (err: any) => {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast.error("Errore", { description: err.message });
     },
   });
 
@@ -458,10 +453,10 @@ export function useCompanyDetail(id: string | undefined) {
     onSuccess: () => {
       setCreateEmployeeOpen(false);
       queryClient.invalidateQueries({ queryKey: ["company-team", id] });
-      toast({ title: "Dipendente creato" });
+      toast.success("Dipendente creato");
     },
     onError: (err: any) => {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast.error("Errore", { description: err.message });
     },
   });
 
@@ -481,9 +476,9 @@ export function useCompanyDetail(id: string | undefined) {
       if (resp.error || !resp.data?.success) throw new Error(resp.data?.error || resp.error?.message || "Errore creazione account");
       queryClient.invalidateQueries({ queryKey: ["company-team", id] });
       setPasswordDialog({ open: true, password: resp.data.temp_password, name, email });
-      toast({ title: "Account creato" });
+      toast.success("Account creato");
     } catch (err: any) {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast.error("Errore", { description: err.message });
     } finally {
       setCreatingAccountFor(null);
     }
@@ -494,7 +489,7 @@ export function useCompanyDetail(id: string | undefined) {
       await navigator.clipboard.writeText(passwordDialog.password);
       setCopiedPassword(true);
       setTimeout(() => setCopiedPassword(false), 2000);
-      toast({ title: "Copiato!" });
+      toast.success("Copiato!");
     }
   };
 
@@ -525,9 +520,9 @@ export function useCompanyDetail(id: string | undefined) {
       const { error } = await supabase.from("companies").update(updateData).eq("id", id);
       if (error) throw error;
       refreshCompany();
-      toast({ title: "Dati aggiornati con successo" });
+      toast.success("Dati aggiornati con successo");
     } catch (error: any) {
-      toast({ title: "Errore", description: error.message, variant: "destructive" });
+      toast.error("Errore", { description: error.message });
     } finally {
       setIsSaving(false);
     }
@@ -553,10 +548,10 @@ export function useCompanyDetail(id: string | undefined) {
     },
     onSuccess: () => {
       refreshCompany();
-      toast({ title: "Metodo di pagamento aggiornato" });
+      toast.success("Metodo di pagamento aggiornato");
     },
     onError: (err: any) => {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast.error("Errore", { description: err.message });
     },
   });
 
@@ -586,10 +581,10 @@ export function useCompanyDetail(id: string | undefined) {
     },
     onSuccess: (data) => {
       setCheckoutUrl(data.url);
-      toast({ title: "Link di pagamento generato" });
+      toast.success("Link di pagamento generato");
     },
     onError: (err: any) => {
-      toast({ title: "Errore generazione link", description: err.message, variant: "destructive" });
+      toast.error("Errore generazione link", { description: err.message });
     },
   });
 

@@ -66,6 +66,11 @@ export function AdminUpsellAlerts({ alerts }: Props) {
             </Button>
           </div>
         ))}
+        {alerts.length > 10 && (
+          <p className="text-xs text-center text-muted-foreground pt-2">
+            …e altri {alerts.length - 10} alert
+          </p>
+        )}
       </CardContent>
     </Card>
   );
