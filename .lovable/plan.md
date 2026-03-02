@@ -1,50 +1,44 @@
 
 
-# Miglioramento Expanded Row — Prospettiva CEO/Sales/Marketing
+# Expanded Row — Ripensata per Super Admin SaaS
 
-## Analisi dello Stato Attuale (Screenshot)
+## Cosa rimuovere (dati irrilevanti o già in tabella)
+- **Sparkline Trend Ordini** — esplicitamente non richiesto, elimina anche la query `sparklineData` dal passaggio props
+- **Card "Utenti"** — già nella colonna tabella
+- **Card "Staff"** — boolean a basso valore
+- **Card "Ultimo Ordine"** — ridondante con Last Access + Health in tabella
 
-Guardando la riga espansa, un CEO o Sales Manager vede:
-- 6 KPI cards ma 2 sono binari inutili ("Clienti: Presenti", "Staff: Presenti" — non dice quanti)
-- Sezione 2 spesso mostra solo "Scadenza Trial" se i campi aziendali non sono compilati — spreco di spazio
-- Nessuna indicazione su **cosa fare** con questa azienda — manca totalmente la componente di **actionability**
-- Il componente `CompanyNextActions` (azioni suggerite intelligenti) esiste già nel dettaglio ma NON è presente nella expanded row
-- Nessun modo di contattare rapidamente il cliente (telefono, email) senza aprire il dettaglio
+## Cosa aggiungere (dati da Super Admin SaaS)
+- **Utilizzo Piano** — Barre progresso "Ordini X/Y" e "Utenti X/Y" con colore upsell (verde < 70%, arancione 70-90%, rosso > 90%). Richiede espandere la query companies per includere `max_orders, max_users` dal piano
+- **Metodo Pagamento** — Badge "Carta configurata" / "Nessun pagamento" con icona, dato già presente in `company.payment_method`
+- **LTV Cliente** — Rinominare "Valore Totale" in "LTV Cliente" (stesso dato `orderStats.totalValue`)
 
-## Miglioramenti Proposti
+## Layout finale expanded row (3 righe)
 
-### 1. Next Best Action nella Expanded Row
-Il motore `getNextActions` già calcola suggerimenti intelligenti (trial in scadenza, onboarding incompleto, inattività). Portarlo nella expanded row significa che un Sales Manager vede IMMEDIATAMENTE cosa fare senza aprire il dettaglio.
+**Riga 1 — KPI operativi (4 card)**
+| LTV Cliente | Utilizzo Ordini (barra X/Y) | Utilizzo Utenti (barra X/Y) | Onboarding % |
 
-### 2. Contatori reali per Clienti e Staff
-Sostituire "Presenti/Nessuno" con il numero effettivo. I dati `has_customers`/`has_staff` sono boolean ma `user_count` e `order_count` sono già in `healthData`. Per i clienti serve un campo aggiuntivo — in assenza, mostrare almeno il numero utenti totali.
+**Riga 2 — Stato Pagamento + Contatto rapido**
+| Badge pagamento | Email | Chiama | Nota rapida |
 
-### 3. Quick Contact inline
-Aggiungere sotto i KPI una riga con bottoni "Chiama" (se phone presente) e "Email" clickabili, più "Aggiungi Nota" inline. Un CEO vuole agire in 1 click.
+**Riga 3 — Intelligence (come oggi)**
+| Next Actions (se presenti) |
+| Health Breakdown (compatto) |
+| Business Info (condizionale) |
+| CRM Notes + Tags |
 
-### 4. Sezione Business Info condizionale
-Se nessun campo business è compilato, nascondere completamente la sezione 2 invece di mostrare un box vuoto.
+## File modificati
 
-### 5. Health Score Breakdown
-Aggiungere una mini barra segmentata che mostra PERCHÉ lo score è quello che è (ordini, utenti, clienti, staff, attività recente) — trasparenza sulla salute dell'account.
+1. **`src/pages/admin/CompaniesList.tsx`**
+   - Espandere la select companies: `subscription_plans:subscription_plan_id(id, name, price_monthly, max_orders, max_users)`
+   - Passare `planLimits` (max_orders, max_users) e `userCount` al `CompanyExpandedRow`
+   - Rimuovere passaggio `sparklineData` prop
 
-## Piano Implementazione
+2. **`src/components/admin/company/CompanyExpandedRow.tsx`**
+   - Riscrivere Section 1: 4 card (LTV, Utilizzo Ordini con barra, Utilizzo Utenti con barra, Onboarding)
+   - Section 2: Badge pagamento + quick contact inline
+   - Rimuovere sparkline import e rendering
+   - Aggiungere props `planLimits` e `userCount`
 
-### File modificati:
-
-**`src/components/admin/company/CompanyExpandedRow.tsx`**
-- Importare e usare `getNextActions` da `CompanyNextActions` (estrarre la funzione)
-- Mostrare strip "Azioni Suggerite" tra KPI e business info
-- Cambiare Clienti/Staff da boolean a contatori con fallback
-- Aggiungere riga quick contact (telefono clickable, email clickable, bottone "Nota rapida")
-- Rendere Section 2 condizionale (nascosta se tutti i campi sono null)
-- Aggiungere mini breakdown health score (5 segmenti colorati)
-
-**`src/components/admin/company/CompanyNextActions.tsx`**
-- Esportare `getNextActions` come funzione separata per riuso
-
-**`src/lib/companyUtils.ts`**
-- Aggiungere `getHealthBreakdown(hd)` che restituisce i 5 fattori con punteggio individuale
-
-### Nessuna migrazione DB, nessun file nuovo
+Nessuna migrazione DB, nessun nuovo file.
 
