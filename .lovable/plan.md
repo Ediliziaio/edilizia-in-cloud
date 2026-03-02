@@ -1,44 +1,38 @@
 
 
-# Expanded Row — Ripensata per Super Admin SaaS
+# Expanded Row — Dati da Super Admin SaaS
 
-## Cosa rimuovere (dati irrilevanti o già in tabella)
-- **Sparkline Trend Ordini** — esplicitamente non richiesto, elimina anche la query `sparklineData` dal passaggio props
-- **Card "Utenti"** — già nella colonna tabella
-- **Card "Staff"** — boolean a basso valore
-- **Card "Ultimo Ordine"** — ridondante con Last Access + Health in tabella
+## Cosa cambia
 
-## Cosa aggiungere (dati da Super Admin SaaS)
-- **Utilizzo Piano** — Barre progresso "Ordini X/Y" e "Utenti X/Y" con colore upsell (verde < 70%, arancione 70-90%, rosso > 90%). Richiede espandere la query companies per includere `max_orders, max_users` dal piano
-- **Metodo Pagamento** — Badge "Carta configurata" / "Nessun pagamento" con icona, dato già presente in `company.payment_method`
-- **LTV Cliente** — Rinominare "Valore Totale" in "LTV Cliente" (stesso dato `orderStats.totalValue`)
+La Row 1 attuale ha 4 card (LTV, Ordini, Utenti, Onboarding). Il Super Admin vuole vedere subito i dati finanziari e di pagamento. Nuovo layout a **6 card**:
 
-## Layout finale expanded row (3 righe)
+```text
+Row 1 (6 card, griglia 2x3 mobile / 6 col desktop):
+┌──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+│   MRR    │  Stato   │ Metodo   │ Fatturato│  Ordini  │  Utenti  │
+│ €49/mese │ Attivo ✓ │ Stripe   │ €12.500  │  45/100  │   3/10   │
+└──────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+```
 
-**Riga 1 — KPI operativi (4 card)**
-| LTV Cliente | Utilizzo Ordini (barra X/Y) | Utilizzo Utenti (barra X/Y) | Onboarding % |
+### Dettaglio card:
+1. **MRR** — `subscription_plans.price_monthly` (€/mese). Se null: "Nessun piano"
+2. **Stato Abbonamento** — Badge colorato: active=verde, trial=blu, expired=rosso, suspended=grigio
+3. **Metodo Pagamento** — Mostra il metodo effettivo (Stripe/Bonifico/Altro/Nessuno) con icona dedicata
+4. **Fatturato Totale** (LTV) — `orderStats.totalValue` come ora
+5. **Ordini** — Barra utilizzo come ora (X/Y)
+6. **Utenti** — Barra utilizzo come ora (X/Y)
 
-**Riga 2 — Stato Pagamento + Contatto rapido**
-| Badge pagamento | Email | Chiama | Nota rapida |
-
-**Riga 3 — Intelligence (come oggi)**
-| Next Actions (se presenti) |
-| Health Breakdown (compatto) |
-| Business Info (condizionale) |
-| CRM Notes + Tags |
+**Onboarding** spostato dentro la sezione Intelligence (Row 3), compatto.
 
 ## File modificati
 
-1. **`src/pages/admin/CompaniesList.tsx`**
-   - Espandere la select companies: `subscription_plans:subscription_plan_id(id, name, price_monthly, max_orders, max_users)`
-   - Passare `planLimits` (max_orders, max_users) e `userCount` al `CompanyExpandedRow`
-   - Rimuovere passaggio `sparklineData` prop
+### `src/pages/admin/CompaniesList.tsx`
+- Passare `planInfo` (name, price_monthly) al `CompanyExpandedRow`
 
-2. **`src/components/admin/company/CompanyExpandedRow.tsx`**
-   - Riscrivere Section 1: 4 card (LTV, Utilizzo Ordini con barra, Utilizzo Utenti con barra, Onboarding)
-   - Section 2: Badge pagamento + quick contact inline
-   - Rimuovere sparkline import e rendering
-   - Aggiungere props `planLimits` e `userCount`
+### `src/components/admin/company/CompanyExpandedRow.tsx`
+- Aggiungere prop `planInfo?: { name: string; price_monthly: number }`
+- Riscrivere Row 1: griglia 6 card (MRR, Stato, Metodo Pagamento, Fatturato, Ordini, Utenti)
+- Spostare Onboarding % dentro la sezione Health Score (compatto, stesso stile)
 
-Nessuna migrazione DB, nessun nuovo file.
+Nessuna migrazione DB.
 
