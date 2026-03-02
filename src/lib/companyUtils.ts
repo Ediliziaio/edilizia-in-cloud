@@ -29,12 +29,33 @@ export const statusConfig: Record<CompanyStatus, { label: string; variant: "defa
   expired: { label: "Scaduto", variant: "destructive" },
 };
 
-export function getHealthIndicator(daysSince: number | null): { color: string; bgColor: string; label: string } {
-  if (daysSince === null) return { color: "text-muted-foreground", bgColor: "bg-muted", label: "Nessuno" };
-  if (daysSince === 0) return { color: "text-green-600", bgColor: "bg-green-500/10", label: "Oggi" };
-  if (daysSince <= 14) return { color: "text-green-600", bgColor: "bg-green-500/10", label: `${daysSince}gg fa` };
-  if (daysSince <= 45) return { color: "text-yellow-600", bgColor: "bg-yellow-500/10", label: `${daysSince}gg fa` };
-  return { color: "text-red-600", bgColor: "bg-red-500/10", label: `${daysSince}gg fa` };
+export interface HealthInput {
+  order_count: number;
+  user_count: number;
+  has_customers: boolean;
+  has_staff: boolean;
+  orders_last_30d?: number;
+  last_order_date?: string | null;
+}
+
+/** Centralised health score — single source of truth (max 90) */
+export function calculateHealthScore(h: HealthInput): { score: number; health: "healthy" | "at_risk" | "critical" } {
+  let score = 0;
+  if (h.order_count > 0) score += 15;
+  if ((h.orders_last_30d || 0) > 0) score += 10;
+  if ((h.user_count || 0) >= 2) score += 20;
+  else if ((h.user_count || 0) >= 1) score += 10;
+  if (h.has_customers) score += 15;
+  if (h.has_staff) score += 10;
+  if (h.last_order_date) {
+    const days = Math.floor((Date.now() - new Date(h.last_order_date).getTime()) / 86400000);
+    if (days <= 7) score += 20;
+    else if (days <= 30) score += 15;
+    else if (days <= 60) score += 5;
+  }
+  score = Math.min(score, 90);
+  const health = score >= 60 ? "healthy" as const : score >= 30 ? "at_risk" as const : "critical" as const;
+  return { score, health };
 }
 
 export function getOnboardingPct(hd: { order_count: number; user_count: number; has_customers: boolean; has_staff: boolean } | undefined): number {
