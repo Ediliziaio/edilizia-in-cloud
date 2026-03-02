@@ -98,7 +98,7 @@ export default function CompaniesList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("*, subscription_plans:subscription_plan_id(id, name, price_monthly)")
+        .select("*, subscription_plans:subscription_plan_id(id, name, price_monthly, max_orders, max_users)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -200,33 +200,7 @@ export default function CompaniesList() {
     staleTime: 2 * 60 * 1000,
   });
 
-  // Order sparklines
-  const { data: sparklineData = {} } = useQuery({
-    queryKey: ["admin-companies-sparklines"],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_company_order_sparklines");
-      if (error) throw error;
-      const map: Record<string, Array<{ month: string; count: number }>> = {};
-      // Build 6-month keys
-      const months: string[] = [];
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date();
-        d.setMonth(d.getMonth() - i);
-        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-      }
-      // Initialize all companies with 0s
-      const rawMap: Record<string, Record<string, number>> = {};
-      (data || []).forEach((row: any) => {
-        if (!rawMap[row.company_id]) rawMap[row.company_id] = {};
-        rawMap[row.company_id][row.month_key] = Number(row.order_count) || 0;
-      });
-      Object.entries(rawMap).forEach(([cid, mData]) => {
-        map[cid] = months.map((m) => ({ month: m, count: mData[m] || 0 }));
-      });
-      return map;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+
 
   // Latest CRM notes per company
   const { data: latestNotes = {} } = useQuery({
@@ -523,7 +497,7 @@ export default function CompaniesList() {
                   const cfg = statusConfig[status] || statusConfig.trial;
                   const plan = company.subscription_plans as { id: string; name: string; price_monthly: number } | null;
                   const isExpanded = expandedId === company.id;
-                  const companySparkline = sparklineData[company.id];
+                  
 
                   return (
                     <React.Fragment key={company.id}>
@@ -591,7 +565,7 @@ export default function CompaniesList() {
                               company={company}
                               orderStats={orderStats[company.id]}
                               healthData={healthData[company.id]}
-                              sparklineData={sparklineData[company.id]}
+                              planLimits={(company.subscription_plans as any) ? { max_orders: (company.subscription_plans as any).max_orders, max_users: (company.subscription_plans as any).max_users } : undefined}
                               latestNote={latestNotes[company.id]}
                               tags={companyTags[company.id] || []}
                             />

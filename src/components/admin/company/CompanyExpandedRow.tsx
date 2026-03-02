@@ -1,16 +1,14 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { DollarSign, Calendar, Users, Briefcase, CheckCircle2, StickyNote, Phone, Mail, Activity } from "lucide-react";
+import { DollarSign, CheckCircle2, StickyNote, Phone, Mail, Activity, CreditCard, ShieldAlert, Package, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
-import { getHealthIndicator, getOnboardingPct, getHealthBreakdown } from "@/lib/companyUtils";
+import { getOnboardingPct, getHealthBreakdown } from "@/lib/companyUtils";
 import { getNextActions } from "./CompanyNextActions";
 import { CompanyTagsCell } from "./CompanyTagsCell";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface CompanyExpandedRowProps {
@@ -30,23 +28,34 @@ interface CompanyExpandedRowProps {
   };
   orderStats?: { count: number; totalValue: number; lastOrderDate: string | null };
   healthData?: { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean };
-  sparklineData?: Array<{ month: string; count: number }>;
+  planLimits?: { max_orders: number | null; max_users: number | null };
   latestNote?: { content: string; created_at: string; authorName: string };
   tags: Array<{ id: string; tag: string; color: string }>;
 }
 
+function getUsageColor(pct: number): string {
+  if (pct >= 90) return "bg-destructive";
+  if (pct >= 70) return "bg-amber-500";
+  return "bg-green-500";
+}
+
+function getUsageTextColor(pct: number): string {
+  if (pct >= 90) return "text-destructive";
+  if (pct >= 70) return "text-amber-600";
+  return "text-green-600";
+}
+
 export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
-  company, orderStats, healthData: hd, sparklineData, latestNote, tags,
+  company, orderStats, healthData: hd, planLimits, latestNote, tags,
 }: CompanyExpandedRowProps) {
   const navigate = useNavigate();
   const lastDate = orderStats?.lastOrderDate ? new Date(orderStats.lastOrderDate) : null;
   const daysSince = lastDate ? differenceInDays(new Date(), lastDate) : null;
-  const health = getHealthIndicator(daysSince);
   const onboardingPct = getOnboardingPct(hd);
   const healthBreakdown = getHealthBreakdown(hd);
 
   const status = company.status || "trial";
-  const paymentMethod = (company as any).payment_method || "none";
+  const paymentMethod = company.payment_method || "none";
   const nextActions = getNextActions({
     status,
     trialEndsAt: company.trial_ends_at || null,
@@ -54,6 +63,20 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
     daysSinceLastOrder: daysSince,
     paymentMethod,
   });
+
+  // Usage calculations
+  const orderCount = orderStats?.count || 0;
+  const maxOrders = planLimits?.max_orders;
+  const orderUsagePct = maxOrders ? Math.min(Math.round((orderCount / maxOrders) * 100), 100) : null;
+
+  const userCount = hd?.user_count || 0;
+  const maxUsers = planLimits?.max_users;
+  const userUsagePct = maxUsers ? Math.min(Math.round((userCount / maxUsers) * 100), 100) : null;
+
+  // Payment badge
+  const hasPayment = paymentMethod !== "none" && paymentMethod !== "";
+  const paymentLabel = hasPayment ? "Carta configurata" : "Nessun pagamento";
+  const PaymentIcon = hasPayment ? CreditCard : ShieldAlert;
 
   // Business info fields
   const businessFields = [
@@ -75,12 +98,56 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
 
   return (
     <div className="space-y-3">
-      {/* Section 1 — KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        <KpiCard icon={<DollarSign className="h-4 w-4 text-primary" />} iconBg="bg-primary/10" label="Valore Totale" value={formatCurrency(orderStats?.totalValue || 0)} />
-        <KpiCard icon={<Calendar className={`h-4 w-4 ${health.color}`} />} iconBg={health.bgColor} label="Ultimo Ordine" value={health.label} valueClass={health.color} />
-        <KpiCard icon={<Users className="h-4 w-4 text-primary" />} iconBg="bg-primary/10" label="Utenti" value={`${hd?.user_count || 0}`} />
-        <KpiCard icon={<Briefcase className={`h-4 w-4 ${hd?.has_staff ? "text-green-600" : "text-muted-foreground"}`} />} iconBg={hd?.has_staff ? "bg-green-500/10" : "bg-muted"} label="Staff" value={hd?.has_staff ? "Attivo" : "Non configurato"} />
+      {/* Row 1 — SaaS KPIs: LTV | Utilizzo Ordini | Utilizzo Utenti | Onboarding */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* LTV */}
+        <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+          <div className="rounded-md bg-primary/10 p-2"><DollarSign className="h-4 w-4 text-primary" /></div>
+          <div>
+            <p className="text-xs text-muted-foreground">LTV Cliente</p>
+            <p className="text-sm font-semibold">{formatCurrency(orderStats?.totalValue || 0)}</p>
+          </div>
+        </div>
+
+        {/* Utilizzo Ordini */}
+        <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+          <div className={`rounded-md p-2 ${orderUsagePct !== null ? (orderUsagePct >= 90 ? "bg-destructive/10" : orderUsagePct >= 70 ? "bg-amber-500/10" : "bg-green-500/10") : "bg-muted"}`}>
+            <Package className={`h-4 w-4 ${orderUsagePct !== null ? getUsageTextColor(orderUsagePct) : "text-muted-foreground"}`} />
+          </div>
+          <div className="flex-1">
+            <p className="text-xs text-muted-foreground">Ordini</p>
+            {orderUsagePct !== null ? (
+              <div className="flex items-center gap-2 mt-0.5">
+                <div className="h-1.5 flex-1 rounded-full bg-secondary overflow-hidden">
+                  <div className={`h-full rounded-full ${getUsageColor(orderUsagePct)} transition-all`} style={{ width: `${orderUsagePct}%` }} />
+                </div>
+                <span className={`text-xs font-medium ${getUsageTextColor(orderUsagePct)}`}>{orderCount}/{maxOrders}</span>
+              </div>
+            ) : (
+              <p className="text-sm font-semibold">{orderCount} <span className="text-xs text-muted-foreground font-normal">/ ∞</span></p>
+            )}
+          </div>
+        </div>
+
+        {/* Utilizzo Utenti */}
+        <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+          <div className={`rounded-md p-2 ${userUsagePct !== null ? (userUsagePct >= 90 ? "bg-destructive/10" : userUsagePct >= 70 ? "bg-amber-500/10" : "bg-green-500/10") : "bg-muted"}`}>
+            <Users className={`h-4 w-4 ${userUsagePct !== null ? getUsageTextColor(userUsagePct) : "text-muted-foreground"}`} />
+          </div>
+          <div className="flex-1">
+            <p className="text-xs text-muted-foreground">Utenti</p>
+            {userUsagePct !== null ? (
+              <div className="flex items-center gap-2 mt-0.5">
+                <div className="h-1.5 flex-1 rounded-full bg-secondary overflow-hidden">
+                  <div className={`h-full rounded-full ${getUsageColor(userUsagePct)} transition-all`} style={{ width: `${userUsagePct}%` }} />
+                </div>
+                <span className={`text-xs font-medium ${getUsageTextColor(userUsagePct)}`}>{userCount}/{maxUsers}</span>
+              </div>
+            ) : (
+              <p className="text-sm font-semibold">{userCount} <span className="text-xs text-muted-foreground font-normal">/ ∞</span></p>
+            )}
+          </div>
+        </div>
 
         {/* Onboarding */}
         <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
@@ -97,54 +164,32 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
         </div>
       </div>
 
-      {/* Section 2 — Quick Contact + Sparkline */}
-      <div className="flex flex-col md:flex-row gap-3">
-        {/* Quick Contact */}
-        <div className="flex items-center gap-2 rounded-lg border bg-card p-3">
-          <span className="text-xs font-medium text-muted-foreground mr-1">Contatto rapido:</span>
-          {company.phone && (
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={(e) => { e.stopPropagation(); window.open(`tel:${company.phone}`); }}>
-              <Phone className="h-3 w-3" />Chiama
-            </Button>
-          )}
-          {company.email && (
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={(e) => { e.stopPropagation(); window.open(`mailto:${company.email}`); }}>
-              <Mail className="h-3 w-3" />Email
-            </Button>
-          )}
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={(e) => { e.stopPropagation(); navigate(`/admin/aziende/${company.id}?tab=notes`); }}>
-            <StickyNote className="h-3 w-3" />Nota rapida
+      {/* Row 2 — Payment Badge + Quick Contact */}
+      <div className="flex items-center gap-2 rounded-lg border bg-card p-3">
+        <Badge variant={hasPayment ? "default" : "destructive"} className="gap-1.5">
+          <PaymentIcon className="h-3 w-3" />
+          {paymentLabel}
+        </Badge>
+        <div className="h-4 w-px bg-border mx-1" />
+        <span className="text-xs font-medium text-muted-foreground mr-1">Contatto rapido:</span>
+        {company.phone && (
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={(e) => { e.stopPropagation(); window.open(`tel:${company.phone}`); }}>
+            <Phone className="h-3 w-3" />Chiama
           </Button>
-        </div>
-
-        {/* Sparkline */}
-        <div className="flex-1 flex items-center gap-3 rounded-lg border bg-card p-3">
-          <div className="flex-1">
-            <p className="text-xs text-muted-foreground mb-1">Trend Ordini (6m)</p>
-            {sparklineData === undefined ? (
-              <Skeleton className="h-8 w-full" />
-            ) : sparklineData.some((d) => d.count > 0) ? (
-              <div className="h-8 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={sparklineData}>
-                    <defs>
-                      <linearGradient id={`spark-${company.id}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <Area type="monotone" dataKey="count" stroke="hsl(var(--primary))" fill={`url(#spark-${company.id})`} strokeWidth={1.5} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Nessun dato</p>
-            )}
-          </div>
-        </div>
+        )}
+        {company.email && (
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={(e) => { e.stopPropagation(); window.open(`mailto:${company.email}`); }}>
+            <Mail className="h-3 w-3" />Email
+          </Button>
+        )}
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={(e) => { e.stopPropagation(); navigate(`/admin/aziende/${company.id}?tab=notes`); }}>
+          <StickyNote className="h-3 w-3" />Nota rapida
+        </Button>
       </div>
 
-      {/* Section 3 — Next Best Actions (if any) */}
+      {/* Row 3 — Intelligence */}
+
+      {/* Next Best Actions */}
       {nextActions.length > 0 && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
           <div className="flex items-center gap-2 mb-2">
@@ -158,9 +203,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
               const colors = priorityColors[action.priority];
               return (
                 <div key={i} className="flex items-center gap-2 text-xs rounded-md border bg-card px-2.5 py-1.5">
-                  <div className={`p-1 rounded ${colors}`}>
-                    <Icon className="h-3 w-3" />
-                  </div>
+                  <div className={`p-1 rounded ${colors}`}><Icon className="h-3 w-3" /></div>
                   <span>{action.message}</span>
                 </div>
               );
@@ -169,7 +212,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
         </div>
       )}
 
-      {/* Section 4 — Health Score Breakdown */}
+      {/* Health Score Breakdown */}
       {healthBreakdown.length > 0 && hd && (
         <div className="rounded-lg border bg-card p-3">
           <div className="flex items-center gap-2 mb-2">
@@ -181,10 +224,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
               {healthBreakdown.map((factor, i) => (
                 <Tooltip key={i}>
                   <TooltipTrigger asChild>
-                    <div
-                      className={`${factor.color} transition-all cursor-help`}
-                      style={{ width: `${(factor.maxScore / 90) * 100}%`, opacity: factor.score > 0 ? 1 : 0.2 }}
-                    />
+                    <div className={`${factor.color} transition-all cursor-help`} style={{ width: `${(factor.maxScore / 90) * 100}%`, opacity: factor.score > 0 ? 1 : 0.2 }} />
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs">
                     <p className="font-medium">{factor.label}</p>
@@ -202,7 +242,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
         </div>
       )}
 
-      {/* Section 5 — Business info compact (conditional) */}
+      {/* Business Info (conditional) */}
       {businessFields.length > 0 && (
         <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-2 rounded-lg border bg-card p-3">
           {businessFields.map((f) => (
@@ -214,7 +254,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
         </div>
       )}
 
-      {/* Section 6 — CRM Notes preview + Tags */}
+      {/* CRM Notes + Tags */}
       <div className="flex flex-col md:flex-row gap-3">
         <div className="flex-1 rounded-lg border bg-card p-3">
           <div className="flex items-center justify-between mb-1.5">
@@ -245,15 +285,3 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
     </div>
   );
 });
-
-function KpiCard({ icon, iconBg, label, value, valueClass }: { icon: React.ReactNode; iconBg: string; label: string; value: string; valueClass?: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-      <div className={`rounded-md p-2 ${iconBg}`}>{icon}</div>
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className={`text-sm font-semibold ${valueClass || ""}`}>{value}</p>
-      </div>
-    </div>
-  );
-}
