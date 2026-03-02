@@ -1,76 +1,55 @@
 
 
-# Piano: Potenziamento Sezione Aziende — Sales & Growth Intelligence
+# Analisi Sezione Aziende — Gap Marketing, Vendite e SaaS
 
-## Obiettivo
-Trasformare la sezione Aziende da semplice anagrafica a strumento operativo per Sales, CSM e Growth, aggiungendo visibilita sul comportamento tenant, scoring, azioni rapide e pipeline visuale.
+## Cosa c'e gia
+La lista ha filtri, sorting, export CSV, toggle Lista/Pipeline, Health Score, expanded row con KPI. Il dettaglio ha 7 tab (Panoramica, Dettagli, Team, SaaS, Abbonamento, Attivita, Note), Conversion Card per trial e Next Best Actions.
 
-## Interventi proposti (ordinati per impatto)
+## Cosa manca — Prospettiva Growth/Sales/SaaS
 
-### 1. Health Score + Last Login nella lista aziende
-Aggiungere due colonne alla tabella `CompaniesList`:
-- **Health Score** (badge colorato: Healthy/At Risk/Critical) calcolato da: giorni dall'ultimo ordine, completamento onboarding, stato pagamento
-- **Ultimo Accesso** dal campo `last_sign_in_at` dei profili utente admin dell'azienda
+### 1. KPI Strip in cima alla lista
+Non c'e nessun riassunto aggregato. Un CSM o Sales Manager che apre la pagina non vede subito: quante aziende attive, MRR totale, tasso conversione trial, churn rate. Servono 4 card compatte sopra la tabella.
 
-Richiede: query aggiuntiva su `profiles` per `last_sign_in_at`, mapping health score gia disponibile in `useAdminRevenueData`.
+**Metriche:** Aziende Attive, MRR Totale, Tasso Conversione Trial (attive / attive+trial+expired), Aziende a Rischio (health critical/at_risk).
 
-### 2. Activity Feed nel dettaglio azienda
-Nuovo tab "Attivita" in `CompanyDetail` che mostra una timeline cronologica aggregando:
-- `admin_audit_log` (azioni admin)
-- `subscription_logs` (eventi abbonamento)
-- `orders` (ultimi ordini creati)
-- `tickets` (ticket aperti)
-- `lifecycle_notifications` (alert ricevuti)
+### 2. Ultimo Accesso nella tabella
+Era previsto ma manca. Sapere quando un tenant ha fatto l'ultimo login e cruciale per identificare churn silenzioso. Colonna con data + indicatore colore (verde < 7gg, giallo < 30gg, rosso > 30gg).
 
-Componente: `CompanyActivityTab.tsx` con filtri per tipo evento e scroll infinito.
+**Implementazione:** Query su `profiles` per `last_sign_in_at` raggruppato per `company_id` (MAX).
 
-### 3. Conversion Card per aziende in Trial
-Card prominente nel tab Panoramica (solo per status=trial) che mostra:
-- Giorni rimasti del trial
-- % completamento onboarding (riutilizzando `useOnboardingProgress`)
-- Metodo pagamento configurato? Si/No
-- CTA: "Invia reminder" / "Estendi trial" / "Proponi upgrade"
+### 3. Azioni rapide dal menu contestuale
+Dalla lista non si puo fare nulla se non "Apri" o "Accedi". Mancano azioni rapide: cambia stato, estendi trial, invia email. Un dropdown con azioni contestuali per ogni riga riduce i click.
 
-### 4. Note CRM con timestamp
-Nuovo componente `CompanyNotes` nel dettaglio:
-- Lista note con autore, data, testo
-- Aggiunta rapida nota (input + bottone)
-- Tabella DB: `company_notes` (id, company_id, author_id, content, created_at)
-- Visibile nel tab Panoramica o come nuovo tab "Note"
+### 4. Tags / Segmenti per le aziende
+Non c'e modo di etichettare le aziende (es. "VIP", "Upsell Q2", "Churned - da recuperare"). I tag permettono segmentazione per campagne marketing e prioritizzazione vendite.
 
-### 5. Next Best Action engine
-Blocco in cima al dettaglio azienda con suggerimenti contestuali automatici:
-- "Onboarding incompleto (60%) — Invia checklist"
-- "Trial scade tra 2gg — Proponi piano Pro"
-- "Inattiva da 21gg — Schedula follow-up"
-- "Nessun metodo pagamento — Genera link checkout"
+**Implementazione:** Nuova tabella `company_tags` (id, company_id, tag, color). Chip colorati nella riga della tabella.
 
-Logica: funzione pura che analizza stato, trial_ends_at, onboarding %, daysSinceLastOrder, payment_method.
+### 5. Contatori Utenti nella lista
+La colonna utenti non esiste nella tabella principale. Sapere quanti utenti ha un tenant e un segnale di adozione e di potenziale upsell.
 
-### 6. Vista Kanban pipeline
-Aggiungere toggle "Lista / Pipeline" sopra la tabella in `CompaniesList`:
-- Colonne: Trial → Attivo → Sospeso → Scaduto
-- Card compatte con nome, MRR, health score, giorni in stato
-- Drag-and-drop opzionale (gia installato `@dnd-kit`)
+### 6. Sparkline trend nella expanded row
+La expanded row mostra KPI statici ma nessun trend visivo. Una mini sparkline degli ordini degli ultimi 6 mesi darebbe contesto immediato senza aprire il dettaglio.
 
-## Dettagli tecnici
+---
 
-### Database
-- Nuova tabella `company_notes` con RLS policy per super_admin
-- Nessuna altra modifica DB necessaria, i dati per health/activity esistono gia
+## Piano di Implementazione
 
-### Componenti nuovi
-- `CompanyActivityTab.tsx`
-- `CompanyConversionCard.tsx`
-- `CompanyNotes.tsx`
-- `CompanyNextActions.tsx`
-- `CompanyPipelineView.tsx`
+### File nuovi
+- `src/components/admin/company/CompaniesKPIStrip.tsx` — 4 card aggregate (Attive, MRR, Conversione Trial, A Rischio)
 
 ### File modificati
-- `CompaniesList.tsx` — colonne Health Score + Last Login + toggle vista
-- `CompanyDetail.tsx` — nuovo tab Attivita, Conversion Card, Next Actions
-- `CompanyOverviewTab.tsx` — integrazione Conversion Card per trial
+- `src/pages/admin/CompaniesList.tsx`:
+  - Inserire `CompaniesKPIStrip` sopra i filtri
+  - Aggiungere colonna "Utenti" alla tabella
+  - Aggiungere colonna "Ultimo Accesso" con query su profiles
+  - Aggiungere dropdown azioni rapide per riga (cambia stato, estendi trial)
+  - Aggiungere sparkline ordini nella expanded row
 
-### Stima complessita
-6 componenti nuovi, 1 migrazione DB, 3 file modificati. Nessun breaking change.
+### Database
+- Nuova tabella `company_tags` con RLS per super_admin
+- Query `last_sign_in_at` dai profili (no nuove tabelle, dato gia presente)
+
+### Nessun breaking change
+Tutte le aggiunte sono additive. La tabella esistente non perde colonne.
 
