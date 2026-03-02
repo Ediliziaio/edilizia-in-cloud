@@ -1026,6 +1026,38 @@ export type Database = {
           },
         ]
       }
+      company_tags: {
+        Row: {
+          color: string
+          company_id: string
+          created_at: string
+          id: string
+          tag: string
+        }
+        Insert: {
+          color?: string
+          company_id: string
+          created_at?: string
+          id?: string
+          tag: string
+        }
+        Update: {
+          color?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          tag?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_tags_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       edge_function_rate_limits: {
         Row: {
           called_at: string
@@ -5340,6 +5372,21 @@ export type Database = {
           order_count: number
           orders_last_30d: number
           user_count: number
+        }[]
+      }
+      get_company_last_access: {
+        Args: never
+        Returns: {
+          company_id: string
+          last_access: string
+        }[]
+      }
+      get_company_order_sparklines: {
+        Args: never
+        Returns: {
+          company_id: string
+          month_key: string
+          order_count: number
         }[]
       }
       get_company_order_stats: {
