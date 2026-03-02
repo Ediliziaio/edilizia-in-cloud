@@ -1,55 +1,41 @@
 
 
-# Analisi Sezione Aziende — Gap Marketing, Vendite e SaaS
+# Ottimizzazione Expanded Row (Menu a Linguetta)
 
-## Cosa c'e gia
-La lista ha filtri, sorting, export CSV, toggle Lista/Pipeline, Health Score, expanded row con KPI. Il dettaglio ha 7 tab (Panoramica, Dettagli, Team, SaaS, Abbonamento, Attivita, Note), Conversion Card per trial e Next Best Actions.
+## Problemi attuali
+1. **Ridondanza**: MRR, Utenti, N. Ordini sono già visibili nelle colonne della tabella — ripeterli nella expanded row spreca spazio
+2. **Manca contesto operativo**: nessun conteggio clienti/staff, nessun progresso onboarding, nessuna preview delle note CRM
+3. **Azioni ridondanti**: i bottoni "Apri dettaglio" e "Accedi come azienda" duplicano quelli già nella riga
+4. **Layout piatto**: tutto ammassato in una griglia uniforme, senza gerarchia visiva
 
-## Cosa manca — Prospettiva Growth/Sales/SaaS
+## Ottimizzazione proposta
 
-### 1. KPI Strip in cima alla lista
-Non c'e nessun riassunto aggregato. Un CSM o Sales Manager che apre la pagina non vede subito: quante aziende attive, MRR totale, tasso conversione trial, churn rate. Servono 4 card compatte sopra la tabella.
+### Nuova struttura expanded row in 3 sezioni orizzontali:
 
-**Metriche:** Aziende Attive, MRR Totale, Tasso Conversione Trial (attive / attive+trial+expired), Aziende a Rischio (health critical/at_risk).
+**Sezione 1 — KPI non ridondanti (solo dati NON già in tabella)**
+- Valore Totale ordini (€)
+- Ultimo Ordine (con colore salute)
+- Clienti registrati (count da health data)
+- Staff registrati (count da health data)
+- Onboarding % (barra progresso)
+- Trend Ordini 6m (sparkline — già presente)
 
-### 2. Ultimo Accesso nella tabella
-Era previsto ma manca. Sapere quando un tenant ha fatto l'ultimo login e cruciale per identificare churn silenzioso. Colonna con data + indicatore colore (verde < 7gg, giallo < 30gg, rosso > 30gg).
+**Sezione 2 — Info aziendali compatte** (invariata, ma in layout più compatto a 4-6 colonne)
+- Ragione sociale, P.IVA, Telefono, PEC, SDI, Sito, Scadenza trial
 
-**Implementazione:** Query su `profiles` per `last_sign_in_at` raggruppato per `company_id` (MAX).
-
-### 3. Azioni rapide dal menu contestuale
-Dalla lista non si puo fare nulla se non "Apri" o "Accedi". Mancano azioni rapide: cambia stato, estendi trial, invia email. Un dropdown con azioni contestuali per ogni riga riduce i click.
-
-### 4. Tags / Segmenti per le aziende
-Non c'e modo di etichettare le aziende (es. "VIP", "Upsell Q2", "Churned - da recuperare"). I tag permettono segmentazione per campagne marketing e prioritizzazione vendite.
-
-**Implementazione:** Nuova tabella `company_tags` (id, company_id, tag, color). Chip colorati nella riga della tabella.
-
-### 5. Contatori Utenti nella lista
-La colonna utenti non esiste nella tabella principale. Sapere quanti utenti ha un tenant e un segnale di adozione e di potenziale upsell.
-
-### 6. Sparkline trend nella expanded row
-La expanded row mostra KPI statici ma nessun trend visivo. Una mini sparkline degli ordini degli ultimi 6 mesi darebbe contesto immediato senza aprire il dettaglio.
-
----
-
-## Piano di Implementazione
-
-### File nuovi
-- `src/components/admin/company/CompaniesKPIStrip.tsx` — 4 card aggregate (Attive, MRR, Conversione Trial, A Rischio)
+**Sezione 3 — Preview Note CRM + Tags**
+- Ultima nota CRM con data/autore (troncata a 2 righe) con link "Vedi tutte"
+- Tags inline (riutilizzando CompanyTagsCell)
+- Rimuovere i bottoni azione dal fondo (già presenti nella riga principale)
 
 ### File modificati
-- `src/pages/admin/CompaniesList.tsx`:
-  - Inserire `CompaniesKPIStrip` sopra i filtri
-  - Aggiungere colonna "Utenti" alla tabella
-  - Aggiungere colonna "Ultimo Accesso" con query su profiles
-  - Aggiungere dropdown azioni rapide per riga (cambia stato, estendi trial)
-  - Aggiungere sparkline ordini nella expanded row
+- `src/pages/admin/CompaniesList.tsx` — riscrittura sezione expanded row (linee 550-690)
+  - Aggiungere query per `company_notes` (ultima nota per company)
+  - Aggiungere query per customer/staff counts (già disponibili in `healthData` via RPC)
+  - Rimuovere KPI ridondanti (MRR, Utenti, N. Ordini)
+  - Aggiungere barra onboarding % e preview nota
+  - Rimuovere bottoni azione duplicati
 
-### Database
-- Nuova tabella `company_tags` con RLS per super_admin
-- Query `last_sign_in_at` dai profili (no nuove tabelle, dato gia presente)
-
-### Nessun breaking change
-Tutte le aggiunte sono additive. La tabella esistente non perde colonne.
+### Nessun nuovo file, nessuna migrazione DB
+Tutti i dati necessari sono già disponibili tramite le query esistenti (`healthData`, `companyTags`, `company_notes`).
 
