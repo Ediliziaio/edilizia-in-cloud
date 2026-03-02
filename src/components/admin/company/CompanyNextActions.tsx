@@ -17,7 +17,7 @@ interface Action {
   priority: "high" | "medium" | "low";
 }
 
-function getNextActions({
+export function getNextActions({
   status, trialEndsAt, onboardingPct, daysSinceLastOrder, paymentMethod,
 }: CompanyNextActionsProps): Action[] {
   const actions: Action[] = [];
