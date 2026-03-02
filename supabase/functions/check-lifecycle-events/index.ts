@@ -69,8 +69,6 @@ Deno.serve(async (req) => {
     if (activeErr) throw activeErr;
 
     if (activeCompanies && activeCompanies.length > 0) {
-      const companyIds = activeCompanies.map((c) => c.id);
-      
       // Get last order date per company
       const { data: orderStats } = await supabase
         .rpc("get_company_order_stats");

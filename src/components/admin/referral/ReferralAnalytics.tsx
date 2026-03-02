@@ -66,13 +66,6 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts, getMo
       ? Math.round((totalMrrGenerated * 12) / totalCommissionsPaid * 100) / 100 
       : 0;
 
-    // Monthly trend from payouts
-    const monthlyPayouts = new Map<string, number>();
-    payouts.forEach((p) => {
-      const month = p.paid_at.substring(0, 7); // YYYY-MM
-      monthlyPayouts.set(month, (monthlyPayouts.get(month) || 0) + p.amount);
-    });
-
     return {
       referrerStats: referrerStats.sort((a, b) => b.totalMrr - a.totalMrr),
       overallConversion,

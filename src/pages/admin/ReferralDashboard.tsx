@@ -5,7 +5,7 @@ import { Gift, Plus, AlertCircle, RefreshCw, Loader2, BarChart3 } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { ReferralStatCards } from "@/components/admin/referral/ReferralStatCards";
 import { ReferralTable } from "@/components/admin/referral/ReferralTable";
 import { ReferralAnalytics } from "@/components/admin/referral/ReferralAnalytics";
@@ -62,7 +62,6 @@ export interface ReferralPayout {
 
 export default function ReferralDashboard() {
   const { permissions: saPermissions } = useSuperAdminPermissions();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [referrerDialogOpen, setReferrerDialogOpen] = useState(false);
   const [editingReferrer, setEditingReferrer] = useState<Referrer | null>(null);
@@ -134,10 +133,10 @@ export default function ReferralDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["referrers"] });
-      toast({ title: "Stato aggiornato" });
+      toast.success("Stato aggiornato");
     },
     onError: (err: any) => {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast.error("Errore", { description: err.message });
     },
   });
 

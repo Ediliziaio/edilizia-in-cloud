@@ -62,6 +62,7 @@ export function AdminCohortAnalysis({ data }: Props) {
                     <TableCell
                       key={i}
                       className={`text-center text-xs font-medium ${getCellColor(pct)}`}
+                      title={`${Math.round(row.total * pct / 100)} di ${row.total} aziende attive`}
                     >
                       {pct}%
                     </TableCell>

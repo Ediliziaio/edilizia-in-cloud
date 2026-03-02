@@ -126,6 +126,9 @@ export function AdminSystemHealth() {
           </div>
         ) : (
           <div className="space-y-4">
+            {data?.totalCalls === 0 && (
+              <p className="text-xs text-center text-muted-foreground py-2">Nessun dato disponibile nelle ultime 24h</p>
+            )}
             {/* Key Metrics */}
             <div className="grid grid-cols-2 gap-3">
               <div className="text-center p-2 rounded-lg bg-muted/50">

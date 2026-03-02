@@ -303,7 +303,9 @@ export default function CompanyLifecycle() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <TrialExtensionButton companyId={company.companyId} currentEnd={company.trialEndsAt} extensionsCount={company.trialExtensionsCount} />
+                      {company.trialEndsAt && (
+                        <TrialExtensionButton companyId={company.companyId} currentEnd={company.trialEndsAt} extensionsCount={company.trialExtensionsCount} />
+                      )}
                        <Button size="sm" variant="ghost" asChild>
                          <Link to={`/admin/aziende/${company.companyId}`}>
                              <ArrowRight className="h-4 w-4" />
