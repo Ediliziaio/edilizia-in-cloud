@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, DollarSign, ClipboardList, Calendar, Users, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, DollarSign, Calendar, Users, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, StickyNote, UserCheck, Briefcase, CheckCircle2, Globe, Phone, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
@@ -144,7 +144,7 @@ export default function CompaniesList() {
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_company_health_data");
       if (error) throw error;
-      const map: Record<string, { score: number; health: string; lastOrderDate: string | null }> = {};
+      const map: Record<string, { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean }> = {};
       (data || []).forEach((h: any) => {
         let score = 0;
         if (h.order_count > 0) score += 15;
@@ -161,7 +161,7 @@ export default function CompaniesList() {
         }
         score = Math.min(score, 100);
         const health = score >= 60 ? "healthy" : score >= 30 ? "at_risk" : "critical";
-        map[h.company_id] = { score, health, lastOrderDate: h.last_order_date };
+        map[h.company_id] = { score, health, lastOrderDate: h.last_order_date, order_count: Number(h.order_count) || 0, user_count: Number(h.user_count) || 0, has_customers: !!h.has_customers, has_staff: !!h.has_staff };
       });
       return map;
     },
@@ -225,6 +225,41 @@ export default function CompaniesList() {
       return map;
     },
     staleTime: 5 * 60 * 1000,
+  });
+
+  // Latest CRM notes per company
+  const { data: latestNotes = {} } = useQuery({
+    queryKey: ["admin-companies-latest-notes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("company_notes")
+        .select("company_id, content, created_at, author_id")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const map: Record<string, { content: string; created_at: string; authorName: string }> = {};
+      const authorIds = [...new Set((data || []).map((n: any) => n.author_id))];
+      let authorMap: Record<string, string> = {};
+      if (authorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", authorIds);
+        (profiles || []).forEach((p: any) => {
+          authorMap[p.id] = `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Admin";
+        });
+      }
+      (data || []).forEach((n: any) => {
+        if (!map[n.company_id]) {
+          map[n.company_id] = {
+            content: n.content,
+            created_at: n.created_at,
+            authorName: authorMap[n.author_id] || "Admin",
+          };
+        }
+      });
+      return map;
+    },
+    staleTime: 2 * 60 * 1000,
   });
 
   const uniquePlans = useMemo(() => {
@@ -552,15 +587,17 @@ export default function CompaniesList() {
                           <TableCell colSpan={13} className="p-4">
                             {(() => {
                               const stats = orderStats[company.id];
-                              const usersCount = userCounts[company.id] || 0;
+                              const hd = healthData[company.id];
                               const lastDate = stats?.lastOrderDate ? new Date(stats.lastOrderDate) : null;
                               const daysSince = lastDate ? differenceInDays(new Date(), lastDate) : null;
                               const healthColor = daysSince === null ? "text-muted-foreground" : daysSince <= 14 ? "text-green-600" : daysSince <= 45 ? "text-yellow-600" : "text-red-600";
                               const healthLabel = daysSince === null ? "Nessuno" : daysSince === 0 ? "Oggi" : `${daysSince}gg fa`;
+                              const latestNote = latestNotes[company.id];
 
                               return (
-                                <>
-                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+                                <div className="space-y-4">
+                                  {/* Section 1 — Non-redundant KPIs */}
+                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                                     <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
                                       <div className="rounded-md bg-primary/10 p-2"><DollarSign className="h-4 w-4 text-primary" /></div>
                                       <div>
@@ -569,31 +606,59 @@ export default function CompaniesList() {
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-                                      <div className="rounded-md bg-primary/10 p-2"><ClipboardList className="h-4 w-4 text-primary" /></div>
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">N. Ordini</p>
-                                        <p className="text-sm font-semibold">{stats?.count || 0}</p>
+                                      <div className={`rounded-md p-2 ${daysSince === null ? "bg-muted" : daysSince <= 14 ? "bg-green-500/10" : daysSince <= 45 ? "bg-yellow-500/10" : "bg-red-500/10"}`}>
+                                        <Calendar className={`h-4 w-4 ${healthColor}`} />
                                       </div>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-                                      <div className="rounded-md bg-primary/10 p-2"><Calendar className={`h-4 w-4 ${healthColor}`} /></div>
                                       <div>
                                         <p className="text-xs text-muted-foreground">Ultimo Ordine</p>
                                         <p className={`text-sm font-semibold ${healthColor}`}>{healthLabel}</p>
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-                                      <div className="rounded-md bg-primary/10 p-2"><Users className="h-4 w-4 text-primary" /></div>
+                                      <div className={`rounded-md p-2 ${hd?.has_customers ? "bg-green-500/10" : "bg-muted"}`}>
+                                        <UserCheck className={`h-4 w-4 ${hd?.has_customers ? "text-green-600" : "text-muted-foreground"}`} />
+                                      </div>
                                       <div>
-                                        <p className="text-xs text-muted-foreground">Utenti</p>
-                                        <p className="text-sm font-semibold">{usersCount}</p>
+                                        <p className="text-xs text-muted-foreground">Clienti</p>
+                                        <p className="text-sm font-semibold">{hd?.has_customers ? "Presenti" : "Nessuno"}</p>
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-                                      <div className="rounded-md bg-primary/10 p-2"><TrendingUp className="h-4 w-4 text-primary" /></div>
+                                      <div className={`rounded-md p-2 ${hd?.has_staff ? "bg-green-500/10" : "bg-muted"}`}>
+                                        <Briefcase className={`h-4 w-4 ${hd?.has_staff ? "text-green-600" : "text-muted-foreground"}`} />
+                                      </div>
                                       <div>
-                                        <p className="text-xs text-muted-foreground">MRR</p>
-                                        <p className="text-sm font-semibold">{plan ? `${formatCurrency(plan.price_monthly)}/mese` : "—"}</p>
+                                        <p className="text-xs text-muted-foreground">Staff</p>
+                                        <p className="text-sm font-semibold">{hd?.has_staff ? "Presenti" : "Nessuno"}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+                                      <div className="rounded-md bg-primary/10 p-2"><CheckCircle2 className="h-4 w-4 text-primary" /></div>
+                                      <div className="flex-1">
+                                        <p className="text-xs text-muted-foreground">Onboarding</p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <div className="h-1.5 flex-1 rounded-full bg-secondary overflow-hidden">
+                                            <div
+                                              className="h-full rounded-full bg-primary transition-all"
+                                              style={{
+                                                width: `${Math.min(100, ((hd ? (
+                                                  (hd.order_count > 0 ? 1 : 0) +
+                                                  ((hd.user_count || 0) >= 2 ? 1 : 0) +
+                                                  (hd.has_customers ? 1 : 0) +
+                                                  (hd.has_staff ? 1 : 0)
+                                                ) : 0) / 4) * 100)}%`
+                                              }}
+                                            />
+                                          </div>
+                                          <span className="text-xs font-medium text-muted-foreground">
+                                            {hd ? Math.round(((
+                                              (hd.order_count > 0 ? 1 : 0) +
+                                              ((hd.user_count || 0) >= 2 ? 1 : 0) +
+                                              (hd.has_customers ? 1 : 0) +
+                                              (hd.has_staff ? 1 : 0)
+                                            ) / 4) * 100) : 0}%
+                                          </span>
+                                        </div>
                                       </div>
                                     </div>
                                     {/* Sparkline */}
@@ -621,71 +686,94 @@ export default function CompaniesList() {
                                     </div>
                                   </div>
 
-                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
+                                  {/* Section 2 — Business info compact */}
+                                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-2 rounded-lg border bg-card p-3">
                                     {company.business_name && (
                                       <div>
-                                        <p className="text-xs text-muted-foreground">Ragione sociale</p>
-                                        <p className="text-sm font-medium">{company.business_name}</p>
+                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Ragione sociale</p>
+                                        <p className="text-xs font-medium truncate">{company.business_name}</p>
                                       </div>
                                     )}
                                     {company.vat_number && (
                                       <div>
-                                        <p className="text-xs text-muted-foreground">P.IVA</p>
-                                        <p className="text-sm font-medium">{company.vat_number}</p>
+                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">P.IVA</p>
+                                        <p className="text-xs font-medium">{company.vat_number}</p>
                                       </div>
                                     )}
                                     {company.phone && (
                                       <div>
-                                        <p className="text-xs text-muted-foreground">Telefono</p>
-                                        <p className="text-sm font-medium">{company.phone}</p>
+                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Telefono</p>
+                                        <p className="text-xs font-medium">{company.phone}</p>
                                       </div>
                                     )}
                                     {company.pec && (
                                       <div>
-                                        <p className="text-xs text-muted-foreground">PEC</p>
-                                        <p className="text-sm font-medium">{company.pec}</p>
-                                      </div>
-                                    )}
-                                    {company.trial_ends_at && (
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">Scadenza trial</p>
-                                        <p className="text-sm font-medium">{format(new Date(company.trial_ends_at), "dd/MM/yyyy HH:mm", { locale: it })}</p>
-                                      </div>
-                                    )}
-                                    {company.fiscal_code && (
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">Codice fiscale</p>
-                                        <p className="text-sm font-medium">{company.fiscal_code}</p>
+                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">PEC</p>
+                                        <p className="text-xs font-medium truncate">{company.pec}</p>
                                       </div>
                                     )}
                                     {company.sdi_code && (
                                       <div>
-                                        <p className="text-xs text-muted-foreground">Codice SDI</p>
-                                        <p className="text-sm font-medium">{company.sdi_code}</p>
+                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">SDI</p>
+                                        <p className="text-xs font-medium">{company.sdi_code}</p>
                                       </div>
                                     )}
                                     {company.website && (
                                       <div>
-                                        <p className="text-xs text-muted-foreground">Sito web</p>
-                                        <p className="text-sm font-medium">{company.website}</p>
+                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Sito</p>
+                                        <p className="text-xs font-medium truncate">{company.website}</p>
+                                      </div>
+                                    )}
+                                    {company.trial_ends_at && (
+                                      <div>
+                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Scadenza Trial</p>
+                                        <p className="text-xs font-medium">{format(new Date(company.trial_ends_at), "dd/MM/yyyy", { locale: it })}</p>
+                                      </div>
+                                    )}
+                                    {company.fiscal_code && (
+                                      <div>
+                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">C. Fiscale</p>
+                                        <p className="text-xs font-medium">{company.fiscal_code}</p>
                                       </div>
                                     )}
                                   </div>
-                                  {company.notes && (
-                                    <div className="mb-4 p-3 rounded-lg border bg-card">
-                                      <p className="text-xs text-muted-foreground mb-1">Note</p>
-                                      <p className="text-sm">{company.notes}</p>
+
+                                  {/* Section 3 — CRM Notes preview + Tags */}
+                                  <div className="flex flex-col md:flex-row gap-3">
+                                    {/* Latest CRM Note */}
+                                    <div className="flex-1 rounded-lg border bg-card p-3">
+                                      <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-1.5">
+                                          <StickyNote className="h-3.5 w-3.5 text-primary" />
+                                          <span className="text-xs font-medium">Ultima Nota CRM</span>
+                                        </div>
+                                        <Button
+                                          variant="link"
+                                          size="sm"
+                                          className="h-auto p-0 text-xs"
+                                          onClick={(e) => { e.stopPropagation(); navigate(`/admin/aziende/${company.id}?tab=notes`); }}
+                                        >
+                                          Vedi tutte →
+                                        </Button>
+                                      </div>
+                                      {latestNote ? (
+                                        <div>
+                                          <p className="text-xs text-foreground line-clamp-2">{latestNote.content}</p>
+                                          <p className="text-[10px] text-muted-foreground mt-1">
+                                            {latestNote.authorName} · {format(new Date(latestNote.created_at), "dd MMM yyyy, HH:mm", { locale: it })}
+                                          </p>
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground italic">Nessuna nota</p>
+                                      )}
                                     </div>
-                                  )}
-                                  <div className="flex gap-2">
-                                    <Button size="sm" onClick={() => navigate(`/admin/aziende/${company.id}`)}>
-                                      <ExternalLink className="h-4 w-4 mr-1" />Apri dettaglio
-                                    </Button>
-                                    <Button variant="outline" size="sm" onClick={(e) => handleImpersonate(e, company.id)}>
-                                      <LogIn className="h-4 w-4 mr-1" />Accedi come azienda
-                                    </Button>
+                                    {/* Tags */}
+                                    <div className="md:w-64 rounded-lg border bg-card p-3">
+                                      <p className="text-xs font-medium mb-1.5">Tag / Segmenti</p>
+                                      <CompanyTagsCell companyId={company.id} tags={companyTags[company.id] || []} />
+                                    </div>
                                   </div>
-                                </>
+                                </div>
                               );
                             })()}
                           </TableCell>
