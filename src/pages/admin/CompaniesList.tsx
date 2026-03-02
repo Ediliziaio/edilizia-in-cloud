@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, DollarSign, Calendar, Users, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, StickyNote, UserCheck, Briefcase, CheckCircle2, Globe, Phone, FileText } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,7 +22,8 @@ import { CompanyPipelineView } from "@/components/admin/company/CompanyPipelineV
 import { CompaniesKPIStrip } from "@/components/admin/company/CompaniesKPIStrip";
 import { CompanyTagsCell } from "@/components/admin/company/CompanyTagsCell";
 import { CompanyQuickActions } from "@/components/admin/company/CompanyQuickActions";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import { CompanyExpandedRow } from "@/components/admin/company/CompanyExpandedRow";
+
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
@@ -87,10 +88,10 @@ export default function CompaniesList() {
     }
   }, [sortKey]);
 
-  const SortIcon = ({ col }: { col: SortKey }) => {
+  const SortIcon = useCallback(({ col }: { col: SortKey }) => {
     if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
     return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
-  };
+  }, [sortKey, sortDir]);
 
   const { data: companies = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-companies-full"],
@@ -234,7 +235,8 @@ export default function CompaniesList() {
       const { data, error } = await supabase
         .from("company_notes")
         .select("company_id, content, created_at, author_id")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(200);
       if (error) throw error;
       const map: Record<string, { content: string; created_at: string; authorName: string }> = {};
       const authorIds = [...new Set((data || []).map((n: any) => n.author_id))];
@@ -585,197 +587,14 @@ export default function CompaniesList() {
                       {isExpanded && (
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
                           <TableCell colSpan={13} className="p-4">
-                            {(() => {
-                              const stats = orderStats[company.id];
-                              const hd = healthData[company.id];
-                              const lastDate = stats?.lastOrderDate ? new Date(stats.lastOrderDate) : null;
-                              const daysSince = lastDate ? differenceInDays(new Date(), lastDate) : null;
-                              const healthColor = daysSince === null ? "text-muted-foreground" : daysSince <= 14 ? "text-green-600" : daysSince <= 45 ? "text-yellow-600" : "text-red-600";
-                              const healthLabel = daysSince === null ? "Nessuno" : daysSince === 0 ? "Oggi" : `${daysSince}gg fa`;
-                              const latestNote = latestNotes[company.id];
-
-                              return (
-                                <div className="space-y-4">
-                                  {/* Section 1 — Non-redundant KPIs */}
-                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                                    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-                                      <div className="rounded-md bg-primary/10 p-2"><DollarSign className="h-4 w-4 text-primary" /></div>
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">Valore Totale</p>
-                                        <p className="text-sm font-semibold">{formatCurrency(stats?.totalValue || 0)}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-                                      <div className={`rounded-md p-2 ${daysSince === null ? "bg-muted" : daysSince <= 14 ? "bg-green-500/10" : daysSince <= 45 ? "bg-yellow-500/10" : "bg-red-500/10"}`}>
-                                        <Calendar className={`h-4 w-4 ${healthColor}`} />
-                                      </div>
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">Ultimo Ordine</p>
-                                        <p className={`text-sm font-semibold ${healthColor}`}>{healthLabel}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-                                      <div className={`rounded-md p-2 ${hd?.has_customers ? "bg-green-500/10" : "bg-muted"}`}>
-                                        <UserCheck className={`h-4 w-4 ${hd?.has_customers ? "text-green-600" : "text-muted-foreground"}`} />
-                                      </div>
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">Clienti</p>
-                                        <p className="text-sm font-semibold">{hd?.has_customers ? "Presenti" : "Nessuno"}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-                                      <div className={`rounded-md p-2 ${hd?.has_staff ? "bg-green-500/10" : "bg-muted"}`}>
-                                        <Briefcase className={`h-4 w-4 ${hd?.has_staff ? "text-green-600" : "text-muted-foreground"}`} />
-                                      </div>
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">Staff</p>
-                                        <p className="text-sm font-semibold">{hd?.has_staff ? "Presenti" : "Nessuno"}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-                                      <div className="rounded-md bg-primary/10 p-2"><CheckCircle2 className="h-4 w-4 text-primary" /></div>
-                                      <div className="flex-1">
-                                        <p className="text-xs text-muted-foreground">Onboarding</p>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                          <div className="h-1.5 flex-1 rounded-full bg-secondary overflow-hidden">
-                                            <div
-                                              className="h-full rounded-full bg-primary transition-all"
-                                              style={{
-                                                width: `${Math.min(100, ((hd ? (
-                                                  (hd.order_count > 0 ? 1 : 0) +
-                                                  ((hd.user_count || 0) >= 2 ? 1 : 0) +
-                                                  (hd.has_customers ? 1 : 0) +
-                                                  (hd.has_staff ? 1 : 0)
-                                                ) : 0) / 4) * 100)}%`
-                                              }}
-                                            />
-                                          </div>
-                                          <span className="text-xs font-medium text-muted-foreground">
-                                            {hd ? Math.round(((
-                                              (hd.order_count > 0 ? 1 : 0) +
-                                              ((hd.user_count || 0) >= 2 ? 1 : 0) +
-                                              (hd.has_customers ? 1 : 0) +
-                                              (hd.has_staff ? 1 : 0)
-                                            ) / 4) * 100) : 0}%
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    {/* Sparkline */}
-                                    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-                                      <div className="flex-1">
-                                        <p className="text-xs text-muted-foreground mb-1">Trend Ordini (6m)</p>
-                                        {companySparkline && companySparkline.some((d) => d.count > 0) ? (
-                                          <div className="h-8 w-full">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                              <AreaChart data={companySparkline}>
-                                                <defs>
-                                                  <linearGradient id={`spark-${company.id}`} x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                                                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                                                  </linearGradient>
-                                                </defs>
-                                                <Area type="monotone" dataKey="count" stroke="hsl(var(--primary))" fill={`url(#spark-${company.id})`} strokeWidth={1.5} dot={false} />
-                                              </AreaChart>
-                                            </ResponsiveContainer>
-                                          </div>
-                                        ) : (
-                                          <p className="text-xs text-muted-foreground">Nessun dato</p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Section 2 — Business info compact */}
-                                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-2 rounded-lg border bg-card p-3">
-                                    {company.business_name && (
-                                      <div>
-                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Ragione sociale</p>
-                                        <p className="text-xs font-medium truncate">{company.business_name}</p>
-                                      </div>
-                                    )}
-                                    {company.vat_number && (
-                                      <div>
-                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">P.IVA</p>
-                                        <p className="text-xs font-medium">{company.vat_number}</p>
-                                      </div>
-                                    )}
-                                    {company.phone && (
-                                      <div>
-                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Telefono</p>
-                                        <p className="text-xs font-medium">{company.phone}</p>
-                                      </div>
-                                    )}
-                                    {company.pec && (
-                                      <div>
-                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">PEC</p>
-                                        <p className="text-xs font-medium truncate">{company.pec}</p>
-                                      </div>
-                                    )}
-                                    {company.sdi_code && (
-                                      <div>
-                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">SDI</p>
-                                        <p className="text-xs font-medium">{company.sdi_code}</p>
-                                      </div>
-                                    )}
-                                    {company.website && (
-                                      <div>
-                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Sito</p>
-                                        <p className="text-xs font-medium truncate">{company.website}</p>
-                                      </div>
-                                    )}
-                                    {company.trial_ends_at && (
-                                      <div>
-                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Scadenza Trial</p>
-                                        <p className="text-xs font-medium">{format(new Date(company.trial_ends_at), "dd/MM/yyyy", { locale: it })}</p>
-                                      </div>
-                                    )}
-                                    {company.fiscal_code && (
-                                      <div>
-                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">C. Fiscale</p>
-                                        <p className="text-xs font-medium">{company.fiscal_code}</p>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Section 3 — CRM Notes preview + Tags */}
-                                  <div className="flex flex-col md:flex-row gap-3">
-                                    {/* Latest CRM Note */}
-                                    <div className="flex-1 rounded-lg border bg-card p-3">
-                                      <div className="flex items-center justify-between mb-1.5">
-                                        <div className="flex items-center gap-1.5">
-                                          <StickyNote className="h-3.5 w-3.5 text-primary" />
-                                          <span className="text-xs font-medium">Ultima Nota CRM</span>
-                                        </div>
-                                        <Button
-                                          variant="link"
-                                          size="sm"
-                                          className="h-auto p-0 text-xs"
-                                          onClick={(e) => { e.stopPropagation(); navigate(`/admin/aziende/${company.id}?tab=notes`); }}
-                                        >
-                                          Vedi tutte →
-                                        </Button>
-                                      </div>
-                                      {latestNote ? (
-                                        <div>
-                                          <p className="text-xs text-foreground line-clamp-2">{latestNote.content}</p>
-                                          <p className="text-[10px] text-muted-foreground mt-1">
-                                            {latestNote.authorName} · {format(new Date(latestNote.created_at), "dd MMM yyyy, HH:mm", { locale: it })}
-                                          </p>
-                                        </div>
-                                      ) : (
-                                        <p className="text-xs text-muted-foreground italic">Nessuna nota</p>
-                                      )}
-                                    </div>
-                                    {/* Tags */}
-                                    <div className="md:w-64 rounded-lg border bg-card p-3">
-                                      <p className="text-xs font-medium mb-1.5">Tag / Segmenti</p>
-                                      <CompanyTagsCell companyId={company.id} tags={companyTags[company.id] || []} />
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })()}
+                            <CompanyExpandedRow
+                              company={company}
+                              orderStats={orderStats[company.id]}
+                              healthData={healthData[company.id]}
+                              sparklineData={sparklineData[company.id]}
+                              latestNote={latestNotes[company.id]}
+                              tags={companyTags[company.id] || []}
+                            />
                           </TableCell>
                         </TableRow>
                       )}
