@@ -1,12 +1,12 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { DollarSign, CheckCircle2, StickyNote, Phone, Mail, Activity, CreditCard, ShieldAlert, Package, Users } from "lucide-react";
+import { DollarSign, CheckCircle2, StickyNote, Phone, Mail, Activity, CreditCard, ShieldAlert, Package, Users, TrendingUp, Zap, Banknote, CircleDollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
-import { getOnboardingPct, getHealthBreakdown } from "@/lib/companyUtils";
+import { getOnboardingPct, getHealthBreakdown, statusConfig } from "@/lib/companyUtils";
 import { getNextActions } from "./CompanyNextActions";
 import { CompanyTagsCell } from "./CompanyTagsCell";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -29,6 +29,7 @@ interface CompanyExpandedRowProps {
   orderStats?: { count: number; totalValue: number; lastOrderDate: string | null };
   healthData?: { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean };
   planLimits?: { max_orders: number | null; max_users: number | null };
+  planInfo?: { name: string; price_monthly: number };
   latestNote?: { content: string; created_at: string; authorName: string };
   tags: Array<{ id: string; tag: string; color: string }>;
 }
@@ -45,8 +46,23 @@ function getUsageTextColor(pct: number): string {
   return "text-green-600";
 }
 
+const statusBadgeConfig: Record<string, { label: string; className: string }> = {
+  active: { label: "Attivo", className: "bg-green-500/10 text-green-700 border-green-500/30" },
+  trial: { label: "Trial", className: "bg-blue-500/10 text-blue-700 border-blue-500/30" },
+  expired: { label: "Scaduto", className: "bg-destructive/10 text-destructive border-destructive/30" },
+  suspended: { label: "Sospeso", className: "bg-muted text-muted-foreground border-border" },
+};
+
+const paymentMethodConfig: Record<string, { label: string; icon: typeof CreditCard }> = {
+  stripe: { label: "Stripe", icon: CreditCard },
+  bank_transfer: { label: "Bonifico", icon: Banknote },
+  other: { label: "Altro", icon: CircleDollarSign },
+  none: { label: "Nessuno", icon: ShieldAlert },
+  "": { label: "Nessuno", icon: ShieldAlert },
+};
+
 export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
-  company, orderStats, healthData: hd, planLimits, latestNote, tags,
+  company, orderStats, healthData: hd, planLimits, planInfo, latestNote, tags,
 }: CompanyExpandedRowProps) {
   const navigate = useNavigate();
   const lastDate = orderStats?.lastOrderDate ? new Date(orderStats.lastOrderDate) : null;
@@ -73,10 +89,13 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
   const maxUsers = planLimits?.max_users;
   const userUsagePct = maxUsers ? Math.min(Math.round((userCount / maxUsers) * 100), 100) : null;
 
-  // Payment badge
+  // Status badge
+  const statusBadge = statusBadgeConfig[status] || statusBadgeConfig.trial;
+
+  // Payment method
+  const pmConfig = paymentMethodConfig[paymentMethod] || paymentMethodConfig.none;
+  const PaymentIcon = pmConfig.icon;
   const hasPayment = paymentMethod !== "none" && paymentMethod !== "";
-  const paymentLabel = hasPayment ? "Carta configurata" : "Nessun pagamento";
-  const PaymentIcon = hasPayment ? CreditCard : ShieldAlert;
 
   // Business info fields
   const businessFields = [
@@ -98,13 +117,47 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
 
   return (
     <div className="space-y-3">
-      {/* Row 1 — SaaS KPIs: LTV | Utilizzo Ordini | Utilizzo Utenti | Onboarding */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {/* LTV */}
+      {/* Row 1 — 6 SaaS KPI Cards: MRR | Stato | Metodo Pagamento | Fatturato | Ordini | Utenti */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* MRR */}
+        <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+          <div className="rounded-md bg-primary/10 p-2"><TrendingUp className="h-4 w-4 text-primary" /></div>
+          <div>
+            <p className="text-xs text-muted-foreground">MRR</p>
+            <p className="text-sm font-semibold">
+              {planInfo ? formatCurrency(planInfo.price_monthly) + "/mese" : <span className="text-muted-foreground font-normal">Nessun piano</span>}
+            </p>
+            {planInfo && <p className="text-[10px] text-muted-foreground">{planInfo.name}</p>}
+          </div>
+        </div>
+
+        {/* Stato Abbonamento */}
+        <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+          <div className={`rounded-md p-2 ${statusBadge.className.split(" ").find(c => c.startsWith("bg-")) || "bg-muted"}`}>
+            <Zap className={`h-4 w-4 ${statusBadge.className.split(" ").find(c => c.startsWith("text-")) || "text-muted-foreground"}`} />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Stato</p>
+            <Badge variant="outline" className={`text-[11px] mt-0.5 ${statusBadge.className}`}>{statusBadge.label}</Badge>
+          </div>
+        </div>
+
+        {/* Metodo Pagamento */}
+        <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+          <div className={`rounded-md p-2 ${hasPayment ? "bg-green-500/10" : "bg-destructive/10"}`}>
+            <PaymentIcon className={`h-4 w-4 ${hasPayment ? "text-green-600" : "text-destructive"}`} />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Pagamento</p>
+            <p className="text-sm font-semibold">{pmConfig.label}</p>
+          </div>
+        </div>
+
+        {/* Fatturato Totale (LTV) */}
         <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
           <div className="rounded-md bg-primary/10 p-2"><DollarSign className="h-4 w-4 text-primary" /></div>
           <div>
-            <p className="text-xs text-muted-foreground">LTV Cliente</p>
+            <p className="text-xs text-muted-foreground">Fatturato Totale</p>
             <p className="text-sm font-semibold">{formatCurrency(orderStats?.totalValue || 0)}</p>
           </div>
         </div>
@@ -148,29 +201,10 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
             )}
           </div>
         </div>
-
-        {/* Onboarding */}
-        <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-          <div className="rounded-md bg-primary/10 p-2"><CheckCircle2 className="h-4 w-4 text-primary" /></div>
-          <div className="flex-1">
-            <p className="text-xs text-muted-foreground">Onboarding</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <div className="h-1.5 flex-1 rounded-full bg-secondary overflow-hidden">
-                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${onboardingPct}%` }} />
-              </div>
-              <span className="text-xs font-medium text-muted-foreground">{onboardingPct}%</span>
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* Row 2 — Payment Badge + Quick Contact */}
+      {/* Row 2 — Quick Contact */}
       <div className="flex items-center gap-2 rounded-lg border bg-card p-3">
-        <Badge variant={hasPayment ? "default" : "destructive"} className="gap-1.5">
-          <PaymentIcon className="h-3 w-3" />
-          {paymentLabel}
-        </Badge>
-        <div className="h-4 w-px bg-border mx-1" />
         <span className="text-xs font-medium text-muted-foreground mr-1">Contatto rapido:</span>
         {company.phone && (
           <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={(e) => { e.stopPropagation(); window.open(`tel:${company.phone}`); }}>
@@ -212,12 +246,19 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
         </div>
       )}
 
-      {/* Health Score Breakdown */}
+      {/* Health Score Breakdown + Onboarding */}
       {healthBreakdown.length > 0 && hd && (
         <div className="rounded-lg border bg-card p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-medium">Health Score</span>
-            <Badge variant="outline" className="text-[10px]">{hd.score}/100</Badge>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium">Health Score</span>
+              <Badge variant="outline" className="text-[10px]">{hd.score}/100</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs text-muted-foreground">Onboarding</span>
+              <span className="text-xs font-semibold">{onboardingPct}%</span>
+            </div>
           </div>
           <TooltipProvider>
             <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-secondary">

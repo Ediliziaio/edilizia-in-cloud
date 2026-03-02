@@ -566,6 +566,7 @@ export default function CompaniesList() {
                               orderStats={orderStats[company.id]}
                               healthData={healthData[company.id]}
                               planLimits={(company.subscription_plans as any) ? { max_orders: (company.subscription_plans as any).max_orders, max_users: (company.subscription_plans as any).max_users } : undefined}
+                              planInfo={(company.subscription_plans as any) ? { name: (company.subscription_plans as any).name, price_monthly: (company.subscription_plans as any).price_monthly } : undefined}
                               latestNote={latestNotes[company.id]}
                               tags={companyTags[company.id] || []}
                             />
