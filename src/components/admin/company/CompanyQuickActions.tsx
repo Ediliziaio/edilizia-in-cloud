@@ -11,7 +11,7 @@ import {
 import { toast } from "sonner";
 
 interface QuickActionsProps {
-  company: { id: string; name: string; status: string; trial_ends_at: string | null };
+  company: { id: string; name: string; email: string; status: string; trial_ends_at: string | null };
 }
 
 export function CompanyQuickActions({ company }: QuickActionsProps) {
@@ -95,7 +95,7 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-xs" onClick={() => window.open(`mailto:${company.name}`)}>
+        <DropdownMenuItem className="text-xs" onClick={() => { window.open(`mailto:${company.email}`); toast.success(`Email aperta per ${company.name}`); }}>
           <Mail className="h-3.5 w-3.5 mr-2" />Invia email
         </DropdownMenuItem>
       </DropdownMenuContent>
