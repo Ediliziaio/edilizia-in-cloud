@@ -46,11 +46,11 @@ function getUsageTextColor(pct: number): string {
   return "text-green-600";
 }
 
-const statusBadgeConfig: Record<string, { label: string; className: string }> = {
-  active: { label: "Attivo", className: "bg-green-500/10 text-green-700 border-green-500/30" },
-  trial: { label: "Trial", className: "bg-blue-500/10 text-blue-700 border-blue-500/30" },
-  expired: { label: "Scaduto", className: "bg-destructive/10 text-destructive border-destructive/30" },
-  suspended: { label: "Sospeso", className: "bg-muted text-muted-foreground border-border" },
+const statusBadgeConfig: Record<string, { label: string; className: string; iconBg: string; iconText: string }> = {
+  active: { label: "Attivo", className: "bg-green-500/10 text-green-700 border-green-500/30", iconBg: "bg-green-500/10", iconText: "text-green-700" },
+  trial: { label: "Trial", className: "bg-blue-500/10 text-blue-700 border-blue-500/30", iconBg: "bg-blue-500/10", iconText: "text-blue-700" },
+  expired: { label: "Scaduto", className: "bg-destructive/10 text-destructive border-destructive/30", iconBg: "bg-destructive/10", iconText: "text-destructive" },
+  suspended: { label: "Sospeso", className: "bg-muted text-muted-foreground border-border", iconBg: "bg-muted", iconText: "text-muted-foreground" },
 };
 
 const paymentMethodConfig: Record<string, { label: string; icon: typeof CreditCard }> = {
@@ -133,8 +133,8 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
 
         {/* Stato Abbonamento */}
         <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-          <div className={`rounded-md p-2 ${statusBadge.className.split(" ").find(c => c.startsWith("bg-")) || "bg-muted"}`}>
-            <Zap className={`h-4 w-4 ${statusBadge.className.split(" ").find(c => c.startsWith("text-")) || "text-muted-foreground"}`} />
+          <div className={`rounded-md p-2 ${statusBadge.iconBg}`}>
+            <Zap className={`h-4 w-4 ${statusBadge.iconText}`} />
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Stato</p>
@@ -217,7 +217,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
           </Button>
         )}
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={(e) => { e.stopPropagation(); navigate(`/admin/aziende/${company.id}?tab=notes`); }}>
-          <StickyNote className="h-3 w-3" />Nota rapida
+          <StickyNote className="h-3 w-3" />Vai alle note →
         </Button>
       </div>
 
@@ -247,7 +247,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
       )}
 
       {/* Health Score Breakdown + Onboarding */}
-      {healthBreakdown.length > 0 && hd && (
+      {hd ? healthBreakdown.length > 0 && (
         <div className="rounded-lg border bg-card p-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -280,6 +280,10 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
               <span key={i} className="text-[10px] text-muted-foreground">{f.label}: {f.score}/{f.maxScore}</span>
             ))}
           </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border bg-card p-3 text-center">
+          <span className="text-xs text-muted-foreground italic">Dati insufficienti per il Health Score</span>
         </div>
       )}
 

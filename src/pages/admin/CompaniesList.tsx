@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
-import { sectorLabels, statusConfig, sectors } from "@/lib/companyUtils";
+import { sectorLabels, statusConfig, sectors, calculateHealthScore } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -88,9 +88,13 @@ export default function CompaniesList() {
     }
   }, [sortKey]);
 
-  const SortIcon = useCallback(({ col }: { col: SortKey }) => {
-    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
-    return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  const SortIcon = useMemo(() => {
+    const Comp = React.memo(({ col }: { col: SortKey }) => {
+      if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+      return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+    });
+    Comp.displayName = "SortIcon";
+    return Comp;
   }, [sortKey, sortDir]);
 
   const { data: companies = [], isLoading, isError, refetch } = useQuery({
@@ -147,22 +151,16 @@ export default function CompaniesList() {
       if (error) throw error;
       const map: Record<string, { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean }> = {};
       (data || []).forEach((h: any) => {
-        let score = 0;
-        if (h.order_count > 0) score += 15;
-        if ((h.orders_last_30d || 0) > 0) score += 10;
-        if ((h.user_count || 0) >= 2) score += 20;
-        else if ((h.user_count || 0) >= 1) score += 10;
-        if (h.has_customers) score += 15;
-        if (h.has_staff) score += 10;
-        if (h.last_order_date) {
-          const days = Math.floor((Date.now() - new Date(h.last_order_date).getTime()) / 86400000);
-          if (days <= 7) score += 20;
-          else if (days <= 30) score += 15;
-          else if (days <= 60) score += 5;
-        }
-        score = Math.min(score, 100);
-        const health = score >= 60 ? "healthy" : score >= 30 ? "at_risk" : "critical";
-        map[h.company_id] = { score, health, lastOrderDate: h.last_order_date, order_count: Number(h.order_count) || 0, user_count: Number(h.user_count) || 0, has_customers: !!h.has_customers, has_staff: !!h.has_staff };
+        const input = {
+          order_count: Number(h.order_count) || 0,
+          user_count: Number(h.user_count) || 0,
+          has_customers: !!h.has_customers,
+          has_staff: !!h.has_staff,
+          orders_last_30d: h.orders_last_30d,
+          last_order_date: h.last_order_date,
+        };
+        const { score, health } = calculateHealthScore(input);
+        map[h.company_id] = { score, health, lastOrderDate: h.last_order_date, ...input };
       });
       return map;
     },

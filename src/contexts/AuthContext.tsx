@@ -212,7 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           companyId,
           companyName: company?.name || companyId,
         },
-      });
+      }).catch(() => {});
     } catch {
       // Non-blocking
     }
