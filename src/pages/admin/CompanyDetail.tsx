@@ -18,6 +18,9 @@ import { CompanyTeamTab } from "@/components/admin/company/CompanyTeamTab";
 import { CompanySaaSTab } from "@/components/admin/company/CompanySaaSTab";
 import { CompanySubscriptionTab } from "@/components/admin/company/CompanySubscriptionTab";
 import { CompanyOverviewTab } from "@/components/admin/company/CompanyOverviewTab";
+import { CompanyActivityTab } from "@/components/admin/company/CompanyActivityTab";
+import { CompanyNextActions } from "@/components/admin/company/CompanyNextActions";
+import { CompanyNotes } from "@/components/admin/company/CompanyNotes";
 import { useCompanyDetail } from "@/hooks/useCompanyDetail";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -95,6 +98,15 @@ export default function CompanyDetail() {
         onImpersonate={handleImpersonate}
       />
 
+      {/* Next Best Actions */}
+      <CompanyNextActions
+        status={h.company.status}
+        trialEndsAt={h.company.trial_ends_at}
+        onboardingPct={0}
+        daysSinceLastOrder={h.daysSinceLastOrder}
+        paymentMethod={h.company.payment_method || "none"}
+      />
+
       <Tabs defaultValue="panoramica">
         <TabsList>
           <TabsTrigger value="panoramica">Panoramica</TabsTrigger>
@@ -102,6 +114,8 @@ export default function CompanyDetail() {
           <TabsTrigger value="team"><Users className="h-4 w-4 mr-1.5" />Team</TabsTrigger>
           <TabsTrigger value="saas">SaaS</TabsTrigger>
           <TabsTrigger value="abbonamento">Abbonamento</TabsTrigger>
+          <TabsTrigger value="attivita">Attività</TabsTrigger>
+          <TabsTrigger value="note">Note</TabsTrigger>
         </TabsList>
 
         <TabsContent value="panoramica">
@@ -111,6 +125,11 @@ export default function CompanyDetail() {
             currentPlan={h.currentPlan} currentSubscription={h.currentSubscription}
             monthlyOrders={h.monthlyOrders} daysSinceLastOrder={h.daysSinceLastOrder}
             companyCreatedAt={h.company.created_at}
+            companyStatus={h.company.status}
+            trialEndsAt={h.company.trial_ends_at}
+            paymentMethod={h.company.payment_method || "none"}
+            onExtendTrial={(days) => h.extendTrialMutation.mutate(days)}
+            isExtendingTrial={h.extendTrialMutation.isPending}
           />
         </TabsContent>
 
@@ -156,6 +175,14 @@ export default function CompanyDetail() {
             isGeneratingCheckout={h.createCheckoutMutation.isPending}
             checkoutUrl={h.checkoutUrl}
           />
+        </TabsContent>
+
+        <TabsContent value="attivita">
+          <CompanyActivityTab companyId={h.company.id} />
+        </TabsContent>
+
+        <TabsContent value="note">
+          <CompanyNotes companyId={h.company.id} />
         </TabsContent>
       </Tabs>
 

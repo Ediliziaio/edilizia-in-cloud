@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, DollarSign, ClipboardList, Calendar, Users, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, DollarSign, ClipboardList, Calendar, Users, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,7 @@ import { sectorLabels, statusConfig, sectors } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
+import { CompanyPipelineView } from "@/components/admin/company/CompanyPipelineView";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
@@ -54,6 +55,7 @@ export default function CompaniesList() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
@@ -114,6 +116,36 @@ export default function CompaniesList() {
         }
       });
       return counts;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Health scores from RPC
+  const { data: healthData = {} } = useQuery({
+    queryKey: ["admin-companies-health"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_company_health_data");
+      if (error) throw error;
+      const map: Record<string, { score: number; health: string; lastOrderDate: string | null }> = {};
+      (data || []).forEach((h: any) => {
+        let score = 0;
+        if (h.order_count > 0) score += 15;
+        if ((h.orders_last_30d || 0) > 0) score += 10;
+        if ((h.user_count || 0) >= 2) score += 20;
+        else if ((h.user_count || 0) >= 1) score += 10;
+        if (h.has_customers) score += 15;
+        if (h.has_staff) score += 10;
+        if (h.last_order_date) {
+          const days = Math.floor((Date.now() - new Date(h.last_order_date).getTime()) / 86400000);
+          if (days <= 7) score += 20;
+          else if (days <= 30) score += 15;
+          else if (days <= 60) score += 5;
+        }
+        score = Math.min(score, 100);
+        const health = score >= 60 ? "healthy" : score >= 30 ? "at_risk" : "critical";
+        map[h.company_id] = { score, health, lastOrderDate: h.last_order_date };
+      });
+      return map;
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -269,6 +301,14 @@ export default function CompaniesList() {
         <Button variant="outline" size="icon" onClick={handleExportCSV} title="Esporta CSV">
           <Download className="h-4 w-4" />
         </Button>
+        <div className="flex border rounded-md">
+          <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" onClick={() => setViewMode("list")} title="Vista Lista">
+            <LayoutList className="h-4 w-4" />
+          </Button>
+          <Button variant={viewMode === "pipeline" ? "secondary" : "ghost"} size="icon" onClick={() => setViewMode("pipeline")} title="Vista Pipeline">
+            <Kanban className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {hasActiveFilters && !isLoading && (
@@ -298,6 +338,14 @@ export default function CompaniesList() {
             )}
           </CardContent>
         </Card>
+      ) : viewMode === "pipeline" ? (
+        <CompanyPipelineView
+          companies={filteredCompanies.map((c) => ({
+            ...c,
+            subscription_plans: c.subscription_plans as { name: string; price_monthly: number } | null,
+          }))}
+          healthScores={healthData}
+        />
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -325,6 +373,9 @@ export default function CompaniesList() {
                   </TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("trial")}>
                     <span className="inline-flex items-center">Trial / Scadenza<SortIcon col="trial" /></span>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <span className="inline-flex items-center"><Heart className="h-3 w-3 mr-1" />Health</span>
                   </TableHead>
                   <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
@@ -365,6 +416,15 @@ export default function CompaniesList() {
                         <TableCell><Badge variant={cfg.variant}>{cfg.label}</Badge></TableCell>
                         <TableCell className="text-center"><span className="text-sm font-medium">{orderStats[company.id]?.count || 0}</span></TableCell>
                         <TableCell><TrialBadge company={company} /></TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            const hd = healthData[company.id];
+                            if (!hd) return <span className="text-xs text-muted-foreground">—</span>;
+                            const colors: Record<string, string> = { healthy: "bg-green-500/10 text-green-700 border-green-500/30", at_risk: "bg-amber-500/10 text-amber-700 border-amber-500/30", critical: "bg-red-500/10 text-red-700 border-red-500/30" };
+                            const labels: Record<string, string> = { healthy: "Healthy", at_risk: "At Risk", critical: "Critical" };
+                            return <Badge variant="outline" className={`text-[10px] ${colors[hd.health]}`}>{labels[hd.health]} {hd.score}</Badge>;
+                          })()}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/admin/aziende/${company.id}`); }}>
@@ -378,7 +438,7 @@ export default function CompaniesList() {
                       </TableRow>
                       {isExpanded && (
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={9} className="p-4">
+                          <TableCell colSpan={10} className="p-4">
                             {(() => {
                               const stats = orderStats[company.id];
                               const usersCount = userCounts[company.id] || 0;

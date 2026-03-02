@@ -8,6 +8,7 @@ import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { ticketStatusLabels } from "@/lib/adminConstants";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { CompanyConversionCard } from "./CompanyConversionCard";
 import type { CompanyStats } from "@/hooks/useCompanyDetail";
 
 interface MonthlyOrderData {
@@ -26,6 +27,11 @@ interface CompanyOverviewTabProps {
   monthlyOrders: MonthlyOrderData[];
   daysSinceLastOrder: number | null;
   companyCreatedAt: string;
+  companyStatus?: string;
+  trialEndsAt?: string | null;
+  paymentMethod?: string;
+  onExtendTrial?: (days: number) => void;
+  isExtendingTrial?: boolean;
 }
 
 function getHealthColor(days: number | null): { color: string; label: string; bgClass: string } {
@@ -38,7 +44,8 @@ function getHealthColor(days: number | null): { color: string; label: string; bg
 export function CompanyOverviewTab({
   stats, totalTeam, recentOrders, recentTickets,
   currentPlan, currentSubscription, monthlyOrders, daysSinceLastOrder,
-  companyCreatedAt,
+  companyCreatedAt, companyStatus, trialEndsAt, paymentMethod,
+  onExtendTrial, isExtendingTrial,
 }: CompanyOverviewTabProps) {
   const avgOrderValue = stats && stats.ordersCount > 0 ? stats.ordersValue / stats.ordersCount : 0;
   const mrr = currentPlan?.price_monthly || 0;
@@ -55,6 +62,17 @@ export function CompanyOverviewTab({
 
   return (
     <div className="space-y-6">
+      {/* Conversion Card for trial companies */}
+      {companyStatus === "trial" && (
+        <CompanyConversionCard
+          trialEndsAt={trialEndsAt || null}
+          onboardingPct={0}
+          paymentMethod={paymentMethod || "none"}
+          onExtendTrial={onExtendTrial}
+          isExtendingTrial={isExtendingTrial}
+        />
+      )}
+
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Card>
