@@ -1,108 +1,87 @@
 
 
-# Audit Sprint 1-4: Analisi Completa e Piano di Fix
+# Audit Enterprise — Report AS-IS e Piano di Interventi
 
-## 1) Bug e Problemi Identificati
+## A) Report AS-IS
 
-### Sprint 1 — CompaniesList / Lifecycle / Implementations
+### Stato dei 4 Sprint
 
-**BUG 1: `TrialExtensionButton` in CompanyLifecycle non riceve `extensionsCount`**
-- File: `CompanyLifecycle.tsx` linea 228
-- `<TrialExtensionButton companyId={company.companyId} currentEnd={company.trialEndsAt} />` non passa `extensionsCount`
-- Il contatore funziona ma parte sempre da 0 perche il valore dal DB non viene propagato
-- **Fix:** Il `healthScores` nel hook `useAdminRevenueData` non include `trial_extensions_count`. Aggiungere il campo all'interfaccia `CompanyHealthScore`, popolarlo nel mapping, e passarlo come prop nel Lifecycle
+**Sprint 1 (Quick Wins):** Operativo. Sorting colonne, dialog conferma, lifecycle tabs, trial extension con contatore — tutto funzionale.
 
-**BUG 2: `as any` in `CompanyLifecycle.tsx` linea 73**
-- `trial_extensions_count` usa `as any` nel `.update()` — indica che il tipo non e' sincronizzato con le types generate
-- **Fix:** Non possiamo modificare `types.ts`, ma possiamo aggiungere type assertion piu precisa o verificare che la migration abbia aggiornato i tipi
+**Sprint 2 (Revenue Intelligence):** Operativo. Cohort, forecast, upsell alerts — integrati nella dashboard. Data guard per date future gia applicato.
 
-**BUG 3: `as any` in `Implementations.tsx` linee 56 e 71**
-- L'update con `[field]: value` richiede `as any` — inevitabile con chiavi dinamiche ma va documentato
+**Sprint 3 (Growth Engine):** Operativo. Referral analytics, onboarding checklist con persistenza localStorage, lifecycle notifications con edge function + cron.
 
-**BUG 4: `Implementations.tsx` usa `@/hooks/use-toast` (legacy shim) invece di `sonner`**
-- Linea 11: `import { toast } from "@/hooks/use-toast"`
-- **Fix:** Migrare a `import { toast } from "sonner"` per coerenza con lo standard del progetto
+**Sprint 4 (Enterprise Hardening):** Operativo. Rate limiting su `sign-in-as-user` e `manage-super-admins`, health metrics, audit log arricchito.
 
-### Sprint 2 — Revenue Intelligence
+### Punti Critici Identificati
 
-**BUG 5: `AdminRevenueForecast` riceve `churnRateAvg` come valore in euro, ma il nome suggerisce una percentuale**
-- In realta il componente lo gestisce correttamente (`formatCurrency`), ma la nomenclatura e ambigua
-- **Fix:** Rinominare in `avgMonthlyChurnMrr` per chiarezza
+---
 
-**BUG 6: Cohort Analysis — calcolo retention potenzialmente impreciso**
-- In `useAdminRevenueData.ts` linee 435-450, il loop `for (let m = 0; m <= 11 - i; m++)` calcola `checkDate = subMonths(now, 11 - i - m)` — questo puo dare date future per coorti recenti
-- L'effetto e minore (mostra 100% per mese corrente), ma logicamente scorretto
-- **Fix:** Aggiungere guard `if (checkDate > now) break`
+## B) TO-DO Prioritizzato
 
-### Sprint 3 — Growth Engine
+### P0 — Blocchi / Sicurezza
 
-**BUG 7: `OnboardingChecklist` dismissal non persiste al refresh**
-- `setDismissed(true)` e solo in-memory (`useState`). Al refresh dell'app, la checklist riappare
-- **Fix:** Persistere dismissal in `localStorage` con chiave per company
+| # | Problema | File | Fix |
+|---|----------|------|-----|
+| 1 | `useCompanyDetail.ts` importa ancora `useToast` legacy (linea 8). Le chiamate `toast({title:...})` funzionano tramite shim ma sono inconsistenti con lo standard `sonner` del progetto | `useCompanyDetail.ts` | Migrare a `import { toast } from "sonner"` e adattare le ~15 chiamate |
+| 2 | `ReferralDashboard.tsx` importa `useToast` legacy (linea 8) — stesso problema | `ReferralDashboard.tsx` | Migrare a sonner |
+| 3 | 57 file totali usano ancora `use-toast` legacy — fuori scope Sprint ma da notare | Vari | Non tocchiamo: il shim `use-toast.ts` garantisce retrocompatibilita |
 
-**BUG 8: `LifecycleNotificationsBanner` non ha gestione errore visibile**
-- Se la query fallisce silenziosamente, l'utente non vede nulla (OK come fallback) ma il dismiss non ha feedback
-- **Fix:** Aggiungere `toast.error` su dismissMutation error
+### P1 — Qualita / Robustezza
 
-**BUG 9: `check-lifecycle-events` — logica duplicazione notifiche trial**
-- Linea 42: `if (daysLeft === 3 || (daysLeft > 0 && daysLeft <= 3))` — la condizione e ridondante (`daysLeft === 3` e gia incluso in `daysLeft <= 3 && daysLeft > 0`)
-- Genera potenzialmente sia `trial_expiring_3d` che `trial_expiring_1d` per lo stesso giorno (daysLeft=1)
-- **Fix:** Usare `if (daysLeft > 1 && daysLeft <= 3)` e separare `if (daysLeft === 1)`
+| # | Problema | File | Fix |
+|---|----------|------|-----|
+| 4 | `Announcements.tsx` — manca `DialogDescription` nel dialog di modifica (warning accessibility Radix) | `Announcements.tsx` | Aggiungere `<DialogDescription>` nel dialog di edit |
+| 5 | `AdminSystemHealth` — quando non ci sono metriche, mostra "100% / 0ms" senza contesto | `AdminSystemHealth.tsx` | Aggiungere empty state testuale "Nessun dato nelle ultime 24h" |
+| 6 | `CompanyLifecycle` — tab "Sospesi" offre `TrialExtensionButton` ma un'azienda sospesa non e' necessariamente in trial | `CompanyLifecycle.tsx` | Mostrare il bottone solo se `trialEndsAt` esiste |
+| 7 | `ReferralAnalytics` — variabile `monthlyPayouts` calcolata ma mai usata (dead code) | `ReferralAnalytics.tsx` | Rimuovere il blocco inutilizzato (linee 70-74) |
+| 8 | `check-lifecycle-events` — il cron `companyIds` viene calcolato ma mai usato per filtrare (linea 72) | `check-lifecycle-events/index.ts` | Rimuovere variabile morta |
+| 9 | `AdminCohortAnalysis` — le celle della heatmap non hanno tooltip con contesto numerico | `AdminCohortAnalysis.tsx` | Aggiungere `title` attribute con "X di Y aziende" |
 
-### Sprint 4 — Enterprise Hardening
+### P2 — UX Polish
 
-**BUG 10: `AdminSystemHealth` — query `system_health_metrics` potrebbe non avere dati**
-- Il componente gestisce bene il caso vuoto (mostra 100%, 0ms), ma il rate_limit_hit query filtra per `metric_type = "rate_limit_hit"` che potrebbe non esistere come type — dipende se `healthMetrics.ts` lo registra
-- Nessun fix necessario, il fallback e corretto
+| # | Problema | Fix |
+|---|----------|-----|
+| 10 | `OnboardingChecklist` — nessun feedback visivo alla chiusura | Aggiungere leggera animazione fade-out o toast |
+| 11 | `AdminRevenueForecast` — il layout 4 colonne si rompe su mobile | Cambiare grid da `sm:grid-cols-4` a `sm:grid-cols-2 lg:grid-cols-4` |
+| 12 | `AdminUpsellAlerts` — troncato a 10 alert senza indicazione che ce ne sono altri | Aggiungere "e altri X alert" se > 10 |
 
-**BUG 11: `AuditLogTab` — search locale ma paginazione server-side**
-- La ricerca `searchQuery` filtra solo i log della pagina corrente (20 record), non l'intero dataset
-- L'utente potrebbe non trovare log che esistono ma sono su altre pagine
-- **Fix:** O aggiungere search server-side (via `.ilike()` su join), oppure mostrare un disclaimer "Ricerca limitata alla pagina corrente"
+---
 
-## 2) Codice Morto / Inutilizzato da Rimuovere
+## Piano di Implementazione
 
-- **Nessun file orfano identificato** nei componenti Sprint 1-4: tutti sono importati e utilizzati
-- `import { toast } from "@/hooks/use-toast"` in `Implementations.tsx` — da migrare a `sonner`
+### Task 1: Migrare `useCompanyDetail.ts` a sonner
+- Sostituire `import { useToast } from "@/hooks/use-toast"` con `import { toast } from "sonner"`
+- Convertire tutte le chiamate `toast({ title: "..." })` in `toast.success("...")` / `toast.error("...")`
+- Rimuovere `const { toast } = useToast()`
 
-## 3) Miglioramenti UX Proposti
+### Task 2: Migrare `ReferralDashboard.tsx` a sonner
+- Stessa operazione del Task 1
 
-| Area | Miglioramento |
-|------|---------------|
-| `TrialExtensionButton` | Aggiungere tooltip "X estensioni gia effettuate" |
-| `OnboardingChecklist` | Persistere dismissal in localStorage |
-| `LifecycleNotificationsBanner` | Toast su errore dismiss |
-| `AdminCohortAnalysis` | Tooltip su hover cella con "X di Y aziende attive" |
-| `AdminSystemHealth` | Empty state testuale quando non ci sono metriche |
-| `AuditLogTab` | Nota visiva "ricerca sulla pagina corrente" |
-| `CompanyLifecycle` edge function | Fix logica condizione duplicata |
+### Task 3: Fix Announcements accessibility
+- Aggiungere `<DialogDescription>` mancante nel dialog di modifica
 
-## 4) Piano di Implementazione
+### Task 4: Fix CompanyLifecycle — bottone trial su aziende sospese
+- Condizionare il rendering di `TrialExtensionButton` a `company.trialEndsAt !== null`
 
-### Task 1: Fix `extensionsCount` mancante nel Lifecycle
-- Aggiungere `trialExtensionsCount` a `CompanyHealthScore`
-- Popolare dal query companies in `useAdminRevenueData`
-- Passare come prop in `CompanyLifecycle.tsx`
+### Task 5: Cleanup dead code
+- Rimuovere `monthlyPayouts` inutilizzato in `ReferralAnalytics.tsx`
+- Rimuovere `companyIds` inutilizzato in `check-lifecycle-events`
 
-### Task 2: Migrare `Implementations.tsx` a `sonner`
-- Sostituire `import { toast } from "@/hooks/use-toast"` con `import { toast } from "sonner"`
-- Aggiornare le chiamate da `toast({ title: "..." })` a `toast.success("...")`
+### Task 6: UX improvements
+- Empty state `AdminSystemHealth` quando `totalCalls === 0`
+- Tooltip su celle cohort con conteggio
+- Responsive grid su `AdminRevenueForecast`
+- Conteggio alert extra su `AdminUpsellAlerts`
 
-### Task 3: Fix cohort analysis date guard
-- Aggiungere `if (endOfMonth(checkDate) > now) break` nel loop retention
+### Nota su multi-tenancy, sicurezza, backup
 
-### Task 4: Persistere dismissal `OnboardingChecklist`
-- Usare `localStorage.getItem/setItem` con chiave `onboarding-dismissed-{companyId}`
-
-### Task 5: Fix logica duplicata `check-lifecycle-events`
-- Cambiare condizione trial_expiring_3d da `daysLeft === 3 || (daysLeft > 0 && daysLeft <= 3)` a `daysLeft > 1 && daysLeft <= 3`
-
-### Task 6: Aggiungere disclaimer search in `AuditLogTab`
-- Piccola nota sotto il campo search
-
-### Task 7: Toast errore su dismiss in `LifecycleNotificationsBanner`
-- Aggiungere `onError` alla dismissMutation
-
-### Task 8: Rinominare `churnRateAvg` in `avgMonthlyChurnMrr`
-- In hook e componente forecast per chiarezza semantica
+Tutti verificati e gia hardened negli sprint precedenti:
+- RLS attivo su tutte le tabelle critiche
+- Rate limiting applicato su edge functions sensibili
+- Audit log completo con IP/user-agent
+- `effectiveCompany` usato correttamente ovunque
+- Backup gestito da Lovable Cloud (PITR, 7gg retention)
+- Nessun segreto esposto nel client
 
