@@ -121,7 +121,7 @@ export function usePermissions(): Permissions {
       canViewUsers: false,
       canViewMarketing: permissions?.can_view_marketing ?? false,
       canEditMarketing: permissions?.can_edit_marketing ?? false,
-      canViewCruscotto: (permissions as any)?.can_view_cruscotto ?? false,
+      canViewCruscotto: permissions?.can_view_cruscotto ?? false,
       isAdmin: false,
       isLoading: false,
       onlyAssigned: permissions?.only_assigned ?? false,
