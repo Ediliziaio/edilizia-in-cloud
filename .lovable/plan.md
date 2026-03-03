@@ -1,52 +1,50 @@
 
 
-# Verifica Completa Reportistica Facebook Ads
+# Piano: Audit Velocità e Pulizia Codice Morto — Sezione per Sezione
 
-## Verdetto: TUTTO OK ✓
+## Obiettivo
+Analizzare sistematicamente ogni area del progetto per identificare codice morto, import inutilizzati, componenti orfani, query ridondanti e colli di bottiglia di performance. Procedere una sezione alla volta per non perdere nulla.
 
-Ho verificato ogni file e componente del modulo. Non ci sono errori, codice morto o gap funzionali.
+## Sequenza di analisi (14 sezioni)
 
----
+| # | Sezione | Cosa cercare |
+|---|---------|-------------|
+| 1 | **Auth & Context** (`contexts/`, auth components) | Provider annidati inutili, re-render cascata, state duplicato |
+| 2 | **Layout & Routing** (`App.tsx`, layout components, routes) | Route orfane, lazy loading mancante, componenti layout duplicati |
+| 3 | **Cruscotto Aziendale** (`cruscotto/`, `useCruscottoData`) | Query ridondanti, componenti non usati, calcoli ripetuti |
+| 4 | **Marketing Dashboard** (`marketing/dashboard/`) | Widget morti, import ciclici, memoizzazione mancante |
+| 5 | **Marketing Automations & Email Builder** (`automations/`, `email-builder/`) | Tipi non usati, handler vuoti, componenti draft abbandonati |
+| 6 | **Contatti & Lead** (`contacts/`, `leads/`) | Filtri duplicati, utility functions morte, fetch ridondanti |
+| 7 | **Ordini & Preventivi** (`orders/`, `quotes/`) | Logica condivisa non estratta, componenti copiati |
+| 8 | **Clienti & Fornitori** (`CustomersList`, supplier components) | Codice duplicato tra le due sezioni, handler inutilizzati |
+| 9 | **Reportistica** (`reporting/`, Facebook Ads, export) | Normalizzatori non usati, colonne morte, tipi legacy |
+| 10 | **Integrazioni Meta** (`useMetaIntegration`, edge functions) | Endpoint morti, azioni proxy non chiamate, mapping legacy |
+| 11 | **Admin & Superadmin** (`admin/`, superadmin pages) | RPC legacy (`get_company_order_sparklines`), componenti admin orfani |
+| 12 | **Hooks & Utilities** (`hooks/`, `lib/`, `utils/`) | Hook non importati, utility duplicate, helper morti |
+| 13 | **UI Components** (`components/ui/`) | Componenti shadcn importati ma mai usati nel progetto |
+| 14 | **Types & Integrations** (`types/`, `integrations/`) | Tipi esportati mai referenziati, interfacce obsolete |
 
-## Checklist verificata file per file
+## Per ogni sezione, verificherò
 
-### Frontend Components
-| Componente | File | Verifica |
-|---|---|---|
-| Pagina con 8 sub-tab | `ReportisticaPage.tsx` | OK — tab corretti, Facebook Ads attivo |
-| Container report | `FacebookAdsReport.tsx` | OK — gestisce empty state, token error, layout completo |
-| Header con date picker, account selector, export, colonne, level toggle | `ReportHeader.tsx` | OK — passa `companyName` a ExportDialog |
-| KPI Grid (3 grandi + 4 piccoli) con sparkline | `KPIGrid.tsx` | OK — formattazione IT, skeleton loading |
-| Trend chart giornaliero | `TrendChart.tsx` | OK — 3 serie (impressioni, clic, conversioni), tooltip IT |
-| Tabella campagne 14 colonne | `CampaignTable.tsx` | OK — filtri search/stato/obiettivo/spesa min-max/solo lead, sort, status badge, footer |
-| Columns drawer | `ColumnsDrawer.tsx` | OK — toggle per colonna, "Campagna" required |
-| Level toggle | `LevelToggle.tsx` | OK — Campaign/AdSet/Ad |
-| Export dialog | `ExportDialog.tsx` | OK — CSV/XLSX, colonne visibili, nome file con azienda |
+1. **Import morti** — file importati ma mai usati
+2. **Esportazioni orfane** — funzioni/componenti esportati ma mai importati altrove
+3. **Variabili e state inutilizzati** — useState/useRef dichiarati ma mai letti
+4. **Query duplicate** — stesse tabelle interrogate più volte nello stesso flusso
+5. **Componenti non raggiungibili** — pagine senza route, widget senza parent
+6. **Bundle size** — dipendenze pesanti importate sync che dovrebbero essere lazy
+7. **Memoizzazione mancante** — componenti pesanti senza React.memo, calcoli senza useMemo
+8. **Console.log residui** — log di debug lasciati nel codice
 
-### Data Layer & Hook
-| Elemento | File | Verifica |
-|---|---|---|
-| Hook principale | `useMetaAdsReport.ts` | OK — SUPABASE_URL con fallback, callProxy, queries con staleTime, filtri, sort, auto-select account |
-| Normalizzatore | `metaInsightsNormalizer.ts` | OK — safeDivide, pickClicks/Leads/Purchases/Revenue, computeKPIs, computeDailySeries |
-| Persistenza preferenze | `useMetaAdsReport.ts:276-321` | OK — load on mount, debounced upsert 1.5s |
+## Output per sezione
 
-### Backend (Edge Function)
-| Azione | Righe | Verifica |
-|---|---|---|
-| CORS headers completi | 4-7 | OK |
-| get-ad-accounts | 290-311 | OK — upsert in meta_ad_accounts |
-| get-campaign-insights | 314-378 | OK — cache 15min, paginazione, time_increment per daily |
-| get-campaign-status | 381-397 | OK |
-| fetchWithRetry con backoff | 419-431 | OK — retry su 429/5xx |
-| Error handling | 410-416 | OK — catch globale con messaggio |
+Per ogni sezione produrrò:
+- Lista file con codice morto da rimuovere
+- Ottimizzazioni performance da applicare
+- Refactoring suggeriti (se necessari)
 
-### Sicurezza
-- Auth header verificato (riga 16)
-- getClaims per validazione token (riga 32)
-- RLS su tutte le tabelle DB
-- Token decodificato server-side (atob)
+Poi procederò con le modifiche concrete, una sezione alla volta, chiedendo conferma prima di passare alla successiva.
 
-## Nessun intervento necessario
+## Approccio
 
-Tutti i componenti, il data layer, l'edge function e la persistenza sono correttamente implementati e funzionanti. Il modulo e' pronto per ricevere dati reali una volta collegato un account Meta.
+Inizierò dalla **Sezione 1 (Auth & Context)** e procederò in ordine. Ogni sezione verrà analizzata a fondo prima di passare alla successiva, così da avere un quadro chiaro e interventi chirurgici.
 
