@@ -37,7 +37,7 @@ export function SalesTargetsDialog() {
         .limit(100);
 
       const { data: targets } = await supabase
-        .from("sales_targets" as any)
+        .from("sales_targets" as any) // TODO: remove 'as any' when types are regenerated
         .select("*")
         .eq("company_id", companyId)
         .eq("period_type", "weekly");
@@ -91,7 +91,7 @@ export function SalesTargetsDialog() {
 
       if (toUpsert.length > 0) {
         const { error } = await supabase
-          .from("sales_targets" as any)
+          .from("sales_targets" as any) // TODO: remove 'as any' when types are regenerated
           .upsert(toUpsert as any, { onConflict: "company_id,user_id,period_type" });
         if (error) throw error;
       }
@@ -145,7 +145,7 @@ export function SalesTargetsDialog() {
                 <Input
                   type="number"
                   min={0}
-                  value={r.target_revenue || ""}
+                  value={r.target_revenue}
                   onChange={e => updateRow(r.user_id, "target_revenue", Number(e.target.value) || 0)}
                   className="h-8 text-sm text-right"
                   placeholder="0"
@@ -153,7 +153,7 @@ export function SalesTargetsDialog() {
                 <Input
                   type="number"
                   min={0}
-                  value={r.target_contracts || ""}
+                  value={r.target_contracts}
                   onChange={e => updateRow(r.user_id, "target_contracts", Number(e.target.value) || 0)}
                   className="h-8 text-sm text-right"
                   placeholder="0"
@@ -161,7 +161,7 @@ export function SalesTargetsDialog() {
                 <Input
                   type="number"
                   min={0}
-                  value={r.target_appointments || ""}
+                  value={r.target_appointments}
                   onChange={e => updateRow(r.user_id, "target_appointments", Number(e.target.value) || 0)}
                   className="h-8 text-sm text-right"
                   placeholder="0"

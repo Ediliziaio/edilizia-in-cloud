@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
@@ -32,7 +33,7 @@ const STRATEGIC_CARDS: StrategicCard[] = [
   { key: "show_rate", label: "Show Rate", tooltip: "Appuntamenti svolti / fissati × 100", icon: CalendarCheck, format: "percent", target: 75, accentClass: "text-cyan-600 dark:text-cyan-400" },
 ];
 
-export function DashboardStrategicKPI({ kpi, kpiPrev, isLoading }: Props) {
+export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, kpiPrev, isLoading }: Props) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -94,4 +95,4 @@ export function DashboardStrategicKPI({ kpi, kpiPrev, isLoading }: Props) {
       </div>
     </TooltipProvider>
   );
-}
+});

@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { DashboardFiltersState, DatePreset } from "@/hooks/useMarketingDashboard";
 import { format } from "date-fns";
+import { useCallback } from "react";
 import { it } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -79,17 +80,17 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
     staleTime: 300_000,
   });
 
-  const toggleUser = (userId: string) => {
+  const toggleUser = useCallback((userId: string) => {
     const current = filters.assignedUserIds;
     const next = current.includes(userId) ? current.filter(id => id !== userId) : [...current, userId];
     onUpdate({ assignedUserIds: next });
-  };
+  }, [filters.assignedUserIds, onUpdate]);
 
-  const toggleSource = (source: string) => {
+  const toggleSource = useCallback((source: string) => {
     const current = filters.sources;
     const next = current.includes(source) ? current.filter(s => s !== source) : [...current, source];
     onUpdate({ sources: next });
-  };
+  }, [filters.sources, onUpdate]);
 
   const activeFilterCount = [
     filters.assignedUserIds.length > 0,
