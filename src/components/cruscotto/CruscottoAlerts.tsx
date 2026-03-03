@@ -18,6 +18,7 @@ interface AlertItem {
   level: "critical" | "warning" | "info";
   icon: React.ElementType;
   message: string;
+  action?: string;
   link?: string;
 }
 
@@ -36,6 +37,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         level: "critical",
         icon: Users,
         message: `${marketingAlerts.stale_leads} lead non contattati da 48h+`,
+        action: "Assegnare follow-up immediato",
         link: "/azienda/marketing/contatti",
       });
     }
@@ -45,6 +47,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         level: "warning",
         icon: Clock,
         message: `${marketingAlerts.stale_opportunities} opportunità ferme da 7+ giorni`,
+        action: "Aggiornare stato o ricontattare",
         link: "/azienda/marketing/opportunita",
       });
     }
@@ -54,6 +57,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         level: "warning",
         icon: TrendingDown,
         message: "Show rate sotto il 60%",
+        action: "Rivedere qualifica lead e promemoria",
         link: "/azienda/marketing",
       });
     }
@@ -63,6 +67,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         level: "warning",
         icon: TrendingDown,
         message: "Pipeline in calo rispetto al periodo precedente",
+        action: "Incrementare attività di lead generation",
         link: "/azienda/marketing",
       });
     }
@@ -75,6 +80,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
       level: "critical",
       icon: CreditCard,
       message: `${operations.overduePayments} pagamenti scaduti (€${Math.round(operations.overdueAmount).toLocaleString("it-IT")})`,
+      action: "Sollecitare incassi urgenti",
       link: "/azienda/ordini",
     });
   }
@@ -84,6 +90,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
       level: "warning",
       icon: AlertTriangle,
       message: `${operations.lateOrders} ordini in ritardo`,
+      action: "Verificare stato lavori e pianificazione",
       link: "/azienda/ordini",
     });
   }
@@ -95,6 +102,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
       level: "critical",
       icon: TrendingDown,
       message: "Cash flow negativo questo mese",
+      action: "Sollecitare incassi o posticipare uscite",
       link: "/azienda/costi",
     });
   }
@@ -114,14 +122,19 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         const content = (
           <div
             className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer",
+              "flex items-start gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer",
               alert.level === "critical" && "bg-destructive/10 text-destructive hover:bg-destructive/20",
               alert.level === "warning" && "bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20",
               alert.level === "info" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-500/20",
             )}
           >
-            <Icon className="h-4 w-4 shrink-0" />
-            <span>{alert.message}</span>
+            <Icon className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <span>{alert.message}</span>
+              {alert.action && (
+                <div className="text-xs font-normal opacity-75 mt-0.5">→ {alert.action}</div>
+              )}
+            </div>
           </div>
         );
 
