@@ -23,6 +23,7 @@ export function DashboardSourcesTable({ sources, isLoading }: Props) {
   }
 
   const rows = sources || [];
+  const hasSpend = rows.some(r => r.spend > 0);
 
   return (
     <Card>
@@ -45,11 +46,16 @@ export function DashboardSourcesTable({ sources, isLoading }: Props) {
                   <TableHead className="text-xs text-right">Contratti</TableHead>
                   <TableHead className="text-xs text-right">Fatturato</TableHead>
                   <TableHead className="text-xs text-right">Conv. %</TableHead>
+                  {hasSpend && <TableHead className="text-xs text-right">Spesa</TableHead>}
+                  {hasSpend && <TableHead className="text-xs text-right">CPL</TableHead>}
+                  {hasSpend && <TableHead className="text-xs text-right">CPA</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map(r => {
                   const convRate = r.leads > 0 ? Math.round((r.contracts_won / r.leads) * 100) : 0;
+                  const cpl = r.spend > 0 && r.leads > 0 ? r.spend / r.leads : null;
+                  const cpa = r.spend > 0 && r.contracts_won > 0 ? r.spend / r.contracts_won : null;
                   return (
                     <TableRow key={r.source}>
                       <TableCell className="text-sm font-medium">{r.source}</TableCell>
@@ -57,6 +63,9 @@ export function DashboardSourcesTable({ sources, isLoading }: Props) {
                       <TableCell className="text-sm text-right font-semibold">{fmt(r.contracts_won)}</TableCell>
                       <TableCell className="text-sm text-right font-semibold">{fmtCur(r.revenue)}</TableCell>
                       <TableCell className="text-sm text-right">{convRate}%</TableCell>
+                      {hasSpend && <TableCell className="text-sm text-right">{r.spend > 0 ? fmtCur(r.spend) : "–"}</TableCell>}
+                      {hasSpend && <TableCell className="text-sm text-right">{cpl ? fmtCur(cpl) : "–"}</TableCell>}
+                      {hasSpend && <TableCell className="text-sm text-right">{cpa ? fmtCur(cpa) : "–"}</TableCell>}
                     </TableRow>
                   );
                 })}

@@ -7,11 +7,12 @@ import { DashboardFunnel } from "@/components/marketing/dashboard/DashboardFunne
 import { DashboardTrendChart } from "@/components/marketing/dashboard/DashboardTrendChart";
 import { DashboardSalesTable } from "@/components/marketing/dashboard/DashboardSalesTable";
 import { DashboardSourcesTable } from "@/components/marketing/dashboard/DashboardSourcesTable";
+import { DashboardCallCenter } from "@/components/marketing/dashboard/DashboardCallCenter";
 import { DashboardAlerts } from "@/components/marketing/dashboard/DashboardAlerts";
 import { exportToCSV } from "@/lib/csvExport";
 
 export default function MarketingDashboard() {
-  const { data, isLoading, refetch, filters, updateFilters } = useMarketingDashboard();
+  const { data, isLoading, refetch, filters, updateFilters, permissions } = useMarketingDashboard();
 
   const handleExportKPI = () => {
     if (!data?.kpi) return;
@@ -27,6 +28,16 @@ export default function MarketingDashboard() {
       { metrica: "Fatturato", valore: String(kpi.revenue) },
       { metrica: "Ticket Medio", valore: String(kpi.avg_ticket) },
       { metrica: "Tasso Chiusura", valore: `${kpi.close_rate}%` },
+      ...(kpi.total_spend > 0 ? [
+        { metrica: "Spesa Campagne", valore: String(kpi.total_spend) },
+        { metrica: "CPL", valore: String(kpi.cpl) },
+        { metrica: "CPA", valore: String(kpi.cpa) },
+      ] : []),
+      ...(kpi.calls_total > 0 ? [
+        { metrica: "Chiamate Totali", valore: String(kpi.calls_total) },
+        { metrica: "Chiamate Risposte", valore: String(kpi.calls_answered) },
+        { metrica: "Tasso Contatto", valore: `${kpi.contact_rate}%` },
+      ] : []),
     ];
     exportToCSV(rows, [{ key: "metrica", label: "Metrica" }, { key: "valore", label: "Valore" }], "dashboard-marketing-kpi.csv");
   };
@@ -55,7 +66,7 @@ export default function MarketingDashboard() {
       </div>
 
       {/* Filters */}
-      <DashboardFilters filters={filters} onUpdate={updateFilters} />
+      <DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} />
 
       {/* KPI Cards */}
       <DashboardKPICards kpi={data?.kpi} kpiPrev={data?.kpi_prev} isLoading={isLoading} />
@@ -65,6 +76,9 @@ export default function MarketingDashboard() {
         <DashboardFunnel funnel={data?.funnel} isLoading={isLoading} />
         <DashboardTrendChart trend={data?.trend} isLoading={isLoading} />
       </div>
+
+      {/* Call Center */}
+      <DashboardCallCenter callCenter={data?.call_center} isLoading={isLoading} />
 
       {/* Sales Performance */}
       <DashboardSalesTable sales={data?.sales_performance} isLoading={isLoading} />
