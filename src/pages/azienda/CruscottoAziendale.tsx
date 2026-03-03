@@ -1,5 +1,7 @@
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { CruscottoFilters } from "@/components/cruscotto/CruscottoFilters";
+import { CompanyHealthScore } from "@/components/cruscotto/CompanyHealthScore";
+import { ExecutiveSummary } from "@/components/cruscotto/ExecutiveSummary";
 import { CruscottoAlerts } from "@/components/cruscotto/CruscottoAlerts";
 import { ExecutiveOverview } from "@/components/cruscotto/ExecutiveOverview";
 import { MarketingControl } from "@/components/cruscotto/MarketingControl";
@@ -53,6 +55,25 @@ export default function CruscottoAziendale() {
       {/* Global Filters */}
       <CruscottoFilters filters={filters} onUpdate={updateFilters} />
 
+      {/* === ABOVE THE FOLD: CEO Priority === */}
+
+      {/* Health Score + Executive Summary */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+        <CompanyHealthScore
+          kpi={marketing?.kpi}
+          finance={finance}
+          operations={operations}
+          isLoading={isLoading}
+        />
+        <ExecutiveSummary
+          kpi={marketing?.kpi}
+          kpiPrev={marketing?.kpi_prev}
+          finance={finance}
+          operations={operations}
+          isLoading={isLoading}
+        />
+      </div>
+
       {/* Alerts */}
       <CruscottoAlerts
         marketingAlerts={marketing?.alerts}
@@ -61,7 +82,7 @@ export default function CruscottoAziendale() {
         isLoading={isLoading}
       />
 
-      {/* Executive Overview */}
+      {/* Executive Overview KPIs */}
       <ExecutiveOverview
         kpi={marketing?.kpi}
         kpiPrev={marketing?.kpi_prev}
@@ -69,7 +90,21 @@ export default function CruscottoAziendale() {
         isLoading={isLoading}
       />
 
-      {/* Marketing + Sales row */}
+      {/* === BELOW THE FOLD === */}
+
+      {/* Finance + Operations */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <FinanzaCashFlow
+          finance={finance}
+          isLoading={isLoading}
+        />
+        <OperationsDelivery
+          operations={operations}
+          isLoading={isLoading}
+        />
+      </div>
+
+      {/* Marketing + Sales */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <MarketingControl
           sources={marketing?.sources}
@@ -83,23 +118,11 @@ export default function CruscottoAziendale() {
         />
       </div>
 
-      {/* Pipeline & Forecast + Operations */}
+      {/* Pipeline & Forecast + HR */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <PipelineForecast
           kpi={marketing?.kpi}
           funnel={marketing?.funnel}
-          isLoading={isLoading}
-        />
-        <OperationsDelivery
-          operations={operations}
-          isLoading={isLoading}
-        />
-      </div>
-
-      {/* Finance + HR */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <FinanzaCashFlow
-          finance={finance}
           isLoading={isLoading}
         />
         <HRPerformance
