@@ -1,103 +1,133 @@
 
 
-# Analisi Cruscotto Aziendale — Visione CEO/Imprenditore
+# Report di Facebook Ads — Piano di Implementazione
 
-## Cosa c'e' di buono
+## Panoramica
 
-Il cruscotto ha una struttura solida: Health Score in cima, sintesi esecutiva, alert operativi, KPI finanziari e commerciali, e sezioni di dettaglio. La gerarchia visiva e' corretta (cose importanti sopra, dettaglio sotto). I filtri temporali sono comodi.
-
----
-
-## Cosa manca — Il punto di vista di un CEO vero
-
-### 1. E' un cruscotto "statico" — non mi dice COSA FARE ORA
-
-Un CEO apre il cruscotto per **decidere**, non per leggere numeri. Oggi il cruscotto mostra dati ma non risponde alle 3 domande che un imprenditore si fa ogni mattina:
-
-- **"Come stiamo rispetto al piano?"** — Non ci sono TARGET. Fatturato 0€ non significa nulla se non so che il target e' 50.000€. Serve una barra progresso "X% del target mensile" sui KPI chiave.
-- **"Cosa devo fare oggi?"** — Manca un blocco "Priorita' del giorno" con le 3-5 azioni piu' urgenti estratte automaticamente dai dati (pagamenti da sollecitare, lead caldi da chiamare, ordini in scadenza questa settimana).
-- **"Come andremo a finire il mese?"** — Il forecast c'e' ma e' nascosto in fondo. Serve una proiezione visiva "a fine mese chiudiamo a €X" basata sulla velocity attuale, posizionata in alto.
-
-### 2. Manca la "Agenda Settimanale" operativa
-
-Un imprenditore di edilizia ragiona per settimana. Serve un widget "Prossimi 7 giorni" che mostri:
-- Quanti incassi sono previsti (pagamenti con scadenza questa settimana)
-- Quanti costi scadono
-- Quanti cantieri/lavori hanno date di consegna
-- Quanti appuntamenti commerciali
-
-Questo e' il widget piu' utile in assoluto per chi gestisce un'azienda.
-
-### 3. Il Trend e' inutile cosi' com'e'
-
-Il grafico "Trend Temporale" in fondo mostra "Nessun dato nel periodo" — e anche quando ha dati, un singolo grafico generico non aiuta. Un CEO vuole vedere:
-- **Fatturato cumulativo mese** vs stesso periodo mese scorso (linea sovrapposta)
-- **Pipeline evolution** — come cresce/decresce la pipeline settimana dopo settimana
-
-### 4. Manca il "Polso" del team
-
-La sezione HR mostra solo un ranking. Un CEO vuole sapere:
-- **Chi sta lavorando su cosa oggi** — quanti ordini ha ogni persona, quanti lead sta gestendo
-- **Chi e' sovraccarico e chi e' scarico** — distribuzione del lavoro
-- Questa e' la differenza tra un cruscotto e un foglio Excel
-
-### 5. I numeri sono tutti a zero — UX di "vuoto"
-
-Quando i dati sono zero (come nello screenshot), il cruscotto sembra rotto. Servono:
-- Empty state intelligenti: "Nessun ordine ancora. Crea il tuo primo ordine →" con CTA
-- Dati demo/placeholder per i nuovi utenti che stanno esplorando
-- Messaggio contestuale: "Il cruscotto si popola automaticamente con i tuoi dati di ordini, lead e costi"
-
-### 6. Manca un "Quick Access" alle azioni principali
-
-Un CEO non vuole navigare menu. Servono bottoni rapidi:
-- "Nuovo Ordine" / "Nuovo Lead" / "Registra Costo" — accessibili direttamente dal cruscotto
-- Link rapido a "Ordini in ritardo" quando il numero e' > 0
-
-### 7. Il Mobile e' sottovalutato
-
-Un imprenditore controlla il cruscotto dal telefono alle 7 di mattina. Le 12 KPI card in griglia sono troppe su mobile. Serve:
-- Una versione mobile che mostri solo Health Score + 4 KPI chiave + Alert + Agenda settimana
-- Il resto accessibile con uno swipe o un "Mostra dettagli"
+Creare una sezione Reportistica completa dentro Marketing e Vendite, partendo dal Report Facebook Ads con UI stile GHL. L'architettura Meta (OAuth, token, proxy) esiste gia' — serve aggiungere le azioni `get-ad-accounts` e `get-campaign-insights` al proxy esistente `meta-api-proxy`, poi costruire il frontend.
 
 ---
 
-## Piano di Intervento (prioritizzato)
+## Architettura Tecnica
 
-### P0 — Empty State intelligente
-Quando i dati sono zero, mostrare un messaggio guida con CTA ("Crea il tuo primo ordine", "Importa i tuoi lead") invece di righe di zeri che fanno sembrare il prodotto rotto.
+```text
+┌─────────────────────────────────────────────────┐
+│  Frontend                                        │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │ KPI Cards│  │ Trend    │  │ Campaign Table│  │
+│  │ + mini   │  │ Charts   │  │ + filters     │  │
+│  │ sparkline│  │          │  │ + sort        │  │
+│  └────┬─────┘  └────┬─────┘  └──────┬────────┘  │
+│       └──────────────┼───────────────┘            │
+│                      ▼                            │
+│         useMetaAdsReport() hook                   │
+│              ▼              ▼                     │
+│   meta-api-proxy       meta_insights_cache (DB)  │
+│   (new actions)        (TTL 15min)               │
+└─────────────────────────────────────────────────┘
+```
 
-### P0 — Widget "Scadenze Settimana"
-Nuovo componente above-the-fold: aggregazione dei prossimi 7 giorni (incassi previsti, costi in scadenza, lavori da consegnare, appuntamenti). Query su `orders` (pagamenti con `expected_date` nei prossimi 7gg) + `company_costs` (con `due_date` nei prossimi 7gg).
+## Interventi (8 blocchi)
 
-### P1 — Target sui KPI principali
-Aggiungere barra di progresso sotto Fatturato, Contratti Vinti, Lead Nuovi con target mensile. Target inizialmente configurabili da un campo in settings (o hardcoded, poi configurabile).
+### 1. DB: Tabelle cache e preferenze
 
-### P1 — "Priorita' del Giorno" (auto-generato)
-Blocco in cima che estrae le top 3-5 azioni urgenti dai dati esistenti: pagamenti scaduti da sollecitare, lead caldi non contattati, ordini in ritardo da verificare. Ogni item cliccabile con link diretto.
+Migrazione SQL per creare:
 
-### P1 — Proiezione fine mese
-Calcolo: `(fatturato attuale / giorni passati) * giorni nel mese` = proiezione. Mostrare come numero grande accanto al fatturato attuale nell'Executive Overview.
+- **`meta_ad_accounts`** — `id, company_id, integration_id, ad_account_id, ad_account_name, selected, created_at` (RLS: company_id scoped)
+- **`meta_insights_cache`** — `id, company_id, ad_account_id, date_start, date_end, level (campaign/adset/ad), payload_json (jsonb), fetched_at, expires_at` (RLS: company_id scoped, TTL 15min)
+- **`reporting_preferences`** — `id, company_id, user_id, report_key text, visible_columns jsonb, default_sort text, saved_filters jsonb, last_ad_account text, last_date_range jsonb` (RLS: user_id = auth.uid())
 
-### P2 — Quick Actions bar
-Riga di bottoni sotto l'header: "Nuovo Ordine", "Nuovo Lead", "Registra Costo" — shortcut diretti.
+Tutte con RLS abilitato e policy tenant-scoped.
 
-### P2 — Mobile-first KPI view
-Su viewport < 768px, collassare le KPI in un carosello swipeable con solo i 4 indicatori chiave.
+### 2. Backend: Estendere `meta-api-proxy`
+
+Aggiungere 2 nuove actions al file `supabase/functions/meta-api-proxy/index.ts`:
+
+- **`get-ad-accounts`**: chiama `GET /v21.0/me/adaccounts?fields=id,name,account_status,currency` e ritorna la lista. Salva/aggiorna in `meta_ad_accounts`.
+- **`get-campaign-insights`**: chiama `GET /v21.0/act_{id}/insights` con parametri `date_preset` o `time_range`, `level` (campaign/adset/ad), fields: `campaign_name,campaign_id,impressions,clicks,spend,ctr,cpc,actions,action_values,objective,reach`. Supporta anche breakdown giornaliero per trend charts. Implementa cache check su `meta_insights_cache` prima della chiamata API.
+- **`get-campaign-status`**: chiama `GET /v21.0/act_{id}/campaigns?fields=id,name,status,objective` per lo stato live delle campagne.
+
+### 3. Navigazione: Sidebar + Route
+
+- **`src/lib/sidebarConfig.ts`**: Aggiungere voce `Reportistica` con icona `BarChart3` in `marketingNavItems`, url `/azienda/marketing/reportistica`
+- **`src/App.tsx`**: Aggiungere route `/marketing/reportistica` → `ReportisticaPage` (con sub-routing) e `/marketing/reportistica/facebook-ads` → `FacebookAdsReport`
+- La pagina `ReportisticaPage` ha tab orizzontali (come GHL): Report personalizzati, Google Ads, **Facebook Ads** (attivo), Attribuzione, Chiamate, Agenti, Appuntamenti, Audit marketing locale. Le tab non attive mostrano placeholder "Coming soon".
+
+### 4. Componenti UI (stile GHL)
+
+Creare nella cartella `src/components/reporting/facebook-ads/`:
+
+| Componente | Descrizione |
+|---|---|
+| `FacebookAdsReport.tsx` | Page wrapper con header, date picker, account selector, KPI + table |
+| `ReportHeader.tsx` | Titolo + DateRangePicker + AdAccount dropdown + Esporta/Colonne buttons |
+| `KPIGrid.tsx` | 3 cards grandi (Impressioni, Clic, Conversioni) con sparkline Recharts + 4 cards piccole (Spesa, CPC, CPConv, CPL) |
+| `TrendChart.tsx` | Area chart Recharts con serie giornaliera per il KPI selezionato |
+| `CampaignTable.tsx` | Tabella con header sticky, sorting, search, filtri compatti. Colonne: Nome, Stato (badge), Clic, Costo, Entrate, ROI%, CPC, CTR, Vendite, CPS, Lead, CPL, Impressioni, Entrate medie |
+| `ColumnsDrawer.tsx` | Sheet laterale con toggle per ogni colonna, salva in `reporting_preferences` |
+| `ExportDialog.tsx` | Export CSV/XLSX con `xlsx` (gia' installato), include solo colonne visibili e filtri attivi |
+| `LevelToggle.tsx` | Toggle Campaign/Adset/Ad per cambiare granularita' |
+
+### 5. Hook: `useMetaAdsReport`
+
+Nuovo hook `src/hooks/useMetaAdsReport.ts`:
+
+- Gestisce state: `dateRange`, `selectedAdAccount`, `level`, `filters`, `sortColumn`, `sortDirection`, `visibleColumns`
+- Fetch ad accounts via proxy (query key: `meta-ad-accounts`)
+- Fetch insights via proxy con cache check (query key: `meta-insights`, dipende da account+date+level)
+- Normalizzazione dati: `pickClicks` (link_clicks > clicks), `pickConversions` (lead/purchase in base a config), `pickRevenue` (action_values o 0)
+- Calcoli KPI: Impressioni, Clic, Conversioni, Spesa, CPC (spend/clicks, div-by-zero safe), CPConv, CPL
+- Trend series: estrazione giornaliera per sparklines
+- Persistenza preferenze utente in `reporting_preferences`
+- Error handling: token scaduto → banner con CTA a Integrazioni
+
+### 6. Data Normalization Layer
+
+File `src/lib/metaInsightsNormalizer.ts`:
+
+- `normalizeInsights(raw, config)` — trasforma il payload Meta in righe uniformi per la tabella
+- `pickClicks(actions)` — preferisce `link_click`, fallback `clicks`
+- `pickConversions(actions, conversionType)` — filtra per `action_type` configurato (default: `lead`)
+- `pickRevenue(action_values)` — estrae valore revenue se disponibile
+- `computeKPIs(rows)` — somma totali per le KPI cards
+- `computeDailySeries(raw)` — raggruppa per giorno per i trend charts
+- Division-by-zero safe su tutti i calcoli
+
+### 7. Permessi
+
+- Riutilizzare il permesso `canViewMarketing` gia' esistente per la voce Reportistica
+- L'export e' visibile a tutti tranne `viewer` (controllare `permissions.canEditMarketing` o equivalente)
+- Se utente non ha Meta connesso: mostrare empty state con CTA "Collega il tuo account Meta da Impostazioni > Integrazioni"
+
+### 8. UX Details (stile GHL)
+
+- Cards bianche con bordo sottile, numeri grandi (font-semibold text-2xl), sparkline integrata
+- Stato campagna: badge verde "Attivo", rosso "In pausa", grigio "Altro"
+- Formattazione IT: `Intl.NumberFormat('it-IT')` per migliaia, `€` con 2 decimali, `%` con 2 decimali
+- Skeleton loading: 3 skeleton cards + skeleton table durante fetch
+- Empty state: "Nessun dato nel periodo selezionato" con icona
+- Date range picker con preset: Oggi, Ieri, Ultimi 7gg, Ultimi 14gg (default), Ultimi 30gg, Questo mese, Custom
+- Persistenza: ultimo ad account e date range salvati per utente
 
 ---
 
 ## File da creare/modificare
 
 | Azione | File |
-|--------|------|
-| Creare | `src/components/cruscotto/WeeklyAgenda.tsx` — Scadenze prossimi 7gg |
-| Creare | `src/components/cruscotto/DailyPriorities.tsx` — Top 5 azioni urgenti auto-generate |
-| Creare | `src/components/cruscotto/QuickActions.tsx` — Bottoni shortcut |
-| Creare | `src/components/cruscotto/EmptyStateGuide.tsx` — Guida onboarding dati zero |
-| Modificare | `src/components/cruscotto/ExecutiveOverview.tsx` — Aggiungere proiezione fine mese + target bar |
-| Modificare | `src/pages/azienda/CruscottoAziendale.tsx` — Integrare nuovi widget + empty state |
-| Modificare | `src/hooks/useCruscottoData.ts` — Query scadenze settimanali |
-
-Nessuna migrazione DB necessaria — tutti i dati sono gia' nelle tabelle `orders` e `company_costs`.
+|---|---|
+| Migrazione | 3 tabelle: `meta_ad_accounts`, `meta_insights_cache`, `reporting_preferences` |
+| Modificare | `supabase/functions/meta-api-proxy/index.ts` — 3 nuove actions |
+| Modificare | `src/lib/sidebarConfig.ts` — voce Reportistica |
+| Modificare | `src/App.tsx` — nuove route |
+| Creare | `src/pages/azienda/ReportisticaPage.tsx` — wrapper con tab |
+| Creare | `src/components/reporting/facebook-ads/FacebookAdsReport.tsx` |
+| Creare | `src/components/reporting/facebook-ads/ReportHeader.tsx` |
+| Creare | `src/components/reporting/facebook-ads/KPIGrid.tsx` |
+| Creare | `src/components/reporting/facebook-ads/TrendChart.tsx` |
+| Creare | `src/components/reporting/facebook-ads/CampaignTable.tsx` |
+| Creare | `src/components/reporting/facebook-ads/ColumnsDrawer.tsx` |
+| Creare | `src/components/reporting/facebook-ads/ExportDialog.tsx` |
+| Creare | `src/components/reporting/facebook-ads/LevelToggle.tsx` |
+| Creare | `src/hooks/useMetaAdsReport.ts` |
+| Creare | `src/lib/metaInsightsNormalizer.ts` |
 
