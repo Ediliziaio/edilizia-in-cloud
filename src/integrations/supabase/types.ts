@@ -4634,6 +4634,7 @@ export type Database = {
           can_edit_tickets: boolean | null
           can_edit_warehouse: boolean | null
           can_view_calendar: boolean | null
+          can_view_cruscotto: boolean
           can_view_customers: boolean | null
           can_view_dashboard: boolean | null
           can_view_employees: boolean | null
@@ -4658,6 +4659,7 @@ export type Database = {
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
           can_view_calendar?: boolean | null
+          can_view_cruscotto?: boolean
           can_view_customers?: boolean | null
           can_view_dashboard?: boolean | null
           can_view_employees?: boolean | null
@@ -4682,6 +4684,7 @@ export type Database = {
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
           can_view_calendar?: boolean | null
+          can_view_cruscotto?: boolean
           can_view_customers?: boolean | null
           can_view_dashboard?: boolean | null
           can_view_employees?: boolean | null
