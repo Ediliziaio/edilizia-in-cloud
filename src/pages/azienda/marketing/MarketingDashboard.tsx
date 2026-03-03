@@ -15,9 +15,21 @@ import { DashboardSourcesTable } from "@/components/marketing/dashboard/Dashboar
 import { DashboardForecast } from "@/components/marketing/dashboard/DashboardForecast";
 import { DashboardTrendChart } from "@/components/marketing/dashboard/DashboardTrendChart";
 import { exportToCSV } from "@/lib/csvExport";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function MarketingDashboard() {
   const { data, isLoading, error, refetch, filters, updateFilters, permissions } = useMarketingDashboard();
+  const { effectiveCompany } = useAuth();
+
+  if (!effectiveCompany?.id) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <LayoutDashboard className="h-12 w-12 text-muted-foreground/40 mb-4" />
+        <h2 className="text-lg font-semibold text-muted-foreground">Nessuna azienda selezionata</h2>
+        <p className="text-sm text-muted-foreground/70 mt-1">Seleziona un'azienda per visualizzare la dashboard</p>
+      </div>
+    );
+  }
 
   const handleExportKPI = () => {
     if (!data?.kpi) return;

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,7 +28,7 @@ const KPI_CARDS: KpiCardDef[] = [
   { key: "contacts_worked", label: "Lavorati", tooltip: "Contatti con almeno un'attività o opportunità", icon: PhoneCall, format: "number" },
   { key: "appointments_set", label: "App. Fissati", tooltip: "Appuntamenti programmati nel periodo", icon: CalendarDays, format: "number" },
   { key: "appointments_done", label: "App. Svolti", tooltip: "Appuntamenti completati", icon: CalendarCheck, format: "number" },
-  { key: "show_rate", label: "Show Rate", tooltip: "Appuntamenti svolti / fissati × 100", icon: Target, format: "percent" },
+  
   { key: "contracts_won", label: "Contratti Vinti", tooltip: "Opportunità con status 'vinta'", icon: Trophy, format: "number" },
   { key: "revenue", label: "Fatturato", tooltip: "Somma valori opportunità vinte", icon: Euro, format: "currency" },
   { key: "avg_ticket", label: "Ticket Medio", tooltip: "Fatturato / Contratti vinti", icon: Euro, format: "currency" },
@@ -40,7 +41,7 @@ const KPI_CARDS: KpiCardDef[] = [
   { key: "contact_rate", label: "Tasso Contatto", tooltip: "Chiamate risposte / Totale chiamate × 100", icon: Phone, format: "percent", hideIfZero: true },
 ];
 
-export function DashboardKPICards({ kpi, kpiPrev, isLoading }: Props) {
+export const DashboardKPICards = memo(function DashboardKPICards({ kpi, kpiPrev, isLoading }: Props) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
@@ -100,4 +101,4 @@ export function DashboardKPICards({ kpi, kpiPrev, isLoading }: Props) {
       </div>
     </TooltipProvider>
   );
-}
+});
