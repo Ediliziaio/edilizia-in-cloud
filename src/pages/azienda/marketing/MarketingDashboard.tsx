@@ -1,6 +1,7 @@
 import { LayoutDashboard, Download, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMarketingDashboard } from "@/hooks/useMarketingDashboard";
+import { SalesTargetsDialog } from "@/components/marketing/dashboard/SalesTargetsDialog";
 import { DashboardFilters } from "@/components/marketing/dashboard/DashboardFilters";
 import { DashboardStrategicKPI } from "@/components/marketing/dashboard/DashboardStrategicKPI";
 import { DashboardKPICards } from "@/components/marketing/dashboard/DashboardKPICards";
@@ -62,6 +63,7 @@ export default function MarketingDashboard() {
           <p className="text-sm text-muted-foreground mt-0.5">Cruscotto decisionale</p>
         </div>
         <div className="flex items-center gap-2">
+          {permissions.isAdmin && <SalesTargetsDialog />}
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
             <RefreshCw className="h-4 w-4 mr-1.5" />
             Aggiorna

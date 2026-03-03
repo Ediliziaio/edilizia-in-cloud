@@ -1,19 +1,67 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
 import { Trophy, TrendingUp, TrendingDown } from "lucide-react";
 import type { SalesPerformance } from "@/hooks/useMarketingDashboard";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   sales: SalesPerformance[] | undefined;
   isLoading: boolean;
 }
 
+interface SalesTarget {
+  user_id: string;
+  target_revenue: number;
+  target_contracts: number;
+  target_appointments: number;
+}
+
 const fmt = (n: number) => new Intl.NumberFormat("it-IT").format(n);
 const fmtCur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 
+function TargetProgress({ value, target }: { value: number; target: number }) {
+  if (!target || target <= 0) return <span className="text-xs text-muted-foreground">—</span>;
+  const pct = Math.min(Math.round((value / target) * 100), 100);
+  const color = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500";
+  
+  return (
+    <div className="flex items-center gap-1.5 min-w-[80px]">
+      <div className="flex-1 h-1.5 rounded-full bg-secondary overflow-hidden">
+        <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
+      </div>
+      <span className={cn("text-[10px] font-semibold tabular-nums",
+        pct >= 80 && "text-emerald-600 dark:text-emerald-400",
+        pct >= 50 && pct < 80 && "text-amber-600 dark:text-amber-400",
+        pct < 50 && "text-red-600 dark:text-red-400"
+      )}>{pct}%</span>
+    </div>
+  );
+}
+
 export function DashboardSalesTable({ sales, isLoading }: Props) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  const { data: targets } = useQuery({
+    queryKey: ["sales-targets", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales_targets" as any)
+        .select("user_id, target_revenue, target_contracts, target_appointments")
+        .eq("company_id", companyId!)
+        .eq("period_type", "weekly");
+      if (error) throw error;
+      return (data || []) as unknown as SalesTarget[];
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+
   if (isLoading) {
     return (
       <Card>
@@ -24,8 +72,10 @@ export function DashboardSalesTable({ sales, isLoading }: Props) {
   }
 
   const rows = sales || [];
-  
-  // Calculate team averages
+  const targetMap = new Map<string, SalesTarget>();
+  (targets || []).forEach(t => targetMap.set(t.user_id, t));
+  const hasTargets = (targets || []).length > 0;
+
   const avgRevenue = rows.length > 0 ? rows.reduce((s, r) => s + r.revenue, 0) / rows.length : 0;
   const avgCloseRate = rows.length > 0 ? rows.reduce((s, r) => s + (r.appointments_done > 0 ? (r.contracts_won / r.appointments_done) * 100 : 0), 0) / rows.length : 0;
   const avgShowRate = rows.length > 0 ? rows.reduce((s, r) => s + r.show_rate, 0) / rows.length : 0;
@@ -62,6 +112,7 @@ export function DashboardSalesTable({ sales, isLoading }: Props) {
                   <TableHead className="text-xs text-right">Fatturato</TableHead>
                   <TableHead className="text-xs text-right">Chiusura %</TableHead>
                   <TableHead className="text-xs text-right">vs Media</TableHead>
+                  {hasTargets && <TableHead className="text-xs text-center">Target €</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -70,6 +121,7 @@ export function DashboardSalesTable({ sales, isLoading }: Props) {
                   const vsAvg = avgRevenue > 0 ? Math.round(((r.revenue - avgRevenue) / avgRevenue) * 100) : 0;
                   const isAboveAvg = vsAvg > 10;
                   const isBelowAvg = vsAvg < -10;
+                  const target = targetMap.get(r.user_id);
 
                   return (
                     <TableRow key={r.user_id} className={cn(
@@ -99,6 +151,11 @@ export function DashboardSalesTable({ sales, isLoading }: Props) {
                           {vsAvg > 0 ? "+" : ""}{vsAvg}%
                         </span>
                       </TableCell>
+                      {hasTargets && (
+                        <TableCell>
+                          <TargetProgress value={r.revenue} target={target?.target_revenue || 0} />
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
