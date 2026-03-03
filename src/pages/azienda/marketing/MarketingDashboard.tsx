@@ -33,6 +33,8 @@ export default function MarketingDashboard() {
       { metrica: "Fatturato", valore: String(kpi.revenue) },
       { metrica: "Ticket Medio", valore: String(kpi.avg_ticket) },
       { metrica: "Tasso Chiusura", valore: `${kpi.close_rate}%` },
+      { metrica: "Contratti Persi", valore: String(kpi.contracts_lost) },
+      { metrica: "Valore Perso", valore: String(kpi.revenue_lost) },
       { metrica: "Pipeline Attiva", valore: String(kpi.pipeline_active_value) },
       { metrica: "Forecast 30gg", valore: String(kpi.forecast_30d) },
       { metrica: "Lead→App.", valore: `${kpi.lead_to_appointment_rate}%` },
