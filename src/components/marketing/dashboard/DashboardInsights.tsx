@@ -119,7 +119,39 @@ function generateInsights(kpi: KpiData, kpiPrev: KpiData, sales: SalesPerformanc
     });
   }
 
-  return insights.slice(0, 5);
+  // NEW: Median cycle > 30 days
+  const medianCycle = Number(kpi.median_lead_to_won_days ?? 0);
+  if (medianCycle > 30) {
+    insights.push({
+      text: `Il ciclo di vendita mediano è di ${medianCycle} giorni — valutare come accelerare.`,
+      type: "warning",
+      icon: AlertTriangle,
+    });
+  }
+
+  // NEW: RPL < CPL
+  const rpl = Number(kpi.rpl ?? 0);
+  const cpl = Number(kpi.cpl ?? 0);
+  if (rpl > 0 && cpl > 0 && rpl < cpl) {
+    insights.push({
+      text: `Il Revenue per Lead (€${rpl}) è inferiore al Costo per Lead (€${cpl}) — le campagne non sono sostenibili.`,
+      type: "negative",
+      icon: TrendingDown,
+    });
+  }
+
+  // NEW: Sales velocity declining
+  const salesVelocity = Number(kpi.sales_velocity ?? 0);
+  const prevSalesVelocity = Number(kpiPrev.sales_velocity ?? 0);
+  if (prevSalesVelocity > 0 && salesVelocity < prevSalesVelocity * 0.8) {
+    insights.push({
+      text: `La Sales Velocity è in calo del ${Math.round(((prevSalesVelocity - salesVelocity) / prevSalesVelocity) * 100)}% — la pipeline genera fatturato più lentamente.`,
+      type: "negative",
+      icon: TrendingDown,
+    });
+  }
+
+  return insights.slice(0, 6);
 }
 
 export function DashboardInsights({ kpi, kpiPrev, sales, sources, alerts, isLoading }: Props) {

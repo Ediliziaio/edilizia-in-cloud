@@ -39,6 +39,11 @@ export interface KpiData {
   pipeline_active_value: number;
   avg_time_to_first_contact: number;
   avg_time_to_close: number;
+  avg_lead_to_won_days: number;
+  median_lead_to_won_days: number;
+  sales_velocity: number;
+  rpl: number;
+  weighted_pipeline: number;
   lead_to_appointment_rate: number;
   appointment_to_contract_rate: number;
   lead_to_contract_rate: number;
