@@ -94,6 +94,7 @@ const EmailMarketing = lazy(() => import("@/pages/azienda/marketing/EmailMarketi
 const CampaignEditor = lazy(() => import("@/pages/azienda/marketing/CampaignEditor"));
 const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/CampaignSendSettings"));
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
+const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 
 // Customer
 const CustomerOrders = lazy(() => import("@/pages/cliente/CustomerOrders"));
@@ -252,6 +253,7 @@ const App = () => (
                 <Route path="marketing/email/campagna/:id/editor" element={<CampaignEditor />} />
                 <Route path="marketing/email/campagna/:id/builder" element={<DragDropEmailBuilder />} />
                 <Route path="marketing/email/campagna/:id/impostazioni" element={<CampaignSendSettings />} />
+                <Route path="marketing/reportistica" element={<ReportisticaPage />} />
                 
                 <Route path="impostazioni" element={<SettingsLayout />}>
                   <Route index element={<Navigate to="profilo" replace />} />

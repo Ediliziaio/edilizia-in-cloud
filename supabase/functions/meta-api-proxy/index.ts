@@ -287,6 +287,115 @@ serve(async (req) => {
         break;
       }
 
+      case "get-ad-accounts": {
+        const accountsRes = await fetchWithRetry(
+          `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`
+        );
+        const accountsData = await accountsRes.json();
+        const accounts = accountsData.data || [];
+
+        // Upsert into meta_ad_accounts
+        for (const acc of accounts) {
+          await adminClient.from("meta_ad_accounts").upsert({
+            company_id,
+            integration_id,
+            ad_account_id: acc.id,
+            ad_account_name: acc.name || acc.id,
+            account_status: acc.account_status || 0,
+            currency: acc.currency || "EUR",
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "company_id,ad_account_id" });
+        }
+
+        result = { accounts };
+        break;
+      }
+
+      case "get-campaign-insights": {
+        const { ad_account_id, date_start, date_end, level: insightLevel, time_increment } = body;
+        if (!ad_account_id) {
+          return new Response(JSON.stringify({ error: "ad_account_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const lvl = insightLevel || "campaign";
+        const increment = time_increment || "all_days";
+
+        // Check cache (only for non-daily breakdown)
+        if (increment === "all_days") {
+          const { data: cached } = await adminClient
+            .from("meta_insights_cache")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("ad_account_id", ad_account_id)
+            .eq("date_start", date_start)
+            .eq("date_end", date_end)
+            .eq("level", lvl)
+            .gte("expires_at", new Date().toISOString())
+            .maybeSingle();
+
+          if (cached) {
+            result = { insights: cached.payload_json, from_cache: true };
+            break;
+          }
+        }
+
+        const fields = "campaign_name,campaign_id,adset_name,adset_id,ad_name,ad_id,impressions,clicks,spend,ctr,cpc,actions,action_values,objective,reach";
+        let insightsUrl = `https://graph.facebook.com/v21.0/${ad_account_id}/insights?fields=${fields}&time_range={"since":"${date_start}","until":"${date_end}"}&level=${lvl}&limit=500&access_token=${accessToken}`;
+        if (increment === "1") {
+          insightsUrl += `&time_increment=1`;
+        }
+
+        const allInsights: any[] = [];
+        let nextUrl: string | null = insightsUrl;
+        while (nextUrl) {
+          const insRes = await fetchWithRetry(nextUrl);
+          const insData = await insRes.json();
+          if (insData.error) {
+            throw new Error(insData.error.message || JSON.stringify(insData.error));
+          }
+          allInsights.push(...(insData.data || []));
+          nextUrl = insData.paging?.next || null;
+        }
+
+        // Cache the result (only aggregate, not daily)
+        if (increment === "all_days" && allInsights.length > 0) {
+          await adminClient.from("meta_insights_cache").upsert({
+            company_id,
+            ad_account_id,
+            date_start,
+            date_end,
+            level: lvl,
+            payload_json: allInsights,
+            fetched_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+          }, { onConflict: "company_id,ad_account_id,date_start,date_end,level" });
+        }
+
+        result = { insights: allInsights, from_cache: false };
+        break;
+      }
+
+      case "get-campaign-status": {
+        const { ad_account_id: statusAccId } = body;
+        if (!statusAccId) {
+          return new Response(JSON.stringify({ error: "ad_account_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const statusRes = await fetchWithRetry(
+          `https://graph.facebook.com/v21.0/${statusAccId}/campaigns?fields=id,name,status,objective&limit=500&access_token=${accessToken}`
+        );
+        const statusData = await statusRes.json();
+
+        result = { campaigns: statusData.data || [] };
+        break;
+      }
+
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,
