@@ -95,6 +95,7 @@ const ReportHeader = ({ report }: Props) => {
         visibleColumns={report.visibleColumns}
         dateRange={report.dateRange}
         accountId={report.selectedAccountId}
+        companyName={report.companyName}
       />
     </>
   );

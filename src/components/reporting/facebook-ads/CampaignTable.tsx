@@ -94,6 +94,21 @@ const CampaignTable = ({ report }: Props) => {
           </Select>
         )}
 
+        <Input
+          type="number"
+          placeholder="Spesa min"
+          value={report.filters.minSpend ?? ""}
+          onChange={(e) => report.setFilters({ ...report.filters, minSpend: e.target.value ? Number(e.target.value) : null })}
+          className="w-[90px] h-8 text-xs"
+        />
+        <Input
+          type="number"
+          placeholder="Spesa max"
+          value={report.filters.maxSpend ?? ""}
+          onChange={(e) => report.setFilters({ ...report.filters, maxSpend: e.target.value ? Number(e.target.value) : null })}
+          className="w-[90px] h-8 text-xs"
+        />
+
         <div className="flex items-center gap-1.5">
           <Switch
             checked={report.filters.onlyWithLeads}
