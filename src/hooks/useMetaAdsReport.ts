@@ -13,6 +13,8 @@ import {
 } from "@/lib/metaInsightsNormalizer";
 import { format, subDays } from "date-fns";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://guqgszwelffntrgtsycm.supabase.co";
+
 export type ReportLevel = "campaign" | "adset" | "ad";
 export type SortDirection = "asc" | "desc";
 
@@ -95,7 +97,7 @@ export function useMetaAdsReport() {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-api-proxy`,
+        `${SUPABASE_URL}/functions/v1/meta-api-proxy`,
         {
           method: "POST",
           headers: {

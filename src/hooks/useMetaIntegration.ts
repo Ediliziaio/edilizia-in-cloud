@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Integration, MetaAsset, MetaLeadForm, IntegrationFieldMapping } from "@/types/integrations";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://guqgszwelffntrgtsycm.supabase.co";
+
 export function useMetaIntegration(integration: Integration | null) {
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
@@ -72,7 +74,7 @@ export function useMetaIntegration(integration: Integration | null) {
       const token = sessionData?.session?.access_token;
 
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-oauth-start`,
+        `${SUPABASE_URL}/functions/v1/meta-oauth-start`,
         {
           method: "POST",
           headers: {
@@ -105,7 +107,7 @@ export function useMetaIntegration(integration: Integration | null) {
       const token = sessionData?.session?.access_token;
 
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-api-proxy`,
+        `${SUPABASE_URL}/functions/v1/meta-api-proxy`,
         {
           method: "POST",
           headers: {
