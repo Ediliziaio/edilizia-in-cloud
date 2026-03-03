@@ -1,0 +1,223 @@
+import { memo } from "react";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TrendingUp, TrendingDown, Minus, Euro, Percent, BarChart3, Users, CalendarCheck, Trophy, Target, Zap, CreditCard, Landmark } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { KpiData } from "@/hooks/useMarketingDashboard";
+import type { FinanceData } from "@/hooks/useCruscottoData";
+import { calcDelta, fmtCur, fmt } from "@/components/marketing/dashboard/utils";
+
+interface Props {
+  kpi: KpiData | undefined;
+  kpiPrev: KpiData | undefined;
+  finance: FinanceData;
+  isLoading: boolean;
+}
+
+interface KpiDef {
+  label: string;
+  tooltip: string;
+  icon: React.ElementType;
+  getValue: (kpi: KpiData | undefined, finance: FinanceData) => number;
+  getPrevValue: (kpiPrev: KpiData | undefined, finance: FinanceData) => number;
+  format: (v: number) => string;
+  thresholds?: { green: number; yellow: number }; // above green = green, above yellow = yellow, below = red
+  invertColor?: boolean; // true = lower is better
+}
+
+const FINANCIAL_KPIS: KpiDef[] = [
+  {
+    label: "Fatturato Periodo",
+    tooltip: "Ricavi totali nel periodo selezionato",
+    icon: Euro,
+    getValue: (_, f) => f.revenueThisMonth,
+    getPrevValue: (_, f) => f.revenuePrevMonth,
+    format: fmtCur,
+  },
+  {
+    label: "Margine Lordo %",
+    tooltip: "Media margine lordo sugli ordini",
+    icon: Percent,
+    getValue: (_, f) => f.marginThisMonth,
+    getPrevValue: (_, f) => f.marginPrevMonth,
+    format: v => `${v.toFixed(1)}%`,
+    thresholds: { green: 30, yellow: 15 },
+  },
+  {
+    label: "Cash Flow",
+    tooltip: "Entrate – Uscite previste mese corrente",
+    icon: Landmark,
+    getValue: (_, f) => f.cashFlowNet,
+    getPrevValue: () => 0,
+    format: fmtCur,
+  },
+  {
+    label: "Da Incassare",
+    tooltip: "Totale pagamenti non ancora ricevuti",
+    icon: CreditCard,
+    getValue: (_, f) => f.pendingRevenue,
+    getPrevValue: () => 0,
+    format: fmtCur,
+  },
+  {
+    label: "Debiti Fornitori",
+    tooltip: "Costi non pagati verso fornitori",
+    icon: CreditCard,
+    getValue: (_, f) => f.supplierDebt,
+    getPrevValue: () => 0,
+    format: fmtCur,
+    invertColor: true,
+  },
+];
+
+const COMMERCIAL_KPIS: KpiDef[] = [
+  {
+    label: "Lead Nuovi",
+    tooltip: "Lead creati nel periodo",
+    icon: Users,
+    getValue: (k) => k?.leads_new ?? 0,
+    getPrevValue: (kp) => kp?.leads_new ?? 0,
+    format: fmt,
+  },
+  {
+    label: "Appuntamenti",
+    tooltip: "Appuntamenti fissati nel periodo",
+    icon: CalendarCheck,
+    getValue: (k) => k?.appointments_set ?? 0,
+    getPrevValue: (kp) => kp?.appointments_set ?? 0,
+    format: fmt,
+  },
+  {
+    label: "Show Rate",
+    tooltip: "App. svolti / App. fissati × 100",
+    icon: Target,
+    getValue: (k) => k?.show_rate ?? 0,
+    getPrevValue: (kp) => kp?.show_rate ?? 0,
+    format: v => `${v.toFixed(1)}%`,
+    thresholds: { green: 70, yellow: 50 },
+  },
+  {
+    label: "Contratti Vinti",
+    tooltip: "Opportunità con status vinta",
+    icon: Trophy,
+    getValue: (k) => k?.contracts_won ?? 0,
+    getPrevValue: (kp) => kp?.contracts_won ?? 0,
+    format: fmt,
+  },
+  {
+    label: "Tasso Chiusura",
+    tooltip: "Contratti vinti / App. svolti × 100",
+    icon: Target,
+    getValue: (k) => k?.close_rate ?? 0,
+    getPrevValue: (kp) => kp?.close_rate ?? 0,
+    format: v => `${v.toFixed(1)}%`,
+    thresholds: { green: 30, yellow: 15 },
+  },
+  {
+    label: "Ticket Medio",
+    tooltip: "Fatturato / Contratti vinti",
+    icon: Euro,
+    getValue: (k) => k?.avg_ticket ?? 0,
+    getPrevValue: (kp) => kp?.avg_ticket ?? 0,
+    format: fmtCur,
+  },
+  {
+    label: "Sales Velocity",
+    tooltip: "(Opp × Win Rate × Ticket) / Ciclo medio — €/giorno",
+    icon: Zap,
+    getValue: (k) => k?.sales_velocity ?? 0,
+    getPrevValue: (kp) => kp?.sales_velocity ?? 0,
+    format: v => `${fmtCur(v)}/gg`,
+  },
+];
+
+function KpiCard({ def, kpi, kpiPrev, finance, isLoading }: { def: KpiDef; kpi: KpiData | undefined; kpiPrev: KpiData | undefined; finance: FinanceData; isLoading: boolean }) {
+  if (isLoading) {
+    return (
+      <Card className="p-4">
+        <Skeleton className="h-3 w-20 mb-2" />
+        <Skeleton className="h-6 w-24" />
+      </Card>
+    );
+  }
+
+  const value = def.getValue(kpi, finance);
+  const prevValue = def.getPrevValue(kpiPrev, finance);
+  const delta = calcDelta(value, prevValue);
+
+  const DeltaIcon = delta.direction === "up" ? TrendingUp : delta.direction === "down" ? TrendingDown : Minus;
+
+  // Color coding based on thresholds
+  let valueColor = "text-foreground";
+  if (def.thresholds) {
+    if (value >= def.thresholds.green) valueColor = "text-emerald-600 dark:text-emerald-400";
+    else if (value >= def.thresholds.yellow) valueColor = "text-amber-600 dark:text-amber-400";
+    else valueColor = "text-destructive";
+  }
+
+  // Cash flow specific coloring
+  if (def.label === "Cash Flow") {
+    valueColor = value >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive";
+  }
+
+  const Icon = def.icon;
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Card className="p-4 hover:shadow-md transition-shadow cursor-default">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-muted-foreground font-medium truncate">{def.label}</span>
+              <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            </div>
+            <div className={cn("text-lg font-bold tabular-nums", valueColor)}>
+              {def.format(value)}
+            </div>
+            {delta.direction !== "flat" && prevValue !== 0 && (
+              <div className={cn(
+                "flex items-center gap-1 mt-1 text-xs font-medium",
+                delta.direction === "up"
+                  ? (def.invertColor ? "text-destructive" : "text-emerald-600 dark:text-emerald-400")
+                  : (def.invertColor ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")
+              )}>
+                <DeltaIcon className="h-3 w-3" />
+                {delta.value}%
+              </div>
+            )}
+          </Card>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <p className="text-xs">{def.tooltip}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+export const ExecutiveOverview = memo(function ExecutiveOverview({ kpi, kpiPrev, finance, isLoading }: Props) {
+  return (
+    <div className="space-y-4">
+      {/* Financial KPIs */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">KPI Finanziari</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {FINANCIAL_KPIS.map(def => (
+            <KpiCard key={def.label} def={def} kpi={kpi} kpiPrev={kpiPrev} finance={finance} isLoading={isLoading} />
+          ))}
+        </div>
+      </div>
+
+      {/* Commercial KPIs */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">KPI Commerciali</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+          {COMMERCIAL_KPIS.map(def => (
+            <KpiCard key={def.label} def={def} kpi={kpi} kpiPrev={kpiPrev} finance={finance} isLoading={isLoading} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+});

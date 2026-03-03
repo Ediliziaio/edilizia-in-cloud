@@ -53,7 +53,7 @@ import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 
 import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { internalNavItems, marketingNavItems, type NavItem } from "@/lib/sidebarConfig";
+import { internalNavItems, marketingNavItems, cruscottoNavItem, type NavItem } from "@/lib/sidebarConfig";
 
 function ImpersonationBanner() {
   const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
@@ -105,6 +105,7 @@ function CompanySidebar() {
   };
 
   const isMarketingRoute = location.pathname.startsWith("/azienda/marketing");
+  const isCruscottoRoute = location.pathname.startsWith("/azienda/cruscotto");
 
   const filterNavItems = (items: NavItem[]) => {
     const messagingEnabled = (effectiveCompany as any)?.messaging_beta_enabled === true;
@@ -126,6 +127,7 @@ function CompanySidebar() {
   const messagingBetaEnabled = (effectiveCompany as any)?.messaging_beta_enabled;
   const visibleInternalItems = useMemo(() => filterNavItems(internalNavItems), [permissions, isModuleEnabled, companyId, messagingBetaEnabled]);
   const visibleMarketingItems = useMemo(() => filterNavItems(marketingNavItems), [permissions, isModuleEnabled, companyId, messagingBetaEnabled]);
+  const showCruscotto = permissions.canViewCruscotto;
 
   return (
     <Sidebar className="border-r">
@@ -308,8 +310,30 @@ function CompanySidebar() {
           </>
         ) : (
           <>
+            {/* Cruscotto Aziendale - standalone item above sections */}
+            {showCruscotto && (
+              <SidebarGroup className="pb-0">
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={cruscottoNavItem.url}
+                          className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          activeClassName="bg-primary/10 text-primary font-semibold"
+                        >
+                          <cruscottoNavItem.icon className="h-4 w-4" />
+                          <span className="font-medium">{cruscottoNavItem.title}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
+
             {/* Gestione Interna */}
-            <Collapsible defaultOpen={!isMarketingRoute}>
+            <Collapsible defaultOpen={!isMarketingRoute && !isCruscottoRoute}>
               <SidebarGroup>
                 <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
                   <span className="flex items-center gap-2">

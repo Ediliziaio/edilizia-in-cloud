@@ -15,6 +15,7 @@ import {
   Target,
   Bot,
   Mail,
+  Gauge,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
@@ -42,6 +43,14 @@ export const internalNavItems: NavItem[] = [
   { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", isBeta: true, category: "internal" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewSettings", category: "internal" },
 ];
+
+export const cruscottoNavItem: NavItem = {
+  title: "Cruscotto Aziendale",
+  url: "/azienda/cruscotto",
+  icon: Gauge,
+  permissionKey: "canViewCruscotto",
+  category: "internal",
+};
 
 export const marketingNavItems: NavItem[] = [
   { title: "Dashboard", url: "/azienda/marketing", icon: LayoutDashboard, permissionKey: "canViewMarketing", category: "marketing" },

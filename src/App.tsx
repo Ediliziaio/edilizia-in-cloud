@@ -46,6 +46,7 @@ const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 
 // Company
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
+const CruscottoAziendale = lazy(() => import("@/pages/azienda/CruscottoAziendale"));
 const SettingsProfile = lazy(() => import("@/pages/azienda/settings/SettingsProfile"));
 const SettingsCatalog = lazy(() => import("@/pages/azienda/settings/SettingsCatalog"));
 const SettingsOrderStatus = lazy(() => import("@/pages/azienda/settings/SettingsOrderStatus"));
@@ -217,6 +218,7 @@ const App = () => (
                 }
               >
                 <Route index element={<CompanyDashboard />} />
+                <Route path="cruscotto" element={<CruscottoAziendale />} />
                 <Route path="ordini" element={<OrdersList />} />
                 <Route path="ordini/nuovo" element={<CreateOrder />} />
                 <Route path="ordini/:id" element={<OrderDetail />} />

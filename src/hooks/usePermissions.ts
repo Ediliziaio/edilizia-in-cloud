@@ -19,6 +19,7 @@ export interface Permissions {
   canViewUsers: boolean;
   canViewMarketing: boolean;
   canEditMarketing: boolean;
+  canViewCruscotto: boolean;
   isAdmin: boolean;
   isLoading: boolean;
   onlyAssigned: boolean;
@@ -41,6 +42,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewUsers: true,
   canViewMarketing: true,
   canEditMarketing: true,
+  canViewCruscotto: true,
   isAdmin: true,
   isLoading: false,
   onlyAssigned: false,
@@ -63,6 +65,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewUsers: false,
   canViewMarketing: false,
   canEditMarketing: false,
+  canViewCruscotto: false,
   isAdmin: false,
   isLoading: false,
   onlyAssigned: false,
@@ -118,6 +121,7 @@ export function usePermissions(): Permissions {
       canViewUsers: false,
       canViewMarketing: permissions?.can_view_marketing ?? false,
       canEditMarketing: permissions?.can_edit_marketing ?? false,
+      canViewCruscotto: (permissions as any)?.can_view_cruscotto ?? false,
       isAdmin: false,
       isLoading: false,
       onlyAssigned: permissions?.only_assigned ?? false,

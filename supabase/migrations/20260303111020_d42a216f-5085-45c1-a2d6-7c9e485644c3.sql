@@ -1,0 +1,1 @@
+ALTER TABLE public.staff_permissions ADD COLUMN IF NOT EXISTS can_view_cruscotto boolean NOT NULL DEFAULT false;
