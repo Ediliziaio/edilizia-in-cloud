@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { AlertTriangle, Clock, CreditCard, TrendingDown, Users } from "lucide-react";
+import { AlertTriangle, Clock, CreditCard, TrendingDown, Users, CalendarCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { AlertsData } from "@/hooks/useMarketingDashboard";
@@ -39,6 +39,26 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         message: `${marketingAlerts.stale_leads} lead non contattati da 48h+`,
         action: "Assegnare follow-up immediato",
         link: "/azienda/marketing/contatti",
+      });
+    }
+    if ((marketingAlerts as any).stale_leads_2h > 0) {
+      alerts.push({
+        id: "stale-leads-2h",
+        level: "info",
+        icon: Clock,
+        message: `${(marketingAlerts as any).stale_leads_2h} lead nuovi non contattati da 2h`,
+        action: "Contattare prima che diventino freddi",
+        link: "/azienda/marketing/contatti",
+      });
+    }
+    if ((marketingAlerts as any).pending_appointments > 0) {
+      alerts.push({
+        id: "pending-appointments",
+        level: "warning",
+        icon: CalendarCheck,
+        message: `${(marketingAlerts as any).pending_appointments} appuntamenti passati non completati`,
+        action: "Aggiornare stato o riprogrammare",
+        link: "/azienda/marketing/calendario",
       });
     }
     if (marketingAlerts.stale_opportunities > 0) {
