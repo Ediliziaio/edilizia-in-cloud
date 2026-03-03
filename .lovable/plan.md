@@ -1,89 +1,33 @@
 
 
-# Miglioramento Dashboard Gestione Interna — Visione CEO
+# Analisi Pagamenti Fornitori — Findings
 
-## Analisi Attuale
+## Situazione Attuale
 
-La dashboard attuale ha:
-- 4 stat card (Ordini, Clienti, Ticket, Da Incassare)
-- Alert finanziari (pagamenti scaduti, uscite > entrate)
-- Ordini recenti, Previsionale incassi, Costi manodopera
-- Alert magazzino, Pagamenti fornitori, Azioni rapide
+Ci sono **due sezioni** che parlano di fornitori nella dashboard:
 
-**Cosa manca dal punto di vista di un CEO:**
+1. **Card "Pagamenti Fornitori"** (`SupplierPaymentsSummary.tsx`) — Questa e' **corretta**: raggruppa gli `order_items` per `supplier_id`, mostra pagato vs da pagare, con progress bar e metodo di pagamento. I dati arrivano direttamente dalla tabella `order_items` con join su `suppliers`.
 
-1. **Nessun KPI di fatturato/margine** — Un CEO vuole vedere *fatturato del mese*, *margine lordo*, *trend vs mese precedente*. Oggi questi dati esistono solo nella pagina Previsionale/Marginalità, non nella dashboard principale.
+2. **Widget "Scadenze Settimana" > sezione fornitori** — Questa ha un **problema di naming/dati**: la query (riga 145-151 di `CompanyDashboard.tsx`) legge da `company_costs` (costi aziendali generici), NON dai pagamenti fornitori reali (articoli degli ordini non pagati). Il campo si chiama `supplierPayments` ma mostra costi aziendali con scadenza entro 7 giorni.
 
-2. **Nessun delta temporale** — Tutti i numeri sono assoluti, senza confronto con il periodo precedente (↑/↓ rispetto al mese scorso). Un imprenditore ha bisogno di capire la direzione.
+## Problema Concreto
 
-3. **Cash flow troppo semplice** — Solo "questo mese" e "prossimo mese" senza mostrare le uscite. Il CEO vuole vedere il **saldo netto** (entrate - uscite), non solo le entrate.
+Quando un fornitore ha un articolo da pagare (es. Marysoryna con 5.100 EUR da pagare), questa scadenza **non appare** nel widget "Scadenze Settimana" perche' gli `order_items` non hanno un campo `due_date` — solo `is_paid`. Quindi le scadenze fornitori nel widget settimanale sono vuote a meno che non ci siano `company_costs` in scadenza.
 
-4. **"Azioni Rapide" occupa una colonna intera** — È essenzialmente una lista di 4 link. Spreco di spazio prezioso che potrebbe mostrare dati operativi.
+## Piano di Fix
 
-5. **Nessuna visione su attività/calendario** — Non ci sono task imminenti, appuntamenti del giorno, o scadenze della settimana.
+### Modificare `CompanyDashboard.tsx`
 
-6. **Nessun indicatore di performance team** — Quanti ordini chiusi questa settimana, tasso di avanzamento commesse, produttività.
+Aggiungere una query per `order_items` non pagati con `deposit_expected_date` / `balance_expected_date` dell'ordine padre entro 7 giorni, e unirli ai `company_costs` nella sezione `weeklySupplierPayments`. In alternativa, dato che gli order_items non hanno date di scadenza proprie, rinominare la sezione da "fornitori" a "Costi Aziendali" per riflettere i dati reali.
 
-## Piano di Miglioramento
+**Approccio consigliato**: rinominare `supplierPayments` in `companyCosts` nel `WeeklyDeadlines` component e aggiornare le icone/label per essere accurati. I pagamenti fornitori veri sono gia' visibili nella card `SupplierPaymentsSummary` dedicata.
 
-### 1. Nuova riga KPI "CEO Strip" (sopra tutto)
+### File da modificare
 
-Aggiungere un componente `DashboardCeoStrip.tsx` con 4 KPI con delta % vs mese precedente:
+| File | Modifica |
+|------|----------|
+| `WeeklyDeadlines.tsx` | Rinominare prop `supplierPayments` label da "Pagamento:" a "Costo:" e icona da `Truck` a icona costi |
+| `CompanyDashboard.tsx` | Nessun cambio strutturale — la query company_costs e' corretta per quello che mostra |
 
-| KPI | Calcolo | Delta |
-|-----|---------|-------|
-| Fatturato Mese | SUM total_amount ordini creati questo mese | vs mese precedente |
-| Margine Lordo % | Media margine da ordini con costi | vs mese precedente |
-| Saldo Cassa Netto | Entrate attese - Uscite attese (mese corrente) | — |
-| Ordini Chiusi Mese | COUNT ordini creati questo mese | vs mese precedente |
-
-Questi dati vengono calcolati nella query esistente, aggiungendo le query per il mese precedente.
-
-### 2. Migliorare il Cash Flow card → "Bilancio Mese"
-
-Trasformare la card "Previsionale Incassi" in un mini bilancio:
-- **Entrate attese**: come oggi
-- **Uscite attese**: costi fissi + fornitori + squadre + provvigioni (dati già disponibili in `useCashFlowData`)
-- **Saldo netto**: entrate - uscite, colorato verde/rosso
-- Progress bar visiva entrate vs uscite
-
-### 3. Sostituire "Azioni Rapide" con "Scadenze Settimana"
-
-Mostrare le prossime scadenze operative:
-- Pagamenti da incassare entro 7 giorni
-- Pagamenti fornitori in scadenza
-- Ordini con data lavori imminente
-
-Questo è molto più utile per un CEO che una lista di link (i link sono già nel menu laterale).
-
-### 4. Aggiungere delta % alle stat card esistenti
-
-Modificare le 4 stat card per mostrare un piccolo indicatore ↑/↓ con la variazione rispetto al mese precedente (verde = crescita, rosso = calo).
-
-### 5. Riordinare il layout
-
-```text
-┌──────────────────────────────────────────────────┐
-│  CEO Strip: Fatturato | Margine | Saldo | Ordini │  ← NUOVO
-├──────────────────────────────────────────────────┤
-│  Alert finanziari (se presenti)                  │
-├──────────────────────────────────────────────────┤
-│  Stat Cards: Ordini | Clienti | Ticket | Incasso │  ← con delta %
-├────────────┬────────────┬────────────────────────┤
-│  Ordini    │  Bilancio  │  Costi Manodopera      │
-│  Recenti   │  Mese      │                        │
-├────────────┼────────────┼────────────────────────┤
-│  Alert     │  Fornitori │  Scadenze Settimana    │  ← sostituisce
-│  Magazzino │            │                        │    Azioni Rapide
-└────────────┴────────────┴────────────────────────┘
-```
-
-### File da creare/modificare
-
-| Azione | File |
-|--------|------|
-| Creare | `src/components/dashboard/DashboardCeoStrip.tsx` |
-| Modificare | `src/pages/azienda/CompanyDashboard.tsx` (layout, query, delta %, rimozione Azioni Rapide, nuova sezione Scadenze) |
-
-La query esistente viene estesa con i dati del mese precedente per calcolare i delta. Nessuna migrazione DB necessaria — tutti i dati sono già nelle tabelle esistenti.
+Nessun cambio funzionale. Solo allineamento naming.
 
