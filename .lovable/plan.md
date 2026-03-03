@@ -1,33 +1,41 @@
 
 
-# Analisi Pagamenti Fornitori — Findings
+# Aggiunta Filtri alla Dashboard Gestione Interna
 
 ## Situazione Attuale
 
-Ci sono **due sezioni** che parlano di fornitori nella dashboard:
+La dashboard gestione interna (`CompanyDashboard.tsx`) non ha nessun filtro. Tutti i dati sono calcolati su periodi fissi (mese corrente, mese precedente, 7 giorni). La dashboard marketing ha invece un sistema di filtri con preset date, filtro utente, fonte e pipeline.
 
-1. **Card "Pagamenti Fornitori"** (`SupplierPaymentsSummary.tsx`) — Questa e' **corretta**: raggruppa gli `order_items` per `supplier_id`, mostra pagato vs da pagare, con progress bar e metodo di pagamento. I dati arrivano direttamente dalla tabella `order_items` con join su `suppliers`.
+## Piano
 
-2. **Widget "Scadenze Settimana" > sezione fornitori** — Questa ha un **problema di naming/dati**: la query (riga 145-151 di `CompanyDashboard.tsx`) legge da `company_costs` (costi aziendali generici), NON dai pagamenti fornitori reali (articoli degli ordini non pagati). Il campo si chiama `supplierPayments` ma mostra costi aziendali con scadenza entro 7 giorni.
+### 1. Creare `CompanyDashboardFilters.tsx`
 
-## Problema Concreto
+Nuovo componente filtri specifico per la dashboard gestione interna, con:
 
-Quando un fornitore ha un articolo da pagare (es. Marysoryna con 5.100 EUR da pagare), questa scadenza **non appare** nel widget "Scadenze Settimana" perche' gli `order_items` non hanno un campo `due_date` — solo `is_paid`. Quindi le scadenze fornitori nel widget settimanale sono vuote a meno che non ci siano `company_costs` in scadenza.
+- **Preset date**: Oggi, Ieri, 7 giorni, 30 giorni, Mese corrente, Personalizzato (stessa logica del marketing)
+- **Filtro stato ordine**: dropdown con gli stati ordine dell'azienda (dalla tabella `order_statuses`)
+- **Filtro cliente**: dropdown multi-select con i clienti dell'azienda
+- **Pulsante "Cancella filtri"** quando ci sono filtri attivi
 
-## Piano di Fix
+Non servono filtri "fonte" e "pipeline" (sono concetti del CRM marketing).
 
-### Modificare `CompanyDashboard.tsx`
+### 2. Aggiungere state dei filtri in `CompanyDashboard.tsx`
 
-Aggiungere una query per `order_items` non pagati con `deposit_expected_date` / `balance_expected_date` dell'ordine padre entro 7 giorni, e unirli ai `company_costs` nella sezione `weeklySupplierPayments`. In alternativa, dato che gli order_items non hanno date di scadenza proprie, rinominare la sezione da "fornitori" a "Costi Aziendali" per riflettere i dati reali.
+- Aggiungere `useState` per gestire `datePreset`, `dateFrom`, `dateTo`, `statusFilter`, `customerFilter`
+- Modificare la query principale per usare le date dai filtri invece dei calcoli fissi `thisMonthStart/thisMonthEnd`
+- Il periodo di confronto (delta %) viene calcolato automaticamente come lo stesso intervallo temporale spostato indietro
+- Passare i filtri come parametri alle query esistenti (aggiungere `.gte`/`.lte` su `created_at` e opzionalmente `.eq` su status/customer)
 
-**Approccio consigliato**: rinominare `supplierPayments` in `companyCosts` nel `WeeklyDeadlines` component e aggiornare le icone/label per essere accurati. I pagamenti fornitori veri sono gia' visibili nella card `SupplierPaymentsSummary` dedicata.
+### 3. Inserire il componente nel layout
 
-### File da modificare
+Posizionare `<CompanyDashboardFilters />` subito dopo l'header e prima della CEO Strip, come nella dashboard marketing.
 
-| File | Modifica |
-|------|----------|
-| `WeeklyDeadlines.tsx` | Rinominare prop `supplierPayments` label da "Pagamento:" a "Costo:" e icona da `Truck` a icona costi |
-| `CompanyDashboard.tsx` | Nessun cambio strutturale — la query company_costs e' corretta per quello che mostra |
+### File
 
-Nessun cambio funzionale. Solo allineamento naming.
+| Azione | File |
+|--------|------|
+| Creare | `src/components/dashboard/CompanyDashboardFilters.tsx` |
+| Modificare | `src/pages/azienda/CompanyDashboard.tsx` |
+
+Nessuna migrazione DB necessaria. Tutti i dati sono gia' disponibili nelle tabelle esistenti.
 
