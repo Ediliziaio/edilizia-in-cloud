@@ -1,69 +1,56 @@
 
 
-# Dashboard Marketing & Vendite — Enterprise 2.0
+# Dashboard Enterprise 2.0 — Stato e Piano Target Settimanali
 
-## Cosa cambia
+## Stato Attuale
 
-### 1. Nuovo layout sezioni (riordinamento)
-1. KPI Strategici (6 card grandi + card secondarie)
-2. Alert Operativi (3 livelli: critico/attenzione/informativo)
-3. Sintesi Strategica Automatica (nuovo)
-4. Funnel con evidenziazione collo di bottiglia
-5. Performance Commerciali (con show rate, media team, evidenziazione sopra/sotto media)
-6. Call Center
-7. Analisi Fonti + ROI % (colonna ROI, ordinamento per ROI)
-8. Forecast & Pipeline Value (nuovo)
-9. Trend Temporale (spostato in fondo)
+L'analisi del codice conferma che la **Dashboard Enterprise 2.0 è già completamente implementata** nelle iterazioni precedenti:
 
-### 2. Backend: aggiornare RPC `get_marketing_dashboard_stats`
+- **RPC `get_marketing_dashboard_stats`**: include pipeline_active_value, forecast_30d, forecast_min/max, avg_time_to_first_contact, avg_time_to_close, conversion rates, enhanced alerts (stale_leads_2h, show_rate_below_threshold, pipeline_declining), show_rate per commerciale, roi_pct per fonte
+- **DashboardStrategicKPI**: 6 card grandi con progress bar target e delta %
+- **DashboardForecast**: Pipeline + Forecast con range min/max e conversion rates
+- **DashboardInsights**: Sintesi strategica rule-based
+- **DashboardAlerts**: 3 livelli severità (critico/attenzione/informativo)
+- **DashboardFunnel**: Bottleneck evidenziato in rosso con avg_days_in_stage
+- **DashboardSalesTable**: Show rate, media team, evidenziazione sopra/sotto media
+- **DashboardSourcesTable**: ROI %, CPL, CPA con ordinamento per ROI
+- **DashboardCallCenter**: Tabella operatori completa
+- **Layout**: ordine corretto (KPI → Alert → Insights → Funnel+Forecast → Sales → CallCenter → Sources → Trend)
 
-Aggiungere al JSON di ritorno:
-- `pipeline_active_value`: SUM(value) da marketing_opportunities WHERE status='open'
-- `avg_time_to_first_contact`: media tempo tra created_at contatto e prima activity
-- `avg_time_to_close`: media tempo tra created_at opportunità e updated_at quando status='won'
-- `lead_to_appointment_rate`: appointments_set / leads_new * 100
-- `appointment_to_contract_rate`: contracts_won / appointments_done * 100
-- `lead_to_contract_rate`: contracts_won / leads_new * 100
-- `forecast_30d`: stima basata su close_rate * avg_ticket * opportunità in fasi avanzate
-- `forecast_min` / `forecast_max`: intervallo ±20%
-- Alert aggiuntivi: `stale_leads_2h`, `show_rate_below_threshold`, `pipeline_declining`
-- Per sales_performance: aggiungere `show_rate` per utente
-- Per sources: aggiungere `roi_pct` calcolato
+## Unica feature mancante: Target Settimanali Configurabili
 
-### 3. UI: file da creare
+### 1. Migrazione DB: tabella `sales_targets`
 
-**Nuovi componenti:**
-- `DashboardStrategicKPI.tsx` — 6 card grandi (Fatturato, Vinti, Pipeline Attiva, Forecast, Chiusura %, Show Rate) con progress bar target
-- `DashboardForecast.tsx` — Card Forecast & Pipeline Value con barra min/max
-- `DashboardInsights.tsx` — Box "Sintesi Strategica" con insight rule-based generati dai dati
+Nuova tabella con:
+- `id`, `company_id`, `user_id`, `period_type` (weekly/monthly)
+- `target_revenue`, `target_contracts`, `target_appointments`, `target_calls`
+- RLS: SELECT per tutti i membri del company, ALL per admin
+- Unique constraint su `(company_id, user_id, period_type)`
 
-### 4. UI: file da modificare
+### 2. Nuovo componente: `SalesTargetsDialog.tsx`
 
-- `MarketingDashboard.tsx` — nuovo ordine sezioni + import nuovi componenti
-- `DashboardKPICards.tsx` — diventa card secondarie (Lead, Nuovi, Lavorati, CPL, CPA, ecc.)
-- `DashboardAlerts.tsx` — 3 livelli severità + nuovi alert + spostato sotto KPI
-- `DashboardFunnel.tsx` — evidenziare fase con conversione più bassa in rosso + tooltip "collo di bottiglia" + tempo medio in fase
-- `DashboardSalesTable.tsx` — aggiungere show rate, evidenziare sopra/sotto media team
-- `DashboardSourcesTable.tsx` — aggiungere colonna ROI %, ordinamento default per ROI
-- `useMarketingDashboard.ts` — nuovi tipi per dati aggiuntivi (pipeline_active_value, forecast, insights)
+Dialog accessibile dal header della dashboard (pulsante "Target") che permette di configurare target settimanali per ogni commerciale:
+- Carica la lista team members + target esistenti
+- Form con input per Fatturato, Contratti, Appuntamenti per ogni utente
+- Upsert su salvataggio
 
-### 5. Migrazione DB
+### 3. Modifica: `DashboardSalesTable.tsx`
 
-Una singola migrazione che fa `CREATE OR REPLACE FUNCTION get_marketing_dashboard_stats(...)` con tutti i nuovi campi calcolati. Nessuna nuova tabella necessaria.
+- Fetch `sales_targets` per il company_id
+- Per ogni commerciale mostra colonna "Target" e "% Completamento"
+- Progress bar colorata: verde >80%, giallo 50-80%, rosso <50%
 
-### 6. Riepilogo file
+### 4. Modifica: `MarketingDashboard.tsx`
+
+- Import e rendering di `SalesTargetsDialog` nel header, accanto ai pulsanti Aggiorna/Esporta
+- Visibile solo per admin (`permissions.isAdmin`)
+
+### 5. Riepilogo file
 
 | Azione | File |
 |--------|------|
-| Crea | `DashboardStrategicKPI.tsx` |
-| Crea | `DashboardForecast.tsx` |
-| Crea | `DashboardInsights.tsx` |
-| Modifica | `MarketingDashboard.tsx` |
-| Modifica | `useMarketingDashboard.ts` |
-| Modifica | `DashboardKPICards.tsx` |
-| Modifica | `DashboardAlerts.tsx` |
-| Modifica | `DashboardFunnel.tsx` |
-| Modifica | `DashboardSalesTable.tsx` |
-| Modifica | `DashboardSourcesTable.tsx` |
-| Migrazione | RPC `get_marketing_dashboard_stats` |
+| Migrazione | Tabella `sales_targets` + RLS + indici |
+| Crea | `SalesTargetsDialog.tsx` |
+| Modifica | `DashboardSalesTable.tsx` — colonna target + progress |
+| Modifica | `MarketingDashboard.tsx` — pulsante Target nel header |
 
