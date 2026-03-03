@@ -675,6 +675,98 @@ export type Database = {
           },
         ]
       }
+      call_logs: {
+        Row: {
+          company_id: string
+          contact_id: string | null
+          created_at: string
+          duration_sec: number
+          id: string
+          notes: string | null
+          outcome: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          contact_id?: string | null
+          created_at?: string
+          duration_sec?: number
+          id?: string
+          notes?: string | null
+          outcome?: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string | null
+          created_at?: string
+          duration_sec?: number
+          id?: string
+          notes?: string | null
+          outcome?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_costs: {
+        Row: {
+          campaign_name: string | null
+          company_id: string
+          created_at: string
+          date: string
+          id: string
+          notes: string | null
+          source: string
+          spend_amount: number
+        }
+        Insert: {
+          campaign_name?: string | null
+          company_id: string
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          source: string
+          spend_amount?: number
+        }
+        Update: {
+          campaign_name?: string | null
+          company_id?: string
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          source?: string
+          spend_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_costs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           bank_account_holder: string | null

@@ -27,6 +27,12 @@ export interface KpiData {
   revenue: number;
   avg_ticket: number;
   close_rate: number;
+  total_spend: number;
+  cpl: number;
+  cpa: number;
+  calls_total: number;
+  calls_answered: number;
+  contact_rate: number;
 }
 
 export interface FunnelStage {
@@ -51,6 +57,16 @@ export interface SourceAnalysis {
   leads: number;
   contracts_won: number;
   revenue: number;
+  spend: number;
+}
+
+export interface CallCenterRow {
+  user_id: string;
+  name: string;
+  calls_total: number;
+  calls_answered: number;
+  avg_duration_sec: number;
+  appointments_set: number;
 }
 
 export interface AlertsData {
@@ -72,6 +88,7 @@ export interface DashboardStats {
   funnel: FunnelStage[];
   sales_performance: SalesPerformance[];
   sources: SourceAnalysis[];
+  call_center: CallCenterRow[];
   alerts: AlertsData;
   trend: TrendPoint[];
 }
@@ -112,7 +129,6 @@ export function useMarketingDashboard() {
 
   const dateRange = useMemo(() => getDateRange(filters.datePreset, filters.dateFrom, filters.dateTo), [filters.datePreset, filters.dateFrom, filters.dateTo]);
 
-  // If only_assigned, force filter to current user
   const effectiveAssignedIds = useMemo(() => {
     if (permissions.onlyAssigned && user?.id) {
       return [user.id];
