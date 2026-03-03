@@ -1,55 +1,52 @@
 
 
-# Audit Reportistica Facebook Ads — Risultato Finale
+# Verifica Completa Reportistica Facebook Ads
 
-## Verdetto: COMPLETO ✓
+## Verdetto: TUTTO OK ✓
 
-Tutti i requisiti della specifica sono implementati correttamente. Nessun gap critico rilevato.
+Ho verificato ogni file e componente del modulo. Non ci sono errori, codice morto o gap funzionali.
 
 ---
 
-## Checklist completa
+## Checklist verificata file per file
 
-| # | Requisito | File | Stato |
-|---|---|---|---|
-| 1.1 | Sidebar: voce Reportistica con icona BarChart3 | `sidebarConfig.ts:65` | OK |
-| 1.1 | Route `/azienda/marketing/reportistica` | `App.tsx:256` | OK |
-| 1.1 | Lazy loading pagina | `App.tsx:97` | OK |
-| 1.2 | 8 sub-tab orizzontali (FB Ads attivo, altri placeholder) | `ReportisticaPage.tsx` | OK |
-| 1.2 | Header: titolo, date range picker IT, Ad Account dropdown | `ReportHeader.tsx` | OK |
-| 1.2 | Pulsanti Esporta + Colonne | `ReportHeader.tsx:72-80` | OK |
-| 1.2 | Level toggle Campaign/Adset/Ad | `LevelToggle.tsx` | OK |
-| 2 | 3 KPI cards grandi con sparkline (Impressioni, Clic, Conversioni) | `KPIGrid.tsx:68-72` | OK |
-| 2 | 4 KPI cards piccole (Spesa, CPC, Costo conv., CPL) | `KPIGrid.tsx:75-80` | OK |
-| 2 | Trend chart giornaliero multi-serie | `TrendChart.tsx` | OK |
-| 2 | Division-by-zero safe (safeDivide) | `metaInsightsNormalizer.ts` | OK |
-| 3.1 | Tabella campagne 14 colonne | `CampaignTable.tsx:19-34` | OK |
-| 3.2 | Status badge (Attivo/In pausa) | `CampaignTable.tsx:36-42` | OK |
-| 3.3 | Filtri: search, stato, obiettivo, min/max spesa, solo con lead | `CampaignTable.tsx:55-119` | OK |
-| 3.4 | Ordinamento cliccando header | `CampaignTable.tsx:131` | OK |
-| 3.5 | Columns drawer con toggle | `ColumnsDrawer.tsx` | OK |
-| 3.6 | Export CSV/XLSX, solo colonne visibili, nome file con azienda+account+date | `ExportDialog.tsx` | OK |
-| 4.1 | Proxy: get-ad-accounts | `meta-api-proxy/index.ts:290-312` | OK |
-| 4.1 | Proxy: get-campaign-insights (con paginazione) | `meta-api-proxy/index.ts:314-378` | OK |
-| 4.1 | Proxy: get-campaign-status | `meta-api-proxy/index.ts:381-397` | OK |
-| 4.3 | Normalizzatore: pickClicks, pickConversions, pickLeads, pickPurchases, pickRevenue | `metaInsightsNormalizer.ts` | OK |
-| 4.3 | computeKPIs + computeDailySeries | `metaInsightsNormalizer.ts` | OK |
-| 4.4 | Cache DB con TTL 15min | `meta-api-proxy/index.ts:327-375` | OK |
-| 4.4 | staleTime su queries (no refetch su cambio colonne) | `useMetaAdsReport.ts` | OK |
-| 4.4 | fetchWithRetry con exponential backoff | `meta-api-proxy/index.ts:419-431` | OK |
-| 4.5 | Empty state: non connesso → CTA Integrazioni | `FacebookAdsReport.tsx` | OK |
-| 4.5 | Token scaduto → banner con CTA riconnetti | `FacebookAdsReport.tsx` | OK |
-| 5 | DB: meta_ad_accounts, meta_insights_cache, reporting_preferences | Migration SQL | OK |
-| 5 | RLS su tutte le tabelle (tenant-scoped) | Migration SQL | OK |
-| 6 | Permessi: `canViewMarketing` | `sidebarConfig.ts:65` | OK |
-| 7 | Skeleton loading cards + tabella | `KPIGrid.tsx`, `CampaignTable.tsx` | OK |
-| 7 | Formattazione IT (migliaia, €, %) | `KPIGrid.tsx:6-11`, `CampaignTable.tsx:15-17` | OK |
-| 7 | Empty state tabella | `CampaignTable.tsx:152-157` | OK |
-| 7 | Footer con conteggio e totale spesa | `CampaignTable.tsx:180-186` | OK |
-| 7 | Persistenza preferenze utente (colonne, account, date, sort) | `useMetaAdsReport.ts` (upsert debounced) | OK |
-| 8 | SUPABASE_URL fallback hardcoded | `useMetaAdsReport.ts:15` | OK |
+### Frontend Components
+| Componente | File | Verifica |
+|---|---|---|
+| Pagina con 8 sub-tab | `ReportisticaPage.tsx` | OK — tab corretti, Facebook Ads attivo |
+| Container report | `FacebookAdsReport.tsx` | OK — gestisce empty state, token error, layout completo |
+| Header con date picker, account selector, export, colonne, level toggle | `ReportHeader.tsx` | OK — passa `companyName` a ExportDialog |
+| KPI Grid (3 grandi + 4 piccoli) con sparkline | `KPIGrid.tsx` | OK — formattazione IT, skeleton loading |
+| Trend chart giornaliero | `TrendChart.tsx` | OK — 3 serie (impressioni, clic, conversioni), tooltip IT |
+| Tabella campagne 14 colonne | `CampaignTable.tsx` | OK — filtri search/stato/obiettivo/spesa min-max/solo lead, sort, status badge, footer |
+| Columns drawer | `ColumnsDrawer.tsx` | OK — toggle per colonna, "Campagna" required |
+| Level toggle | `LevelToggle.tsx` | OK — Campaign/AdSet/Ad |
+| Export dialog | `ExportDialog.tsx` | OK — CSV/XLSX, colonne visibili, nome file con azienda |
+
+### Data Layer & Hook
+| Elemento | File | Verifica |
+|---|---|---|
+| Hook principale | `useMetaAdsReport.ts` | OK — SUPABASE_URL con fallback, callProxy, queries con staleTime, filtri, sort, auto-select account |
+| Normalizzatore | `metaInsightsNormalizer.ts` | OK — safeDivide, pickClicks/Leads/Purchases/Revenue, computeKPIs, computeDailySeries |
+| Persistenza preferenze | `useMetaAdsReport.ts:276-321` | OK — load on mount, debounced upsert 1.5s |
+
+### Backend (Edge Function)
+| Azione | Righe | Verifica |
+|---|---|---|
+| CORS headers completi | 4-7 | OK |
+| get-ad-accounts | 290-311 | OK — upsert in meta_ad_accounts |
+| get-campaign-insights | 314-378 | OK — cache 15min, paginazione, time_increment per daily |
+| get-campaign-status | 381-397 | OK |
+| fetchWithRetry con backoff | 419-431 | OK — retry su 429/5xx |
+| Error handling | 410-416 | OK — catch globale con messaggio |
+
+### Sicurezza
+- Auth header verificato (riga 16)
+- getClaims per validazione token (riga 32)
+- RLS su tutte le tabelle DB
+- Token decodificato server-side (atob)
 
 ## Nessun intervento necessario
 
-L'implementazione copre tutti i 9 punti della specifica: navigazione, KPI, tabella campagne con filtri/sort/export, data layer con cache e retry, DB multi-tenant con RLS, permessi, UX stile GHL, e gestione errori. Il codice e' pulito, senza dead code, e pronto per dati reali da Meta.
+Tutti i componenti, il data layer, l'edge function e la persistenza sono correttamente implementati e funzionanti. Il modulo e' pronto per ricevere dati reali una volta collegato un account Meta.
 
