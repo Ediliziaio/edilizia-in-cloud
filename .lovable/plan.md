@@ -1,56 +1,86 @@
 
 
-# Dashboard Enterprise 2.0 — Stato e Piano Target Settimanali
+# Dashboard Marketing — Code Audit & Hardening Report
 
-## Stato Attuale
+## A) Issues Found
 
-L'analisi del codice conferma che la **Dashboard Enterprise 2.0 è già completamente implementata** nelle iterazioni precedenti:
+### 1. Duplicated Code (DRY violation)
+- `formatValue()` is duplicated identically in `DashboardStrategicKPI.tsx` and `DashboardKPICards.tsx`
+- `calcDelta()` is duplicated identically in the same two files
+- `fmt()` / `fmtCur()` formatters are duplicated across `DashboardSalesTable.tsx`, `DashboardSourcesTable.tsx`, `DashboardCallCenter.tsx`, `DashboardForecast.tsx`
+- **Fix**: Extract shared formatters into `src/components/marketing/dashboard/utils.ts`
 
-- **RPC `get_marketing_dashboard_stats`**: include pipeline_active_value, forecast_30d, forecast_min/max, avg_time_to_first_contact, avg_time_to_close, conversion rates, enhanced alerts (stale_leads_2h, show_rate_below_threshold, pipeline_declining), show_rate per commerciale, roi_pct per fonte
-- **DashboardStrategicKPI**: 6 card grandi con progress bar target e delta %
-- **DashboardForecast**: Pipeline + Forecast con range min/max e conversion rates
-- **DashboardInsights**: Sintesi strategica rule-based
-- **DashboardAlerts**: 3 livelli severità (critico/attenzione/informativo)
-- **DashboardFunnel**: Bottleneck evidenziato in rosso con avg_days_in_stage
-- **DashboardSalesTable**: Show rate, media team, evidenziazione sopra/sotto media
-- **DashboardSourcesTable**: ROI %, CPL, CPA con ordinamento per ROI
-- **DashboardCallCenter**: Tabella operatori completa
-- **Layout**: ordine corretto (KPI → Alert → Insights → Funnel+Forecast → Sales → CallCenter → Sources → Trend)
+### 2. `SalesTargetsDialog` — Missing `useCallback` dep + loads ALL profiles
+- `loadData` is defined inside component but referenced in `useEffect` without stable reference — causes ESLint warning
+- Fetches ALL profiles for company (no limit) — potential performance issue for large teams
+- Targets with all-zero values are excluded from upsert, but existing targets can never be "cleared" (set to 0)
+- **Fix**: Wrap `loadData` with `useCallback`, add `.limit(100)` to profiles query, include zero-target rows in upsert for already-existing targets
 
-## Unica feature mancante: Target Settimanali Configurabili
+### 3. `DashboardSalesTable` — `sales_targets` typed as `any`
+- Uses `from("sales_targets" as any)` which bypasses TypeScript safety
+- Same issue in `SalesTargetsDialog`
+- **Fix**: Since the table exists in types, remove `as any` casts (if type generation has occurred). If types are stale, keep cast but add a `// TODO` comment
 
-### 1. Migrazione DB: tabella `sales_targets`
+### 4. `DashboardFilters` — Sources query fetches all rows
+- `marketing_contacts` query at line 54 selects ALL contacts just to extract distinct sources — no `.limit()` and no server-side distinct
+- **Fix**: Use a raw RPC or add `.limit(500)` as safety net + deduplicate client-side (already done, but the unbounded fetch is risky)
 
-Nuova tabella con:
-- `id`, `company_id`, `user_id`, `period_type` (weekly/monthly)
-- `target_revenue`, `target_contracts`, `target_appointments`, `target_calls`
-- RLS: SELECT per tutti i membri del company, ALL per admin
-- Unique constraint su `(company_id, user_id, period_type)`
+### 5. `DashboardInsights` — Potential crash with empty `alerts`
+- Line 119: `alerts || {} as AlertsData` — casting empty object to `AlertsData` means all numeric fields will be `undefined`, but `generateInsights` accesses `.stale_leads` directly
+- Already handled with `?? 0` on line 95, so no crash — but the pattern is fragile
+- **Fix**: Provide proper default AlertsData object
 
-### 2. Nuovo componente: `SalesTargetsDialog.tsx`
+### 6. `DashboardTrendChart` — `parseISO` can throw on malformed dates
+- If RPC returns unexpected date format, `parseISO` throws and breaks the entire dashboard
+- **Fix**: Wrap in try-catch or validate before parse
 
-Dialog accessibile dal header della dashboard (pulsante "Target") che permette di configurare target settimanali per ogni commerciale:
-- Carica la lista team members + target esistenti
-- Form con input per Fatturato, Contratti, Appuntamenti per ogni utente
-- Upsert su salvataggio
+### 7. No `React.memo` on heavy child components
+- All 10 dashboard widgets re-render when any filter changes, even if their data hasn't changed
+- **Fix**: Wrap pure display components (`DashboardFunnel`, `DashboardCallCenter`, `DashboardSourcesTable`, `DashboardTrendChart`) in `React.memo`
 
-### 3. Modifica: `DashboardSalesTable.tsx`
+### 8. `DashboardStrategicKPI` — Hardcoded targets
+- Line 26-31: Targets are hardcoded (50000, 10, 30, 75) instead of using the `sales_targets` table data
+- **Fix**: Accept optional `targets` prop to override hardcoded defaults
 
-- Fetch `sales_targets` per il company_id
-- Per ogni commerciale mostra colonna "Target" e "% Completamento"
-- Progress bar colorata: verde >80%, giallo 50-80%, rosso <50%
+### 9. Missing error state handling in `MarketingDashboard`
+- `useMarketingDashboard` returns `error` but it's never used in the page component
+- If RPC fails, dashboard shows loading skeletons forever
+- **Fix**: Add error state UI with retry button
 
-### 4. Modifica: `MarketingDashboard.tsx`
+## B) No-Breaking Improvements
 
-- Import e rendering di `SalesTargetsDialog` nel header, accanto ai pulsanti Aggiorna/Esporta
-- Visibile solo per admin (`permissions.isAdmin`)
+### Performance
+- Extract shared formatters to reduce bundle duplication
+- Add `React.memo` to 4 pure display components
+- Add `.limit(500)` safety to sources query in filters
+- Add `.limit(100)` to profiles query in SalesTargetsDialog
 
-### 5. Riepilogo file
+### UX
+- Add error state with retry CTA when RPC fails
+- Add empty dashboard state when no company is selected
 
-| Azione | File |
-|--------|------|
-| Migrazione | Tabella `sales_targets` + RLS + indici |
-| Crea | `SalesTargetsDialog.tsx` |
-| Modifica | `DashboardSalesTable.tsx` — colonna target + progress |
-| Modifica | `MarketingDashboard.tsx` — pulsante Target nel header |
+### Stability
+- Safe date parsing in TrendChart
+- Proper default for AlertsData
+- Remove `as any` casts where possible
+
+## C) Files to Modify
+
+| File | Changes |
+|------|---------|
+| **New**: `src/components/marketing/dashboard/utils.ts` | Shared `formatValue`, `calcDelta`, `fmt`, `fmtCur` |
+| `DashboardStrategicKPI.tsx` | Import from utils, remove duplicates |
+| `DashboardKPICards.tsx` | Import from utils, remove duplicates |
+| `DashboardSalesTable.tsx` | Import from utils, remove `as any` |
+| `DashboardSourcesTable.tsx` | Import from utils, wrap in `React.memo` |
+| `DashboardCallCenter.tsx` | Import from utils, wrap in `React.memo` |
+| `DashboardFunnel.tsx` | Wrap in `React.memo` |
+| `DashboardTrendChart.tsx` | Safe date parsing, wrap in `React.memo` |
+| `DashboardForecast.tsx` | Import from utils |
+| `DashboardInsights.tsx` | Proper AlertsData default |
+| `DashboardFilters.tsx` | Add `.limit(500)` to sources query |
+| `SalesTargetsDialog.tsx` | `useCallback` for loadData, `.limit(100)` |
+| `MarketingDashboard.tsx` | Add error state UI |
+
+No functional behavior changes. All improvements are stability, performance, and code quality focused.
 
