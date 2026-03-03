@@ -1,76 +1,38 @@
 
 
-# Analisi "Tempo Medio di Chiusura" + Miglioramenti Statistici Esperti
+# Audit & Hardening — Dashboard Marketing & Vendite
 
-## Problema Attuale
+## Analisi Completata
 
-Il KPI `avg_time_to_close` nella RPC calcola:
-```
-AVG(opportunity.updated_at - opportunity.created_at)
-```
-Questo misura il tempo **dalla creazione dell'opportunità** al cambio stato in "won". Ma il ciclo di vendita reale parte **dal primo contatto del lead** (`marketing_contacts.created_at`), non dalla creazione dell'opportunità.
+Ho letto tutti i 13 file della sezione dashboard. Il codice è già in buono stato grazie ai precedenti round di hardening. Rimangono alcune pulizie e fix minori.
 
-## Piano di Miglioramento
+## Issues Trovate
 
-### 1. Fix RPC: Tempo medio corretto (lead → won)
+### Codice Morto / Ridondante
+- **`DashboardKPICards.tsx`**: la card `show_rate` è duplicata — già presente in `DashboardStrategicKPI.tsx` come KPI strategico. Rimuoverla dalla lista secondaria.
 
-Aggiornare `get_marketing_dashboard_stats` per calcolare:
-- **`avg_lead_to_won_days`**: media dei giorni da `marketing_contacts.created_at` a `marketing_opportunities.updated_at` (solo status='won'), tramite JOIN su `contact_id`
-- **`median_lead_to_won_days`**: mediana (più robusta della media, non viene distorta da outlier estremi)
-- Mantenere anche `avg_time_to_close` attuale (opportunità → won) come KPI secondario rinominato "Tempo in Pipeline"
+### Bug / Edge Cases
+- **`SalesTargetsDialog.tsx`**: gli `Input` mostrano `value={r.target_revenue || ""}` — quando il valore è `0`, il campo appare vuoto anziché mostrare `0`. L'utente non distingue "non configurato" da "target zero".
+- **`MarketingDashboard.tsx`**: se `companyId` è `null` (nessuna azienda selezionata), la dashboard mostra skeleton infinito perché la query è `enabled: false` ma `isLoading` parte come `true` in quel caso. Serve empty state.
+- **`DashboardStrategicKPI.tsx`**: i target sono hardcoded (50000, 10, 30, 75). Non si aggiornano quando l'admin configura target diversi nel dialog.
 
-### 2. Nuovo KPI: Sales Velocity
+### Performance
+- **`DashboardFilters.tsx`**: le callback `toggleUser` e `toggleSource` vengono ricreate ad ogni render, causando re-render nei figli. Wrappare con `useCallback`.
+- **`DashboardKPICards.tsx`** e **`DashboardStrategicKPI.tsx`** non sono wrappati in `React.memo` (tutti gli altri widget lo sono).
 
-Formula standard di sales analytics:
-```
-Sales Velocity = (N° opportunità aperte × Win Rate × Ticket Medio) / Ciclo Medio (gg)
-```
-Un singolo numero in €/giorno che indica la velocità con cui la pipeline genera fatturato. Calcolato nella RPC.
+### TypeScript / Pulizia
+- **`SalesTargetsDialog.tsx`** e **`DashboardSalesTable.tsx`**: `as any` su `sales_targets` — aggiungere `// TODO: remove when types are regenerated` per chiarezza, dato che non possiamo modificare il file types.
 
-### 3. Nuovo KPI: Revenue per Lead (RPL)
+## Piano Modifiche
 
-```
-RPL = Fatturato Totale / Lead Nuovi
-```
-Indica il valore economico medio generato da ogni lead acquisito, indipendentemente dalla conversione. Utile per valutare la qualità delle fonti.
+| File | Modifica |
+|------|----------|
+| `DashboardKPICards.tsx` | Rimuovere `show_rate` dalla lista (duplicata). Wrappare in `React.memo`. |
+| `DashboardStrategicKPI.tsx` | Wrappare in `React.memo`. |
+| `DashboardFilters.tsx` | `useCallback` su `toggleUser`, `toggleSource`. |
+| `SalesTargetsDialog.tsx` | Fix input value: `value={r.target_revenue}` (senza `|| ""`). Commento TODO su `as any`. |
+| `DashboardSalesTable.tsx` | Commento TODO su `as any`. |
+| `MarketingDashboard.tsx` | Aggiungere empty state se `!companyId`. |
 
-### 4. Pipeline Pesata (Weighted Pipeline)
-
-Attualmente la pipeline mostra solo il valore delle opportunità aperte. Una pipeline pesata moltiplica il valore di ogni opportunità per la probabilità di chiusura basata sulla posizione nel funnel:
-- Stage iniziale → 10-20%
-- Stage intermedio → 40-60%  
-- Stage avanzato → 70-90%
-
-Calcolata nella RPC assegnando peso proporzionale alla posizione dello stage.
-
-### 5. UI: Sezione "Ciclo di Vendita" nel Forecast
-
-Sostituire i 2 box "Tempo medio 1° contatto" e "Tempo medio chiusura" con una sezione più ricca:
-
-| Metrica | Descrizione |
-|---------|-------------|
-| Ciclo Medio Lead→Won | Media giorni dal lead al contratto |
-| Mediana Ciclo | Più affidabile della media |
-| Tempo in Pipeline | Dalla creazione opportunità al won |
-| Sales Velocity | €/giorno generati dalla pipeline |
-| Revenue per Lead | Fatturato / Lead nuovi |
-| Pipeline Pesata | Valore ponderato per probabilità |
-
-### 6. Insight automatici aggiuntivi
-
-Nuove regole in `DashboardInsights`:
-- Se mediana ciclo > 30gg → warning "Ciclo di vendita lungo"
-- Se sales velocity in calo vs periodo precedente → alert
-- Se RPL < CPL → warning "Il costo per lead supera il valore generato"
-
-### File da modificare
-
-| Azione | File |
-|--------|------|
-| Migrazione | RPC `get_marketing_dashboard_stats` (nuovi campi) |
-| Modifica | `useMarketingDashboard.ts` (tipi KpiData) |
-| Modifica | `DashboardForecast.tsx` (sezione ciclo vendita arricchita) |
-| Modifica | `DashboardKPICards.tsx` (RPL card) |
-| Modifica | `DashboardInsights.tsx` (nuove regole) |
-| Modifica | `MarketingDashboard.tsx` (export CSV) |
+Nessun cambio funzionale. Solo stabilità, pulizia e micro-ottimizzazioni UX.
 
