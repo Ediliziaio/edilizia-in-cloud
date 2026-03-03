@@ -1,68 +1,69 @@
 
 
-# Dashboard Marketing & Vendite — Upgrade Completo
+# Dashboard Marketing & Vendite — Enterprise 2.0
 
-## Stato attuale
+## Cosa cambia
 
-La dashboard esiste con: KPI Cards (10 metriche), Funnel, Trend Chart, Sales Table, Sources Table, Alerts. I filtri hanno solo DateRange presets. Mancano le tabelle `call_logs` e `campaign_costs`, e i filtri avanzati (utente, fonte, pipeline, area geografica).
+### 1. Nuovo layout sezioni (riordinamento)
+1. KPI Strategici (6 card grandi + card secondarie)
+2. Alert Operativi (3 livelli: critico/attenzione/informativo)
+3. Sintesi Strategica Automatica (nuovo)
+4. Funnel con evidenziazione collo di bottiglia
+5. Performance Commerciali (con show rate, media team, evidenziazione sopra/sotto media)
+6. Call Center
+7. Analisi Fonti + ROI % (colonna ROI, ordinamento per ROI)
+8. Forecast & Pipeline Value (nuovo)
+9. Trend Temporale (spostato in fondo)
 
-## Piano di implementazione
+### 2. Backend: aggiornare RPC `get_marketing_dashboard_stats`
 
-### 1. Nuove tabelle DB
+Aggiungere al JSON di ritorno:
+- `pipeline_active_value`: SUM(value) da marketing_opportunities WHERE status='open'
+- `avg_time_to_first_contact`: media tempo tra created_at contatto e prima activity
+- `avg_time_to_close`: media tempo tra created_at opportunità e updated_at quando status='won'
+- `lead_to_appointment_rate`: appointments_set / leads_new * 100
+- `appointment_to_contract_rate`: contracts_won / appointments_done * 100
+- `lead_to_contract_rate`: contracts_won / leads_new * 100
+- `forecast_30d`: stima basata su close_rate * avg_ticket * opportunità in fasi avanzate
+- `forecast_min` / `forecast_max`: intervallo ±20%
+- Alert aggiuntivi: `stale_leads_2h`, `show_rate_below_threshold`, `pipeline_declining`
+- Per sales_performance: aggiungere `show_rate` per utente
+- Per sources: aggiungere `roi_pct` calcolato
 
-**`call_logs`**:
-- `id` uuid PK, `company_id` uuid FK, `user_id` uuid FK (operatore), `contact_id` uuid FK nullable
-- `started_at` timestamptz, `duration_sec` int, `outcome` text (answered/no_answer/busy/voicemail)
-- `notes` text nullable, `created_at` timestamptz
-- RLS: company_id match + check_staff_visibility
+### 3. UI: file da creare
 
-**`campaign_costs`**:
-- `id` uuid PK, `company_id` uuid FK, `source` text, `campaign_name` text nullable
-- `date` date, `spend_amount` numeric, `notes` text nullable, `created_at` timestamptz
-- RLS: company_id match
+**Nuovi componenti:**
+- `DashboardStrategicKPI.tsx` — 6 card grandi (Fatturato, Vinti, Pipeline Attiva, Forecast, Chiusura %, Show Rate) con progress bar target
+- `DashboardForecast.tsx` — Card Forecast & Pipeline Value con barra min/max
+- `DashboardInsights.tsx` — Box "Sintesi Strategica" con insight rule-based generati dai dati
 
-### 2. Filtri avanzati in DashboardFilters
+### 4. UI: file da modificare
 
-Aggiungere multi-select dropdown per:
-- **Utente assegnato** (query profiles del tenant)
-- **Fonte** (query distinct sources da marketing_contacts)
-- **Pipeline** (query marketing_pipelines del tenant)
+- `MarketingDashboard.tsx` — nuovo ordine sezioni + import nuovi componenti
+- `DashboardKPICards.tsx` — diventa card secondarie (Lead, Nuovi, Lavorati, CPL, CPA, ecc.)
+- `DashboardAlerts.tsx` — 3 livelli severità + nuovi alert + spostato sotto KPI
+- `DashboardFunnel.tsx` — evidenziare fase con conversione più bassa in rosso + tooltip "collo di bottiglia" + tempo medio in fase
+- `DashboardSalesTable.tsx` — aggiungere show rate, evidenziare sopra/sotto media team
+- `DashboardSourcesTable.tsx` — aggiungere colonna ROI %, ordinamento default per ROI
+- `useMarketingDashboard.ts` — nuovi tipi per dati aggiuntivi (pipeline_active_value, forecast, insights)
 
-I filtri esistono gia' nello state (`assignedUserIds`, `sources`, `pipelineId`) ma la UI non li mostra.
+### 5. Migrazione DB
 
-### 3. Nuovi KPI: CPL e CPA
+Una singola migrazione che fa `CREATE OR REPLACE FUNCTION get_marketing_dashboard_stats(...)` con tutti i nuovi campi calcolati. Nessuna nuova tabella necessaria.
 
-Aggiungere al `KpiData`:
-- `cpl` (Spend / Lead Totali)
-- `cpa` (Spend / Contratti Vinti)
-- `calls_total`, `calls_answered`, `contact_rate`
+### 6. Riepilogo file
 
-### 4. Aggiornare RPC `get_marketing_dashboard_stats`
-
-Estendere per includere:
-- Calcolo CPL/CPA da `campaign_costs`
-- Sezione `call_center` con aggregazioni da `call_logs`
-- KPI call center per operatore
-
-### 5. Nuovo widget: `DashboardCallCenter.tsx`
-
-Tabella operatori con: Chiamate, Contatti, Tasso contatto %, Appuntamenti fissati. Con KPI summary in alto.
-
-### 6. Aggiornare DashboardSourcesTable
-
-Aggiungere colonne CPL e CPA quando i dati campaign_costs sono disponibili.
-
-### 7. File da creare/modificare
-
-**Migrazione DB**: tabelle `call_logs` + `campaign_costs` + RLS + indici + aggiornamento RPC
-
-**Nuovi file**:
-- `src/components/marketing/dashboard/DashboardCallCenter.tsx`
-
-**File modificati**:
-- `src/hooks/useMarketingDashboard.ts` — nuovi tipi + parametri
-- `src/components/marketing/dashboard/DashboardFilters.tsx` — multi-select utente/fonte/pipeline
-- `src/components/marketing/dashboard/DashboardKPICards.tsx` — card CPL/CPA
-- `src/components/marketing/dashboard/DashboardSourcesTable.tsx` — colonne CPL/CPA
-- `src/pages/azienda/marketing/MarketingDashboard.tsx` — widget CallCenter
+| Azione | File |
+|--------|------|
+| Crea | `DashboardStrategicKPI.tsx` |
+| Crea | `DashboardForecast.tsx` |
+| Crea | `DashboardInsights.tsx` |
+| Modifica | `MarketingDashboard.tsx` |
+| Modifica | `useMarketingDashboard.ts` |
+| Modifica | `DashboardKPICards.tsx` |
+| Modifica | `DashboardAlerts.tsx` |
+| Modifica | `DashboardFunnel.tsx` |
+| Modifica | `DashboardSalesTable.tsx` |
+| Modifica | `DashboardSourcesTable.tsx` |
+| Migrazione | RPC `get_marketing_dashboard_stats` |
 
