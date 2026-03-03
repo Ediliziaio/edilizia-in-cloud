@@ -3529,6 +3529,53 @@ export type Database = {
           },
         ]
       }
+      meta_ad_accounts: {
+        Row: {
+          account_status: number | null
+          ad_account_id: string
+          ad_account_name: string
+          company_id: string
+          created_at: string | null
+          currency: string | null
+          id: string
+          integration_id: string
+          selected: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_status?: number | null
+          ad_account_id: string
+          ad_account_name?: string
+          company_id: string
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          integration_id: string
+          selected?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_status?: number | null
+          ad_account_id?: string
+          ad_account_name?: string
+          company_id?: string
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          integration_id?: string
+          selected?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_ad_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_assets: {
         Row: {
           asset_id: string
@@ -3579,6 +3626,50 @@ export type Database = {
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_insights_cache: {
+        Row: {
+          ad_account_id: string
+          company_id: string
+          date_end: string
+          date_start: string
+          expires_at: string | null
+          fetched_at: string | null
+          id: string
+          level: string
+          payload_json: Json
+        }
+        Insert: {
+          ad_account_id: string
+          company_id: string
+          date_end: string
+          date_start: string
+          expires_at?: string | null
+          fetched_at?: string | null
+          id?: string
+          level?: string
+          payload_json?: Json
+        }
+        Update: {
+          ad_account_id?: string
+          company_id?: string
+          date_end?: string
+          date_start?: string
+          expires_at?: string | null
+          fetched_at?: string | null
+          id?: string
+          level?: string
+          payload_json?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_insights_cache_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -4525,6 +4616,56 @@ export type Database = {
           total_paid?: number
         }
         Relationships: []
+      }
+      reporting_preferences: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          default_sort: string | null
+          id: string
+          last_ad_account: string | null
+          last_date_range: Json | null
+          report_key: string
+          saved_filters: Json | null
+          updated_at: string | null
+          user_id: string
+          visible_columns: Json | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          default_sort?: string | null
+          id?: string
+          last_ad_account?: string | null
+          last_date_range?: Json | null
+          report_key?: string
+          saved_filters?: Json | null
+          updated_at?: string | null
+          user_id: string
+          visible_columns?: Json | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          default_sort?: string | null
+          id?: string
+          last_ad_account?: string | null
+          last_date_range?: Json | null
+          report_key?: string
+          saved_filters?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          visible_columns?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reporting_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sales_targets: {
         Row: {
