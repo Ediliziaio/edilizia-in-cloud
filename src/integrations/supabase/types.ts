@@ -5406,6 +5406,17 @@ export type Database = {
         }[]
       }
       get_feature_usage_stats: { Args: never; Returns: Json }
+      get_marketing_dashboard_stats: {
+        Args: {
+          p_assigned_user_ids?: string[]
+          p_company_id: string
+          p_date_from?: string
+          p_date_to?: string
+          p_pipeline_id?: string
+          p_sources?: string[]
+        }
+        Returns: Json
+      }
       get_plan_company_counts: {
         Args: never
         Returns: {

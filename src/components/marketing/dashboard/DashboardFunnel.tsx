@@ -1,0 +1,75 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { FunnelStage } from "@/hooks/useMarketingDashboard";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  funnel: FunnelStage[] | undefined;
+  isLoading: boolean;
+}
+
+export function DashboardFunnel({ funnel, isLoading }: Props) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-base">Funnel Pipeline</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const stages = funnel || [];
+  const maxCount = Math.max(...stages.map(s => s.count), 1);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Funnel Pipeline</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {stages.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Nessuno stage configurato</p>
+        ) : (
+          <div className="space-y-2">
+            {stages.map((stage, idx) => {
+              const widthPct = Math.max((stage.count / maxCount) * 100, 8);
+              const prevCount = idx > 0 ? stages[idx - 1].count : null;
+              const convRate = prevCount && prevCount > 0 ? Math.round((stage.count / prevCount) * 100) : null;
+
+              return (
+                <div key={stage.stage_id} className="group">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-medium truncate">{stage.name}</span>
+                    <div className="flex items-center gap-3 text-muted-foreground shrink-0">
+                      {convRate !== null && (
+                        <span className="text-[10px]">{convRate}% conv.</span>
+                      )}
+                      <span className="font-semibold text-foreground">{stage.count}</span>
+                    </div>
+                  </div>
+                  <div className="h-7 bg-muted rounded-md overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-md transition-all duration-500 flex items-center px-2",
+                        "bg-primary/80 group-hover:bg-primary"
+                      )}
+                      style={{ width: `${widthPct}%` }}
+                    >
+                      {stage.total_value > 0 && (
+                        <span className="text-[10px] text-primary-foreground font-medium truncate">
+                          {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(stage.total_value)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
