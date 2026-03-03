@@ -1,104 +1,64 @@
 
 
-# Cruscotto Aziendale — Miglioramenti CEO-Level
+# Audit Cruscotto Aziendale — Report e Piano Interventi
 
-## Analisi Critica dello Stato Attuale
+## Report AS-IS
 
-Il cruscotto attuale e' funzionale ma ha limiti importanti per un CEO che deve decidere in 30 secondi:
-
-1. **Manca il "colpo d'occhio"** — 12+ KPI cards tutte uguali, nessuna gerarchia visiva. Un CEO non sa dove guardare prima.
-2. **Nessun indicatore di salute globale** — Manca un semaforo aziendale che dica "stiamo bene" o "attenzione".
-3. **KPI senza target** — I numeri sono assoluti, ma un CEO ragiona in "% del target". Fatturato €50k non dice nulla senza sapere che il target e' €80k.
-4. **Nessuna narrazione** — I dati sono esposti ma non interpretati. Manca una sintesi automatica tipo "Fatturato in linea, margine sotto soglia, pipeline forte".
-5. **Trend assente nelle card** — Le KPI card mostrano solo il valore corrente + delta %, ma nessuna sparkline per capire la direzione visivamente.
-6. **Cash Runway mancante** — Il cash flow mostra il netto ma non risponde a "quanti giorni possiamo andare avanti?".
-7. **Alert senza priorita' d'azione** — Gli alert segnalano problemi ma non suggeriscono cosa fare.
-8. **Sezione Finance troppo basica** — Manca burn rate, break-even, margine netto stimato.
+Il Cruscotto e' in buono stato architetturale: 12 componenti modulari, tutti wrappati in `React.memo`, con loading/error states, layout gerarchico CEO-first. Il data layer usa 3 query parallele (`marketing RPC`, `operations`, `finance`) con `staleTime: 120s`. Multi-tenancy correttamente applicata via `companyId` su tutte le query.
 
 ---
 
-## Piano di Miglioramento (7 interventi)
+## Interventi Identificati
 
-### 1. Semaforo Aziendale (Health Score)
+### P0 — Unused Imports (Dead Code)
 
-Nuovo componente `CompanyHealthScore.tsx` posizionato in cima, prima degli alert. Un singolo indicatore visivo (cerchio grande con colore + score 0-100) calcolato come media pesata di:
-- Margine lordo vs soglia (peso 25%)
-- Cash flow positivo/negativo (peso 25%)
-- Tasso chiusura vs target (peso 20%)
-- Show rate vs target (peso 15%)
-- Ordini in ritardo (peso 15%)
+| File | Problema |
+|------|----------|
+| `ExecutiveOverview.tsx` riga 5 | `BarChart3` importato ma mai usato nel componente |
+| `FinanzaCashFlow.tsx` riga 4 | `Progress` importato da radix ma non usato (barra custom con div) |
+| `MarketingControl.tsx` riga 2 | `Card`, `CardContent`, `CardHeader`, `CardTitle` importati ma mai usati |
 
-Colore: verde (>70), giallo (40-70), rosso (<40). Sotto il cerchio, 3 parole chiave: es. "Margine OK — Cash Critico — Vendite Forti".
+### P1 — Performance: Query N+1 in Finance
 
-### 2. Executive Summary Automatica
+Il `financeData` query in `useCruscottoData.ts` esegue 4 query separate (`currentOrders` con join, `prevOrders` con join, `pendingRes`, `costsRes`). Sono gia' in `Promise.all` quindi parallele — nessun N+1 reale. Tuttavia il `pendingRes` scarica TUTTI gli ordini dell'azienda per calcolare i pagamenti scaduti. Su aziende con 1000+ ordini questo puo' essere pesante.
 
-Sotto il health score, un box testuale che genera automaticamente 2-3 frasi di sintesi basate sui dati:
-- "Il fatturato del periodo e' €X, +Y% rispetto al periodo precedente."
-- "Il margine lordo (Z%) e' sotto la soglia del 30%. Verificare i costi commessa."
-- "La pipeline attiva vale €W con forecast 30gg di €V."
+**Fix**: aggiungere filtro `.or('deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false,financing_paid.eq.false')` alla query `pendingRes` per scaricare solo ordini con almeno un pagamento non saldato.
 
-Logica rule-based nel componente (no AI), analizzando i valori e i delta gia' disponibili.
+### P1 — Stessa query duplicata in Operations
 
-### 3. KPI Cards con Sparkline e Target
+La query `overdueRes` in operations scarica gli stessi campi di `pendingRes` in finance. Entrambe scaricano TUTTI gli ordini dell'azienda con i campi di pagamento.
 
-Modificare `ExecutiveOverview.tsx`:
-- Aggiungere una mini sparkline (7 punti dal trend data) dentro ogni KPI card per visualizzare la direzione
-- Aggiungere una barra di progresso sotto i KPI principali (Fatturato, Contratti) che mostri "X% del target mensile"
-- I target possono essere hardcoded inizialmente e in futuro configurabili da settings
+**Fix**: Consolidare in una singola query condivisa, calcolando sia `overduePayments`/`overdueAmount` sia `pendingRevenue`/`thisMonthIncome` dallo stesso risultato.
 
-Richiede: passare `trend` data all'ExecutiveOverview per estrarre i valori giornalieri.
+### P2 — UX: `stale_leads_2h` e `pending_appointments` non usati
 
-### 4. Cash Runway e Burn Rate
+La RPC `get_marketing_dashboard_stats` ritorna `stale_leads_2h` e `pending_appointments` negli alerts, ma `CruscottoAlerts.tsx` non li mostra. Sono alert utili che andrebbero visualizzati.
 
-Modificare `FinanzaCashFlow.tsx`:
-- Aggiungere **Burn Rate** = uscite medie giornaliere del mese
-- Aggiungere **Cash Runway** = (Incassi previsti - Uscite previste) / burn rate giornaliero = giorni stimati
-- Visualizzare con un progress bar colorato (verde >60gg, giallo 30-60gg, rosso <30gg)
+### P2 — Security: `any` cast in operations query
 
-I dati sono gia' disponibili in `FinanceData` (thisMonthIncome, thisMonthOutflow).
-
-### 5. Alert con Azioni Suggerite
-
-Modificare `CruscottoAlerts.tsx`:
-- Aggiungere un campo `action` a ogni alert con il suggerimento d'azione
-- Esempio: "Lead non contattati 48h+" → azione: "Assegnare follow-up immediato"
-- Esempio: "Cash flow negativo" → azione: "Sollecitare incassi o posticipare uscite"
-- Mostrare l'azione come testo secondario sotto il messaggio
-
-### 6. Sezione Finanza Potenziata
-
-Modificare `FinanzaCashFlow.tsx`:
-- Aggiungere **Progress bar visiva** entrate vs uscite (barra doppia orizzontale)
-- Aggiungere **Margine Netto stimato** = Margine Lordo - (costi fissi stimati / fatturato)
-- Aggiungere **Break-even indicator** = volume ordini necessario per coprire i costi fissi
-
-### 7. Layout Riorganizzato per Priorita' CEO
-
-Modificare `CruscottoAziendale.tsx`:
-- **Above the fold** (prima cosa visibile):
-  1. Health Score + Executive Summary (nuova riga)
-  2. Alert con azioni
-  3. Executive Overview KPIs
-- **Below the fold** (scroll):
-  4. Finance & Operations (affiancati)
-  5. Sales & Marketing (affiancati)
-  6. Pipeline & Forecast
-  7. HR & Performance
-  8. Trend
+`useCruscottoData.ts` riga 99: `let q: any = supabase.from(...)` — perde il type-checking. Dovrebbe usare il tipo corretto.
 
 ---
 
-## File da Creare/Modificare
+## Piano di Intervento (5 modifiche)
 
-| Azione | File |
-|--------|------|
-| Creare | `src/components/cruscotto/CompanyHealthScore.tsx` — Semaforo + score |
-| Creare | `src/components/cruscotto/ExecutiveSummary.tsx` — Sintesi automatica testuale |
-| Modificare | `src/components/cruscotto/ExecutiveOverview.tsx` — Sparkline + target bar nelle KPI cards |
-| Modificare | `src/components/cruscotto/FinanzaCashFlow.tsx` — Cash runway, burn rate, progress bar |
-| Modificare | `src/components/cruscotto/CruscottoAlerts.tsx` — Azioni suggerite per ogni alert |
-| Modificare | `src/pages/azienda/CruscottoAziendale.tsx` — Riorganizzazione layout + passaggio trend data |
-| Modificare | `src/hooks/useCruscottoData.ts` — Esporre trend data al livello pagina (gia' disponibile da marketing RPC) |
+### 1. Rimuovere import inutilizzati (3 file)
+- `ExecutiveOverview.tsx`: rimuovere `BarChart3` dalla lista import
+- `FinanzaCashFlow.tsx`: rimuovere `Progress` dalla lista import
+- `MarketingControl.tsx`: rimuovere import `Card, CardContent, CardHeader, CardTitle`
 
-Nessuna migrazione DB necessaria. Nessun cambio comportamentale, solo potenziamento visivo e informativo.
+### 2. Ottimizzare query payments in `useCruscottoData.ts`
+- Aggiungere filtro sulla query `pendingRes` per escludere ordini con tutti i pagamenti gia' saldati
+- Consolidare `overdueRes` (operations) e `pendingRes` (finance) in una singola query condivisa per eliminare il download duplicato
+- Rimuovere il cast `any` dalla query operations
+
+### 3. Aggiungere alert mancanti in `CruscottoAlerts.tsx`
+- Mostrare `stale_leads_2h` come alert "info" per lead non contattati da 2h
+- Mostrare `pending_appointments` come alert "warning" per appuntamenti non completati
+
+### 4. Nessun intervento necessario su:
+- Multi-tenancy: tutte le query sono gia' tenant-scoped via `companyId`
+- Sicurezza: RLS attivo, dati filtrati server-side
+- Backup: gestito da Lovable Cloud (giornaliero, PITR)
+- Auth/RBAC: `can_view_cruscotto` gia' verificato a livello routing
 
