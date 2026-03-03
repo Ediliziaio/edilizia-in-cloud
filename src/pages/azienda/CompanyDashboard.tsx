@@ -4,11 +4,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, Users, HeadphonesIcon, Plus, Loader2, Euro, Package, TrendingUp, AlertTriangle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ClipboardList, Users, HeadphonesIcon, Plus, Loader2, Euro, Package, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@/lib/formatters";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
+import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
+import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
 
 interface RecentOrder {
   id: string;
@@ -33,180 +36,279 @@ interface UrgentItem {
   daysLeft: number;
 }
 
+function DeltaIndicator({ current, previous }: { current: number; previous: number }) {
+  if (previous === 0 && current === 0) return null;
+  const delta = previous === 0 ? (current > 0 ? 100 : 0) : ((current - previous) / previous) * 100;
+  if (delta === 0) return null;
+  const isPositive = delta > 0;
+  const Icon = isPositive ? TrendingUp : TrendingDown;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${
+      isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+    }`}>
+      <Icon className="h-3 w-3" />
+      {Math.abs(delta).toFixed(0)}%
+    </span>
+  );
+}
+
 export default function CompanyDashboard() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  // Main dashboard data query with caching
   const { data: dashboardData, isLoading, isError } = useQuery({
     queryKey: ["dashboard-data", companyId],
     queryFn: async () => {
       const now = new Date();
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
       const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+      const sevenDaysFromNow = new Date(now);
+      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-      const [ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes, urgentItemsRes, costsRes] = await Promise.all([
+      const todayStr = now.toISOString().split("T")[0];
+      const thisMonthStartStr = thisMonthStart.toISOString().split("T")[0];
+      const thisMonthEndStr = thisMonthEnd.toISOString().split("T")[0];
+      const prevMonthStartStr = prevMonthStart.toISOString().split("T")[0];
+      const prevMonthEndStr = prevMonthEnd.toISOString().split("T")[0];
+      const sevenDaysStr = sevenDaysFromNow.toISOString().split("T")[0];
+
+      const [
+        ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes,
+        urgentItemsRes, costsRes,
+        // Prev month comparisons
+        prevOrdersRes, prevCustomersRes, prevTicketsRes,
+        // CEO strip: revenue & margin
+        ordersThisMonthRes, ordersPrevMonthRes,
+        // Weekly deadlines: supplier costs due within 7 days
+        supplierCostsDueRes,
+        // Weekly deadlines: upcoming works
+        upcomingWorksRes,
+      ] = await Promise.all([
         supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
         supabase.from("orders").select("customer_id").eq("company_id", companyId!),
         supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", companyId!).eq("status", "aperto"),
         supabase
           .from("orders")
-          .select(`
-            id, description, total_amount, created_at,
+          .select(`id, description, total_amount, created_at,
             customer:profiles!orders_customer_id_fkey(first_name, last_name),
-            status:order_statuses(name, color)
-          `)
+            status:order_statuses(name, color)`)
           .eq("company_id", companyId!)
           .order("created_at", { ascending: false })
           .limit(5),
         supabase
           .from("orders")
-          .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date")
+          .select("description, deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
           .eq("company_id", companyId!),
         supabase
           .from("order_items")
-          .select(`
-            id, name, status,
-            order:orders!inner(
-              id, order_code, work_start_date, expected_date, company_id,
-              customer:profiles!orders_customer_id_fkey(first_name, last_name)
-            )
-          `)
+          .select(`id, name, status,
+            order:orders!inner(id, order_code, work_start_date, expected_date, company_id,
+              customer:profiles!orders_customer_id_fkey(first_name, last_name))`)
           .eq("order.company_id", companyId!)
           .neq("status", "installato")
           .neq("status", "in_magazzino"),
-        // Fetch unpaid costs for this month
         supabase
           .from("company_costs")
           .select("amount, due_date, is_paid")
           .eq("company_id", companyId!)
           .eq("is_paid", false),
+        // Prev month: orders
+        supabase.from("orders").select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .gte("created_at", prevMonthStart.toISOString())
+          .lte("created_at", prevMonthEnd.toISOString()),
+        // Prev month: customers
+        supabase.from("orders").select("customer_id")
+          .eq("company_id", companyId!)
+          .gte("created_at", prevMonthStart.toISOString())
+          .lte("created_at", prevMonthEnd.toISOString()),
+        // Prev month: tickets (snapshot not meaningful — skip delta for tickets)
+        supabase.from("tickets").select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .eq("status", "aperto"),
+        // This month orders with amounts for revenue + margin
+        supabase.from("orders")
+          .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
+          .eq("company_id", companyId!)
+          .gte("created_at", thisMonthStart.toISOString())
+          .lte("created_at", thisMonthEnd.toISOString()),
+        // Prev month orders with amounts
+        supabase.from("orders")
+          .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
+          .eq("company_id", companyId!)
+          .gte("created_at", prevMonthStart.toISOString())
+          .lte("created_at", prevMonthEnd.toISOString()),
+        // Supplier costs due within 7 days
+        supabase.from("company_costs")
+          .select("name, amount, due_date")
+          .eq("company_id", companyId!)
+          .eq("is_paid", false)
+          .gte("due_date", todayStr)
+          .lte("due_date", sevenDaysStr)
+          .order("due_date"),
+        // Upcoming works in 7 days
+        supabase.from("orders")
+          .select("order_code, work_start_date, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
+          .eq("company_id", companyId!)
+          .gte("work_start_date", todayStr)
+          .lte("work_start_date", sevenDaysStr)
+          .order("work_start_date"),
       ]);
 
-      // Calculate pending revenue
+      // === Stat card values ===
+      const totalOrders = ordersRes.count || 0;
+      const totalCustomers = new Set(customersRes.data?.map((o: any) => o.customer_id) || []).size;
+      const openTickets = ticketsRes.count || 0;
+
+      // Previous month stats for delta
+      const prevOrdersCount = prevOrdersRes.count || 0;
+      const prevCustomersCount = new Set(prevCustomersRes.data?.map((o: any) => o.customer_id) || []).size;
+
+      // === Pending revenue + overdue ===
       let pendingRevenue = 0;
       let pendingOrdersCount = 0;
       let overduePayments = 0;
       let overdueCount = 0;
 
-      const todayStr = now.toISOString().split("T")[0];
+      // Receivables due within 7 days for weekly deadlines
+      const weeklyReceivables: Array<{
+        orderDescription: string;
+        customerName: string;
+        amount: number;
+        expectedDate: string;
+        daysLeft: number;
+      }> = [];
 
-      pendingRevenueRes.data?.forEach(order => {
+      pendingRevenueRes.data?.forEach((order: any) => {
         let orderPending = 0;
-        if (!order.deposit_paid && Number(order.deposit_amount) > 0) {
-          orderPending += Number(order.deposit_amount);
-          if (order.deposit_expected_date && order.deposit_expected_date < todayStr) {
-            overduePayments += Number(order.deposit_amount);
-            overdueCount++;
+        const customerName = `${order.customer?.first_name || ""} ${order.customer?.last_name || ""}`.trim();
+
+        const checkPayment = (paid: boolean, amount: number, expectedDate: string | null) => {
+          if (!paid && amount > 0) {
+            orderPending += amount;
+            if (expectedDate && expectedDate < todayStr) {
+              overduePayments += amount;
+              overdueCount++;
+            }
+            // Weekly deadlines
+            if (expectedDate && expectedDate >= todayStr && expectedDate <= sevenDaysStr) {
+              const daysLeft = Math.ceil((new Date(expectedDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+              weeklyReceivables.push({
+                orderDescription: order.description || "Ordine",
+                customerName,
+                amount,
+                expectedDate,
+                daysLeft: Math.max(0, daysLeft),
+              });
+            }
           }
-        }
-        if (!order.deposit_2_paid && Number(order.deposit_2_amount) > 0) {
-          orderPending += Number(order.deposit_2_amount);
-          if (order.deposit_2_expected_date && order.deposit_2_expected_date < todayStr) {
-            overduePayments += Number(order.deposit_2_amount);
-            overdueCount++;
-          }
-        }
-        if (!order.balance_paid && Number(order.balance_amount) > 0) {
-          orderPending += Number(order.balance_amount);
-          if (order.balance_expected_date && order.balance_expected_date < todayStr) {
-            overduePayments += Number(order.balance_amount);
-            overdueCount++;
-          }
-        }
-        if (!(order as any).financing_paid && Number((order as any).financing_amount) > 0) {
-          orderPending += Number((order as any).financing_amount);
-          if ((order as any).financing_expected_date && (order as any).financing_expected_date < todayStr) {
-            overduePayments += Number((order as any).financing_amount);
-            overdueCount++;
-          }
-        }
+        };
+
+        checkPayment(order.deposit_paid, Number(order.deposit_amount), order.deposit_expected_date);
+        checkPayment(order.deposit_2_paid, Number(order.deposit_2_amount), order.deposit_2_expected_date);
+        checkPayment(order.balance_paid, Number(order.balance_amount), order.balance_expected_date);
+        checkPayment(order.financing_paid, Number(order.financing_amount), order.financing_expected_date);
+
         if (orderPending > 0) {
           pendingRevenue += orderPending;
           pendingOrdersCount++;
         }
       });
 
-      // Calculate unpaid costs due this month
+      // === Cash flow (this month / next month) ===
+      let thisMonthIncome = 0;
+      let nextMonthTotal = 0;
+
+      pendingRevenueRes.data?.forEach((order: any) => {
+        const addIfInRange = (paid: boolean, amount: number, date: string | null) => {
+          if (!paid && date) {
+            const d = new Date(date);
+            if (d <= thisMonthEnd) thisMonthIncome += Number(amount) || 0;
+            else if (d <= nextMonthEnd) nextMonthTotal += Number(amount) || 0;
+          }
+        };
+        addIfInRange(order.deposit_paid, order.deposit_amount, order.deposit_expected_date);
+        addIfInRange(order.deposit_2_paid, order.deposit_2_amount, order.deposit_2_expected_date);
+        addIfInRange(order.balance_paid, order.balance_amount, order.balance_expected_date);
+        addIfInRange(order.financing_paid, order.financing_amount, order.financing_expected_date);
+      });
+
+      // Unpaid costs this month (outflows)
       let unpaidCostsThisMonth = 0;
       costsRes.data?.forEach(cost => {
-        if (cost.due_date && cost.due_date <= thisMonthEnd.toISOString().split("T")[0]) {
+        if (cost.due_date && cost.due_date <= thisMonthEndStr) {
           unpaidCostsThisMonth += Number(cost.amount) || 0;
         }
       });
 
-      // Calculate cash flow preview (reuse pendingRevenueRes data)
-      let thisMonthTotal = 0;
-      let nextMonthTotal = 0;
+      // === CEO Strip: Revenue & Margin ===
+      const calcRevenueAndMargin = (orders: any[]) => {
+        let revenue = 0;
+        let totalMarginPct = 0;
+        let marginCount = 0;
 
-      pendingRevenueRes.data?.forEach((order) => {
-        if (!order.deposit_paid && order.deposit_expected_date) {
-          const depositDate = new Date(order.deposit_expected_date);
-          if (depositDate <= thisMonthEnd) {
-            thisMonthTotal += Number(order.deposit_amount) || 0;
-          } else if (depositDate <= nextMonthEnd) {
-            nextMonthTotal += Number(order.deposit_amount) || 0;
-          }
-        }
-        if (!order.deposit_2_paid && order.deposit_2_expected_date) {
-          const deposit2Date = new Date(order.deposit_2_expected_date);
-          if (deposit2Date <= thisMonthEnd) {
-            thisMonthTotal += Number(order.deposit_2_amount) || 0;
-          } else if (deposit2Date <= nextMonthEnd) {
-            nextMonthTotal += Number(order.deposit_2_amount) || 0;
-          }
-        }
-        if (!order.balance_paid && order.balance_expected_date) {
-          const balanceDate = new Date(order.balance_expected_date);
-          if (balanceDate <= thisMonthEnd) {
-            thisMonthTotal += Number(order.balance_amount) || 0;
-          } else if (balanceDate <= nextMonthEnd) {
-            nextMonthTotal += Number(order.balance_amount) || 0;
-          }
-        }
-        if (!(order as any).financing_paid && (order as any).financing_expected_date) {
-          const financingDate = new Date((order as any).financing_expected_date);
-          if (financingDate <= thisMonthEnd) {
-            thisMonthTotal += Number((order as any).financing_amount) || 0;
-          } else if (financingDate <= nextMonthEnd) {
-            nextMonthTotal += Number((order as any).financing_amount) || 0;
-          }
-        }
-      });
+        orders.forEach((o: any) => {
+          const total = Number(o.total_amount) || 0;
+          revenue += total;
 
-      // Process urgent items
+          const articleCost = (o.order_items || []).reduce(
+            (s: number, i: any) => s + (Number(i.purchase_price || 0) * Number(i.quantity || 1)), 0);
+          const laborCost =
+            (o.order_employees || []).reduce((s: number, e: any) => s + Number(e.total_cost || 0), 0) +
+            (o.order_external_teams || []).reduce((s: number, t: any) => s + Number(t.total_cost || 0), 0);
+          const totalCost = articleCost + laborCost;
+
+          if (total > 0 && totalCost > 0) {
+            totalMarginPct += ((total - totalCost) / total) * 100;
+            marginCount++;
+          }
+        });
+
+        return { revenue, margin: marginCount > 0 ? totalMarginPct / marginCount : 0 };
+      };
+
+      const thisMonthStats = calcRevenueAndMargin(ordersThisMonthRes.data || []);
+      const prevMonthStats = calcRevenueAndMargin(ordersPrevMonthRes.data || []);
+
+      // === Urgent items ===
       const processedUrgentItems: UrgentItem[] = [];
-      urgentItemsRes.data?.forEach((item: unknown) => {
-        const typedItem = item as {
-          id: string;
-          name: string;
-          order: {
-            order_code: string | null;
-            work_start_date: string | null;
-            expected_date: string | null;
-            customer: { first_name: string; last_name: string };
-          };
-        };
-        
-        const expectedDate = typedItem.order?.expected_date || typedItem.order?.work_start_date;
-        
+      urgentItemsRes.data?.forEach((item: any) => {
+        const expectedDate = item.order?.expected_date || item.order?.work_start_date;
         if (expectedDate) {
           const date = new Date(expectedDate);
           const daysLeft = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          
           if (daysLeft >= 0 && daysLeft <= 7) {
             processedUrgentItems.push({
-              id: typedItem.id,
-              name: typedItem.name,
-              orderCode: typedItem.order.order_code,
-              customerName: `${typedItem.order.customer.first_name} ${typedItem.order.customer.last_name}`,
+              id: item.id,
+              name: item.name,
+              orderCode: item.order.order_code,
+              customerName: `${item.order.customer.first_name} ${item.order.customer.last_name}`,
               daysLeft,
             });
           }
         }
       });
 
-      // Financial alerts
+      // === Weekly deadlines: supplier costs ===
+      const weeklySupplierPayments = (supplierCostsDueRes.data || []).map((c: any) => ({
+        name: c.name,
+        amount: Number(c.amount),
+        dueDate: c.due_date,
+        daysLeft: Math.max(0, Math.ceil((new Date(c.due_date).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))),
+      }));
+
+      // === Weekly deadlines: upcoming works ===
+      const weeklyUpcomingWorks = (upcomingWorksRes.data || []).map((o: any) => ({
+        orderCode: o.order_code,
+        customerName: `${o.customer?.first_name || ""} ${o.customer?.last_name || ""}`.trim(),
+        workDate: o.work_start_date,
+        daysLeft: Math.max(0, Math.ceil((new Date(o.work_start_date).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))),
+      }));
+
+      // === Financial alerts ===
       const financialAlerts: { type: "warning" | "error"; message: string }[] = [];
       if (overdueCount > 0) {
         financialAlerts.push({
@@ -214,25 +316,38 @@ export default function CompanyDashboard() {
           message: `${overdueCount} pagamenti scaduti per ${formatCurrency(overduePayments)}`,
         });
       }
-      if (unpaidCostsThisMonth > thisMonthTotal && unpaidCostsThisMonth > 0) {
+      if (unpaidCostsThisMonth > thisMonthIncome && unpaidCostsThisMonth > 0) {
         financialAlerts.push({
           type: "warning",
-          message: `Uscite previste (${formatCurrency(unpaidCostsThisMonth)}) superiori agli incassi (${formatCurrency(thisMonthTotal)}) questo mese`,
+          message: `Uscite previste (${formatCurrency(unpaidCostsThisMonth)}) superiori agli incassi (${formatCurrency(thisMonthIncome)}) questo mese`,
         });
       }
 
       return {
-        stats: {
-          totalOrders: ordersRes.count || 0,
-          totalCustomers: new Set(customersRes.data?.map((o: any) => o.customer_id) || []).size,
-          openTickets: ticketsRes.count || 0,
-          pendingRevenue,
-          pendingOrdersCount,
-        },
+        stats: { totalOrders, totalCustomers, openTickets, pendingRevenue, pendingOrdersCount },
+        prevStats: { totalOrders: prevOrdersCount, totalCustomers: prevCustomersCount },
         recentOrders: (ordersDataRes.data as unknown as RecentOrder[]) || [],
-        cashFlow: { thisMonth: thisMonthTotal, nextMonth: nextMonthTotal },
+        cashFlow: {
+          thisMonthIncome,
+          thisMonthOutflow: unpaidCostsThisMonth,
+          netCashFlow: thisMonthIncome - unpaidCostsThisMonth,
+          nextMonth: nextMonthTotal,
+        },
+        ceoStrip: {
+          revenueThisMonth: thisMonthStats.revenue,
+          revenuePrevMonth: prevMonthStats.revenue,
+          marginThisMonth: thisMonthStats.margin,
+          marginPrevMonth: prevMonthStats.margin,
+          ordersThisMonth: (ordersThisMonthRes.data || []).length,
+          ordersPrevMonth: (ordersPrevMonthRes.data || []).length,
+        },
         urgentItems: processedUrgentItems.slice(0, 5),
         financialAlerts,
+        weeklyDeadlines: {
+          receivables: weeklyReceivables,
+          supplierPayments: weeklySupplierPayments,
+          upcomingWorks: weeklyUpcomingWorks,
+        },
       };
     },
     enabled: !!companyId,
@@ -240,15 +355,19 @@ export default function CompanyDashboard() {
   });
 
   const stats = dashboardData?.stats ?? { totalOrders: 0, totalCustomers: 0, openTickets: 0, pendingRevenue: 0, pendingOrdersCount: 0 };
+  const prevStats = dashboardData?.prevStats ?? { totalOrders: 0, totalCustomers: 0 };
   const recentOrders = dashboardData?.recentOrders ?? [];
-  const cashFlow = dashboardData?.cashFlow ?? { thisMonth: 0, nextMonth: 0 };
+  const cashFlow = dashboardData?.cashFlow ?? { thisMonthIncome: 0, thisMonthOutflow: 0, netCashFlow: 0, nextMonth: 0 };
   const urgentItems = dashboardData?.urgentItems ?? [];
   const financialAlerts = dashboardData?.financialAlerts ?? [];
+  const ceoStrip = dashboardData?.ceoStrip ?? { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, ordersThisMonth: 0, ordersPrevMonth: 0 };
+  const weeklyDeadlines = dashboardData?.weeklyDeadlines ?? { receivables: [], supplierPayments: [], upcomingWorks: [] };
 
   const statCards = [
     {
       title: "Ordini Totali",
       value: stats.totalOrders,
+      prevValue: prevStats.totalOrders,
       icon: ClipboardList,
       color: "text-blue-600",
       bgColor: "bg-blue-100",
@@ -257,6 +376,7 @@ export default function CompanyDashboard() {
     {
       title: "Clienti",
       value: stats.totalCustomers,
+      prevValue: prevStats.totalCustomers,
       icon: Users,
       color: "text-purple-600",
       bgColor: "bg-purple-100",
@@ -265,6 +385,7 @@ export default function CompanyDashboard() {
     {
       title: "Ticket Aperti",
       value: stats.openTickets,
+      prevValue: null as number | null,
       icon: HeadphonesIcon,
       color: stats.openTickets > 0 ? "text-orange-600" : "text-green-600",
       bgColor: stats.openTickets > 0 ? "bg-orange-100" : "bg-green-100",
@@ -273,6 +394,7 @@ export default function CompanyDashboard() {
     {
       title: "Da Incassare",
       value: formatCurrency(stats.pendingRevenue),
+      prevValue: null as number | null,
       icon: Euro,
       color: "text-emerald-600",
       bgColor: "bg-emerald-100",
@@ -307,6 +429,11 @@ export default function CompanyDashboard() {
     );
   }
 
+  // Cash flow progress bar
+  const maxCashFlow = Math.max(cashFlow.thisMonthIncome, cashFlow.thisMonthOutflow, 1);
+  const incomePercent = (cashFlow.thisMonthIncome / maxCashFlow) * 100;
+  const outflowPercent = (cashFlow.thisMonthOutflow / maxCashFlow) * 100;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -331,6 +458,17 @@ export default function CompanyDashboard() {
         </div>
       </div>
 
+      {/* CEO KPI Strip */}
+      <DashboardCeoStrip
+        revenueThisMonth={ceoStrip.revenueThisMonth}
+        revenuePrevMonth={ceoStrip.revenuePrevMonth}
+        marginThisMonth={ceoStrip.marginThisMonth}
+        marginPrevMonth={ceoStrip.marginPrevMonth}
+        netCashFlow={cashFlow.netCashFlow}
+        ordersThisMonth={ceoStrip.ordersThisMonth}
+        ordersPrevMonth={ceoStrip.ordersPrevMonth}
+      />
+
       {/* Financial Alerts */}
       {financialAlerts.length > 0 && (
         <div className="space-y-2">
@@ -350,7 +488,7 @@ export default function CompanyDashboard() {
         </div>
       )}
 
-      {/* Stats Grid - 4 colonne con icone colorate */}
+      {/* Stats Grid with delta % */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
           <Card key={stat.title} className="relative overflow-hidden">
@@ -363,16 +501,21 @@ export default function CompanyDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
+              <div className="flex items-baseline gap-2">
+                <div className="text-2xl font-bold">{stat.value}</div>
+                {stat.prevValue !== null && typeof stat.value === "number" && (
+                  <DeltaIndicator current={stat.value} previous={stat.prevValue} />
+                )}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Main Content Grid - 3 colonne bilanciate */}
+      {/* Main Content Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Recent Orders - Cliccabili */}
+        {/* Recent Orders */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -411,8 +554,8 @@ export default function CompanyDashboard() {
                     <div className="text-right space-y-1 ml-3 shrink-0">
                       <p className="font-medium text-sm">{formatCurrency(Number(order.total_amount))}</p>
                       {order.status && (
-                        <Badge 
-                          variant="secondary" 
+                        <Badge
+                          variant="secondary"
                           style={{ backgroundColor: order.status.color + "20", color: order.status.color }}
                           className="text-xs"
                         >
@@ -427,16 +570,16 @@ export default function CompanyDashboard() {
           </CardContent>
         </Card>
 
-        {/* Cash Flow Preview */}
+        {/* Bilancio Mese (was: Previsionale Incassi) */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-primary" />
-                  Previsionale Incassi
+                  Bilancio Mese
                 </CardTitle>
-                <CardDescription>Prossimi incassi attesi</CardDescription>
+                <CardDescription>Entrate vs uscite previste</CardDescription>
               </div>
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/azienda/previsionale">Dettaglio</Link>
@@ -444,19 +587,41 @@ export default function CompanyDashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-lg bg-primary/5 border border-primary/10">
-              <div>
-                <p className="text-sm text-muted-foreground">Questo mese</p>
-                <p className="text-2xl font-bold text-primary">{formatCurrency(cashFlow.thisMonth)}</p>
+            {/* Income */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Entrate attese</span>
+                <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(cashFlow.thisMonthIncome)}</span>
               </div>
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Euro className="h-6 w-6 text-primary" />
-              </div>
+              <Progress value={incomePercent} className="h-2 [&>div]:bg-emerald-500" />
             </div>
-            <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+            {/* Outflow */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Uscite attese</span>
+                <span className="font-medium text-destructive">{formatCurrency(cashFlow.thisMonthOutflow)}</span>
+              </div>
+              <Progress value={outflowPercent} className="h-2 [&>div]:bg-destructive" />
+            </div>
+            {/* Net */}
+            <div className={`flex items-center justify-between p-4 rounded-lg border ${
+              cashFlow.netCashFlow >= 0
+                ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800"
+                : "bg-destructive/10 border-destructive/30"
+            }`}>
               <div>
-                <p className="text-sm text-muted-foreground">Prossimo mese</p>
-                <p className="text-xl font-semibold">{formatCurrency(cashFlow.nextMonth)}</p>
+                <p className="text-sm text-muted-foreground">Saldo Netto</p>
+                <p className={`text-2xl font-bold ${cashFlow.netCashFlow >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                  {formatCurrency(cashFlow.netCashFlow)}
+                </p>
+              </div>
+              <Euro className={`h-6 w-6 ${cashFlow.netCashFlow >= 0 ? "text-emerald-500" : "text-destructive"}`} />
+            </div>
+            {/* Next month preview */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <div>
+                <p className="text-xs text-muted-foreground">Prossimo mese (entrate)</p>
+                <p className="text-lg font-semibold">{formatCurrency(cashFlow.nextMonth)}</p>
               </div>
               <Euro className="h-5 w-5 text-muted-foreground" />
             </div>
@@ -467,7 +632,7 @@ export default function CompanyDashboard() {
         <LaborCostsStats />
       </div>
 
-      {/* Bottom Row - 3 colonne */}
+      {/* Bottom Row */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Warehouse Alerts */}
         <Card>
@@ -516,59 +681,12 @@ export default function CompanyDashboard() {
         {/* Supplier Payments Summary */}
         <SupplierPaymentsSummary />
 
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Azioni Rapide</CardTitle>
-            <CardDescription>Accedi velocemente alle funzionalità principali</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <Button variant="outline" className="justify-start h-auto py-3" asChild>
-              <Link to="/azienda/ordini/nuovo">
-                <div className="p-2 rounded-lg bg-blue-100 mr-3">
-                  <ClipboardList className="h-4 w-4 text-blue-600" />
-                </div>
-                <div className="text-left">
-                  <p className="font-medium">Nuovo Ordine</p>
-                  <p className="text-xs text-muted-foreground">Crea un ordine per un cliente</p>
-                </div>
-              </Link>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto py-3" asChild>
-              <Link to="/azienda/clienti/nuovo">
-                <div className="p-2 rounded-lg bg-purple-100 mr-3">
-                  <Users className="h-4 w-4 text-purple-600" />
-                </div>
-                <div className="text-left">
-                  <p className="font-medium">Nuovo Cliente</p>
-                  <p className="text-xs text-muted-foreground">Registra un nuovo cliente</p>
-                </div>
-              </Link>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto py-3" asChild>
-              <Link to="/azienda/magazzino">
-                <div className="p-2 rounded-lg bg-amber-100 mr-3">
-                  <Package className="h-4 w-4 text-amber-600" />
-                </div>
-                <div className="text-left">
-                  <p className="font-medium">Magazzino</p>
-                  <p className="text-xs text-muted-foreground">Gestisci articoli e materiali</p>
-                </div>
-              </Link>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto py-3" asChild>
-              <Link to="/azienda/previsionale">
-                <div className="p-2 rounded-lg bg-emerald-100 mr-3">
-                  <TrendingUp className="h-4 w-4 text-emerald-600" />
-                </div>
-                <div className="text-left">
-                  <p className="font-medium">Previsionale</p>
-                  <p className="text-xs text-muted-foreground">Visualizza il cash flow</p>
-                </div>
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+        {/* Weekly Deadlines (replaces Quick Actions) */}
+        <WeeklyDeadlines
+          receivables={weeklyDeadlines.receivables}
+          supplierPayments={weeklyDeadlines.supplierPayments}
+          upcomingWorks={weeklyDeadlines.upcomingWorks}
+        />
       </div>
     </div>
   );
