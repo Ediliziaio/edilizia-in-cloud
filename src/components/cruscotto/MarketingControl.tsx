@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { DashboardFunnel } from "@/components/marketing/dashboard/DashboardFunnel";
 import { DashboardSourcesTable } from "@/components/marketing/dashboard/DashboardSourcesTable";
 import type { FunnelStage, SourceAnalysis } from "@/hooks/useMarketingDashboard";

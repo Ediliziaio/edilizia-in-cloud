@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { TrendingUp, TrendingDown, Minus, Euro, Percent, BarChart3, Users, CalendarCheck, Trophy, Target, Zap, CreditCard, Landmark } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Euro, Percent, Users, CalendarCheck, Trophy, Target, Zap, CreditCard, Landmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KpiData } from "@/hooks/useMarketingDashboard";
 import type { FinanceData } from "@/hooks/useCruscottoData";

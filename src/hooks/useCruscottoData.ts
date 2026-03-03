@@ -87,34 +87,45 @@ export function useCruscottoData() {
     staleTime: 120_000,
   });
 
+  // Shared payments query (used by both operations and finance)
+  const { data: paymentsData } = useQuery({
+    queryKey: ["cruscotto-payments", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("orders")
+        .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date")
+        .eq("company_id", companyId!)
+        .or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false,financing_paid.eq.false");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!companyId,
+    staleTime: 120_000,
+  });
+
   // Operations data (orders, tickets)
   const { data: opsData, isLoading: opsLoading } = useQuery({
-    queryKey: ["cruscotto-operations", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId],
+    queryKey: ["cruscotto-operations", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId, paymentsData],
     queryFn: async () => {
       const now = new Date();
       const todayStr = now.toISOString().split("T")[0];
 
-      const [activeOrdersRes, lateOrdersRes, openTicketsRes, overdueRes] = await Promise.all([
-        (() => {
-          let q: any = supabase.from("orders").select("id", { count: "exact", head: true })
-            .eq("company_id", companyId!);
-          if (filters.statusId) q = q.eq("current_status_id", filters.statusId);
-          return q;
-        })(),
+      let activeOrdersQuery = supabase.from("orders").select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!);
+      if (filters.statusId) activeOrdersQuery = activeOrdersQuery.eq("current_status_id", filters.statusId);
+
+      const [activeOrdersRes, lateOrdersRes, openTicketsRes] = await Promise.all([
+        activeOrdersQuery,
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
           .lt("expected_date", todayStr)
           .is("work_end_date", null),
         supabase.from("tickets").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!).eq("status", "aperto"),
-        supabase.from("orders")
-          .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date")
-          .eq("company_id", companyId!),
       ]);
 
       let overduePayments = 0;
       let overdueAmount = 0;
-      overdueRes.data?.forEach((order: any) => {
+      paymentsData?.forEach((order) => {
         const check = (paid: boolean, amount: number, date: string | null) => {
           if (!paid && amount > 0 && date && date < todayStr) {
             overduePayments++;
@@ -153,7 +164,7 @@ export function useCruscottoData() {
       const prevFromStr = new Date(dateRange.from.getTime() - durationMs - 86400000).toISOString();
       const prevToStr = new Date(dateRange.from.getTime() - 1).toISOString();
 
-      const [currentOrdersRes, prevOrdersRes, pendingRes, costsRes] = await Promise.all([
+      const [currentOrdersRes, prevOrdersRes, costsRes] = await Promise.all([
         supabase.from("orders")
           .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
           .eq("company_id", companyId!)
@@ -162,9 +173,6 @@ export function useCruscottoData() {
           .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
           .eq("company_id", companyId!)
           .gte("created_at", prevFromStr).lte("created_at", prevToStr),
-        supabase.from("orders")
-          .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date")
-          .eq("company_id", companyId!),
         supabase.from("company_costs").select("amount, due_date, is_paid")
           .eq("company_id", companyId!).eq("is_paid", false),
       ]);
@@ -187,7 +195,7 @@ export function useCruscottoData() {
       const prev = calc(prevOrdersRes.data || []);
 
       let pendingRevenue = 0, thisMonthIncome = 0, supplierDebt = 0;
-      pendingRes.data?.forEach((order: any) => {
+      paymentsData?.forEach((order) => {
         const addPending = (paid: boolean, amount: number, date: string | null) => {
           if (!paid && amount > 0) {
             pendingRevenue += amount;
