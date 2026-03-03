@@ -12,8 +12,6 @@ export type CompanySector =
   | "ristrutturazioni"
   | "altro";
 
-export type TicketStatus = "aperto" | "in_lavorazione" | "risolto";
-
 export type CompanyStatus = "trial" | "active" | "suspended" | "expired";
 
 export interface Profile {
@@ -29,12 +27,6 @@ export interface Profile {
   notes: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface UserRole {
-  id: string;
-  user_id: string;
-  role: AppRole;
 }
 
 export interface Company {

@@ -51,8 +51,3 @@ export function PermissionGuard({
   return <>{children}</>;
 }
 
-// Hook to check permission in components
-export function useCanAccess(permission: PermissionKey): boolean {
-  const permissions = usePermissions();
-  return permissions[permission];
-}
