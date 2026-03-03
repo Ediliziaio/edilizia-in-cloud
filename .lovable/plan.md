@@ -1,38 +1,89 @@
 
 
-# Audit & Hardening — Dashboard Marketing & Vendite
+# Miglioramento Dashboard Gestione Interna — Visione CEO
 
-## Analisi Completata
+## Analisi Attuale
 
-Ho letto tutti i 13 file della sezione dashboard. Il codice è già in buono stato grazie ai precedenti round di hardening. Rimangono alcune pulizie e fix minori.
+La dashboard attuale ha:
+- 4 stat card (Ordini, Clienti, Ticket, Da Incassare)
+- Alert finanziari (pagamenti scaduti, uscite > entrate)
+- Ordini recenti, Previsionale incassi, Costi manodopera
+- Alert magazzino, Pagamenti fornitori, Azioni rapide
 
-## Issues Trovate
+**Cosa manca dal punto di vista di un CEO:**
 
-### Codice Morto / Ridondante
-- **`DashboardKPICards.tsx`**: la card `show_rate` è duplicata — già presente in `DashboardStrategicKPI.tsx` come KPI strategico. Rimuoverla dalla lista secondaria.
+1. **Nessun KPI di fatturato/margine** — Un CEO vuole vedere *fatturato del mese*, *margine lordo*, *trend vs mese precedente*. Oggi questi dati esistono solo nella pagina Previsionale/Marginalità, non nella dashboard principale.
 
-### Bug / Edge Cases
-- **`SalesTargetsDialog.tsx`**: gli `Input` mostrano `value={r.target_revenue || ""}` — quando il valore è `0`, il campo appare vuoto anziché mostrare `0`. L'utente non distingue "non configurato" da "target zero".
-- **`MarketingDashboard.tsx`**: se `companyId` è `null` (nessuna azienda selezionata), la dashboard mostra skeleton infinito perché la query è `enabled: false` ma `isLoading` parte come `true` in quel caso. Serve empty state.
-- **`DashboardStrategicKPI.tsx`**: i target sono hardcoded (50000, 10, 30, 75). Non si aggiornano quando l'admin configura target diversi nel dialog.
+2. **Nessun delta temporale** — Tutti i numeri sono assoluti, senza confronto con il periodo precedente (↑/↓ rispetto al mese scorso). Un imprenditore ha bisogno di capire la direzione.
 
-### Performance
-- **`DashboardFilters.tsx`**: le callback `toggleUser` e `toggleSource` vengono ricreate ad ogni render, causando re-render nei figli. Wrappare con `useCallback`.
-- **`DashboardKPICards.tsx`** e **`DashboardStrategicKPI.tsx`** non sono wrappati in `React.memo` (tutti gli altri widget lo sono).
+3. **Cash flow troppo semplice** — Solo "questo mese" e "prossimo mese" senza mostrare le uscite. Il CEO vuole vedere il **saldo netto** (entrate - uscite), non solo le entrate.
 
-### TypeScript / Pulizia
-- **`SalesTargetsDialog.tsx`** e **`DashboardSalesTable.tsx`**: `as any` su `sales_targets` — aggiungere `// TODO: remove when types are regenerated` per chiarezza, dato che non possiamo modificare il file types.
+4. **"Azioni Rapide" occupa una colonna intera** — È essenzialmente una lista di 4 link. Spreco di spazio prezioso che potrebbe mostrare dati operativi.
 
-## Piano Modifiche
+5. **Nessuna visione su attività/calendario** — Non ci sono task imminenti, appuntamenti del giorno, o scadenze della settimana.
 
-| File | Modifica |
-|------|----------|
-| `DashboardKPICards.tsx` | Rimuovere `show_rate` dalla lista (duplicata). Wrappare in `React.memo`. |
-| `DashboardStrategicKPI.tsx` | Wrappare in `React.memo`. |
-| `DashboardFilters.tsx` | `useCallback` su `toggleUser`, `toggleSource`. |
-| `SalesTargetsDialog.tsx` | Fix input value: `value={r.target_revenue}` (senza `|| ""`). Commento TODO su `as any`. |
-| `DashboardSalesTable.tsx` | Commento TODO su `as any`. |
-| `MarketingDashboard.tsx` | Aggiungere empty state se `!companyId`. |
+6. **Nessun indicatore di performance team** — Quanti ordini chiusi questa settimana, tasso di avanzamento commesse, produttività.
 
-Nessun cambio funzionale. Solo stabilità, pulizia e micro-ottimizzazioni UX.
+## Piano di Miglioramento
+
+### 1. Nuova riga KPI "CEO Strip" (sopra tutto)
+
+Aggiungere un componente `DashboardCeoStrip.tsx` con 4 KPI con delta % vs mese precedente:
+
+| KPI | Calcolo | Delta |
+|-----|---------|-------|
+| Fatturato Mese | SUM total_amount ordini creati questo mese | vs mese precedente |
+| Margine Lordo % | Media margine da ordini con costi | vs mese precedente |
+| Saldo Cassa Netto | Entrate attese - Uscite attese (mese corrente) | — |
+| Ordini Chiusi Mese | COUNT ordini creati questo mese | vs mese precedente |
+
+Questi dati vengono calcolati nella query esistente, aggiungendo le query per il mese precedente.
+
+### 2. Migliorare il Cash Flow card → "Bilancio Mese"
+
+Trasformare la card "Previsionale Incassi" in un mini bilancio:
+- **Entrate attese**: come oggi
+- **Uscite attese**: costi fissi + fornitori + squadre + provvigioni (dati già disponibili in `useCashFlowData`)
+- **Saldo netto**: entrate - uscite, colorato verde/rosso
+- Progress bar visiva entrate vs uscite
+
+### 3. Sostituire "Azioni Rapide" con "Scadenze Settimana"
+
+Mostrare le prossime scadenze operative:
+- Pagamenti da incassare entro 7 giorni
+- Pagamenti fornitori in scadenza
+- Ordini con data lavori imminente
+
+Questo è molto più utile per un CEO che una lista di link (i link sono già nel menu laterale).
+
+### 4. Aggiungere delta % alle stat card esistenti
+
+Modificare le 4 stat card per mostrare un piccolo indicatore ↑/↓ con la variazione rispetto al mese precedente (verde = crescita, rosso = calo).
+
+### 5. Riordinare il layout
+
+```text
+┌──────────────────────────────────────────────────┐
+│  CEO Strip: Fatturato | Margine | Saldo | Ordini │  ← NUOVO
+├──────────────────────────────────────────────────┤
+│  Alert finanziari (se presenti)                  │
+├──────────────────────────────────────────────────┤
+│  Stat Cards: Ordini | Clienti | Ticket | Incasso │  ← con delta %
+├────────────┬────────────┬────────────────────────┤
+│  Ordini    │  Bilancio  │  Costi Manodopera      │
+│  Recenti   │  Mese      │                        │
+├────────────┼────────────┼────────────────────────┤
+│  Alert     │  Fornitori │  Scadenze Settimana    │  ← sostituisce
+│  Magazzino │            │                        │    Azioni Rapide
+└────────────┴────────────┴────────────────────────┘
+```
+
+### File da creare/modificare
+
+| Azione | File |
+|--------|------|
+| Creare | `src/components/dashboard/DashboardCeoStrip.tsx` |
+| Modificare | `src/pages/azienda/CompanyDashboard.tsx` (layout, query, delta %, rimozione Azioni Rapide, nuova sezione Scadenze) |
+
+La query esistente viene estesa con i dati del mese precedente per calcolare i delta. Nessuna migrazione DB necessaria — tutti i dati sono già nelle tabelle esistenti.
 
