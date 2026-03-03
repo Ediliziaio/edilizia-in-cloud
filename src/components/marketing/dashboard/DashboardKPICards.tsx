@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { TrendingUp, TrendingDown, Minus, Users, UserPlus, PhoneCall, CalendarCheck, CalendarDays, Trophy, Euro, Target, Phone, DollarSign } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Users, UserPlus, PhoneCall, CalendarCheck, CalendarDays, Trophy, Euro, Target, Phone, DollarSign, XCircle } from "lucide-react";
 import type { KpiData } from "@/hooks/useMarketingDashboard";
 import { cn } from "@/lib/utils";
 import { formatValue, calcDelta } from "./utils";
@@ -32,6 +32,8 @@ const KPI_CARDS: KpiCardDef[] = [
   { key: "revenue", label: "Fatturato", tooltip: "Somma valori opportunità vinte", icon: Euro, format: "currency" },
   { key: "avg_ticket", label: "Ticket Medio", tooltip: "Fatturato / Contratti vinti", icon: Euro, format: "currency" },
   { key: "close_rate", label: "Tasso Chiusura", tooltip: "Contratti vinti / App. svolti × 100", icon: Target, format: "percent" },
+  { key: "contracts_lost", label: "Contratti Persi", tooltip: "Opportunità con status 'persa'", icon: XCircle, format: "number", hideIfZero: true },
+  { key: "revenue_lost", label: "Valore Perso", tooltip: "Somma valori opportunità perse", icon: XCircle, format: "currency", hideIfZero: true },
   { key: "cpl", label: "CPL", tooltip: "Costo per Lead: Spesa / Lead Nuovi", icon: DollarSign, format: "currency", hideIfZero: true },
   { key: "cpa", label: "CPA", tooltip: "Costo per Acquisizione: Spesa / Contratti Vinti", icon: DollarSign, format: "currency", hideIfZero: true },
   { key: "calls_total", label: "Chiamate", tooltip: "Totale chiamate nel periodo", icon: Phone, format: "number", hideIfZero: true },

@@ -100,6 +100,15 @@ function generateInsights(kpi: KpiData, kpiPrev: KpiData, sales: SalesPerformanc
     });
   }
 
+  // Contracts lost > won
+  if (kpi.contracts_lost > 0 && kpi.contracts_lost > kpi.contracts_won) {
+    insights.push({
+      text: `I contratti persi (${kpi.contracts_lost}) superano quelli vinti (${kpi.contracts_won}) — analizzare le cause.`,
+      type: "negative",
+      icon: TrendingDown,
+    });
+  }
+
   // Stale leads
   const staleTotal = (alerts.stale_leads ?? 0) + (alerts.stale_leads_2h ?? 0);
   if (staleTotal > 5) {

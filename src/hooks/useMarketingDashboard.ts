@@ -24,7 +24,9 @@ export interface KpiData {
   appointments_done: number;
   show_rate: number;
   contracts_won: number;
+  contracts_lost: number;
   revenue: number;
+  revenue_lost: number;
   avg_ticket: number;
   close_rate: number;
   total_spend: number;
