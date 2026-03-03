@@ -13,6 +13,7 @@ interface Props {
   visibleColumns: string[];
   dateRange: DateRange;
   accountId: string;
+  companyName?: string;
 }
 
 const COLUMN_LABELS: Record<string, string> = {
@@ -32,7 +33,7 @@ const COLUMN_LABELS: Record<string, string> = {
   avg_revenue: "Entrate medie",
 };
 
-const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, accountId }: Props) => {
+const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, accountId, companyName }: Props) => {
   const buildData = () =>
     rows.map((r) => {
       const obj: Record<string, any> = {};
@@ -42,7 +43,8 @@ const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, acc
       return obj;
     });
 
-  const fileName = `facebook-ads-report_${accountId}_${format(dateRange.from, "yyyyMMdd")}-${format(dateRange.to, "yyyyMMdd")}`;
+  const slug = (companyName || "").replace(/[^a-zA-Z0-9]/g, "-").replace(/-+/g, "-").toLowerCase();
+  const fileName = `facebook-ads-report_${slug ? slug + "_" : ""}${accountId}_${format(dateRange.from, "yyyyMMdd")}-${format(dateRange.to, "yyyyMMdd")}`;
 
   const exportCSV = () => {
     const data = buildData();

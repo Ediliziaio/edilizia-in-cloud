@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -271,6 +271,55 @@ export function useMetaAdsReport() {
   const isLoading = isLoadingAccounts || isLoadingInsights;
   const hasTokenError = insightsError?.message?.includes("token") || insightsError?.message?.includes("OAuthException");
 
+  // --- Persistence: load preferences on mount ---
+  const prefsLoaded = useRef(false);
+  useEffect(() => {
+    if (!companyId || !userId || prefsLoaded.current) return;
+    (async () => {
+      const { data } = await supabase
+        .from("reporting_preferences")
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("user_id", userId)
+        .eq("report_key", "facebook_ads")
+        .maybeSingle();
+      if (data) {
+        if (data.visible_columns) setVisibleColumns(data.visible_columns as string[]);
+        if (data.last_ad_account) setSelectedAccountId(data.last_ad_account as string);
+        if (data.last_date_range) {
+          const dr = data.last_date_range as any;
+          if (dr.from && dr.to) setDateRange({ from: new Date(dr.from), to: new Date(dr.to) });
+        }
+        if (data.default_sort) setSortColumn(data.default_sort as string);
+      }
+      prefsLoaded.current = true;
+    })();
+  }, [companyId, userId]);
+
+  // --- Persistence: save preferences (debounced) ---
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    if (!companyId || !userId || !prefsLoaded.current) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      await supabase.from("reporting_preferences").upsert(
+        {
+          company_id: companyId,
+          user_id: userId,
+          report_key: "facebook_ads",
+          visible_columns: visibleColumns as any,
+          default_sort: sortColumn,
+          last_ad_account: selectedAccountId,
+          last_date_range: { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() } as any,
+        },
+        { onConflict: "company_id,user_id,report_key" }
+      );
+    }, 1500);
+    return () => clearTimeout(saveTimerRef.current);
+  }, [visibleColumns, selectedAccountId, dateRange, sortColumn, companyId, userId]);
+
+  const companyName = (effectiveCompany as any)?.name || "";
+
   return {
     // Connection
     isConnected,
@@ -303,5 +352,7 @@ export function useMetaAdsReport() {
     // Columns
     visibleColumns,
     setVisibleColumns,
+    // Company
+    companyName,
   };
 }
