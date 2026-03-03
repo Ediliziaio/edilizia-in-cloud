@@ -84,7 +84,6 @@ export default function CompanyDashboard() {
     dateFrom: startOfMonth(new Date()),
     dateTo: endOfDay(new Date()),
     statusId: null,
-    customerIds: [],
   });
 
   const updateFilters = useCallback((partial: Partial<CompanyDashboardFiltersState>) => {
@@ -111,7 +110,7 @@ export default function CompanyDashboard() {
   }, [dateRange]);
 
   const { data: dashboardData, isLoading, isError } = useQuery({
-    queryKey: ["dashboard-data", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId, filters.customerIds],
+    queryKey: ["dashboard-data", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId],
     queryFn: async () => {
       const now = new Date();
       const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -145,7 +144,6 @@ export default function CompanyDashboard() {
           let q: any = supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId!)
             .gte("created_at", dateFromStr).lte("created_at", dateToStr);
           if (filters.statusId) q = q.eq("status_id", filters.statusId);
-          if (filters.customerIds.length > 0) q = q.in("customer_id", filters.customerIds);
           return q;
         })(),
         // Customers (filtered)
@@ -153,7 +151,6 @@ export default function CompanyDashboard() {
           let q: any = supabase.from("orders").select("customer_id").eq("company_id", companyId!)
             .gte("created_at", dateFromStr).lte("created_at", dateToStr);
           if (filters.statusId) q = q.eq("status_id", filters.statusId);
-          if (filters.customerIds.length > 0) q = q.in("customer_id", filters.customerIds);
           return q;
         })(),
         supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", companyId!).eq("status", "aperto"),
@@ -166,7 +163,6 @@ export default function CompanyDashboard() {
             .eq("company_id", companyId!)
             .gte("created_at", dateFromStr).lte("created_at", dateToStr);
           if (filters.statusId) q = q.eq("status_id", filters.statusId);
-          if (filters.customerIds.length > 0) q = q.in("customer_id", filters.customerIds);
           return q.order("created_at", { ascending: false }).limit(5);
         })(),
         supabase
