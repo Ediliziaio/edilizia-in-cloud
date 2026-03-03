@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,22 +26,16 @@ export function SalesTargetsDialog() {
   const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState<TargetRow[]>([]);
 
-  useEffect(() => {
-    if (!open || !companyId) return;
-    loadData();
-  }, [open, companyId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
     try {
-      // Get team members who have sales activity
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .limit(100);
 
-      // Get existing targets
       const { data: targets } = await supabase
         .from("sales_targets" as any)
         .select("*")
@@ -69,7 +63,13 @@ export function SalesTargetsDialog() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [companyId]);
+
+  useEffect(() => {
+    if (open && companyId) {
+      loadData();
+    }
+  }, [open, companyId, loadData]);
 
   const updateRow = (userId: string, field: keyof TargetRow, value: number) => {
     setRows(prev => prev.map(r => r.user_id === userId ? { ...r, [field]: value } : r));
@@ -79,18 +79,15 @@ export function SalesTargetsDialog() {
     if (!companyId) return;
     setSaving(true);
     try {
-      // Filter only rows with at least one target set
-      const toUpsert = rows
-        .filter(r => r.target_revenue > 0 || r.target_contracts > 0 || r.target_appointments > 0)
-        .map(r => ({
-          company_id: companyId,
-          user_id: r.user_id,
-          period_type: "weekly",
-          target_revenue: r.target_revenue,
-          target_contracts: r.target_contracts,
-          target_appointments: r.target_appointments,
-          target_calls: 0,
-        }));
+      const toUpsert = rows.map(r => ({
+        company_id: companyId,
+        user_id: r.user_id,
+        period_type: "weekly",
+        target_revenue: r.target_revenue,
+        target_contracts: r.target_contracts,
+        target_appointments: r.target_appointments,
+        target_calls: 0,
+      }));
 
       if (toUpsert.length > 0) {
         const { error } = await supabase

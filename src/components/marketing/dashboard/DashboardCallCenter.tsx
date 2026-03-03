@@ -1,24 +1,17 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Phone } from "lucide-react";
 import type { CallCenterRow } from "@/hooks/useMarketingDashboard";
+import { fmt, formatDuration } from "./utils";
 
 interface Props {
   callCenter: CallCenterRow[] | undefined;
   isLoading: boolean;
 }
 
-const fmt = (n: number) => new Intl.NumberFormat("it-IT").format(n);
-
-function formatDuration(seconds: number): string {
-  if (!seconds) return "0s";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
-}
-
-export function DashboardCallCenter({ callCenter, isLoading }: Props) {
+export const DashboardCallCenter = memo(function DashboardCallCenter({ callCenter, isLoading }: Props) {
   if (isLoading) {
     return (
       <Card>
@@ -84,4 +77,4 @@ export function DashboardCallCenter({ callCenter, isLoading }: Props) {
       </CardContent>
     </Card>
   );
-}
+});

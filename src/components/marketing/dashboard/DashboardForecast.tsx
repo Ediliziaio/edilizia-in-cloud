@@ -1,17 +1,17 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BarChart3, Zap, Clock, ArrowRightLeft } from "lucide-react";
 import type { KpiData } from "@/hooks/useMarketingDashboard";
+import { fmtCur } from "./utils";
 
 interface Props {
   kpi: KpiData | undefined;
   isLoading: boolean;
 }
 
-const fmtCur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
-
-export function DashboardForecast({ kpi, isLoading }: Props) {
+export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoading }: Props) {
   if (isLoading) {
     return (
       <Card>
@@ -114,4 +114,4 @@ export function DashboardForecast({ kpi, isLoading }: Props) {
       </Card>
     </TooltipProvider>
   );
-}
+});

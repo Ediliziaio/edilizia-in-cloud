@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -5,17 +6,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BarChart3, Info } from "lucide-react";
 import type { SourceAnalysis } from "@/hooks/useMarketingDashboard";
 import { cn } from "@/lib/utils";
-import { useMemo } from "react";
+import { fmt, fmtCur } from "./utils";
 
 interface Props {
   sources: SourceAnalysis[] | undefined;
   isLoading: boolean;
 }
 
-const fmt = (n: number) => new Intl.NumberFormat("it-IT").format(n);
-const fmtCur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
-
-export function DashboardSourcesTable({ sources, isLoading }: Props) {
+export const DashboardSourcesTable = memo(function DashboardSourcesTable({ sources, isLoading }: Props) {
   if (isLoading) {
     return (
       <Card>
@@ -28,7 +26,6 @@ export function DashboardSourcesTable({ sources, isLoading }: Props) {
   const rawRows = sources || [];
   const hasSpend = rawRows.some(r => r.spend > 0);
   
-  // Sort by ROI desc if spend data exists, else by leads
   const rows = useMemo(() => {
     return [...rawRows].sort((a, b) => {
       if (hasSpend) {
@@ -114,4 +111,4 @@ export function DashboardSourcesTable({ sources, isLoading }: Props) {
       </Card>
     </TooltipProvider>
   );
-}
+});

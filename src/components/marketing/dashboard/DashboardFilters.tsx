@@ -55,7 +55,8 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
         .from("marketing_contacts")
         .select("source")
         .eq("company_id", companyId!)
-        .not("source", "is", null);
+        .not("source", "is", null)
+        .limit(500);
       const unique = [...new Set((data || []).map(d => d.source).filter(Boolean))] as string[];
       return unique.sort();
     },

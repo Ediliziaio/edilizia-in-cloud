@@ -1,16 +1,18 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { FunnelStage } from "@/hooks/useMarketingDashboard";
 import { cn } from "@/lib/utils";
 import { AlertTriangle } from "lucide-react";
+import { fmtCur } from "./utils";
 
 interface Props {
   funnel: FunnelStage[] | undefined;
   isLoading: boolean;
 }
 
-export function DashboardFunnel({ funnel, isLoading }: Props) {
+export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading }: Props) {
   if (isLoading) {
     return (
       <Card>
@@ -88,7 +90,7 @@ export function DashboardFunnel({ funnel, isLoading }: Props) {
                           >
                             {stage.total_value > 0 && (
                               <span className="text-[10px] text-primary-foreground font-medium truncate">
-                                {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(stage.total_value)}
+                                {fmtCur(stage.total_value)}
                               </span>
                             )}
                           </div>
@@ -98,7 +100,7 @@ export function DashboardFunnel({ funnel, isLoading }: Props) {
                     <TooltipContent>
                       <div className="text-xs space-y-1">
                         <p><strong>{stage.name}</strong>: {stage.count} opportunità</p>
-                        {stage.total_value > 0 && <p>Valore: {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(stage.total_value)}</p>}
+                        {stage.total_value > 0 && <p>Valore: {fmtCur(stage.total_value)}</p>}
                         {convRate !== null && <p>Conversione: {convRate}%</p>}
                         {stage.avg_days_in_stage > 0 && <p>Tempo medio in fase: {stage.avg_days_in_stage} giorni</p>}
                         {isBottleneck && <p className="text-red-500 font-semibold">⚠️ Possibile collo di bottiglia</p>}
@@ -113,4 +115,4 @@ export function DashboardFunnel({ funnel, isLoading }: Props) {
       </Card>
     </TooltipProvider>
   );
-}
+});

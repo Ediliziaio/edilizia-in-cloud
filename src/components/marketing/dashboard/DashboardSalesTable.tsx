@@ -1,13 +1,14 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
 import { Trophy, TrendingUp, TrendingDown } from "lucide-react";
 import type { SalesPerformance } from "@/hooks/useMarketingDashboard";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fmt, fmtCur } from "./utils";
 
 interface Props {
   sales: SalesPerformance[] | undefined;
@@ -20,9 +21,6 @@ interface SalesTarget {
   target_contracts: number;
   target_appointments: number;
 }
-
-const fmt = (n: number) => new Intl.NumberFormat("it-IT").format(n);
-const fmtCur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 
 function TargetProgress({ value, target }: { value: number; target: number }) {
   if (!target || target <= 0) return <span className="text-xs text-muted-foreground">—</span>;
@@ -43,7 +41,7 @@ function TargetProgress({ value, target }: { value: number; target: number }) {
   );
 }
 
-export function DashboardSalesTable({ sales, isLoading }: Props) {
+export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, isLoading }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -166,4 +164,4 @@ export function DashboardSalesTable({ sales, isLoading }: Props) {
       </CardContent>
     </Card>
   );
-}
+});

@@ -1,5 +1,6 @@
-import { LayoutDashboard, Download, RefreshCw } from "lucide-react";
+import { LayoutDashboard, Download, RefreshCw, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useMarketingDashboard } from "@/hooks/useMarketingDashboard";
 import { SalesTargetsDialog } from "@/components/marketing/dashboard/SalesTargetsDialog";
 import { DashboardFilters } from "@/components/marketing/dashboard/DashboardFilters";
@@ -16,7 +17,7 @@ import { DashboardTrendChart } from "@/components/marketing/dashboard/DashboardT
 import { exportToCSV } from "@/lib/csvExport";
 
 export default function MarketingDashboard() {
-  const { data, isLoading, refetch, filters, updateFilters, permissions } = useMarketingDashboard();
+  const { data, isLoading, error, refetch, filters, updateFilters, permissions } = useMarketingDashboard();
 
   const handleExportKPI = () => {
     if (!data?.kpi) return;
@@ -77,6 +78,23 @@ export default function MarketingDashboard() {
 
       {/* Filters */}
       <DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} />
+
+      {/* Error State */}
+      {error && !isLoading && (
+        <Card className="border-destructive/50">
+          <CardContent className="flex items-center gap-4 py-6">
+            <AlertCircle className="h-6 w-6 text-destructive shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Errore nel caricamento dei dati</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Controlla la connessione e riprova</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-1.5" />
+              Riprova
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 1. KPI Strategici (6 grandi) */}
       <DashboardStrategicKPI kpi={data?.kpi} kpiPrev={data?.kpi_prev} isLoading={isLoading} />

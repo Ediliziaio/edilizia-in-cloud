@@ -19,6 +19,15 @@ interface Insight {
   icon: React.ElementType;
 }
 
+const EMPTY_ALERTS: AlertsData = {
+  stale_leads: 0,
+  stale_leads_2h: 0,
+  stale_opportunities: 0,
+  pending_appointments: 0,
+  show_rate_below_threshold: false,
+  pipeline_declining: false,
+};
+
 function generateInsights(kpi: KpiData, kpiPrev: KpiData, sales: SalesPerformance[], sources: SourceAnalysis[], alerts: AlertsData): Insight[] {
   const insights: Insight[] = [];
 
@@ -116,7 +125,8 @@ export function DashboardInsights({ kpi, kpiPrev, sales, sources, alerts, isLoad
 
   if (!kpi || !kpiPrev) return null;
 
-  const insights = generateInsights(kpi, kpiPrev, sales || [], sources || [], alerts || {} as AlertsData);
+  const safeAlerts = alerts ? { ...EMPTY_ALERTS, ...alerts } : EMPTY_ALERTS;
+  const insights = generateInsights(kpi, kpiPrev, sales || [], sources || [], safeAlerts);
 
   if (insights.length === 0) return null;
 
