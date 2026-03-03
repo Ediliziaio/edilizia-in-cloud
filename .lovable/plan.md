@@ -1,64 +1,103 @@
 
 
-# Audit Cruscotto Aziendale — Report e Piano Interventi
+# Analisi Cruscotto Aziendale — Visione CEO/Imprenditore
 
-## Report AS-IS
+## Cosa c'e' di buono
 
-Il Cruscotto e' in buono stato architetturale: 12 componenti modulari, tutti wrappati in `React.memo`, con loading/error states, layout gerarchico CEO-first. Il data layer usa 3 query parallele (`marketing RPC`, `operations`, `finance`) con `staleTime: 120s`. Multi-tenancy correttamente applicata via `companyId` su tutte le query.
-
----
-
-## Interventi Identificati
-
-### P0 — Unused Imports (Dead Code)
-
-| File | Problema |
-|------|----------|
-| `ExecutiveOverview.tsx` riga 5 | `BarChart3` importato ma mai usato nel componente |
-| `FinanzaCashFlow.tsx` riga 4 | `Progress` importato da radix ma non usato (barra custom con div) |
-| `MarketingControl.tsx` riga 2 | `Card`, `CardContent`, `CardHeader`, `CardTitle` importati ma mai usati |
-
-### P1 — Performance: Query N+1 in Finance
-
-Il `financeData` query in `useCruscottoData.ts` esegue 4 query separate (`currentOrders` con join, `prevOrders` con join, `pendingRes`, `costsRes`). Sono gia' in `Promise.all` quindi parallele — nessun N+1 reale. Tuttavia il `pendingRes` scarica TUTTI gli ordini dell'azienda per calcolare i pagamenti scaduti. Su aziende con 1000+ ordini questo puo' essere pesante.
-
-**Fix**: aggiungere filtro `.or('deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false,financing_paid.eq.false')` alla query `pendingRes` per scaricare solo ordini con almeno un pagamento non saldato.
-
-### P1 — Stessa query duplicata in Operations
-
-La query `overdueRes` in operations scarica gli stessi campi di `pendingRes` in finance. Entrambe scaricano TUTTI gli ordini dell'azienda con i campi di pagamento.
-
-**Fix**: Consolidare in una singola query condivisa, calcolando sia `overduePayments`/`overdueAmount` sia `pendingRevenue`/`thisMonthIncome` dallo stesso risultato.
-
-### P2 — UX: `stale_leads_2h` e `pending_appointments` non usati
-
-La RPC `get_marketing_dashboard_stats` ritorna `stale_leads_2h` e `pending_appointments` negli alerts, ma `CruscottoAlerts.tsx` non li mostra. Sono alert utili che andrebbero visualizzati.
-
-### P2 — Security: `any` cast in operations query
-
-`useCruscottoData.ts` riga 99: `let q: any = supabase.from(...)` — perde il type-checking. Dovrebbe usare il tipo corretto.
+Il cruscotto ha una struttura solida: Health Score in cima, sintesi esecutiva, alert operativi, KPI finanziari e commerciali, e sezioni di dettaglio. La gerarchia visiva e' corretta (cose importanti sopra, dettaglio sotto). I filtri temporali sono comodi.
 
 ---
 
-## Piano di Intervento (5 modifiche)
+## Cosa manca — Il punto di vista di un CEO vero
 
-### 1. Rimuovere import inutilizzati (3 file)
-- `ExecutiveOverview.tsx`: rimuovere `BarChart3` dalla lista import
-- `FinanzaCashFlow.tsx`: rimuovere `Progress` dalla lista import
-- `MarketingControl.tsx`: rimuovere import `Card, CardContent, CardHeader, CardTitle`
+### 1. E' un cruscotto "statico" — non mi dice COSA FARE ORA
 
-### 2. Ottimizzare query payments in `useCruscottoData.ts`
-- Aggiungere filtro sulla query `pendingRes` per escludere ordini con tutti i pagamenti gia' saldati
-- Consolidare `overdueRes` (operations) e `pendingRes` (finance) in una singola query condivisa per eliminare il download duplicato
-- Rimuovere il cast `any` dalla query operations
+Un CEO apre il cruscotto per **decidere**, non per leggere numeri. Oggi il cruscotto mostra dati ma non risponde alle 3 domande che un imprenditore si fa ogni mattina:
 
-### 3. Aggiungere alert mancanti in `CruscottoAlerts.tsx`
-- Mostrare `stale_leads_2h` come alert "info" per lead non contattati da 2h
-- Mostrare `pending_appointments` come alert "warning" per appuntamenti non completati
+- **"Come stiamo rispetto al piano?"** — Non ci sono TARGET. Fatturato 0€ non significa nulla se non so che il target e' 50.000€. Serve una barra progresso "X% del target mensile" sui KPI chiave.
+- **"Cosa devo fare oggi?"** — Manca un blocco "Priorita' del giorno" con le 3-5 azioni piu' urgenti estratte automaticamente dai dati (pagamenti da sollecitare, lead caldi da chiamare, ordini in scadenza questa settimana).
+- **"Come andremo a finire il mese?"** — Il forecast c'e' ma e' nascosto in fondo. Serve una proiezione visiva "a fine mese chiudiamo a €X" basata sulla velocity attuale, posizionata in alto.
 
-### 4. Nessun intervento necessario su:
-- Multi-tenancy: tutte le query sono gia' tenant-scoped via `companyId`
-- Sicurezza: RLS attivo, dati filtrati server-side
-- Backup: gestito da Lovable Cloud (giornaliero, PITR)
-- Auth/RBAC: `can_view_cruscotto` gia' verificato a livello routing
+### 2. Manca la "Agenda Settimanale" operativa
+
+Un imprenditore di edilizia ragiona per settimana. Serve un widget "Prossimi 7 giorni" che mostri:
+- Quanti incassi sono previsti (pagamenti con scadenza questa settimana)
+- Quanti costi scadono
+- Quanti cantieri/lavori hanno date di consegna
+- Quanti appuntamenti commerciali
+
+Questo e' il widget piu' utile in assoluto per chi gestisce un'azienda.
+
+### 3. Il Trend e' inutile cosi' com'e'
+
+Il grafico "Trend Temporale" in fondo mostra "Nessun dato nel periodo" — e anche quando ha dati, un singolo grafico generico non aiuta. Un CEO vuole vedere:
+- **Fatturato cumulativo mese** vs stesso periodo mese scorso (linea sovrapposta)
+- **Pipeline evolution** — come cresce/decresce la pipeline settimana dopo settimana
+
+### 4. Manca il "Polso" del team
+
+La sezione HR mostra solo un ranking. Un CEO vuole sapere:
+- **Chi sta lavorando su cosa oggi** — quanti ordini ha ogni persona, quanti lead sta gestendo
+- **Chi e' sovraccarico e chi e' scarico** — distribuzione del lavoro
+- Questa e' la differenza tra un cruscotto e un foglio Excel
+
+### 5. I numeri sono tutti a zero — UX di "vuoto"
+
+Quando i dati sono zero (come nello screenshot), il cruscotto sembra rotto. Servono:
+- Empty state intelligenti: "Nessun ordine ancora. Crea il tuo primo ordine →" con CTA
+- Dati demo/placeholder per i nuovi utenti che stanno esplorando
+- Messaggio contestuale: "Il cruscotto si popola automaticamente con i tuoi dati di ordini, lead e costi"
+
+### 6. Manca un "Quick Access" alle azioni principali
+
+Un CEO non vuole navigare menu. Servono bottoni rapidi:
+- "Nuovo Ordine" / "Nuovo Lead" / "Registra Costo" — accessibili direttamente dal cruscotto
+- Link rapido a "Ordini in ritardo" quando il numero e' > 0
+
+### 7. Il Mobile e' sottovalutato
+
+Un imprenditore controlla il cruscotto dal telefono alle 7 di mattina. Le 12 KPI card in griglia sono troppe su mobile. Serve:
+- Una versione mobile che mostri solo Health Score + 4 KPI chiave + Alert + Agenda settimana
+- Il resto accessibile con uno swipe o un "Mostra dettagli"
+
+---
+
+## Piano di Intervento (prioritizzato)
+
+### P0 — Empty State intelligente
+Quando i dati sono zero, mostrare un messaggio guida con CTA ("Crea il tuo primo ordine", "Importa i tuoi lead") invece di righe di zeri che fanno sembrare il prodotto rotto.
+
+### P0 — Widget "Scadenze Settimana"
+Nuovo componente above-the-fold: aggregazione dei prossimi 7 giorni (incassi previsti, costi in scadenza, lavori da consegnare, appuntamenti). Query su `orders` (pagamenti con `expected_date` nei prossimi 7gg) + `company_costs` (con `due_date` nei prossimi 7gg).
+
+### P1 — Target sui KPI principali
+Aggiungere barra di progresso sotto Fatturato, Contratti Vinti, Lead Nuovi con target mensile. Target inizialmente configurabili da un campo in settings (o hardcoded, poi configurabile).
+
+### P1 — "Priorita' del Giorno" (auto-generato)
+Blocco in cima che estrae le top 3-5 azioni urgenti dai dati esistenti: pagamenti scaduti da sollecitare, lead caldi non contattati, ordini in ritardo da verificare. Ogni item cliccabile con link diretto.
+
+### P1 — Proiezione fine mese
+Calcolo: `(fatturato attuale / giorni passati) * giorni nel mese` = proiezione. Mostrare come numero grande accanto al fatturato attuale nell'Executive Overview.
+
+### P2 — Quick Actions bar
+Riga di bottoni sotto l'header: "Nuovo Ordine", "Nuovo Lead", "Registra Costo" — shortcut diretti.
+
+### P2 — Mobile-first KPI view
+Su viewport < 768px, collassare le KPI in un carosello swipeable con solo i 4 indicatori chiave.
+
+---
+
+## File da creare/modificare
+
+| Azione | File |
+|--------|------|
+| Creare | `src/components/cruscotto/WeeklyAgenda.tsx` — Scadenze prossimi 7gg |
+| Creare | `src/components/cruscotto/DailyPriorities.tsx` — Top 5 azioni urgenti auto-generate |
+| Creare | `src/components/cruscotto/QuickActions.tsx` — Bottoni shortcut |
+| Creare | `src/components/cruscotto/EmptyStateGuide.tsx` — Guida onboarding dati zero |
+| Modificare | `src/components/cruscotto/ExecutiveOverview.tsx` — Aggiungere proiezione fine mese + target bar |
+| Modificare | `src/pages/azienda/CruscottoAziendale.tsx` — Integrare nuovi widget + empty state |
+| Modificare | `src/hooks/useCruscottoData.ts` — Query scadenze settimanali |
+
+Nessuna migrazione DB necessaria — tutti i dati sono gia' nelle tabelle `orders` e `company_costs`.
 
