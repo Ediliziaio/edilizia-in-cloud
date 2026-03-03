@@ -1,12 +1,12 @@
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, Euro, Truck, Wrench } from "lucide-react";
+import { CalendarClock, Euro, Receipt, Wrench } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 
 interface Deadline {
   id: string;
-  type: "receivable" | "supplier" | "work";
+  type: "receivable" | "cost" | "work";
   label: string;
   sublabel: string;
   amount?: number;
@@ -21,7 +21,7 @@ interface WeeklyDeadlinesProps {
     expectedDate: string;
     daysLeft: number;
   }>;
-  supplierPayments: Array<{
+  companyCosts: Array<{
     name: string;
     amount: number;
     dueDate: string;
@@ -47,13 +47,13 @@ function DaysLeftBadge({ days }: { days: number }) {
 
 const iconMap = {
   receivable: Euro,
-  supplier: Truck,
+  cost: Receipt,
   work: Wrench,
 };
 
 const WeeklyDeadlines = React.memo(function WeeklyDeadlines({
   receivables,
-  supplierPayments,
+  companyCosts,
   upcomingWorks,
 }: WeeklyDeadlinesProps) {
   const deadlines: Deadline[] = [
@@ -65,10 +65,10 @@ const WeeklyDeadlines = React.memo(function WeeklyDeadlines({
       amount: r.amount,
       daysLeft: r.daysLeft,
     })),
-    ...supplierPayments.map((s, i) => ({
-      id: `supp-${i}`,
-      type: "supplier" as const,
-      label: `Pagamento: ${s.name}`,
+    ...companyCosts.map((s, i) => ({
+      id: `cost-${i}`,
+      type: "cost" as const,
+      label: `Costo: ${s.name}`,
       sublabel: formatCurrency(s.amount),
       amount: s.amount,
       daysLeft: s.daysLeft,

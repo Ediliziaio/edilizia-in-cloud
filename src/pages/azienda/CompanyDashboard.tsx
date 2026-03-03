@@ -345,7 +345,7 @@ export default function CompanyDashboard() {
         financialAlerts,
         weeklyDeadlines: {
           receivables: weeklyReceivables,
-          supplierPayments: weeklySupplierPayments,
+          companyCosts: weeklySupplierPayments,
           upcomingWorks: weeklyUpcomingWorks,
         },
       };
@@ -361,7 +361,7 @@ export default function CompanyDashboard() {
   const urgentItems = dashboardData?.urgentItems ?? [];
   const financialAlerts = dashboardData?.financialAlerts ?? [];
   const ceoStrip = dashboardData?.ceoStrip ?? { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, ordersThisMonth: 0, ordersPrevMonth: 0 };
-  const weeklyDeadlines = dashboardData?.weeklyDeadlines ?? { receivables: [], supplierPayments: [], upcomingWorks: [] };
+  const weeklyDeadlines = dashboardData?.weeklyDeadlines ?? { receivables: [], companyCosts: [], upcomingWorks: [] };
 
   const statCards = [
     {
@@ -684,7 +684,7 @@ export default function CompanyDashboard() {
         {/* Weekly Deadlines (replaces Quick Actions) */}
         <WeeklyDeadlines
           receivables={weeklyDeadlines.receivables}
-          supplierPayments={weeklyDeadlines.supplierPayments}
+          companyCosts={weeklyDeadlines.companyCosts}
           upcomingWorks={weeklyDeadlines.upcomingWorks}
         />
       </div>
