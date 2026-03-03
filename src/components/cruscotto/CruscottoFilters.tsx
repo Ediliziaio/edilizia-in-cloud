@@ -24,10 +24,10 @@ const DATE_PRESETS: { value: CruscottoDatePreset; label: string }[] = [
 
 export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpdate }: Props) {
   return (
-    <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border bg-card">
-      <Filter className="h-4 w-4 text-muted-foreground" />
+    <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border bg-card overflow-x-auto">
+      <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
 
-      <div className="flex items-center gap-1 rounded-lg border bg-background p-1">
+      <div className="flex items-center gap-1 rounded-lg border bg-background p-1 shrink-0">
         {DATE_PRESETS.map(p => (
           <Button
             key={p.value}

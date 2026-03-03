@@ -1,4 +1,3 @@
-import { memo, lazy, Suspense } from "react";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { CruscottoFilters } from "@/components/cruscotto/CruscottoFilters";
 import { CruscottoAlerts } from "@/components/cruscotto/CruscottoAlerts";
@@ -10,18 +9,30 @@ import { OperationsDelivery } from "@/components/cruscotto/OperationsDelivery";
 import { FinanzaCashFlow } from "@/components/cruscotto/FinanzaCashFlow";
 import { HRPerformance } from "@/components/cruscotto/HRPerformance";
 import { CruscottoTrend } from "@/components/cruscotto/CruscottoTrend";
-import { Loader2 } from "lucide-react";
-
-function SectionLoader() {
-  return (
-    <div className="flex items-center justify-center py-8">
-      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-    </div>
-  );
-}
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CruscottoAziendale() {
   const { marketing, operations, finance, isLoading, error, filters, updateFilters } = useCruscottoData();
+
+  if (isLoading && !marketing) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
+          <p className="text-sm text-muted-foreground">Centro di controllo unificato — Gestione Interna + Marketing & Vendite</p>
+        </div>
+        <Skeleton className="h-12 w-full" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -30,6 +41,14 @@ export default function CruscottoAziendale() {
         <h1 className="text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
         <p className="text-sm text-muted-foreground">Centro di controllo unificato — Gestione Interna + Marketing & Vendite</p>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>Errore nel caricamento dei dati: {error.message}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Global Filters */}
       <CruscottoFilters filters={filters} onUpdate={updateFilters} />

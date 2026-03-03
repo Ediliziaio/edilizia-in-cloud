@@ -3,8 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useMemo, useCallback } from "react";
 import { subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
-import type { DashboardStats, KpiData, FunnelStage, SalesPerformance, SourceAnalysis, TrendPoint, AlertsData } from "@/hooks/useMarketingDashboard";
-import { formatCurrency } from "@/lib/formatters";
+import type { DashboardStats } from "@/hooks/useMarketingDashboard";
 
 export type CruscottoDatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "quarter" | "custom";
 
@@ -38,13 +37,7 @@ export interface FinanceData {
   supplierDebt: number;
 }
 
-export interface CruscottoData {
-  marketing: DashboardStats | null;
-  operations: OperationsData;
-  finance: FinanceData;
-  isLoading: boolean;
-  error: Error | null;
-}
+
 
 function getDateRange(preset: CruscottoDatePreset, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
   const now = new Date();
@@ -60,7 +53,7 @@ function getDateRange(preset: CruscottoDatePreset, customFrom?: Date, customTo?:
 }
 
 export function useCruscottoData() {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   const [filters, setFilters] = useState<CruscottoFiltersState>({
@@ -105,7 +98,7 @@ export function useCruscottoData() {
         (() => {
           let q: any = supabase.from("orders").select("id", { count: "exact", head: true })
             .eq("company_id", companyId!);
-          if (filters.statusId) q = q.eq("status_id", filters.statusId);
+          if (filters.statusId) q = q.eq("current_status_id", filters.statusId);
           return q;
         })(),
         supabase.from("orders").select("id", { count: "exact", head: true })

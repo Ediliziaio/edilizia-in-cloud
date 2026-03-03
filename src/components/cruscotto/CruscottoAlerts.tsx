@@ -113,7 +113,6 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         const Icon = alert.icon;
         const content = (
           <div
-            key={alert.id}
             className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer",
               alert.level === "critical" && "bg-destructive/10 text-destructive hover:bg-destructive/20",
