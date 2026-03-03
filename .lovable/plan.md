@@ -1,114 +1,49 @@
 
 
-# Cruscotto Aziendale — Piano di Implementazione
+# Piano di Pulizia e Stabilizzazione del Progetto
 
-## Analisi
+## Analisi completata
 
-Il progetto ha gia' due dashboard separate con dati complementari:
-- **Gestione Interna** (`CompanyDashboard.tsx`): ordini, fatturato, margini, cash flow, scadenze
-- **Marketing & Vendite** (`MarketingDashboard.tsx`): lead, pipeline, forecast, performance commerciali, funnel, trend — alimentata dalla RPC `get_marketing_dashboard_stats`
-
-Il Cruscotto Aziendale deve fondere entrambe in un'unica vista executive, riutilizzando al massimo i componenti e le query esistenti.
-
-## Complessita' e Approccio
-
-Questo e' un progetto molto ampio. Lo implemento in modo **modulare e incrementale**: struttura completa, sezioni lazy-loaded, dati aggregati da entrambe le fonti. Ogni macro-sezione e' un componente autonomo che puo' essere attivato/disattivato.
+Ho analizzato il codebase del Cruscotto Aziendale e i componenti correlati. Il progetto e' complessivamente ben strutturato. Ecco i problemi identificati e le correzioni pianificate.
 
 ---
 
-## 1. Permessi e Sidebar
+## 1. Codice non utilizzato da rimuovere
 
-**DB Migration**: aggiungere colonna `can_view_cruscotto` a `staff_permissions` (boolean, default false).
+| File | Problema |
+|------|----------|
+| `src/hooks/useCruscottoData.ts` | Import inutilizzato: `formatCurrency` da `@/lib/formatters` (riga 7) |
+| `src/hooks/useCruscottoData.ts` | Import tipo inutilizzati: `FunnelStage`, `SalesPerformance`, `SourceAnalysis`, `TrendPoint` (riga 6) — usati solo come `DashboardStats` |
+| `src/pages/azienda/CruscottoAziendale.tsx` | Import inutilizzati: `memo`, `lazy`, `Suspense` (riga 1) — `memo` non wrappa il componente, `lazy`/`Suspense` non sono usati |
+| `src/pages/azienda/CruscottoAziendale.tsx` | Componente `SectionLoader` (righe 15-21) — definito ma mai usato |
+| `src/hooks/useCruscottoData.ts` | Variabile `user` destrutturata da `useAuth()` ma mai usata (riga 63) |
+| `src/hooks/useCruscottoData.ts` | Interface `CruscottoData` (righe 41-47) — definita ma mai esportata/usata altrove |
 
-**`sidebarConfig.ts`**: aggiungere voce "Cruscotto Aziendale" con `permissionKey: "canViewCruscotto"`, posizionata PRIMA di "Gestione Interna".
+## 2. Bug e problemi tecnici da correggere
 
-**`usePermissions.ts`**: mappare `canViewCruscotto` dalla nuova colonna. Super admin e company admin → true automaticamente.
+| Problema | Soluzione |
+|----------|-----------|
+| `usePermissions.ts` riga 124: cast `(permissions as any)?.can_view_cruscotto` — fragile, indica che il tipo non include la colonna | Dopo che la migrazione e' attiva, il tipo generato dovrebbe includere `can_view_cruscotto`. Se non e', il cast `as any` e' l'unica opzione ma va documentato con commento |
+| `useCruscottoData.ts` riga 108: `q.eq("status_id", filters.statusId)` — la tabella `orders` usa `current_status_id`, non `status_id` | Correggere in `.eq("current_status_id", filters.statusId)` |
+| `CruscottoAlerts.tsx` riga 130: `key` prop duplicata — sia su `<Link>` che sul `<div>` interno (content) | Rimuovere `key` dal `<div>` interno (content), lasciare solo sul wrapper |
 
-**`CompanyLayout.tsx`**: renderizzare la voce Cruscotto sopra il Collapsible "Gestione Interna", visibile solo se il permesso e' attivo.
+## 3. Miglioramenti UX
 
-**Routing**: `App.tsx` → nuova route `/azienda/cruscotto` dentro il blocco `<CompanyLayout>`.
+| Miglioramento | Dettaglio |
+|---------------|-----------|
+| Stato vuoto Cruscotto | Aggiungere un messaggio vuoto quando `isLoading=false` e non ci sono dati marketing, invece di mostrare cards tutte a zero |
+| Loading state pagina | Aggiungere un loading skeleton full-page quando `isLoading` e' true al primo caricamento, invece di skeleton sparsi |
+| Errore visibile | Mostrare un banner di errore se `error` non e' null (attualmente ignorato nella UI) |
+| CruscottoFilters responsive | I preset date su mobile si comprimono male — wrappare con `overflow-x-auto` |
 
-## 2. Hook Centralizzato `useCruscottoData`
+## 4. File da modificare
 
-Un hook che:
-- Chiama `get_marketing_dashboard_stats` per i KPI marketing/vendite (riuso della RPC esistente)
-- Esegue le query ordini/costi/cash flow gia' presenti in `CompanyDashboard.tsx`
-- Accetta filtri globali (periodo, utente, fonte, pipeline, stato ordine)
-- Restituisce un oggetto unificato con tutte le sezioni
+1. **`src/hooks/useCruscottoData.ts`** — Rimuovere import inutilizzati, variabile `user`, interface `CruscottoData`; fix `status_id` → `current_status_id`
+2. **`src/pages/azienda/CruscottoAziendale.tsx`** — Rimuovere import inutilizzati e `SectionLoader`; aggiungere gestione errore e stato vuoto
+3. **`src/components/cruscotto/CruscottoAlerts.tsx`** — Fix key prop duplicata
+4. **`src/components/cruscotto/CruscottoFilters.tsx`** — Aggiungere `overflow-x-auto` per responsive mobile
 
-## 3. Pagina `CruscottoAziendale.tsx`
+## Nessun cambio comportamentale
 
-Layout modulare con 8 sezioni, ognuna componente separato:
-
-### 3.1 Filtri Globali (barra in alto)
-Riutilizzo del pattern `DashboardFilters` del marketing con aggiunta di filtro stato ordine. Tutti i widget reagiscono ai filtri.
-
-### 3.2 Alert Intelligenti (fisso sotto filtri)
-Componente che aggrega alert da entrambe le fonti:
-- Lead non contattati 48h+ (da RPC marketing)
-- Opportunita' ferme 7gg (da RPC marketing)
-- Pagamenti scaduti (da query ordini)
-- Cash flow negativo (da calcolo costi)
-- Margine sotto soglia
-- Ogni alert cliccabile → link alla lista filtrata
-
-### 3.3 Executive Overview
-KPI cards 4x2 con due righe:
-- **Riga Finanziaria**: Fatturato Mese, Fatturato YTD, Margine Lordo %, Cash Flow, Da Incassare, Debiti Fornitori
-- **Riga Commerciale**: Lead Nuovi, Appuntamenti, Show Rate, Contratti Vinti, Tasso Chiusura, Ticket Medio, Sales Velocity
-Ogni card con trend vs periodo precedente e color coding (verde/giallo/rosso) basato su soglie.
-
-### 3.4 Marketing Control
-Riutilizzo componenti esistenti: `DashboardFunnel`, `DashboardSourcesTable`, trend per canale. Dati dalla RPC.
-
-### 3.5 Sales Control
-Riutilizzo `DashboardSalesTable` + KPI pipeline. Forecast 30/60/90gg. Tabella performance commerciali con color coding.
-
-### 3.6 Pipeline & Forecast
-Riutilizzo `DashboardForecast` + `DashboardFunnel` con vista valore per fase e forecast probabilistico (pipeline pesata dalla RPC).
-
-### 3.7 Operations & Delivery
-Ordini attivi, ordini in ritardo, ticket aperti, alert magazzino. Dati dalle query ordini/ticket esistenti.
-
-### 3.8 Finanza & Cash Flow
-Cash flow dinamico, incassi previsti 30/60gg, margine medio commessa, break even. Riutilizzo logica `DashboardCeoStrip` + `WeeklyDeadlines`.
-
-### 3.9 HR & Performance Team
-Ranking commerciali, obiettivi vs realizzato. Riutilizzo dati sales performance dalla RPC.
-
-### 3.10 Trend Temporale
-Grafico combinato lead + appuntamenti + vendite + fatturato. Riutilizzo `DashboardTrendChart` con dati aggiuntivi ordini.
-
----
-
-## File da Creare/Modificare
-
-| Azione | File |
-|--------|------|
-| Migration | Aggiungere `can_view_cruscotto` a `staff_permissions` |
-| Modificare | `src/hooks/usePermissions.ts` — mappare nuovo permesso |
-| Modificare | `src/lib/sidebarConfig.ts` — voce Cruscotto |
-| Modificare | `src/components/layouts/CompanyLayout.tsx` — renderizzare voce sopra Gestione Interna |
-| Modificare | `src/App.tsx` — route `/azienda/cruscotto` |
-| Creare | `src/hooks/useCruscottoData.ts` — hook dati centralizzato |
-| Creare | `src/pages/azienda/CruscottoAziendale.tsx` — pagina principale |
-| Creare | `src/components/cruscotto/CruscottoFilters.tsx` |
-| Creare | `src/components/cruscotto/CruscottoAlerts.tsx` |
-| Creare | `src/components/cruscotto/ExecutiveOverview.tsx` |
-| Creare | `src/components/cruscotto/MarketingControl.tsx` |
-| Creare | `src/components/cruscotto/SalesControl.tsx` |
-| Creare | `src/components/cruscotto/PipelineForecast.tsx` |
-| Creare | `src/components/cruscotto/OperationsDelivery.tsx` |
-| Creare | `src/components/cruscotto/FinanzaCashFlow.tsx` |
-| Creare | `src/components/cruscotto/HRPerformance.tsx` |
-| Creare | `src/components/cruscotto/CruscottoTrend.tsx` |
-
-## Note Tecniche
-
-- Ogni sezione e' `React.memo` per performance
-- Le query usano `staleTime: 2min` e caricamento parallelo con `Promise.all`
-- I dati marketing vengono dalla RPC server-side gia' ottimizzata
-- I dati interni vengono dalle stesse query di `CompanyDashboard` estratte nell'hook
-- Architettura predisposta per futuro toggle sezioni via impostazioni azienda
-- Nessun drag & drop nella prima versione (complessita' eccessiva senza valore immediato)
+Tutte le modifiche sono pulizia, fix bug silenziosi e miglioramenti UX. Nessuna funzionalita' viene alterata.
 
