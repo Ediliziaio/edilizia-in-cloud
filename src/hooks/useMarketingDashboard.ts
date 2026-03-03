@@ -33,6 +33,16 @@ export interface KpiData {
   calls_total: number;
   calls_answered: number;
   contact_rate: number;
+  // Enterprise fields
+  pipeline_active_value: number;
+  avg_time_to_first_contact: number;
+  avg_time_to_close: number;
+  lead_to_appointment_rate: number;
+  appointment_to_contract_rate: number;
+  lead_to_contract_rate: number;
+  forecast_30d: number;
+  forecast_min: number;
+  forecast_max: number;
 }
 
 export interface FunnelStage {
@@ -41,6 +51,7 @@ export interface FunnelStage {
   position: number;
   count: number;
   total_value: number;
+  avg_days_in_stage: number;
 }
 
 export interface SalesPerformance {
@@ -50,6 +61,7 @@ export interface SalesPerformance {
   appointments_done: number;
   contracts_won: number;
   revenue: number;
+  show_rate: number;
 }
 
 export interface SourceAnalysis {
@@ -58,6 +70,7 @@ export interface SourceAnalysis {
   contracts_won: number;
   revenue: number;
   spend: number;
+  roi_pct: number | null;
 }
 
 export interface CallCenterRow {
@@ -71,8 +84,11 @@ export interface CallCenterRow {
 
 export interface AlertsData {
   stale_leads: number;
+  stale_leads_2h: number;
   stale_opportunities: number;
   pending_appointments: number;
+  show_rate_below_threshold: boolean;
+  pipeline_declining: boolean;
 }
 
 export interface TrendPoint {

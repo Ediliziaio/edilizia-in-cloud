@@ -2,13 +2,16 @@ import { LayoutDashboard, Download, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMarketingDashboard } from "@/hooks/useMarketingDashboard";
 import { DashboardFilters } from "@/components/marketing/dashboard/DashboardFilters";
+import { DashboardStrategicKPI } from "@/components/marketing/dashboard/DashboardStrategicKPI";
 import { DashboardKPICards } from "@/components/marketing/dashboard/DashboardKPICards";
-import { DashboardFunnel } from "@/components/marketing/dashboard/DashboardFunnel";
-import { DashboardTrendChart } from "@/components/marketing/dashboard/DashboardTrendChart";
-import { DashboardSalesTable } from "@/components/marketing/dashboard/DashboardSalesTable";
-import { DashboardSourcesTable } from "@/components/marketing/dashboard/DashboardSourcesTable";
-import { DashboardCallCenter } from "@/components/marketing/dashboard/DashboardCallCenter";
 import { DashboardAlerts } from "@/components/marketing/dashboard/DashboardAlerts";
+import { DashboardInsights } from "@/components/marketing/dashboard/DashboardInsights";
+import { DashboardFunnel } from "@/components/marketing/dashboard/DashboardFunnel";
+import { DashboardSalesTable } from "@/components/marketing/dashboard/DashboardSalesTable";
+import { DashboardCallCenter } from "@/components/marketing/dashboard/DashboardCallCenter";
+import { DashboardSourcesTable } from "@/components/marketing/dashboard/DashboardSourcesTable";
+import { DashboardForecast } from "@/components/marketing/dashboard/DashboardForecast";
+import { DashboardTrendChart } from "@/components/marketing/dashboard/DashboardTrendChart";
 import { exportToCSV } from "@/lib/csvExport";
 
 export default function MarketingDashboard() {
@@ -28,6 +31,11 @@ export default function MarketingDashboard() {
       { metrica: "Fatturato", valore: String(kpi.revenue) },
       { metrica: "Ticket Medio", valore: String(kpi.avg_ticket) },
       { metrica: "Tasso Chiusura", valore: `${kpi.close_rate}%` },
+      { metrica: "Pipeline Attiva", valore: String(kpi.pipeline_active_value) },
+      { metrica: "Forecast 30gg", valore: String(kpi.forecast_30d) },
+      { metrica: "Lead→App.", valore: `${kpi.lead_to_appointment_rate}%` },
+      { metrica: "App.→Contratto", valore: `${kpi.appointment_to_contract_rate}%` },
+      { metrica: "Lead→Contratto", valore: `${kpi.lead_to_contract_rate}%` },
       ...(kpi.total_spend > 0 ? [
         { metrica: "Spesa Campagne", valore: String(kpi.total_spend) },
         { metrica: "CPL", valore: String(kpi.cpl) },
@@ -51,7 +59,7 @@ export default function MarketingDashboard() {
             <LayoutDashboard className="h-6 w-6" />
             Dashboard Marketing & Vendite
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Cruscotto operativo</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Cruscotto decisionale</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
@@ -68,26 +76,42 @@ export default function MarketingDashboard() {
       {/* Filters */}
       <DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} />
 
-      {/* KPI Cards */}
+      {/* 1. KPI Strategici (6 grandi) */}
+      <DashboardStrategicKPI kpi={data?.kpi} kpiPrev={data?.kpi_prev} isLoading={isLoading} />
+
+      {/* KPI Secondari */}
       <DashboardKPICards kpi={data?.kpi} kpiPrev={data?.kpi_prev} isLoading={isLoading} />
 
-      {/* Funnel + Trend */}
+      {/* 2. Alert Operativi */}
+      <DashboardAlerts alerts={data?.alerts} isLoading={isLoading} />
+
+      {/* 3. Sintesi Strategica */}
+      <DashboardInsights
+        kpi={data?.kpi}
+        kpiPrev={data?.kpi_prev}
+        sales={data?.sales_performance}
+        sources={data?.sources}
+        alerts={data?.alerts}
+        isLoading={isLoading}
+      />
+
+      {/* 4. Funnel + Forecast */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DashboardFunnel funnel={data?.funnel} isLoading={isLoading} />
-        <DashboardTrendChart trend={data?.trend} isLoading={isLoading} />
+        <DashboardForecast kpi={data?.kpi} isLoading={isLoading} />
       </div>
 
-      {/* Call Center */}
-      <DashboardCallCenter callCenter={data?.call_center} isLoading={isLoading} />
-
-      {/* Sales Performance */}
+      {/* 5. Performance Commerciali */}
       <DashboardSalesTable sales={data?.sales_performance} isLoading={isLoading} />
 
-      {/* Sources Analysis */}
+      {/* 6. Call Center */}
+      <DashboardCallCenter callCenter={data?.call_center} isLoading={isLoading} />
+
+      {/* 7. Analisi Fonti + ROI */}
       <DashboardSourcesTable sources={data?.sources} isLoading={isLoading} />
 
-      {/* Alerts */}
-      <DashboardAlerts alerts={data?.alerts} isLoading={isLoading} />
+      {/* 8. Trend Temporale */}
+      <DashboardTrendChart trend={data?.trend} isLoading={isLoading} />
     </div>
   );
 }
