@@ -1,3 +1,4 @@
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,6 +13,8 @@ import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
 import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
 import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
+import { CompanyDashboardFilters, type CompanyDashboardFiltersState, type DatePreset } from "@/components/dashboard/CompanyDashboardFilters";
+import { subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
 
 interface RecentOrder {
   id: string;
@@ -51,29 +54,79 @@ function DeltaIndicator({ current, previous }: { current: number; previous: numb
     </span>
   );
 }
+function getDateRange(preset: DatePreset, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
+  const now = new Date();
+  switch (preset) {
+    case "today":
+      return { from: startOfDay(now), to: endOfDay(now) };
+    case "yesterday": {
+      const y = subDays(now, 1);
+      return { from: startOfDay(y), to: endOfDay(y) };
+    }
+    case "last7":
+      return { from: startOfDay(subDays(now, 7)), to: endOfDay(now) };
+    case "last30":
+      return { from: startOfDay(subDays(now, 30)), to: endOfDay(now) };
+    case "month":
+      return { from: startOfMonth(now), to: endOfDay(now) };
+    case "custom":
+      return { from: customFrom || subDays(now, 30), to: customTo || now };
+  }
+}
 
 export default function CompanyDashboard() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
+  // --- Filters state ---
+  const [filters, setFilters] = useState<CompanyDashboardFiltersState>({
+    datePreset: "month",
+    dateFrom: startOfMonth(new Date()),
+    dateTo: endOfDay(new Date()),
+    statusId: null,
+    customerIds: [],
+  });
+
+  const updateFilters = useCallback((partial: Partial<CompanyDashboardFiltersState>) => {
+    setFilters(prev => {
+      const next = { ...prev, ...partial };
+      if (partial.datePreset && partial.datePreset !== "custom") {
+        const range = getDateRange(partial.datePreset);
+        next.dateFrom = range.from;
+        next.dateTo = range.to;
+      }
+      return next;
+    });
+  }, []);
+
+  const dateRange = useMemo(() => getDateRange(filters.datePreset, filters.dateFrom, filters.dateTo), [filters.datePreset, filters.dateFrom, filters.dateTo]);
+
+  // Calculate comparison period (same duration shifted back)
+  const prevRange = useMemo(() => {
+    const durationMs = dateRange.to.getTime() - dateRange.from.getTime();
+    return {
+      from: new Date(dateRange.from.getTime() - durationMs - 86400000),
+      to: new Date(dateRange.from.getTime() - 1),
+    };
+  }, [dateRange]);
+
   const { data: dashboardData, isLoading, isError } = useQuery({
-    queryKey: ["dashboard-data", companyId],
+    queryKey: ["dashboard-data", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId, filters.customerIds],
     queryFn: async () => {
       const now = new Date();
-      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
       const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
       const sevenDaysFromNow = new Date(now);
       sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
       const todayStr = now.toISOString().split("T")[0];
-      const thisMonthStartStr = thisMonthStart.toISOString().split("T")[0];
       const thisMonthEndStr = thisMonthEnd.toISOString().split("T")[0];
-      const prevMonthStartStr = prevMonthStart.toISOString().split("T")[0];
-      const prevMonthEndStr = prevMonthEnd.toISOString().split("T")[0];
       const sevenDaysStr = sevenDaysFromNow.toISOString().split("T")[0];
+
+      const dateFromStr = dateRange.from.toISOString();
+      const dateToStr = dateRange.to.toISOString();
+      const prevFromStr = prevRange.from.toISOString();
+      const prevToStr = prevRange.to.toISOString();
 
       const [
         ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes,
@@ -87,17 +140,35 @@ export default function CompanyDashboard() {
         // Weekly deadlines: upcoming works
         upcomingWorksRes,
       ] = await Promise.all([
-        supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
-        supabase.from("orders").select("customer_id").eq("company_id", companyId!),
+        // Orders count (filtered)
+        (() => {
+          let q: any = supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId!)
+            .gte("created_at", dateFromStr).lte("created_at", dateToStr);
+          if (filters.statusId) q = q.eq("status_id", filters.statusId);
+          if (filters.customerIds.length > 0) q = q.in("customer_id", filters.customerIds);
+          return q;
+        })(),
+        // Customers (filtered)
+        (() => {
+          let q: any = supabase.from("orders").select("customer_id").eq("company_id", companyId!)
+            .gte("created_at", dateFromStr).lte("created_at", dateToStr);
+          if (filters.statusId) q = q.eq("status_id", filters.statusId);
+          if (filters.customerIds.length > 0) q = q.in("customer_id", filters.customerIds);
+          return q;
+        })(),
         supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", companyId!).eq("status", "aperto"),
-        supabase
-          .from("orders")
-          .select(`id, description, total_amount, created_at,
-            customer:profiles!orders_customer_id_fkey(first_name, last_name),
-            status:order_statuses(name, color)`)
-          .eq("company_id", companyId!)
-          .order("created_at", { ascending: false })
-          .limit(5),
+        // Recent orders (filtered)
+        (() => {
+          let q: any = supabase.from("orders")
+            .select(`id, description, total_amount, created_at,
+              customer:profiles!orders_customer_id_fkey(first_name, last_name),
+              status:order_statuses(name, color)`)
+            .eq("company_id", companyId!)
+            .gte("created_at", dateFromStr).lte("created_at", dateToStr);
+          if (filters.statusId) q = q.eq("status_id", filters.statusId);
+          if (filters.customerIds.length > 0) q = q.in("customer_id", filters.customerIds);
+          return q.order("created_at", { ascending: false }).limit(5);
+        })(),
         supabase
           .from("orders")
           .select("description, deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
@@ -115,32 +186,32 @@ export default function CompanyDashboard() {
           .select("amount, due_date, is_paid")
           .eq("company_id", companyId!)
           .eq("is_paid", false),
-        // Prev month: orders
+        // Prev period: orders
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
-          .gte("created_at", prevMonthStart.toISOString())
-          .lte("created_at", prevMonthEnd.toISOString()),
-        // Prev month: customers
+          .gte("created_at", prevFromStr)
+          .lte("created_at", prevToStr),
+        // Prev period: customers
         supabase.from("orders").select("customer_id")
           .eq("company_id", companyId!)
-          .gte("created_at", prevMonthStart.toISOString())
-          .lte("created_at", prevMonthEnd.toISOString()),
+          .gte("created_at", prevFromStr)
+          .lte("created_at", prevToStr),
         // Prev month: tickets (snapshot not meaningful — skip delta for tickets)
         supabase.from("tickets").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
           .eq("status", "aperto"),
-        // This month orders with amounts for revenue + margin
+        // Current period orders with amounts for revenue + margin
         supabase.from("orders")
           .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
           .eq("company_id", companyId!)
-          .gte("created_at", thisMonthStart.toISOString())
-          .lte("created_at", thisMonthEnd.toISOString()),
-        // Prev month orders with amounts
+          .gte("created_at", dateFromStr)
+          .lte("created_at", dateToStr),
+        // Prev period orders with amounts
         supabase.from("orders")
           .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
           .eq("company_id", companyId!)
-          .gte("created_at", prevMonthStart.toISOString())
-          .lte("created_at", prevMonthEnd.toISOString()),
+          .gte("created_at", prevFromStr)
+          .lte("created_at", prevToStr),
         // Supplier costs due within 7 days
         supabase.from("company_costs")
           .select("name, amount, due_date")
@@ -457,6 +528,9 @@ export default function CompanyDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Filters */}
+      <CompanyDashboardFilters filters={filters} onUpdate={updateFilters} />
 
       {/* CEO KPI Strip */}
       <DashboardCeoStrip
