@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { TrendingUp, TrendingDown, Minus, Euro, Trophy, Target, CalendarCheck, BarChart3, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KpiData } from "@/hooks/useMarketingDashboard";
+import { formatValue, calcDelta } from "./utils";
 
 interface Props {
   kpi: KpiData | undefined;
@@ -30,19 +31,6 @@ const STRATEGIC_CARDS: StrategicCard[] = [
   { key: "close_rate", label: "Tasso Chiusura", tooltip: "Contratti vinti / Appuntamenti svolti × 100", icon: Target, format: "percent", target: 30, accentClass: "text-rose-600 dark:text-rose-400" },
   { key: "show_rate", label: "Show Rate", tooltip: "Appuntamenti svolti / fissati × 100", icon: CalendarCheck, format: "percent", target: 75, accentClass: "text-cyan-600 dark:text-cyan-400" },
 ];
-
-function formatValue(value: number, fmt: "number" | "currency" | "percent"): string {
-  if (fmt === "currency") return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
-  if (fmt === "percent") return `${value}%`;
-  return new Intl.NumberFormat("it-IT").format(value);
-}
-
-function calcDelta(curr: number, prev: number): { value: number; direction: "up" | "down" | "flat" } {
-  if (prev === 0 && curr === 0) return { value: 0, direction: "flat" };
-  if (prev === 0) return { value: 100, direction: "up" };
-  const delta = ((curr - prev) / prev) * 100;
-  return { value: Math.abs(Math.round(delta)), direction: delta > 0 ? "up" : delta < 0 ? "down" : "flat" };
-}
 
 export function DashboardStrategicKPI({ kpi, kpiPrev, isLoading }: Props) {
   if (isLoading) {

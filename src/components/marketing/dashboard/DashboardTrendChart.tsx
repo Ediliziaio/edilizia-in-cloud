@@ -1,8 +1,9 @@
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import type { TrendPoint } from "@/hooks/useMarketingDashboard";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 import { it } from "date-fns/locale";
 
 interface Props {
@@ -10,7 +11,17 @@ interface Props {
   isLoading: boolean;
 }
 
-export function DashboardTrendChart({ trend, isLoading }: Props) {
+function safeDateLabel(day: string): string {
+  try {
+    const parsed = parseISO(day);
+    if (!isValid(parsed)) return day;
+    return format(parsed, "dd MMM", { locale: it });
+  } catch {
+    return day;
+  }
+}
+
+export const DashboardTrendChart = memo(function DashboardTrendChart({ trend, isLoading }: Props) {
   if (isLoading) {
     return (
       <Card>
@@ -22,7 +33,7 @@ export function DashboardTrendChart({ trend, isLoading }: Props) {
 
   const data = (trend || []).map(t => ({
     ...t,
-    label: format(parseISO(t.day), "dd MMM", { locale: it }),
+    label: safeDateLabel(t.day),
   }));
 
   return (
@@ -53,4 +64,4 @@ export function DashboardTrendChart({ trend, isLoading }: Props) {
       </CardContent>
     </Card>
   );
-}
+});

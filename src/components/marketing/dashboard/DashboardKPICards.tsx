@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { TrendingUp, TrendingDown, Minus, Users, UserPlus, PhoneCall, CalendarCheck, CalendarDays, Trophy, Euro, Target, Phone, DollarSign } from "lucide-react";
 import type { KpiData } from "@/hooks/useMarketingDashboard";
 import { cn } from "@/lib/utils";
+import { formatValue, calcDelta } from "./utils";
 
 interface Props {
   kpi: KpiData | undefined;
@@ -36,19 +37,6 @@ const KPI_CARDS: KpiCardDef[] = [
   { key: "calls_total", label: "Chiamate", tooltip: "Totale chiamate nel periodo", icon: Phone, format: "number", hideIfZero: true },
   { key: "contact_rate", label: "Tasso Contatto", tooltip: "Chiamate risposte / Totale chiamate × 100", icon: Phone, format: "percent", hideIfZero: true },
 ];
-
-function formatValue(value: number, fmt: "number" | "currency" | "percent"): string {
-  if (fmt === "currency") return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
-  if (fmt === "percent") return `${value}%`;
-  return new Intl.NumberFormat("it-IT").format(value);
-}
-
-function calcDelta(curr: number, prev: number): { value: number; direction: "up" | "down" | "flat" } {
-  if (prev === 0 && curr === 0) return { value: 0, direction: "flat" };
-  if (prev === 0) return { value: 100, direction: "up" };
-  const delta = ((curr - prev) / prev) * 100;
-  return { value: Math.abs(Math.round(delta)), direction: delta > 0 ? "up" : delta < 0 ? "down" : "flat" };
-}
 
 export function DashboardKPICards({ kpi, kpiPrev, isLoading }: Props) {
   if (isLoading) {
