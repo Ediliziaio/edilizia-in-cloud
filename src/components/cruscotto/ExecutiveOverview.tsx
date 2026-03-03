@@ -36,6 +36,19 @@ const FINANCIAL_KPIS: KpiDef[] = [
     format: fmtCur,
   },
   {
+    label: "Proiezione Mese",
+    tooltip: "Stima fatturato a fine mese basata sulla velocity attuale",
+    icon: Target,
+    getValue: (_, f) => {
+      const now = new Date();
+      const dayOfMonth = now.getDate();
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      return dayOfMonth > 0 ? (f.revenueThisMonth / dayOfMonth) * daysInMonth : 0;
+    },
+    getPrevValue: () => 0,
+    format: fmtCur,
+  },
+  {
     label: "Margine Lordo %",
     tooltip: "Media margine lordo sugli ordini",
     icon: Percent,

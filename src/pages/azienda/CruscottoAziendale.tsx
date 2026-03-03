@@ -11,12 +11,21 @@ import { OperationsDelivery } from "@/components/cruscotto/OperationsDelivery";
 import { FinanzaCashFlow } from "@/components/cruscotto/FinanzaCashFlow";
 import { HRPerformance } from "@/components/cruscotto/HRPerformance";
 import { CruscottoTrend } from "@/components/cruscotto/CruscottoTrend";
+import { QuickActions } from "@/components/cruscotto/QuickActions";
+import { EmptyStateGuide } from "@/components/cruscotto/EmptyStateGuide";
+import { WeeklyAgenda } from "@/components/cruscotto/WeeklyAgenda";
+import { DailyPriorities } from "@/components/cruscotto/DailyPriorities";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CruscottoAziendale() {
-  const { marketing, operations, finance, isLoading, error, filters, updateFilters } = useCruscottoData();
+  const { marketing, operations, finance, weeklyAgenda, isLoading, error, filters, updateFilters } = useCruscottoData();
+
+  const hasOrders = operations.activeOrders > 0 || finance.revenueThisMonth > 0;
+  const hasLeads = (marketing?.kpi?.leads_total ?? 0) > 0;
+  const hasCosts = finance.supplierDebt > 0 || finance.thisMonthOutflow > 0;
+  const isDataEmpty = !hasOrders && !hasLeads && !hasCosts;
 
   if (isLoading && !marketing) {
     return (
@@ -38,10 +47,13 @@ export default function CruscottoAziendale() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
-        <p className="text-sm text-muted-foreground">Centro di controllo unificato — Gestione Interna + Marketing & Vendite</p>
+      {/* Header + Quick Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
+          <p className="text-sm text-muted-foreground">Centro di controllo unificato — Gestione Interna + Marketing & Vendite</p>
+        </div>
+        <QuickActions />
       </div>
 
       {/* Error banner */}
@@ -52,10 +64,29 @@ export default function CruscottoAziendale() {
         </Alert>
       )}
 
+      {/* Empty State Guide */}
+      {!isLoading && isDataEmpty && (
+        <EmptyStateGuide hasOrders={hasOrders} hasLeads={hasLeads} hasCosts={hasCosts} />
+      )}
+
       {/* Global Filters */}
       <CruscottoFilters filters={filters} onUpdate={updateFilters} />
 
       {/* === ABOVE THE FOLD: CEO Priority === */}
+
+      {/* Daily Priorities + Weekly Agenda */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <DailyPriorities
+          operations={operations}
+          finance={finance}
+          marketingAlerts={marketing?.alerts}
+          isLoading={isLoading}
+        />
+        <WeeklyAgenda
+          data={weeklyAgenda}
+          isLoading={isLoading}
+        />
+      </div>
 
       {/* Health Score + Executive Summary */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">

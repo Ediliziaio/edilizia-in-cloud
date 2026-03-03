@@ -37,6 +37,15 @@ export interface FinanceData {
   supplierDebt: number;
 }
 
+export interface WeeklyAgendaData {
+  incomingPayments: number;
+  incomingPaymentsCount: number;
+  dueCosts: number;
+  dueCostsCount: number;
+  deliveries: number;
+  appointments: number;
+}
+
 
 
 function getDateRange(preset: CruscottoDatePreset, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
@@ -231,6 +240,67 @@ export function useCruscottoData() {
     staleTime: 120_000,
   });
 
+  // Weekly agenda data (next 7 days)
+  const { data: weeklyData, isLoading: weeklyLoading } = useQuery({
+    queryKey: ["cruscotto-weekly", companyId],
+    queryFn: async () => {
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+      const weekEnd = new Date(now.getTime() + 7 * 86400000);
+      const weekEndStr = weekEnd.toISOString().split("T")[0];
+
+      const [paymentsRes, costsRes, deliveriesRes, appointmentsRes] = await Promise.all([
+        // Incoming payments next 7 days
+        supabase.from("orders")
+          .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date")
+          .eq("company_id", companyId!)
+          .or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false,financing_paid.eq.false"),
+        // Costs due next 7 days
+        supabase.from("company_costs").select("amount, due_date")
+          .eq("company_id", companyId!).eq("is_paid", false)
+          .gte("due_date", todayStr).lte("due_date", weekEndStr),
+        // Deliveries next 7 days
+        supabase.from("orders").select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .gte("expected_date", todayStr).lte("expected_date", weekEndStr)
+          .is("work_end_date", null),
+        // Appointments next 7 days
+        supabase.from("appointments").select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .eq("is_blocked_slot", false)
+          .gte("appointment_date", todayStr).lte("appointment_date", weekEndStr),
+      ]);
+
+      let incomingPayments = 0, incomingPaymentsCount = 0;
+      paymentsRes.data?.forEach(order => {
+        const check = (paid: boolean, amount: number, date: string | null) => {
+          if (!paid && amount > 0 && date && date >= todayStr && date <= weekEndStr) {
+            incomingPayments += amount;
+            incomingPaymentsCount++;
+          }
+        };
+        check(order.deposit_paid, Number(order.deposit_amount), order.deposit_expected_date);
+        check(order.deposit_2_paid, Number(order.deposit_2_amount), order.deposit_2_expected_date);
+        check(order.balance_paid, Number(order.balance_amount), order.balance_expected_date);
+        check(order.financing_paid, Number(order.financing_amount), order.financing_expected_date);
+      });
+
+      let dueCosts = 0;
+      costsRes.data?.forEach(c => { dueCosts += Number(c.amount) || 0; });
+
+      return {
+        incomingPayments,
+        incomingPaymentsCount,
+        dueCosts,
+        dueCostsCount: costsRes.data?.length || 0,
+        deliveries: deliveriesRes.count || 0,
+        appointments: appointmentsRes.count || 0,
+      } as WeeklyAgendaData;
+    },
+    enabled: !!companyId,
+    staleTime: 120_000,
+  });
+
   const updateFilters = useCallback((partial: Partial<CruscottoFiltersState>) => {
     setFilters(prev => {
       const next = { ...prev, ...partial };
@@ -247,7 +317,8 @@ export function useCruscottoData() {
     marketing: marketingData || null,
     operations: opsData || { activeOrders: 0, lateOrders: 0, openTickets: 0, overduePayments: 0, overdueAmount: 0 },
     finance: financeData || { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, cashFlowNet: 0, thisMonthIncome: 0, thisMonthOutflow: 0, pendingRevenue: 0, supplierDebt: 0 },
-    isLoading: marketingLoading || opsLoading || financeLoading,
+    weeklyAgenda: weeklyData || { incomingPayments: 0, incomingPaymentsCount: 0, dueCosts: 0, dueCostsCount: 0, deliveries: 0, appointments: 0 },
+    isLoading: marketingLoading || opsLoading || financeLoading || weeklyLoading,
     error: marketingError as Error | null,
     filters,
     updateFilters,
