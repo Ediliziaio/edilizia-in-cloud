@@ -4526,6 +4526,53 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_targets: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          period_type: string
+          target_appointments: number
+          target_calls: number
+          target_contracts: number
+          target_revenue: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          period_type?: string
+          target_appointments?: number
+          target_calls?: number
+          target_contracts?: number
+          target_revenue?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          period_type?: string
+          target_appointments?: number
+          target_calls?: number
+          target_contracts?: number
+          target_revenue?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_targets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       salespeople: {
         Row: {
           commission_type: string
