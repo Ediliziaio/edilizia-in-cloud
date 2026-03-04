@@ -58,7 +58,7 @@ export function TagsConfig() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("marketing_tags").delete().eq("id", id);
+      const { error } = await supabase.from("marketing_tags").delete().eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -98,6 +98,7 @@ export function TagsConfig() {
           value={newTag}
           onChange={(e) => setNewTag(e.target.value)}
           onKeyDown={handleKeyDown}
+          maxLength={50}
         />
         <Button onClick={handleAdd} disabled={!newTag.trim() || addMutation.isPending}>
           <Plus className="h-4 w-4 mr-1" />

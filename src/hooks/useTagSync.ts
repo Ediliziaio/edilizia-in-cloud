@@ -7,22 +7,23 @@ import { supabase } from "@/integrations/supabase/client";
 export async function syncTagsToContact(contactId: string, newTags: string[]) {
   if (!contactId || newTags.length === 0) return;
 
-  const { data: contact } = await supabase
+  const { data: contact, error: fetchError } = await supabase
     .from("marketing_contacts")
     .select("tags")
     .eq("id", contactId)
     .single();
 
+  if (fetchError) throw fetchError;
   if (!contact) return;
 
   const merged = [...new Set([...(contact.tags || []), ...newTags])];
 
-  // Only update if there are actually new tags
   if (merged.length !== (contact.tags || []).length) {
-    await supabase
+    const { error } = await supabase
       .from("marketing_contacts")
       .update({ tags: merged, updated_at: new Date().toISOString() })
       .eq("id", contactId);
+    if (error) throw error;
   }
 }
 
@@ -33,22 +34,29 @@ export async function syncTagsToContact(contactId: string, newTags: string[]) {
 export async function syncTagsToOpportunities(contactId: string, newTags: string[]) {
   if (!contactId) return;
 
-  const { data: opps } = await supabase
+  const { data: opps, error: fetchError } = await supabase
     .from("marketing_opportunities")
     .select("id, tags")
     .eq("contact_id", contactId);
 
+  if (fetchError) throw fetchError;
   if (!opps || opps.length === 0) return;
 
-  for (const opp of opps) {
-    const merged = [...new Set([...(opp.tags || []), ...newTags])];
-    if (merged.length !== (opp.tags || []).length) {
-      await supabase
-        .from("marketing_opportunities")
-        .update({ tags: merged, updated_at: new Date().toISOString() })
-        .eq("id", opp.id);
-    }
-  }
+  const updates = opps
+    .map((opp) => {
+      const merged = [...new Set([...(opp.tags || []), ...newTags])];
+      if (merged.length !== (opp.tags || []).length) {
+        return supabase
+          .from("marketing_opportunities")
+          .update({ tags: merged, updated_at: new Date().toISOString() })
+          .eq("id", opp.id)
+          .then(({ error }) => { if (error) throw error; });
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  await Promise.all(updates);
 }
 
 /**
@@ -57,20 +65,22 @@ export async function syncTagsToOpportunities(contactId: string, newTags: string
 export async function removeTagFromContact(contactId: string, removedTag: string) {
   if (!contactId || !removedTag) return;
 
-  const { data: contact } = await supabase
+  const { data: contact, error: fetchError } = await supabase
     .from("marketing_contacts")
     .select("tags")
     .eq("id", contactId)
     .single();
 
+  if (fetchError) throw fetchError;
   if (!contact) return;
 
   if ((contact.tags || []).includes(removedTag)) {
     const filtered = (contact.tags || []).filter((t: string) => t !== removedTag);
-    await supabase
+    const { error } = await supabase
       .from("marketing_contacts")
       .update({ tags: filtered, updated_at: new Date().toISOString() })
       .eq("id", contactId);
+    if (error) throw error;
   }
 }
 
@@ -80,20 +90,27 @@ export async function removeTagFromContact(contactId: string, removedTag: string
 export async function removeTagFromOpportunities(contactId: string, removedTag: string) {
   if (!contactId || !removedTag) return;
 
-  const { data: opps } = await supabase
+  const { data: opps, error: fetchError } = await supabase
     .from("marketing_opportunities")
     .select("id, tags")
     .eq("contact_id", contactId);
 
+  if (fetchError) throw fetchError;
   if (!opps || opps.length === 0) return;
 
-  for (const opp of opps) {
-    if ((opp.tags || []).includes(removedTag)) {
-      const filtered = (opp.tags || []).filter((t: string) => t !== removedTag);
-      await supabase
-        .from("marketing_opportunities")
-        .update({ tags: filtered, updated_at: new Date().toISOString() })
-        .eq("id", opp.id);
-    }
-  }
+  const updates = opps
+    .map((opp) => {
+      if ((opp.tags || []).includes(removedTag)) {
+        const filtered = (opp.tags || []).filter((t: string) => t !== removedTag);
+        return supabase
+          .from("marketing_opportunities")
+          .update({ tags: filtered, updated_at: new Date().toISOString() })
+          .eq("id", opp.id)
+          .then(({ error }) => { if (error) throw error; });
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  await Promise.all(updates);
 }
