@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUpdateOpportunity, useDeleteOpportunity, useCompanyStaff, useOpportunityNotes, useAddOpportunityNote, usePipelines } from "@/hooks/useOpportunitiesData";
+import { useUpdateOpportunity, useDeleteOpportunity, useCompanyStaff, useCompanySalespeople, useCompanyCallCenterUsers, useOpportunityNotes, useAddOpportunityNote, usePipelines } from "@/hooks/useOpportunitiesData";
 import {
   useContactCustomFields, useOpportunityCustomFields,
   useContactFieldValues, useOpportunityFieldValues,
@@ -55,6 +55,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const updateOpp = useUpdateOpportunity();
   const deleteOpp = useDeleteOpportunity();
   const { data: staff = [] } = useCompanyStaff();
+  const { data: salespeople = [] } = useCompanySalespeople();
+  const { data: callCenterUsers = [] } = useCompanyCallCenterUsers();
   const { data: notes = [] } = useOpportunityNotes(opportunity?.id || null, opportunity?.contact_id || null);
   const addNote = useAddOpportunityNote();
   const { data: pipelines = [] } = usePipelines();
@@ -607,7 +609,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Non assegnato</SelectItem>
-                              {staff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                              {salespeople.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
@@ -627,7 +629,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Nessuno</SelectItem>
-                              {staff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                              {callCenterUsers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
