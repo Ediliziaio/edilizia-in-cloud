@@ -1,50 +1,46 @@
 
 
-# Audit: Controllo Accesso Admin vs Staff nella Gestione Utenti
+# Audit Utenti/Ruoli/Permessi - Verifica Finale
 
 ## Stato AS-IS
 
-La sidebar nasconde correttamente la voce "Utenti" per gli utenti non-admin (`isAdmin` check in `CompanyLayout.tsx` riga 239). Tuttavia, ci sono **due problemi di sicurezza critici**:
+Dopo 4 round di fix, il sistema e **funzionalmente solido**. I guard admin sono presenti, i permessi granulari sono mappati, le Edge Functions sono robuste. Ho verificato tutti i file coinvolti end-to-end.
 
-### P0 - Route `/azienda/impostazioni/utenti` e `/utenti/:userId` non protette
+## Problemi Residui
 
-Le route `utenti` e `utenti/:userId` non hanno nessun guard. Un utente staff puo navigare direttamente all'URL e:
-- Vedere la lista completa degli utenti aziendali
-- Accedere al dettaglio di qualsiasi utente
-- Modificare ruoli e permessi di altri utenti
-- Eliminare utenti
-- Resettare password di altri utenti
+### P1 - Password duplicata e inconsistente in SettingsProfile
 
-Questo e un **privilege escalation** critico.
+**Problema**: `PersonalProfileForm.tsx` (visibile nella pagina Profilo) include una sezione "Cambia Password" con validazione minimo **6 caratteri** (riga 50). Pero esiste anche la route separata `/azienda/impostazioni/sicurezza` con `ChangePasswordForm` che richiede minimo **8 caratteri** e verifica la password attuale prima di cambiarla.
 
-### P1 - `SettingsUserDetail` non distingue admin da staff
+Risultato:
+1. **Duplicazione**: due modi diversi per cambiare password nella stessa area Impostazioni
+2. **Inconsistenza sicurezza**: `PersonalProfileForm` accetta 6 chars senza verificare la password attuale, `ChangePasswordForm` richiede 8 chars e verifica quella corrente. Un utente potrebbe usare la via meno sicura.
 
-La pagina mostra TUTTI i tab (profilo, permessi, disponibilita, calendario, notifiche) indipendentemente dal ruolo del viewer. Un admin dovrebbe vedere tutto; un utente staff che visualizza il proprio profilo dovrebbe vedere solo il tab "Profilo" (nome, email, telefono, password).
+**Fix**: Rimuovere la sezione password da `PersonalProfileForm.tsx` (lasciare solo nome/cognome/telefono). La pagina "Cambio password" dedicata (`/sicurezza`) e gia accessibile a tutti i ruoli nella sidebar e offre un'esperienza piu sicura con verifica password attuale.
 
-## Piano Interventi
+### P2 - Nessun altro problema trovato
 
-### 1. Proteggere le route utenti (P0)
+Tutti gli altri aspetti verificati sono corretti:
+- Guard admin su `SettingsUsers` e `SettingsUserDetail`: presenti e funzionanti
+- Sidebar nasconde "Utenti" e "Team" per non-admin: corretto
+- `SettingsProfile` mostra sezione azienda solo per admin: corretto
+- Permessi granulari marketing in sidebar: mappati correttamente
+- Sync legacy marketing nel salvataggio permessi: presente
+- `PermissionsDialog` e `UserRolesPermissionsTab` usano costanti centralizzate: corretto
+- Edge Functions con query difensive: corretto
+- `UserProfileTab` (admin editing other users) ha validazione min 8 chars: corretto
 
-In `SettingsUsers.tsx` e `SettingsUserDetail.tsx`, aggiungere un check all'inizio del componente:
-- Verificare `role` da `useAuth()` 
-- Se il ruolo NON e `company_admin` o `super_admin`, redirect a `/azienda/impostazioni/profilo` con toast di errore
-- Questo previene accesso diretto via URL
+## Piano Intervento
 
-### 2. Pagina "Il Mio Profilo" per staff (P1)
+### 1. Rimuovere sezione password da PersonalProfileForm (P1)
 
-La route `impostazioni/profilo` (`SettingsProfile.tsx`) attualmente mostra solo il profilo azienda, non il profilo utente personale. Per gli utenti staff che vogliono cambiare la propria password/email, serve verificare che questa pagina includa anche i dati personali, oppure aggiungere una sezione dedicata.
+In `PersonalProfileForm.tsx`, rimuovere:
+- Gli state `newPassword`, `confirmPassword`, `isChangingPassword`
+- La funzione `handleChangePassword`
+- La Card "Cambia Password" nel render
+- Gli import `Lock` e `Separator` (se non usati altrove)
 
-Verificare `SettingsProfile.tsx` e, se necessario, aggiungere un componente per la modifica del profilo personale (nome, email, telefono, password) accessibile a tutti i ruoli.
+Il componente restera focalizzato su nome, cognome, telefono. La password si cambia dalla route `/azienda/impostazioni/sicurezza` che e gia nella sidebar per tutti i ruoli.
 
-### 3. RLS server-side gia presente
-
-Le Edge Functions (`delete-company-user`, `reset-customer-password`, `create-company-staff`) verificano gia il ruolo del caller server-side, quindi anche se la UI non fosse protetta, le operazioni critiche fallirebbero. Tuttavia, la protezione client-side e necessaria per UX e defense-in-depth.
-
-## File da modificare
-
-- `src/pages/azienda/settings/SettingsUsers.tsx` - Aggiungere guard admin
-- `src/pages/azienda/settings/SettingsUserDetail.tsx` - Aggiungere guard admin
-- `src/pages/azienda/settings/SettingsProfile.tsx` - Verificare/aggiungere sezione profilo personale per tutti i ruoli
-
-Nessuna migrazione DB necessaria.
+### Nessuna migrazione DB necessaria.
 
