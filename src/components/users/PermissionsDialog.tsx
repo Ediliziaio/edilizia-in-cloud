@@ -29,6 +29,7 @@ export interface StaffPermissions {
   can_view_settings: boolean;
   can_view_marketing: boolean;
   can_edit_marketing: boolean;
+  can_view_cruscotto?: boolean;
   only_assigned?: boolean;
 }
 

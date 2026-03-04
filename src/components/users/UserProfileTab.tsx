@@ -4,7 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, KeyRound } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface UserProfileTabProps {
   user: {
@@ -23,6 +25,9 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
   const [lastName, setLastName] = useState(user.last_name);
   const [email, setEmail] = useState(user.email);
   const [phone, setPhone] = useState(user.phone || "");
+  const [phoneExt, setPhoneExt] = useState("");
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const { toast } = useToast();
 
   const initials = `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase();
 
@@ -34,6 +39,26 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
       email: email.trim(),
       phone: phone.trim() || null,
     });
+  };
+
+  const handleResetPassword = async () => {
+    setResettingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("reset-customer-password", {
+        body: { userId: user.id },
+      });
+      if (error) throw error;
+      toast({
+        title: "Password resettata",
+        description: data?.temporaryPassword
+          ? `Password temporanea: ${data.temporaryPassword}`
+          : "Un'email di reset è stata inviata all'utente.",
+      });
+    } catch (err: any) {
+      toast({ title: "Errore", description: err.message || "Impossibile resettare la password.", variant: "destructive" });
+    } finally {
+      setResettingPassword(false);
+    }
   };
 
   return (
@@ -69,14 +94,33 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} />
-            </div>
-            <div className="space-y-2">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email *</Label>
+            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} />
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2 space-y-2">
               <Label htmlFor="phone">Telefono</Label>
               <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" disabled={isLoading} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phoneExt">Estensione</Label>
+              <Input id="phoneExt" value={phoneExt} onChange={(e) => setPhoneExt(e.target.value)} placeholder="123" disabled={isLoading} />
+            </div>
+          </div>
+
+          {/* Reset Password */}
+          <div className="pt-2 border-t">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Password</p>
+                <p className="text-xs text-muted-foreground">Resetta la password dell'utente</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={handleResetPassword} disabled={resettingPassword}>
+                {resettingPassword ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <KeyRound className="h-4 w-4 mr-2" />}
+                Reset Password
+              </Button>
             </div>
           </div>
         </CardContent>
