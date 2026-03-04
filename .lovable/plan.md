@@ -1,70 +1,76 @@
 
 
-# Audit Sezione Fornitori (SuppliersConfig)
+# Audit Sezione Tag
 
-## Bug e Problemi Trovati
+## Analisi Componenti
 
-### 1. Toast inconsistente: `useToast` invece di `sonner` (P1)
+### TagsConfig.tsx - Ben implementato
+- Usa `sonner` correttamente
+- Query con filtro `company_id`: OK
+- `.trim().toLowerCase()` nell'insert: OK
+- AlertDialog per conferma eliminazione: OK
+- Gestione duplicati: OK
 
-**File**: `src/components/settings/SuppliersConfig.tsx` (riga 19, 172, 251, 255, 287, 291, 303, 309-312, 315, 342)
+### TagSelector.tsx - Ben implementato
+- Query con filtro `company_id`: OK
+- Creazione inline con normalizzazione: OK
+- `sonner` per toast: OK
+- `shouldFilter={false}` con filtro manuale: OK
 
-Usa `useToast` (Radix) mentre il resto dell'app e stato standardizzato su `sonner`.
+### useTagSync.ts - Problemi trovati
 
-**Fix**: Migrare a `import { toast } from "sonner"` e sostituire tutte le chiamate `toast({title, description, variant})` con `toast.success()` / `toast.error()`.
+## Bug e Problemi
 
-### 2. Mancano `maxLength` sugli input (P1)
+### 1. TagsConfig: manca `maxLength` sull'input (P1)
 
-Nessun campo ha `maxLength`. Rischio di input eccessivi nel database.
+**File**: `src/components/settings/TagsConfig.tsx` (riga 96-101)
 
-**Fix**:
-- Nome: `maxLength={100}`
-- P.IVA: `maxLength={20}`
-- Codice Fiscale: `maxLength={20}`
-- Email: `maxLength={100}`
-- Telefono: `maxLength={20}`
-- Sito Web: `maxLength={100}`
-- Indirizzo: `maxLength={200}`
-- Citta: `maxLength={50}`
-- Provincia: `maxLength={5}`
-- CAP: `maxLength={10}`
-- Paese: `maxLength={50}`
-- Categoria: `maxLength={50}` (sul search input)
-- Note: `maxLength={500}`
+L'input per il nuovo tag non ha `maxLength`, rischiando tag eccessivamente lunghi nel database.
 
-### 3. Manca `.trim()` nel salvataggio (P1)
+**Fix**: Aggiungere `maxLength={50}` sull'input.
 
-I campi stringa vengono salvati senza `.trim()`, rischiando spazi bianchi nel database. Il campo `name` viene controllato con `.trim()` nella validazione ma non nel payload di insert/update.
+### 2. TagsConfig: delete senza filtro `company_id` (P1 - Sicurezza)
 
-**Fix**: Aggiungere `.trim()` su `name` nel payload di `createMutation` e `updateMutation`.
+**File**: `src/components/settings/TagsConfig.tsx` (riga 61)
 
-### 4. Update/Delete senza filtro `company_id` (P1 - Sicurezza)
+Il delete filtra solo per `.eq("id", id)` senza `.eq("company_id", companyId)`. Defense-in-depth richiede il filtro esplicito.
 
-- Update (riga 282): filtra solo per `.eq("id", id)` senza `.eq("company_id", companyId)`
-- Delete (riga 298): filtra solo per `.eq("id", id)` senza `.eq("company_id", companyId)`
+**Fix**: Aggiungere `.eq("company_id", companyId!)` nel deleteMutation.
 
-Defense-in-depth richiede il filtro esplicito.
+### 3. useTagSync: N+1 query pattern (P1 - Performance)
 
-**Fix**: Aggiungere `.eq("company_id", companyId!)` sia nell'update che nel delete.
+**File**: `src/hooks/useTagSync.ts` (righe 43-51, 90-98)
 
-### 5. Layout rotto nel form "Dati Fiscali" (P1 - UI Bug)
+`syncTagsToOpportunities` e `removeTagFromOpportunities` eseguono un UPDATE per ogni opportunita in un loop `for`. Con molte opportunita collegate, questo genera N query separate.
 
-Righe 535-560: il `grid grid-cols-3` contiene solo P.IVA, e il `</div>` che lo chiude (riga 540) termina troppo presto. Codice Fiscale e Aliquota IVA sono fuori dal grid container. Questo causa un layout visivamente inconsistente.
+**Fix**: Non risolvibile senza una DB function, ma possiamo mitigare usando `Promise.all` per parallelizzare gli update invece di eseguirli sequenzialmente.
 
-**Fix**: Ristrutturare il blocco per includere tutti e 3 i campi dentro lo stesso `grid grid-cols-3`.
+### 4. useTagSync: errori silenziosi (P2)
 
-## Componenti OK
+**File**: `src/hooks/useTagSync.ts` (tutte le funzioni)
 
-- Query con `staleTime: 5 * 60 * 1000`: buona pratica
-- Filtro ricerca client-side: corretto
-- Categoria con combobox creabile: ben implementato
-- Separazione Italiani/Esteri con Tabs: corretta
-- AlertDialog per conferma eliminazione: corretto
-- Gestione errore foreign key nel delete: corretta
-- `invalidateSuppliers` invalida entrambe le queryKey: corretto
+Nessuna funzione gestisce gli errori Supabase. Se un update fallisce, l'errore viene ignorato silenziosamente. Nessun `{ error }` viene controllato dopo gli update.
+
+**Fix**: Controllare `{ error }` dopo ogni operazione Supabase e lanciare l'errore per permettere al chiamante di gestirlo.
+
+### 5. TagSelector: manca `maxLength` sul CommandInput (P2)
+
+**File**: `src/components/marketing/TagSelector.tsx` (riga 103-107)
+
+Il campo di ricerca/creazione non ha limite di lunghezza. Meno critico perche il valore viene normalizzato, ma comunque buona pratica.
+
+**Fix**: Non direttamente supportato da CommandInput. Si puo limitare nel `onValueChange` con un check sulla lunghezza.
+
+## Componenti OK (nessun intervento)
+
+- CompanyTagsCell.tsx: sistema separato per super-admin, ben implementato
+- Logica di sincronizzazione bidirezionale: architettura corretta
 
 ## File da modificare
 
 | File | Intervento |
 |------|-----------|
-| `src/components/settings/SuppliersConfig.tsx` | sonner + maxLength + trim + company_id su update/delete + fix layout Dati Fiscali |
+| `src/components/settings/TagsConfig.tsx` | maxLength + company_id su delete |
+| `src/hooks/useTagSync.ts` | Promise.all + error handling |
+| `src/components/marketing/TagSelector.tsx` | maxLength su search input |
 
