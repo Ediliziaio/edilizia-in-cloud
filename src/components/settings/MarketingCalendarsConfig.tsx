@@ -190,7 +190,7 @@ export default function MarketingCalendarsConfig() {
         base_lat: data.base_lat ?? null,
         base_lng: data.base_lng ?? null,
         base_place_id: data.base_place_id || null,
-      }).eq("id", id);
+      }).eq("id", id).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -203,7 +203,7 @@ export default function MarketingCalendarsConfig() {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase.from("marketing_calendars").update({ is_active }).eq("id", id);
+      const { error } = await supabase.from("marketing_calendars").update({ is_active }).eq("id", id).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -213,7 +213,7 @@ export default function MarketingCalendarsConfig() {
 
   const deleteCalendar = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("marketing_calendars").delete().eq("id", id);
+      const { error } = await supabase.from("marketing_calendars").delete().eq("id", id).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
     },
     onSuccess: () => {

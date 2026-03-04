@@ -168,7 +168,7 @@ export function AutomationDialog({ open, onOpenChange, automation, onSaved }: Pr
       };
 
       if (form.id) {
-        const { error } = await supabase.from("automations").update(payload).eq("id", form.id);
+        const { error } = await supabase.from("automations").update(payload).eq("id", form.id).eq("company_id", effectiveCompany!.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("automations").insert(payload);
@@ -197,11 +197,11 @@ export function AutomationDialog({ open, onOpenChange, automation, onSaved }: Pr
           <div className="grid grid-cols-1 gap-3">
             <div>
               <Label>Nome automazione *</Label>
-              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="es. Pre-Posa Check" />
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="es. Pre-Posa Check" maxLength={100} />
             </div>
             <div>
               <Label>Descrizione</Label>
-              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="Descrizione opzionale..." />
+              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="Descrizione opzionale..." maxLength={500} />
             </div>
           </div>
 
@@ -296,7 +296,7 @@ export function AutomationDialog({ open, onOpenChange, automation, onSaved }: Pr
                   </div>
                   <div className="flex-1">
                     <Label className="text-xs">Valore</Label>
-                    <Input value={cond.value} onChange={e => updateCondition(i, { ...cond, value: e.target.value })} />
+                    <Input value={cond.value} onChange={e => updateCondition(i, { ...cond, value: e.target.value })} maxLength={200} />
                   </div>
                   <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => removeCondition(i)}>
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />

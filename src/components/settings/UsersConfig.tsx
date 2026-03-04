@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizontal, Lock, UserCheck, Phone, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -171,7 +171,7 @@ function determineEffectiveRole(roles: string[]): EffectiveRole {
 
 export function UsersConfig() {
   const { user, effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const effectiveCompanyId = effectiveCompany?.id;
@@ -292,17 +292,14 @@ export function UsersConfig() {
         call_center: "Call Center",
       };
 
-      toast({
-        title: "Utente creato",
+      toast.success("Utente creato", {
         description: `${data.first_name} ${data.last_name} è stato creato come ${roleLabels[data.role_type] || "Operatore"}.`,
       });
 
       return { temporaryPassword: response.data.temporary_password };
     } catch (error: any) {
-      toast({
-        title: "Errore",
+      toast.error("Errore", {
         description: error.message || "Errore durante la creazione dell'utente",
-        variant: "destructive",
       });
       throw error;
     } finally {
@@ -320,10 +317,10 @@ export function UsersConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
-      toast({ title: "Utente eliminato", description: "L'utente è stato rimosso." });
+      toast.success("Utente eliminato", { description: "L'utente è stato rimosso." });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile eliminare l'utente.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile eliminare l'utente." });
     },
   });
 
