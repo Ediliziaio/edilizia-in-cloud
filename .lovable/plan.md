@@ -1,77 +1,68 @@
 
 
-# Audit Sezioni Rimanenti: Stati Ordine, Campi Personalizzati, Venditori, Pipeline
+# Audit Sezioni Rimanenti: Automazioni, Calendari Marketing, Utenti, Catalogo, Profilo Azienda
 
 ## Componenti analizzati
-- `OrderStatusConfig.tsx` + `StatusItem.tsx`
-- `CustomFieldsConfig.tsx`
-- `SalespeopleConfig.tsx`
-- `PipelinesConfig.tsx`
-- `PipelineStagesConfig.tsx`
+- `AutomationsConfig.tsx` + `AutomationDialog.tsx`
+- `MarketingCalendarsConfig.tsx` + `CalendarDialog.tsx`
+- `UsersConfig.tsx`
+- `ArticleCatalog.tsx`
+- `CompanyProfileForm.tsx`
+- `PersonalProfileForm.tsx`, `ChangePasswordForm.tsx`
 
 ---
 
 ## Bug e Problemi
 
-### 1. OrderStatusConfig: `useToast` invece di `sonner` (P1)
-**File**: `src/components/settings/OrderStatusConfig.tsx` (righe 21, 30, 151-154, 161-165)
+### 1. AutomationsConfig: toggle/delete senza `company_id` (P1 - Sicurezza)
+**File**: `src/components/settings/AutomationsConfig.tsx`
+- Toggle (riga 53): `.eq("id", id)` senza `company_id`
+- Delete (riga 66): `.eq("id", id)` senza `company_id`
+
+**Fix**: Aggiungere `.eq("company_id", effectiveCompany!.id)` a entrambe le mutazioni.
+
+### 2. AutomationDialog: update senza `company_id` (P1 - Sicurezza)
+**File**: `src/components/settings/AutomationDialog.tsx` (riga 171)
+L'update filtra solo per `.eq("id", form.id)`.
+
+**Fix**: Aggiungere `.eq("company_id", effectiveCompany!.id)`.
+
+### 3. AutomationDialog: manca `maxLength` sugli input (P1)
+**File**: `src/components/settings/AutomationDialog.tsx`
+- Nome automazione (riga 200): nessun limite
+- Descrizione (riga 204): nessun limite
+- Valore condizione (riga 299): nessun limite
+
+**Fix**: `maxLength={100}` su nome, `maxLength={500}` su descrizione, `maxLength={200}` su valore condizione.
+
+### 4. MarketingCalendarsConfig: update/toggle/delete senza `company_id` (P1 - Sicurezza)
+**File**: `src/components/settings/MarketingCalendarsConfig.tsx`
+- Update (riga 193): `.eq("id", id)` senza `company_id`
+- Toggle (riga 206): `.eq("id", id)` senza `company_id`
+- Delete (riga 216): `.eq("id", id)` senza `company_id`
+
+**Fix**: Aggiungere `.eq("company_id", effectiveCompanyId!)` a tutte e tre.
+
+### 5. UsersConfig: `useToast` invece di `sonner` (P1)
+**File**: `src/components/settings/UsersConfig.tsx` (righe 6, 174, 295-298, 302-306, 323, 326)
+
 **Fix**: Migrare a `import { toast } from "sonner"`.
 
-### 2. OrderStatusConfig: manca `maxLength` su StatusItem (P1)
-**File**: `src/components/settings/StatusItem.tsx` (riga 64)
-L'input nome stato non ha `maxLength`.
-**Fix**: Aggiungere `maxLength={50}`.
+### 6. CompanyProfileForm: `useToast` invece di `sonner` (P1)
+**File**: `src/components/settings/CompanyProfileForm.tsx` (riga 5, 27)
 
-### 3. SalespeopleConfig: `useToast` invece di `sonner` (P1)
-**File**: `src/components/settings/SalespeopleConfig.tsx` (righe 6, 62, 114, 118, 137, 143, 170, 174, 232)
-**Fix**: Migrare a `import { toast } from "sonner"`.
-
-### 4. SalespeopleConfig: update/delete senza `company_id` (P1 - Sicurezza)
-**File**: `src/components/settings/SalespeopleConfig.tsx`
-- Update (riga 100): `.eq("id", data.id)` senza `company_id`
-- Toggle active (riga 124): `.eq("id", id)` senza `company_id`
-- Delete (riga 132): `.eq("id", id)` senza `company_id`
-**Fix**: Aggiungere `.eq("company_id", companyId!)` a tutte e tre le mutazioni.
-
-### 5. CustomFieldsConfig: delete senza `company_id` (P1 - Sicurezza)
-**File**: `src/components/settings/CustomFieldsConfig.tsx` (riga 220)
-Il delete filtra solo per `.eq("id", id)`.
-**Fix**: Aggiungere `.eq("company_id", companyId!)`.
-
-### 6. CustomFieldsConfig: manca `maxLength` sugli input (P1)
-**File**: `src/components/settings/CustomFieldsConfig.tsx` (righe 406-409, 439-442)
-Nome campo e opzioni senza limiti.
-**Fix**: `maxLength={100}` su nome, `maxLength={200}` su opzioni.
-
-### 7. PipelinesConfig: update/delete senza `company_id` (P1 - Sicurezza)
-**File**: `src/components/settings/PipelinesConfig.tsx`
-- Update (riga 123): `.eq("id", id)` senza `company_id`
-- Delete (riga 136): `.eq("id", id)` senza `company_id`
-**Fix**: Aggiungere `.eq("company_id", companyId!)`.
-
-### 8. PipelinesConfig: manca `maxLength` sugli input (P1)
-**File**: `src/components/settings/PipelinesConfig.tsx` (righe 229-233, 248-250, 304)
-Nome pipeline e nomi fasi senza limiti.
-**Fix**: `maxLength={100}` su tutti gli input nome.
-
-### 9. PipelineStagesConfig: update/delete senza `company_id` (P1 - Sicurezza)
-**File**: `src/components/settings/PipelineStagesConfig.tsx`
-- Delete (riga 179): `.eq("id", stage.id)` senza `company_id`
-- Update (riga 187): `.eq("id", stage.id)` senza `company_id`
-**Fix**: Aggiungere `.eq("company_id", companyId!)`.
-
-### 10. PipelineStagesConfig: manca `maxLength` su input fase (P1)
-**File**: `src/components/settings/PipelineStagesConfig.tsx` (riga 50)
-**Fix**: `maxLength={100}`.
+**Fix**: Migrare a `import { toast } from "sonner"`. Serve leggere il file completo per trovare tutte le chiamate toast.
 
 ---
 
-## Componenti OK (nessun intervento)
+## Componenti OK (nessun intervento necessario)
 
-- `CustomFieldsConfig.tsx`: usa già `sonner`, query filtrate per `company_id`
-- `PipelinesConfig.tsx`: usa già `sonner`, query filtrate per `company_id`
-- `PipelineStagesConfig.tsx`: usa già `sonner`, check opportunità collegate prima del delete
-- `StatusItem.tsx`: componente UI puro, nessuna logica DB
+- `ArticleCatalog.tsx`: usa `sonner`, ha `company_id` su update/delete, ha `maxLength` su input principali
+- `PersonalProfileForm.tsx`: usa `sonner`
+- `ChangePasswordForm.tsx`: usa `sonner`
+- `AutomationsConfig.tsx`: usa `sonner`, query filtrate per `company_id`
+- `AutomationDialog.tsx`: usa `sonner`
+- `MarketingCalendarsConfig.tsx`: usa `sonner`, query filtrate per `company_id`
 
 ---
 
@@ -79,10 +70,9 @@ Nome pipeline e nomi fasi senza limiti.
 
 | File | Intervento |
 |------|-----------|
-| `OrderStatusConfig.tsx` | sonner |
-| `StatusItem.tsx` | maxLength |
-| `SalespeopleConfig.tsx` | sonner + company_id su update/toggle/delete |
-| `CustomFieldsConfig.tsx` | company_id su delete + maxLength |
-| `PipelinesConfig.tsx` | company_id su update/delete + maxLength |
-| `PipelineStagesConfig.tsx` | company_id su update/delete + maxLength |
+| `AutomationsConfig.tsx` | company_id su toggle/delete |
+| `AutomationDialog.tsx` | company_id su update + maxLength |
+| `MarketingCalendarsConfig.tsx` | company_id su update/toggle/delete |
+| `UsersConfig.tsx` | sonner |
+| `CompanyProfileForm.tsx` | sonner |
 
