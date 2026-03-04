@@ -52,7 +52,7 @@ const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_customers: false, can_edit_customers: false, can_view_employees: false,
   can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
   can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
-  only_assigned: false,
+  can_view_cruscotto: false, only_assigned: false,
 };
 
 const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => !["can_view_marketing"].includes(s.viewKey as string));

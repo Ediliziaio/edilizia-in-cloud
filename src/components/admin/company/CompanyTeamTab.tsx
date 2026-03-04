@@ -146,6 +146,8 @@ export function CompanyTeamTab({
                     can_view_settings: member.permissions?.can_view_settings ?? false,
                     can_view_marketing: member.permissions?.can_view_marketing ?? false,
                     can_edit_marketing: member.permissions?.can_edit_marketing ?? false,
+                    can_view_cruscotto: member.permissions?.can_view_cruscotto ?? false,
+                    only_assigned: member.permissions?.only_assigned ?? false,
                   };
                   return (
                     <TableRow key={member.id}>

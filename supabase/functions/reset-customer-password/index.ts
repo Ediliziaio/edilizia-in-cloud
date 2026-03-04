@@ -74,24 +74,27 @@ Deno.serve(async (req) => {
       throw new Error("Permission denied: Only admins can reset passwords");
     }
 
-    const { customer_id, new_password } = await req.json();
+    // Accept both customer_id (legacy) and userId (new)
+    const body = await req.json();
+    const targetUserId = body.customer_id || body.userId;
+    const newPassword = body.new_password;
 
-    if (!customer_id) {
-      throw new Error("Missing customer_id");
+    if (!targetUserId) {
+      throw new Error("Missing customer_id or userId");
     }
 
-    // Get customer profile
-    const { data: customerProfile, error: profileError } = await supabaseAdmin
+    // Get target user profile
+    const { data: targetProfile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("id, company_id, email, first_name, last_name")
-      .eq("id", customer_id)
+      .eq("id", targetUserId)
       .single();
 
-    if (profileError || !customerProfile) {
-      throw new Error("Customer not found");
+    if (profileError || !targetProfile) {
+      throw new Error("User not found");
     }
 
-    // Verify caller has access to this customer
+    // Verify caller has access to this user (company_admin can only reset within their company)
     if (callerRole.role === "company_admin") {
       const { data: callerProfile } = await supabaseAdmin
         .from("profiles")
@@ -99,28 +102,38 @@ Deno.serve(async (req) => {
         .eq("id", caller.id)
         .single();
 
-      if (callerProfile?.company_id !== customerProfile.company_id) {
-        throw new Error("Permission denied: Cannot reset password for customers in other companies");
+      if (callerProfile?.company_id !== targetProfile.company_id) {
+        throw new Error("Permission denied: Cannot reset password for users in other companies");
       }
     }
 
-    // Verify target is actually a customer
+    // Verify target is a resettable role (customer, company_staff, company_admin - not super_admin)
     const { data: targetRole } = await supabaseAdmin
       .from("user_roles")
       .select("role")
-      .eq("user_id", customer_id)
+      .eq("user_id", targetUserId)
       .single();
 
-    if (!targetRole || targetRole.role !== "customer") {
-      throw new Error("Target user is not a customer");
+    if (!targetRole) {
+      throw new Error("Target user has no role");
+    }
+
+    // Prevent resetting super_admin passwords
+    if (targetRole.role === "super_admin") {
+      throw new Error("Cannot reset super admin password");
+    }
+
+    // company_admin can only reset customer and staff passwords, not other admins
+    if (callerRole.role === "company_admin" && targetRole.role === "company_admin" && targetUserId !== caller.id) {
+      throw new Error("Permission denied: Cannot reset another admin's password");
     }
 
     // Generate new password
-    const finalPassword = new_password || generateSecurePassword();
+    const finalPassword = newPassword || generateSecurePassword();
 
     // Update password
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      customer_id,
+      targetUserId,
       { password: finalPassword }
     );
 
@@ -133,11 +146,12 @@ Deno.serve(async (req) => {
         success: true,
         message: "Password reset successfully",
         newPassword: finalPassword,
+        temporaryPassword: finalPassword,
         customer: {
-          id: customerProfile.id,
-          email: customerProfile.email,
-          firstName: customerProfile.first_name,
-          lastName: customerProfile.last_name,
+          id: targetProfile.id,
+          email: targetProfile.email,
+          firstName: targetProfile.first_name,
+          lastName: targetProfile.last_name,
         },
       }),
       {

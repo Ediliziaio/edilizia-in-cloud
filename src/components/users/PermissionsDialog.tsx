@@ -29,8 +29,8 @@ export interface StaffPermissions {
   can_view_settings: boolean;
   can_view_marketing: boolean;
   can_edit_marketing: boolean;
-  can_view_cruscotto?: boolean;
-  only_assigned?: boolean;
+  can_view_cruscotto: boolean;
+  only_assigned: boolean;
 }
 
 interface PermissionsDialogProps {
@@ -97,7 +97,7 @@ export function PermissionsDialog({
       can_view_customers: true, can_edit_customers: true, can_view_employees: true,
       can_view_tickets: true, can_edit_tickets: true, can_view_forecast: true,
       can_view_settings: true, can_view_marketing: true, can_edit_marketing: true,
-      only_assigned: permissions.only_assigned,
+      can_view_cruscotto: true, only_assigned: permissions.only_assigned,
     });
   };
 
@@ -108,7 +108,7 @@ export function PermissionsDialog({
       can_view_customers: false, can_edit_customers: false, can_view_employees: false,
       can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
       can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
-      only_assigned: permissions.only_assigned,
+      can_view_cruscotto: false, only_assigned: permissions.only_assigned,
     });
   };
 
