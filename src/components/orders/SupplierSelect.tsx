@@ -3,7 +3,7 @@ import { Plus } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,7 +48,7 @@ export function SupplierSelect({
   const [newSupplierVatRate, setNewSupplierVatRate] = useState<number>(22);
   const [newSupplierPaymentMethod, setNewSupplierPaymentMethod] = useState<string>("");
   const { effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   const companyId = effectiveCompany?.id;
@@ -92,17 +92,10 @@ export function SupplierSelect({
       setNewSupplierName("");
       setNewSupplierVatRate(22);
       setNewSupplierPaymentMethod("");
-      toast({
-        title: "Fornitore creato",
-        description: `${data.name} è stato aggiunto ai fornitori.`,
-      });
+      toast.success("Fornitore creato", { description: `${data.name} è stato aggiunto ai fornitori.` });
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante la creazione del fornitore.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Si è verificato un errore durante la creazione del fornitore." });
     },
   });
 

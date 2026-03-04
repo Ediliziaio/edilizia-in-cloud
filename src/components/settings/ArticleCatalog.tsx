@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Search, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES } from "@/lib/vatUtils";
 import { Button } from "@/components/ui/button";
@@ -49,22 +49,10 @@ const CATEGORIES = [
   { value: "altro", label: "Altro" },
 ];
 
-interface ArticleTemplate {
-  id: string;
-  name: string;
-  sku: string | null;
-  category: string | null;
-  unit_price: number;
-  standard_cost: number;
-  unit_of_measure: string;
-  vat_rate: number;
-  supplier_id: string | null;
-  description: string | null;
-}
+import { type ArticleTemplateData } from "@/components/orders/ArticleCombobox";
 
 export function ArticleCatalog() {
   const { effectiveCompany } = useAuth();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
@@ -93,7 +81,7 @@ export function ArticleCatalog() {
         .eq("company_id", companyId!)
         .order("name");
       if (error) throw error;
-      return data as ArticleTemplate[];
+      return data as ArticleTemplateData[];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -119,7 +107,8 @@ export function ArticleCatalog() {
         const { error } = await supabase
           .from("article_templates")
           .update(payload)
-          .eq("id", editingId);
+          .eq("id", editingId)
+          .eq("company_id", companyId);
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -131,26 +120,26 @@ export function ArticleCatalog() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["article-templates-full"] });
       queryClient.invalidateQueries({ queryKey: ["article-templates"] });
-      toast({ title: editingId ? "Articolo aggiornato" : "Articolo creato" });
+      toast.success(editingId ? "Articolo aggiornato" : "Articolo creato");
       closeDialog();
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile salvare l'articolo.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile salvare l'articolo." });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("article_templates").delete().eq("id", id);
+      const { error } = await supabase.from("article_templates").delete().eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["article-templates-full"] });
       queryClient.invalidateQueries({ queryKey: ["article-templates"] });
-      toast({ title: "Articolo eliminato" });
+      toast.success("Articolo eliminato");
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile eliminare l'articolo.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile eliminare l'articolo." });
     },
   });
 
@@ -177,7 +166,7 @@ export function ArticleCatalog() {
     setDialogOpen(true);
   };
 
-  const openEdit = (article: ArticleTemplate) => {
+  const openEdit = (article: ArticleTemplateData) => {
     setEditingId(article.id);
     setName(article.name);
     setSku(article.sku || "");
@@ -339,11 +328,11 @@ export function ArticleCatalog() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2 sm:col-span-1">
                 <Label>Nome *</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="es. Finestra PVC 120x140" />
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="es. Finestra PVC 120x140" maxLength={100} />
               </div>
               <div className="space-y-2 col-span-2 sm:col-span-1">
                 <Label>SKU / Codice</Label>
-                <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="es. FIN-PVC-001" />
+                <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="es. FIN-PVC-001" maxLength={50} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -440,6 +429,7 @@ export function ArticleCatalog() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Descrizione opzionale..."
                 rows={2}
+                maxLength={500}
               />
             </div>
           </div>
