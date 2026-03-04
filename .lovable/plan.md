@@ -1,49 +1,63 @@
 
 
-# Piano di Fix - Builder Automazioni Marketing
+# Verifica Completa - Builder Automazioni Marketing
 
-## Problemi Identificati
+Dopo analisi approfondita di tutti i file (Builder, Canvas, Settings, Enrollments, Logs, NodeConfig, Node, ConnectionLine, TriggerConditionBuilder, GlobalWorkflowSettings, types), ecco il verdetto:
 
-Dopo analisi approfondita del codice e dello stato attuale, ecco i problemi residui:
+---
 
-### 1. Tipo `AutomationFlow` manca `config_json`
-Il tipo locale in `automationBuilder.ts` (riga 1-13) non include `config_json`, presente invece nel DB e nei tipi generati. Questo causa l'uso di `as any` nel Builder (righe 498-503) per salvare le settings, rendendo il codice fragile e privo di type safety.
+## Funzionalita che funzionano correttamente
 
-**Fix**: Aggiungere `config_json: Record<string, any> | null` al tipo `AutomationFlow`.
+- **Builder tab**: Canvas con pan/zoom/drag, creazione nodi, connessioni SVG, branching condition/split
+- **Salvataggio**: Auto-save con debounce 2s, save manuale Ctrl+S, upsert nodi e connessioni
+- **Undo/Redo**: History basata su ref, push solo su mouseUp
+- **Tab Impostazioni (Settings)**: Lettura/scrittura `config_json.settings` con type safety
+- **Tab Cronologia (Enrollments)**: Query con filtri data, stato, ricerca entity_id
+- **Tab Registro (Logs)**: Query con filtri data, attivita, stato, ricerca node_id
+- **Trigger config**: Selezione categoria/evento, filtri AND/OR nested, campi personalizzati da DB, negazione NOT
+- **Action config**: 22 tipi con form dedicati, validazione, select dinamiche (pipeline, stages, utenti, templates)
+- **GlobalWorkflowSettings**: Carica utenti reali, salva promemoria e sospensioni
+- **Pubblicazione**: Toggle con validazione pre-publish
+- **Eliminazione/Archiviazione**: Funzionali con conferma dialog
 
-### 2. Settings tab salva con `as any` e non rilegge correttamente
-In `AutomationBuilder.tsx` riga 498, `(flow as any)?.config_json?.settings` funziona solo perche il DB restituisce `config_json`, ma il tipo locale non lo prevede. Con il fix al tipo, tutto diventa type-safe.
+---
 
-**Fix**: Dopo aver aggiunto `config_json` al tipo, rimuovere i cast `as any` nel Builder.
+## Problemi residui trovati
 
-### 3. Trigger picker e Action picker chiudono il pannello doppio
-In `TriggerPickerDialog` riga 70, `onSelect` viene chiamato seguito da `onClose()`. Ma `onClose` nel Builder resetta anche `selectedNodeId`, causando potenzialmente la chiusura del pannello config prima che l'utente possa configurare il nodo appena aggiunto. Il flusso attuale: seleziona trigger → pannello si chiude → nodo aggiunto → nessun pannello config aperto automaticamente.
+### 1. `updateFlowMutation` non include `config_json` nel tipo Supabase generato per update
+Il tipo generato in `types.ts` per `automation_flows.Update` include `config_json` come `Json | null`, ma `updateFlowMutation` in `useAutomationBuilder.ts` usa `Partial<AutomationFlow>` come input. La chiamata `supabase.from("automation_flows").update(safeUpdates)` passa `config_json` come `Record<string, any>` che e compatibile con `Json`. Questo funziona ma il tipo `safeUpdates` non e strettamente tipizzato. **Basso impatto** - funziona a runtime.
 
-**Fix**: Dopo `handleTriggerSelect` e `handleActionSelect`, selezionare automaticamente il nodo appena creato e aprire il pannello config.
+### 2. Tab "Settings" non visibile nella navigazione corrente
+In `AutomationBuilder.tsx` riga 311-316, i tab sono: `builder`, `settings`, `enrollments`, `logs`. Ma la tab "settings" mostra `AutomationSettingsTab` (impostazioni del flusso singolo), NON `GlobalWorkflowSettings`. Le impostazioni globali del workflow sono accessibili solo dalla lista automazioni. Questo e corretto dal punto di vista UX ma potrebbe confondere. **Non un bug**.
 
-### 4. Nodo appena creato ha `company_id: ""` 
-In `handleTriggerSelect` e `handleActionSelect` (righe 148, 186), `company_id` viene impostato a stringa vuota. L'upsert nel DB potrebbe fallire se c'è un foreign key constraint.
+### 3. La `Calendar` del date picker usa `onSelect` che restituisce `Date | undefined`
+In `AutomationEnrollmentsTab.tsx` e `AutomationLogsTab.tsx`, il calendario usa `onSelect={(d) => { setStartDate(d); setPage(0); }}` dove `d` e `Date | undefined`. TypeScript dovrebbe segnalare che `setStartDate` accetta `Date | undefined` ma non `Date | null`. Verificando il tipo: `useState<Date>()` produce `Date | undefined`, quindi e corretto.
 
-**Fix**: Usare `effectiveCompany?.id || ""` come `company_id` nei nuovi nodi.
+### 4. Nodi duplicati non aggiornano `company_id`
+In `handleDuplicate` (riga 215-227), il nodo duplicato copia il `company_id` dal nodo originale (`...node`). Questo e corretto se l'originale ha il company_id giusto, ma nodi creati prima del fix (con `company_id: ""`) produrranno duplicati con `company_id: ""`.
 
-### 5. Connessioni appena create hanno `company_id: ""`
-Stesso problema per le connessioni (riga 199).
+**Fix**: Sovrascrivere `company_id` nel duplicato con `effectiveCompany?.id || node.company_id`.
 
-**Fix**: Usare `effectiveCompany?.id || ""`.
+### 5. Nodo "Salva" nel pannello default (delay/condition/split/goal) non persiste
+Nel pannello config per nodi non-action (riga 838-849), il pulsante "Salva" chiama solo `onClose()` (dopo validazione per condition). Non chiama esplicitamente `saveAll()`. Il salvataggio avviene solo tramite auto-save. Se l'utente cambia tab o naviga via prima dei 2 secondi di debounce, le modifiche possono perdersi.
 
-### 6. Canvas: onUpdateNode in dependency array di handleMouseMove
-In `AutomationCanvas.tsx` riga 64, `onUpdateNode` è nella dependency array di `handleMouseMove` ma non viene usato in quel callback (viene usato solo in `handleMouseUp`). Causa ricreazioni inutili del callback.
+**Fix**: Aggiungere un `triggerAutoSave` o `saveAll` nel gestore "Salva" del pannello config.
 
-**Fix**: Rimuovere `onUpdateNode` dalla dependency array di `handleMouseMove`.
+### 6. Stessa cosa per il pulsante "Salva il trigger" (riga 218)
+Dopo `handleSaveTrigger`, viene chiamato `onClose()`. Il salvataggio dipende dall'auto-save. Se l'utente chiude il builder subito dopo, i dati non sono persistiti.
 
-### 7. Doppio click sul + del nodo branching apre action picker senza chiudere il trigger picker
-Se il trigger picker è aperto e si clicca + su un nodo, `onAddAfter` chiama `openActionPicker` ma il trigger picker rimane aperto perche `rightPanel` passa da "trigger" a "action" senza problemi - questo funziona correttamente.
+**Fix**: Forzare un salvataggio immediato quando si preme "Salva" nel pannello config.
 
-## Riepilogo Modifiche
+---
 
-| File | Modifica |
-|------|----------|
-| `src/types/automationBuilder.ts` | Aggiungere `config_json` al tipo `AutomationFlow` |
-| `src/components/marketing/automations/AutomationBuilder.tsx` | Rimuovere cast `as any`, usare `effectiveCompany.id` per company_id, auto-selezionare nodo dopo creazione |
-| `src/components/marketing/automations/AutomationCanvas.tsx` | Rimuovere `onUpdateNode` dalla dep array di `handleMouseMove` |
+## Piano di Fix
+
+| # | File | Modifica |
+|---|------|----------|
+| 1 | `AutomationBuilder.tsx` | In `handleDuplicate`, sovrascrivere `company_id` con `effectiveCompany?.id` |
+| 2 | `AutomationBuilder.tsx` | Passare `saveAll` come prop o callback al pannello config, oppure chiamare `saveAll()` dopo che il pannello config chiude |
+| 3 | `AutomationNodeConfig.tsx` | Nei pulsanti "Salva il trigger" e "Salva azione", chiamare una callback `onSaveImmediate` oltre a `onClose` |
+| 4 | `useAutomationBuilder.ts` | Esporre una funzione `saveImmediate` che salva senza debounce |
+
+Questi 4 fix garantiscono che il salvataggio sia affidabile e che i dati duplicati mantengano la company corretta.
 
