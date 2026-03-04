@@ -27,8 +27,21 @@ export interface StaffPermissions {
   can_edit_tickets: boolean;
   can_view_forecast: boolean;
   can_view_settings: boolean;
+  can_edit_settings: boolean;
   can_view_marketing: boolean;
   can_edit_marketing: boolean;
+  can_view_marketing_dashboard: boolean;
+  can_view_marketing_contacts: boolean;
+  can_edit_marketing_contacts: boolean;
+  can_view_marketing_opportunities: boolean;
+  can_edit_marketing_opportunities: boolean;
+  can_view_marketing_activities: boolean;
+  can_view_marketing_appointments: boolean;
+  can_view_marketing_automations: boolean;
+  can_view_marketing_ai_agent: boolean;
+  can_view_marketing_email: boolean;
+  can_view_marketing_whatsapp: boolean;
+  can_view_marketing_reports: boolean;
   can_view_cruscotto: boolean;
   only_assigned: boolean;
 }
@@ -51,11 +64,20 @@ const INTERNAL_SECTIONS = [
   { label: "Dipendenti", viewKey: "can_view_employees" as keyof StaffPermissions, editKey: null },
   { label: "Assistenza", viewKey: "can_view_tickets" as keyof StaffPermissions, editKey: "can_edit_tickets" as keyof StaffPermissions },
   { label: "Previsionale", viewKey: "can_view_forecast" as keyof StaffPermissions, editKey: null },
-  { label: "Impostazioni", viewKey: "can_view_settings" as keyof StaffPermissions, editKey: null },
+  { label: "Impostazioni", viewKey: "can_view_settings" as keyof StaffPermissions, editKey: "can_edit_settings" as keyof StaffPermissions },
 ];
 
 const MARKETING_SECTIONS = [
-  { label: "Contatti Marketing", viewKey: "can_view_marketing" as keyof StaffPermissions, editKey: "can_edit_marketing" as keyof StaffPermissions },
+  { label: "Dashboard Marketing", viewKey: "can_view_marketing_dashboard" as keyof StaffPermissions, editKey: null },
+  { label: "Contatti", viewKey: "can_view_marketing_contacts" as keyof StaffPermissions, editKey: "can_edit_marketing_contacts" as keyof StaffPermissions },
+  { label: "Opportunità", viewKey: "can_view_marketing_opportunities" as keyof StaffPermissions, editKey: "can_edit_marketing_opportunities" as keyof StaffPermissions },
+  { label: "Attività", viewKey: "can_view_marketing_activities" as keyof StaffPermissions, editKey: null },
+  { label: "Appuntamenti", viewKey: "can_view_marketing_appointments" as keyof StaffPermissions, editKey: null },
+  { label: "Automazioni", viewKey: "can_view_marketing_automations" as keyof StaffPermissions, editKey: null },
+  { label: "Agente AI", viewKey: "can_view_marketing_ai_agent" as keyof StaffPermissions, editKey: null },
+  { label: "Email Marketing", viewKey: "can_view_marketing_email" as keyof StaffPermissions, editKey: null },
+  { label: "WhatsApp", viewKey: "can_view_marketing_whatsapp" as keyof StaffPermissions, editKey: null },
+  { label: "Reportistica", viewKey: "can_view_marketing_reports" as keyof StaffPermissions, editKey: null },
 ];
 
 export const ALL_PERMISSION_SECTIONS = [...INTERNAL_SECTIONS, ...MARKETING_SECTIONS];
@@ -91,25 +113,29 @@ export function PermissionsDialog({
   };
 
   const handleSelectAll = () => {
-    setPermissions({
-      can_view_dashboard: true, can_view_orders: true, can_edit_orders: true,
-      can_view_warehouse: true, can_edit_warehouse: true, can_view_calendar: true,
-      can_view_customers: true, can_edit_customers: true, can_view_employees: true,
-      can_view_tickets: true, can_edit_tickets: true, can_view_forecast: true,
-      can_view_settings: true, can_view_marketing: true, can_edit_marketing: true,
-      can_view_cruscotto: true, only_assigned: permissions.only_assigned,
+    const allTrue: Partial<StaffPermissions> = {};
+    ALL_PERMISSION_SECTIONS.forEach(s => {
+      (allTrue as any)[s.viewKey] = true;
+      if (s.editKey) (allTrue as any)[s.editKey] = true;
     });
+    setPermissions(prev => ({
+      ...prev, ...allTrue,
+      can_view_cruscotto: true,
+      can_view_marketing: true, can_edit_marketing: true,
+    }));
   };
 
   const handleDeselectAll = () => {
-    setPermissions({
-      can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
-      can_view_warehouse: false, can_edit_warehouse: false, can_view_calendar: false,
-      can_view_customers: false, can_edit_customers: false, can_view_employees: false,
-      can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
-      can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
-      can_view_cruscotto: false, only_assigned: permissions.only_assigned,
+    const allFalse: Partial<StaffPermissions> = {};
+    ALL_PERMISSION_SECTIONS.forEach(s => {
+      (allFalse as any)[s.viewKey] = false;
+      if (s.editKey) (allFalse as any)[s.editKey] = false;
     });
+    setPermissions(prev => ({
+      ...prev, ...allFalse,
+      can_view_cruscotto: false,
+      can_view_marketing: false, can_edit_marketing: false,
+    }));
   };
 
   const renderSection = (section: typeof INTERNAL_SECTIONS[0]) => (

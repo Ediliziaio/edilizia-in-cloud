@@ -31,20 +31,18 @@ export interface StaffUserFormData {
   permissions?: StaffPermissions;
 }
 
-const DEFAULT_PERMISSIONS: StaffPermissions = {
-  can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
-  can_view_warehouse: false, can_edit_warehouse: false, can_view_calendar: false,
-  can_view_customers: false, can_edit_customers: false, can_view_employees: false,
-  can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
-  can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
-  can_view_cruscotto: false, only_assigned: false,
-};
+import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
+const MARKETING_SECTION_KEYS = [
+  "can_view_marketing_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
+  "can_view_marketing_activities", "can_view_marketing_appointments", "can_view_marketing_automations",
+  "can_view_marketing_ai_agent", "can_view_marketing_email", "can_view_marketing_whatsapp", "can_view_marketing_reports",
+];
 const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s =>
-  !["can_view_marketing"].includes(s.viewKey as string)
+  !MARKETING_SECTION_KEYS.includes(s.viewKey as string)
 );
 const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s =>
-  ["can_view_marketing"].includes(s.viewKey as string)
+  MARKETING_SECTION_KEYS.includes(s.viewKey as string)
 );
 
 export function StaffUserDialog({
@@ -74,15 +72,17 @@ export function StaffUserDialog({
   };
 
   const handleSelectAll = () => {
-    setPermissions((prev) => ({
-      ...DEFAULT_PERMISSIONS,
-      can_view_dashboard: true, can_view_orders: true, can_edit_orders: true,
-      can_view_warehouse: true, can_edit_warehouse: true, can_view_calendar: true,
-      can_view_customers: true, can_edit_customers: true, can_view_employees: true,
-      can_view_tickets: true, can_edit_tickets: true, can_view_forecast: true,
-      can_view_settings: true, can_view_marketing: true, can_edit_marketing: true,
-      can_view_cruscotto: true, only_assigned: prev.only_assigned,
-    }));
+    setPermissions((prev) => {
+      const allTrue: any = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned };
+      ALL_PERMISSION_SECTIONS.forEach(s => {
+        allTrue[s.viewKey] = true;
+        if (s.editKey) allTrue[s.editKey] = true;
+      });
+      allTrue.can_view_cruscotto = true;
+      allTrue.can_view_marketing = true;
+      allTrue.can_edit_marketing = true;
+      return allTrue;
+    });
   };
 
   const handleDeselectAll = () => {

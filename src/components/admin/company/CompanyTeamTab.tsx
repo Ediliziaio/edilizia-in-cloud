@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
 import { PERMISSION_LABELS, commissionTypeLabels } from "@/lib/adminConstants";
 import type { StaffPermissions } from "@/components/users/PermissionsDialog";
+import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
 interface TeamData {
   admins: any[];
@@ -130,25 +131,10 @@ export function CompanyTeamTab({
               <TableBody>
                 {teamData?.staff.map((member) => {
                   const perms = getActivePermissions(member.permissions);
-                  const defaultPerms: StaffPermissions = {
-                    can_view_dashboard: member.permissions?.can_view_dashboard ?? false,
-                    can_view_orders: member.permissions?.can_view_orders ?? false,
-                    can_edit_orders: member.permissions?.can_edit_orders ?? false,
-                    can_view_warehouse: member.permissions?.can_view_warehouse ?? false,
-                    can_edit_warehouse: member.permissions?.can_edit_warehouse ?? false,
-                    can_view_calendar: member.permissions?.can_view_calendar ?? false,
-                    can_view_customers: member.permissions?.can_view_customers ?? false,
-                    can_edit_customers: member.permissions?.can_edit_customers ?? false,
-                    can_view_employees: member.permissions?.can_view_employees ?? false,
-                    can_view_tickets: member.permissions?.can_view_tickets ?? false,
-                    can_edit_tickets: member.permissions?.can_edit_tickets ?? false,
-                    can_view_forecast: member.permissions?.can_view_forecast ?? false,
-                    can_view_settings: member.permissions?.can_view_settings ?? false,
-                    can_view_marketing: member.permissions?.can_view_marketing ?? false,
-                    can_edit_marketing: member.permissions?.can_edit_marketing ?? false,
-                    can_view_cruscotto: member.permissions?.can_view_cruscotto ?? false,
-                    only_assigned: member.permissions?.only_assigned ?? false,
-                  };
+                  const defaultPerms: StaffPermissions = Object.keys(DEFAULT_PERMISSIONS).reduce((acc, key) => {
+                    (acc as any)[key] = (member.permissions as any)?.[key] ?? false;
+                    return acc;
+                  }, { ...DEFAULT_PERMISSIONS });
                   return (
                     <TableRow key={member.id}>
                       <TableCell className="font-medium">
