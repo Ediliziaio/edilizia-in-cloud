@@ -120,7 +120,7 @@ export function PipelinesConfig() {
 
   const updatePipeline = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      const { error } = await supabase.from("marketing_pipelines").update({ name }).eq("id", id);
+      const { error } = await supabase.from("marketing_pipelines").update({ name }).eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -133,7 +133,7 @@ export function PipelinesConfig() {
 
   const deletePipeline = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("marketing_pipelines").delete().eq("id", id);
+      const { error } = await supabase.from("marketing_pipelines").delete().eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -232,6 +232,7 @@ export function PipelinesConfig() {
                 onChange={(e) => setNewName(e.target.value)}
                 autoFocus
                 className="mt-1"
+                maxLength={100}
               />
             </div>
             <div>
@@ -249,6 +250,7 @@ export function PipelinesConfig() {
                       value={stage.name}
                       onChange={(e) => handleUpdateCreateStage(stage.id, e.target.value)}
                       className="h-8 text-sm flex-1"
+                      maxLength={100}
                     />
                     <Select
                       value={stage.auto_status || "none"}
@@ -301,7 +303,7 @@ export function PipelinesConfig() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Rinomina Sequenza</DialogTitle></DialogHeader>
-          <Input value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
+          <Input value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus maxLength={100} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>Annulla</Button>
             <Button onClick={() => editId && updatePipeline.mutate({ id: editId, name: editName })} disabled={!editName.trim() || updatePipeline.isPending}>
