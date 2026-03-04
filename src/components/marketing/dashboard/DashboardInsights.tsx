@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Lightbulb, TrendingDown, TrendingUp, AlertTriangle, Award } from "lucide-react";
@@ -154,7 +155,13 @@ function generateInsights(kpi: KpiData, kpiPrev: KpiData, sales: SalesPerformanc
   return insights.slice(0, 6);
 }
 
-export function DashboardInsights({ kpi, kpiPrev, sales, sources, alerts, isLoading }: Props) {
+export const DashboardInsights = memo(function DashboardInsights({ kpi, kpiPrev, sales, sources, alerts, isLoading }: Props) {
+  const safeAlerts = useMemo(() => alerts ? { ...EMPTY_ALERTS, ...alerts } : EMPTY_ALERTS, [alerts]);
+  const insights = useMemo(
+    () => (kpi && kpiPrev) ? generateInsights(kpi, kpiPrev, sales || [], sources || [], safeAlerts) : [],
+    [kpi, kpiPrev, sales, sources, safeAlerts]
+  );
+
   if (isLoading) {
     return (
       <Card>
@@ -164,12 +171,7 @@ export function DashboardInsights({ kpi, kpiPrev, sales, sources, alerts, isLoad
     );
   }
 
-  if (!kpi || !kpiPrev) return null;
-
-  const safeAlerts = alerts ? { ...EMPTY_ALERTS, ...alerts } : EMPTY_ALERTS;
-  const insights = generateInsights(kpi, kpiPrev, sales || [], sources || [], safeAlerts);
-
-  if (insights.length === 0) return null;
+  if (!kpi || !kpiPrev || insights.length === 0) return null;
 
   return (
     <Card>
@@ -205,4 +207,4 @@ export function DashboardInsights({ kpi, kpiPrev, sales, sources, alerts, isLoad
       </CardContent>
     </Card>
   );
-}
+});
