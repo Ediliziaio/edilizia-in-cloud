@@ -73,25 +73,6 @@ export function useOpportunityFieldValues(opportunityId: string | null) {
   });
 }
 
-export function useMarketingTags() {
-  const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
-
-  return useQuery({
-    queryKey: ["marketing_tags", companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("marketing_tags")
-        .select("*")
-        .eq("company_id", companyId!)
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!companyId,
-  });
-}
-
 export function useUpdateContact() {
   const queryClient = useQueryClient();
 
