@@ -1,60 +1,70 @@
 
 
-# Audit Catalogo Articoli
+# Audit Sezione Fornitori (SuppliersConfig)
 
 ## Bug e Problemi Trovati
 
 ### 1. Toast inconsistente: `useToast` invece di `sonner` (P1)
 
-**File**: `src/components/settings/ArticleCatalog.tsx` (riga 6, 67, 134, 138, 150, 153)
+**File**: `src/components/settings/SuppliersConfig.tsx` (riga 19, 172, 251, 255, 287, 291, 303, 309-312, 315, 342)
 
-Usa `useToast` (Radix) mentre il resto dell'app e stato standardizzato su `sonner`. Stesso problema in `SupplierSelect.tsx` (riga 6, 51, 95-98, 101-105).
+Usa `useToast` (Radix) mentre il resto dell'app e stato standardizzato su `sonner`.
 
-**Fix**: Migrare entrambi i file a `import { toast } from "sonner"`.
+**Fix**: Migrare a `import { toast } from "sonner"` e sostituire tutte le chiamate `toast({title, description, variant})` con `toast.success()` / `toast.error()`.
 
-### 2. Mancano `maxLength` sugli input del form (P1)
+### 2. Mancano `maxLength` sugli input (P1)
 
-**File**: `src/components/settings/ArticleCatalog.tsx` (righe 342, 346, 438-443)
+Nessun campo ha `maxLength`. Rischio di input eccessivi nel database.
 
-I campi Nome, SKU e Descrizione non hanno limiti di lunghezza, rischiando input eccessivi nel database.
+**Fix**:
+- Nome: `maxLength={100}`
+- P.IVA: `maxLength={20}`
+- Codice Fiscale: `maxLength={20}`
+- Email: `maxLength={100}`
+- Telefono: `maxLength={20}`
+- Sito Web: `maxLength={100}`
+- Indirizzo: `maxLength={200}`
+- Citta: `maxLength={50}`
+- Provincia: `maxLength={5}`
+- CAP: `maxLength={10}`
+- Paese: `maxLength={50}`
+- Categoria: `maxLength={50}` (sul search input)
+- Note: `maxLength={500}`
 
-**Fix**: `maxLength={100}` su nome, `maxLength={50}` su SKU, `maxLength={500}` su descrizione.
+### 3. Manca `.trim()` nel salvataggio (P1)
 
-### 3. Tipo duplicato: `ArticleTemplate` vs `ArticleTemplateData` (P2)
+I campi stringa vengono salvati senza `.trim()`, rischiando spazi bianchi nel database. Il campo `name` viene controllato con `.trim()` nella validazione ma non nel payload di insert/update.
 
-**File**: `ArticleCatalog.tsx` (riga 52-63) e `ArticleCombobox.tsx` (riga 22-33)
+**Fix**: Aggiungere `.trim()` su `name` nel payload di `createMutation` e `updateMutation`.
 
-Le due interfacce sono identiche ma duplicate in file diversi. Viola il principio DRY.
+### 4. Update/Delete senza filtro `company_id` (P1 - Sicurezza)
 
-**Fix**: Usare l'interfaccia `ArticleTemplateData` gia esportata da `ArticleCombobox.tsx` anche in `ArticleCatalog.tsx`, eliminando la definizione locale.
+- Update (riga 282): filtra solo per `.eq("id", id)` senza `.eq("company_id", companyId)`
+- Delete (riga 298): filtra solo per `.eq("id", id)` senza `.eq("company_id", companyId)`
 
-### 4. Update senza filtro `company_id` (P1 - Sicurezza)
+Defense-in-depth richiede il filtro esplicito.
 
-**File**: `src/components/settings/ArticleCatalog.tsx` (riga 119-122)
+**Fix**: Aggiungere `.eq("company_id", companyId!)` sia nell'update che nel delete.
 
-L'update filtra solo per `id` senza aggiungere `.eq("company_id", companyId)`. Sebbene RLS protegga a livello DB, la best practice defense-in-depth richiede il filtro esplicito nel codice.
+### 5. Layout rotto nel form "Dati Fiscali" (P1 - UI Bug)
 
-**Fix**: Aggiungere `.eq("company_id", companyId)` sia nell'update (riga 122) che nel delete (riga 144).
+Righe 535-560: il `grid grid-cols-3` contiene solo P.IVA, e il `</div>` che lo chiude (riga 540) termina troppo presto. Codice Fiscale e Aliquota IVA sono fuori dal grid container. Questo causa un layout visivamente inconsistente.
 
-### 5. `SupplierSelect.tsx`: stessa inconsistenza toast (P1)
+**Fix**: Ristrutturare il blocco per includere tutti e 3 i campi dentro lo stesso `grid grid-cols-3`.
 
-**File**: `src/components/orders/SupplierSelect.tsx` (riga 6, 51)
+## Componenti OK
 
-Usa `useToast` invece di `sonner`.
-
-**Fix**: Migrare a `sonner`.
-
-## Componenti OK (nessun intervento)
-
-- `ArticleCombobox.tsx`: ben implementato, staleTime implicito, filtro corretto
-- CATEGORIES array: coerente e completo
-- Filtro ricerca client-side: corretto e performante
-- Margine %: calcolo corretto con guard `> 0`
+- Query con `staleTime: 5 * 60 * 1000`: buona pratica
+- Filtro ricerca client-side: corretto
+- Categoria con combobox creabile: ben implementato
+- Separazione Italiani/Esteri con Tabs: corretta
+- AlertDialog per conferma eliminazione: corretto
+- Gestione errore foreign key nel delete: corretta
+- `invalidateSuppliers` invalida entrambe le queryKey: corretto
 
 ## File da modificare
 
 | File | Intervento |
 |------|-----------|
-| `src/components/settings/ArticleCatalog.tsx` | sonner + maxLength + rimuovi tipo duplicato + company_id su update/delete |
-| `src/components/orders/SupplierSelect.tsx` | sonner |
+| `src/components/settings/SuppliersConfig.tsx` | sonner + maxLength + trim + company_id su update/delete + fix layout Dati Fiscali |
 
