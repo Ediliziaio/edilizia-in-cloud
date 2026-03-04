@@ -38,6 +38,7 @@ interface Props {
   node: AutomationNode;
   onUpdate: (id: string, updates: Partial<AutomationNode>) => void;
   onClose: () => void;
+  onSaveImmediate?: () => void;
   allNodes?: AutomationNode[];
 }
 
@@ -72,7 +73,7 @@ function findActionLabel(actionType: string): string {
   return actionType;
 }
 
-export function AutomationNodeConfig({ node, onUpdate, onClose, allNodes = [] }: Props) {
+export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate, allNodes = [] }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
@@ -215,7 +216,7 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, allNodes = [] }:
         </div>
         <div className="border-t p-3 flex gap-2 justify-end shrink-0">
           <Button variant="outline" size="sm" className="text-xs" onClick={onClose}>Annulla</Button>
-          <Button size="sm" className="text-xs" onClick={handleSaveTrigger}>Salva il trigger</Button>
+          <Button size="sm" className="text-xs" onClick={() => { handleSaveTrigger(); onSaveImmediate?.(); }}>Salva il trigger</Button>
         </div>
       </div>
     );
@@ -724,7 +725,7 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, allNodes = [] }:
         {/* Footer */}
         <div className="border-t p-3 flex gap-2 justify-end shrink-0">
           <Button variant="outline" size="sm" className="text-xs" onClick={onClose}>Annulla</Button>
-          <Button size="sm" className="text-xs" onClick={handleSaveAction}>Salva azione</Button>
+          <Button size="sm" className="text-xs" onClick={() => { handleSaveAction(); onSaveImmediate?.(); }}>Salva azione</Button>
         </div>
       </div>
     );
@@ -845,6 +846,7 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, allNodes = [] }:
               return;
             }
           }
+          onSaveImmediate?.();
           onClose();
         }}>Salva</Button>
       </div>

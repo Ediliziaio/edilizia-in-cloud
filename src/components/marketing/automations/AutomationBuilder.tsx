@@ -39,7 +39,7 @@ export function AutomationBuilder() {
     addNode, updateNode, removeNode,
     addConnection, removeConnection,
     undo, redo, canUndo, canRedo,
-    saveAll, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish,
+    saveAll, saveImmediate, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish,
     effectiveCompany, user,
   } = useAutomationBuilder(flowId);
 
@@ -218,13 +218,14 @@ export function AutomationBuilder() {
     const newNode: AutomationNode = {
       ...node,
       id: crypto.randomUUID(),
+      company_id: effectiveCompany?.id || node.company_id,
       position_x: node.position_x + 40,
       position_y: node.position_y + 40,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     addNode(newNode);
-  }, [nodes, addNode]);
+  }, [nodes, effectiveCompany, addNode]);
 
   const handleSelectNode = useCallback((id: string | null) => {
     setSelectedNodeId(id);
@@ -477,6 +478,7 @@ export function AutomationBuilder() {
                 node={selectedNode}
                 onUpdate={updateNode}
                 onClose={closeRightPanel}
+                onSaveImmediate={saveImmediate}
                 allNodes={nodes}
               />
             )}
