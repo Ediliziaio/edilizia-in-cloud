@@ -69,10 +69,17 @@ export default function SettingsUserDetail() {
         .select("role")
         .eq("user_id", userId!);
 
-      const role = roles?.find(r => r.role === "company_admin" || r.role === "company_staff");
+      // Determine effective role with priority: salesperson > call_center > company_admin > company_staff
+      const roleSet = new Set(roles?.map(r => r.role) || []);
+      let effectiveRole: "company_admin" | "company_staff" | "salesperson" | "call_center" | undefined;
+      if (roleSet.has("salesperson")) effectiveRole = "salesperson";
+      else if (roleSet.has("call_center")) effectiveRole = "call_center";
+      else if (roleSet.has("company_admin")) effectiveRole = "company_admin";
+      else if (roleSet.has("company_staff")) effectiveRole = "company_staff";
 
       let permissions: StaffPermissions | null = null;
-      if (role?.role === "company_staff") {
+      // Load staff_permissions for any non-admin role (staff, salesperson, call_center all use it)
+      if (effectiveRole && effectiveRole !== "company_admin") {
         const { data: perms } = await supabase
           .from("staff_permissions")
           .select("*")
@@ -85,7 +92,7 @@ export default function SettingsUserDetail() {
 
       return {
         ...profile,
-        role: role?.role as "company_admin" | "company_staff" | undefined,
+        role: effectiveRole,
         permissions,
       };
     },
@@ -142,26 +149,55 @@ export default function SettingsUserDetail() {
   });
 
   const changeRoleMutation = useMutation({
-    mutationFn: async (newRole: "company_admin" | "company_staff") => {
+    mutationFn: async (newRole: "company_admin" | "company_staff" | "salesperson" | "call_center") => {
       const currentRole = userData?.role;
       if (currentRole === newRole) return;
 
-      // Delete old role
-      if (currentRole) {
-        await supabase.from("user_roles").delete().eq("user_id", userId!).eq("role", currentRole);
+      const companyId = userData?.company_id;
+      if (!companyId) throw new Error("company_id mancante nel profilo utente");
+
+      // Remove all company-level roles first
+      const rolesToRemove = ["company_admin", "company_staff", "salesperson", "call_center"] as const;
+      for (const r of rolesToRemove) {
+        await supabase.from("user_roles").delete().eq("user_id", userId!).eq("role", r);
       }
 
-      // Insert new role
-      const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: newRole });
-      if (error) throw error;
+      if (newRole === "company_admin") {
+        // Admin only gets company_admin role
+        const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: "company_admin" });
+        if (error) throw error;
+      } else if (newRole === "salesperson" || newRole === "call_center") {
+        // Dual-role: specific role + company_staff
+        const { error: e1 } = await supabase.from("user_roles").insert({ user_id: userId!, role: newRole });
+        if (e1) throw e1;
+        const { error: e2 } = await supabase.from("user_roles").insert({ user_id: userId!, role: "company_staff" });
+        if (e2) throw e2;
+      } else {
+        // Plain company_staff
+        const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: "company_staff" });
+        if (error) throw error;
+      }
 
-      // If changing to staff, ensure staff_permissions row exists
-      if (newRole === "company_staff") {
+      // Ensure staff_permissions row exists for non-admin roles
+      if (newRole !== "company_admin") {
         const { data: existing } = await supabase.from("staff_permissions").select("user_id").eq("user_id", userId!).maybeSingle();
         if (!existing) {
-          const companyId = userData?.company_id;
-          if (!companyId) throw new Error("company_id mancante nel profilo utente");
           await supabase.from("staff_permissions").insert({ user_id: userId!, company_id: companyId } as any);
+        }
+      }
+
+      // If salesperson, ensure salespeople record exists
+      if (newRole === "salesperson") {
+        const { data: existingSp } = await supabase.from("salespeople").select("id").eq("user_id", userId!).maybeSingle();
+        if (!existingSp) {
+          await supabase.from("salespeople").insert({
+            user_id: userId!,
+            company_id: companyId,
+            first_name: userData?.first_name || "",
+            last_name: userData?.last_name || "",
+            email: userData?.email || "",
+            is_active: true,
+          } as any);
         }
       }
     },
