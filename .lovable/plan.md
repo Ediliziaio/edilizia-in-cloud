@@ -1,51 +1,67 @@
 
 
-# Espansione Permessi Marketing + Edit Impostazioni
+# Audit Impostazioni Utente - Report e Piano Interventi
 
-## Problema
-Marketing e Vendita ha un solo toggle (`can_view_marketing` / `can_edit_marketing`) per tutti i 10 sotto-moduli. L'utente vuole toggle individuali come Gestione Interna. Inoltre manca l'opzione Visualizza/Modifica per Impostazioni.
+## A) Problemi Identificati
 
-## Interventi
+### P0 - Critici
 
-### 1. Migrazione DB - Nuove colonne
-Aggiungere alla tabella `staff_permissions`:
+1. **Password: manca campo per inserimento manuale**
+   L'utente chiede di poter inserire direttamente una nuova password dal pannello profilo. Attualmente il reset genera solo una password casuale automatica. L'edge function `reset-customer-password` gia supporta `new_password` nel body (riga 80-82), ma la UI non offre un campo di input per specificarla.
+   - **Fix**: Aggiungere un campo password opzionale nella sezione Reset Password di `UserProfileTab.tsx`. Se compilato, viene inviato come `new_password`; se vuoto, il backend genera quella automatica. Mostrare la password risultante nel toast.
 
-**Marketing (10 sotto-moduli, view + edit ciascuno):**
-- `can_view_marketing_dashboard`, `can_view_marketing_contacts`, `can_edit_marketing_contacts`
-- `can_view_marketing_opportunities`, `can_edit_marketing_opportunities`
-- `can_view_marketing_activities`, `can_view_marketing_appointments`
-- `can_view_marketing_automations`, `can_view_marketing_ai_agent`
-- `can_view_marketing_email`, `can_view_marketing_whatsapp`
-- `can_view_marketing_reports`
+### P1 - Importanti
 
-**Impostazioni:**
-- `can_edit_settings`
+2. **Warning `forwardRef` su `ComingSoonPlaceholder`**
+   La console mostra "Function components cannot be given refs" per `ComingSoonPlaceholder` usato in `UserAvailabilityTab`. Questo accade perche React passa un ref al componente figlio diretto del tab content. Il componente non accetta refs.
+   - **Fix**: Il warning proviene dal rendering condizionale. Non serve forwardRef, basta wrappare i tab placeholder in un `<div>` per assorbire eventuali ref spurii, oppure ignorare dato che e solo un warning di dev. Soluzione pulita: verificare se qualche parent passa ref e rimuoverlo.
 
-Tutte `boolean DEFAULT false`. I vecchi campi `can_view_marketing` / `can_edit_marketing` restano per backward compatibility e vengono usati come "master toggle" opzionale.
+3. **Dirty state mancante nel tab Permessi**
+   `UserRolesPermissionsTab` non traccia lo stato dirty: il bottone "Salva Permessi" e sempre attivo anche senza modifiche. Questo causa salvataggi inutili e confusione UX.
+   - **Fix**: Aggiungere `useMemo` che confronta `permissions` correnti con `user.permissions` originali per disabilitare il bottone quando non ci sono cambiamenti.
 
-### 2. Update `StaffPermissions` interface
-In `PermissionsDialog.tsx`, aggiungere tutti i nuovi campi all'interface TypeScript.
+4. **`savePermissionsMutation` invia tutti i campi incluso `user_id` e `id`**
+   Quando si salva, `permissions` contiene anche `user_id`, `id`, `created_at` etc. dal DB (perche viene da `select("*")`). L'update con questi campi extra potrebbe fallire o sovrascrivere dati non intenzionali.
+   - **Fix**: Filtrare i campi prima dell'update, inviando solo le chiavi definite in `StaffPermissions`.
 
-### 3. Update `UserRolesPermissionsTab.tsx`
-- **Marketing e Vendita**: Espandere in 10 moduli individuali, ognuno con il proprio toggle view e, dove applicabile, checkbox edit:
-  - Dashboard Marketing (`can_view_marketing_dashboard`)
-  - Contatti (`can_view_marketing_contacts` / `can_edit_marketing_contacts`)
-  - Opportunita (`can_view_marketing_opportunities` / `can_edit_marketing_opportunities`)
-  - Attivita (`can_view_marketing_activities`)
-  - Appuntamenti (`can_view_marketing_appointments`)
-  - Automazioni (`can_view_marketing_automations`)
-  - Agente AI (`can_view_marketing_ai_agent`)
-  - Email Marketing (`can_view_marketing_email`)
-  - WhatsApp (`can_view_marketing_whatsapp`)
-  - Reportistica (`can_view_marketing_reports`)
+### P2 - Miglioramenti
 
-- **Impostazioni**: Aggiungere `editKey: "can_edit_settings"` per mostrare Visualizza/Modifica.
+5. **Password temporanea mostrata nel toast, facilmente persa**
+   La password generata viene mostrata in un toast che scompare dopo pochi secondi. Se l'utente non la copia in tempo, la perde.
+   - **Fix**: Mostrare la password in un dialog modale con bottone "Copia" (come gia fatto in `StaffUserDialog`), non in un toast.
 
-- Aggiornare `DEFAULT_PERMISSIONS`, `handleSelectAll`, `handleDeselectAll` con i nuovi campi.
+6. **Mobile: sidebar utente non responsive**
+   La sidebar a 64px fissa (`w-64 shrink-0`) non collassa su mobile, causando overflow orizzontale.
+   - **Fix**: Rendere la sidebar responsive con tabs orizzontali su mobile.
 
-### 4. Update sidebar permission checks
-Aggiornare i controlli di accesso nella sidebar e nelle pagine marketing per usare i nuovi permessi granulari al posto di `can_view_marketing`.
+## B) Piano Interventi
 
-### 5. Update dialoghi legacy
-Allineare `PermissionsDialog.tsx`, `StaffUserDialog.tsx` e `CompanyTeamTab.tsx` con i nuovi campi.
+### 1. Aggiungere campo password manuale (P0)
+In `UserProfileTab.tsx`:
+- Aggiungere un `Input` tipo password con label "Nuova password (opzionale)"
+- Se compilato, inviare `{ userId: user.id, new_password: value }` alla edge function
+- Se vuoto, inviare solo `{ userId: user.id }` per generazione automatica
+- Mostrare il risultato in un dialog modale con bottone Copia (non toast)
+
+### 2. Fix warning forwardRef (P1)
+Verificare se i tab wrapper passano ref a `ComingSoonPlaceholder`. Se necessario, wrappare in `<div>` nei tab components.
+
+### 3. Dirty state per tab Permessi (P1)
+In `UserRolesPermissionsTab.tsx`:
+- Aggiungere `useMemo` per confronto deep tra `permissions` e `user.permissions`
+- Disabilitare bottone "Salva Permessi" quando `!isDirty`
+
+### 4. Filtrare campi extra nel salvataggio permessi (P1)
+In `SettingsUserDetail.tsx` `savePermissionsMutation`:
+- Prima dell'update, estrarre solo le chiavi definite in `DEFAULT_PERMISSIONS` (importare e usare come whitelist)
+
+### 5. Dialog modale per password generata (P2)
+Sostituire il toast con un dialog che mostra la password + bottone Copia, come gia implementato in `StaffUserDialog`.
+
+### 6. Responsive sidebar su mobile (P2)
+In `SettingsUserDetail.tsx`:
+- Su viewport `< md`: nascondere sidebar verticale, mostrare tabs orizzontali scrollabili
+- Su viewport `>= md`: mantenere layout attuale
+
+### Nessuna migrazione DB necessaria.
 
