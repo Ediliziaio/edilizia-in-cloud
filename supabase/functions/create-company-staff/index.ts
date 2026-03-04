@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 function generateTemporaryPassword(): string {
@@ -52,11 +52,14 @@ Deno.serve(async (req) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     // Check if caller is company_admin or super_admin
-    const { data: callerRole } = await supabaseAdmin
+    const { data: callerRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
-      .eq("user_id", callerId)
-      .single();
+      .eq("user_id", callerId);
+
+    const callerRole = callerRoles?.find(
+      (r) => r.role === "company_admin" || r.role === "super_admin"
+    ) ?? null;
 
     if (!callerRole || (callerRole.role !== "company_admin" && callerRole.role !== "super_admin")) {
       return new Response(
@@ -96,32 +99,33 @@ Deno.serve(async (req) => {
     // Validate role_type
     const effectiveRole = role_type === "company_admin" ? "company_admin" : "company_staff";
 
-    // Check if email already exists
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users.find(
-      (u) => u.email?.toLowerCase() === email.toLowerCase()
-    );
-
-    if (existingUser) {
-      return new Response(
-        JSON.stringify({ error: "Un utente con questa email esiste già" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const temporaryPassword = generateTemporaryPassword();
 
-    // Create auth user
+    // Create auth user directly - handle duplicate email via error
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: temporaryPassword,
       email_confirm: true,
     });
 
-    if (createError || !newUser.user) {
+    if (createError) {
+      // Handle duplicate email error
+      if (createError.message?.toLowerCase().includes("already") || createError.message?.toLowerCase().includes("exists")) {
+        return new Response(
+          JSON.stringify({ error: "Un utente con questa email esiste già" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       console.error("Error creating user:", createError);
       return new Response(
-        JSON.stringify({ error: createError?.message || "Errore durante la creazione dell'utente" }),
+        JSON.stringify({ error: createError.message || "Errore durante la creazione dell'utente" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!newUser.user) {
+      return new Response(
+        JSON.stringify({ error: "Errore durante la creazione dell'utente" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
