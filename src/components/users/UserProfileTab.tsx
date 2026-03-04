@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,14 +25,38 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
   const [lastName, setLastName] = useState(user.last_name);
   const [email, setEmail] = useState(user.email);
   const [phone, setPhone] = useState(user.phone || "");
-  const [phoneExt, setPhoneExt] = useState("");
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   const initials = `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase();
 
+  // Dirty state tracking
+  const isDirty = useMemo(() => {
+    return (
+      firstName.trim() !== user.first_name ||
+      lastName.trim() !== user.last_name ||
+      email.trim() !== user.email ||
+      (phone.trim() || null) !== (user.phone || null)
+    );
+  }, [firstName, lastName, email, phone, user]);
+
+  const validate = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!firstName.trim()) errors.firstName = "Il nome è obbligatorio";
+    if (!lastName.trim()) errors.lastName = "Il cognome è obbligatorio";
+    if (!email.trim()) {
+      errors.email = "L'email è obbligatoria";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errors.email = "Formato email non valido";
+    }
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validate()) return;
     onSave({
       first_name: firstName.trim(),
       last_name: lastName.trim(),
@@ -87,27 +111,24 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
             <div className="space-y-2">
               <Label htmlFor="firstName">Nome *</Label>
               <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={isLoading} />
+              {validationErrors.firstName && <p className="text-xs text-destructive">{validationErrors.firstName}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="lastName">Cognome *</Label>
               <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={isLoading} />
+              {validationErrors.lastName && <p className="text-xs text-destructive">{validationErrors.lastName}</p>}
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="email">Email *</Label>
             <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} />
+            {validationErrors.email && <p className="text-xs text-destructive">{validationErrors.email}</p>}
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 space-y-2">
-              <Label htmlFor="phone">Telefono</Label>
-              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" disabled={isLoading} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phoneExt">Estensione</Label>
-              <Input id="phoneExt" value={phoneExt} onChange={(e) => setPhoneExt(e.target.value)} placeholder="123" disabled={isLoading} />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Telefono</Label>
+            <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" disabled={isLoading} />
           </div>
 
           {/* Reset Password */}
@@ -127,7 +148,7 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
       </Card>
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={isLoading}>
+        <Button type="submit" disabled={isLoading || !isDirty}>
           {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
           Salva Modifiche
         </Button>

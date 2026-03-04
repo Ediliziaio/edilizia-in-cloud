@@ -37,7 +37,7 @@ const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_customers: false, can_edit_customers: false, can_view_employees: false,
   can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
   can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
-  only_assigned: false,
+  can_view_cruscotto: false, only_assigned: false,
 };
 
 const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s =>
@@ -81,7 +81,7 @@ export function StaffUserDialog({
       can_view_customers: true, can_edit_customers: true, can_view_employees: true,
       can_view_tickets: true, can_edit_tickets: true, can_view_forecast: true,
       can_view_settings: true, can_view_marketing: true, can_edit_marketing: true,
-      only_assigned: prev.only_assigned,
+      can_view_cruscotto: true, only_assigned: prev.only_assigned,
     }));
   };
 

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -26,9 +26,16 @@ type TabId = typeof SIDEBAR_TABS[number]["id"];
 export default function SettingsUserDetail() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabId>("profile");
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && SIDEBAR_TABS.some(t => t.id === tabParam)) {
+      return tabParam as TabId;
+    }
+    return "profile";
+  });
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["user-detail", userId],
@@ -187,6 +194,7 @@ export default function SettingsUserDetail() {
         <div className="flex-1 min-w-0">
           {activeTab === "profile" && (
             <UserProfileTab
+              key={`profile-${userData.id}-${userData.role}`}
               user={userData}
               onSave={(data) => saveProfileMutation.mutate(data)}
               isLoading={saveProfileMutation.isPending}
@@ -194,6 +202,7 @@ export default function SettingsUserDetail() {
           )}
           {activeTab === "permissions" && (
             <UserRolesPermissionsTab
+              key={`perms-${userData.id}-${userData.role}`}
               user={userData}
               onSave={(perms) => savePermissionsMutation.mutate(perms)}
               onChangeRole={(role) => changeRoleMutation.mutate(role)}
