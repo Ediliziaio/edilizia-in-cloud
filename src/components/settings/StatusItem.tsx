@@ -66,6 +66,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
         onChange={(e) => onUpdate(status.id, { name: e.target.value })}
         className="flex-1"
         placeholder="Nome stato"
+        maxLength={50}
       />
 
       {/* Icon picker */}

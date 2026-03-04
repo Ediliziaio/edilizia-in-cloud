@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { UserCheck, Plus, Pencil, Trash2, Loader2, Percent, DollarSign, Receipt, UserPlus, Check, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { ALL_PERMISSION_SECTIONS, type PermissionSectionDef } from "@/components/users/permissionsDefaults";
@@ -59,7 +59,7 @@ const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => MARKETING_SECTION
 
 export function SalespeopleConfig() {
   const { effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
@@ -97,7 +97,7 @@ export function SalespeopleConfig() {
           first_name: data.first_name, last_name: data.last_name, email: data.email,
           phone: data.phone, commission_type: data.commission_type,
           commission_value: data.commission_value, is_active: data.is_active,
-        }).eq("id", data.id);
+        }).eq("id", data.id).eq("company_id", companyId!);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("salespeople").insert({
@@ -111,17 +111,17 @@ export function SalespeopleConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
-      toast({ title: editingSalesperson ? "Venditore aggiornato" : "Venditore creato", description: "Le modifiche sono state salvate." });
+      toast.success(editingSalesperson ? "Venditore aggiornato" : "Venditore creato");
       setDialogOpen(false); setEditingSalesperson(null);
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile salvare il venditore.", variant: "destructive" });
+      toast.error("Impossibile salvare il venditore.");
     },
   });
 
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase.from("salespeople").update({ is_active }).eq("id", id);
+      const { error } = await supabase.from("salespeople").update({ is_active }).eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["salespeople"] }); },
@@ -129,20 +129,16 @@ export function SalespeopleConfig() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("salespeople").delete().eq("id", id);
+      const { error } = await supabase.from("salespeople").delete().eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
-      toast({ title: "Venditore eliminato", description: "Il venditore è stato rimosso." });
+      toast.success("Venditore eliminato");
     },
     onError: (error: Error) => {
-      toast({
-        title: "Errore",
-        description: error.message?.includes("order_salespeople")
-          ? "Impossibile eliminare: il venditore ha ordini associati." : "Impossibile eliminare il venditore.",
-        variant: "destructive",
-      });
+      toast.error(error.message?.includes("order_salespeople")
+        ? "Impossibile eliminare: il venditore ha ordini associati." : "Impossibile eliminare il venditore.");
     },
   });
 
@@ -167,11 +163,11 @@ export function SalespeopleConfig() {
       if (data.temp_password) {
         setPasswordDialog({ open: true, password: data.temp_password, name: sp ? `${sp.first_name} ${sp.last_name}` : "" });
       } else {
-        toast({ title: "Account creato", description: data.message });
+        toast.success(data.message || "Account creato");
       }
     },
     onError: (error: Error) => {
-      toast({ title: "Errore", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     },
   });
 
@@ -229,7 +225,7 @@ export function SalespeopleConfig() {
 
   const copyPassword = () => {
     navigator.clipboard.writeText(passwordDialog.password);
-    toast({ title: "Copiato", description: "Password copiata negli appunti" });
+    toast.success("Password copiata negli appunti");
   };
 
   const formatCommissionValue = (type: string, value: number) => {

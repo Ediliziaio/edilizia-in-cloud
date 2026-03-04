@@ -217,7 +217,7 @@ export function CustomFieldsConfig() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("marketing_custom_fields").delete().eq("id", id);
+      const { error } = await supabase.from("marketing_custom_fields").delete().eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -407,6 +407,7 @@ export function CustomFieldsConfig() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="es. Tipo di caldaia"
+                maxLength={100}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -440,6 +441,7 @@ export function CustomFieldsConfig() {
                   value={optionsInput}
                   onChange={(e) => setOptionsInput(e.target.value)}
                   placeholder="es. Condensazione, Tradizionale, Ibrida"
+                  maxLength={200}
                 />
               </div>
             )}

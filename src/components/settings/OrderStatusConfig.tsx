@@ -18,7 +18,7 @@ import {
 import { Plus, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusItem } from "./StatusItem";
@@ -27,7 +27,7 @@ import { OrderProgressTracker, type OrderStatus } from "@/components/orders/Orde
 export function OrderStatusConfig() {
   const { effectiveCompany } = useAuth();
   const company = effectiveCompany;
-  const { toast } = useToast();
+  
   const [statuses, setStatuses] = useState<OrderStatus[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -148,21 +148,14 @@ export function OrderStatusConfig() {
       }
 
       setHasChanges(false);
-      toast({
-        title: "Salvato",
-        description: "Gli stati ordine sono stati aggiornati",
-      });
+      toast.success("Salvato: gli stati ordine sono stati aggiornati");
     } catch (error: unknown) {
       // Handle specific error for status in use
       let errorMsg = error instanceof Error ? error.message : "Impossibile salvare le modifiche";
       if (errorMsg.includes("stato usato") || errorMsg.includes("storico ordini")) {
         errorMsg = "Impossibile eliminare uno stato già in uso. Alcuni stati sono associati a ordini esistenti o presenti nello storico.";
       }
-      toast({
-        title: "Errore",
-        description: errorMsg,
-        variant: "destructive",
-      });
+      toast.error(errorMsg);
     } finally {
       setIsSaving(false);
     }

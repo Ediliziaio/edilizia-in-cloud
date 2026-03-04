@@ -50,6 +50,7 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
         value={stage.name}
         onChange={(e) => onUpdate(stage.id, e.target.value)}
         className="h-8 text-sm flex-1"
+        maxLength={100}
       />
       <Select
         value={stage.auto_status || "none"}
@@ -176,7 +177,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       }
 
       for (const stage of toDelete) {
-        const { error } = await supabase.from("marketing_pipeline_stages").delete().eq("id", stage.id);
+        const { error } = await supabase.from("marketing_pipeline_stages").delete().eq("id", stage.id).eq("company_id", companyId!);
         if (error) throw error;
       }
 
@@ -185,7 +186,8 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
           const { error } = await supabase
             .from("marketing_pipeline_stages")
             .update({ name: stage.name, position: stage.position, auto_status: stage.auto_status })
-            .eq("id", stage.id);
+            .eq("id", stage.id)
+            .eq("company_id", companyId!);
           if (error) throw error;
         }
       }
