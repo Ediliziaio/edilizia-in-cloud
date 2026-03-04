@@ -47,7 +47,6 @@ export interface WeeklyAgendaData {
 }
 
 
-
 function getDateRange(preset: CruscottoDatePreset, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
   const now = new Date();
   switch (preset) {
@@ -113,7 +112,7 @@ export function useCruscottoData() {
 
   // Operations data (orders, tickets)
   const { data: opsData, isLoading: opsLoading } = useQuery({
-    queryKey: ["cruscotto-operations", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId, paymentsData],
+    queryKey: ["cruscotto-operations", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId],
     queryFn: async () => {
       const now = new Date();
       const todayStr = now.toISOString().split("T")[0];
@@ -155,7 +154,7 @@ export function useCruscottoData() {
         overdueAmount,
       } as OperationsData;
     },
-    enabled: !!companyId,
+    enabled: !!companyId && paymentsData !== undefined,
     staleTime: 120_000,
   });
 
@@ -240,21 +239,16 @@ export function useCruscottoData() {
     staleTime: 120_000,
   });
 
-  // Weekly agenda data (next 7 days)
+  // Weekly agenda data (next 7 days) — reuses shared paymentsData
   const { data: weeklyData, isLoading: weeklyLoading } = useQuery({
-    queryKey: ["cruscotto-weekly", companyId],
+    queryKey: ["cruscotto-weekly", companyId, paymentsData],
     queryFn: async () => {
       const now = new Date();
       const todayStr = now.toISOString().split("T")[0];
       const weekEnd = new Date(now.getTime() + 7 * 86400000);
       const weekEndStr = weekEnd.toISOString().split("T")[0];
 
-      const [paymentsRes, costsRes, deliveriesRes, appointmentsRes] = await Promise.all([
-        // Incoming payments next 7 days
-        supabase.from("orders")
-          .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date")
-          .eq("company_id", companyId!)
-          .or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false,financing_paid.eq.false"),
+      const [costsRes, deliveriesRes, appointmentsRes] = await Promise.all([
         // Costs due next 7 days
         supabase.from("company_costs").select("amount, due_date")
           .eq("company_id", companyId!).eq("is_paid", false)
@@ -271,8 +265,9 @@ export function useCruscottoData() {
           .gte("appointment_date", todayStr).lte("appointment_date", weekEndStr),
       ]);
 
+      // Reuse shared paymentsData for incoming payments calculation
       let incomingPayments = 0, incomingPaymentsCount = 0;
-      paymentsRes.data?.forEach(order => {
+      paymentsData?.forEach(order => {
         const check = (paid: boolean, amount: number, date: string | null) => {
           if (!paid && amount > 0 && date && date >= todayStr && date <= weekEndStr) {
             incomingPayments += amount;
@@ -297,7 +292,7 @@ export function useCruscottoData() {
         appointments: appointmentsRes.count || 0,
       } as WeeklyAgendaData;
     },
-    enabled: !!companyId,
+    enabled: !!companyId && paymentsData !== undefined,
     staleTime: 120_000,
   });
 
