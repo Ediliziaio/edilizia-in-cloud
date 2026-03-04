@@ -24,17 +24,15 @@ import { EmployeesTab } from "@/components/employees/EmployeesTab";
 import { ExternalTeamsTab } from "@/components/employees/ExternalTeamsTab";
 import type { Employee, ExternalTeam } from "@/types/employees";
 
-const DEFAULT_PERMISSIONS: StaffPermissions = {
-  can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
-  can_view_warehouse: false, can_edit_warehouse: false, can_view_calendar: false,
-  can_view_customers: false, can_edit_customers: false, can_view_employees: false,
-  can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
-  can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
-  can_view_cruscotto: false, only_assigned: false,
-};
+import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
-const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => !["can_view_marketing"].includes(s.viewKey as string));
-const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => ["can_view_marketing"].includes(s.viewKey as string));
+const MARKETING_SECTION_KEYS = [
+  "can_view_marketing_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
+  "can_view_marketing_activities", "can_view_marketing_appointments", "can_view_marketing_automations",
+  "can_view_marketing_ai_agent", "can_view_marketing_email", "can_view_marketing_whatsapp", "can_view_marketing_reports",
+];
+const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => !MARKETING_SECTION_KEYS.includes(s.viewKey as string));
+const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => MARKETING_SECTION_KEYS.includes(s.viewKey as string));
 
 export default function Employees() {
   const { effectiveCompany } = useAuth();

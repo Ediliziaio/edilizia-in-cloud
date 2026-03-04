@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight, Loader2, Save, Search, ShieldCheck, User, EyeOff } from "lucide-react";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
+import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
 /**
  * Each PermissionModule maps 1:1 to a unique DB column.
@@ -51,25 +52,26 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { id: "employees", label: "Dipendenti", description: "Visualizza dati dipendenti", viewKey: "can_view_employees" },
       { id: "tickets", label: "Ticket Clienti", description: "Gestisci ticket di supporto", viewKey: "can_view_tickets", editKey: "can_edit_tickets" },
       { id: "forecast", label: "Previsionale", description: "Visualizza previsioni finanziarie", viewKey: "can_view_forecast", includes: ["Costi"] },
-      { id: "settings", label: "Impostazioni", description: "Accedi alle impostazioni aziendali", viewKey: "can_view_settings", includes: ["Automazioni"] },
+      { id: "settings", label: "Impostazioni", description: "Accedi alle impostazioni aziendali", viewKey: "can_view_settings", editKey: "can_edit_settings", includes: ["Automazioni"] },
     ],
   },
   {
     id: "marketing",
     label: "Marketing e Vendita",
     modules: [
-      {
-        id: "marketing",
-        label: "Marketing e Vendita",
-        description: "Accesso a tutti i moduli marketing e vendita",
-        viewKey: "can_view_marketing",
-        editKey: "can_edit_marketing",
-        includes: ["Dashboard", "Contatti", "Opportunità", "Attività", "Appuntamenti", "Automazioni", "Agente AI", "Email Marketing", "WhatsApp", "Reportistica"],
-      },
+      { id: "mkt-dashboard", label: "Dashboard Marketing", description: "Panoramica performance marketing", viewKey: "can_view_marketing_dashboard" },
+      { id: "mkt-contacts", label: "Contatti", description: "Gestisci contatti marketing", viewKey: "can_view_marketing_contacts", editKey: "can_edit_marketing_contacts" },
+      { id: "mkt-opportunities", label: "Opportunità", description: "Gestisci pipeline e opportunità", viewKey: "can_view_marketing_opportunities", editKey: "can_edit_marketing_opportunities" },
+      { id: "mkt-activities", label: "Attività", description: "Visualizza attività marketing", viewKey: "can_view_marketing_activities" },
+      { id: "mkt-appointments", label: "Appuntamenti", description: "Gestisci appuntamenti commerciali", viewKey: "can_view_marketing_appointments" },
+      { id: "mkt-automations", label: "Automazioni", description: "Gestisci flussi automatizzati", viewKey: "can_view_marketing_automations" },
+      { id: "mkt-ai-agent", label: "Agente AI", description: "Accedi all'agente AI", viewKey: "can_view_marketing_ai_agent" },
+      { id: "mkt-email", label: "Email Marketing", description: "Campagne e template email", viewKey: "can_view_marketing_email" },
+      { id: "mkt-whatsapp", label: "WhatsApp", description: "Messaggistica WhatsApp", viewKey: "can_view_marketing_whatsapp" },
+      { id: "mkt-reports", label: "Reportistica", description: "Report e analisi marketing", viewKey: "can_view_marketing_reports" },
     ],
   },
 ];
-
 interface UserRolesPermissionsTabProps {
   user: {
     id: string;
@@ -84,14 +86,6 @@ interface UserRolesPermissionsTabProps {
   isChangingRole?: boolean;
 }
 
-const DEFAULT_PERMISSIONS: StaffPermissions = {
-  can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
-  can_view_warehouse: false, can_edit_warehouse: false, can_view_calendar: false,
-  can_view_customers: false, can_edit_customers: false, can_view_employees: false,
-  can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
-  can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
-  can_view_cruscotto: false, only_assigned: false,
-};
 
 export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading, isChangingRole }: UserRolesPermissionsTabProps) {
   const [permissions, setPermissions] = useState<StaffPermissions>(user.permissions || DEFAULT_PERMISSIONS);
@@ -158,15 +152,18 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
   };
 
   const handleSelectAll = () => {
-    setPermissions(prev => ({
-      ...DEFAULT_PERMISSIONS,
-      can_view_dashboard: true, can_view_orders: true, can_edit_orders: true,
-      can_view_warehouse: true, can_edit_warehouse: true, can_view_calendar: true,
-      can_view_customers: true, can_edit_customers: true, can_view_employees: true,
-      can_view_tickets: true, can_edit_tickets: true, can_view_forecast: true,
-      can_view_settings: true, can_view_marketing: true, can_edit_marketing: true,
-      can_view_cruscotto: true, only_assigned: prev.only_assigned,
-    }));
+    setPermissions(prev => {
+      const allTrue: any = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned };
+      const allModules = PERMISSION_CATEGORIES.flatMap(c => c.modules);
+      allModules.forEach(mod => {
+        allTrue[mod.viewKey] = true;
+        if (mod.editKey) allTrue[mod.editKey] = true;
+      });
+      allTrue.can_view_cruscotto = true;
+      allTrue.can_view_marketing = true;
+      allTrue.can_edit_marketing = true;
+      return allTrue;
+    });
   };
 
   const handleDeselectAll = () => {
