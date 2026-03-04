@@ -125,9 +125,12 @@ export function AutomationBuilder() {
     setRightPanel("trigger");
   }, [setSelectedNodeId]);
 
-  const openActionPicker = useCallback((nodeId?: string) => {
+  const [addAfterBranch, setAddAfterBranch] = useState<string | null>(null);
+
+  const openActionPicker = useCallback((nodeId?: string, branch?: string) => {
     setSelectedNodeId(null);
     setAddAfterNodeId(nodeId || null);
+    setAddAfterBranch(branch || null);
     setRightPanel("action");
   }, [setSelectedNodeId]);
 
@@ -135,6 +138,7 @@ export function AutomationBuilder() {
     setRightPanel("none");
     setSelectedNodeId(null);
     setAddAfterNodeId(null);
+    setAddAfterBranch(null);
   }, [setSelectedNodeId]);
 
   const handleTriggerSelect = useCallback((item: PickerItem) => {
@@ -162,8 +166,12 @@ export function AutomationBuilder() {
       : "action" as const;
 
     const parentNode = addAfterNodeId ? nodes.find(n => n.id === addAfterNodeId) : null;
-    const posX = parentNode ? parentNode.position_x : 300;
-    const posY = parentNode ? parentNode.position_y + 120 : nodes.length * 120 + 100;
+    // Offset X for branching: left branch goes left, right branch goes right
+    const branchXOffset = addAfterBranch === "yes" || addAfterBranch === "a" ? -140
+      : addAfterBranch === "no" || addAfterBranch === "b" ? 140
+      : 0;
+    const posX = parentNode ? parentNode.position_x + branchXOffset : 300;
+    const posY = parentNode ? parentNode.position_y + 140 : nodes.length * 120 + 100;
 
     const configByType: Record<string, Record<string, any>> = {
       delay: { delay_value: 1, delay_unit: "days" },
@@ -193,13 +201,14 @@ export function AutomationBuilder() {
         company_id: "",
         from_node_id: addAfterNodeId,
         to_node_id: newNode.id,
-        label: null,
+        label: addAfterBranch || null,
         created_at: new Date().toISOString(),
       });
     }
     setAddAfterNodeId(null);
+    setAddAfterBranch(null);
     setRightPanel("none");
-  }, [flowId, addAfterNodeId, nodes, addNode, addConnection]);
+  }, [flowId, addAfterNodeId, addAfterBranch, nodes, addNode, addConnection]);
 
   const handleDuplicate = useCallback((nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);

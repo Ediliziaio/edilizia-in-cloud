@@ -13,7 +13,7 @@ interface Props {
   onSelectNode: (id: string | null) => void;
   onDeleteNode: (id: string) => void;
   onDuplicateNode: (id: string) => void;
-  onAddAfterNode: (id: string) => void;
+  onAddAfterNode: (id: string, branch?: string) => void;
   onUpdateNode: (id: string, updates: Partial<AutomationNode>) => void;
   onOpenTriggerPicker: () => void;
   onOpenActionPicker: () => void;
