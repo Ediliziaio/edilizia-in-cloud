@@ -622,6 +622,130 @@ export type Database = {
           },
         ]
       }
+      automation_queue: {
+        Row: {
+          attempts: number
+          company_id: string
+          context_json: Json | null
+          created_at: string
+          current_node_id: string
+          enrollment_id: string
+          entity_id: string
+          entity_type: string
+          execute_at: string
+          flow_id: string
+          id: string
+          last_error: string | null
+          max_attempts: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          company_id: string
+          context_json?: Json | null
+          created_at?: string
+          current_node_id: string
+          enrollment_id: string
+          entity_id: string
+          entity_type?: string
+          execute_at?: string
+          flow_id: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          company_id?: string
+          context_json?: Json | null
+          created_at?: string
+          current_node_id?: string
+          enrollment_id?: string
+          entity_id?: string
+          entity_type?: string
+          execute_at?: string
+          flow_id?: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_queue_current_node_id_fkey"
+            columns: ["current_node_id"]
+            isOneToOne: false
+            referencedRelation: "automation_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_queue_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "automation_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_queue_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "automation_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_trigger_events: {
+        Row: {
+          company_id: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          payload: Json | null
+          processed: boolean
+          trigger_event: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          entity_id: string
+          entity_type?: string
+          id?: string
+          payload?: Json | null
+          processed?: boolean
+          trigger_event: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          payload?: Json | null
+          processed?: boolean
+          trigger_event?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_trigger_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automations: {
         Row: {
           actions: Json | null
