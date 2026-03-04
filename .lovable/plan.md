@@ -1,32 +1,33 @@
 
 
-# Verifica Etichette e Componenti Marketing
+# Riorganizzazione Sidebar Impostazioni - Team vs Utenti
 
-## Problemi Identificati
+## Situazione attuale (linee 239-267 di CompanyLayout.tsx)
 
-### 1. Warning `forwardRef` su `OpportunityCard`
-Il componente `OpportunityCard` e wrappato con `memo()` ma `@dnd-kit/sortable` tenta di passargli un ref dall'esterno. Il ref e gestito internamente tramite `useSortable` + `setNodeRef` sul div interno, quindi il warning non causa bug funzionali. Tuttavia, per eliminare il warning dalla console, il componente deve usare `forwardRef`.
+Attualmente c'è un unico gruppo **"Team"** che contiene:
+- Utenti (gestione accessi admin/operatori)
+- Venditori (dati provvigioni/importi)
+- Staff / Operai (dati stipendi/ore/importi)
 
-### 2. Warning `forwardRef` su `MarketingContactDetail`
-Il componente e lazy-loaded e React Router tenta di passargli un ref. Stesso pattern: serve `forwardRef`.
+## Problema
+"Utenti" gestisce accessi e permessi al sistema, mentre "Venditori" e "Staff/Operai" servono per inserire dati economici (stipendi, provvigioni). Mescolarli crea confusione.
 
-### 3. Funzionalita Etichette (Tags) - Tutto OK
-- **ContactDetail**: `TagSelector` integrato con `syncTagsToOpportunities` e `removeTagFromOpportunities` per sincronizzazione bidirezionale
-- **OpportunityCard**: Tags mostrati nell'action bar con conteggio badge
-- **TagsConfig**: CRUD completo nella pagina impostazioni
-- **TagSelector**: Creazione inline, ricerca, multi-selezione - tutto corretto
+## Modifica
 
-## Piano Fix
+Separare in **due gruppi** nella sidebar delle Impostazioni:
 
-### Fix 1: `OpportunityCard` - Aggiungere `forwardRef`
-In `src/components/opportunities/OpportunityCard.tsx`:
-- Wrappare con `forwardRef` oltre a `memo`
-- Il ref esterno verra ignorato perche il componente usa `setNodeRef` internamente, ma eliminera il warning
+### Gruppo 1: "Utenti"
+- **Utenti** → gestione accessi, ruoli, permessi (admin/operatori)
 
-### Fix 2: `MarketingContactDetail` - Aggiungere `forwardRef`
-In `src/pages/azienda/marketing/MarketingContactDetail.tsx`:
-- Wrappare l'export default con `forwardRef` per compatibilita con React Router lazy loading
+### Gruppo 2: "Team"
+- **Venditori** → dati commerciali, provvigioni
+- **Staff / Operai** → stipendi, ore, costi manodopera
 
-## Nessun altro problema
-Le etichette funzionano correttamente: creazione, selezione, rimozione, sincronizzazione bidirezionale contatti-opportunita, rendering sulle card Kanban, gestione centralizzata nelle impostazioni.
+## File da modificare
+
+**`src/components/layouts/CompanyLayout.tsx`** (linee 239-267):
+- Rinominare il gruppo attuale "Team" in "Utenti" e lasciare solo la voce "Utenti"
+- Creare un nuovo gruppo "Team" sotto, con le voci "Venditori" e "Staff / Operai"
+
+Nessun altro file da toccare: le route e i componenti restano invariati.
 
