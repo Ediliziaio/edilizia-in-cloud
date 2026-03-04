@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/formatters";
-import { StaffPermissions, ALL_PERMISSION_SECTIONS } from "@/components/users/PermissionsDialog";
+import { StaffPermissions } from "@/components/users/PermissionsDialog";
+import { ALL_PERMISSION_SECTIONS, type PermissionSectionDef } from "@/components/users/permissionsDefaults";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

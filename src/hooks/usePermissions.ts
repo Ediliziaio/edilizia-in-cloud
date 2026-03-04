@@ -20,6 +20,19 @@ export interface Permissions {
   canViewMarketing: boolean;
   canEditMarketing: boolean;
   canViewCruscotto: boolean;
+  // Granular marketing permissions
+  canViewMarketingDashboard: boolean;
+  canViewMarketingContacts: boolean;
+  canEditMarketingContacts: boolean;
+  canViewMarketingOpportunities: boolean;
+  canEditMarketingOpportunities: boolean;
+  canViewMarketingActivities: boolean;
+  canViewMarketingAppointments: boolean;
+  canViewMarketingAutomations: boolean;
+  canViewMarketingAiAgent: boolean;
+  canViewMarketingEmail: boolean;
+  canViewMarketingWhatsapp: boolean;
+  canViewMarketingReports: boolean;
   isAdmin: boolean;
   isLoading: boolean;
   onlyAssigned: boolean;
@@ -43,6 +56,18 @@ const ALL_PERMISSIONS: Permissions = {
   canViewMarketing: true,
   canEditMarketing: true,
   canViewCruscotto: true,
+  canViewMarketingDashboard: true,
+  canViewMarketingContacts: true,
+  canEditMarketingContacts: true,
+  canViewMarketingOpportunities: true,
+  canEditMarketingOpportunities: true,
+  canViewMarketingActivities: true,
+  canViewMarketingAppointments: true,
+  canViewMarketingAutomations: true,
+  canViewMarketingAiAgent: true,
+  canViewMarketingEmail: true,
+  canViewMarketingWhatsapp: true,
+  canViewMarketingReports: true,
   isAdmin: true,
   isLoading: false,
   onlyAssigned: false,
@@ -66,6 +91,18 @@ const NO_PERMISSIONS: Permissions = {
   canViewMarketing: false,
   canEditMarketing: false,
   canViewCruscotto: false,
+  canViewMarketingDashboard: false,
+  canViewMarketingContacts: false,
+  canEditMarketingContacts: false,
+  canViewMarketingOpportunities: false,
+  canEditMarketingOpportunities: false,
+  canViewMarketingActivities: false,
+  canViewMarketingAppointments: false,
+  canViewMarketingAutomations: false,
+  canViewMarketingAiAgent: false,
+  canViewMarketingEmail: false,
+  canViewMarketingWhatsapp: false,
+  canViewMarketingReports: false,
   isAdmin: false,
   isLoading: false,
   onlyAssigned: false,
@@ -122,6 +159,18 @@ export function usePermissions(): Permissions {
       canViewMarketing: permissions?.can_view_marketing ?? false,
       canEditMarketing: permissions?.can_edit_marketing ?? false,
       canViewCruscotto: permissions?.can_view_cruscotto ?? false,
+      canViewMarketingDashboard: permissions?.can_view_marketing_dashboard ?? false,
+      canViewMarketingContacts: permissions?.can_view_marketing_contacts ?? false,
+      canEditMarketingContacts: permissions?.can_edit_marketing_contacts ?? false,
+      canViewMarketingOpportunities: permissions?.can_view_marketing_opportunities ?? false,
+      canEditMarketingOpportunities: permissions?.can_edit_marketing_opportunities ?? false,
+      canViewMarketingActivities: permissions?.can_view_marketing_activities ?? false,
+      canViewMarketingAppointments: permissions?.can_view_marketing_appointments ?? false,
+      canViewMarketingAutomations: permissions?.can_view_marketing_automations ?? false,
+      canViewMarketingAiAgent: permissions?.can_view_marketing_ai_agent ?? false,
+      canViewMarketingEmail: permissions?.can_view_marketing_email ?? false,
+      canViewMarketingWhatsapp: permissions?.can_view_marketing_whatsapp ?? false,
+      canViewMarketingReports: permissions?.can_view_marketing_reports ?? false,
       isAdmin: false,
       isLoading: false,
       onlyAssigned: permissions?.only_assigned ?? false,
