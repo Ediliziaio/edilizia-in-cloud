@@ -7,7 +7,7 @@ export const CALENDAR_COLORS = [
   "bg-cyan-500/20 border-cyan-500 text-cyan-900 dark:text-cyan-200",
 ];
 
-export const HOURS = Array.from({ length: 14 }, (_, i) => i + 8);
+
 
 export function buildTimeSlots(slotMinutes: number): string[] {
   const slots: string[] = [];
