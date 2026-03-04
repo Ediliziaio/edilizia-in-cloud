@@ -1,46 +1,64 @@
 
 
-# Miglioramento Sezione Utenti Aziendali - Segmentazione e Chiarezza
+# Segmentazione Utenti: 4 Categorie
 
 ## Stato attuale
 
-La pagina mostra una tabella con filtri basici. Manca una visione d'insieme sulla composizione del team: quanti admin, quanti operatori, distribuzione permessi.
+La pagina utenti mostra solo 2 tipi: Admin e Operatori (`company_admin`/`company_staff`). I venditori vengono creati separatamente dalla sezione Team con la edge function `create-salesperson-user` che assegna il ruolo `salesperson` + `company_staff`. Il ruolo `call_center` non esiste nel database.
 
-## Interventi previsti
+Il `call_center_id` su contatti/opportunita punta a profili generici (staff), senza un ruolo dedicato.
 
-### 1. KPI Cards di segmentazione (sopra la tabella)
+## Piano interventi
 
-Aggiungere 3-4 card riassuntive in cima:
-- **Totale Utenti** (conteggio totale, incluso l'admin corrente)
-- **Amministratori** (con icona shield, count)
-- **Operatori** (count)
-- **Accesso limitato** (count di staff con `only_assigned = true`)
+### 1. DB: Aggiungere ruolo `call_center` all'enum `app_role`
 
-Queste card danno un colpo d'occhio immediato sulla composizione del team.
+Migrazione SQL:
+```sql
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'call_center';
+```
 
-### 2. Includere l'utente corrente nella lista
+### 2. TypeScript: Aggiornare tipo `AppRole`
 
-Attualmente la query esclude `user?.id` (riga 69). Questo e confuso perche l'admin non vede se stesso nella lista. Includerlo con un badge "Tu" e disabilitare le azioni di eliminazione su se stesso.
+In `src/types/auth.ts`, aggiungere `"call_center"` all'union type.
 
-### 3. Migliorare la colonna Permessi
+### 3. Edge Function `create-company-staff`: Supportare 4 ruoli
 
-Invece di un singolo badge con testo troncato, mostrare:
-- Per Admin: badge colorato "Accesso completo" con icona shield
-- Per Staff: badges multipli (max 3 visibili + "+N") con colori distinti per categoria (interno vs marketing)
+Attualmente la funzione accetta solo `company_admin` o `company_staff`. Va estesa per accettare anche `salesperson` e `call_center`:
+- Se `role_type` e `salesperson`: assegna ruolo `salesperson` + `company_staff` (come fa gia `create-salesperson-user`) + crea staff_permissions
+- Se `role_type` e `call_center`: assegna ruolo `call_center` + `company_staff` + crea staff_permissions
+- Per `salesperson`, creare anche il record nella tabella `salespeople` (collegato all'user)
 
-### 4. Badge ruolo piu descrittivo
+### 4. UI: `UsersConfig.tsx` - 5 KPI cards + filtro esteso
 
-- Admin: badge con sfondo verde/primary e icona
-- Operatore: badge con sfondo secondario
-- Aggiungere sotto-testo "Accesso limitato" se `only_assigned = true`
+Determinare il "tipo effettivo" di ogni utente guardando TUTTI i suoi ruoli:
+- Ha ruolo `company_admin` → Amministratore
+- Ha ruolo `salesperson` → Venditore
+- Ha ruolo `call_center` → Call Center
+- Ha solo `company_staff` → Operatore
 
-### 5. Empty state migliorato
+KPI Cards: Totale | Amministratori | Operatori | Venditori | Call Center
 
-Suggerimento contestuale piu chiaro quando non ci sono utenti.
+Filtro ruolo: aggiungere "Venditori" e "Call Center" alle opzioni del Select.
+
+Badge ruolo: icone e colori distinti per ogni tipo.
+
+### 5. UI: `StaffUserDialog.tsx` - 4 tipi di utente
+
+Aggiungere 2 bottoni extra nella selezione ruolo:
+- Venditore (icona vendite, descrizione "Accesso vendite e provvigioni")
+- Call Center (icona telefono, descrizione "Gestione contatti e opportunita")
+
+I permessi sono configurabili solo per `company_staff`, `salesperson` e `call_center`. Admin ha accesso completo.
+
+### 6. `has_permission` DB function
+
+Attualmente controlla solo `company_staff`. Va estesa per controllare anche `salesperson` e `call_center` (entrambi usano la tabella `staff_permissions` tramite il dual-role `company_staff`). Nessuna modifica necessaria dato che entrambi i nuovi ruoli ricevono anche `company_staff`.
 
 ## File da modificare
 
-- `src/components/settings/UsersConfig.tsx` - Aggiungere KPI cards, includere utente corrente, migliorare rendering permessi e ruoli
-
-Nessuna migrazione DB necessaria.
+- **DB migration**: Aggiungere `call_center` all'enum
+- `src/types/auth.ts` - Aggiungere `call_center`
+- `supabase/functions/create-company-staff/index.ts` - Supportare 4 ruoli
+- `src/components/settings/UsersConfig.tsx` - 5 KPI, filtri, badge per 4 tipi
+- `src/components/users/StaffUserDialog.tsx` - 4 opzioni ruolo nella creazione
 
