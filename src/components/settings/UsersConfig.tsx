@@ -115,6 +115,15 @@ export function UsersConfig() {
 
       if (data.role_type === "company_staff" && data.permissions && response.data?.user_id) {
         const { only_assigned, ...permFields } = data.permissions;
+        // Sync legacy marketing fields based on granular permissions
+        const hasAnyMarketingView = permFields.can_view_marketing_dashboard || permFields.can_view_marketing_contacts ||
+          permFields.can_view_marketing_opportunities || permFields.can_view_marketing_activities ||
+          permFields.can_view_marketing_appointments || permFields.can_view_marketing_automations ||
+          permFields.can_view_marketing_ai_agent || permFields.can_view_marketing_email ||
+          permFields.can_view_marketing_whatsapp || permFields.can_view_marketing_reports;
+        const hasAnyMarketingEdit = permFields.can_edit_marketing_contacts || permFields.can_edit_marketing_opportunities;
+        permFields.can_view_marketing = hasAnyMarketingView || permFields.can_view_marketing;
+        permFields.can_edit_marketing = hasAnyMarketingEdit || permFields.can_edit_marketing;
         await supabase
           .from("staff_permissions")
           .update({ ...permFields, only_assigned: only_assigned || false })
@@ -143,10 +152,12 @@ export function UsersConfig() {
 
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      await supabase.from("staff_permissions").delete().eq("user_id", userId);
-      await supabase.from("user_roles").delete().eq("user_id", userId);
-      const { error } = await supabase.from("profiles").delete().eq("id", userId);
-      if (error) throw error;
+      // Call edge function to also delete from auth.users
+      const { data, error: fnError } = await supabase.functions.invoke("delete-company-user", {
+        body: { userId },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
@@ -162,6 +173,7 @@ export function UsersConfig() {
     if (!u.permissions) return "Nessun permesso";
     
     const labels: string[] = [];
+    if (u.permissions.can_view_cruscotto) labels.push("Cruscotto");
     if (u.permissions.can_view_dashboard) labels.push("Dashboard");
     if (u.permissions.can_view_orders) labels.push("Ordini");
     if (u.permissions.can_view_warehouse) labels.push("Magazzino");
@@ -171,7 +183,14 @@ export function UsersConfig() {
     if (u.permissions.can_view_tickets) labels.push("Assistenza");
     if (u.permissions.can_view_forecast) labels.push("Previsionale");
     if (u.permissions.can_view_settings) labels.push("Impostazioni");
-    if (u.permissions.can_view_marketing) labels.push("Marketing");
+    // Check granular marketing permissions instead of legacy field
+    const hasAnyMarketing = u.permissions.can_view_marketing_dashboard || u.permissions.can_view_marketing_contacts ||
+      u.permissions.can_view_marketing_opportunities || u.permissions.can_view_marketing_activities ||
+      u.permissions.can_view_marketing_appointments || u.permissions.can_view_marketing_automations ||
+      u.permissions.can_view_marketing_ai_agent || u.permissions.can_view_marketing_email ||
+      u.permissions.can_view_marketing_whatsapp || u.permissions.can_view_marketing_reports ||
+      u.permissions.can_view_marketing;
+    if (hasAnyMarketing) labels.push("Marketing");
     
     if (labels.length === 0) return "Nessun permesso";
     if (labels.length > 3) return `${labels.slice(0, 3).join(", ")} +${labels.length - 3}`;

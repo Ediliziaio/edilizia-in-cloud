@@ -43,7 +43,7 @@ export default function SettingsUserDetail() {
     queryFn: async () => {
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone")
+        .select("id, first_name, last_name, email, phone, company_id")
         .eq("id", userId!)
         .single();
       if (error) throw error;
@@ -130,7 +130,9 @@ export default function SettingsUserDetail() {
       if (newRole === "company_staff") {
         const { data: existing } = await supabase.from("staff_permissions").select("user_id").eq("user_id", userId!).maybeSingle();
         if (!existing) {
-          await supabase.from("staff_permissions").insert({ user_id: userId! } as any);
+          const companyId = userData?.company_id;
+          if (!companyId) throw new Error("company_id mancante nel profilo utente");
+          await supabase.from("staff_permissions").insert({ user_id: userId!, company_id: companyId } as any);
         }
       }
     },

@@ -249,6 +249,24 @@ export function StaffUserDialog({
                 </div>
 
                 <div className="space-y-3 max-h-[280px] overflow-y-auto pr-2">
+                  {/* Cruscotto Aziendale */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="create-can_view_cruscotto"
+                        checked={permissions.can_view_cruscotto || false}
+                        onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, can_view_cruscotto: checked as boolean }))}
+                        disabled={isLoading}
+                      />
+                      <Label htmlFor="create-can_view_cruscotto" className="font-medium text-sm">
+                        Cruscotto Aziendale
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-6">Accesso ai dati finanziari e performance</p>
+                  </div>
+
+                  <Separator />
+
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gestione Interna</p>
                   {INTERNAL_SECTIONS.map(renderSection)}
 
