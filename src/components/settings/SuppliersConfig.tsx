@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -169,7 +169,7 @@ export function SuppliersConfig() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  
 
   const [activeTab, setActiveTab] = useState("italiani");
   const [searchQuery, setSearchQuery] = useState("");
@@ -226,7 +226,7 @@ export function SuppliersConfig() {
   const createMutation = useMutation({
     mutationFn: async (data: SupplierFormData) => {
       const { error } = await supabase.from("suppliers").insert({
-        name: data.name,
+        name: data.name.trim(),
         vat_rate: data.vat_rate,
         is_foreign: data.is_foreign,
         address: data.address || null,
@@ -248,11 +248,11 @@ export function SuppliersConfig() {
     },
     onSuccess: () => {
       invalidateSuppliers();
-      toast({ title: "Fornitore creato", description: "Il fornitore è stato aggiunto con successo." });
+      toast.success("Fornitore creato", { description: "Il fornitore è stato aggiunto con successo." });
       handleCloseDialog();
     },
     onError: (error) => {
-      toast({ title: "Errore", description: "Impossibile creare il fornitore.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile creare il fornitore." });
       console.error(error);
     },
   });
@@ -262,7 +262,7 @@ export function SuppliersConfig() {
       const { error } = await supabase
         .from("suppliers")
         .update({
-          name: data.name,
+          name: data.name.trim(),
           vat_rate: data.vat_rate,
           is_foreign: data.is_foreign,
           address: data.address || null,
@@ -279,40 +279,39 @@ export function SuppliersConfig() {
           notes: data.notes || null,
           payment_method: data.payment_method || null,
         })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
       invalidateSuppliers();
-      toast({ title: "Fornitore aggiornato", description: "Le modifiche sono state salvate." });
+      toast.success("Fornitore aggiornato", { description: "Le modifiche sono state salvate." });
       handleCloseDialog();
     },
     onError: (error) => {
-      toast({ title: "Errore", description: "Impossibile aggiornare il fornitore.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile aggiornare il fornitore." });
       console.error(error);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("suppliers").delete().eq("id", id);
+      const { error } = await supabase.from("suppliers").delete().eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
       invalidateSuppliers();
-      toast({ title: "Fornitore eliminato", description: "Il fornitore è stato rimosso." });
+      toast.success("Fornitore eliminato", { description: "Il fornitore è stato rimosso." });
       setDeleteDialogOpen(false);
       setDeletingSupplier(null);
     },
     onError: (error: Error) => {
       if (error.message.includes("foreign key") || error.message.includes("violates")) {
-        toast({
-          title: "Impossibile eliminare",
+        toast.error("Impossibile eliminare", {
           description: "Il fornitore è associato a degli articoli e non può essere eliminato.",
-          variant: "destructive",
         });
       } else {
-        toast({ title: "Errore", description: "Impossibile eliminare il fornitore.", variant: "destructive" });
+        toast.error("Errore", { description: "Impossibile eliminare il fornitore." });
       }
       console.error(error);
     },
@@ -339,7 +338,7 @@ export function SuppliersConfig() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      toast({ title: "Errore", description: "Il nome è obbligatorio.", variant: "destructive" });
+      toast.error("Errore", { description: "Il nome è obbligatorio." });
       return;
     }
     if (editingSupplier) {
@@ -433,7 +432,7 @@ export function SuppliersConfig() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome Fornitore *</Label>
-                  <Input id="name" value={formData.name} onChange={(e) => updateField("name", e.target.value)} placeholder="Es. ABC Serramenti Srl" />
+                  <Input id="name" value={formData.name} onChange={(e) => updateField("name", e.target.value)} placeholder="Es. ABC Serramenti Srl" maxLength={100} />
                 </div>
                 <div className="space-y-2">
                   <Label>Categoria Prodotti</Label>
@@ -451,10 +450,11 @@ export function SuppliersConfig() {
                     </PopoverTrigger>
                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                       <Command shouldFilter={false}>
-                        <CommandInput
+                         <CommandInput
                           placeholder="Cerca o crea categoria..."
                           value={categorySearch}
                           onValueChange={setCategorySearch}
+                          maxLength={50}
                         />
                         <CommandList>
                           <CommandEmpty className="py-2 px-4 text-sm text-muted-foreground">
@@ -526,6 +526,7 @@ export function SuppliersConfig() {
                 </Select>
               </div>
             </div>
+            </div>
 
             <Separator />
 
@@ -535,12 +536,11 @@ export function SuppliersConfig() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="vat_number">P.IVA</Label>
-                  <Input id="vat_number" value={formData.vat_number} onChange={(e) => updateField("vat_number", e.target.value)} placeholder="IT01234567890" />
-              </div>
-              </div>
+                  <Input id="vat_number" value={formData.vat_number} onChange={(e) => updateField("vat_number", e.target.value)} placeholder="IT01234567890" maxLength={20} />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="fiscal_code">Codice Fiscale</Label>
-                  <Input id="fiscal_code" value={formData.fiscal_code} onChange={(e) => updateField("fiscal_code", e.target.value)} />
+                  <Input id="fiscal_code" value={formData.fiscal_code} onChange={(e) => updateField("fiscal_code", e.target.value)} maxLength={20} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vat_rate">Aliquota IVA</Label>
@@ -568,15 +568,15 @@ export function SuppliersConfig() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={formData.email} onChange={(e) => updateField("email", e.target.value)} placeholder="info@fornitore.it" />
+                  <Input id="email" type="email" value={formData.email} onChange={(e) => updateField("email", e.target.value)} placeholder="info@fornitore.it" maxLength={100} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Telefono</Label>
-                  <Input id="phone" value={formData.phone} onChange={(e) => updateField("phone", e.target.value)} placeholder="+39 0123 456789" />
+                  <Input id="phone" value={formData.phone} onChange={(e) => updateField("phone", e.target.value)} placeholder="+39 0123 456789" maxLength={20} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="website">Sito Web</Label>
-                  <Input id="website" value={formData.website} onChange={(e) => updateField("website", e.target.value)} placeholder="www.fornitore.it" />
+                  <Input id="website" value={formData.website} onChange={(e) => updateField("website", e.target.value)} placeholder="www.fornitore.it" maxLength={100} />
                 </div>
               </div>
             </div>
@@ -589,23 +589,23 @@ export function SuppliersConfig() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor="address">Via / Indirizzo</Label>
-                  <Input id="address" value={formData.address} onChange={(e) => updateField("address", e.target.value)} placeholder="Via Roma 1" />
+                  <Input id="address" value={formData.address} onChange={(e) => updateField("address", e.target.value)} placeholder="Via Roma 1" maxLength={200} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="city">Città</Label>
-                  <Input id="city" value={formData.city} onChange={(e) => updateField("city", e.target.value)} />
+                  <Input id="city" value={formData.city} onChange={(e) => updateField("city", e.target.value)} maxLength={50} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="province">Provincia</Label>
-                  <Input id="province" value={formData.province} onChange={(e) => updateField("province", e.target.value)} placeholder="MI" />
+                  <Input id="province" value={formData.province} onChange={(e) => updateField("province", e.target.value)} placeholder="MI" maxLength={5} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="postal_code">CAP</Label>
-                  <Input id="postal_code" value={formData.postal_code} onChange={(e) => updateField("postal_code", e.target.value)} placeholder="20100" />
+                  <Input id="postal_code" value={formData.postal_code} onChange={(e) => updateField("postal_code", e.target.value)} placeholder="20100" maxLength={10} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="country">Paese</Label>
-                  <Input id="country" value={formData.country} onChange={(e) => updateField("country", e.target.value)} />
+                  <Input id="country" value={formData.country} onChange={(e) => updateField("country", e.target.value)} maxLength={50} />
                 </div>
               </div>
             </div>
@@ -615,7 +615,7 @@ export function SuppliersConfig() {
             {/* Note */}
             <div className="space-y-2">
               <Label htmlFor="notes">Note</Label>
-              <Textarea id="notes" value={formData.notes} onChange={(e) => updateField("notes", e.target.value)} placeholder="Note aggiuntive sul fornitore..." rows={3} />
+              <Textarea id="notes" value={formData.notes} onChange={(e) => updateField("notes", e.target.value)} placeholder="Note aggiuntive sul fornitore..." rows={3} maxLength={500} />
             </div>
 
             <DialogFooter>
