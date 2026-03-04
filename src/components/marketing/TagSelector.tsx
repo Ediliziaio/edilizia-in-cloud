@@ -103,7 +103,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
             <CommandInput
               placeholder="Cerca o crea tag..."
               value={search}
-              onValueChange={setSearch}
+              onValueChange={(v) => { if (v.length <= 50) setSearch(v); }}
             />
             <CommandList>
               <CommandEmpty className="py-2 px-3 text-sm text-muted-foreground">
