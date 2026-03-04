@@ -33,6 +33,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       super_admin: "/admin",
       company_admin: "/azienda",
       company_staff: "/azienda",
+      call_center: "/azienda",
       customer: "/cliente",
       employee: "/dipendente",
       salesperson: "/venditore",
