@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,22 @@ export default function SettingsUserDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { role } = useAuth();
   const queryClient = useQueryClient();
+
+  const isAdmin = role === "company_admin" || role === "super_admin";
+
+  useEffect(() => {
+    if (!isAdmin) {
+      toast({
+        title: "Accesso negato",
+        description: "Non hai i permessi per gestire gli utenti.",
+        variant: "destructive",
+      });
+      navigate("/azienda/impostazioni/profilo", { replace: true });
+    }
+  }, [isAdmin, navigate, toast]);
+
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     const tabParam = searchParams.get("tab");
     if (tabParam && SIDEBAR_TABS.some(t => t.id === tabParam)) {
@@ -158,6 +174,8 @@ export default function SettingsUserDetail() {
       toast({ title: "Errore", description: "Impossibile cambiare il ruolo.", variant: "destructive" });
     },
   });
+
+  if (!isAdmin) return null;
 
   if (isLoading) {
     return (
