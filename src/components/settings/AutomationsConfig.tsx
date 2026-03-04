@@ -50,7 +50,7 @@ export function AutomationsConfig() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase.from("automations").update({ is_active }).eq("id", id);
+      const { error } = await supabase.from("automations").update({ is_active }).eq("id", id).eq("company_id", effectiveCompany!.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -63,7 +63,7 @@ export function AutomationsConfig() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("automations").delete().eq("id", id);
+      const { error } = await supabase.from("automations").delete().eq("id", id).eq("company_id", effectiveCompany!.id);
       if (error) throw error;
     },
     onSuccess: () => {

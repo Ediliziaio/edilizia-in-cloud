@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, Save, Building2, FileText, Phone, MapPin, StickyNote } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,7 @@ const sectorLabels: Record<string, string> = {
 
 export function CompanyProfileForm() {
   const { effectiveCompany, refreshAuth } = useAuth();
-  const { toast } = useToast();
+  
   const company = effectiveCompany;
 
   const [isSaving, setIsSaving] = useState(false);
@@ -115,10 +115,10 @@ export function CompanyProfileForm() {
       if (error) throw error;
 
       await refreshAuth();
-      toast({ title: "Profilo aggiornato", description: "I dati aziendali sono stati salvati." });
+      toast.success("Profilo aggiornato", { description: "I dati aziendali sono stati salvati." });
     } catch (error) {
       console.error("Error updating company:", error);
-      toast({ title: "Errore", description: "Impossibile aggiornare i dati aziendali.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile aggiornare i dati aziendali." });
     } finally {
       setIsSaving(false);
     }
