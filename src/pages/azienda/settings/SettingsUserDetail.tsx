@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,14 +25,10 @@ type TabId = typeof SIDEBAR_TABS[number]["id"];
 
 export default function SettingsUserDetail() {
   const { userId } = useParams<{ userId: string }>();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  const initialTab = (searchParams.get("tab") as TabId) || "profile";
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const [activeTab, setActiveTab] = useState<TabId>("profile");
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["user-detail", userId],
@@ -43,7 +38,6 @@ export default function SettingsUserDetail() {
         .select("id, first_name, last_name, email, phone")
         .eq("id", userId!)
         .single();
-
       if (error) throw error;
 
       const { data: roles } = await supabase
@@ -76,10 +70,7 @@ export default function SettingsUserDetail() {
 
   const saveProfileMutation = useMutation({
     mutationFn: async (data: { first_name: string; last_name: string; email: string; phone: string | null }) => {
-      const { error } = await supabase
-        .from("profiles")
-        .update(data)
-        .eq("id", userId!);
+      const { error } = await supabase.from("profiles").update(data).eq("id", userId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -94,10 +85,7 @@ export default function SettingsUserDetail() {
 
   const savePermissionsMutation = useMutation({
     mutationFn: async (permissions: StaffPermissions) => {
-      const { error } = await supabase
-        .from("staff_permissions")
-        .update(permissions)
-        .eq("user_id", userId!);
+      const { error } = await supabase.from("staff_permissions").update(permissions).eq("user_id", userId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -107,6 +95,38 @@ export default function SettingsUserDetail() {
     },
     onError: () => {
       toast({ title: "Errore", description: "Errore durante il salvataggio dei permessi.", variant: "destructive" });
+    },
+  });
+
+  const changeRoleMutation = useMutation({
+    mutationFn: async (newRole: "company_admin" | "company_staff") => {
+      const currentRole = userData?.role;
+      if (currentRole === newRole) return;
+
+      // Delete old role
+      if (currentRole) {
+        await supabase.from("user_roles").delete().eq("user_id", userId!).eq("role", currentRole);
+      }
+
+      // Insert new role
+      const { error } = await supabase.from("user_roles").insert({ user_id: userId!, role: newRole });
+      if (error) throw error;
+
+      // If changing to staff, ensure staff_permissions row exists
+      if (newRole === "company_staff") {
+        const { data: existing } = await supabase.from("staff_permissions").select("user_id").eq("user_id", userId!).maybeSingle();
+        if (!existing) {
+          await supabase.from("staff_permissions").insert({ user_id: userId! } as any);
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-detail", userId] });
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile cambiare il ruolo.", variant: "destructive" });
     },
   });
 
@@ -131,7 +151,6 @@ export default function SettingsUserDetail() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/impostazioni/utenti")}>
           <ArrowLeft className="h-4 w-4" />
@@ -142,9 +161,7 @@ export default function SettingsUserDetail() {
         </div>
       </div>
 
-      {/* GHL-style layout: sidebar + content */}
       <div className="flex gap-6 min-h-[600px]">
-        {/* Sidebar */}
         <div className="w-64 shrink-0">
           <nav className="space-y-1 sticky top-4">
             {SIDEBAR_TABS.map((tab) => {
@@ -156,9 +173,7 @@ export default function SettingsUserDetail() {
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left",
-                    isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -169,7 +184,6 @@ export default function SettingsUserDetail() {
           </nav>
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
           {activeTab === "profile" && (
             <UserProfileTab
@@ -182,7 +196,9 @@ export default function SettingsUserDetail() {
             <UserRolesPermissionsTab
               user={userData}
               onSave={(perms) => savePermissionsMutation.mutate(perms)}
+              onChangeRole={(role) => changeRoleMutation.mutate(role)}
               isLoading={savePermissionsMutation.isPending}
+              isChangingRole={changeRoleMutation.isPending}
             />
           )}
           {activeTab === "availability" && <UserAvailabilityTab />}
