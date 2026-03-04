@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizontal, Lock, UserCheck } from "lucide-react";
+import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizontal, Lock, UserCheck, Phone, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -27,13 +27,15 @@ import {
 import { StaffUserDialog, StaffUserFormData } from "@/components/users/StaffUserDialog";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 
+type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center";
+
 interface CompanyUser {
   id: string;
   first_name: string;
   last_name: string;
   email: string;
   phone: string | null;
-  role: "company_admin" | "company_staff";
+  effectiveRole: EffectiveRole;
   permissions: StaffPermissions | null;
 }
 
@@ -42,24 +44,26 @@ function KpiCard({ icon: Icon, label, count, variant = "default" }: {
   icon: React.ElementType;
   label: string;
   count: number;
-  variant?: "default" | "primary" | "secondary" | "warning";
+  variant?: "default" | "primary" | "secondary" | "warning" | "info";
 }) {
   const variantStyles = {
     default: "bg-card border",
     primary: "bg-primary/5 border-primary/20",
     secondary: "bg-secondary border-secondary/50",
     warning: "bg-orange-500/5 border-orange-500/20",
+    info: "bg-blue-500/5 border-blue-500/20",
   };
   const iconStyles = {
     default: "text-muted-foreground",
     primary: "text-primary",
     secondary: "text-muted-foreground",
     warning: "text-orange-600",
+    info: "text-blue-600",
   };
 
   return (
     <div className={`rounded-lg border p-4 flex items-center gap-3 ${variantStyles[variant]}`}>
-      <div className={`rounded-full p-2 ${variant === "primary" ? "bg-primary/10" : variant === "warning" ? "bg-orange-500/10" : "bg-muted"}`}>
+      <div className={`rounded-full p-2 ${variant === "primary" ? "bg-primary/10" : variant === "warning" ? "bg-orange-500/10" : variant === "info" ? "bg-blue-500/10" : "bg-muted"}`}>
         <Icon className={`h-4 w-4 ${iconStyles[variant]}`} />
       </div>
       <div>
@@ -72,7 +76,7 @@ function KpiCard({ icon: Icon, label, count, variant = "default" }: {
 
 // --- Permission Badges ---
 function PermissionBadges({ u }: { u: CompanyUser }) {
-  if (u.role === "company_admin") {
+  if (u.effectiveRole === "company_admin") {
     return (
       <Badge className="bg-primary/10 text-primary border-primary/20">
         <ShieldCheck className="h-3 w-3 mr-1" />
@@ -131,6 +135,40 @@ function PermissionBadges({ u }: { u: CompanyUser }) {
   );
 }
 
+// --- Role Badge ---
+function RoleBadge({ role, onlyAssigned }: { role: EffectiveRole; onlyAssigned?: boolean }) {
+  const config: Record<EffectiveRole, { label: string; icon: React.ElementType; className: string }> = {
+    company_admin: { label: "Admin", icon: ShieldCheck, className: "bg-primary/10 text-primary border-primary/20" },
+    company_staff: { label: "Operatore", icon: UserCheck, className: "bg-secondary text-secondary-foreground" },
+    salesperson: { label: "Venditore", icon: TrendingUp, className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" },
+    call_center: { label: "Call Center", icon: Phone, className: "bg-blue-500/10 text-blue-700 border-blue-500/20" },
+  };
+
+  const { label, icon: Icon, className } = config[role];
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <Badge className={`w-fit ${className}`}>
+        <Icon className="h-3 w-3 mr-1" />
+        {label}
+      </Badge>
+      {onlyAssigned && (
+        <span className="text-[10px] text-orange-600 flex items-center gap-0.5 mt-0.5">
+          <Lock className="h-2.5 w-2.5" />
+          Solo assegnati
+        </span>
+      )}
+    </div>
+  );
+}
+
+function determineEffectiveRole(roles: string[]): EffectiveRole {
+  if (roles.includes("company_admin")) return "company_admin";
+  if (roles.includes("salesperson")) return "salesperson";
+  if (roles.includes("call_center")) return "call_center";
+  return "company_staff";
+}
+
 export function UsersConfig() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
@@ -143,7 +181,6 @@ export function UsersConfig() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
 
-  // Include current user in the list (no longer excluding user?.id)
   const { data: companyUsers = [], isLoading } = useQuery({
     queryKey: ["company-users", effectiveCompanyId],
     queryFn: async () => {
@@ -160,13 +197,26 @@ export function UsersConfig() {
         .select("user_id, role")
         .in("user_id", userIds);
 
-      const companyRoles = roles?.filter(
-        (r) => r.role === "company_admin" || r.role === "company_staff"
-      ) || [];
+      // Group roles by user
+      const rolesByUser: Record<string, string[]> = {};
+      roles?.forEach((r) => {
+        if (!rolesByUser[r.user_id]) rolesByUser[r.user_id] = [];
+        rolesByUser[r.user_id].push(r.role);
+      });
 
-      if (companyRoles.length === 0) return [];
+      // Filter to only company-relevant users
+      const companyUserIds = Object.entries(rolesByUser)
+        .filter(([, userRoles]) =>
+          userRoles.some((r) => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r))
+        )
+        .map(([uid]) => uid);
 
-      const staffUserIds = companyRoles.filter((r) => r.role === "company_staff").map((r) => r.user_id);
+      if (companyUserIds.length === 0) return [];
+
+      // Get staff permissions for users with company_staff role
+      const staffUserIds = companyUserIds.filter((uid) =>
+        rolesByUser[uid]?.includes("company_staff")
+      );
 
       let permissionsMap: Record<string, any> = {};
       if (staffUserIds.length > 0) {
@@ -177,12 +227,12 @@ export function UsersConfig() {
         permissions?.forEach((p) => { permissionsMap[p.user_id] = p; });
       }
 
-      const result: CompanyUser[] = companyRoles.map((r) => {
-        const profile = profiles.find((p) => p.id === r.user_id)!;
+      const result: CompanyUser[] = companyUserIds.map((uid) => {
+        const profile = profiles.find((p) => p.id === uid)!;
         return {
           ...profile,
-          role: r.role as "company_admin" | "company_staff",
-          permissions: permissionsMap[r.user_id] || null,
+          effectiveRole: determineEffectiveRole(rolesByUser[uid] || []),
+          permissions: permissionsMap[uid] || null,
         };
       });
 
@@ -194,11 +244,10 @@ export function UsersConfig() {
 
   // --- KPI calculations ---
   const totalUsers = companyUsers.length;
-  const adminCount = companyUsers.filter((u) => u.role === "company_admin").length;
-  const staffCount = companyUsers.filter((u) => u.role === "company_staff").length;
-  const limitedCount = companyUsers.filter(
-    (u) => u.role === "company_staff" && u.permissions?.only_assigned === true
-  ).length;
+  const adminCount = companyUsers.filter((u) => u.effectiveRole === "company_admin").length;
+  const staffCount = companyUsers.filter((u) => u.effectiveRole === "company_staff").length;
+  const salespersonCount = companyUsers.filter((u) => u.effectiveRole === "salesperson").length;
+  const callCenterCount = companyUsers.filter((u) => u.effectiveRole === "call_center").length;
 
   const handleCreateUser = async (data: StaffUserFormData): Promise<{ temporaryPassword?: string }> => {
     setIsCreating(true);
@@ -216,7 +265,9 @@ export function UsersConfig() {
       if (response.error) throw new Error(response.error.message || "Errore durante la creazione");
       if (response.data?.error) throw new Error(response.data.error);
 
-      if (data.role_type === "company_staff" && data.permissions && response.data?.user_id) {
+      // Update permissions for roles that use staff_permissions
+      const rolesWithPermissions = ["company_staff", "salesperson", "call_center"];
+      if (rolesWithPermissions.includes(data.role_type) && data.permissions && response.data?.user_id) {
         const { only_assigned, ...permFields } = data.permissions;
         const hasAnyMarketingView = permFields.can_view_marketing_dashboard || permFields.can_view_marketing_contacts ||
           permFields.can_view_marketing_opportunities || permFields.can_view_marketing_activities ||
@@ -233,10 +284,17 @@ export function UsersConfig() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
-      
+
+      const roleLabels: Record<string, string> = {
+        company_admin: "Amministratore",
+        company_staff: "Operatore",
+        salesperson: "Venditore",
+        call_center: "Call Center",
+      };
+
       toast({
         title: "Utente creato",
-        description: `${data.first_name} ${data.last_name} è stato creato come ${data.role_type === "company_admin" ? "Amministratore" : "Operatore"}.`,
+        description: `${data.first_name} ${data.last_name} è stato creato come ${roleLabels[data.role_type] || "Operatore"}.`,
       });
 
       return { temporaryPassword: response.data.temporary_password };
@@ -273,9 +331,9 @@ export function UsersConfig() {
     `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 
   const filteredUsers = companyUsers.filter((u) => {
-    const matchesSearch = searchQuery === "" || 
+    const matchesSearch = searchQuery === "" ||
       `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === "all" || u.role === roleFilter;
+    const matchesRole = roleFilter === "all" || u.effectiveRole === roleFilter;
     return matchesSearch && matchesRole;
   });
 
@@ -284,11 +342,12 @@ export function UsersConfig() {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <KpiCard icon={Users} label="Totale Utenti" count={totalUsers} />
         <KpiCard icon={ShieldCheck} label="Amministratori" count={adminCount} variant="primary" />
         <KpiCard icon={UserCheck} label="Operatori" count={staffCount} variant="secondary" />
-        <KpiCard icon={Lock} label="Accesso limitato" count={limitedCount} variant="warning" />
+        <KpiCard icon={TrendingUp} label="Venditori" count={salespersonCount} variant="warning" />
+        <KpiCard icon={Phone} label="Call Center" count={callCenterCount} variant="info" />
       </div>
 
       <Card>
@@ -300,7 +359,7 @@ export function UsersConfig() {
                 Utenti Aziendali
               </CardTitle>
               <CardDescription>
-                Gestisci gli accessi del tuo team (admin e operatori)
+                Gestisci gli accessi del tuo team
               </CardDescription>
             </div>
             <Button onClick={() => setCreateDialogOpen(true)} size="sm">
@@ -328,6 +387,8 @@ export function UsersConfig() {
                 <SelectItem value="all">Tutti i ruoli</SelectItem>
                 <SelectItem value="company_admin">Amministratori</SelectItem>
                 <SelectItem value="company_staff">Operatori</SelectItem>
+                <SelectItem value="salesperson">Venditori</SelectItem>
+                <SelectItem value="call_center">Call Center</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -347,7 +408,7 @@ export function UsersConfig() {
               </p>
               <p className="text-sm mt-1">
                 {companyUsers.length === 0
-                  ? "Aggiungi amministratori o operatori per dare accesso al tuo team."
+                  ? "Aggiungi amministratori, operatori, venditori o call center per dare accesso al tuo team."
                   : "Prova a modificare la ricerca o il filtro ruolo."}
               </p>
               {companyUsers.length === 0 && (
@@ -395,22 +456,10 @@ export function UsersConfig() {
                       {u.email}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-0.5">
-                        {u.role === "company_admin" ? (
-                          <Badge className="bg-primary/10 text-primary border-primary/20 w-fit">
-                            <ShieldCheck className="h-3 w-3 mr-1" />
-                            Admin
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="w-fit">Operatore</Badge>
-                        )}
-                        {u.role === "company_staff" && u.permissions?.only_assigned && (
-                          <span className="text-[10px] text-orange-600 flex items-center gap-0.5 mt-0.5">
-                            <Lock className="h-2.5 w-2.5" />
-                            Solo assegnati
-                          </span>
-                        )}
-                      </div>
+                      <RoleBadge
+                        role={u.effectiveRole}
+                        onlyAssigned={u.effectiveRole !== "company_admin" && u.permissions?.only_assigned === true}
+                      />
                     </TableCell>
                     <TableCell>
                       <PermissionBadges u={u} />
@@ -428,7 +477,7 @@ export function UsersConfig() {
                               <Shield className="h-4 w-4 mr-2" />
                               Gestisci
                             </DropdownMenuItem>
-                            {u.role === "company_staff" && (
+                            {u.effectiveRole !== "company_admin" && (
                               <DropdownMenuItem onClick={() => navigate(`/azienda/impostazioni/utenti/${u.id}?tab=permissions`)}>
                                 <Shield className="h-4 w-4 mr-2" />
                                 Permessi
