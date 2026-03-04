@@ -1,60 +1,40 @@
 
 
-# Audit Ruoli: Bug Critici P0 + Hardening
+# Audit Sezione Profilo Impostazioni
 
-## Bug P0: `usePermissions` ignora `salesperson` e `call_center`
+## Bug Trovati
 
-Il bug piu critico: `src/hooks/usePermissions.ts` controlla `role === "company_staff"` (righe 129 e 139). Con la nuova logica di priorita nell'AuthContext, un venditore ha `role = "salesperson"`, non `"company_staff"`. Risultato: **zero permessi**, utente bloccato senza vedere nulla.
+### 1. PersonalProfileForm: stato non sincronizzato con profile asincrono (P0)
 
-**Fix**: Estendere le condizioni a `["company_staff", "salesperson", "call_center"].includes(role)`.
+`useState(profile?.first_name || "")` viene eseguito solo al mount. Se `profile` e null al mount (caricamento asincrono), i campi restano vuoti per sempre. `CompanyProfileForm` gestisce correttamente questo caso con un `useEffect` su `company`.
 
-## Bug P0: `has_permission()` DB function
+**Fix**: Aggiungere `useEffect` che sincronizza `firstName`, `lastName`, `phone` quando `profile` cambia (stesso pattern di CompanyProfileForm).
 
-La funzione database `has_permission` (riga 10) verifica solo `has_role(_user_id, 'company_staff')`. Per utenti con ruolo effettivo `salesperson` o `call_center`, la funzione ritorna `false` anche se hanno `company_staff` come ruolo secondario. Questo e corretto nel caso attuale (dual-role inserisce `company_staff`), ma va verificato che la query RLS funzioni.
+### 2. PersonalProfileForm: mancano maxLength sugli input (P1)
 
-**Status**: Non e un bug perche il dual-role inserisce sempre `company_staff` nella tabella `user_roles`. La funzione DB continua a funzionare. Nessun intervento necessario.
+`firstName` e `lastName` non hanno `maxLength`. `phone` non ha `maxLength`. CompanyProfileForm li ha su tutti i campi. Inconsistenza e rischio di input troppo lunghi.
 
-## Bug P1: Dropdown "Assegna a" escludono venditori e call center
+**Fix**: Aggiungere `maxLength={50}` su nome/cognome, `maxLength={20}` su telefono.
 
-In 7 file, i dropdown di assegnazione filtrano solo `company_admin` + `company_staff`, escludendo venditori e call center che ora hanno ruoli separati nella tabella `user_roles`:
+### 3. PersonalProfileForm: manca `.trim()` nel salvataggio (P1)
 
-| File | Dropdown |
-|------|----------|
-| `AssignedToSelect.tsx` | Assegna ordine |
-| `TaskDialog.tsx` | Assegna attivita |
-| `AppointmentDialog.tsx` | Assegna appuntamento |
-| `AutomationDialog.tsx` | Assegna automazione |
-| `CalendarDialog.tsx` | Assegna calendario |
-| `MarketingCalendar.tsx` | Filtro utenti calendario |
-| `MarketingContactDetail.tsx` (riga 362, 424) | Follower contatto |
-| `useOpportunitiesData.ts` (riga 267) | Staff generico |
+CompanyProfileForm fa `.trim()` su tutti i campi prima del salvataggio. PersonalProfileForm salva `firstName` e `lastName` senza trim, rischiando spazi bianchi nel database.
 
-**Fix**: In tutti questi file, aggiungere `"salesperson"` e `"call_center"` al filtro ruoli. I venditori e call center hanno anche `company_staff` nel DB, ma il filtro confronta stringhe esatte nella colonna `role`, quindi deve includere tutti i valori possibili.
+**Fix**: Aggiungere `.trim()` nel payload di update.
 
-**Nota**: In realta, poiche il sistema dual-role inserisce SEMPRE `company_staff` accanto a `salesperson`/`call_center`, questi utenti verranno comunque trovati dal filtro attuale. Tuttavia, per robustezza e correttezza semantica, e meglio essere espliciti.
+### 4. Toast inconsistenti: `useToast` vs `sonner` (P2)
 
-## Piano Interventi
+- PersonalProfileForm: usa `useToast` (Radix)
+- LogoUploader: usa `sonner`
+- ChangePasswordForm: usa `sonner`
 
-### 1. `src/hooks/usePermissions.ts` (P0 - CRITICO)
+**Fix**: Migrare PersonalProfileForm a `sonner` per coerenza con il resto dell'app.
 
-- Riga 129: `enabled: role === "company_staff"` → `enabled: ["company_staff", "salesperson", "call_center"].includes(role || "")`
-- Riga 139: `if (role === "company_staff")` → `if (["company_staff", "salesperson", "call_center"].includes(role || ""))`
+## File da modificare
 
-### 2. Dropdown assegnazione (P1 - 7 file)
+| File | Intervento |
+|------|-----------|
+| `src/components/settings/PersonalProfileForm.tsx` | useEffect sync + maxLength + trim + sonner |
 
-Per sicurezza e robustezza, aggiungere `"salesperson"` e `"call_center"` ai filtri ruolo in:
-- `src/components/orders/AssignedToSelect.tsx` (riga 41)
-- `src/components/tasks/TaskDialog.tsx` (riga 139)
-- `src/components/appointments/AppointmentDialog.tsx` (riga 127)
-- `src/components/settings/AutomationDialog.tsx` (riga 116)
-- `src/components/settings/CalendarDialog.tsx` (riga 125)
-- `src/pages/azienda/marketing/MarketingCalendar.tsx` (riga 106)
-- `src/pages/azienda/marketing/MarketingContactDetail.tsx` (righe 362, 424)
-- `src/hooks/useOpportunitiesData.ts` (riga 267)
-
-Pattern: `.filter((r) => r.role === "company_admin" || r.role === "company_staff")` → `.filter((r) => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r.role))`
-
-### Note sull'audit enterprise
-
-L'audit completo (A-J) e un programma a lungo termine. Questa sessione si concentra sui **bug critici legati ai ruoli** che impediscono il funzionamento base. Gli altri punti (performance, sicurezza, backup) sono gia in buono stato come documentato nelle sessioni precedenti.
+Nessun altro file nella sezione profilo richiede interventi. CompanyProfileForm e LogoUploader sono ben implementati.
 
