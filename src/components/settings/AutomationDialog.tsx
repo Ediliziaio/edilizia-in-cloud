@@ -113,7 +113,7 @@ export function AutomationDialog({ open, onOpenChange, automation, onSaved }: Pr
           .select("user_id, role")
           .in("user_id", userIds);
         const validUserIds = roles
-          ?.filter((r) => r.role === "company_admin" || r.role === "company_staff")
+          ?.filter((r) => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r.role))
           .map((r) => r.user_id) || [];
         setCompanyUsers(usersRes.data.filter((p) => validUserIds.includes(p.id)).map(u => ({ id: u.id, name: `${u.first_name} ${u.last_name}` })));
       }

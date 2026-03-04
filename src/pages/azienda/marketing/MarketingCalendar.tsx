@@ -103,7 +103,7 @@ export default function MarketingCalendar() {
         .in("user_id", userIds);
       const validIds =
         roles
-          ?.filter((r) => r.role === "company_admin" || r.role === "company_staff")
+          ?.filter((r) => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r.role))
           .map((r) => r.user_id) || [];
       const result = profiles.filter((p) => validIds.includes(p.id));
       return result;

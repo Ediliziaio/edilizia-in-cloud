@@ -126,7 +126,7 @@ export function usePermissions(): Permissions {
       }
       return data;
     },
-    enabled: role === "company_staff" && !!user?.id,
+    enabled: ["company_staff", "salesperson", "call_center"].includes(role || "") && !!user?.id,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -136,7 +136,7 @@ export function usePermissions(): Permissions {
   }
 
   // Staff: return permissions from database
-  if (role === "company_staff") {
+  if (["company_staff", "salesperson", "call_center"].includes(role || "")) {
     if (isLoading) {
       return { ...NO_PERMISSIONS, isLoading: true };
     }
