@@ -137,6 +137,12 @@ export function useAutomationBuilder(flowId: string | undefined) {
     }, 2000);
   }, []);
 
+  // Immediate save (bypasses debounce)
+  const saveImmediate = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveAllRef.current();
+  }, []);
+
   // Create flow - with input validation
   const createFlowMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -359,7 +365,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
     addNode, updateNode, removeNode,
     addConnection, removeConnection,
     undo, redo, canUndo, canRedo,
-    saveAll, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish,
+    saveAll, saveImmediate, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish,
     effectiveCompany, user,
   };
 }
