@@ -36,13 +36,35 @@ function getNodeSummary(node: NodeType): string {
   return node.label || NODE_TYPE_LABELS[node.node_type] || "";
 }
 
+/** Check if a node type supports multiple output branches */
+export function isBranchingNode(nodeType: string): boolean {
+  return nodeType === "condition" || nodeType === "split";
+}
+
+/** Get branch definitions for a node type */
+export function getNodeBranches(nodeType: string): { key: string; label: string; side: "left" | "right" }[] {
+  if (nodeType === "condition") {
+    return [
+      { key: "yes", label: "Sì", side: "left" },
+      { key: "no", label: "No", side: "right" },
+    ];
+  }
+  if (nodeType === "split") {
+    return [
+      { key: "a", label: "A", side: "left" },
+      { key: "b", label: "B", side: "right" },
+    ];
+  }
+  return [];
+}
+
 interface Props {
   node: NodeType;
   isSelected: boolean;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
-  onAddAfter: (id: string) => void;
+  onAddAfter: (id: string, branch?: string) => void;
   onDragStart: (id: string, e: React.MouseEvent) => void;
 }
 
@@ -51,6 +73,8 @@ export const AutomationNodeComponent = memo(function AutomationNodeComponent({
 }: Props) {
   const Icon = getNodeIcon(node);
   const colorClass = NODE_TYPE_COLORS[node.node_type] || "border-border bg-card";
+  const branching = isBranchingNode(node.node_type);
+  const branches = getNodeBranches(node.node_type);
 
   return (
     <div
@@ -90,14 +114,42 @@ export const AutomationNodeComponent = memo(function AutomationNodeComponent({
         </div>
       </div>
 
-      {/* Output handle + Add button */}
-      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-border border-2 border-background z-30" />
-      <button
-        onClick={e => { e.stopPropagation(); onAddAfter(node.id); }}
-        className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110"
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </button>
+      {branching ? (
+        <>
+          {/* Two output handles for branching nodes */}
+          {branches.map((branch) => {
+            const xOffset = branch.side === "left" ? "25%" : "75%";
+            return (
+              <div key={branch.key} className="absolute" style={{ bottom: -6, left: xOffset, transform: "translateX(-50%)" }}>
+                <div className="w-3 h-3 rounded-full bg-border border-2 border-background z-30" />
+                <span className={cn(
+                  "absolute top-3.5 left-1/2 -translate-x-1/2 text-[9px] font-bold uppercase whitespace-nowrap",
+                  branch.side === "left" ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"
+                )}>
+                  {branch.label}
+                </span>
+                <button
+                  onClick={e => { e.stopPropagation(); onAddAfter(node.id, branch.key); }}
+                  className="absolute top-7 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
+        </>
+      ) : (
+        <>
+          {/* Single output handle */}
+          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-border border-2 border-background z-30" />
+          <button
+            onClick={e => { e.stopPropagation(); onAddAfter(node.id); }}
+            className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </>
+      )}
     </div>
   );
 });
