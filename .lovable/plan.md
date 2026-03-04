@@ -1,59 +1,60 @@
 
 
-# Audit Crea/Modifica Utente - Report e Piano Interventi
+# Audit Completo - Crea/Modifica Utente: Report AS-IS
 
-## AS-IS: Flussi Analizzati
+## Risultato dell'Audit
 
-I due flussi principali (Creazione via `StaffUserDialog` + Edge Function `create-company-staff`, Modifica via `SettingsUserDetail`) sono funzionalmente corretti. L'analisi ha identificato solo problemi minori.
+Dopo analisi end-to-end di tutti i file coinvolti (6 componenti frontend, 3 Edge Functions, 1 file types, 1 defaults), il sistema e **funzionalmente corretto**. Non ci sono bug bloccanti.
 
-## Problemi Identificati
+## Problemi Residui Identificati
 
-### P1 - Importanti
+### P1 - Sicurezza
 
-1. **`getPermissionsSummary` in `UsersConfig.tsx` non riflette i permessi granulari marketing**
-   - Riga 174: usa ancora `can_view_marketing` (il vecchio campo legacy) per mostrare "Marketing" nel riepilogo permessi della lista utenti. Dopo l'espansione granulare, dovrebbe controllare anche i singoli `can_view_marketing_*` per mostrare un riepilogo accurato.
-   - **Fix**: Aggiornare la funzione per contare anche i permessi marketing granulari.
+1. **`create-company-staff`: CORS headers incompleti**
+   - Riga 5-7: `corsHeaders` include solo `authorization, x-client-info, apikey, content-type`. Mancano gli header `x-supabase-client-platform*` e `x-supabase-client-runtime*` che sono presenti nelle altre Edge Functions (`delete-company-user`, `reset-customer-password`). Questo potrebbe causare errori CORS in alcuni browser.
+   - **Fix**: Allineare i CORS headers di `create-company-staff` con quelli standard usati nelle altre funzioni.
 
-2. **Creazione utente: permessi non salvati correttamente per nuovi campi granulari**
-   - `UsersConfig.tsx` riga 117: quando salva i permessi dopo la creazione, fa `const { only_assigned, ...permFields } = data.permissions` e poi `update(permFields)`. Questo funziona, ma destruttura `only_assigned` fuori e poi lo re-include con `|| false`. Il problema e che `can_view_cruscotto` e i campi `can_view_marketing_*` vengono inviati correttamente perche sono in `permFields`. Tuttavia i campi legacy `can_view_marketing` e `can_edit_marketing` non vengono impostati di conseguenza.
-   - **Fix**: Allineare la logica: se almeno un `can_view_marketing_*` e true, settare anche `can_view_marketing = true` per backward compatibility con sidebar/guard legacy.
+2. **`create-company-staff`: `listUsers()` non scalabile**
+   - Riga 100: `await supabaseAdmin.auth.admin.listUsers()` carica TUTTI gli utenti auth per verificare se l'email esiste. Con molti tenant, questo diventa lento e costoso.
+   - **Fix**: Usare `getUserByEmail` o tentare la creazione e gestire l'errore `email_exists`.
 
-3. **`changeRoleMutation` in `SettingsUserDetail.tsx` non gestisce company_id nel insert di `staff_permissions`**
-   - Riga 133: `insert({ user_id: userId! } as any)` - inserisce senza `company_id`. La tabella `staff_permissions` potrebbe avere un vincolo `company_id NOT NULL`.
-   - **Fix**: Recuperare il `company_id` dal profilo e includerlo nell'insert.
+3. **`create-company-staff`: callerRole query con `.single()` puo fallire**
+   - Riga 55-59: Se un utente ha piu di un ruolo (es. doppio record), `.single()` restituisce errore. Dovrebbe usare `.maybeSingle()` o prendere il primo risultato.
+   - **Fix**: Usare una query piu robusta per il ruolo del caller.
 
-### P2 - Miglioramenti
+### P2 - Robustezza
 
-4. **Delete utente in `UsersConfig.tsx` non rimuove l'utente auth**
-   - Riga 146-149: elimina solo `staff_permissions`, `user_roles`, `profiles` ma non l'utente dalla tabella `auth.users`. L'utente potrebbe ancora fare login. Serve una edge function con `supabase.auth.admin.deleteUser()`.
-   - **Fix**: Creare o riutilizzare un'edge function per eliminare anche l'utente auth.
+4. **`UserProfileTab`: password reset non valida input lato client**
+   - Nessun controllo di lunghezza minima sulla password inserita manualmente. Un utente potrebbe impostare "123" come password.
+   - **Fix**: Aggiungere validazione client-side (min 8 caratteri) prima di inviare.
 
-5. **Nessun Cruscotto nel riepilogo permessi lista utenti**
-   - `getPermissionsSummary` non mostra "Cruscotto" anche se `can_view_cruscotto` e attivo.
-   - **Fix**: Aggiungere il check.
+5. **`savePermissionsMutation`: sync legacy marketing mancante nell'edit**
+   - In `UsersConfig.tsx` la creazione utente sincronizza `can_view_marketing`/`can_edit_marketing` con i permessi granulari. Ma in `SettingsUserDetail.tsx` il salvataggio permessi (`savePermissionsMutation`) non fa questa sincronizzazione. Se un admin attiva permessi granulari marketing dalla pagina edit, i campi legacy restano `false`, causando inconsistenza con la sidebar che potrebbe usare i campi legacy.
+   - **Fix**: Aggiungere la stessa logica di sync legacy nel `savePermissionsMutation` di `SettingsUserDetail.tsx`.
 
-6. **`StaffUserDialog` non mostra Cruscotto Aziendale nei permessi**
-   - Il dialog di creazione usa `ALL_PERMISSION_SECTIONS` da `PermissionsDialog` che non include `can_view_cruscotto` come sezione separata (e standalone, non in `ALL_PERMISSION_SECTIONS`). Quindi in fase di creazione non si puo abilitare il cruscotto.
-   - **Fix**: Aggiungere la sezione Cruscotto nel dialog creazione, oppure includerla in `ALL_PERMISSION_SECTIONS`.
+6. **`PermissionsDialog.tsx`: componente legacy non allineato**
+   - `PermissionsDialog` (il dialog modale usato in `CompanyTeamTab`) non include il toggle `can_view_cruscotto` nella UI. Le funzioni `handleSelectAll`/`handleDeselectAll` lo settano ma non c'e un checkbox per attivarlo singolarmente.
+   - **Fix**: Aggiungere la sezione Cruscotto nel dialog, oppure verificare se il componente e ancora usato e rimuoverlo se obsoleto.
 
 ## Piano Interventi
 
-### 1. Fix `getPermissionsSummary` (P1)
-In `UsersConfig.tsx`, aggiornare la funzione per includere:
-- Check su `can_view_cruscotto` -> "Cruscotto"
-- Check sui permessi marketing granulari: se almeno uno dei `can_view_marketing_*` e attivo, mostrare "Marketing"
+### 1. Fix CORS `create-company-staff` (P1)
+Allineare `corsHeaders` con lo standard usato nelle altre funzioni.
 
-### 2. Sync campi legacy marketing alla creazione (P1)
-In `UsersConfig.tsx` `handleCreateUser`, dopo il destructuring, settare `can_view_marketing = true` se almeno un permesso marketing granulare e attivo. Stessa logica per `can_edit_marketing`.
+### 2. Sostituire `listUsers()` con approccio scalabile (P1)
+Provare la creazione e gestire l'errore `user_already_exists`, oppure usare una query diretta.
 
-### 3. Fix `changeRoleMutation` - aggiungere company_id (P1)
-In `SettingsUserDetail.tsx`, quando si inserisce un record `staff_permissions` per un utente promosso a staff, includere il `company_id` dal profilo utente gia disponibile nella query.
+### 3. Robustezza query ruolo caller (P1)
+Cambiare `.single()` in una query piu difensiva in `create-company-staff`.
 
-### 4. Aggiungere Cruscotto nel dialog creazione (P2)
-In `StaffUserDialog.tsx`, aggiungere una sezione "Cruscotto Aziendale" prima di "Gestione Interna" nel render dei permessi, con toggle per `can_view_cruscotto`.
+### 4. Validazione password client-side (P2)
+Aggiungere `min 8 chars` check in `UserProfileTab.tsx` prima del submit.
 
-### 5. Fix eliminazione utente con edge function (P2)
-Aggiornare `deleteUserMutation` per invocare un'edge function che chiama `auth.admin.deleteUser()` prima di eliminare profilo e ruoli, impedendo login residui.
+### 5. Sync legacy marketing nel salvataggio permessi (P2)
+In `SettingsUserDetail.tsx`, aggiungere la logica di sincronizzazione `can_view_marketing`/`can_edit_marketing` basata sui flag granulari, come gia fatto in `UsersConfig.tsx` riga 119-126.
+
+### 6. Fix `PermissionsDialog` - aggiungere Cruscotto (P2)
+Aggiungere il toggle `can_view_cruscotto` nella UI del dialog legacy.
 
 ### Nessuna migrazione DB necessaria.
 
