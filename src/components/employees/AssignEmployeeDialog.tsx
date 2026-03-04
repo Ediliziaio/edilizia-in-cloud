@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 
 import {
@@ -47,7 +47,6 @@ export function AssignEmployeeDialog({
   existingEmployeeIds,
 }: AssignEmployeeDialogProps) {
   const { effectiveCompany } = useAuth();
-  const { toast } = useToast();
   const effectiveCompanyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
@@ -106,25 +105,17 @@ export function AssignEmployeeDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-employees", orderId] });
-      toast({ title: "Dipendente assegnato" });
+      toast.success("Dipendente assegnato");
       onOpenChange(false);
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Impossibile assegnare il dipendente.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Impossibile assegnare il dipendente." });
     },
   });
 
   const handleSubmit = () => {
     if (!selectedEmployeeId || !hoursWorked || parseFloat(hoursWorked) <= 0) {
-      toast({
-        title: "Dati mancanti",
-        description: "Seleziona un dipendente e inserisci le ore lavorate.",
-        variant: "destructive",
-      });
+      toast.error("Dati mancanti", { description: "Seleziona un dipendente e inserisci le ore lavorate." });
       return;
     }
     assignMutation.mutate();

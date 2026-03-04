@@ -13,7 +13,7 @@ import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -220,7 +220,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
 
   const handleSave = async () => {
     if (!title.trim()) {
-      toast({ title: "Inserisci un titolo", variant: "destructive" });
+      toast.error("Inserisci un titolo");
       return;
     }
     if (!companyId || !user) return;
@@ -245,20 +245,20 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       };
 
       if (isEditing && task?.id) {
-        const { error } = await supabase.from("tasks").update(payload).eq("id", task.id);
+        const { error } = await supabase.from("tasks").update(payload).eq("id", task.id).eq("company_id", companyId!);
         if (error) throw error;
-        toast({ title: "Attività aggiornata" });
+        toast.success("Attività aggiornata");
       } else {
         payload.created_by = user.id;
         const { error } = await supabase.from("tasks").insert(payload as any);
         if (error) throw error;
-        toast({ title: "Attività creata" });
+        toast.success("Attività creata");
       }
 
       onSaved();
       onOpenChange(false);
     } catch (e: any) {
-      toast({ title: "Errore", description: e.message, variant: "destructive" });
+      toast.error("Errore", { description: e.message });
     } finally {
       setSaving(false);
     }
@@ -268,13 +268,13 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
     if (!task?.id) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+      const { error } = await supabase.from("tasks").delete().eq("id", task.id).eq("company_id", companyId!);
       if (error) throw error;
-      toast({ title: "Attività eliminata" });
+      toast.success("Attività eliminata");
       onSaved();
       onOpenChange(false);
     } catch (e: any) {
-      toast({ title: "Errore", description: e.message, variant: "destructive" });
+      toast.error("Errore", { description: e.message });
     } finally {
       setSaving(false);
     }
@@ -293,12 +293,12 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         <div className="grid gap-4 py-2">
           <div className="space-y-2">
             <Label htmlFor="title">Titolo *</Label>
-            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Ordinare prodotto X" />
+            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Ordinare prodotto X" maxLength={200} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="notes">Note</Label>
-            <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} />
+            <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} maxLength={1000} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

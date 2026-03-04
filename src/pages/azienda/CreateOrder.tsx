@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +40,7 @@ import { type OrderCustomer as Customer, type OrderStatus } from "@/lib/orderUti
 export default function CreateOrder() {
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const { onlyAssigned } = usePermissions();
 
@@ -359,18 +359,11 @@ export default function CreateOrder() {
     onSuccess: (order) => {
       clearDraft();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      toast({
-        title: "Ordine creato",
-        description: "L'ordine è stato creato. Ora puoi caricare i documenti.",
-      });
+      toast.success("Ordine creato", { description: "L'ordine è stato creato. Ora puoi caricare i documenti." });
       setCreatedOrderId(order.id);
     },
     onError: (error) => {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante la creazione dell'ordine.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Si è verificato un errore durante la creazione dell'ordine." });
       console.error("Create order error:", error);
     },
   });
@@ -379,29 +372,17 @@ export default function CreateOrder() {
     e.preventDefault();
 
     if (!customerId) {
-      toast({
-        title: "Campo obbligatorio",
-        description: "Seleziona un cliente.",
-        variant: "destructive",
-      });
+      toast.error("Campo obbligatorio", { description: "Seleziona un cliente." });
       return;
     }
 
     if (!description.trim()) {
-      toast({
-        title: "Campo obbligatorio",
-        description: "Inserisci una descrizione del lavoro.",
-        variant: "destructive",
-      });
+      toast.error("Campo obbligatorio", { description: "Inserisci una descrizione del lavoro." });
       return;
     }
 
     if (total <= 0) {
-      toast({
-        title: "Importo non valido",
-        description: "L'importo totale deve essere maggiore di zero.",
-        variant: "destructive",
-      });
+      toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
       return;
     }
 
@@ -411,11 +392,7 @@ export default function CreateOrder() {
         (item) => !item.name.trim() || item.quantity < 1 || (item.purchase_price !== undefined && item.purchase_price < 0)
       );
       if (invalidItems.length > 0) {
-        toast({
-          title: "Articoli non validi",
-          description: "Verifica che tutti gli articoli abbiano un nome, quantità ≥ 1 e prezzo d'acquisto non negativo.",
-          variant: "destructive",
-        });
+        toast.error("Articoli non validi", { description: "Verifica che tutti gli articoli abbiano un nome, quantità ≥ 1 e prezzo d'acquisto non negativo." });
         return;
       }
     }
@@ -424,22 +401,13 @@ export default function CreateOrder() {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     if (depositExpectedDate && depositExpectedDate < now) {
-      toast({
-        title: "Attenzione",
-        description: "La data prevista dell'acconto 1 è nel passato.",
-      });
+      toast.info("Attenzione", { description: "La data prevista dell'acconto 1 è nel passato." });
     }
     if (deposit2ExpectedDate && deposit2ExpectedDate < now) {
-      toast({
-        title: "Attenzione",
-        description: "La data prevista dell'acconto 2 è nel passato.",
-      });
+      toast.info("Attenzione", { description: "La data prevista dell'acconto 2 è nel passato." });
     }
     if (balanceExpectedDate && balanceExpectedDate < now) {
-      toast({
-        title: "Attenzione",
-        description: "La data prevista del saldo è nel passato.",
-      });
+      toast.info("Attenzione", { description: "La data prevista del saldo è nel passato." });
     }
 
     createOrderMutation.mutate();

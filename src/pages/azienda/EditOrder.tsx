@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -77,7 +77,7 @@ export default function EditOrder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const { onlyAssigned } = usePermissions();
 
@@ -669,18 +669,11 @@ export default function EditOrder() {
       queryClient.invalidateQueries({ queryKey: ["order", id] });
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
       queryClient.invalidateQueries({ queryKey: ["order-salesperson", id] });
-      toast({
-        title: "Ordine aggiornato",
-        description: "L'ordine è stato aggiornato con successo.",
-      });
+      toast.success("Ordine aggiornato", { description: "L'ordine è stato aggiornato con successo." });
       navigate(`/azienda/ordini/${id}`);
     },
     onError: (error) => {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'aggiornamento dell'ordine.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Si è verificato un errore durante l'aggiornamento dell'ordine." });
       console.error("Update order error:", error);
     },
   });
@@ -689,29 +682,17 @@ export default function EditOrder() {
     e.preventDefault();
 
     if (!customerId) {
-      toast({
-        title: "Campo obbligatorio",
-        description: "Seleziona un cliente.",
-        variant: "destructive",
-      });
+      toast.error("Campo obbligatorio", { description: "Seleziona un cliente." });
       return;
     }
 
     if (!description.trim()) {
-      toast({
-        title: "Campo obbligatorio",
-        description: "Inserisci una descrizione del lavoro.",
-        variant: "destructive",
-      });
+      toast.error("Campo obbligatorio", { description: "Inserisci una descrizione del lavoro." });
       return;
     }
 
     if (total <= 0) {
-      toast({
-        title: "Importo non valido",
-        description: "L'importo totale deve essere maggiore di zero.",
-        variant: "destructive",
-      });
+      toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
       return;
     }
 
@@ -721,11 +702,7 @@ export default function EditOrder() {
         (item) => !item.name.trim() || item.quantity < 1 || (item.purchase_price !== undefined && item.purchase_price < 0)
       );
       if (invalidItems.length > 0) {
-        toast({
-          title: "Articoli non validi",
-          description: "Verifica che tutti gli articoli abbiano un nome, quantità ≥ 1 e prezzo d'acquisto non negativo.",
-          variant: "destructive",
-        });
+        toast.error("Articoli non validi", { description: "Verifica che tutti gli articoli abbiano un nome, quantità ≥ 1 e prezzo d'acquisto non negativo." });
         return;
       }
     }

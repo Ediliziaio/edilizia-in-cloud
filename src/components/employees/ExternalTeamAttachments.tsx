@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   EXTERNAL_TEAM_DOCUMENT_TYPES,
   getDocumentTypeLabel,
@@ -95,7 +95,7 @@ export function ExternalTeamAttachments({
   onOpenChange,
 }: ExternalTeamAttachmentsProps) {
   const { user } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -164,19 +164,12 @@ export function ExternalTeamAttachments({
       queryClient.invalidateQueries({
         queryKey: ["external-team-attachments", team.id],
       });
-      toast({
-        title: "Documento caricato",
-        description: "Il documento è stato caricato con successo.",
-      });
+      toast.success("Documento caricato", { description: "Il documento è stato caricato con successo." });
       resetUploadForm();
     },
     onError: (error) => {
       console.error("Upload error:", error);
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante il caricamento.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Si è verificato un errore durante il caricamento." });
     },
   });
 
@@ -201,17 +194,10 @@ export function ExternalTeamAttachments({
       queryClient.invalidateQueries({
         queryKey: ["external-team-attachments", team.id],
       });
-      toast({
-        title: "Documento eliminato",
-        description: "Il documento è stato eliminato.",
-      });
+      toast.success("Documento eliminato", { description: "Il documento è stato eliminato." });
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'eliminazione.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Si è verificato un errore durante l'eliminazione." });
     },
   });
 
@@ -231,20 +217,12 @@ export function ExternalTeamAttachments({
     if (!file) return;
 
     if (file.size > MAX_FILE_SIZE) {
-      toast({
-        title: "File troppo grande",
-        description: "Il file non può superare i 10MB.",
-        variant: "destructive",
-      });
+      toast.error("File troppo grande", { description: "Il file non può superare i 10MB." });
       return;
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      toast({
-        title: "Tipo file non supportato",
-        description: "Formati supportati: PDF, Word, Excel, immagini.",
-        variant: "destructive",
-      });
+      toast.error("Tipo file non supportato", { description: "Formati supportati: PDF, Word, Excel, immagini." });
       return;
     }
 

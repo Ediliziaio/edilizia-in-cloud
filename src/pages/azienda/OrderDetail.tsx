@@ -6,7 +6,7 @@ import { formatDate, formatDateTime } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -189,7 +189,7 @@ export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -319,18 +319,11 @@ export default function OrderDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order", id] });
       queryClient.invalidateQueries({ queryKey: ["order-status-history", id] });
-      toast({
-        title: "Stato aggiornato",
-        description: "Lo stato dell'ordine è stato aggiornato.",
-      });
+      toast.success("Stato aggiornato", { description: "Lo stato dell'ordine è stato aggiornato." });
       setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" });
     },
     onError: (error) => {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'aggiornamento dello stato.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Si è verificato un errore durante l'aggiornamento dello stato." });
       console.error("Update status error:", error);
     },
   });
@@ -347,18 +340,11 @@ export default function OrderDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order", id] });
-      toast({
-        title: "Note salvate",
-        description: "Le note interne sono state aggiornate.",
-      });
+      toast.success("Note salvate", { description: "Le note interne sono state aggiornate." });
       setIsEditingNotes(false);
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante il salvataggio delle note.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Si è verificato un errore durante il salvataggio delle note." });
     },
   });
 
@@ -367,18 +353,11 @@ export default function OrderDetail() {
     mutationFn: () => deleteOrderCascading(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      toast({
-        title: "Ordine eliminato",
-        description: "L'ordine è stato eliminato con successo.",
-      });
+      toast.success("Ordine eliminato", { description: "L'ordine è stato eliminato con successo." });
       navigate("/azienda/ordini");
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'eliminazione dell'ordine.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Si è verificato un errore durante l'eliminazione dell'ordine." });
     },
   });
 
@@ -441,17 +420,10 @@ export default function OrderDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
-      toast({
-        title: "Articolo aggiornato",
-        description: "L'articolo è stato aggiornato con successo.",
-      });
+      toast.success("Articolo aggiornato", { description: "L'articolo è stato aggiornato con successo." });
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante l'aggiornamento dell'articolo.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Si è verificato un errore durante l'aggiornamento dell'articolo." });
     },
   });
 
@@ -488,10 +460,10 @@ export default function OrderDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
-      toast({ title: "Articolo aggiunto", description: "L'articolo è stato aggiunto all'ordine." });
+      toast.success("Articolo aggiunto", { description: "L'articolo è stato aggiunto all'ordine." });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile aggiungere l'articolo.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile aggiungere l'articolo." });
     },
   });
 
