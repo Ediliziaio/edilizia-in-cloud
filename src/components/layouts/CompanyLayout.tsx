@@ -238,7 +238,7 @@ function CompanySidebar() {
 
             {isAdmin && (
               <SidebarGroup>
-                <SidebarGroupLabel>Team</SidebarGroupLabel>
+                <SidebarGroupLabel>Utenti</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
                     <SidebarMenuItem>
@@ -248,6 +248,16 @@ function CompanySidebar() {
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
+
+            {isAdmin && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Team</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <NavLink to="/azienda/impostazioni/venditori" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
