@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.check-lifecycle-events]
 verify_jwt = false
+
+[functions.process-automation]
+verify_jwt = false
