@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Loader2, Save, Search, ShieldCheck, User, EyeOff } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Save, Search, ShieldCheck, User, EyeOff, TrendingUp, Phone } from "lucide-react";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
@@ -72,16 +72,18 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     ],
   },
 ];
+export type CompanyRole = "company_admin" | "company_staff" | "salesperson" | "call_center";
+
 interface UserRolesPermissionsTabProps {
   user: {
     id: string;
     first_name: string;
     last_name: string;
-    role?: "company_admin" | "company_staff";
+    role?: CompanyRole;
     permissions: StaffPermissions | null;
   };
   onSave: (permissions: StaffPermissions) => void;
-  onChangeRole?: (newRole: "company_admin" | "company_staff") => void;
+  onChangeRole?: (newRole: CompanyRole) => void;
   isLoading?: boolean;
   isChangingRole?: boolean;
 }
@@ -91,7 +93,7 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
   const [permissions, setPermissions] = useState<StaffPermissions>(user.permissions || DEFAULT_PERMISSIONS);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<string[]>(["cruscotto", "internal", "marketing"]);
-  const [selectedRole, setSelectedRole] = useState<"company_admin" | "company_staff">(user.role || "company_staff");
+  const [selectedRole, setSelectedRole] = useState<CompanyRole>(user.role || "company_staff");
 
   // Store original permissions for dirty tracking
   const originalPermissions = useMemo(() => user.permissions || DEFAULT_PERMISSIONS, [user.permissions]);
@@ -111,7 +113,7 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
   }, [user.role]);
 
   const handleRoleChange = (value: string) => {
-    const newRole = value as "company_admin" | "company_staff";
+    const newRole = value as CompanyRole;
     setSelectedRole(newRole);
     onChangeRole?.(newRole);
   };
@@ -206,6 +208,18 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4" />
                     Utente
+                  </div>
+                </SelectItem>
+                <SelectItem value="salesperson">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Venditore
+                  </div>
+                </SelectItem>
+                <SelectItem value="call_center">
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    Call Center
                   </div>
                 </SelectItem>
               </SelectContent>
