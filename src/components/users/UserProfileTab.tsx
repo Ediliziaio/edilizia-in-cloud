@@ -71,6 +71,10 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
   };
 
   const handleResetPassword = async () => {
+    if (newPassword.trim() && newPassword.trim().length < 8) {
+      toast({ title: "Errore", description: "La password deve avere almeno 8 caratteri.", variant: "destructive" });
+      return;
+    }
     setResettingPassword(true);
     try {
       const body: Record<string, string> = { userId: user.id };

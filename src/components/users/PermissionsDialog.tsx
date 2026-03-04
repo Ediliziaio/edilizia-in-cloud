@@ -55,6 +55,10 @@ interface PermissionsDialogProps {
   isLoading?: boolean;
 }
 
+const STANDALONE_SECTIONS: { label: string; viewKey: keyof StaffPermissions; editKey: keyof StaffPermissions | null }[] = [
+  { label: "Cruscotto Aziendale", viewKey: "can_view_cruscotto", editKey: null },
+];
+
 const INTERNAL_SECTIONS = [
   { label: "Dashboard", viewKey: "can_view_dashboard" as keyof StaffPermissions, editKey: null },
   { label: "Ordini", viewKey: "can_view_orders" as keyof StaffPermissions, editKey: "can_edit_orders" as keyof StaffPermissions },
@@ -80,7 +84,7 @@ const MARKETING_SECTIONS = [
   { label: "Reportistica", viewKey: "can_view_marketing_reports" as keyof StaffPermissions, editKey: null },
 ];
 
-export const ALL_PERMISSION_SECTIONS = [...INTERNAL_SECTIONS, ...MARKETING_SECTIONS];
+export const ALL_PERMISSION_SECTIONS = [...STANDALONE_SECTIONS, ...INTERNAL_SECTIONS, ...MARKETING_SECTIONS];
 
 export function PermissionsDialog({
   open,
@@ -188,6 +192,12 @@ export function PermissionsDialog({
           <Separator />
 
           <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+            {/* Cruscotto Aziendale */}
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cruscotto Aziendale</p>
+            {STANDALONE_SECTIONS.map(renderSection)}
+
+            <Separator />
+
             {/* Gestione Interna */}
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gestione Interna</p>
             {INTERNAL_SECTIONS.map(renderSection)}

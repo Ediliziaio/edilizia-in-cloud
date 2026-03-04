@@ -99,6 +99,19 @@ export default function SettingsUserDetail() {
       for (const key of allowedKeys) {
         filtered[key] = (permissions[key] as boolean) ?? false;
       }
+
+      // Sync legacy marketing flags with granular permissions
+      const hasAnyMarketingView = [
+        'can_view_marketing_dashboard', 'can_view_marketing_contacts', 'can_view_marketing_opportunities',
+        'can_view_marketing_activities', 'can_view_marketing_appointments', 'can_view_marketing_automations',
+        'can_view_marketing_ai_agent', 'can_view_marketing_email', 'can_view_marketing_whatsapp', 'can_view_marketing_reports'
+      ].some(k => filtered[k]);
+      const hasAnyMarketingEdit = [
+        'can_edit_marketing_contacts', 'can_edit_marketing_opportunities'
+      ].some(k => filtered[k]);
+      filtered.can_view_marketing = hasAnyMarketingView;
+      filtered.can_edit_marketing = hasAnyMarketingEdit;
+
       const { error } = await supabase.from("staff_permissions").update(filtered).eq("user_id", userId!);
       if (error) throw error;
     },
