@@ -1,69 +1,50 @@
 
 
-# Fix Sezione Utenti - Profilo + Ruoli & Autorizzazioni stile GHL
+# Fix Permessi Utente - Bug Toggle + Pulizia Codice
 
-## Problemi identificati
+## Problema principale
 
-### 1. Profilo Utente - Manca reset password
-Il tab profilo attuale mostra solo Nome, Cognome, Email, Telefono. Mancano:
-- **Bottone "Reset Password"** per admin che gestisce utenti
-- **Campo Estensione telefono** (come GHL)
+Il bug e causato dal fatto che **piu moduli UI condividono la stessa chiave DB**:
+- Tutti i 10 moduli Marketing puntano a `can_view_marketing` → togglare uno li attiva tutti
+- "Costi" e "Previsionale" condividono `can_view_forecast`
+- "Attivita", "Errori", "Messaggistica" condividono `can_view_orders`
+- "Automazioni" e "Impostazioni" condividono `can_view_settings`
 
-### 2. Ruoli & Autorizzazioni - Problemi critici
+Il DB ha solo 11 permessi view e 5 permessi edit. La UI mostra 25 toggle separati che pero controllano gli stessi campi.
 
-**a) Manca selezione ruolo Utente/Amministratore**
-Attualmente se l'utente è `company_admin` mostra solo "Accesso completo" senza possibilità di cambiare. Serve un **Select** in alto per scegliere tra "Amministratore" e "Utente" (come GHL), con possibilità di cambiare ruolo.
+## Soluzione
 
-**b) Moduli incompleti - Gestione Interna**
-La lista attuale ha solo 9 moduli. Mancano rispetto a `sidebarConfig.ts`:
-- **Cruscotto Aziendale** (`can_view_cruscotto` - esiste già nel DB!)
-- **Costi** (usa `can_view_forecast`)
-- **Attività** (usa `can_view_orders`)
-- **Errori** (usa `can_view_orders`)
-- **Messaggistica** (usa `can_view_orders`)
-- **Automazioni** (usa `can_view_settings`)
+Ristrutturare la UI per mostrare **un toggle per ogni permesso DB reale**, elencando sotto ciascuno i moduli inclusi. Questo elimina il bug e rende la UI onesta.
 
-**c) Marketing e Vendita - Un solo modulo generico**
-Attualmente c'è solo "Marketing & CRM" come unico toggle. Serve espansione in sotto-voci come da sidebarConfig:
-- Dashboard Marketing
-- Contatti
-- Opportunità
-- Attività Marketing
-- Appuntamenti
-- Automazioni Marketing
-- Agente AI
-- Email Marketing
-- WhatsApp
-- Reportistica
+### File: `src/components/users/UserRolesPermissionsTab.tsx`
 
-(Tutti mappati su `can_view_marketing` / `can_edit_marketing` per ora, ma presentati granularmente nella UI)
+Riscrivere `PERMISSION_CATEGORIES` con moduli 1:1 rispetto ai campi DB:
 
-### 3. StaffPermissions interface incompleta
-L'interface TypeScript non include `can_view_cruscotto` che esiste nel DB.
+**Cruscotto Aziendale**
+- Cruscotto Aziendale (`can_view_cruscotto`)
 
-## Piano di implementazione
+**Gestione Interna**
+- Dashboard (`can_view_dashboard`)
+- Ordini, Attivita, Errori, Messaggistica (`can_view_orders` / `can_edit_orders`) - con sotto-etichetta "Include: Attivita, Errori, Messaggistica"
+- Magazzino (`can_view_warehouse` / `can_edit_warehouse`)
+- Calendario (`can_view_calendar`)
+- Clienti (`can_view_customers` / `can_edit_customers`)
+- Dipendenti (`can_view_employees`)
+- Ticket Clienti (`can_view_tickets` / `can_edit_tickets`)
+- Previsionale e Costi (`can_view_forecast`) - con sotto-etichetta "Include: Costi"
+- Impostazioni e Automazioni (`can_view_settings`) - con sotto-etichetta "Include: Automazioni"
 
-### File 1: `src/components/users/PermissionsDialog.tsx`
-- Aggiungere `can_view_cruscotto` alla interface `StaffPermissions`
+**Marketing e Vendita**
+- Marketing e Vendita (`can_view_marketing` / `can_edit_marketing`) - con sotto-etichetta "Include: Dashboard, Contatti, Opportunita, Attivita, Appuntamenti, Automazioni, Agente AI, Email Marketing, WhatsApp, Reportistica"
 
-### File 2: `src/components/users/UserProfileTab.tsx`
-- Aggiungere bottone "Reset Password" (chiama `supabase.auth.admin` o edge function)
-- Aggiungere campo "Estensione" telefono
+### Fix aggiuntivi nello stesso file:
+- Fix `handleToggle`: quando si disabilita una viewKey, disabilitare TUTTE le editKey associate (non solo la prima trovata)
+- Fix contatore badge: contare solo permessi unici attivi
+- Fix warning `forwardRef`: il componente e una function component passata come ref - non serve ref, rimuovere qualsiasi ref passata da `SettingsUserDetail.tsx`
 
-### File 3: `src/components/users/UserRolesPermissionsTab.tsx`
-Riscrittura completa stile GHL:
-- **Select ruolo** in alto: "Amministratore" / "Utente"
-- Se Amministratore: mostra messaggio accesso completo, salva cambio ruolo nel DB
-- Se Utente: mostra tutti i permessi granulari
-- **Cruscotto Aziendale** come categoria separata
-- **Gestione Interna** con TUTTI i moduli (Dashboard, Ordini, Magazzino, Calendario, Clienti, Dipendenti, Ticket, Previsionale, Costi, Attività, Errori, Messaggistica, Automazioni, Impostazioni)
-- **Marketing e Vendita** espanso con tutte le sotto-voci (Dashboard, Contatti, Opportunità, Attività, Appuntamenti, Automazioni, Agente AI, Email Marketing, WhatsApp, Reportistica)
-- Layout GHL: sidebar sinistra con categorie cliccabili, contenuto a destra con toggle + checkbox
-
-### File 4: `src/pages/azienda/settings/SettingsUserDetail.tsx`
-- Gestire cambio ruolo (update `user_roles` table)
-- Passare callback `onChangeRole` al tab permessi
+### File: `src/pages/azienda/settings/SettingsUserDetail.tsx`
+- Verificare che non venga passato un `ref` a `UserRolesPermissionsTab` (causa del warning console)
 
 ### Nessuna migrazione DB necessaria
-`can_view_cruscotto` esiste già nella tabella `staff_permissions`. I moduli Marketing e Vendita condividono `can_view_marketing`/`can_edit_marketing` che esistono già.
+I permessi nel DB restano invariati. Solo la UI viene corretta per riflettere fedelmente la struttura dati.
 
