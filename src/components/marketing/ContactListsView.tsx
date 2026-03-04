@@ -48,7 +48,6 @@ export function ContactListsView() {
   const [editingList, setEditingList] = useState<ContactList | null>(null);
   const [selectedList, setSelectedList] = useState<{ id: string; name: string; description: string | null } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<ContactList | null>(null);
-  const [addContactsOpen, setAddContactsOpen] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
 
@@ -171,7 +170,6 @@ export function ContactListsView() {
         }}
         onBack={() => { setSelectedList(null); setMemberSearch(""); setSelectedMemberIds(new Set()); }}
         onRemoveMembers={(ids) => removeMembersMutation.mutate(ids)}
-        onAddContacts={() => setAddContactsOpen(true)}
       />
     );
   }
@@ -270,17 +268,6 @@ export function ContactListsView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Add contacts dialog (used from detail view) */}
-      {selectedList && addContactsOpen && (
-        <AddContactsToListDialog
-          open={addContactsOpen}
-          onOpenChange={setAddContactsOpen}
-          listId={selectedList.id}
-          companyId={companyId}
-          onDone={invalidate}
-        />
-      )}
     </div>
   );
 }
@@ -301,13 +288,12 @@ interface ListDetailViewProps {
   onToggleAll: (members: ListMember[]) => void;
   onBack: () => void;
   onRemoveMembers: (ids: string[]) => void;
-  onAddContacts: () => void;
 }
 
 function ListDetailView({
   listId, listName, listDescription, companyId,
   memberSearch, setMemberSearch, selectedMemberIds,
-  onToggleMember, onToggleAll, onBack, onRemoveMembers, onAddContacts,
+  onToggleMember, onToggleAll, onBack, onRemoveMembers,
 }: ListDetailViewProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const queryClient = useQueryClient();
