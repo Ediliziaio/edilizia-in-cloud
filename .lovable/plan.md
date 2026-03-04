@@ -1,64 +1,50 @@
 
 
-# Segmentazione Utenti: 4 Categorie
+# Filtro Dropdown per Ruolo: Titolare = Venditori, Call Center = Call Center
 
-## Stato attuale
+## Problema
 
-La pagina utenti mostra solo 2 tipi: Admin e Operatori (`company_admin`/`company_staff`). I venditori vengono creati separatamente dalla sezione Team con la edge function `create-salesperson-user` che assegna il ruolo `salesperson` + `company_staff`. Il ruolo `call_center` non esiste nel database.
+Tutti i dropdown (Titolare, Follower, Call Center) in contatti e opportunita mostrano la stessa lista generica di staff. Serve filtrare per ruolo:
 
-Il `call_center_id` su contatti/opportunita punta a profili generici (staff), senza un ruolo dedicato.
+| Dropdown | Lista corretta |
+|----------|---------------|
+| **Titolare** (assigned_to) | Venditori (`salesperson`) + Admin |
+| **Follower** (follower_id) | Tutti staff (invariato) |
+| **Call Center** (call_center_id) | Solo utenti con ruolo `call_center` |
 
-## Piano interventi
+## Interventi
 
-### 1. DB: Aggiungere ruolo `call_center` all'enum `app_role`
+### 1. Nuovi hook in `useOpportunitiesData.ts`
 
-Migrazione SQL:
-```sql
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'call_center';
-```
+Aggiungere due hook:
 
-### 2. TypeScript: Aggiornare tipo `AppRole`
+- **`useCompanySalespeople()`**: Filtra profili con ruolo `salesperson` o `company_admin`
+- **`useCompanyCallCenterUsers()`**: Filtra profili con ruolo `call_center`
 
-In `src/types/auth.ts`, aggiungere `"call_center"` all'union type.
+Mantiene `useCompanyStaff()` invariato per il Follower.
 
-### 3. Edge Function `create-company-staff`: Supportare 4 ruoli
+### 2. `OpportunityDialog.tsx` (riga 80, 399-430)
 
-Attualmente la funzione accetta solo `company_admin` o `company_staff`. Va estesa per accettare anche `salesperson` e `call_center`:
-- Se `role_type` e `salesperson`: assegna ruolo `salesperson` + `company_staff` (come fa gia `create-salesperson-user`) + crea staff_permissions
-- Se `role_type` e `call_center`: assegna ruolo `call_center` + `company_staff` + crea staff_permissions
-- Per `salesperson`, creare anche il record nella tabella `salespeople` (collegato all'user)
+- Importare i 2 nuovi hook + mantenere `useCompanyStaff` per Follower
+- Dropdown **Titolare**: usare `salespeople` invece di `staff`
+- Dropdown **Follower**: resta `staff` (invariato)
+- Dropdown **Call Center**: usare `callCenterUsers`
 
-### 4. UI: `UsersConfig.tsx` - 5 KPI cards + filtro esteso
+### 3. `OpportunityDetailDialog.tsx` (riga 57, 603-633)
 
-Determinare il "tipo effettivo" di ogni utente guardando TUTTI i suoi ruoli:
-- Ha ruolo `company_admin` → Amministratore
-- Ha ruolo `salesperson` → Venditore
-- Ha ruolo `call_center` → Call Center
-- Ha solo `company_staff` → Operatore
+- Stessa logica: importare i nuovi hook
+- Titolare → `salespeople`, Follower → `staff`, Call Center → `callCenterUsers`
 
-KPI Cards: Totale | Amministratori | Operatori | Venditori | Call Center
+### 4. `MarketingContactDetail.tsx` (righe 404-430, 655-707)
 
-Filtro ruolo: aggiungere "Venditori" e "Call Center" alle opzioni del Select.
-
-Badge ruolo: icone e colori distinti per ogni tipo.
-
-### 5. UI: `StaffUserDialog.tsx` - 4 tipi di utente
-
-Aggiungere 2 bottoni extra nella selezione ruolo:
-- Venditore (icona vendite, descrizione "Accesso vendite e provvigioni")
-- Call Center (icona telefono, descrizione "Gestione contatti e opportunita")
-
-I permessi sono configurabili solo per `company_staff`, `salesperson` e `call_center`. Admin ha accesso completo.
-
-### 6. `has_permission` DB function
-
-Attualmente controlla solo `company_staff`. Va estesa per controllare anche `salesperson` e `call_center` (entrambi usano la tabella `staff_permissions` tramite il dual-role `company_staff`). Nessuna modifica necessaria dato che entrambi i nuovi ruoli ricevono anche `company_staff`.
+- La query inline `company_staff` (riga 405) resta per il Follower
+- Aggiungere 2 query inline (o usare i hook) per salespeople e call center users
+- Aggiornare i 3 dropdown di conseguenza
 
 ## File da modificare
 
-- **DB migration**: Aggiungere `call_center` all'enum
-- `src/types/auth.ts` - Aggiungere `call_center`
-- `supabase/functions/create-company-staff/index.ts` - Supportare 4 ruoli
-- `src/components/settings/UsersConfig.tsx` - 5 KPI, filtri, badge per 4 tipi
-- `src/components/users/StaffUserDialog.tsx` - 4 opzioni ruolo nella creazione
+- `src/hooks/useOpportunitiesData.ts` — 2 nuovi hook
+- `src/components/opportunities/OpportunityDialog.tsx` — dropdown filtrati
+- `src/components/opportunities/OpportunityDetailDialog.tsx` — dropdown filtrati
+- `src/pages/azienda/marketing/MarketingContactDetail.tsx` — dropdown filtrati
 
