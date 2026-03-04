@@ -1,50 +1,38 @@
 
 
-# Filtro Dropdown per Ruolo: Titolare = Venditori, Call Center = Call Center
+# Supporto 4 Ruoli nella Pagina Gestisci Utente
 
 ## Problema
 
-Tutti i dropdown (Titolare, Follower, Call Center) in contatti e opportunita mostrano la stessa lista generica di staff. Serve filtrare per ruolo:
+La pagina dettaglio utente (`SettingsUserDetail.tsx`) e il tab ruoli (`UserRolesPermissionsTab.tsx`) supportano solo 2 ruoli (`company_admin` / `company_staff`). Non riconoscono `salesperson` e `call_center`.
 
-| Dropdown | Lista corretta |
-|----------|---------------|
-| **Titolare** (assigned_to) | Venditori (`salesperson`) + Admin |
-| **Follower** (follower_id) | Tutti staff (invariato) |
-| **Call Center** (call_center_id) | Solo utenti con ruolo `call_center` |
+### Punti critici:
+1. **Query ruoli** (SettingsUserDetail riga 72): cerca solo `company_admin` o `company_staff`, ignora `salesperson`/`call_center`
+2. **Tipo TypeScript**: union type limitato a 2 valori
+3. **changeRoleMutation**: gestisce solo 2 ruoli, non implementa il dual-role (`salesperson` → `salesperson` + `company_staff`)
+4. **Select ruolo** (UserRolesPermissionsTab riga 198-212): mostra solo Admin e Utente
 
-## Interventi
+## Piano
 
-### 1. Nuovi hook in `useOpportunitiesData.ts`
+### 1. `src/pages/azienda/settings/SettingsUserDetail.tsx`
 
-Aggiungere due hook:
+- Aggiornare la query per cercare tutti e 4 i ruoli con la stessa logica `determineEffectiveRole` usata in `UsersConfig.tsx`
+- Caricare `staff_permissions` per tutti i ruoli che hanno `company_staff` (inclusi `salesperson` e `call_center`)
+- Aggiornare `changeRoleMutation` con dual-role logic:
+  - Se nuovo ruolo è `salesperson` o `call_center`: eliminare vecchi ruoli specifici, inserire il nuovo + `company_staff`, creare `staff_permissions` se mancante, creare record `salespeople` se venditore
+  - Se nuovo ruolo è `company_admin`: rimuovere tutti i ruoli company, inserire solo `company_admin`
+  - Se nuovo ruolo è `company_staff`: rimuovere ruoli specifici (`salesperson`/`call_center`), mantenere `company_staff`
 
-- **`useCompanySalespeople()`**: Filtra profili con ruolo `salesperson` o `company_admin`
-- **`useCompanyCallCenterUsers()`**: Filtra profili con ruolo `call_center`
+### 2. `src/components/users/UserRolesPermissionsTab.tsx`
 
-Mantiene `useCompanyStaff()` invariato per il Follower.
+- Estendere tipo ruolo a `"company_admin" | "company_staff" | "salesperson" | "call_center"`
+- Aggiungere 2 opzioni nel Select: Venditore (con icona TrendingUp) e Call Center (con icona Phone)
+- I permessi granulari restano visibili per `company_staff`, `salesperson` e `call_center` (tutti usano `staff_permissions`)
 
-### 2. `OpportunityDialog.tsx` (riga 80, 399-430)
+### File da modificare
+- `src/pages/azienda/settings/SettingsUserDetail.tsx`
+- `src/components/users/UserRolesPermissionsTab.tsx`
 
-- Importare i 2 nuovi hook + mantenere `useCompanyStaff` per Follower
-- Dropdown **Titolare**: usare `salespeople` invece di `staff`
-- Dropdown **Follower**: resta `staff` (invariato)
-- Dropdown **Call Center**: usare `callCenterUsers`
-
-### 3. `OpportunityDetailDialog.tsx` (riga 57, 603-633)
-
-- Stessa logica: importare i nuovi hook
-- Titolare → `salespeople`, Follower → `staff`, Call Center → `callCenterUsers`
-
-### 4. `MarketingContactDetail.tsx` (righe 404-430, 655-707)
-
-- La query inline `company_staff` (riga 405) resta per il Follower
-- Aggiungere 2 query inline (o usare i hook) per salespeople e call center users
-- Aggiornare i 3 dropdown di conseguenza
-
-## File da modificare
-
-- `src/hooks/useOpportunitiesData.ts` — 2 nuovi hook
-- `src/components/opportunities/OpportunityDialog.tsx` — dropdown filtrati
-- `src/components/opportunities/OpportunityDetailDialog.tsx` — dropdown filtrati
-- `src/pages/azienda/marketing/MarketingContactDetail.tsx` — dropdown filtrati
+### Nota sull'audit enterprise
+La richiesta di audit completo (A-J) è un progetto a lungo termine. Mi concentro sulla funzionalità richiesta (cambio ruolo nella pagina gestisci). L'audit può essere affrontato incrementalmente in sessioni successive.
 
