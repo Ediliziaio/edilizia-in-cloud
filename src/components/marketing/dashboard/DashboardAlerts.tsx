@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +23,22 @@ interface AlertItem {
   onClick?: () => void;
 }
 
-export function DashboardAlerts({ alerts, isLoading }: Props) {
+export const DashboardAlerts = memo(function DashboardAlerts({ alerts, isLoading }: Props) {
   const navigate = useNavigate();
+
+  const items: AlertItem[] = useMemo(() => [
+    { key: "stale_leads", icon: Clock, label: "Lead non contattati da 48h+", count: alerts?.stale_leads ?? 0, severity: "critical" as Severity, onClick: () => navigate("/azienda/marketing/contatti") },
+    { key: "stale_opportunities", icon: AlertTriangle, label: "Opportunità ferme da 7+ giorni", count: alerts?.stale_opportunities ?? 0, severity: "critical" as Severity, onClick: () => navigate("/azienda/marketing/opportunita") },
+    { key: "stale_leads_2h", icon: Timer, label: "Lead non contattati entro 2h", count: alerts?.stale_leads_2h ?? 0, severity: "warning" as Severity, onClick: () => navigate("/azienda/marketing/contatti") },
+    { key: "show_rate_below", icon: Target, label: "Show rate sotto soglia (< 60%)", count: alerts?.show_rate_below_threshold ?? false, severity: "warning" as Severity },
+    { key: "pipeline_declining", icon: TrendingDown, label: "Pipeline in calo vs periodo precedente", count: alerts?.pipeline_declining ?? false, severity: "warning" as Severity },
+    { key: "pending_appointments", icon: CalendarX, label: "Appuntamenti passati senza esito", count: alerts?.pending_appointments ?? 0, severity: "info" as Severity, onClick: () => navigate("/azienda/marketing/calendario") },
+  ], [alerts, navigate]);
+
+  const activeAlerts = useMemo(() => items.filter(i => {
+    if (typeof i.count === "boolean") return i.count;
+    return i.count > 0;
+  }), [items]);
 
   if (isLoading) {
     return (
@@ -33,63 +48,6 @@ export function DashboardAlerts({ alerts, isLoading }: Props) {
       </Card>
     );
   }
-
-  const items: AlertItem[] = [
-    // Critical
-    {
-      key: "stale_leads",
-      icon: Clock,
-      label: "Lead non contattati da 48h+",
-      count: alerts?.stale_leads ?? 0,
-      severity: "critical",
-      onClick: () => navigate("/azienda/marketing/contatti"),
-    },
-    {
-      key: "stale_opportunities",
-      icon: AlertTriangle,
-      label: "Opportunità ferme da 7+ giorni",
-      count: alerts?.stale_opportunities ?? 0,
-      severity: "critical",
-      onClick: () => navigate("/azienda/marketing/opportunita"),
-    },
-    // Warning
-    {
-      key: "stale_leads_2h",
-      icon: Timer,
-      label: "Lead non contattati entro 2h",
-      count: alerts?.stale_leads_2h ?? 0,
-      severity: "warning",
-      onClick: () => navigate("/azienda/marketing/contatti"),
-    },
-    {
-      key: "show_rate_below",
-      icon: Target,
-      label: "Show rate sotto soglia (< 60%)",
-      count: alerts?.show_rate_below_threshold ?? false,
-      severity: "warning",
-    },
-    {
-      key: "pipeline_declining",
-      icon: TrendingDown,
-      label: "Pipeline in calo vs periodo precedente",
-      count: alerts?.pipeline_declining ?? false,
-      severity: "warning",
-    },
-    // Info
-    {
-      key: "pending_appointments",
-      icon: CalendarX,
-      label: "Appuntamenti passati senza esito",
-      count: alerts?.pending_appointments ?? 0,
-      severity: "info",
-      onClick: () => navigate("/azienda/marketing/calendario"),
-    },
-  ];
-
-  const activeAlerts = items.filter(i => {
-    if (typeof i.count === "boolean") return i.count;
-    return i.count > 0;
-  });
 
   const bySeverity = (s: Severity) => activeAlerts.filter(a => a.severity === s);
   const criticals = bySeverity("critical");
@@ -159,4 +117,4 @@ export function DashboardAlerts({ alerts, isLoading }: Props) {
       </CardContent>
     </Card>
   );
-}
+});
