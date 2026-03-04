@@ -1,67 +1,59 @@
 
 
-# Audit Impostazioni Utente - Report e Piano Interventi
+# Audit Crea/Modifica Utente - Report e Piano Interventi
 
-## A) Problemi Identificati
+## AS-IS: Flussi Analizzati
 
-### P0 - Critici
+I due flussi principali (Creazione via `StaffUserDialog` + Edge Function `create-company-staff`, Modifica via `SettingsUserDetail`) sono funzionalmente corretti. L'analisi ha identificato solo problemi minori.
 
-1. **Password: manca campo per inserimento manuale**
-   L'utente chiede di poter inserire direttamente una nuova password dal pannello profilo. Attualmente il reset genera solo una password casuale automatica. L'edge function `reset-customer-password` gia supporta `new_password` nel body (riga 80-82), ma la UI non offre un campo di input per specificarla.
-   - **Fix**: Aggiungere un campo password opzionale nella sezione Reset Password di `UserProfileTab.tsx`. Se compilato, viene inviato come `new_password`; se vuoto, il backend genera quella automatica. Mostrare la password risultante nel toast.
+## Problemi Identificati
 
 ### P1 - Importanti
 
-2. **Warning `forwardRef` su `ComingSoonPlaceholder`**
-   La console mostra "Function components cannot be given refs" per `ComingSoonPlaceholder` usato in `UserAvailabilityTab`. Questo accade perche React passa un ref al componente figlio diretto del tab content. Il componente non accetta refs.
-   - **Fix**: Il warning proviene dal rendering condizionale. Non serve forwardRef, basta wrappare i tab placeholder in un `<div>` per assorbire eventuali ref spurii, oppure ignorare dato che e solo un warning di dev. Soluzione pulita: verificare se qualche parent passa ref e rimuoverlo.
+1. **`getPermissionsSummary` in `UsersConfig.tsx` non riflette i permessi granulari marketing**
+   - Riga 174: usa ancora `can_view_marketing` (il vecchio campo legacy) per mostrare "Marketing" nel riepilogo permessi della lista utenti. Dopo l'espansione granulare, dovrebbe controllare anche i singoli `can_view_marketing_*` per mostrare un riepilogo accurato.
+   - **Fix**: Aggiornare la funzione per contare anche i permessi marketing granulari.
 
-3. **Dirty state mancante nel tab Permessi**
-   `UserRolesPermissionsTab` non traccia lo stato dirty: il bottone "Salva Permessi" e sempre attivo anche senza modifiche. Questo causa salvataggi inutili e confusione UX.
-   - **Fix**: Aggiungere `useMemo` che confronta `permissions` correnti con `user.permissions` originali per disabilitare il bottone quando non ci sono cambiamenti.
+2. **Creazione utente: permessi non salvati correttamente per nuovi campi granulari**
+   - `UsersConfig.tsx` riga 117: quando salva i permessi dopo la creazione, fa `const { only_assigned, ...permFields } = data.permissions` e poi `update(permFields)`. Questo funziona, ma destruttura `only_assigned` fuori e poi lo re-include con `|| false`. Il problema e che `can_view_cruscotto` e i campi `can_view_marketing_*` vengono inviati correttamente perche sono in `permFields`. Tuttavia i campi legacy `can_view_marketing` e `can_edit_marketing` non vengono impostati di conseguenza.
+   - **Fix**: Allineare la logica: se almeno un `can_view_marketing_*` e true, settare anche `can_view_marketing = true` per backward compatibility con sidebar/guard legacy.
 
-4. **`savePermissionsMutation` invia tutti i campi incluso `user_id` e `id`**
-   Quando si salva, `permissions` contiene anche `user_id`, `id`, `created_at` etc. dal DB (perche viene da `select("*")`). L'update con questi campi extra potrebbe fallire o sovrascrivere dati non intenzionali.
-   - **Fix**: Filtrare i campi prima dell'update, inviando solo le chiavi definite in `StaffPermissions`.
+3. **`changeRoleMutation` in `SettingsUserDetail.tsx` non gestisce company_id nel insert di `staff_permissions`**
+   - Riga 133: `insert({ user_id: userId! } as any)` - inserisce senza `company_id`. La tabella `staff_permissions` potrebbe avere un vincolo `company_id NOT NULL`.
+   - **Fix**: Recuperare il `company_id` dal profilo e includerlo nell'insert.
 
 ### P2 - Miglioramenti
 
-5. **Password temporanea mostrata nel toast, facilmente persa**
-   La password generata viene mostrata in un toast che scompare dopo pochi secondi. Se l'utente non la copia in tempo, la perde.
-   - **Fix**: Mostrare la password in un dialog modale con bottone "Copia" (come gia fatto in `StaffUserDialog`), non in un toast.
+4. **Delete utente in `UsersConfig.tsx` non rimuove l'utente auth**
+   - Riga 146-149: elimina solo `staff_permissions`, `user_roles`, `profiles` ma non l'utente dalla tabella `auth.users`. L'utente potrebbe ancora fare login. Serve una edge function con `supabase.auth.admin.deleteUser()`.
+   - **Fix**: Creare o riutilizzare un'edge function per eliminare anche l'utente auth.
 
-6. **Mobile: sidebar utente non responsive**
-   La sidebar a 64px fissa (`w-64 shrink-0`) non collassa su mobile, causando overflow orizzontale.
-   - **Fix**: Rendere la sidebar responsive con tabs orizzontali su mobile.
+5. **Nessun Cruscotto nel riepilogo permessi lista utenti**
+   - `getPermissionsSummary` non mostra "Cruscotto" anche se `can_view_cruscotto` e attivo.
+   - **Fix**: Aggiungere il check.
 
-## B) Piano Interventi
+6. **`StaffUserDialog` non mostra Cruscotto Aziendale nei permessi**
+   - Il dialog di creazione usa `ALL_PERMISSION_SECTIONS` da `PermissionsDialog` che non include `can_view_cruscotto` come sezione separata (e standalone, non in `ALL_PERMISSION_SECTIONS`). Quindi in fase di creazione non si puo abilitare il cruscotto.
+   - **Fix**: Aggiungere la sezione Cruscotto nel dialog creazione, oppure includerla in `ALL_PERMISSION_SECTIONS`.
 
-### 1. Aggiungere campo password manuale (P0)
-In `UserProfileTab.tsx`:
-- Aggiungere un `Input` tipo password con label "Nuova password (opzionale)"
-- Se compilato, inviare `{ userId: user.id, new_password: value }` alla edge function
-- Se vuoto, inviare solo `{ userId: user.id }` per generazione automatica
-- Mostrare il risultato in un dialog modale con bottone Copia (non toast)
+## Piano Interventi
 
-### 2. Fix warning forwardRef (P1)
-Verificare se i tab wrapper passano ref a `ComingSoonPlaceholder`. Se necessario, wrappare in `<div>` nei tab components.
+### 1. Fix `getPermissionsSummary` (P1)
+In `UsersConfig.tsx`, aggiornare la funzione per includere:
+- Check su `can_view_cruscotto` -> "Cruscotto"
+- Check sui permessi marketing granulari: se almeno uno dei `can_view_marketing_*` e attivo, mostrare "Marketing"
 
-### 3. Dirty state per tab Permessi (P1)
-In `UserRolesPermissionsTab.tsx`:
-- Aggiungere `useMemo` per confronto deep tra `permissions` e `user.permissions`
-- Disabilitare bottone "Salva Permessi" quando `!isDirty`
+### 2. Sync campi legacy marketing alla creazione (P1)
+In `UsersConfig.tsx` `handleCreateUser`, dopo il destructuring, settare `can_view_marketing = true` se almeno un permesso marketing granulare e attivo. Stessa logica per `can_edit_marketing`.
 
-### 4. Filtrare campi extra nel salvataggio permessi (P1)
-In `SettingsUserDetail.tsx` `savePermissionsMutation`:
-- Prima dell'update, estrarre solo le chiavi definite in `DEFAULT_PERMISSIONS` (importare e usare come whitelist)
+### 3. Fix `changeRoleMutation` - aggiungere company_id (P1)
+In `SettingsUserDetail.tsx`, quando si inserisce un record `staff_permissions` per un utente promosso a staff, includere il `company_id` dal profilo utente gia disponibile nella query.
 
-### 5. Dialog modale per password generata (P2)
-Sostituire il toast con un dialog che mostra la password + bottone Copia, come gia implementato in `StaffUserDialog`.
+### 4. Aggiungere Cruscotto nel dialog creazione (P2)
+In `StaffUserDialog.tsx`, aggiungere una sezione "Cruscotto Aziendale" prima di "Gestione Interna" nel render dei permessi, con toggle per `can_view_cruscotto`.
 
-### 6. Responsive sidebar su mobile (P2)
-In `SettingsUserDetail.tsx`:
-- Su viewport `< md`: nascondere sidebar verticale, mostrare tabs orizzontali scrollabili
-- Su viewport `>= md`: mantenere layout attuale
+### 5. Fix eliminazione utente con edge function (P2)
+Aggiornare `deleteUserMutation` per invocare un'edge function che chiama `auth.admin.deleteUser()` prima di eliminare profilo e ruoli, impedendo login residui.
 
 ### Nessuna migrazione DB necessaria.
 
