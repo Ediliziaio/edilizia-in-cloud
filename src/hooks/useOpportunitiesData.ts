@@ -276,6 +276,72 @@ export function useCompanyStaff() {
   });
 }
 
+export function useCompanySalespeople() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: ["company_salespeople", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId);
+      if (!profiles?.length) return [];
+
+      const userIds = profiles.map((p) => p.id);
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds);
+
+      const validUserIds = roles
+        ?.filter((r) => r.role === "salesperson" || r.role === "company_admin")
+        .map((r) => r.user_id) || [];
+
+      return profiles
+        .filter((p) => validUserIds.includes(p.id))
+        .map((p) => ({ id: p.id, name: `${p.first_name} ${p.last_name}` }));
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCompanyCallCenterUsers() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: ["company_call_center_users", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId);
+      if (!profiles?.length) return [];
+
+      const userIds = profiles.map((p) => p.id);
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds);
+
+      const validUserIds = roles
+        ?.filter((r) => r.role === "call_center")
+        .map((r) => r.user_id) || [];
+
+      return profiles
+        .filter((p) => validUserIds.includes(p.id))
+        .map((p) => ({ id: p.id, name: `${p.first_name} ${p.last_name}` }));
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useOpportunityNotes(opportunityId: string | null, contactId?: string | null) {
   return useQuery({
     queryKey: ["marketing_contact_notes", "opportunity", opportunityId, contactId],

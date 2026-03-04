@@ -429,6 +429,62 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     enabled: !!companyId,
   });
 
+  // ── Fetch salespeople (salesperson + company_admin) for Titolare ──
+  const { data: salespeople = [] } = useQuery({
+    queryKey: ["company_salespeople_contact", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId);
+      if (error) throw error;
+
+      const userIds = profiles.map((p) => p.id);
+      if (userIds.length === 0) return [];
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds);
+
+      const validUserIds = roles
+        ?.filter((r) => r.role === "salesperson" || r.role === "company_admin")
+        .map((r) => r.user_id) || [];
+
+      return profiles.filter((p) => validUserIds.includes(p.id));
+    },
+    enabled: !!companyId,
+  });
+
+  // ── Fetch call center users for Call Center dropdown ──
+  const { data: callCenterUsers = [] } = useQuery({
+    queryKey: ["company_call_center_contact", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId);
+      if (error) throw error;
+
+      const userIds = profiles.map((p) => p.id);
+      if (userIds.length === 0) return [];
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds);
+
+      const validUserIds = roles
+        ?.filter((r) => r.role === "call_center")
+        .map((r) => r.user_id) || [];
+
+      return profiles.filter((p) => validUserIds.includes(p.id));
+    },
+    enabled: !!companyId,
+  });
+
   // ── Fetch custom fields (solo tipo "contact") ──
   const { data: customFields = [] } = useContactCustomFields();
 
@@ -665,7 +721,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 >
                   <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                   <SelectContent>
-                    {staff.map((s: any) => (
+                    {salespeople.map((s: any) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -699,7 +755,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 >
                   <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                   <SelectContent>
-                    {staff.map((s: any) => (
+                    {callCenterUsers.map((s: any) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
                     ))}
                   </SelectContent>

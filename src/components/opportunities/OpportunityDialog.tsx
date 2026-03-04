@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCreateOpportunity, useCompanyStaff } from "@/hooks/useOpportunitiesData";
+import { useCreateOpportunity, useCompanyStaff, useCompanySalespeople, useCompanyCallCenterUsers } from "@/hooks/useOpportunitiesData";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -78,6 +78,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   });
 
   const { data: staff = [] } = useCompanyStaff();
+  const { data: salespeople = [] } = useCompanySalespeople();
+  const { data: callCenterUsers = [] } = useCompanyCallCenterUsers();
   const { data: customFields = [] } = useOpportunityCustomFields();
 
   // Auto-name from contact
@@ -404,7 +406,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                       <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Non assegnato</SelectItem>
-                        {staff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        {salespeople.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -424,7 +426,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                       <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nessuno</SelectItem>
-                        {staff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        {callCenterUsers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
