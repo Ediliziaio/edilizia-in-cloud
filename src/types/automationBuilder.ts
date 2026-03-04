@@ -6,6 +6,7 @@ export interface AutomationFlow {
   status: "draft" | "published" | "archived";
   version: number;
   folder_id: string | null;
+  config_json: Record<string, any> | null;
   created_by: string;
   updated_by: string | null;
   created_at: string;

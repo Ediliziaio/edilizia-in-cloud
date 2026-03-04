@@ -145,7 +145,7 @@ export function AutomationBuilder() {
     const newNode: AutomationNode = {
       id: crypto.randomUUID(),
       flow_id: flowId || "",
-      company_id: "",
+      company_id: effectiveCompany?.id || "",
       node_type: "trigger",
       position_x: 300,
       position_y: 100,
@@ -155,8 +155,9 @@ export function AutomationBuilder() {
       updated_at: new Date().toISOString(),
     };
     addNode(newNode);
-    setRightPanel("none");
-  }, [flowId, addNode]);
+    setSelectedNodeId(newNode.id);
+    setRightPanel("config");
+  }, [flowId, effectiveCompany, addNode, setSelectedNodeId]);
 
   const handleActionSelect = useCallback((item: PickerItem) => {
     const nodeType = item.id === "delay" ? "delay" as const
@@ -183,7 +184,7 @@ export function AutomationBuilder() {
     const newNode: AutomationNode = {
       id: crypto.randomUUID(),
       flow_id: flowId || "",
-      company_id: "",
+      company_id: effectiveCompany?.id || "",
       node_type: nodeType,
       position_x: posX,
       position_y: posY,
@@ -198,7 +199,7 @@ export function AutomationBuilder() {
       addConnection({
         id: crypto.randomUUID(),
         flow_id: flowId || "",
-        company_id: "",
+        company_id: effectiveCompany?.id || "",
         from_node_id: addAfterNodeId,
         to_node_id: newNode.id,
         label: addAfterBranch || null,
@@ -207,8 +208,9 @@ export function AutomationBuilder() {
     }
     setAddAfterNodeId(null);
     setAddAfterBranch(null);
-    setRightPanel("none");
-  }, [flowId, addAfterNodeId, addAfterBranch, nodes, addNode, addConnection]);
+    setSelectedNodeId(newNode.id);
+    setRightPanel("config");
+  }, [flowId, effectiveCompany, addAfterNodeId, addAfterBranch, nodes, addNode, addConnection, setSelectedNodeId]);
 
   const handleDuplicate = useCallback((nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
@@ -495,12 +497,12 @@ export function AutomationBuilder() {
 
         {activeTab === "settings" && (
           <AutomationSettingsTab
-            initialSettings={(flow as any)?.config_json?.settings}
+            initialSettings={flow?.config_json?.settings}
             onSave={(settings) => {
               if (!canPersist) return;
               updateFlowMutation.mutate({
-                config_json: { ...((flow as any)?.config_json || {}), settings },
-              } as any);
+                config_json: { ...(flow?.config_json || {}), settings },
+              });
             }}
             isSaving={updateFlowMutation.isPending}
           />
