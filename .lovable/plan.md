@@ -1,38 +1,59 @@
 
 
-# Supporto 4 Ruoli nella Pagina Gestisci Utente
+# Fix Ruoli Utente: Bug Critici + Verifiche
 
-## Problema
+## Bug Critici Trovati
 
-La pagina dettaglio utente (`SettingsUserDetail.tsx`) e il tab ruoli (`UserRolesPermissionsTab.tsx`) supportano solo 2 ruoli (`company_admin` / `company_staff`). Non riconoscono `salesperson` e `call_center`.
+### 1. AuthContext: `.maybeSingle()` restituisce UN SOLO ruolo (P0)
 
-### Punti critici:
-1. **Query ruoli** (SettingsUserDetail riga 72): cerca solo `company_admin` o `company_staff`, ignora `salesperson`/`call_center`
-2. **Tipo TypeScript**: union type limitato a 2 valori
-3. **changeRoleMutation**: gestisce solo 2 ruoli, non implementa il dual-role (`salesperson` → `salesperson` + `company_staff`)
-4. **Select ruolo** (UserRolesPermissionsTab riga 198-212): mostra solo Admin e Utente
+**File**: `src/contexts/AuthContext.tsx` (riga 53-57)
 
-## Piano
+La query ruoli usa `.maybeSingle()` che ritorna un solo record. Per utenti dual-role (`salesperson` + `company_staff`), potrebbe restituire `company_staff` invece di `salesperson`, causando routing e permessi errati.
 
-### 1. `src/pages/azienda/settings/SettingsUserDetail.tsx`
+**Fix**: Cambiare in `.select("role").eq("user_id", userId)` (senza `.maybeSingle()`), poi applicare la stessa logica di priorita usata altrove: `salesperson` > `call_center` > `company_admin` > `company_staff`.
 
-- Aggiornare la query per cercare tutti e 4 i ruoli con la stessa logica `determineEffectiveRole` usata in `UsersConfig.tsx`
-- Caricare `staff_permissions` per tutti i ruoli che hanno `company_staff` (inclusi `salesperson` e `call_center`)
-- Aggiornare `changeRoleMutation` con dual-role logic:
-  - Se nuovo ruolo è `salesperson` o `call_center`: eliminare vecchi ruoli specifici, inserire il nuovo + `company_staff`, creare `staff_permissions` se mancante, creare record `salespeople` se venditore
-  - Se nuovo ruolo è `company_admin`: rimuovere tutti i ruoli company, inserire solo `company_admin`
-  - Se nuovo ruolo è `company_staff`: rimuovere ruoli specifici (`salesperson`/`call_center`), mantenere `company_staff`
+### 2. RoleBasedRedirect: manca `call_center` nel switch (P0)
 
-### 2. `src/components/users/UserRolesPermissionsTab.tsx`
+**File**: `src/components/auth/RoleBasedRedirect.tsx` (riga 79-91)
 
-- Estendere tipo ruolo a `"company_admin" | "company_staff" | "salesperson" | "call_center"`
-- Aggiungere 2 opzioni nel Select: Venditore (con icona TrendingUp) e Call Center (con icona Phone)
-- I permessi granulari restano visibili per `company_staff`, `salesperson` e `call_center` (tutti usano `staff_permissions`)
+Il `switch(role)` non ha il case `"call_center"`, quindi un utente call_center finisce nel `default` → `/login`. Stessa cosa in Login.tsx.
 
-### File da modificare
-- `src/pages/azienda/settings/SettingsUserDetail.tsx`
-- `src/components/users/UserRolesPermissionsTab.tsx`
+**Fix**: Aggiungere `case "call_center":` → redirect a `/azienda` (stessa area di company_staff).
 
-### Nota sull'audit enterprise
-La richiesta di audit completo (A-J) è un progetto a lungo termine. Mi concentro sulla funzionalità richiesta (cambio ruolo nella pagina gestisci). L'audit può essere affrontato incrementalmente in sessioni successive.
+### 3. ProtectedRoute: manca `call_center` nei roleRedirects (P1)
+
+**File**: `src/components/auth/ProtectedRoute.tsx` (riga 32-39)
+
+L'oggetto `roleRedirects` non include `call_center`, quindi un utente call_center che accede a una rotta non autorizzata viene mandato a `/login`.
+
+**Fix**: Aggiungere `call_center: "/azienda"`.
+
+### 4. Password check: solo per `company_staff` (P1)
+
+**File**: `src/components/auth/RoleBasedRedirect.tsx` (riga 68)
+
+Il check `must_change_password` si attiva solo se `role === "company_staff"`. Con la nuova logica di priorita, un venditore/call_center avra ruolo effettivo `salesperson`/`call_center`, saltando il check.
+
+**Fix**: Estendere la condizione a `["company_staff", "salesperson", "call_center"].includes(role)`.
+
+### 5. Console warning: forwardRef (P2)
+
+`UserRolesPermissionsTab` riceve un `ref` da `SettingsUserDetail` via il `key` prop. Warning innocuo, nessun fix necessario (e' il Select di Radix internamente).
+
+## Dropdown Contatti/Opportunita: Verifica
+
+I dropdown sono **gia correttamente implementati**:
+- **Titolare** → `useCompanySalespeople()` filtra `salesperson` + `company_admin`
+- **Call Center** → `useCompanyCallCenterUsers()` filtra `call_center`
+- **Follower** → `useCompanyStaff()` tutti staff (come richiesto)
+- **MarketingContactDetail** → query inline con stessa logica
+
+## File da modificare
+
+| File | Intervento |
+|------|-----------|
+| `src/contexts/AuthContext.tsx` | Query tutti i ruoli + logica priorita |
+| `src/components/auth/RoleBasedRedirect.tsx` | Aggiungere `call_center` + estendere password check |
+| `src/components/auth/ProtectedRoute.tsx` | Aggiungere `call_center` a roleRedirects |
+| `src/pages/Login.tsx` | Aggiungere `call_center` al switch redirect |
 
