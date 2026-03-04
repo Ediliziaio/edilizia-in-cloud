@@ -1,79 +1,60 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck } from "lucide-react";
+import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizontal, KeyRound, UserX, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { StaffUserDialog, StaffUserFormData } from "@/components/users/StaffUserDialog";
-import { PermissionsDialog, StaffPermissions } from "@/components/users/PermissionsDialog";
+import { StaffPermissions } from "@/components/users/PermissionsDialog";
 
 interface CompanyUser {
   id: string;
   first_name: string;
   last_name: string;
   email: string;
+  phone: string | null;
   role: "company_admin" | "company_staff";
   permissions: StaffPermissions | null;
 }
-
-const DEFAULT_PERMISSIONS: StaffPermissions = {
-  can_view_dashboard: false,
-  can_view_orders: false,
-  can_edit_orders: false,
-  can_view_warehouse: false,
-  can_edit_warehouse: false,
-  can_view_calendar: false,
-  can_view_customers: false,
-  can_edit_customers: false,
-  can_view_employees: false,
-  can_view_tickets: false,
-  can_edit_tickets: false,
-  can_view_forecast: false,
-  can_view_settings: false,
-  can_view_marketing: false,
-  can_edit_marketing: false,
-};
 
 export function UsersConfig() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const effectiveCompanyId = effectiveCompany?.id;
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [permissionsUser, setPermissionsUser] = useState<CompanyUser | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
 
-  // Fetch all company users (admin + staff) excluding current user
   const { data: companyUsers = [], isLoading } = useQuery({
     queryKey: ["company-users", effectiveCompanyId],
     queryFn: async () => {
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email")
+        .select("id, first_name, last_name, email, phone")
         .eq("company_id", effectiveCompanyId!);
 
       if (profilesError) throw profilesError;
@@ -84,7 +65,6 @@ export function UsersConfig() {
         .select("user_id, role")
         .in("user_id", userIds);
 
-      // Filter company_admin and company_staff, exclude current user
       const companyRoles = roles?.filter(
         (r) => (r.role === "company_admin" || r.role === "company_staff") && r.user_id !== user?.id
       ) || [];
@@ -93,7 +73,6 @@ export function UsersConfig() {
 
       const staffUserIds = companyRoles.filter((r) => r.role === "company_staff").map((r) => r.user_id);
 
-      // Get permissions for staff users
       let permissionsMap: Record<string, any> = {};
       if (staffUserIds.length > 0) {
         const { data: permissions } = await supabase
@@ -118,7 +97,6 @@ export function UsersConfig() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Create user
   const handleCreateUser = async (data: StaffUserFormData): Promise<{ temporaryPassword?: string }> => {
     setIsCreating(true);
     try {
@@ -135,7 +113,6 @@ export function UsersConfig() {
       if (response.error) throw new Error(response.error.message || "Errore durante la creazione");
       if (response.data?.error) throw new Error(response.data.error);
 
-      // Update permissions right after creation for staff users
       if (data.role_type === "company_staff" && data.permissions && response.data?.user_id) {
         const { only_assigned, ...permFields } = data.permissions;
         await supabase
@@ -164,26 +141,6 @@ export function UsersConfig() {
     }
   };
 
-  // Save permissions
-  const savePermissionsMutation = useMutation({
-    mutationFn: async (permissions: StaffPermissions) => {
-      if (!permissionsUser) throw new Error("No user selected");
-      const { error } = await supabase
-        .from("staff_permissions")
-        .update(permissions)
-        .eq("user_id", permissionsUser.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-users"] });
-      toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati con successo." });
-    },
-    onError: () => {
-      toast({ title: "Errore", description: "Errore durante il salvataggio dei permessi", variant: "destructive" });
-    },
-  });
-
-  // Delete user
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
       await supabase.from("staff_permissions").delete().eq("user_id", userId);
@@ -221,6 +178,16 @@ export function UsersConfig() {
     return labels.join(", ");
   };
 
+  const getInitials = (firstName: string, lastName: string) =>
+    `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+
+  const filteredUsers = companyUsers.filter((u) => {
+    const matchesSearch = searchQuery === "" || 
+      `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesRole = roleFilter === "all" || u.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
+
   return (
     <Card>
       <CardHeader>
@@ -239,37 +206,78 @@ export function UsersConfig() {
             Nuovo Utente
           </Button>
         </div>
+
+        {/* Filters */}
+        <div className="flex items-center gap-3 mt-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca per nome o email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filtra per ruolo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i ruoli</SelectItem>
+              <SelectItem value="company_admin">Amministratori</SelectItem>
+              <SelectItem value="company_staff">Operatori</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : companyUsers.length === 0 ? (
+        ) : filteredUsers.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground border rounded-lg">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Nessun altro utente creato.</p>
-            <p className="text-sm">Crea il primo utente per dare accesso al tuo team.</p>
+            <p>{companyUsers.length === 0 ? "Nessun altro utente creato." : "Nessun utente trovato con i filtri selezionati."}</p>
+            {companyUsers.length === 0 && (
+              <p className="text-sm">Crea il primo utente per dare accesso al tuo team.</p>
+            )}
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12"></TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Telefono</TableHead>
                 <TableHead>Ruolo</TableHead>
                 <TableHead>Permessi</TableHead>
-                <TableHead className="text-right">Azioni</TableHead>
+                <TableHead className="text-right w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {companyUsers.map((u) => (
-                <TableRow key={u.id}>
+              {filteredUsers.map((u) => (
+                <TableRow
+                  key={u.id}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => navigate(`/azienda/impostazioni/utenti/${u.id}`)}
+                >
+                  <TableCell>
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                        {getInitials(u.first_name, u.last_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </TableCell>
                   <TableCell className="font-medium">
                     {u.first_name} {u.last_name}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {u.email}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {u.phone || "—"}
                   </TableCell>
                   <TableCell>
                     {u.role === "company_admin" ? (
@@ -286,45 +294,52 @@ export function UsersConfig() {
                       {getPermissionsSummary(u)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex gap-1 justify-end">
-                      {/* Only show permissions button for staff */}
-                      {u.role === "company_staff" && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setPermissionsUser(u)}
-                          title="Gestisci permessi"
-                        >
-                          <Shield className="h-4 w-4" />
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
                         </Button>
-                      )}
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" title="Elimina">
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Eliminare l'utente?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              L'utente {u.first_name} {u.last_name} non potrà più accedere al sistema.
-                              Questa azione è irreversibile.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Annulla</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteUserMutation.mutate(u.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => navigate(`/azienda/impostazioni/utenti/${u.id}`)}>
+                          <Shield className="h-4 w-4 mr-2" />
+                          Gestisci
+                        </DropdownMenuItem>
+                        {u.role === "company_staff" && (
+                          <DropdownMenuItem onClick={() => navigate(`/azienda/impostazioni/utenti/${u.id}?tab=permissions`)}>
+                            <Shield className="h-4 w-4 mr-2" />
+                            Permessi
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                              <Trash2 className="h-4 w-4 mr-2" />
                               Elimina
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Eliminare l'utente?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                L'utente {u.first_name} {u.last_name} non potrà più accedere al sistema. Questa azione è irreversibile.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Annulla</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteUserMutation.mutate(u.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Elimina
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -339,17 +354,6 @@ export function UsersConfig() {
         onSubmit={handleCreateUser}
         isLoading={isCreating}
       />
-
-      {permissionsUser && (
-        <PermissionsDialog
-          open={!!permissionsUser}
-          onOpenChange={(open) => !open && setPermissionsUser(null)}
-          userName={`${permissionsUser.first_name} ${permissionsUser.last_name}`}
-          currentPermissions={permissionsUser.permissions || DEFAULT_PERMISSIONS}
-          onSave={async (perms) => { savePermissionsMutation.mutate(perms); }}
-          isLoading={savePermissionsMutation.isPending}
-        />
-      )}
     </Card>
   );
 }

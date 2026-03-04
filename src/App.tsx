@@ -53,6 +53,7 @@ const SettingsOrderStatus = lazy(() => import("@/pages/azienda/settings/Settings
 const SettingsPipelines = lazy(() => import("@/pages/azienda/settings/SettingsPipelines"));
 const SettingsSuppliers = lazy(() => import("@/pages/azienda/settings/SettingsSuppliers"));
 const SettingsUsers = lazy(() => import("@/pages/azienda/settings/SettingsUsers"));
+const SettingsUserDetail = lazy(() => import("@/pages/azienda/settings/SettingsUserDetail"));
 const SettingsSalespeople = lazy(() => import("@/pages/azienda/settings/SettingsSalespeople"));
 const SettingsStaff = lazy(() => import("@/pages/azienda/settings/SettingsStaff"));
 const SettingsSecurity = lazy(() => import("@/pages/azienda/settings/SettingsSecurity"));
@@ -268,6 +269,7 @@ const App = () => (
                   <Route path="sequenze" element={<SettingsPipelines />} />
                   <Route path="calendari" element={<SettingsMarketingCalendars />} />
                   <Route path="utenti" element={<SettingsUsers />} />
+                  <Route path="utenti/:userId" element={<SettingsUserDetail />} />
                   <Route path="venditori" element={<SettingsSalespeople />} />
                   <Route path="staff" element={<SettingsStaff />} />
                   <Route path="sicurezza" element={<SettingsSecurity />} />
