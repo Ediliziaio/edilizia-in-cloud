@@ -5664,14 +5664,6 @@ export type Database = {
           last_access: string
         }[]
       }
-      get_company_order_sparklines: {
-        Args: never
-        Returns: {
-          company_id: string
-          month_key: string
-          order_count: number
-        }[]
-      }
       get_company_order_stats: {
         Args: never
         Returns: {
