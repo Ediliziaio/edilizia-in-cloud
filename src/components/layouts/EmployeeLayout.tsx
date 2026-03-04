@@ -142,13 +142,13 @@ function EmployeeSidebar() {
 export function EmployeeLayout() {
   const { user, isLoading: authLoading } = useAuth();
 
-  // Verify employee has valid profile
+  // Reuse the same query as EmployeeSidebar (same queryKey, same select)
   const { data: employee, isLoading: employeeLoading } = useQuery({
     queryKey: ["my-employee-profile", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("*")
+        .select("*, company:companies(name)")
         .eq("user_id", user!.id)
         .single();
       
