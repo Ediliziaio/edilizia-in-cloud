@@ -55,14 +55,14 @@ export const cruscottoNavItem: NavItem = {
 };
 
 export const marketingNavItems: NavItem[] = [
-  { title: "Dashboard", url: "/azienda/marketing", icon: LayoutDashboard, permissionKey: "canViewMarketing", category: "marketing" },
-  { title: "Contatti", url: "/azienda/marketing/contatti", icon: Contact, permissionKey: "canViewMarketing", category: "marketing" },
-  { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketing", category: "marketing" },
-  { title: "Attività", url: "/azienda/marketing/attivita", icon: CheckSquare, permissionKey: "canViewMarketing", category: "marketing" },
-  { title: "Appuntamenti", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketing", category: "marketing" },
-  { title: "Automazioni", url: "/azienda/marketing/automazioni", icon: Zap, permissionKey: "canViewMarketing", category: "marketing" },
-  { title: "Agente AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketing", category: "marketing" },
-  { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketing", category: "marketing" },
-  { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketing", category: "marketing" },
-  { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: BarChart3, permissionKey: "canViewMarketing", category: "marketing" },
+  { title: "Dashboard", url: "/azienda/marketing", icon: LayoutDashboard, permissionKey: "canViewMarketingDashboard", category: "marketing" },
+  { title: "Contatti", url: "/azienda/marketing/contatti", icon: Contact, permissionKey: "canViewMarketingContacts", category: "marketing" },
+  { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", category: "marketing" },
+  { title: "Attività", url: "/azienda/marketing/attivita", icon: CheckSquare, permissionKey: "canViewMarketingActivities", category: "marketing" },
+  { title: "Appuntamenti", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", category: "marketing" },
+  { title: "Automazioni", url: "/azienda/marketing/automazioni", icon: Zap, permissionKey: "canViewMarketingAutomations", category: "marketing" },
+  { title: "Agente AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing" },
+  { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", category: "marketing" },
+  { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", category: "marketing" },
+  { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: BarChart3, permissionKey: "canViewMarketingReports", category: "marketing" },
 ];

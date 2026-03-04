@@ -63,16 +63,22 @@ Deno.serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
-    // Check if caller is super_admin or company_admin
-    const { data: callerRole } = await supabaseAdmin
+    // Check if caller is super_admin or company_admin (defensive: handle multiple roles)
+    const { data: callerRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
-      .eq("user_id", caller.id)
-      .single();
+      .eq("user_id", caller.id);
 
-    if (!callerRole || (callerRole.role !== "super_admin" && callerRole.role !== "company_admin")) {
+    const callerRoleNames = (callerRoles || []).map((r: any) => r.role);
+    const callerIsAdmin = callerRoleNames.includes("super_admin") || callerRoleNames.includes("company_admin");
+
+    if (!callerIsAdmin) {
       throw new Error("Permission denied: Only admins can reset passwords");
     }
+
+    const callerRole = callerRoleNames.includes("super_admin")
+      ? { role: "super_admin" }
+      : { role: "company_admin" };
 
     // Accept both customer_id (legacy) and userId (new)
     const body = await req.json();
@@ -107,24 +113,25 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Verify target is a resettable role (customer, company_staff, company_admin - not super_admin)
-    const { data: targetRole } = await supabaseAdmin
+    // Verify target is a resettable role (defensive: handle multiple roles)
+    const { data: targetRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
-      .eq("user_id", targetUserId)
-      .single();
+      .eq("user_id", targetUserId);
 
-    if (!targetRole) {
+    const targetRoleNames = (targetRoles || []).map((r: any) => r.role);
+
+    if (targetRoleNames.length === 0) {
       throw new Error("Target user has no role");
     }
 
     // Prevent resetting super_admin passwords
-    if (targetRole.role === "super_admin") {
+    if (targetRoleNames.includes("super_admin")) {
       throw new Error("Cannot reset super admin password");
     }
 
     // company_admin can only reset customer and staff passwords, not other admins
-    if (callerRole.role === "company_admin" && targetRole.role === "company_admin" && targetUserId !== caller.id) {
+    if (callerRole.role === "company_admin" && targetRoleNames.includes("company_admin") && targetUserId !== caller.id) {
       throw new Error("Permission denied: Cannot reset another admin's password");
     }
 

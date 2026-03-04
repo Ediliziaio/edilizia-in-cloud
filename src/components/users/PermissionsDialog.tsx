@@ -12,6 +12,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import {
+  STANDALONE_SECTIONS,
+  INTERNAL_SECTIONS,
+  MARKETING_SECTIONS,
+  ALL_PERMISSION_SECTIONS,
+} from "@/components/users/permissionsDefaults";
 
 export interface StaffPermissions {
   can_view_dashboard: boolean;
@@ -54,37 +60,6 @@ interface PermissionsDialogProps {
   onSave: (permissions: StaffPermissions) => Promise<void>;
   isLoading?: boolean;
 }
-
-const STANDALONE_SECTIONS: { label: string; viewKey: keyof StaffPermissions; editKey: keyof StaffPermissions | null }[] = [
-  { label: "Cruscotto Aziendale", viewKey: "can_view_cruscotto", editKey: null },
-];
-
-const INTERNAL_SECTIONS = [
-  { label: "Dashboard", viewKey: "can_view_dashboard" as keyof StaffPermissions, editKey: null },
-  { label: "Ordini", viewKey: "can_view_orders" as keyof StaffPermissions, editKey: "can_edit_orders" as keyof StaffPermissions },
-  { label: "Magazzino", viewKey: "can_view_warehouse" as keyof StaffPermissions, editKey: "can_edit_warehouse" as keyof StaffPermissions },
-  { label: "Calendario", viewKey: "can_view_calendar" as keyof StaffPermissions, editKey: null },
-  { label: "Clienti", viewKey: "can_view_customers" as keyof StaffPermissions, editKey: "can_edit_customers" as keyof StaffPermissions },
-  { label: "Dipendenti", viewKey: "can_view_employees" as keyof StaffPermissions, editKey: null },
-  { label: "Assistenza", viewKey: "can_view_tickets" as keyof StaffPermissions, editKey: "can_edit_tickets" as keyof StaffPermissions },
-  { label: "Previsionale", viewKey: "can_view_forecast" as keyof StaffPermissions, editKey: null },
-  { label: "Impostazioni", viewKey: "can_view_settings" as keyof StaffPermissions, editKey: "can_edit_settings" as keyof StaffPermissions },
-];
-
-const MARKETING_SECTIONS = [
-  { label: "Dashboard Marketing", viewKey: "can_view_marketing_dashboard" as keyof StaffPermissions, editKey: null },
-  { label: "Contatti", viewKey: "can_view_marketing_contacts" as keyof StaffPermissions, editKey: "can_edit_marketing_contacts" as keyof StaffPermissions },
-  { label: "Opportunità", viewKey: "can_view_marketing_opportunities" as keyof StaffPermissions, editKey: "can_edit_marketing_opportunities" as keyof StaffPermissions },
-  { label: "Attività", viewKey: "can_view_marketing_activities" as keyof StaffPermissions, editKey: null },
-  { label: "Appuntamenti", viewKey: "can_view_marketing_appointments" as keyof StaffPermissions, editKey: null },
-  { label: "Automazioni", viewKey: "can_view_marketing_automations" as keyof StaffPermissions, editKey: null },
-  { label: "Agente AI", viewKey: "can_view_marketing_ai_agent" as keyof StaffPermissions, editKey: null },
-  { label: "Email Marketing", viewKey: "can_view_marketing_email" as keyof StaffPermissions, editKey: null },
-  { label: "WhatsApp", viewKey: "can_view_marketing_whatsapp" as keyof StaffPermissions, editKey: null },
-  { label: "Reportistica", viewKey: "can_view_marketing_reports" as keyof StaffPermissions, editKey: null },
-];
-
-export const ALL_PERMISSION_SECTIONS = [...STANDALONE_SECTIONS, ...INTERNAL_SECTIONS, ...MARKETING_SECTIONS];
 
 export function PermissionsDialog({
   open,

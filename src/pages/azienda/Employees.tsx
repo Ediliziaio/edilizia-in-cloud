@@ -4,7 +4,8 @@ import { Users, Building2, Clock, Loader2, Check, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { StaffPermissions, ALL_PERMISSION_SECTIONS } from "@/components/users/PermissionsDialog";
+import { StaffPermissions } from "@/components/users/PermissionsDialog";
+import { ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

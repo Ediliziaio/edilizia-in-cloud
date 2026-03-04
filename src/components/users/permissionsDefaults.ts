@@ -15,3 +15,43 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_marketing_whatsapp: false, can_view_marketing_reports: false,
   can_view_cruscotto: false, only_assigned: false,
 };
+
+/** Centralized permission section definitions used by PermissionsDialog and UserRolesPermissionsTab */
+export interface PermissionSectionDef {
+  label: string;
+  viewKey: keyof StaffPermissions;
+  editKey: keyof StaffPermissions | null;
+}
+
+export const STANDALONE_SECTIONS: PermissionSectionDef[] = [
+  { label: "Cruscotto Aziendale", viewKey: "can_view_cruscotto", editKey: null },
+];
+
+export const INTERNAL_SECTIONS: PermissionSectionDef[] = [
+  { label: "Dashboard", viewKey: "can_view_dashboard", editKey: null },
+  { label: "Ordini", viewKey: "can_view_orders", editKey: "can_edit_orders" },
+  { label: "Magazzino", viewKey: "can_view_warehouse", editKey: "can_edit_warehouse" },
+  { label: "Calendario", viewKey: "can_view_calendar", editKey: null },
+  { label: "Clienti", viewKey: "can_view_customers", editKey: "can_edit_customers" },
+  { label: "Dipendenti", viewKey: "can_view_employees", editKey: null },
+  { label: "Assistenza", viewKey: "can_view_tickets", editKey: "can_edit_tickets" },
+  { label: "Previsionale", viewKey: "can_view_forecast", editKey: null },
+  { label: "Impostazioni", viewKey: "can_view_settings", editKey: "can_edit_settings" },
+];
+
+export const MARKETING_SECTIONS: PermissionSectionDef[] = [
+  { label: "Dashboard Marketing", viewKey: "can_view_marketing_dashboard", editKey: null },
+  { label: "Contatti", viewKey: "can_view_marketing_contacts", editKey: "can_edit_marketing_contacts" },
+  { label: "Opportunità", viewKey: "can_view_marketing_opportunities", editKey: "can_edit_marketing_opportunities" },
+  { label: "Attività", viewKey: "can_view_marketing_activities", editKey: null },
+  { label: "Appuntamenti", viewKey: "can_view_marketing_appointments", editKey: null },
+  { label: "Automazioni", viewKey: "can_view_marketing_automations", editKey: null },
+  { label: "Agente AI", viewKey: "can_view_marketing_ai_agent", editKey: null },
+  { label: "Email Marketing", viewKey: "can_view_marketing_email", editKey: null },
+  { label: "WhatsApp", viewKey: "can_view_marketing_whatsapp", editKey: null },
+  { label: "Reportistica", viewKey: "can_view_marketing_reports", editKey: null },
+];
+
+export const ALL_PERMISSION_SECTIONS: PermissionSectionDef[] = [
+  ...STANDALONE_SECTIONS, ...INTERNAL_SECTIONS, ...MARKETING_SECTIONS,
+];

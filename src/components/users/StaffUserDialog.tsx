@@ -14,7 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Copy, Check, ShieldCheck, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { StaffPermissions, ALL_PERMISSION_SECTIONS } from "@/components/users/PermissionsDialog";
+import { StaffPermissions } from "@/components/users/PermissionsDialog";
+import { ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
 
 interface StaffUserDialogProps {
   open: boolean;
