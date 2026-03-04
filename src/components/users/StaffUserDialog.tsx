@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Copy, Check, ShieldCheck, User } from "lucide-react";
+import { Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
@@ -24,11 +24,13 @@ interface StaffUserDialogProps {
   isLoading?: boolean;
 }
 
+export type StaffRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center";
+
 export interface StaffUserFormData {
   first_name: string;
   last_name: string;
   email: string;
-  role_type: "company_admin" | "company_staff";
+  role_type: StaffRoleType;
   permissions?: StaffPermissions;
 }
 
@@ -46,6 +48,22 @@ const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s =>
   MARKETING_SECTION_KEYS.includes(s.viewKey as string)
 );
 
+const ROLE_OPTIONS: { value: StaffRoleType; label: string; description: string; icon: React.ElementType }[] = [
+  { value: "company_admin", label: "Amministratore", description: "Accesso completo", icon: ShieldCheck },
+  { value: "company_staff", label: "Operatore", description: "Gestione interna", icon: User },
+  { value: "salesperson", label: "Venditore", description: "Vendite e provvigioni", icon: TrendingUp },
+  { value: "call_center", label: "Call Center", description: "Contatti e opportunità", icon: Phone },
+];
+
+const ROLES_WITH_PERMISSIONS: StaffRoleType[] = ["company_staff", "salesperson", "call_center"];
+
+const ROLE_LABELS: Record<StaffRoleType, string> = {
+  company_admin: "Amministratore",
+  company_staff: "Operatore",
+  salesperson: "Venditore",
+  call_center: "Call Center",
+};
+
 export function StaffUserDialog({
   open,
   onOpenChange,
@@ -56,7 +74,7 @@ export function StaffUserDialog({
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [roleType, setRoleType] = useState<"company_admin" | "company_staff">("company_staff");
+  const [roleType, setRoleType] = useState<StaffRoleType>("company_staff");
   const [permissions, setPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS });
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -102,7 +120,7 @@ export function StaffUserDialog({
         last_name: lastName.trim(),
         email: email.trim().toLowerCase(),
         role_type: roleType,
-        permissions: roleType === "company_staff" ? permissions : undefined,
+        permissions: ROLES_WITH_PERMISSIONS.includes(roleType) ? permissions : undefined,
       });
       if (result.temporaryPassword) {
         setTemporaryPassword(result.temporaryPassword);
@@ -165,7 +183,7 @@ export function StaffUserDialog({
           <DialogHeader>
             <DialogTitle>Utente Creato con Successo! 🎉</DialogTitle>
             <DialogDescription>
-              L'utente {firstName} {lastName} è stato creato come {roleType === "company_admin" ? "Amministratore" : "Operatore"}. Comunica la password temporanea all'utente.
+              L'utente {firstName} {lastName} è stato creato come {ROLE_LABELS[roleType]}. Comunica la password temporanea all'utente.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -204,18 +222,21 @@ export function StaffUserDialog({
           <div className="space-y-2">
             <Label>Tipo utente *</Label>
             <div className="grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setRoleType("company_admin")}
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${roleType === "company_admin" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"}`}
-                disabled={isLoading}>
-                <ShieldCheck className={`h-5 w-5 shrink-0 ${roleType === "company_admin" ? "text-primary" : "text-muted-foreground"}`} />
-                <div><p className="font-medium text-sm">Amministratore</p><p className="text-xs text-muted-foreground">Accesso completo</p></div>
-              </button>
-              <button type="button" onClick={() => setRoleType("company_staff")}
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${roleType === "company_staff" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"}`}
-                disabled={isLoading}>
-                <User className={`h-5 w-5 shrink-0 ${roleType === "company_staff" ? "text-primary" : "text-muted-foreground"}`} />
-                <div><p className="font-medium text-sm">Operatore</p><p className="text-xs text-muted-foreground">Accesso limitato</p></div>
-              </button>
+              {ROLE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setRoleType(opt.value)}
+                  className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${roleType === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"}`}
+                  disabled={isLoading}
+                >
+                  <opt.icon className={`h-5 w-5 shrink-0 ${roleType === opt.value ? "text-primary" : "text-muted-foreground"}`} />
+                  <div>
+                    <p className="font-medium text-sm">{opt.label}</p>
+                    <p className="text-xs text-muted-foreground">{opt.description}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -237,7 +258,7 @@ export function StaffUserDialog({
             </div>
           </div>
 
-          {roleType === "company_staff" && (
+          {ROLES_WITH_PERMISSIONS.includes(roleType) && (
             <>
               <Separator />
               <div className="space-y-3">

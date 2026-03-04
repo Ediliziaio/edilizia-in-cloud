@@ -21,6 +21,7 @@ const ROLE_LABELS: Record<AppRole, string> = {
   customer: "Cliente",
   employee: "Dipendente",
   salesperson: "Venditore",
+  call_center: "Call Center",
 };
 
 const ROLE_COLORS: Record<AppRole, string> = {
@@ -30,6 +31,7 @@ const ROLE_COLORS: Record<AppRole, string> = {
   customer: "bg-green-100 text-green-800",
   employee: "bg-amber-100 text-amber-800",
   salesperson: "bg-cyan-100 text-cyan-800",
+  call_center: "bg-indigo-100 text-indigo-800",
 };
 
 const ROLE_ORDER: AppRole[] = [
@@ -39,6 +41,7 @@ const ROLE_ORDER: AppRole[] = [
   "customer",
   "employee",
   "salesperson",
+  "call_center",
 ];
 
 const AVATAR_COLORS = [
@@ -56,6 +59,7 @@ const REDIRECT_MAP: Record<AppRole, string> = {
   super_admin: "/admin",
   company_admin: "/azienda",
   company_staff: "/azienda",
+  call_center: "/azienda",
   customer: "/cliente",
   employee: "/dipendente",
   salesperson: "/venditore",

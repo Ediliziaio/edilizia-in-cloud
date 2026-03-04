@@ -15,6 +15,22 @@ function generateTemporaryPassword(): string {
   return password;
 }
 
+type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center";
+
+function resolveRoles(roleType: ValidRoleType): string[] {
+  switch (roleType) {
+    case "company_admin":
+      return ["company_admin"];
+    case "salesperson":
+      return ["salesperson", "company_staff"];
+    case "call_center":
+      return ["call_center", "company_staff"];
+    case "company_staff":
+    default:
+      return ["company_staff"];
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -33,7 +49,6 @@ Deno.serve(async (req) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Verify the calling user is authorized
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -47,11 +62,8 @@ Deno.serve(async (req) => {
     }
 
     const callerId = callerUser.id;
-
-    // Use service role for admin operations
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if caller is company_admin or super_admin
     const { data: callerRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
@@ -68,7 +80,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get caller's company_id
     const { data: callerProfile } = await supabaseAdmin
       .from("profiles")
       .select("company_id")
@@ -77,9 +88,8 @@ Deno.serve(async (req) => {
 
     const { first_name, last_name, email, company_id, role_type } = await req.json();
 
-    // If super_admin, use provided company_id; otherwise use caller's company_id
-    const targetCompanyId = callerRole.role === "super_admin" && company_id 
-      ? company_id 
+    const targetCompanyId = callerRole.role === "super_admin" && company_id
+      ? company_id
       : callerProfile?.company_id;
 
     if (!targetCompanyId) {
@@ -96,12 +106,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate role_type
-    const effectiveRole = role_type === "company_admin" ? "company_admin" : "company_staff";
+    // Validate and resolve roles
+    const validRoleTypes: ValidRoleType[] = ["company_admin", "company_staff", "salesperson", "call_center"];
+    const effectiveRoleType: ValidRoleType = validRoleTypes.includes(role_type) ? role_type : "company_staff";
+    const rolesToAssign = resolveRoles(effectiveRoleType);
 
     const temporaryPassword = generateTemporaryPassword();
 
-    // Create auth user directly - handle duplicate email via error
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: temporaryPassword,
@@ -109,7 +120,6 @@ Deno.serve(async (req) => {
     });
 
     if (createError) {
-      // Handle duplicate email error
       if (createError.message?.toLowerCase().includes("already") || createError.message?.toLowerCase().includes("exists")) {
         return new Response(
           JSON.stringify({ error: "Un utente con questa email esiste già" }),
@@ -132,6 +142,13 @@ Deno.serve(async (req) => {
 
     const userId = newUser.user.id;
 
+    // Helper to clean up on failure
+    const cleanup = async () => {
+      await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
+      await supabaseAdmin.from("profiles").delete().eq("id", userId);
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+    };
+
     // Create profile
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
       id: userId,
@@ -150,24 +167,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create user role
-    const { error: roleError } = await supabaseAdmin.from("user_roles").insert({
-      user_id: userId,
-      role: effectiveRole,
-    });
+    // Create all user roles
+    const roleInserts = rolesToAssign.map((role) => ({ user_id: userId, role }));
+    const { error: roleError } = await supabaseAdmin.from("user_roles").insert(roleInserts);
 
     if (roleError) {
-      console.error("Error creating user role:", roleError);
-      await supabaseAdmin.from("profiles").delete().eq("id", userId);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      console.error("Error creating user roles:", roleError);
+      await cleanup();
       return new Response(
         JSON.stringify({ error: "Errore durante l'assegnazione del ruolo" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Create empty permissions record only for company_staff
-    if (effectiveRole === "company_staff") {
+    // Create staff_permissions if user has company_staff role
+    if (rolesToAssign.includes("company_staff")) {
       const { error: permError } = await supabaseAdmin.from("staff_permissions").insert({
         user_id: userId,
         company_id: targetCompanyId,
@@ -175,13 +189,28 @@ Deno.serve(async (req) => {
 
       if (permError) {
         console.error("Error creating permissions:", permError);
-        await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
-        await supabaseAdmin.from("profiles").delete().eq("id", userId);
-        await supabaseAdmin.auth.admin.deleteUser(userId);
+        await cleanup();
         return new Response(
           JSON.stringify({ error: "Errore durante la creazione dei permessi" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+    }
+
+    // Create salespeople record if salesperson
+    if (effectiveRoleType === "salesperson") {
+      const { error: spError } = await supabaseAdmin.from("salespeople").insert({
+        company_id: targetCompanyId,
+        first_name,
+        last_name,
+        email,
+        user_id: userId,
+        is_active: true,
+      });
+
+      if (spError) {
+        console.error("Error creating salesperson record:", spError);
+        // Non-fatal: permissions and roles are already set
       }
     }
 
@@ -190,7 +219,7 @@ Deno.serve(async (req) => {
         success: true,
         user_id: userId,
         temporary_password: temporaryPassword,
-        role: effectiveRole,
+        role: effectiveRoleType,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
