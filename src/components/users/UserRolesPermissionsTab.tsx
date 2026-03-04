@@ -12,12 +12,17 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, ChevronRight, Loader2, Save, Search, ShieldCheck, User, EyeOff } from "lucide-react";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 
+/**
+ * Each PermissionModule maps 1:1 to a unique DB column.
+ * `includes` lists the UI modules that share this same DB permission.
+ */
 interface PermissionModule {
   id: string;
   label: string;
   description: string;
   viewKey: keyof StaffPermissions;
   editKey?: keyof StaffPermissions;
+  includes?: string[]; // sub-modules sharing this DB key
 }
 
 interface PermissionCategory {
@@ -39,35 +44,28 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     label: "Gestione Interna",
     modules: [
       { id: "dashboard", label: "Dashboard", description: "Visualizza la dashboard principale", viewKey: "can_view_dashboard" },
-      { id: "orders", label: "Ordini", description: "Gestisci ordini e commesse", viewKey: "can_view_orders", editKey: "can_edit_orders" },
+      { id: "orders", label: "Ordini", description: "Gestisci ordini e commesse", viewKey: "can_view_orders", editKey: "can_edit_orders", includes: ["Attività", "Errori", "Messaggistica"] },
       { id: "warehouse", label: "Magazzino", description: "Gestisci inventario e movimenti", viewKey: "can_view_warehouse", editKey: "can_edit_warehouse" },
       { id: "calendar", label: "Calendario", description: "Visualizza e gestisci il calendario", viewKey: "can_view_calendar" },
       { id: "customers", label: "Clienti", description: "Gestisci anagrafica clienti", viewKey: "can_view_customers", editKey: "can_edit_customers" },
       { id: "employees", label: "Dipendenti", description: "Visualizza dati dipendenti", viewKey: "can_view_employees" },
       { id: "tickets", label: "Ticket Clienti", description: "Gestisci ticket di supporto", viewKey: "can_view_tickets", editKey: "can_edit_tickets" },
-      { id: "forecast", label: "Previsionale", description: "Visualizza previsioni finanziarie", viewKey: "can_view_forecast" },
-      { id: "costs", label: "Costi", description: "Gestisci costi aziendali", viewKey: "can_view_forecast" },
-      { id: "activities", label: "Attività", description: "Gestisci attività e task", viewKey: "can_view_orders" },
-      { id: "errors", label: "Errori", description: "Visualizza e gestisci errori", viewKey: "can_view_orders" },
-      { id: "messaging", label: "Messaggistica", description: "Chat e comunicazioni interne", viewKey: "can_view_orders" },
-      { id: "automations_int", label: "Automazioni", description: "Automazioni gestione interna", viewKey: "can_view_settings" },
-      { id: "settings", label: "Impostazioni", description: "Accedi alle impostazioni aziendali", viewKey: "can_view_settings" },
+      { id: "forecast", label: "Previsionale", description: "Visualizza previsioni finanziarie", viewKey: "can_view_forecast", includes: ["Costi"] },
+      { id: "settings", label: "Impostazioni", description: "Accedi alle impostazioni aziendali", viewKey: "can_view_settings", includes: ["Automazioni"] },
     ],
   },
   {
     id: "marketing",
     label: "Marketing e Vendita",
     modules: [
-      { id: "mkt_dashboard", label: "Dashboard", description: "Dashboard marketing e vendite", viewKey: "can_view_marketing" },
-      { id: "mkt_contacts", label: "Contatti", description: "Gestisci contatti marketing", viewKey: "can_view_marketing", editKey: "can_edit_marketing" },
-      { id: "mkt_opportunities", label: "Opportunità", description: "Pipeline e opportunità di vendita", viewKey: "can_view_marketing", editKey: "can_edit_marketing" },
-      { id: "mkt_activities", label: "Attività", description: "Attività marketing e vendita", viewKey: "can_view_marketing", editKey: "can_edit_marketing" },
-      { id: "mkt_appointments", label: "Appuntamenti", description: "Gestisci appuntamenti commerciali", viewKey: "can_view_marketing", editKey: "can_edit_marketing" },
-      { id: "mkt_automations", label: "Automazioni", description: "Workflow e automazioni marketing", viewKey: "can_view_marketing", editKey: "can_edit_marketing" },
-      { id: "mkt_ai_agent", label: "Agente AI", description: "Assistente intelligente vendite", viewKey: "can_view_marketing" },
-      { id: "mkt_email", label: "Email Marketing", description: "Campagne email e template", viewKey: "can_view_marketing", editKey: "can_edit_marketing" },
-      { id: "mkt_whatsapp", label: "WhatsApp", description: "Messaggistica WhatsApp Business", viewKey: "can_view_marketing", editKey: "can_edit_marketing" },
-      { id: "mkt_reports", label: "Reportistica", description: "Report e analytics marketing", viewKey: "can_view_marketing" },
+      {
+        id: "marketing",
+        label: "Marketing e Vendita",
+        description: "Accesso a tutti i moduli marketing e vendita",
+        viewKey: "can_view_marketing",
+        editKey: "can_edit_marketing",
+        includes: ["Dashboard", "Contatti", "Opportunità", "Attività", "Appuntamenti", "Automazioni", "Agente AI", "Email Marketing", "WhatsApp", "Reportistica"],
+      },
     ],
   },
 ];
@@ -124,9 +122,14 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
   const handleToggle = (key: keyof StaffPermissions, value: boolean) => {
     setPermissions(prev => {
       const updated = { ...prev, [key]: value };
-      const mod = PERMISSION_CATEGORIES.flatMap(c => c.modules).find(m => m.viewKey === key);
-      if (mod?.editKey && !value) {
-        updated[mod.editKey] = false;
+      // When disabling a view permission, also disable ALL associated edit permissions
+      if (!value) {
+        const allModules = PERMISSION_CATEGORIES.flatMap(c => c.modules);
+        allModules.forEach(mod => {
+          if (mod.viewKey === key && mod.editKey) {
+            updated[mod.editKey] = false;
+          }
+        });
       }
       return updated;
     });
@@ -134,18 +137,23 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
 
   const filteredCategories = useMemo(() => {
     if (!searchQuery) return PERMISSION_CATEGORIES;
+    const q = searchQuery.toLowerCase();
     return PERMISSION_CATEGORIES.map(cat => ({
       ...cat,
       modules: cat.modules.filter(m =>
-        m.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.description.toLowerCase().includes(searchQuery.toLowerCase())
+        m.label.toLowerCase().includes(q) ||
+        m.description.toLowerCase().includes(q) ||
+        m.includes?.some(inc => inc.toLowerCase().includes(q))
       ),
     })).filter(cat => cat.modules.length > 0);
   }, [searchQuery]);
 
   const getCategoryPermCount = (cat: PermissionCategory) => {
-    const total = cat.modules.length;
-    const active = cat.modules.filter(m => permissions[m.viewKey]).length;
+    // Count unique active DB permissions (deduplicated by viewKey)
+    const uniqueKeys = new Set(cat.modules.map(m => m.viewKey));
+    const total = uniqueKeys.size;
+    const activeKeys = new Set(cat.modules.filter(m => permissions[m.viewKey]).map(m => m.viewKey));
+    const active = activeKeys.size;
     return { active, total };
   };
 
@@ -288,6 +296,11 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
                                     <div>
                                       <p className="text-sm font-medium">{mod.label}</p>
                                       <p className="text-xs text-muted-foreground">{mod.description}</p>
+                                      {mod.includes && mod.includes.length > 0 && (
+                                        <p className="text-xs text-muted-foreground/70 mt-0.5">
+                                          Include: {mod.includes.join(", ")}
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
