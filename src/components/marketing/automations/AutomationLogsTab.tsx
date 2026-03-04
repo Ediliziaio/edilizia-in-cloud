@@ -54,6 +54,7 @@ export function AutomationLogsTab({ flowId }: Props) {
       if (activityFilter !== "all_activity") query = query.eq("node_type", activityFilter);
       if (startDate) query = query.gte("created_at", startDate.toISOString());
       if (endDate) query = query.lte("created_at", endDate.toISOString());
+      if (search.trim()) query = query.ilike("node_id", `%${search.trim()}%`);
 
       const { data: logs, error, count } = await query;
       if (error) throw error;

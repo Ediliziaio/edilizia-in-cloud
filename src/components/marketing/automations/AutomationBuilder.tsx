@@ -411,10 +411,15 @@ export function AutomationBuilder() {
           </nav>
 
           <div className="ml-auto flex items-center gap-4">
-            <button className="text-sm text-primary hover:underline flex items-center gap-1">
-              <PlayCircle className="h-4 w-4" />
-              Test flusso
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="text-sm text-muted-foreground flex items-center gap-1 cursor-not-allowed opacity-60" disabled>
+                  <PlayCircle className="h-4 w-4" />
+                  Test flusso
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Coming soon</TooltipContent>
+            </Tooltip>
             <div className="flex items-center gap-2">
               <Label htmlFor="publish-toggle" className="text-sm text-muted-foreground">
                 {isPublished ? "Pubblicata" : "Bozza"}

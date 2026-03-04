@@ -13,6 +13,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+interface CompanyUser {
+  id: string;
+  first_name: string;
+  last_name: string;
+}
+
 interface PauseSchedule {
   id: string;
   startDate: string;
@@ -59,6 +65,21 @@ export function GlobalWorkflowSettings() {
         .maybeSingle();
       if (error) throw error;
       return (data?.config_json as GlobalConfig) || null;
+    },
+    enabled: !!companyId,
+  });
+
+  const { data: companyUsers } = useQuery({
+    queryKey: ["company-users-for-automations", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId)
+        .order("first_name");
+      if (error) throw error;
+      return (data ?? []) as CompanyUser[];
     },
     enabled: !!companyId,
   });
@@ -170,6 +191,11 @@ export function GlobalWorkflowSettings() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tutti gli utenti</SelectItem>
+                      {companyUsers?.map(u => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.first_name} {u.last_name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

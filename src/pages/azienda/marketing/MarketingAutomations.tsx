@@ -93,8 +93,27 @@ export default function MarketingAutomations() {
         <div className="space-y-4 pt-4">
           {/* Level 2: Sub-header with actions */}
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Elenco Flusso di lavoro</h2>
             <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">Elenco Flusso di lavoro</h2>
+              {currentFolderId && (
+                <div className="flex items-center gap-1 text-sm text-muted-foreground ml-2">
+                  <button
+                    onClick={() => setCurrentFolderId(null)}
+                    className="hover:text-foreground hover:underline transition-colors"
+                  >
+                    Root
+                  </button>
+                  <span>/</span>
+                  <span className="text-foreground font-medium">Cartella corrente</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {currentFolderId && (
+                <Button variant="ghost" size="sm" onClick={() => setCurrentFolderId(null)}>
+                  ← Torna alla root
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
                 <FolderPlus className="h-4 w-4 mr-1.5" /> Crea Cartella
               </Button>

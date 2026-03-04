@@ -31,6 +31,7 @@ export function AutomationCanvas({
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const [dragNodeId, setDragNodeId] = useState<string | null>(null);
   const dragStart = useRef({ x: 0, y: 0, nodeX: 0, nodeY: 0 });
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
 
   // Refs to avoid callback recreation during drag/pan
   const panRef = useRef(pan);
@@ -58,17 +59,21 @@ export function AutomationCanvas({
     if (dragNodeId) {
       const dx = (e.clientX - dragStart.current.x) / zoomRef.current;
       const dy = (e.clientY - dragStart.current.y) / zoomRef.current;
-      onUpdateNode(dragNodeId, {
-        position_x: dragStart.current.nodeX + dx,
-        position_y: dragStart.current.nodeY + dy,
-      });
+      setDragOffset({ x: dx, y: dy });
     }
   }, [isPanning, dragNodeId, onUpdateNode]);
 
   const handleMouseUp = useCallback(() => {
+    if (dragNodeId && dragOffset) {
+      onUpdateNode(dragNodeId, {
+        position_x: dragStart.current.nodeX + dragOffset.x,
+        position_y: dragStart.current.nodeY + dragOffset.y,
+      });
+    }
     setIsPanning(false);
     setDragNodeId(null);
-  }, []);
+    setDragOffset(null);
+  }, [dragNodeId, dragOffset, onUpdateNode]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -132,24 +137,35 @@ export function AutomationCanvas({
         >
           {/* SVG connections */}
           <svg data-canvas="true" className="absolute inset-0 w-full h-full" style={{ overflow: "visible" }}>
-            {connections.map(conn => (
-              <AutomationConnectionLine key={conn.id} connection={conn} nodes={nodes} />
-            ))}
+            {connections.map(conn => {
+              const displayNodes = (dragNodeId && dragOffset)
+                ? nodes.map(n => n.id === dragNodeId
+                    ? { ...n, position_x: dragStart.current.nodeX + dragOffset.x, position_y: dragStart.current.nodeY + dragOffset.y }
+                    : n)
+                : nodes;
+              return <AutomationConnectionLine key={conn.id} connection={conn} nodes={displayNodes} />;
+            })}
           </svg>
 
           {/* Nodes */}
-          {nodes.map(node => (
-            <AutomationNodeComponent
-              key={node.id}
-              node={node}
-              isSelected={selectedNodeId === node.id}
-              onSelect={onSelectNode}
-              onDelete={onDeleteNode}
-              onDuplicate={onDuplicateNode}
-              onAddAfter={onAddAfterNode}
-              onDragStart={handleNodeDragStart}
-            />
-          ))}
+          {nodes.map(node => {
+            const isDragging = dragNodeId === node.id && dragOffset;
+            const displayNode = isDragging
+              ? { ...node, position_x: dragStart.current.nodeX + dragOffset.x, position_y: dragStart.current.nodeY + dragOffset.y }
+              : node;
+            return (
+              <AutomationNodeComponent
+                key={node.id}
+                node={displayNode}
+                isSelected={selectedNodeId === node.id}
+                onSelect={onSelectNode}
+                onDelete={onDeleteNode}
+                onDuplicate={onDuplicateNode}
+                onAddAfter={onAddAfterNode}
+                onDragStart={handleNodeDragStart}
+              />
+            );
+          })}
 
           {/* Empty state - centered */}
           {!hasTrigger && (

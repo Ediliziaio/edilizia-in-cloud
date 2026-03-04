@@ -52,6 +52,7 @@ export function AutomationEnrollmentsTab({ flowId }: Props) {
       if (statusFilter !== "all") query = query.eq("status", statusFilter);
       if (startDate) query = query.gte("created_at", startDate.toISOString());
       if (endDate) query = query.lte("created_at", endDate.toISOString());
+      if (search.trim()) query = query.ilike("entity_id", `%${search.trim()}%`);
 
       const { data: enrollments, error, count } = await query;
       if (error) throw error;
