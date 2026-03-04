@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Building2, Clock, Loader2, Check, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
 
@@ -37,7 +37,7 @@ const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => MARKETING_SECTION
 
 export default function Employees() {
   const { effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const effectiveCompanyId = effectiveCompany?.id;
 
@@ -104,11 +104,11 @@ export default function Employees() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      toast({ title: editingEmployee ? "Dipendente aggiornato" : "Dipendente creato", description: "I dati sono stati salvati con successo." });
+      toast.success(editingEmployee ? "Dipendente aggiornato" : "Dipendente creato", { description: "I dati sono stati salvati con successo." });
       setEmployeeDialogOpen(false); setEditingEmployee(null);
     },
     onError: () => {
-      toast({ title: "Errore", description: "Si è verificato un errore durante il salvataggio.", variant: "destructive" });
+      toast.error("Errore", { description: "Si è verificato un errore durante il salvataggio." });
     },
   });
 
@@ -119,10 +119,10 @@ export default function Employees() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      toast({ title: "Dipendente eliminato", description: "Il dipendente è stato rimosso." });
+      toast.success("Dipendente eliminato", { description: "Il dipendente è stato rimosso." });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile eliminare il dipendente. Potrebbe essere assegnato a degli ordini.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile eliminare il dipendente. Potrebbe essere assegnato a degli ordini." });
     },
   });
 
@@ -147,11 +147,11 @@ export default function Employees() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["external-teams"] });
-      toast({ title: editingTeam ? "Squadra aggiornata" : "Squadra creata", description: "I dati sono stati salvati con successo." });
+      toast.success(editingTeam ? "Squadra aggiornata" : "Squadra creata", { description: "I dati sono stati salvati con successo." });
       setTeamDialogOpen(false); setEditingTeam(null);
     },
     onError: () => {
-      toast({ title: "Errore", description: "Si è verificato un errore durante il salvataggio.", variant: "destructive" });
+      toast.error("Errore", { description: "Si è verificato un errore durante il salvataggio." });
     },
   });
 
@@ -162,10 +162,10 @@ export default function Employees() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["external-teams"] });
-      toast({ title: "Squadra eliminata", description: "La squadra esterna è stata rimossa." });
+      toast.success("Squadra eliminata", { description: "La squadra esterna è stata rimossa." });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile eliminare la squadra. Potrebbe essere assegnata a degli ordini.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile eliminare la squadra. Potrebbe essere assegnata a degli ordini." });
     },
   });
 
@@ -188,11 +188,11 @@ export default function Employees() {
       } else {
         setCreateUserDialogOpen(false);
         resetCreateUserForm();
-        toast({ title: "Account creato", description: data.message });
+        toast.success("Account creato", { description: data.message });
       }
     },
     onError: (error: any) => {
-      toast({ title: "Errore", description: error.message || "Impossibile creare l'account.", variant: "destructive" });
+      toast.error("Errore", { description: error.message || "Impossibile creare l'account." });
     },
   });
 
@@ -340,7 +340,7 @@ export default function Employees() {
                   Password temporanea: <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded font-mono">{createdPassword}</code>
                   <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={() => {
                     navigator.clipboard.writeText(createdPassword);
-                    toast({ title: "Copiato", description: "Password copiata" });
+                    toast.success("Copiato", { description: "Password copiata" });
                   }}><Copy className="h-3 w-3" /></Button>
                 </p>
                 <p className="text-xs text-green-600 dark:text-green-400 mt-2">

@@ -2,7 +2,8 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+
+import { toast } from "sonner";
 import { format, differenceInDays, startOfWeek, endOfWeek, addWeeks } from "date-fns";
 import { STATUS_CONFIG, isItemUrgent } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
@@ -13,7 +14,7 @@ export type QuickFilter = "all" | "urgent" | "thisWeek" | "nextWeek";
 
 export function useWarehouseData() {
   const { effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
@@ -220,10 +221,10 @@ export function useWarehouseData() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
-      toast({ title: "Stato aggiornato", description: "Lo stato dell'articolo è stato aggiornato." });
+      toast.success("Stato aggiornato", { description: "Lo stato dell'articolo è stato aggiornato." });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile aggiornare lo stato dell'articolo.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile aggiornare lo stato dell'articolo." });
     },
   });
 
@@ -238,10 +239,10 @@ export function useWarehouseData() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
-      toast({ title: "Articoli aggiornati", description: `${variables.itemIds.length} articoli sono stati aggiornati.` });
+      toast.success("Articoli aggiornati", { description: `${variables.itemIds.length} articoli sono stati aggiornati.` });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile aggiornare gli articoli.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile aggiornare gli articoli." });
     },
   });
 
@@ -302,7 +303,7 @@ export function useWarehouseData() {
     link.download = `magazzino_${format(new Date(), "yyyy-MM-dd")}.csv`;
     link.click();
 
-    toast({ title: "Esportazione completata", description: `${filteredItems.length} articoli esportati.` });
+    toast.success("Esportazione completata", { description: `${filteredItems.length} articoli esportati.` });
   };
 
   const isUpdating = updateItemStatusMutation.isPending || batchUpdateMutation.isPending;

@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ import type { StockItem } from "@/types/warehouse";
 
 export default function WarehouseStockTab() {
   const { effectiveCompany, user } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
@@ -151,10 +151,10 @@ export default function WarehouseStockTab() {
       queryClient.invalidateQueries({ queryKey: ["company-costs"] });
       setDialogOpen(false);
       setEditingItem(null);
-      toast({ title: "Salvato", description: "Articolo di magazzino salvato." });
+      toast.success("Salvato", { description: "Articolo di magazzino salvato." });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile salvare l'articolo.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile salvare l'articolo." });
     },
   });
 
@@ -207,10 +207,10 @@ export default function WarehouseStockTab() {
       queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
       queryClient.invalidateQueries({ queryKey: ["company-costs"] });
       setMovementDialog({ open: false, type: "carico", item: null });
-      toast({ title: "Movimento registrato" });
+      toast.success("Movimento registrato");
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile registrare il movimento.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile registrare il movimento." });
     },
   });
 

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, AlertTriangle, Package, Wrench, Truck, Ruler, Hash, MessageSquare, HelpCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +52,7 @@ const ERROR_CATEGORIES = [
 
 export function OrderErrors({ orderId }: OrderErrorsProps) {
   const { user, effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -92,11 +92,11 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-errors", orderId] });
-      toast({ title: "Errore registrato", description: "L'errore è stato aggiunto all'ordine." });
+      toast.success("Errore registrato", { description: "L'errore è stato aggiunto all'ordine." });
       resetForm();
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile salvare l'errore.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile salvare l'errore." });
     },
   });
 
@@ -107,10 +107,10 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-errors", orderId] });
-      toast({ title: "Errore rimosso", description: "L'errore è stato eliminato." });
+      toast.success("Errore rimosso", { description: "L'errore è stato eliminato." });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile eliminare.", variant: "destructive" });
+      toast.error("Errore", { description: "Impossibile eliminare." });
     },
   });
 
@@ -125,11 +125,11 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
 
   const handleSave = () => {
     if (!description.trim()) {
-      toast({ title: "Errore", description: "Inserisci il motivo dell'errore.", variant: "destructive" });
+      toast.error("Errore", { description: "Inserisci il motivo dell'errore." });
       return;
     }
     if (!amount || parseFloat(amount) <= 0) {
-      toast({ title: "Errore", description: "Inserisci un importo valido.", variant: "destructive" });
+      toast.error("Errore", { description: "Inserisci un importo valido." });
       return;
     }
     addErrorMutation.mutate();
@@ -320,6 +320,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Descrivi cosa è andato storto..."
                 rows={3}
+                maxLength={500}
               />
             </div>
             <div className="space-y-2">

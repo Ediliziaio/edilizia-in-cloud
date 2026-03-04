@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 
 import { format } from "date-fns";
@@ -70,7 +70,7 @@ export function OrderCommissions({
   vatRate,
   readOnly = false,
 }: OrderCommissionsProps) {
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   // Dialog state for paid date selection
@@ -128,17 +128,10 @@ export function OrderCommissions({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-salespeople", orderId] });
-      toast({
-        title: "Provvigione aggiornata",
-        description: "Le modifiche sono state salvate.",
-      });
+      toast.success("Provvigione aggiornata", { description: "Le modifiche sono state salvate." });
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Impossibile aggiornare la provvigione.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Impossibile aggiornare la provvigione." });
     },
   });
 

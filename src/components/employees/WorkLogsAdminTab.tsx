@@ -14,7 +14,7 @@ import {
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -75,7 +75,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
 
 export function WorkLogsAdminTab() {
   const { user, effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
@@ -174,16 +174,10 @@ export function WorkLogsAdminTab() {
     },
     onSuccess: (_, { approve }) => {
       queryClient.invalidateQueries({ queryKey: ["admin-work-logs"] });
-      toast({
-        title: approve ? "Rapportino approvato" : "Approvazione rimossa",
-      });
+      toast.success(approve ? "Rapportino approvato" : "Approvazione rimossa");
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Impossibile aggiornare lo stato.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Impossibile aggiornare lo stato." });
     },
   });
 
@@ -203,17 +197,10 @@ export function WorkLogsAdminTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-work-logs"] });
-      toast({
-        title: "Rapportini approvati",
-        description: "Tutti i rapportini selezionati sono stati approvati.",
-      });
+      toast.success("Rapportini approvati", { description: "Tutti i rapportini selezionati sono stati approvati." });
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Impossibile approvare i rapportini.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Impossibile approvare i rapportini." });
     },
   });
 

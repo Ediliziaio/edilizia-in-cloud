@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { HardHat, Users, Building2, Plus, Trash2, Check, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,7 @@ interface OrderLaborCostsProps {
 
 export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsProps) {
   const { effectiveCompany } = useAuth();
-  const { toast } = useToast();
+  
   const effectiveCompanyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
@@ -111,14 +111,10 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-employees", orderId] });
-      toast({ title: "Assegnazione rimossa" });
+      toast.success("Assegnazione rimossa");
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Impossibile rimuovere l'assegnazione.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Impossibile rimuovere l'assegnazione." });
     },
   });
 
@@ -130,14 +126,10 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-external-teams", orderId] });
-      toast({ title: "Squadra rimossa" });
+      toast.success("Squadra rimossa");
     },
     onError: () => {
-      toast({
-        title: "Errore",
-        description: "Impossibile rimuovere la squadra.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Impossibile rimuovere la squadra." });
     },
   });
 
@@ -155,7 +147,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-external-teams", orderId] });
-      toast({ title: "Stato pagamento aggiornato" });
+      toast.success("Stato pagamento aggiornato");
     },
   });
 
