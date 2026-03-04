@@ -1,78 +1,75 @@
 
 
-# Audit Sezioni Rimanenti: Automazioni, Calendari Marketing, Utenti, Catalogo, Profilo Azienda
+# Audit Batch: Ordini, Attività, Dipendenti, Magazzino
 
-## Componenti analizzati
-- `AutomationsConfig.tsx` + `AutomationDialog.tsx`
-- `MarketingCalendarsConfig.tsx` + `CalendarDialog.tsx`
-- `UsersConfig.tsx`
-- `ArticleCatalog.tsx`
-- `CompanyProfileForm.tsx`
-- `PersonalProfileForm.tsx`, `ChangePasswordForm.tsx`
+Rimangono circa 50 file con `useToast` da migrare a `sonner`. Propongo di procedere per batch funzionali. Questo batch copre le aree con logica di business critica.
 
 ---
 
-## Bug e Problemi
+## File da modificare (16 file)
 
-### 1. AutomationsConfig: toggle/delete senza `company_id` (P1 - Sicurezza)
-**File**: `src/components/settings/AutomationsConfig.tsx`
-- Toggle (riga 53): `.eq("id", id)` senza `company_id`
-- Delete (riga 66): `.eq("id", id)` senza `company_id`
-
-**Fix**: Aggiungere `.eq("company_id", effectiveCompany!.id)` a entrambe le mutazioni.
-
-### 2. AutomationDialog: update senza `company_id` (P1 - Sicurezza)
-**File**: `src/components/settings/AutomationDialog.tsx` (riga 171)
-L'update filtra solo per `.eq("id", form.id)`.
-
-**Fix**: Aggiungere `.eq("company_id", effectiveCompany!.id)`.
-
-### 3. AutomationDialog: manca `maxLength` sugli input (P1)
-**File**: `src/components/settings/AutomationDialog.tsx`
-- Nome automazione (riga 200): nessun limite
-- Descrizione (riga 204): nessun limite
-- Valore condizione (riga 299): nessun limite
-
-**Fix**: `maxLength={100}` su nome, `maxLength={500}` su descrizione, `maxLength={200}` su valore condizione.
-
-### 4. MarketingCalendarsConfig: update/toggle/delete senza `company_id` (P1 - Sicurezza)
-**File**: `src/components/settings/MarketingCalendarsConfig.tsx`
-- Update (riga 193): `.eq("id", id)` senza `company_id`
-- Toggle (riga 206): `.eq("id", id)` senza `company_id`
-- Delete (riga 216): `.eq("id", id)` senza `company_id`
-
-**Fix**: Aggiungere `.eq("company_id", effectiveCompanyId!)` a tutte e tre.
-
-### 5. UsersConfig: `useToast` invece di `sonner` (P1)
-**File**: `src/components/settings/UsersConfig.tsx` (righe 6, 174, 295-298, 302-306, 323, 326)
-
-**Fix**: Migrare a `import { toast } from "sonner"`.
-
-### 6. CompanyProfileForm: `useToast` invece di `sonner` (P1)
-**File**: `src/components/settings/CompanyProfileForm.tsx` (riga 5, 27)
-
-**Fix**: Migrare a `import { toast } from "sonner"`. Serve leggere il file completo per trovare tutte le chiamate toast.
-
----
-
-## Componenti OK (nessun intervento necessario)
-
-- `ArticleCatalog.tsx`: usa `sonner`, ha `company_id` su update/delete, ha `maxLength` su input principali
-- `PersonalProfileForm.tsx`: usa `sonner`
-- `ChangePasswordForm.tsx`: usa `sonner`
-- `AutomationsConfig.tsx`: usa `sonner`, query filtrate per `company_id`
-- `AutomationDialog.tsx`: usa `sonner`
-- `MarketingCalendarsConfig.tsx`: usa `sonner`, query filtrate per `company_id`
-
----
-
-## File da modificare
-
+### Ordini (6 file)
 | File | Intervento |
 |------|-----------|
-| `AutomationsConfig.tsx` | company_id su toggle/delete |
-| `AutomationDialog.tsx` | company_id su update + maxLength |
-| `MarketingCalendarsConfig.tsx` | company_id su update/toggle/delete |
-| `UsersConfig.tsx` | sonner |
-| `CompanyProfileForm.tsx` | sonner |
+| `OrderErrors.tsx` | sonner + maxLength su description/amount |
+| `OrderCommissions.tsx` | sonner |
+| `OrderLaborCosts.tsx` | sonner |
+| `OrderDetail.tsx` | sonner |
+| `CreateOrder.tsx` | sonner |
+| `EditOrder.tsx` | sonner |
+
+### Attività (2 file)
+| File | Intervento |
+|------|-----------|
+| `TaskDialog.tsx` | sonner (`toast` da `@/hooks/use-toast`) + company_id su update/delete + maxLength su title/notes |
+| `Tasks.tsx` (page) | sonner (se usa useToast) |
+
+### Dipendenti (5 file)
+| File | Intervento |
+|------|-----------|
+| `AssignEmployeeDialog.tsx` | sonner |
+| `EmployeeAttachments.tsx` | sonner |
+| `ExternalTeamAttachments.tsx` | sonner |
+| `WorkLogsAdminTab.tsx` | sonner |
+| `Employees.tsx` (page) | sonner |
+
+### Magazzino (2 file)
+| File | Intervento |
+|------|-----------|
+| `WarehouseStockTab.tsx` | sonner |
+| `useWarehouseData.ts` | sonner |
+
+---
+
+## Dettagli sicurezza
+
+### TaskDialog: update/delete senza `company_id`
+- Riga 248: `.eq("id", task.id)` senza company_id
+- Riga 271: `.eq("id", task.id)` senza company_id
+- **Fix**: Aggiungere `.eq("company_id", companyId!)` a entrambe
+
+### TaskDialog: manca `maxLength`
+- Title input (riga 296): nessun limite → `maxLength={200}`
+- Notes textarea (riga 301): nessun limite → `maxLength={1000}`
+
+### OrderErrors: manca `maxLength`
+- Description textarea (riga 318-323): nessun limite → `maxLength={500}`
+
+---
+
+## Pattern migrazione sonner
+
+Ogni file segue lo stesso pattern:
+```
+// PRIMA
+import { useToast } from "@/hooks/use-toast";
+const { toast } = useToast();
+toast({ title: "Successo", description: "..." });
+toast({ title: "Errore", description: "...", variant: "destructive" });
+
+// DOPO
+import { toast } from "sonner";
+toast.success("Successo", { description: "..." });
+toast.error("Errore", { description: "..." });
+```
 
