@@ -61,7 +61,7 @@ export function AutomationCanvas({
       const dy = (e.clientY - dragStart.current.y) / zoomRef.current;
       setDragOffset({ x: dx, y: dy });
     }
-  }, [isPanning, dragNodeId, onUpdateNode]);
+  }, [isPanning, dragNodeId]);
 
   const handleMouseUp = useCallback(() => {
     if (dragNodeId && dragOffset) {
