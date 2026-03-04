@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, forwardRef } from "react";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -314,7 +314,7 @@ function OpportunitiesPanel({ contactId, companyId }: { contactId: string; compa
   );
 }
 
-export default function MarketingContactDetail() {
+const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
@@ -1117,4 +1117,6 @@ export default function MarketingContactDetail() {
       </AlertDialog>
     </div>
   );
-}
+});
+MarketingContactDetail.displayName = "MarketingContactDetail";
+export default MarketingContactDetail;
