@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Loader2, Save, KeyRound } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2, Save, KeyRound, Copy, Check, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,13 +26,17 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
   const [lastName, setLastName] = useState(user.last_name);
   const [email, setEmail] = useState(user.email);
   const [phone, setPhone] = useState(user.phone || "");
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState("");
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
   const initials = `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase();
 
-  // Dirty state tracking
   const isDirty = useMemo(() => {
     return (
       firstName.trim() !== user.first_name ||
@@ -68,16 +73,20 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
   const handleResetPassword = async () => {
     setResettingPassword(true);
     try {
-      const { data, error } = await supabase.functions.invoke("reset-customer-password", {
-        body: { userId: user.id },
-      });
+      const body: Record<string, string> = { userId: user.id };
+      if (newPassword.trim()) {
+        body.new_password = newPassword.trim();
+      }
+      const { data, error } = await supabase.functions.invoke("reset-customer-password", { body });
       if (error) throw error;
-      toast({
-        title: "Password resettata",
-        description: data?.temporaryPassword
-          ? `Password temporanea: ${data.temporaryPassword}`
-          : "Un'email di reset è stata inviata all'utente.",
-      });
+      const pwd = newPassword.trim() || data?.temporaryPassword;
+      if (pwd) {
+        setGeneratedPassword(pwd);
+        setPasswordDialogOpen(true);
+        setNewPassword("");
+      } else {
+        toast({ title: "Password resettata", description: "Un'email di reset è stata inviata all'utente." });
+      }
     } catch (err: any) {
       toast({ title: "Errore", description: err.message || "Impossibile resettare la password.", variant: "destructive" });
     } finally {
@@ -85,74 +94,122 @@ export function UserProfileTab({ user, onSave, isLoading }: UserProfileTabProps)
     }
   };
 
+  const handleCopyPassword = async () => {
+    await navigator.clipboard.writeText(generatedPassword);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Informazioni Utente</CardTitle>
-          <CardDescription>Dati personali e di contatto dell'utente</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Avatar */}
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarFallback className="text-lg bg-primary/10 text-primary font-semibold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-medium">{user.first_name} {user.last_name}</p>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
+    <>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Informazioni Utente</CardTitle>
+            <CardDescription>Dati personali e di contatto dell'utente</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Avatar */}
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16">
+                <AvatarFallback className="text-lg bg-primary/10 text-primary font-semibold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <p className="font-medium">{user.first_name} {user.last_name}</p>
+                <p className="text-sm text-muted-foreground">{user.email}</p>
+              </div>
             </div>
-          </div>
 
-          {/* Fields */}
-          <div className="grid grid-cols-2 gap-4">
+            {/* Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">Nome *</Label>
+                <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={isLoading} />
+                {validationErrors.firstName && <p className="text-xs text-destructive">{validationErrors.firstName}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Cognome *</Label>
+                <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={isLoading} />
+                {validationErrors.lastName && <p className="text-xs text-destructive">{validationErrors.lastName}</p>}
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="firstName">Nome *</Label>
-              <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={isLoading} />
-              {validationErrors.firstName && <p className="text-xs text-destructive">{validationErrors.firstName}</p>}
+              <Label htmlFor="email">Email *</Label>
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} />
+              {validationErrors.email && <p className="text-xs text-destructive">{validationErrors.email}</p>}
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="lastName">Cognome *</Label>
-              <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={isLoading} />
-              {validationErrors.lastName && <p className="text-xs text-destructive">{validationErrors.lastName}</p>}
+              <Label htmlFor="phone">Telefono</Label>
+              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" disabled={isLoading} />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isLoading} />
-            {validationErrors.email && <p className="text-xs text-destructive">{validationErrors.email}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="phone">Telefono</Label>
-            <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" disabled={isLoading} />
-          </div>
-
-          {/* Reset Password */}
-          <div className="pt-2 border-t">
-            <div className="flex items-center justify-between">
+            {/* Reset Password */}
+            <div className="pt-2 border-t space-y-3">
               <div>
                 <p className="text-sm font-medium">Password</p>
-                <p className="text-xs text-muted-foreground">Resetta la password dell'utente</p>
+                <p className="text-xs text-muted-foreground">Inserisci una nuova password oppure lascia vuoto per generarne una automatica</p>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={handleResetPassword} disabled={resettingPassword}>
-                {resettingPassword ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <KeyRound className="h-4 w-4 mr-2" />}
-                Reset Password
-              </Button>
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-xs">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Nuova password (opzionale)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    disabled={resettingPassword}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={handleResetPassword} disabled={resettingPassword}>
+                  {resettingPassword ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <KeyRound className="h-4 w-4 mr-2" />}
+                  {newPassword.trim() ? "Imposta Password" : "Genera Password"}
+                </Button>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={isLoading || !isDirty}>
-          {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          Salva Modifiche
-        </Button>
-      </div>
-    </form>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={isLoading || !isDirty}>
+            {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Salva Modifiche
+          </Button>
+        </div>
+      </form>
+
+      {/* Password result dialog */}
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Password Aggiornata</DialogTitle>
+            <DialogDescription>
+              La password è stata impostata con successo. Copiala e comunicala all'utente in modo sicuro.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-muted border font-mono text-sm break-all">
+            <span className="flex-1">{generatedPassword}</span>
+            <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={handleCopyPassword}>
+              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Questa password non sarà più visibile dopo la chiusura di questa finestra.
+          </p>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

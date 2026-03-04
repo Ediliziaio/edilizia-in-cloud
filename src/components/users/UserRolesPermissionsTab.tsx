@@ -93,9 +93,18 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
   const [expandedCategories, setExpandedCategories] = useState<string[]>(["cruscotto", "internal", "marketing"]);
   const [selectedRole, setSelectedRole] = useState<"company_admin" | "company_staff">(user.role || "company_staff");
 
+  // Store original permissions for dirty tracking
+  const originalPermissions = useMemo(() => user.permissions || DEFAULT_PERMISSIONS, [user.permissions]);
+
   useEffect(() => {
     if (user.permissions) setPermissions(user.permissions);
   }, [user.permissions]);
+
+  // Dirty state: compare current permissions with original
+  const isDirty = useMemo(() => {
+    const keys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
+    return keys.some(key => (permissions[key] ?? false) !== (originalPermissions[key] ?? false));
+  }, [permissions, originalPermissions]);
 
   useEffect(() => {
     if (user.role) setSelectedRole(user.role);
@@ -331,7 +340,7 @@ export function UserRolesPermissionsTab({ user, onSave, onChangeRole, isLoading,
           </Card>
 
           <div className="flex justify-end">
-            <Button onClick={() => onSave(permissions)} disabled={isLoading}>
+            <Button onClick={() => onSave(permissions)} disabled={isLoading || !isDirty}>
               {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Salva Permessi
             </Button>

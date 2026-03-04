@@ -12,6 +12,7 @@ import { UserAvailabilityTab } from "@/components/users/UserAvailabilityTab";
 import { UserCalendarTab } from "@/components/users/UserCalendarTab";
 import { UserNotificationsTab } from "@/components/users/UserNotificationsTab";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
+import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
 const SIDEBAR_TABS = [
   { id: "profile", label: "Informazioni Utente", icon: User },
@@ -92,7 +93,13 @@ export default function SettingsUserDetail() {
 
   const savePermissionsMutation = useMutation({
     mutationFn: async (permissions: StaffPermissions) => {
-      const { error } = await supabase.from("staff_permissions").update(permissions).eq("user_id", userId!);
+      // Filter to only known permission keys to avoid sending id, user_id, created_at etc.
+      const allowedKeys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
+      const filtered: Record<string, boolean> = {};
+      for (const key of allowedKeys) {
+        filtered[key] = (permissions[key] as boolean) ?? false;
+      }
+      const { error } = await supabase.from("staff_permissions").update(filtered).eq("user_id", userId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -168,8 +175,32 @@ export default function SettingsUserDetail() {
         </div>
       </div>
 
+      {/* Mobile: horizontal scrollable tabs */}
+      <div className="md:hidden overflow-x-auto -mx-1 px-1">
+        <div className="flex gap-1 min-w-max pb-2">
+          {SIDEBAR_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap",
+                  isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="flex gap-6 min-h-[600px]">
-        <div className="w-64 shrink-0">
+        {/* Desktop: vertical sidebar */}
+        <div className="hidden md:block w-64 shrink-0">
           <nav className="space-y-1 sticky top-4">
             {SIDEBAR_TABS.map((tab) => {
               const Icon = tab.icon;
