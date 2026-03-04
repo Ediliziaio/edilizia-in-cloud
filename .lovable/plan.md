@@ -1,76 +1,88 @@
 
 
-# Audit Sezione Tag
+# Audit Sezioni Rimanenti: Stati Ordine, Campi Personalizzati, Venditori, Pipeline
 
-## Analisi Componenti
+## Componenti analizzati
+- `OrderStatusConfig.tsx` + `StatusItem.tsx`
+- `CustomFieldsConfig.tsx`
+- `SalespeopleConfig.tsx`
+- `PipelinesConfig.tsx`
+- `PipelineStagesConfig.tsx`
 
-### TagsConfig.tsx - Ben implementato
-- Usa `sonner` correttamente
-- Query con filtro `company_id`: OK
-- `.trim().toLowerCase()` nell'insert: OK
-- AlertDialog per conferma eliminazione: OK
-- Gestione duplicati: OK
-
-### TagSelector.tsx - Ben implementato
-- Query con filtro `company_id`: OK
-- Creazione inline con normalizzazione: OK
-- `sonner` per toast: OK
-- `shouldFilter={false}` con filtro manuale: OK
-
-### useTagSync.ts - Problemi trovati
+---
 
 ## Bug e Problemi
 
-### 1. TagsConfig: manca `maxLength` sull'input (P1)
+### 1. OrderStatusConfig: `useToast` invece di `sonner` (P1)
+**File**: `src/components/settings/OrderStatusConfig.tsx` (righe 21, 30, 151-154, 161-165)
+**Fix**: Migrare a `import { toast } from "sonner"`.
 
-**File**: `src/components/settings/TagsConfig.tsx` (riga 96-101)
+### 2. OrderStatusConfig: manca `maxLength` su StatusItem (P1)
+**File**: `src/components/settings/StatusItem.tsx` (riga 64)
+L'input nome stato non ha `maxLength`.
+**Fix**: Aggiungere `maxLength={50}`.
 
-L'input per il nuovo tag non ha `maxLength`, rischiando tag eccessivamente lunghi nel database.
+### 3. SalespeopleConfig: `useToast` invece di `sonner` (P1)
+**File**: `src/components/settings/SalespeopleConfig.tsx` (righe 6, 62, 114, 118, 137, 143, 170, 174, 232)
+**Fix**: Migrare a `import { toast } from "sonner"`.
 
-**Fix**: Aggiungere `maxLength={50}` sull'input.
+### 4. SalespeopleConfig: update/delete senza `company_id` (P1 - Sicurezza)
+**File**: `src/components/settings/SalespeopleConfig.tsx`
+- Update (riga 100): `.eq("id", data.id)` senza `company_id`
+- Toggle active (riga 124): `.eq("id", id)` senza `company_id`
+- Delete (riga 132): `.eq("id", id)` senza `company_id`
+**Fix**: Aggiungere `.eq("company_id", companyId!)` a tutte e tre le mutazioni.
 
-### 2. TagsConfig: delete senza filtro `company_id` (P1 - Sicurezza)
+### 5. CustomFieldsConfig: delete senza `company_id` (P1 - Sicurezza)
+**File**: `src/components/settings/CustomFieldsConfig.tsx` (riga 220)
+Il delete filtra solo per `.eq("id", id)`.
+**Fix**: Aggiungere `.eq("company_id", companyId!)`.
 
-**File**: `src/components/settings/TagsConfig.tsx` (riga 61)
+### 6. CustomFieldsConfig: manca `maxLength` sugli input (P1)
+**File**: `src/components/settings/CustomFieldsConfig.tsx` (righe 406-409, 439-442)
+Nome campo e opzioni senza limiti.
+**Fix**: `maxLength={100}` su nome, `maxLength={200}` su opzioni.
 
-Il delete filtra solo per `.eq("id", id)` senza `.eq("company_id", companyId)`. Defense-in-depth richiede il filtro esplicito.
+### 7. PipelinesConfig: update/delete senza `company_id` (P1 - Sicurezza)
+**File**: `src/components/settings/PipelinesConfig.tsx`
+- Update (riga 123): `.eq("id", id)` senza `company_id`
+- Delete (riga 136): `.eq("id", id)` senza `company_id`
+**Fix**: Aggiungere `.eq("company_id", companyId!)`.
 
-**Fix**: Aggiungere `.eq("company_id", companyId!)` nel deleteMutation.
+### 8. PipelinesConfig: manca `maxLength` sugli input (P1)
+**File**: `src/components/settings/PipelinesConfig.tsx` (righe 229-233, 248-250, 304)
+Nome pipeline e nomi fasi senza limiti.
+**Fix**: `maxLength={100}` su tutti gli input nome.
 
-### 3. useTagSync: N+1 query pattern (P1 - Performance)
+### 9. PipelineStagesConfig: update/delete senza `company_id` (P1 - Sicurezza)
+**File**: `src/components/settings/PipelineStagesConfig.tsx`
+- Delete (riga 179): `.eq("id", stage.id)` senza `company_id`
+- Update (riga 187): `.eq("id", stage.id)` senza `company_id`
+**Fix**: Aggiungere `.eq("company_id", companyId!)`.
 
-**File**: `src/hooks/useTagSync.ts` (righe 43-51, 90-98)
+### 10. PipelineStagesConfig: manca `maxLength` su input fase (P1)
+**File**: `src/components/settings/PipelineStagesConfig.tsx` (riga 50)
+**Fix**: `maxLength={100}`.
 
-`syncTagsToOpportunities` e `removeTagFromOpportunities` eseguono un UPDATE per ogni opportunita in un loop `for`. Con molte opportunita collegate, questo genera N query separate.
-
-**Fix**: Non risolvibile senza una DB function, ma possiamo mitigare usando `Promise.all` per parallelizzare gli update invece di eseguirli sequenzialmente.
-
-### 4. useTagSync: errori silenziosi (P2)
-
-**File**: `src/hooks/useTagSync.ts` (tutte le funzioni)
-
-Nessuna funzione gestisce gli errori Supabase. Se un update fallisce, l'errore viene ignorato silenziosamente. Nessun `{ error }` viene controllato dopo gli update.
-
-**Fix**: Controllare `{ error }` dopo ogni operazione Supabase e lanciare l'errore per permettere al chiamante di gestirlo.
-
-### 5. TagSelector: manca `maxLength` sul CommandInput (P2)
-
-**File**: `src/components/marketing/TagSelector.tsx` (riga 103-107)
-
-Il campo di ricerca/creazione non ha limite di lunghezza. Meno critico perche il valore viene normalizzato, ma comunque buona pratica.
-
-**Fix**: Non direttamente supportato da CommandInput. Si puo limitare nel `onValueChange` con un check sulla lunghezza.
+---
 
 ## Componenti OK (nessun intervento)
 
-- CompanyTagsCell.tsx: sistema separato per super-admin, ben implementato
-- Logica di sincronizzazione bidirezionale: architettura corretta
+- `CustomFieldsConfig.tsx`: usa già `sonner`, query filtrate per `company_id`
+- `PipelinesConfig.tsx`: usa già `sonner`, query filtrate per `company_id`
+- `PipelineStagesConfig.tsx`: usa già `sonner`, check opportunità collegate prima del delete
+- `StatusItem.tsx`: componente UI puro, nessuna logica DB
+
+---
 
 ## File da modificare
 
 | File | Intervento |
 |------|-----------|
-| `src/components/settings/TagsConfig.tsx` | maxLength + company_id su delete |
-| `src/hooks/useTagSync.ts` | Promise.all + error handling |
-| `src/components/marketing/TagSelector.tsx` | maxLength su search input |
+| `OrderStatusConfig.tsx` | sonner |
+| `StatusItem.tsx` | maxLength |
+| `SalespeopleConfig.tsx` | sonner + company_id su update/toggle/delete |
+| `CustomFieldsConfig.tsx` | company_id su delete + maxLength |
+| `PipelinesConfig.tsx` | company_id su update/delete + maxLength |
+| `PipelineStagesConfig.tsx` | company_id su update/delete + maxLength |
 
