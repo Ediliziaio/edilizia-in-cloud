@@ -49,16 +49,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { profile: null, role: null, company: null };
       }
 
-      // Fetch role
-      const { data: roleData, error: roleError } = await supabase
+      // Fetch all roles for priority resolution
+      const { data: rolesData, error: roleError } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", userId)
-        .maybeSingle();
+        .eq("user_id", userId);
 
       if (roleError) {
-        console.error("Error fetching role:", roleError);
+        console.error("Error fetching roles:", roleError);
       }
+
+      // Determine effective role with priority: salesperson > call_center > company_admin > company_staff
+      const rolePriority: AppRole[] = ["salesperson", "call_center", "company_admin", "company_staff"];
+      const userRoles = (rolesData || []).map(r => r.role as AppRole);
+      const effectiveRole = rolePriority.find(r => userRoles.includes(r)) || userRoles[0] || null;
 
       // Fetch company if profile has company_id
       let company: Company | null = null;
@@ -78,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return {
         profile: profileData as Profile | null,
-        role: (roleData?.role as AppRole) || null,
+        role: effectiveRole,
         company,
       };
     } catch (error) {

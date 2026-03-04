@@ -13,7 +13,7 @@ export default function Login() {
   useEffect(() => {
     async function checkPasswordChange() {
       // Only check for company_staff users
-      if (role === "company_staff" && user) {
+      if (["company_staff", "salesperson", "call_center"].includes(role || "") && user) {
         setCheckingPassword(true);
         try {
           const { data, error } = await supabase
@@ -60,7 +60,7 @@ export default function Login() {
   // If user is logged in, wait for password check to complete before redirecting
   if (user && role) {
     // For staff, wait until password check is complete
-    if (role === "company_staff") {
+    if (["company_staff", "salesperson", "call_center"].includes(role || "")) {
       if (checkingPassword || mustChangePassword === null) {
         return (
           <div className="min-h-screen flex items-center justify-center bg-background">
@@ -91,6 +91,8 @@ export default function Login() {
         return <Navigate to="/dipendente" replace />;
       case "salesperson":
         return <Navigate to="/venditore" replace />;
+      case "call_center":
+        return <Navigate to="/azienda" replace />;
       default:
         return <Navigate to="/" replace />;
     }
