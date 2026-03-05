@@ -1,12 +1,19 @@
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Paperclip, Upload, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Paperclip, Upload, X, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { ALLOWED_MIME_TYPES, MAX_FILES_PER_ORDER, isValidMimeType } from "./OrderAttachments";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_FORMATS = ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif";
+
+export interface PendingFile {
+  file: File;
+  visibleToCustomer: boolean;
+}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -23,8 +30,8 @@ function getFileIcon(type: string) {
 }
 
 interface PendingFilesUploadProps {
-  files: File[];
-  onFilesChange: (files: File[]) => void;
+  files: PendingFile[];
+  onFilesChange: (files: PendingFile[]) => void;
 }
 
 export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadProps) {
@@ -32,7 +39,7 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
-    const valid: File[] = [];
+    const valid: PendingFile[] = [];
 
     const remaining = MAX_FILES_PER_ORDER - files.length;
     if (remaining <= 0) {
@@ -62,7 +69,7 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
         });
         continue;
       }
-      valid.push(file);
+      valid.push({ file, visibleToCustomer: false });
     }
 
     if (valid.length > 0) {
@@ -74,6 +81,13 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
 
   const removeFile = (index: number) => {
     onFilesChange(files.filter((_, i) => i !== index));
+  };
+
+  const toggleVisibility = (index: number) => {
+    const updated = files.map((pf, i) =>
+      i === index ? { ...pf, visibleToCustomer: !pf.visibleToCustomer } : pf
+    );
+    onFilesChange(updated);
   };
 
   return (
@@ -111,19 +125,44 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
           </p>
         ) : (
           <div className="space-y-2">
-            {files.map((file, index) => (
+            {files.map((pf, index) => (
               <div
-                key={`${file.name}-${index}`}
+                key={`${pf.file.name}-${index}`}
                 className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30"
               >
-                <span className="text-lg">{getFileIcon(file.type)}</span>
+                <span className="text-lg">{getFileIcon(pf.file.type)}</span>
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium truncate block">
-                    {file.name}
+                    {pf.file.name}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {formatFileSize(file.size)}
+                    {formatFileSize(pf.file.size)}
                   </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={pf.visibleToCustomer}
+                    onCheckedChange={() => toggleVisibility(index)}
+                  />
+                  <Badge
+                    variant={pf.visibleToCustomer ? "default" : "secondary"}
+                    className={pf.visibleToCustomer
+                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                      : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                    }
+                  >
+                    {pf.visibleToCustomer ? (
+                      <>
+                        <Eye className="h-3 w-3 mr-1" />
+                        Visibile
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="h-3 w-3 mr-1" />
+                        Privato
+                      </>
+                    )}
+                  </Badge>
                 </div>
                 <Button
                   type="button"
