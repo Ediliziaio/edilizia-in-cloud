@@ -1,11 +1,15 @@
 import { useMemo, useState } from "react";
-import { format, startOfMonth, endOfMonth, addMonths, isWithinInterval, startOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, startOfDay, isBefore, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
-import { X } from "lucide-react";
+import { X, Search, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DatePickerButton } from "@/components/forecast/DatePickerButton";
 import { formatCurrency } from "@/lib/formatters";
 import type { ExpectedPayment } from "@/lib/forecastTypes";
@@ -29,21 +33,21 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
   const [customMonths, setCustomMonths] = useState(3);
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
 
   const thisMonthStart = startOfMonth(now);
   const thisMonthEnd = endOfMonth(now);
 
-  // All collected payments (not limited to this month)
+  // All collected payments
   const allCollected = useMemo<CollectedPayment[]>(() => {
     const collected: CollectedPayment[] = [];
-
     orders.forEach((inst: any) => {
       if (!inst.is_paid || !inst.paid_date || !inst.amount || Number(inst.amount) <= 0) return;
       const order = inst.order;
       const customerName = order?.customer
         ? `${order.customer.first_name} ${order.customer.last_name}`
         : "Cliente sconosciuto";
-
       collected.push({
         orderId: order?.id || inst.order_id,
         orderCode: order?.order_code || null,
@@ -53,30 +57,75 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
         paidDate: new Date(inst.paid_date),
       });
     });
-
     return collected.sort((a, b) => b.paidDate.getTime() - a.paidDate.getTime());
   }, [orders]);
 
-  // Collected this month (for card)
+  // Collected this month
   const collectedThisMonth = useMemo(() => {
     const interval = { start: thisMonthStart, end: thisMonthEnd };
     return allCollected.filter(p => isWithinInterval(p.paidDate, interval));
   }, [allCollected, thisMonthStart, thisMonthEnd]);
 
-  // Filtered collected for table
-  const filteredCollected = useMemo(() => {
-    if (!dateFrom && !dateTo) return collectedThisMonth;
-    return allCollected.filter(p => {
-      if (dateFrom && p.paidDate < startOfDay(dateFrom)) return false;
-      if (dateTo && p.paidDate > endOfMonth(dateTo)) return false;
-      return true;
-    });
-  }, [allCollected, collectedThisMonth, dateFrom, dateTo]);
-
   const collectedTotal = collectedThisMonth.reduce((s, p) => s + p.amount, 0);
+
+  // Expected this month (for progress)
+  const expectedThisMonth = useMemo(() => {
+    return expectedPayments.filter(p => p.expectedDate && isWithinInterval(p.expectedDate, { start: thisMonthStart, end: thisMonthEnd }));
+  }, [expectedPayments, thisMonthStart, thisMonthEnd]);
+  const expectedThisMonthTotal = expectedThisMonth.reduce((s, p) => s + p.amount, 0);
+
+  // Progress percentage
+  const totalTarget = collectedTotal + expectedThisMonthTotal;
+  const progressPercent = totalTarget > 0 ? Math.round((collectedTotal / totalTarget) * 100) : 0;
+
+  // Quick date presets
+  const applyPreset = (preset: string) => {
+    switch (preset) {
+      case "thisMonth":
+        setDateFrom(thisMonthStart);
+        setDateTo(thisMonthEnd);
+        break;
+      case "lastQuarter": {
+        const qStart = startOfMonth(subMonths(now, 3));
+        const qEnd = endOfMonth(subMonths(now, 1));
+        setDateFrom(qStart);
+        setDateTo(qEnd);
+        break;
+      }
+      case "thisYear":
+        setDateFrom(startOfYear(now));
+        setDateTo(thisMonthEnd);
+        break;
+      case "all":
+        setDateFrom(undefined);
+        setDateTo(undefined);
+        break;
+    }
+  };
+
+  // Filtered collected for table (with search)
+  const filteredCollected = useMemo(() => {
+    let items = dateFrom || dateTo
+      ? allCollected.filter(p => {
+          if (dateFrom && p.paidDate < startOfDay(dateFrom)) return false;
+          if (dateTo && p.paidDate > endOfMonth(dateTo)) return false;
+          return true;
+        })
+      : collectedThisMonth;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      items = items.filter(p =>
+        p.customerName.toLowerCase().includes(q) ||
+        (p.orderCode && p.orderCode.toLowerCase().includes(q))
+      );
+    }
+    return items;
+  }, [allCollected, collectedThisMonth, dateFrom, dateTo, searchQuery]);
+
   const filteredCollectedTotal = filteredCollected.reduce((s, p) => s + p.amount, 0);
 
-  // Custom period stats for expected payments
+  // Custom period stats
   const customPeriodStats = useMemo(() => {
     const start = startOfMonth(addMonths(now, 1));
     const end = endOfMonth(addMonths(now, customMonths));
@@ -88,24 +137,69 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
     };
   }, [customMonths, expectedPayments, now]);
 
-  // Period payments for cards
+  // Period payments
   const periodPayments = useMemo(() => {
     const nextMonthStart = startOfMonth(addMonths(now, 1));
     const nextMonthEnd = endOfMonth(addMonths(now, 1));
-
-    const thisMonth = expectedPayments.filter(p => p.expectedDate && isWithinInterval(p.expectedDate, { start: thisMonthStart, end: thisMonthEnd }));
     const nextMonth = expectedPayments.filter(p => p.expectedDate && isWithinInterval(p.expectedDate, { start: nextMonthStart, end: nextMonthEnd }));
     const noDate = expectedPayments.filter(p => !p.expectedDate);
-
     return {
-      thisMonth,
       nextMonth,
       noDate,
-      thisMonthTotal: thisMonth.reduce((s, p) => s + p.amount, 0),
       nextMonthTotal: nextMonth.reduce((s, p) => s + p.amount, 0),
       noDateTotal: noDate.reduce((s, p) => s + p.amount, 0),
     };
-  }, [expectedPayments, thisMonthStart, thisMonthEnd, now]);
+  }, [expectedPayments, now]);
+
+  // Unified "Da Ricevere" grouped by month + overdue
+  const groupedExpected = useMemo(() => {
+    const today = startOfDay(now);
+    const groups: Record<string, { label: string; payments: ExpectedPayment[]; total: number; isOverdue?: boolean }> = {};
+
+    // Overdue group
+    const overdue = expectedPayments.filter(p => p.expectedDate && isBefore(p.expectedDate, today));
+    if (overdue.length > 0) {
+      groups["__overdue"] = {
+        label: "Scaduti",
+        payments: overdue,
+        total: overdue.reduce((s, p) => s + p.amount, 0),
+        isOverdue: true,
+      };
+    }
+
+    // Current and future months
+    const futurePayments = expectedPayments.filter(p => p.expectedDate && !isBefore(p.expectedDate, today));
+    futurePayments.forEach(p => {
+      const key = format(p.expectedDate!, "yyyy-MM");
+      if (!groups[key]) {
+        groups[key] = {
+          label: format(p.expectedDate!, "MMMM yyyy", { locale: it }),
+          payments: [],
+          total: 0,
+        };
+      }
+      groups[key].payments.push(p);
+      groups[key].total += p.amount;
+    });
+
+    // No date group
+    const noDate = expectedPayments.filter(p => !p.expectedDate);
+    if (noDate.length > 0) {
+      groups["__nodate"] = {
+        label: "Senza data prevista",
+        payments: noDate,
+        total: noDate.reduce((s, p) => s + p.amount, 0),
+      };
+    }
+
+    return groups;
+  }, [expectedPayments, now]);
+
+  const allExpectedTotal = expectedPayments.reduce((s, p) => s + p.amount, 0);
+
+  const toggleMonth = (key: string) => {
+    setExpandedMonths(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const clearDates = () => { setDateFrom(undefined); setDateTo(undefined); };
   const hasDates = dateFrom || dateTo;
@@ -113,22 +207,39 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Incassato questo mese</p>
-            <p className="text-2xl font-bold text-emerald-600">{formatCurrency(collectedTotal)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{collectedThisMonth.length} pagamenti</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Da ricevere questo mese</p>
-            <p className="text-2xl font-bold text-amber-600">{formatCurrency(periodPayments.thisMonthTotal)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{periodPayments.thisMonth.length} pagamenti</p>
-          </CardContent>
-        </Card>
+      {/* Hero Progress Card */}
+      <Card className="border-l-4 border-l-emerald-500">
+        <CardContent className="pt-6">
+          <div className="flex flex-col md:flex-row md:items-center gap-6">
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  Progresso incassi — {format(now, "MMMM yyyy", { locale: it })}
+                </h3>
+                <span className="text-2xl font-bold text-emerald-600">{progressPercent}%</span>
+              </div>
+              <Progress value={progressPercent} className="h-3" />
+              <div className="flex justify-between text-sm">
+                <span className="text-emerald-600 font-medium">
+                  Incassato: {formatCurrency(collectedTotal)}
+                  <span className="text-muted-foreground font-normal ml-1">({collectedThisMonth.length})</span>
+                </span>
+                <span className="text-amber-600 font-medium">
+                  Da ricevere: {formatCurrency(expectedThisMonthTotal)}
+                  <span className="text-muted-foreground font-normal ml-1">({expectedThisMonth.length})</span>
+                </span>
+              </div>
+            </div>
+            <div className="text-right md:border-l md:pl-6 border-border">
+              <p className="text-xs text-muted-foreground">Obiettivo mese</p>
+              <p className="text-xl font-bold">{formatCurrency(totalTarget)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Compact summary cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Prossimo mese</p>
@@ -157,110 +268,197 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
             <p className="text-xs text-muted-foreground mt-1">{customPeriodStats.count} pagamenti</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Senza data prevista</p>
+            <p className="text-2xl font-bold">{formatCurrency(periodPayments.noDateTotal)}</p>
+            <p className="text-xs text-muted-foreground mt-1">{periodPayments.noDate.length} pagamenti</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Già Incassato */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <CardTitle className="text-lg">
-              {showingFiltered ? "Già incassato — Periodo personalizzato" : `Già incassato — ${format(now, "MMMM yyyy", { locale: it })}`}
-            </CardTitle>
-            <div className="flex flex-wrap items-center gap-2">
-              <DatePickerButton label="Da" date={dateFrom} onSelect={setDateFrom} />
-              <DatePickerButton label="A" date={dateTo} onSelect={setDateTo} />
-              {hasDates && (
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={clearDates}>
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <CardTitle className="text-lg">
+                {showingFiltered ? "Già incassato — Periodo personalizzato" : `Già incassato — ${format(now, "MMMM yyyy", { locale: it })}`}
+              </CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <DatePickerButton label="Da" date={dateFrom} onSelect={setDateFrom} />
+                <DatePickerButton label="A" date={dateTo} onSelect={setDateTo} />
+                {hasDates && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={clearDates}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            {/* Quick presets + search */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              <div className="flex flex-wrap gap-1">
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset("thisMonth")}>Questo mese</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset("lastQuarter")}>Ultimo trimestre</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset("thisYear")}>Quest'anno</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset("all")}>Tutto</Button>
+              </div>
+              <div className="relative flex-1 w-full sm:max-w-[250px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca cliente o ordine..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-7 text-xs pl-8"
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {filteredCollected.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Nessun incasso registrato{showingFiltered ? " nel periodo selezionato" : " questo mese"}</p>
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              Nessun incasso registrato{showingFiltered ? " nel periodo selezionato" : " questo mese"}
+              {searchQuery && " per questa ricerca"}
+            </p>
           ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Ordine</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead className="text-right">Importo</TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Ordine</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="text-right">Importo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCollected.map((p, i) => (
+                  <TableRow key={`${p.orderId}-${p.type}-${i}`}>
+                    <TableCell className="text-sm">{format(p.paidDate, "dd/MM/yyyy")}</TableCell>
+                    <TableCell className="text-sm font-medium">{p.orderCode || "—"}</TableCell>
+                    <TableCell className="text-sm">{p.customerName}</TableCell>
+                    <TableCell className="text-sm">{p.type}</TableCell>
+                    <TableCell className="text-right text-sm font-medium text-emerald-600">{formatCurrency(p.amount)}</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCollected.map((p, i) => (
-                    <TableRow key={`${p.orderId}-${p.type}-${i}`}>
-                      <TableCell className="text-sm">{format(p.paidDate, "dd/MM/yyyy")}</TableCell>
-                      <TableCell className="text-sm font-medium">{p.orderCode || "—"}</TableCell>
-                      <TableCell className="text-sm">{p.customerName}</TableCell>
-                      <TableCell className="text-sm">{p.type}</TableCell>
-                      <TableCell className="text-right text-sm font-medium text-emerald-600">{formatCurrency(p.amount)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {showingFiltered && (
-                <div className="flex justify-end mt-3 pt-3 border-t">
-                  <span className="text-sm font-semibold text-emerald-600">Totale: {formatCurrency(filteredCollectedTotal)}</span>
-                </div>
-              )}
-            </>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {/* Sticky total footer - always visible */}
+          {filteredCollected.length > 0 && (
+            <div className="flex justify-end mt-3 pt-3 border-t">
+              <span className="text-sm font-semibold text-emerald-600">
+                Totale: {formatCurrency(filteredCollectedTotal)}
+                <span className="text-muted-foreground font-normal ml-2">({filteredCollected.length} pagamenti)</span>
+              </span>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Da Ricevere */}
-      <PaymentPeriodSection title={`Da ricevere — ${format(now, "MMMM yyyy", { locale: it })}`} payments={periodPayments.thisMonth} />
-      <PaymentPeriodSection title={`Da ricevere — ${format(addMonths(now, 1), "MMMM yyyy", { locale: it })}`} payments={periodPayments.nextMonth} />
-      {periodPayments.noDate.length > 0 && (
-        <PaymentPeriodSection title="Da ricevere — Senza data prevista" payments={periodPayments.noDate} />
-      )}
+      {/* Unified "Da Ricevere" */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Da ricevere</CardTitle>
+            <span className="text-sm font-semibold text-amber-600">{formatCurrency(allExpectedTotal)}</span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {Object.keys(groupedExpected).length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Nessun pagamento atteso</p>
+          ) : (
+            Object.entries(groupedExpected)
+              .sort(([a], [b]) => {
+                if (a === "__overdue") return -1;
+                if (b === "__overdue") return 1;
+                if (a === "__nodate") return 1;
+                if (b === "__nodate") return -1;
+                return a.localeCompare(b);
+              })
+              .map(([key, group]) => (
+                <ExpectedGroupSection
+                  key={key}
+                  groupKey={key}
+                  group={group}
+                  isExpanded={expandedMonths[key] ?? key === "__overdue"}
+                  onToggle={() => toggleMonth(key)}
+                />
+              ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function PaymentPeriodSection({ title, payments }: { title: string; payments: ExpectedPayment[] }) {
-  if (payments.length === 0) return null;
-  const total = payments.reduce((s, p) => s + p.amount, 0);
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">{title}</CardTitle>
-          <span className="text-sm font-semibold text-amber-600">{formatCurrency(total)}</span>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data prevista</TableHead>
-              <TableHead>Ordine</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead className="text-right">Importo</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {payments.map((p, i) => (
-              <TableRow key={`${p.orderId}-${p.type}-${i}`}>
-                <TableCell className="text-sm">{p.expectedDate ? format(p.expectedDate, "dd/MM/yyyy") : "—"}</TableCell>
-                <TableCell className="text-sm font-medium">{p.orderCode || "—"}</TableCell>
-                <TableCell className="text-sm">{p.customerName}</TableCell>
-                <TableCell className="text-sm">{p.type}</TableCell>
-                <TableCell className="text-right text-sm font-medium">{formatCurrency(p.amount)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  );
+/* ── Collapsible month group ── */
+interface GroupData {
+  label: string;
+  payments: ExpectedPayment[];
+  total: number;
+  isOverdue?: boolean;
 }
 
+function ExpectedGroupSection({ groupKey, group, isExpanded, onToggle }: {
+  groupKey: string;
+  group: GroupData;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Collapsible open={isExpanded} onOpenChange={onToggle}>
+      <CollapsibleTrigger asChild>
+        <button className="flex items-center justify-between w-full px-3 py-2.5 rounded-md hover:bg-muted/50 transition-colors text-left">
+          <div className="flex items-center gap-2">
+            {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            <span className="text-sm font-medium capitalize">{group.label}</span>
+            {group.isOverdue && (
+              <Badge variant="destructive" className="text-[10px] h-5 gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                {group.payments.length}
+              </Badge>
+            )}
+            {!group.isOverdue && (
+              <span className="text-xs text-muted-foreground">({group.payments.length})</span>
+            )}
+          </div>
+          <span className={`text-sm font-semibold ${group.isOverdue ? "text-destructive" : "text-amber-600"}`}>
+            {formatCurrency(group.total)}
+          </span>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pl-2 pr-1 pb-2">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data prevista</TableHead>
+                <TableHead>Ordine</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="text-right">Importo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {group.payments.map((p, i) => (
+                <TableRow key={`${p.orderId}-${p.type}-${i}`}>
+                  <TableCell className="text-sm">
+                    <span className={group.isOverdue ? "text-destructive font-medium" : ""}>
+                      {p.expectedDate ? format(p.expectedDate, "dd/MM/yyyy") : "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-sm font-medium">{p.orderCode || "—"}</TableCell>
+                  <TableCell className="text-sm">{p.customerName}</TableCell>
+                  <TableCell className="text-sm">{p.type}</TableCell>
+                  <TableCell className="text-right text-sm font-medium">{formatCurrency(p.amount)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
