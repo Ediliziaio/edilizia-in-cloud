@@ -1,84 +1,49 @@
 
 
-# Audit Tecnico — Report AS-IS e Piano Interventi
+# Indice DB + Paginazione Server-Side Clienti
 
-## A) Stato Attuale delle Modifiche Recenti
+## 1. Migrazione DB: indice su `profiles.salesperson_id`
 
-Le ultime modifiche hanno introdotto: drag-and-drop documenti, filtri clienti, colonna data inserimento, assegnazione venditore inline, e fix P0/P1. L'audit si concentra sulle aree critiche residue.
+```sql
+CREATE INDEX idx_profiles_salesperson_id ON public.profiles (salesperson_id);
+```
 
----
+## 2. RPC function per paginazione server-side
 
-## Bug e Problemi Identificati
+La query attuale fa 3 chiamate separate (user_roles, orders, profiles) e le unisce client-side. Per la paginazione server-side serve una funzione RPC che:
+- Filtra per `company_id`, `search`, `salesperson_id`, ordini si/no
+- Ordina per nome o `created_at`
+- Restituisce una pagina (offset/limit) + conteggio totale
 
-### P0 — Nessuno (risolti nell'iterazione precedente)
+```sql
+CREATE FUNCTION get_customers_paginated(
+  p_company_id UUID,
+  p_search TEXT DEFAULT NULL,
+  p_salesperson_id UUID DEFAULT NULL,  -- null = tutti, 'none' gestito con boolean
+  p_salesperson_none BOOLEAN DEFAULT FALSE,
+  p_has_orders TEXT DEFAULT 'all',     -- 'all','with','without'
+  p_sort_field TEXT DEFAULT 'name',
+  p_sort_dir TEXT DEFAULT 'asc',
+  p_offset INT DEFAULT 0,
+  p_limit INT DEFAULT 25
+) RETURNS JSON  -- { rows: [...], total_count: N }
+```
 
-### P1 — Console Warning: SalespersonSelect forwardRef
+Logica interna: JOIN `profiles` + `user_roles` (role='customer'), LEFT JOIN aggregato su `orders` per conteggio, filtri applicati, COUNT(*) OVER() per totale.
 
-Il componente `SalespersonSelect` usato in `CompanyCustomerDetail.tsx` (riga 301) genera un warning React:
-> "Function components cannot be given refs"
+## 3. Modifiche a `CustomersList.tsx`
 
-**Causa**: `SalespersonSelect` non usa `React.forwardRef`, ma viene passato come child in contesti che tentano di assegnare un ref.
-**Fix**: wrappare `SalespersonSelect` con `React.forwardRef`.
+- Stato paginazione: `page` (default 0), `pageSize` (default 25)
+- Query key include tutti i filtri + page/pageSize (la query chiama la RPC)
+- Rimuovere filter/sort client-side (tutto server-side)
+- Aggiungere UI paginazione in fondo alla tabella: "Pagina X di Y", bottoni Prev/Next, select pageSize (25/50/100)
+- Contatore: "Mostrando X-Y di Z clienti"
+- CSV export: continua a esportare solo i filtrati visibili (o opzione "esporta tutti" con chiamata separata senza limit)
 
-### P1 — Sicurezza: update/delete profilo senza filtro company_id
-
-In `CompanyCustomerDetail.tsx`:
-- **Riga 116**: `update().eq("id", id!)` — manca `.eq("company_id", effectiveCompany.id)` come defense-in-depth
-- **Riga 147**: `delete().eq("id", id!)` — stesso problema
-
-In `CustomersList.tsx`:
-- **Riga 153**: `assignSalespersonMutation` update senza filtro `company_id`
-
-RLS copre questo lato server, ma il principio defense-in-depth richiede il filtro esplicito (come da memory `data-integrity/input-validation-standard`).
-
-### P1 — Cast `as any` per salesperson_id
-
-`CompanyCustomerDetail.tsx` riga 90: `(customer as any).salesperson_id`. Il campo esiste nel select esplicito (riga 55) ma il tipo auto-generato non lo include ancora. Necessario type assertion locale tipizzata.
-
-### P2 — SalespersonSelect onChange signature mismatch
-
-In `CompanyCustomerDetail.tsx` riga 303: `onChange={(val) => setSalespersonId(val)}` — il componente `SalespersonSelect` si aspetta `(value: string, salesperson: Salesperson | null) => void` ma qui si passa solo il primo argomento. Funziona ma e un tipo incompatibile.
-
----
-
-## Multi-Tenancy Checklist
-
-| Operazione | Tenant-scoped | Note |
-|------------|:---:|------|
-| Fetch clienti (CustomersList) | Si | `.eq("company_id", effectiveCompany.id)` |
-| Fetch dettaglio (CompanyCustomerDetail) | Parziale | fetch OK, update/delete mancano company_id |
-| Assign venditore inline | No | Solo `.eq("id", customerId)` |
-| Fetch ordini cliente | Si | `.eq("company_id", effectiveCompany!.id)` |
-| Fetch salespeople | Si | `.eq("company_id", effectiveCompany!.id)` |
-
----
-
-## Piano Interventi
-
-### 1. Fix P1: forwardRef su SalespersonSelect
-- Wrappare il componente con `React.forwardRef` per eliminare il warning console
-
-### 2. Fix P1: defense-in-depth company_id
-- `CompanyCustomerDetail.tsx`: aggiungere `.eq("company_id", effectiveCompany!.id)` a update (riga 116) e delete (riga 147)
-- `CustomersList.tsx`: aggiungere `.eq("company_id", effectiveCompany!.id)` alla mutation assignSalesperson (riga 153-154)
-
-### 3. Fix P1: type safety salesperson_id
-- Creare un tipo locale esteso in `CompanyCustomerDetail.tsx` per evitare `as any`
-
-### 4. Fix P2: onChange signature
-- Allineare la callback onChange in `CompanyCustomerDetail.tsx` alla firma corretta del componente
-
-### File Modificati
+### File modificati
 
 | File | Modifica |
 |------|----------|
-| `SalespersonSelect.tsx` | `React.forwardRef` |
-| `CompanyCustomerDetail.tsx` | company_id su update/delete, tipo locale, onChange fix |
-| `CustomersList.tsx` | company_id su assign mutation |
-
-### Risultato Atteso
-- Console pulita (zero warning)
-- Defense-in-depth completo su tutte le mutazioni
-- Type safety senza cast `as any`
-- Nessuna regressione funzionale
+| Migrazione SQL | Indice + funzione RPC `get_customers_paginated` |
+| `CustomersList.tsx` | Paginazione server-side, rimozione filter/sort client-side, UI paginator |
 
