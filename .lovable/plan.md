@@ -1,33 +1,27 @@
 
 
-# Fix: Errore caricamento messaggi ticket
+# Miglioramenti UX Ticket
 
-## Problema
-La query su `ticket_messages` usa il hint `profiles!ticket_messages_sender_id_fkey` per fare il join col profilo del mittente. Ma la foreign key `ticket_messages_sender_id_fkey` punta a `auth.users`, non a `public.profiles`. PostgREST non riesce a risolvere la relazione e restituisce errore 400.
+## Stato Attuale
+Il caricamento file e gia implementato in tutti e tre i punti: creazione ticket azienda, creazione ticket cliente, e chat (icona graffetta). Funziona correttamente.
 
-Questo errore si verifica sia nel dettaglio ticket lato azienda che lato cliente.
+## Miglioramenti UX Proposti
 
-## Soluzione
-Rimuovere il hint esplicito della FK e fare il join implicito `sender:profiles(...)` — PostgREST puo risolvere la relazione tramite il campo `sender_id` che corrisponde a `profiles.id` (stesso UUID di `auth.users.id`). In alternativa, se il join implicito non funziona (perche non c'e FK diretta verso profiles), si puo fare una query separata per i nomi dei sender e mapparli client-side.
+### 1. Empty State nella Conversazione
+Quando la conversazione e vuota (come nello screenshot), mostrare un messaggio guida con icona invece di uno spazio bianco vuoto. Es: "Nessun messaggio. Scrivi il primo messaggio per iniziare la conversazione."
 
-L'approccio piu sicuro: **creare una FK** da `ticket_messages.sender_id` verso `profiles.id`, oppure **rimuovere il join** e fare 2 query separate (messaggi + profili dei sender).
+### 2. Consolidare la Sidebar del Ticket Detail
+Attualmente ci sono 5-6 card separate nella sidebar (Stato, Priorita, Assegnato a, Cliente, Ordine, Note). Ridurre a 2-3 card raggruppando:
+- Card 1: Stato + Priorita + Assegnato a (gestione ticket)
+- Card 2: Cliente + Ordine collegato (contesto)
+- Card 3: Note interne (separata perche editabile)
 
-Approccio scelto: **Migrazione SQL** per aggiungere una FK verso `profiles.id` (che ha lo stesso ID di `auth.users.id`), poi il hint funzionera.
+### 3. Feedback Visivo Upload nella Chat
+Aggiungere un tooltip/hint sull'icona graffetta per rendere piu evidente la funzionalita di upload ("Allega file").
 
-Ma c'e un problema: non possiamo avere due FK sullo stesso campo. Quindi dobbiamo:
-1. Droppare la FK esistente verso `auth.users`
-2. Creare una nuova FK verso `public.profiles`
-
-Oppure piu semplice: **rimuovere il hint dalla query** e usare il join senza hint, oppure fare 2 query.
-
-**Approccio finale piu sicuro (zero migrazione):** Rimuovere il hint FK e fare il fetch dei nomi sender separatamente, poi mapparli.
-
-## File da modificare
-
+### File da Modificare
 | File | Modifica |
 |------|----------|
-| `src/pages/azienda/TicketDetail.tsx` | Rimuovere hint FK, fare query messaggi senza join profiles, poi fetch sender names separato |
-| `src/pages/cliente/CustomerTicketDetail.tsx` | Stessa modifica |
-
-In pratica: fetch messaggi senza il join `sender:profiles!...`, poi con i `sender_id` unici fare una query a `profiles` per ottenere i nomi, e mapparli nei messaggi.
+| `src/components/tickets/TicketChat.tsx` | Empty state, tooltip su paperclip |
+| `src/pages/azienda/TicketDetail.tsx` | Consolidare sidebar cards |
 
