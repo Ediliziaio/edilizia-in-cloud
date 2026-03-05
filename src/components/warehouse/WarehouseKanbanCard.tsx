@@ -4,6 +4,7 @@ import { it } from "date-fns/locale";
 import { GripVertical, User, FileText, Building2, Calendar, StickyNote } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { getDaysUntilPosa, isItemUrgent, isItemCritical, isItemOverdue, getUrgencyLabel, STATUS_CONFIG } from "@/types/warehouse";
 import type { WarehouseItem } from "@/types/warehouse";
@@ -12,9 +13,11 @@ interface WarehouseKanbanCardProps {
   item: WarehouseItem;
   supplierName?: string | null;
   onSelect?: (item: WarehouseItem) => void;
+  isSelected?: boolean;
+  onToggleSelection?: (itemId: string) => void;
 }
 
-export default function WarehouseKanbanCard({ item, supplierName, onSelect }: WarehouseKanbanCardProps) {
+export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSelected = false, onToggleSelection }: WarehouseKanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -42,6 +45,7 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect }: Wa
       className={cn(
         "cursor-pointer transition-all hover:shadow-md border-l-4",
         isDragging && "opacity-50 shadow-lg rotate-1",
+        isSelected && "ring-2 ring-primary bg-primary/5",
         isCritical && "border-l-destructive",
         isUrgent && !isCritical && "border-l-amber-500",
         !isUrgent && !isCritical && config.color === "text-amber-600" && "border-l-amber-400",
@@ -51,8 +55,16 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect }: Wa
       )}
     >
       <CardContent className="p-2.5 space-y-1.5">
-        {/* Row 1: Grip + Name + Urgency */}
+        {/* Row 1: Checkbox + Grip + Name + Urgency */}
         <div className="flex items-center gap-1.5">
+          {onToggleSelection && (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelection(item.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="shrink-0"
+            />
+          )}
           <div
             {...attributes}
             {...listeners}
