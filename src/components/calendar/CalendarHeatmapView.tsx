@@ -76,7 +76,7 @@ function getWorkloadForDay(
     return false;
   });
 
-  const filteredAppointments = hiddenEventTypes?.has("appointment")
+  const filteredAppointments = hiddenEventTypes?.has("appuntamento")
     ? []
     : appointments.filter((apt) => isSameDay(parseISO(apt.appointment_date), day));
 
