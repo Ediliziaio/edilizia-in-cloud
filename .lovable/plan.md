@@ -1,47 +1,59 @@
 
 
-# Pulizia, Stabilizzazione e UX — Calendario
+# Verifica e Fix: Filtri Calendario, Appuntamenti e Collegamento Ordini
 
-## Analisi completata
+## Problemi trovati
 
-Ho analizzato i file del calendario e identificato i seguenti interventi necessari:
+### 1. BUG: AppointmentDialog dentro CalendarMonthView non aggiorna la lista
+Quando si modifica un appuntamento cliccandolo nella vista mese, il callback `onSaved` (riga 295) fa solo `setEditingAppointment(null)` ma **non invalida la query** `["appointments"]`. Risultato: dopo la modifica il calendario non si aggiorna finche' non si ricarica la pagina.
 
-## 1. Codice morto da rimuovere
+**Stesso problema** nella `CalendarWeekView` (da verificare).
 
-| File | Problema |
-|------|----------|
-| `Calendar.tsx` riga 44 | `layerPrefsLoaded` / `setLayerPrefsLoaded` dichiarato ma mai usato |
-| `CalendarMonthView.tsx` riga 38-39 | Doppia riga vuota residua |
-| `CalendarWeekView.tsx` riga 44 | Riga vuota extra dopo l'interface `WeekEvent` |
+**Fix**: aggiungere `queryClient.invalidateQueries({ queryKey: ["appointments"] })` nel `onSaved` di entrambe le viste, e anche `hideMarketingFields` prop mancante.
 
-## 2. Ottimizzazione localStorage
+### 2. BUG: "Lavori in corso" non visibili nella vista Mese
+Il pannello Layer ha il toggle "Lavori in corso" che imposta `hiddenEventTypes.has("lavoro")`, ma la `CalendarMonthView.getEventsForDay()` **non genera mai eventi di tipo "lavoro"** (gestisce solo `posa`, `merce`, `appointment`, `google_busy`). La `CalendarWeekView` invece li gestisce correttamente (righe 77-84).
 
-Attualmente ogni `useState` fa un `JSON.parse(localStorage.getItem(...))` separatamente — lo stesso JSON viene parsato 8 volte al mount. Refactoring: parsare una sola volta in una costante fuori dagli state.
+**Fix**: Aggiungere la generazione degli eventi "lavoro" (work_start_date → work_end_date range) anche in `CalendarMonthView.getEventsForDay()`.
 
+### 3. BUG: filtro "Appuntamenti" nel Layer non filtra appuntamenti per risorsa
+Quando si deseleziona un operaio nel Layer, gli ordini vengono filtrati per risorsa, ma gli **appuntamenti** rimangono visibili indipendentemente dall'assegnazione. Questo è coerente col design (gli appuntamenti usano il filtro "Assegnato a" separato), quindi nessun intervento.
+
+### 4. Collegamento ordini-calendario: OK
+- `EditOrderDatesDialog` salva le date e invalida `["calendar-orders"]` → il calendario si aggiorna
+- Gli ordini con `work_start_date`, `expected_date` o `warehouse_arrival_date` appaiono correttamente
+- Le modifiche al magazzino (warehouse_arrival_date) si riflettono sugli eventi "merce"
+
+## File da modificare
+
+### `src/components/calendar/CalendarMonthView.tsx`
+1. Aggiungere eventi "lavoro" in `getEventsForDay()` per work_start_date/work_end_date range
+2. Nel `onSaved` di AppointmentDialog: aggiungere invalidazione query + `hideMarketingFields`
+3. Aggiungere `useQueryClient` import
+
+### `src/components/calendar/CalendarWeekView.tsx`
+1. Nel `onSaved` di AppointmentDialog: aggiungere invalidazione query + verificare `hideMarketingFields`
+
+### Dettaglio tecnico
+
+Per gli eventi "lavoro" in CalendarMonthView, aggiungere nella funzione `getEventsForDay`:
 ```tsx
-const savedPrefs = (() => {
-  try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}"); }
-  catch { return {}; }
-})();
+if (!hiddenEventTypes.has("lavoro") && order.work_start_date) {
+  const workStart = parseISO(order.work_start_date);
+  const workEnd = order.work_end_date ? parseISO(order.work_end_date) : workStart;
+  if (day >= workStart && day <= workEnd) {
+    events.push({ type: "lavoro" as any, order, color: "#22C55E" });
+  }
+}
 ```
 
-Poi ogni useState accede a `savedPrefs.showPosa ?? true` ecc.
+Il tipo `CalendarEvent.type` dovrà essere esteso per includere `"lavoro"` e il rendering dovrà gestire l'icona `Wrench` per quel tipo.
 
-## 3. Fix funzionali
-
-Nessun bug bloccante trovato. Le checkbox toggle/untoggle correttamente (confermato da session replay), la persistenza localStorage funziona, le sezioni collassabili sono già operative.
-
-## 4. Riepilogo modifiche
-
-**File: `src/pages/azienda/Calendar.tsx`**
-- Rimuovere `layerPrefsLoaded` e `setLayerPrefsLoaded` (dead code)
-- Refactoring: parsare localStorage una sola volta e passare i valori agli state initializer
-
-**File: `src/components/calendar/CalendarMonthView.tsx`**
-- Rimuovere riga vuota extra (riga 38)
-
-**File: `src/components/calendar/CalendarWeekView.tsx`**
-- Rimuovere riga vuota extra (riga 44)
-
-Nessun cambio funzionale. Solo pulizia e micro-ottimizzazione.
+Per l'invalidazione query nell'AppointmentDialog interno:
+```tsx
+onSaved={() => {
+  setEditingAppointment(null);
+  queryClient.invalidateQueries({ queryKey: ["appointments"] });
+}}
+```
 
