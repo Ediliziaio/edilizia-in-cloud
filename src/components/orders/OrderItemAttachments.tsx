@@ -34,9 +34,40 @@ const ALLOWED_TYPES = [
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ];
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+/** Helper: get signed URL for a file_url that may be a relative path or full URL */
+async function getSignedDownloadUrl(fileUrl: string): Promise<string> {
+  // If it's a relative path (no http), use it directly
+  let filePath = fileUrl;
+  // If it's a full URL, extract path after bucket name
+  if (fileUrl.startsWith("http")) {
+    const parts = fileUrl.split("/order-attachments/");
+    if (parts.length > 1) {
+      filePath = decodeURIComponent(parts[1]);
+    } else {
+      return fileUrl; // fallback
+    }
+  }
+  const { data, error } = await supabase.storage
+    .from("order-attachments")
+    .createSignedUrl(filePath, 3600);
+  if (error || !data?.signedUrl) return fileUrl;
+  return data.signedUrl;
+}
+
+/** Helper: extract storage path from file_url */
+function extractStoragePath(fileUrl: string): string {
+  if (fileUrl.startsWith("http")) {
+    const parts = fileUrl.split("/order-attachments/");
+    if (parts.length > 1) return decodeURIComponent(parts[1]);
+  }
+  return fileUrl;
+}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -108,18 +139,13 @@ export function OrderItemAttachments({
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("order-attachments")
-        .getPublicUrl(filePath);
-
-      // Save record in database
+      // Save relative path (not public URL) for signed URL access
       const { error: dbError } = await supabase
         .from("order_item_attachments")
         .insert({
           order_item_id: itemId,
           file_name: file.name,
-          file_url: publicUrl,
+          file_url: filePath,
           file_type: file.type,
           file_size: file.size,
           uploaded_by: user.id,
@@ -152,12 +178,9 @@ export function OrderItemAttachments({
     setDeleting(attachment.id);
 
     try {
-      // Extract file path from URL
-      const urlParts = attachment.file_url.split("/order-attachments/");
-      if (urlParts.length > 1) {
-        const filePath = urlParts[1];
-        await supabase.storage.from("order-attachments").remove([filePath]);
-      }
+      // Extract file path (supports both relative paths and legacy full URLs)
+      const filePath = extractStoragePath(attachment.file_url);
+      await supabase.storage.from("order-attachments").remove([filePath]);
 
       // Delete database record
       const { error } = await supabase
@@ -185,8 +208,9 @@ export function OrderItemAttachments({
     }
   };
 
-  const openFile = (url: string) => {
-    window.open(url, "_blank");
+  const openFile = async (fileUrl: string) => {
+    const signedUrl = await getSignedDownloadUrl(fileUrl);
+    window.open(signedUrl, "_blank");
   };
 
   return (

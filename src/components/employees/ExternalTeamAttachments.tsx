@@ -138,18 +138,13 @@ export function ExternalTeamAttachments({
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("personnel-attachments").getPublicUrl(filePath);
-
-      // Save to database
+      // Save relative path for signed URL access
       const { error: dbError } = await supabase
         .from("external_team_attachments")
         .insert({
           external_team_id: team.id,
           file_name: file.name,
-          file_url: publicUrl,
+          file_url: filePath,
           file_type: file.type,
           file_size: file.size,
           document_type: documentType,
@@ -174,14 +169,24 @@ export function ExternalTeamAttachments({
   });
 
   // Delete mutation
+  const getStoragePath = (fileUrl: string) => {
+    if (fileUrl.startsWith("http")) {
+      const parts = fileUrl.split("/personnel-attachments/");
+      if (parts.length > 1) return decodeURIComponent(parts[1]);
+    }
+    return fileUrl;
+  };
+
+  const getSignedUrl = async (fileUrl: string) => {
+    const path = getStoragePath(fileUrl);
+    const { data } = await supabase.storage.from("personnel-attachments").createSignedUrl(path, 3600);
+    return data?.signedUrl || fileUrl;
+  };
+
   const deleteMutation = useMutation({
     mutationFn: async (attachment: ExternalTeamAttachment) => {
-      // Extract file path from URL
-      const urlParts = attachment.file_url.split("/personnel-attachments/");
-      if (urlParts.length > 1) {
-        const filePath = decodeURIComponent(urlParts[1]);
-        await supabase.storage.from("personnel-attachments").remove([filePath]);
-      }
+      const filePath = getStoragePath(attachment.file_url);
+      await supabase.storage.from("personnel-attachments").remove([filePath]);
 
       const { error } = await supabase
         .from("external_team_attachments")
@@ -398,16 +403,12 @@ export function ExternalTeamAttachments({
                         <Button
                           variant="ghost"
                           size="icon"
-                          asChild
+                          onClick={async () => {
+                            const url = await getSignedUrl(attachment.file_url);
+                            window.open(url, "_blank");
+                          }}
                         >
-                          <a
-                            href={attachment.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            download
-                          >
-                            <Download className="h-4 w-4" />
-                          </a>
+                          <Download className="h-4 w-4" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
