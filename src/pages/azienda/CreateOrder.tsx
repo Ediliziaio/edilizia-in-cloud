@@ -32,7 +32,7 @@ import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
-import { PendingFilesUpload } from "@/components/orders/PendingFilesUpload";
+import { PendingFilesUpload, type PendingFile } from "@/components/orders/PendingFilesUpload";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -80,7 +80,7 @@ export default function CreateOrder() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
   // Pending files for upload after order creation
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
 
   // Customer creation dialog
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
@@ -368,34 +368,33 @@ export default function CreateOrder() {
       // Upload pending files
       if (pendingFiles.length > 0) {
         let uploaded = 0;
-        for (const file of pendingFiles) {
+        for (const pf of pendingFiles) {
           try {
             const timestamp = Date.now();
-            const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+            const sanitizedName = pf.file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
             const filePath = `orders/${order.id}/${timestamp}-${sanitizedName}`;
 
             const { error: uploadError } = await supabase.storage
               .from("order-attachments")
-              .upload(filePath, file);
+              .upload(filePath, pf.file);
             if (uploadError) throw uploadError;
 
-            // Save relative path (not public URL) for signed URL generation
             const { error: dbError } = await supabase
               .from("order_attachments")
               .insert({
                 order_id: order.id,
-                file_name: file.name,
-                file_url: filePath, // relative path, not public URL
-                file_type: file.type,
-                file_size: file.size,
+                file_name: pf.file.name,
+                file_url: filePath,
+                file_type: pf.file.type,
+                file_size: pf.file.size,
                 uploaded_by: user!.id,
-                visible_to_customer: false,
+                visible_to_customer: pf.visibleToCustomer,
               });
             if (dbError) throw dbError;
             uploaded++;
           } catch (err) {
             console.error("File upload error:", err);
-            toast.error("Errore caricamento", { description: `Errore nel caricare "${file.name}".` });
+            toast.error("Errore caricamento", { description: `Errore nel caricare "${pf.file.name}".` });
           }
         }
         setPendingFiles([]);
