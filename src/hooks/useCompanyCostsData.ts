@@ -422,10 +422,13 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     return { vatDebit, supplierUnpaid };
   }, [costs]);
 
-  // Computed sorted/filtered lists
-  const fixedCosts = filteredCosts.filter((c: any) => c.cost_type === "fixed");
+  // Computed sorted/filtered lists — split order-derived by cost_type
+  const manualFixedCosts = filteredCosts.filter((c: any) => c.cost_type === "fixed");
   const manualVariableCosts = filteredCosts.filter((c: any) => c.cost_type === "variable");
-  const variableCostsWithOrders = [...manualVariableCosts, ...filteredOrderItemCosts];
+  const orderDerivedFixed = filteredOrderItemCosts.filter((c) => c.cost_type === "fixed");
+  const orderDerivedVariable = filteredOrderItemCosts.filter((c) => c.cost_type === "variable");
+  const fixedCosts = [...manualFixedCosts, ...orderDerivedFixed];
+  const variableCostsWithOrders = [...manualVariableCosts, ...orderDerivedVariable];
   const allCostsSorted = [...filteredCosts, ...filteredOrderItemCosts].sort((a: any, b: any) => {
     const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
     const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
