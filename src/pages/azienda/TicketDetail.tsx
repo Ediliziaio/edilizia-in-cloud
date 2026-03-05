@@ -68,7 +68,7 @@ export default function TicketDetail() {
       const { data, error } = await supabase
         .from("ticket_messages")
         .select(`
-          id, message, sender_id, created_at,
+          id, message, sender_id, created_at, attachment_url,
           sender:profiles!ticket_messages_sender_id_fkey(first_name, last_name)
         `)
         .eq("ticket_id", id!)

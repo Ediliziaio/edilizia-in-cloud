@@ -6,6 +6,7 @@ export interface TicketMessage {
   message: string;
   sender_id: string;
   created_at: string;
+  attachment_url?: string | null;
   sender?: {
     first_name: string;
     last_name: string;
