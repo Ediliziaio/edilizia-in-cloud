@@ -86,3 +86,6 @@ verify_jwt = false
 
 [functions.process-automation]
 verify_jwt = false
+
+[functions.ticket-notify]
+verify_jwt = false
