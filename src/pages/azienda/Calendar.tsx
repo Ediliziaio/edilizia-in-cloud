@@ -496,6 +496,7 @@ export default function Calendar() {
       <AppointmentDialog
         open={appointmentDialogOpen}
         onOpenChange={setAppointmentDialogOpen}
+        hideMarketingFields
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: ["appointments"] });
         }}

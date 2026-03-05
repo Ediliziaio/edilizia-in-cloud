@@ -43,6 +43,7 @@ interface AppointmentDialogProps {
   defaultDate?: string;
   defaultTime?: string;
   requireTime?: boolean;
+  hideMarketingFields?: boolean;
 }
 
 const APPOINTMENT_TYPES = [
@@ -63,6 +64,7 @@ export function AppointmentDialog({
   defaultDate,
   defaultTime,
   requireTime = false,
+  hideMarketingFields = false,
 }: AppointmentDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -202,8 +204,8 @@ export function AppointmentDialog({
         appointment_type: appointmentType,
         assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
         order_id: orderId && orderId !== "none" ? orderId : null,
-        calendar_id: calendarId && calendarId !== "none" ? calendarId : null,
-        contact_id: contactId && contactId !== "none" ? contactId : null,
+        calendar_id: hideMarketingFields ? null : (calendarId && calendarId !== "none" ? calendarId : null),
+        contact_id: hideMarketingFields ? null : (contactId && contactId !== "none" ? contactId : null),
         status: status,
       };
 
@@ -336,19 +338,21 @@ export function AppointmentDialog({
               </Select>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Calendario</Label>
-              <Select value={calendarId} onValueChange={setCalendarId}>
-                <SelectTrigger><SelectValue placeholder="Nessun calendario" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessuno</SelectItem>
-                  {marketingCalendars.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className={hideMarketingFields ? "" : "grid grid-cols-2 gap-4"}>
+            {!hideMarketingFields && (
+              <div className="space-y-2">
+                <Label>Calendario</Label>
+                <Select value={calendarId} onValueChange={setCalendarId}>
+                  <SelectTrigger><SelectValue placeholder="Nessun calendario" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nessuno</SelectItem>
+                    {marketingCalendars.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Stato</Label>
@@ -364,20 +368,22 @@ export function AppointmentDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Contatto CRM</Label>
-            <Select value={contactId} onValueChange={setContactId}>
-              <SelectTrigger><SelectValue placeholder="Nessun contatto" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nessuno</SelectItem>
-                {contacts.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.first_name} {c.last_name || ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!hideMarketingFields && (
+            <div className="space-y-2">
+              <Label>Contatto CRM</Label>
+              <Select value={contactId} onValueChange={setContactId}>
+                <SelectTrigger><SelectValue placeholder="Nessun contatto" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nessuno</SelectItem>
+                  {contacts.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.first_name} {c.last_name || ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="apt-desc">Note</Label>
