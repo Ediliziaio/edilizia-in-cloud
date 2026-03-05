@@ -57,6 +57,7 @@ export function useWarehouseData() {
             work_start_date,
             warehouse_arrival_date,
             company_id,
+            current_status_id,
             customer:profiles!orders_customer_id_fkey(first_name, last_name)
           )
         `)
@@ -110,6 +111,30 @@ export function useWarehouseData() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch order statuses to determine the last phase
+  const {
+    data: orderStatuses = [],
+  } = useQuery({
+    queryKey: ["order-statuses", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("order_statuses")
+        .select("id, position")
+        .eq("company_id", companyId)
+        .order("position", { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const lastStatusId = useMemo(() => {
+    return orderStatuses.length > 0 ? orderStatuses[0].id : null;
+  }, [orderStatuses]);
+
   const isLoading = isLoadingItems || isLoadingSuppliers;
   const isError = isErrorItems || isErrorSuppliers;
   const refetch = () => {
@@ -137,8 +162,11 @@ export function useWarehouseData() {
     const today = new Date();
 
     if (quickFilter === "active") {
-      filtered = filtered.filter((item) => item.status !== "installato");
-    } else if (quickFilter === "urgent") {
+      filtered = filtered.filter((item) => {
+        if (item.status === "installato") return false;
+        if (lastStatusId && item.order.current_status_id === lastStatusId) return false;
+        return true;
+      });
       filtered = filtered.filter((item) => {
         if (item.status === "in_magazzino" || item.status === "installato") return false;
         const expectedDate = item.order.expected_date || item.order.work_start_date;
@@ -362,8 +390,12 @@ export function useWarehouseData() {
 
   // Count active items (non-installato)
   const activeItemsCount = useMemo(() => {
-    return items.filter((item) => item.status !== "installato").length;
-  }, [items]);
+    return items.filter((item) => {
+      if (item.status === "installato") return false;
+      if (lastStatusId && item.order.current_status_id === lastStatusId) return false;
+      return true;
+    }).length;
+  }, [items, lastStatusId]);
 
   // Count urgent items
   const urgentItemsCount = useMemo(() => {
