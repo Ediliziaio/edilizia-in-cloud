@@ -88,7 +88,7 @@ export function CustomerFinancialSummary({
               )}
               <div className="flex justify-between font-bold text-lg">
                 <span>Saldo da Pagare</span>
-                <span>{formatCurrency(clientBalance + (clientBalance * vatRate / 100 / (1 + vatRate / 100) * 0))}</span>
+                <span>{formatCurrency(clientBalance)}</span>
               </div>
             </>
           ) : (
