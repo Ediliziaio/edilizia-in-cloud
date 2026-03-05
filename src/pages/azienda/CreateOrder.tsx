@@ -470,6 +470,7 @@ export default function CreateOrder() {
                   value={orderCode}
                   onChange={(e) => setOrderCode(e.target.value)}
                   placeholder="es. ORD-2026-001"
+                  maxLength={50}
                 />
               </div>
 
@@ -510,6 +511,7 @@ export default function CreateOrder() {
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Descrivi il lavoro da eseguire..."
                   rows={4}
+                  maxLength={1000}
                 />
               </div>
 
@@ -539,6 +541,7 @@ export default function CreateOrder() {
                   onChange={(e) => setInternalNotes(e.target.value)}
                   placeholder="Note visibili solo all'azienda..."
                   rows={3}
+                  maxLength={1000}
                 />
               </div>
 
@@ -610,7 +613,39 @@ export default function CreateOrder() {
             <CardTitle>Tempistiche per il Cliente</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {/* Expected Date */}
+              <div className="space-y-2">
+                <Label>Data Prevista</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !expectedDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {expectedDate ? (
+                        format(expectedDate, "d MMMM yyyy", { locale: it })
+                      ) : (
+                        <span>Seleziona data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={expectedDate}
+                      onSelect={setExpectedDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
               {/* Warehouse Arrival Date */}
               <div className="space-y-2">
                 <Label>Arrivo Merce in Magazzino</Label>

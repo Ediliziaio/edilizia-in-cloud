@@ -1,61 +1,21 @@
 
+# Audit, Fix & UX Stabilization — COMPLETATO
 
-# Audit, Fix & UX Stabilization Plan
+## Bug Corretti
 
-## Findings Summary
+1. **QueryKey mismatch** (`CreateCustomerDialog.tsx`): invalidazione cambiata da `["customers", user?.id]` a `["customers", effectiveCompany?.id]` — ora la dropdown clienti si aggiorna dopo la creazione inline.
+2. **`expectedDate` senza UI**: aggiunto date picker "Data Prevista" nella card Tempistiche (griglia 4 colonne su desktop).
+3. **Toast inconsistente**: `CreateCustomerDialog` migrato da `useToast` (Radix) a `toast` di `sonner`.
 
-### 1. Bugs Found
+## Miglioramenti UX
 
-**BUG-1: QueryKey mismatch in CreateCustomerDialog**
-- `CreateCustomerDialog.tsx` line 131 invalidates `["customers", user?.id]`
-- But `CreateOrder.tsx` line 209 fetches with `["customers", effectiveCompany?.id]`
-- **Impact**: After creating a customer from the order dialog, the customer dropdown does NOT refresh. User must reload the page.
-- **Fix**: Change invalidation to `["customers", effectiveCompany?.id]`
+1. `maxLength` aggiunto a: orderCode (50), description (1000), internalNotes (1000)
+2. Card Tempistiche ora include 4 date picker (Data Prevista + Arrivo Merce + Inizio/Fine Lavori)
 
-**BUG-2: `expectedDate` state has no UI input in CreateOrder**
-- `expectedDate` is declared (line 50), saved in draft, and passed to the mutation, but there's NO form field for the user to set it.
-- It will always be `null` unless restored from a legacy draft.
-- **Fix**: Remove `expectedDate` state entirely from CreateOrder (keep it in the DB mutation as `null` since `expected_date` column exists). Clean draft type too. OR add the missing date picker in the "Tempistiche" card. Since the field already exists in the database schema and is used by Gantt, adding a date picker is the better choice.
+## Codice Rimosso
 
-### 2. Dead Code / Unused Imports
+- Import `useToast` e `user` rimossi da `CreateCustomerDialog` (non più necessari dopo migrazione a sonner e fix queryKey)
 
-**DEAD-1**: `CalendarIcon` import in CreateOrder is used (date pickers), `Paperclip` is used (attachments section) -- these are fine.
+## Nessuna Modifica A
 
-**DEAD-2**: `useState` imported in `CalendarGanttView.tsx` (line 1) -- checking if used... `useState<GanttZoom>` at line 83 -- it IS used.
-
-**DEAD-3**: `format` and `isSameDay` in `DraggableOrderBar.tsx` -- both used. All clean.
-
-### 3. UX Issues
-
-**UX-1: `maxLength` missing on CreateOrder text inputs**
-- `description`, `internalNotes`, `orderCode` have no `maxLength` constraints, inconsistent with the project's input validation standard.
-- **Fix**: Add `maxLength` attributes (description: 1000, internalNotes: 1000, orderCode: 50).
-
-**UX-2: No loading feedback on customer dropdown**
-- When customers are loading, the Select shows "Seleziona un cliente" with no loading indicator.
-- Minor but noticeable with many customers.
-
-**UX-3: `CreateCustomerDialog` uses `useToast` (Radix) while `CreateOrder` uses `toast` from sonner**
-- Inconsistent notification system in the same flow.
-- **Fix**: Migrate `CreateCustomerDialog` to use `sonner` toast for consistency.
-
-## Changes Planned
-
-### File: `src/components/orders/CreateCustomerDialog.tsx`
-1. Fix queryKey: `["customers", effectiveCompany?.id]` instead of `["customers", user?.id]`
-2. Replace `useToast` (Radix) with `toast` from `sonner` for consistency
-3. Remove `useToast` import, add `toast` from `sonner`
-
-### File: `src/pages/azienda/CreateOrder.tsx`
-1. Add `expectedDate` ("Data Prevista") date picker in the "Tempistiche per il Cliente" card as 4th field (4-col grid on desktop)
-2. Add `maxLength` to description (1000), internalNotes (1000), orderCode (50)
-
-### File: `src/hooks/useOrderDraft.ts`
-- No changes needed (expectedDate already in draft type)
-
-## What is NOT changed
-- No functional behavior changes
-- No database changes
-- No edge function changes
-- All existing drag-and-drop, Gantt, calendar, form submission logic stays intact
-
+- Database, edge functions, logica drag-and-drop, Gantt, calendario
