@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -106,6 +106,8 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
   
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
 
   // Fetch attachments
   const { data: attachments = [], isLoading } = useQuery({
@@ -267,6 +269,76 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     }
   };
 
+  // Upload multiple files (for drag-and-drop)
+  const uploadMultipleFiles = useCallback(async (fileList: File[]) => {
+    if (!user || uploading) return;
+
+    const remaining = MAX_FILES_PER_ORDER - attachments.length;
+    if (remaining <= 0) {
+      toast({ title: "Limite file raggiunto", description: `Massimo ${MAX_FILES_PER_ORDER} file per ordine.`, variant: "destructive" });
+      return;
+    }
+
+    const validFiles = fileList.slice(0, remaining).filter(file => {
+      if (!isValidMimeType(file.type)) {
+        toast({ title: "Tipo file non consentito", description: `"${file.name}" non è un formato valido.`, variant: "destructive" });
+        return false;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: "File troppo grande", description: `"${file.name}" supera il limite di 10MB.`, variant: "destructive" });
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length === 0) return;
+
+    setUploading(true);
+    try {
+      for (const file of validFiles) {
+        const timestamp = Date.now();
+        const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+        const filePath = `orders/${orderId}/${timestamp}-${sanitizedName}`;
+
+        const { error: uploadError } = await supabase.storage.from("order-attachments").upload(filePath, file);
+        if (uploadError) throw uploadError;
+
+        const { error: dbError } = await supabase.from("order_attachments").insert({
+          order_id: orderId, file_name: file.name, file_url: filePath,
+          file_type: file.type, file_size: file.size, uploaded_by: user.id, visible_to_customer: false,
+        });
+        if (dbError) throw dbError;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
+      toast({ title: "Documenti caricati", description: `${validFiles.length} file caricati con successo.` });
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast({ title: "Errore durante il caricamento", description: "Si è verificato un errore. Riprova.", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }, [user, uploading, attachments.length, orderId, queryClient, toast]);
+
+  // Drag-and-drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.items?.length) setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) setIsDragging(false);
+  };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setIsDragging(false); dragCounter.current = 0;
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length > 0) uploadMultipleFiles(droppedFiles);
+  };
+
   const visibleAttachments = attachments.filter(a => a.visible_to_customer);
   const internalAttachments = attachments.filter(a => !a.visible_to_customer);
 
@@ -289,7 +361,15 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
   }
 
   return (
-    <Card>
+    <Card
+      {...(editable ? {
+        onDragEnter: handleDragEnter,
+        onDragLeave: handleDragLeave,
+        onDragOver: handleDragOver,
+        onDrop: handleDrop,
+      } : {})}
+      className={`relative transition-colors ${editable && isDragging ? "border-dashed border-2 border-primary/50 bg-primary/5" : ""}`}
+    >
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <Paperclip className="h-5 w-5" />
@@ -351,9 +431,17 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
         )}
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Drag overlay */}
+        {editable && isDragging && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-primary/5 border-2 border-dashed border-primary/50 pointer-events-none">
+            <Upload className="h-10 w-10 text-primary/60 mb-2" />
+            <p className="text-sm font-medium text-primary/70">Trascina i file qui</p>
+          </div>
+        )}
+
         {attachments.length === 0 ? (
           <p className="text-muted-foreground text-sm text-center py-4">
-            Nessun documento caricato
+            {editable ? "Nessun documento caricato. Carica o trascina i file qui." : "Nessun documento caricato"}
           </p>
         ) : (
           <>
