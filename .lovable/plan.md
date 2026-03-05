@@ -1,53 +1,41 @@
 
 
-# Pannello laterale destro con filtri visibilità layer
+# Persistenza Layer + Pulizia e Stabilizzazione Calendario
 
-## Cosa si vuole
+## 1. Persistenza preferenze layer in localStorage
 
-Un pannello laterale destro (simile allo screenshot) con:
-- Campo di ricerca
-- Sezione **Calendario Lavori** con checkbox per ogni operaio interno e squadra esterna assegnati agli ordini
-- Sezione **Calendario Magazzino** con checkbox per mostrare/nascondere eventi logistici (arrivo merce)
-- Ogni checkbox attiva/disattiva la visibilità degli eventi di quella risorsa sul calendario
+**File: `src/pages/azienda/Calendar.tsx`**
 
-## Layout
+Creare un hook/logica che:
+- Al mount, legge da `localStorage` la chiave `calendar-layer-prefs` (JSON con `showPosa`, `showLavoro`, `showAppuntamento`, `showMerce`, `showGoogleBusy`, `visibleEmployeeIds`, `visibleTeamIds`, `layerPanelOpen`)
+- Inizializza gli state con i valori salvati (fallback ai default attuali)
+- Ad ogni cambio di questi state, salva in localStorage (debounce con `useEffect`)
 
-```text
-┌─────────────────────────────┬──────────────┐
-│                             │ Gestisci     │
-│   CALENDARIO                │ visualizz.   │
-│   (Mese / Settimana / ...)  │              │
-│                             │ 🔍 Cerca...  │
-│                             │              │
-│                             │ ▾ Cal. Lavori│
-│                             │   ☑ Mario R. │
-│                             │   ☑ Squadra X│
-│                             │              │
-│                             │ ▾ Cal. Magaz.│
-│                             │   ☑ Arrivo   │
-│                             │     Merce    │
-└─────────────────────────────┴──────────────┘
-```
+## 2. Sezioni collassabili nel pannello Layer
 
-Su mobile: il pannello diventa collassabile sotto l'header.
+**File: `src/components/calendar/CalendarLayerPanel.tsx`**
 
-## Implementazione
+Le sezioni "Calendario Lavori" e "Calendario Magazzino" usano già `<Collapsible defaultOpen>`. Funzionano correttamente come collassabili. Il `ChevronDown` nell'header fa da trigger. Nessun intervento necessario: la funzionalità c'e' già.
 
-### Nuovo file: `src/components/calendar/CalendarLayerPanel.tsx`
-- Titolo "Gestisci visualizzazione"
-- Input di ricerca che filtra la lista di nomi
-- Sezione collapsible **Calendario Lavori** con conteggio — checkbox colorate per ogni operaio interno (`companyEmployees`) e ogni squadra esterna (`externalTeams`)
-- Sezione collapsible **Calendario Magazzino** — checkbox per "Arrivo Merce" e opzionalmente "Google Calendar"
-- Props: `employees`, `externalTeams`, `visibleEmployees: Set<string>`, `visibleTeams: Set<string>`, `showMerce: boolean`, `showGoogleBusy: boolean`, `onToggle*` callbacks
+## 3. Fix console warning (ref su function component)
 
-### Modifica: `src/pages/azienda/Calendar.tsx`
-- Aggiungere stato `visibleEmployeeIds: Set<string>` (tutti attivi di default), `visibleTeamIds: Set<string>`, `showMerce: boolean = true`, `showGoogleBusy: boolean = true`
-- Layout: wrappare il contenuto calendario in `flex` con il pannello a destra (`w-64 shrink-0`)
-- Filtrare `scheduledOrders` anche in base alle risorse visibili: un ordine è visibile se almeno uno dei suoi operai/squadre è attivo nel pannello (o se non ha assegnazioni)
-- Filtrare `busySlots` con `showGoogleBusy`
-- Passare `hiddenEventTypes` (es. `merce` se `showMerce=false`) alle viste Month/Week per escludere `warehouse_arrival_date` dal rendering
+Il warning "Function components cannot be given refs" viene da `CalendarMonthView` che passa `TooltipProvider` e `AppointmentDialog` come children senza `forwardRef`.
 
-### Modifica: `CalendarMonthView.tsx` e `CalendarWeekView.tsx`
-- Aggiungere prop opzionale `hiddenEventTypes?: Set<string>`
-- In `getEventsForDay`, se `hiddenEventTypes.has("merce")` non aggiungere eventi tipo `merce`
+**File: `src/components/calendar/CalendarMonthView.tsx`**
+- L'`AppointmentDialog` viene renderizzato dentro la `Card` ma non è wrappato in un `TooltipTrigger` (che richiede ref). Il warning probabilmente viene dal fatto che `TooltipProvider` è passato come child diretto al grid. Verificare e risolvere togliendo eventuali `ref` impliciti o usando `forwardRef` dove necessario.
+
+## 4. Pulizia codice
+
+- Rimuovere righe vuote extra (linee 38-39 in `CalendarMonthView`, linee 43-44 in `CalendarWeekView`)
+- Verificare che non ci siano import inutilizzati nei file toccati
+- Il `Badge` import in `Calendar.tsx` è usato. `Collapsible` import è usato. Tutto ok.
+
+## Riepilogo file da modificare
+
+| File | Cosa |
+|------|------|
+| `src/pages/azienda/Calendar.tsx` | Persistenza localStorage per tutti gli state del layer panel |
+| `src/components/calendar/CalendarLayerPanel.tsx` | Nessuna modifica (collapsible già funzionante) |
+| `src/components/calendar/CalendarMonthView.tsx` | Fix warning ref, pulizia righe vuote |
+| `src/components/calendar/CalendarWeekView.tsx` | Pulizia righe vuote |
 
