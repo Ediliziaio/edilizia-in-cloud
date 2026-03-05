@@ -1,17 +1,26 @@
 
 
-# Tempistiche editabili inline nel Dettaglio Ordine
+# Colorazione margine ordini per soglia
 
-## Approccio
-Dallo screenshot, l'utente vuole i 4 date picker inline (come nella pagina Modifica Ordine) direttamente nella sidebar del Dettaglio Ordine, sostituendo la `CustomerDatesCard` read-only attuale.
+## Problema
+Nella tabella ordini (`OrdersTable.tsx`, riga 267), il margine è verde se ≥ 0, rosso se negativo. L'utente vuole 3 soglie: **verde** ≥ 30%, **arancione** 20-30%, **rosso** < 20%.
 
 ## Modifiche
 
-### `src/pages/azienda/OrderDetail.tsx`
-- Sostituire la riga 653 (`CustomerDatesCard` read-only) con una card "Tempistiche per il Cliente" contenente 4 date picker inline (Data Prevista, Arrivo Merce, Inizio Lavori, Fine Lavori) — stessa struttura della pagina EditOrder (righe 769-830)
-- Aggiungere stati locali per le 4 date, inizializzati dai dati dell'ordine
-- Al cambio di una data, salvarla immediatamente su Supabase (auto-save) e invalidare la query `["order", id]` — nessun bottone "Salva" necessario, modifica diretta
-- Layout: griglia a 2 colonne (`grid-cols-2`) nella sidebar (dato che è 1/3 dello schermo), oppure `grid-cols-1` se lo spazio è troppo stretto
-- Importare `Popover`, `PopoverTrigger`, `PopoverContent`, `Calendar`, `cn`, `format`, `parseISO` (molti già importati)
-- Rimuovere anche la card "Consegna Prevista" separata (righe 655-660) dato che "Data Prevista" sarà inclusa nei 4 picker
+### `src/components/orders/OrdersTable.tsx` (riga 267-269)
+Sostituire la logica colore attuale:
+```tsx
+// Prima: solo verde/rosso
+grossMargin >= 0 ? "text-emerald-600" : "text-destructive"
+
+// Dopo: 3 soglie
+marginPercent >= 30
+  ? "text-emerald-600 dark:text-emerald-400"
+  : marginPercent >= 20
+    ? "text-amber-600 dark:text-amber-400"
+    : "text-destructive"
+```
+
+### `src/components/orders/OrderEconomics.tsx` (righe 410-425)
+Applicare la stessa logica a 3 soglie per il margine € e % nel dettaglio ordine, e aggiornare l'alert (righe 197-222) per usare soglia 20% invece di 10%.
 
