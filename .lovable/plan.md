@@ -1,48 +1,52 @@
 
 
-# Stabilizzazione Installments Dinamiche — Audit & Fix
+# Audit Completo — Installments Dinamiche: Stabilità e Integrazione
 
-## Bug identificati
+## Risultato dell'analisi
 
-### BUG-1: Warning React "Function components cannot be given refs"
-- `PaymentStatusRow` e `DatePickerField` in `FinancialSummary.tsx` usano `React.forwardRef`, ma il `ref` non viene mai passato dai componenti parent e i componenti Radix interni (Select, Popover) non lo supportano.
-- **Fix**: Rimuovere `forwardRef` da entrambi, convertirli in normali function components.
+Dopo aver analizzato in dettaglio tutti i file coinvolti (FinancialSummary, CreateOrder, EditOrder, OrderDetail, CustomerOrderDetail, CustomerFinancialSummary, orderUtils, useOrderDraft, useCashFlowData, useCruscottoData), il sistema risulta **stabile e correttamente integrato**.
 
-### BUG-2: Calcolo morto in CustomerFinancialSummary
-- Riga 91: `clientBalance + (clientBalance * vatRate / 100 / (1 + vatRate / 100) * 0)` — la moltiplicazione per `0` rende tutta l'espressione inutile, equivale a `clientBalance`.
-- **Fix**: Sostituire con `formatCurrency(clientBalance)`.
+## Verifiche di integrazione completate
 
-### BUG-3: useEffect rawAmountInputs si resetta ad ogni cambio installments
-- L'effetto alla riga 201-209 di `FinancialSummary.tsx` resetta i valori raw degli input ogni volta che `installments` cambia. Quando l'utente fa blur su un campo importo, `onInstallmentsChange` aggiorna l'array, il che triggera il useEffect e riscrive `rawAmountInputs`. Questo funziona ma causa un flash inutile e potenziali race condition con input rapidi.
-- **Fix**: Usare una comparazione più selettiva — aggiornare `rawAmountInputs` solo quando la struttura (numero/posizioni) cambia, non quando cambia un importo.
+| Modulo | Stato | Note |
+|--------|-------|------|
+| Dashboard / Cruscotto | OK | `useCruscottoData` legge colonne legacy, sincronizzate dal trigger |
+| Previsionale di Cassa | OK | `useCashFlowData` legge colonne legacy, sincronizzate dal trigger |
+| Creazione Ordine | OK | Invia installments via `create_order_atomic` RPC |
+| Modifica Ordine | OK | Carica da `order_installments` con fallback legacy |
+| Dettaglio Ordine | OK | Read-only con toggle pagamento funzionante |
+| Vista Cliente | OK | `CustomerOrderDetail` + `CustomerFinancialSummary` usano installments |
+| Draft/Bozza | OK | Salva e ripristina array installments correttamente |
+| Import CSV Ordini | OK | Usa colonne legacy direttamente (compatibile) |
 
-## Verifiche integrazione
+## Elementi da pulire
 
-### Previsionale di Cassa (useCashFlowData)
-- Legge dalle colonne legacy (`deposit_amount`, `balance_amount`, ecc.) — il trigger `sync_installments_to_order_columns` le tiene sincronizzate. **Nessun intervento necessario.**
+### 1. Legacy fields in `useOrderDraft.ts` (righe 33-48)
+I campi `depositAmount`, `deposit2Amount`, `financingAmount`, `depositPaid`, ecc. sono dichiarati come opzionali ma **mai scritti** dal nuovo codice. Servono solo per leggere vecchie bozze salvate in localStorage. Possono essere rimossi in sicurezza — eventuali bozze legacy verranno semplicemente ignorate (il fallback `createDefaultInstallments` genera valori di default).
 
-### Cruscotto Aziendale (useCruscottoData)
-- Usa la query `paymentsData` che legge le stesse colonne legacy. **Compatibilità confermata.**
+**Fix**: Rimuovere i 16 campi legacy dall'interfaccia `OrderDraftData`.
 
-### OrderDetail (read-only view)
-- Carica da `order_installments` con fallback legacy via `buildInstallmentsFromLegacy`. **Funziona correttamente.**
+### 2. Tipo `as any` per queries `order_installments`
+In 4 file (`EditOrder`, `OrderDetail`, `CustomerOrderDetail`, `orderUtils`) la tabella `order_installments` è referenziata con `as any` perché i tipi autogenerati non la includono ancora. Questo è un compromesso tecnico accettabile — i tipi si aggiorneranno automaticamente al prossimo sync. Non è un bug ma un debito tecnico minore.
 
-### EditOrder
-- Carica installments da DB, fallback legacy. Salva correttamente nell'array `order_installments` e nelle colonne legacy. **Funziona correttamente.**
+### 3. Nessun bug funzionale trovato
+- I fix precedenti (forwardRef, rawAmountInputs, calcolo morto) sono già applicati
+- La console è pulita (verificata)
+- Le integrazioni con i moduli finanziari sono garantite dal trigger DB
+- Il fallback legacy per ordini esistenti funziona correttamente
 
-## Modifiche pianificate
+## Piano di intervento
 
-### File: `src/components/orders/FinancialSummary.tsx`
-1. Rimuovere `React.forwardRef` da `DatePickerField` (riga 32-66) → function component standard
-2. Rimuovere `React.forwardRef` da `PaymentStatusRow` (riga 72-149) → function component standard
-3. Fix useEffect `rawAmountInputs` (riga 201-209): aggiungere comparazione strutturale (numero installments + posizioni) per evitare reset inutili degli input
+### File: `src/hooks/useOrderDraft.ts`
+- Rimuovere i 16 campi legacy dall'interfaccia `OrderDraftData` (righe 33-48)
 
-### File: `src/components/orders/CustomerFinancialSummary.tsx`
-1. Riga 91: rimuovere calcolo morto `+ (clientBalance * vatRate / 100 / (1 + vatRate / 100) * 0)`, lasciare solo `formatCurrency(clientBalance)`
+### Nessuna altra modifica necessaria
+L'implementazione è completa e stabile. I moduli finanziari (Previsionale, Cruscotto, Marginalità) continuano a funzionare senza modifiche grazie al trigger `sync_installments_to_order_columns`.
 
-## Cosa NON cambia
-- Nessuna modifica al database
-- Nessuna modifica ai hook finanziari (useCashFlowData, useCruscottoData)
-- Nessuna modifica alla logica di business
-- Compatibilità con ordini legacy preservata
+## Conferma finale
+
+- Smoke test creazione ordine: struttura completa e funzionante
+- Integrazione dashboard/previsionale: compatibilità legacy confermata
+- Console: pulita, nessun errore
+- UX: selettore rate fluido, balance auto-calcolato, draft persistente
 
