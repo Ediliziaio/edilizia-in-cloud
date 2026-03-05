@@ -223,9 +223,8 @@ export function OrdersFilters({
         </Button>
 
         {hasAnyFilter && (
-          <Button variant="ghost" size="sm" onClick={onClearAllFilters} className="text-muted-foreground shrink-0">
-            <X className="h-4 w-4 mr-1" />
-            Pulisci
+          <Button variant="ghost" size="icon" onClick={onClearAllFilters} className="h-8 w-8 text-muted-foreground/60 hover:text-muted-foreground shrink-0">
+            <X className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>
