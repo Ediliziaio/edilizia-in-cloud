@@ -32,6 +32,7 @@ import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
+import { PendingFilesUpload } from "@/components/orders/PendingFilesUpload";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -77,6 +78,9 @@ export default function CreateOrder() {
 
   // Order items state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+
+  // Pending files for upload after order creation
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   // Customer creation dialog
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
@@ -356,11 +360,55 @@ export default function CreateOrder() {
 
       return result;
     },
-    onSuccess: (order) => {
+    onSuccess: async (order) => {
       clearDraft();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      toast.success("Ordine creato", { description: "L'ordine è stato creato. Ora puoi caricare i documenti." });
       setCreatedOrderId(order.id);
+
+      // Upload pending files
+      if (pendingFiles.length > 0) {
+        let uploaded = 0;
+        for (const file of pendingFiles) {
+          try {
+            const timestamp = Date.now();
+            const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+            const filePath = `orders/${order.id}/${timestamp}-${sanitizedName}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from("order-attachments")
+              .upload(filePath, file);
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+              .from("order-attachments")
+              .getPublicUrl(filePath);
+
+            const { error: dbError } = await supabase
+              .from("order_attachments")
+              .insert({
+                order_id: order.id,
+                file_name: file.name,
+                file_url: publicUrl,
+                file_type: file.type,
+                file_size: file.size,
+                uploaded_by: user!.id,
+                visible_to_customer: false,
+              });
+            if (dbError) throw dbError;
+            uploaded++;
+          } catch (err) {
+            console.error("File upload error:", err);
+            toast.error("Errore caricamento", { description: `Errore nel caricare "${file.name}".` });
+          }
+        }
+        setPendingFiles([]);
+        queryClient.invalidateQueries({ queryKey: ["order-attachments", order.id] });
+        if (uploaded > 0) {
+          toast.success("Ordine creato", { description: `Ordine creato con ${uploaded} document${uploaded > 1 ? 'i' : 'o'}.` });
+        }
+      } else {
+        toast.success("Ordine creato", { description: "L'ordine è stato creato con successo." });
+      }
     },
     onError: (error) => {
       toast.error("Errore", { description: "Si è verificato un errore durante la creazione dell'ordine." });
@@ -686,19 +734,7 @@ export default function CreateOrder() {
         {createdOrderId ? (
           <OrderAttachments orderId={createdOrderId} editable={true} />
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Paperclip className="h-5 w-5" />
-                Documenti Ordine
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-4 text-muted-foreground">
-                <p>I documenti potranno essere caricati dopo aver salvato l'ordine.</p>
-              </div>
-            </CardContent>
-          </Card>
+          <PendingFilesUpload files={pendingFiles} onFilesChange={setPendingFiles} />
         )}
 
         {/* Actions */}
