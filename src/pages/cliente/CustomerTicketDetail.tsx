@@ -16,6 +16,7 @@ import {
 } from "@/lib/formatters";
 import { TicketChat } from "@/components/tickets/TicketChat";
 import type { CustomerTicketDetail as CustomerTicketDetailType, TicketMessage } from "@/types/tickets";
+import { TicketAttachments } from "@/components/tickets/TicketAttachments";
 
 export default function CustomerTicketDetail() {
   const { id } = useParams<{ id: string }>();
@@ -150,6 +151,8 @@ export default function CustomerTicketDetail() {
           </CardContent>
         </Card>
       )}
+
+      <TicketAttachments ticketId={ticket.id} />
 
       <TicketChat
         ticketId={ticket.id}
