@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   ArrowLeft, Package, User, Mail, Phone,
   AlertCircle, RefreshCw, Save, ChevronDown,
@@ -36,7 +36,7 @@ import type { TicketDetail as TicketDetailType, TicketMessage, TicketStatus, Tic
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const [internalNotes, setInternalNotes] = useState<string>("");
@@ -144,12 +144,12 @@ export default function TicketDetail() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast({ title: "Aggiornato", description: "Ticket aggiornato con successo." });
+      toast.success("Ticket aggiornato con successo.");
       queryClient.invalidateQueries({ queryKey: ["admin-ticket", id] });
       queryClient.invalidateQueries({ queryKey: ["company-tickets"] });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile aggiornare il ticket.", variant: "destructive" });
+      toast.error("Impossibile aggiornare il ticket.");
     },
   });
 
