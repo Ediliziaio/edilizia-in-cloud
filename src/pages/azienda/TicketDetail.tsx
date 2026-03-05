@@ -228,10 +228,10 @@ export default function TicketDetail() {
 
       <Separator className="mb-4" />
 
-      {/* Layout a colonne con scroll indipendente */}
-      <div className="grid md:grid-cols-3 gap-6 flex-1 min-h-0">
-        {/* Sidebar con scroll indipendente */}
-        <div className="overflow-y-auto pr-1 space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+      {/* Layout: mobile stacked, desktop columns with independent scroll */}
+      <div className="flex flex-col md:grid md:grid-cols-3 gap-6 flex-1 min-h-0">
+        {/* Sidebar: on mobile scrolls naturally, on desktop has fixed scroll */}
+        <div className="order-2 md:order-1 overflow-y-auto pr-1 space-y-4 max-h-[50vh] md:max-h-[calc(100vh-220px)]">
           {/* Card unificata: Gestione + Contesto */}
           <Card>
             <CardContent className="p-4 space-y-3">
@@ -386,8 +386,8 @@ export default function TicketDetail() {
           />
         </div>
 
-        {/* Chat con scroll indipendente */}
-        <div className="md:col-span-2 min-h-0">
+        {/* Chat: on mobile first, on desktop second */}
+        <div className="order-1 md:order-2 md:col-span-2 min-h-0">
           <TicketChat
             ticketId={ticket.id}
             messages={messages}
@@ -396,7 +396,7 @@ export default function TicketDetail() {
               ["admin-ticket-messages", id!],
               ["company-tickets"],
             ]}
-            height="calc(100vh - 220px)"
+            height="min(60vh, calc(100vh - 220px))"
           />
         </div>
       </div>

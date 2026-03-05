@@ -1,6 +1,7 @@
 import React from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   children: React.ReactNode;
@@ -18,11 +19,7 @@ interface State {
 /**
  * ErrorBoundary — cattura i crash di qualsiasi componente figlio
  * e mostra un'interfaccia di recupero invece di un'app completamente bianca.
- *
- * Uso:
- *   <ErrorBoundary title="Errore nella Dashboard">
- *     <Dashboard />
- *   </ErrorBoundary>
+ * Invia gli errori alla tabella system_health_metrics per osservabilità centralizzata.
  */
 export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
@@ -35,9 +32,31 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // In produzione qui si potrebbe inviare a Sentry o Supabase logs
     console.error("[ErrorBoundary] Errore catturato:", error.message);
-    console.error("[ErrorBoundary] Component stack:", errorInfo.componentStack);
+
+    // Report to system_health_metrics for centralized observability
+    this.reportError(error, errorInfo).catch(() => {
+      // Silent fail — error reporting should never block UX
+    });
+  }
+
+  private async reportError(error: Error, errorInfo: React.ErrorInfo) {
+    try {
+      await supabase.from("system_health_metrics").insert({
+        metric_type: "client_error",
+        function_name: "ErrorBoundary",
+        error_message: `${error.name}: ${error.message}`.substring(0, 500),
+        metadata: {
+          stack: error.stack?.substring(0, 1000),
+          componentStack: errorInfo.componentStack?.substring(0, 500),
+          url: window.location.href,
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch {
+      // Silent — never let error reporting cause more errors
+    }
   }
 
   handleReset = () => {
@@ -70,7 +89,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
             o tornare alla home.
           </p>
 
-          {/* Mostra il messaggio tecnico solo in development */}
           {import.meta.env.DEV && this.state.error && (
             <p className="text-xs text-destructive/70 font-mono bg-destructive/5 border border-destructive/20 rounded px-3 py-2 mt-3 max-w-lg break-all">
               {this.state.error.message}
