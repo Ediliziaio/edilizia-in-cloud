@@ -67,16 +67,12 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
         .upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from("marketing-attachments")
-        .getPublicUrl(filePath);
-
       const { error: dbError } = await supabase.from("marketing_documents" as any).insert({
         contact_id: contactId,
         opportunity_id: linkToOpportunity ? opportunityId : null,
         company_id: companyId,
         file_name: file.name,
-        file_url: urlData.publicUrl,
+        file_url: filePath,
         file_type: file.type,
         file_size: file.size,
         uploaded_by: user?.id,
@@ -90,14 +86,24 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
     onError: (e: any) => toast.error(e.message || "Errore upload"),
   });
 
+  const getStoragePath = (fileUrl: string) => {
+    if (fileUrl.startsWith("http")) {
+      const parts = fileUrl.split("/marketing-attachments/");
+      if (parts.length > 1) return decodeURIComponent(parts[1]);
+    }
+    return fileUrl;
+  };
+
+  const getSignedUrl = async (fileUrl: string) => {
+    const path = getStoragePath(fileUrl);
+    const { data } = await supabase.storage.from("marketing-attachments").createSignedUrl(path, 3600);
+    return data?.signedUrl || fileUrl;
+  };
+
   const deleteMutation = useMutation({
     mutationFn: async (doc: any) => {
-      // Extract path from URL
-      const url = new URL(doc.file_url);
-      const pathParts = url.pathname.split("/storage/v1/object/public/marketing-attachments/");
-      if (pathParts[1]) {
-        await supabase.storage.from("marketing-attachments").remove([pathParts[1]]);
-      }
+      const filePath = getStoragePath(doc.file_url);
+      await supabase.storage.from("marketing-attachments").remove([filePath]);
       const { error } = await supabase.from("marketing_documents" as any).delete().eq("id", doc.id);
       if (error) throw error;
     },
@@ -165,7 +171,10 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6"
-                  onClick={() => window.open(doc.file_url, "_blank")}
+                  onClick={async () => {
+                    const url = await getSignedUrl(doc.file_url);
+                    window.open(url, "_blank");
+                  }}
                 >
                   <Download className="h-3 w-3" />
                 </Button>
