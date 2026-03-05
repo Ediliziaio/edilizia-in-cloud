@@ -1,28 +1,34 @@
 
 
-# Migrazione Previsionale e Cruscotto a `order_installments`
+# Pulizia finale — Tipo legacy in CollectedTab
 
-## ✅ COMPLETATA
+## Stato attuale
 
-### Modifiche effettuate
+Dopo gli interventi precedenti, l'intero sistema è stabile e correttamente migrato. L'unico residuo trovato è:
 
-#### 1. `src/hooks/useCashFlowData.ts`
-- Query `forecast-orders` → `forecast-installments`: legge da `order_installments` con join su `orders` per `order_code` e `customer`
-- Memo `expectedPayments`: itera installments dinamiche (N rate) usando `label` come tipo e `is_paid`/`amount`/`expected_date`
-- Aggiunto alias `orders = installmentsData` per compatibilità con CollectedTab
+### BUG: Tipo hardcoded in `CollectedTab.tsx` (riga 17)
+L'interfaccia `CollectedPayment` usa ancora `type: "Acconto 1" | "Acconto 2" | "Saldo" | "Finanziamento"` — un tipo union legacy che non corrisponde più alle label dinamiche provenienti da `order_installments`. Le label possono essere qualsiasi stringa (es. "Acconto 3", "Rata 5", ecc.).
 
-#### 2. `src/hooks/useCruscottoData.ts`
-- Query `cruscotto-payments` → `cruscotto-installments`: legge da `order_installments` filtrata per `is_paid = false`
-- Operations: itera installments per calcolo scaduti
-- Finance: itera installments per `pendingRevenue`/`thisMonthIncome`
-- Weekly: itera installments per `incomingPayments`
+Questo non causa un errore runtime perché TypeScript non fa check a runtime, ma il cast implicito a riga 51 (`type: inst.label || inst.type || "Rata"`) assegna una stringa generica a un tipo union, il che è una violazione del contratto di tipo.
 
-#### 3. `src/components/forecast/CollectedTab.tsx`
-- Aggiornato per leggere installments invece dei 4 campi legacy
+**Fix**: Cambiare `type` da union a `string` nell'interfaccia `CollectedPayment`, allineandolo a `ExpectedPayment.type` che è già `string`.
 
-#### 4. `src/lib/forecastTypes.ts`
-- `ExpectedPayment.type`: da union `"Acconto 1" | ...` a `string` per supportare label dinamiche
+## Verifiche completate
 
-### Risultato
-- Supporto illimitato di rate nel previsionale e nel cruscotto
-- Le colonne legacy su `orders` restano sincronizzate dal trigger `sync_installments_to_order_columns`
+| Area | Risultato |
+|------|-----------|
+| `useOrderDraft.ts` | Già pulito — nessun campo legacy |
+| `useCashFlowData.ts` | Già migrato a `order_installments` |
+| `useCruscottoData.ts` | Già migrato a `order_installments` |
+| `forecastTypes.ts` | `ExpectedPayment.type` già `string` |
+| `CollectedTab.tsx` | **Unico fix necessario** — tipo union legacy |
+| Console | Pulita, nessun errore |
+| Integrazioni | Dashboard, Previsionale, Cruscotto tutti funzionanti |
+
+## Modifica
+
+### File: `src/components/forecast/CollectedTab.tsx`
+- Riga 17: cambiare `type: "Acconto 1" | "Acconto 2" | "Saldo" | "Finanziamento"` → `type: string`
+
+**TUTTO OK** — Questo è l'ultimo residuo legacy. Nessun'altra modifica necessaria.
+
