@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
-import { format, isSameDay } from "date-fns";
+import { format, isSameDay, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Tooltip,
@@ -33,6 +33,7 @@ interface DraggableOrderBarProps {
   bar: BarInfo;
   dayWidth: number;
   color: string;
+  progress?: number; // 0-100
 }
 
 export function DraggableOrderBar({
@@ -40,6 +41,7 @@ export function DraggableOrderBar({
   bar,
   dayWidth,
   color,
+  progress,
 }: DraggableOrderBarProps) {
   const navigate = useNavigate();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -49,6 +51,7 @@ export function DraggableOrderBar({
   });
 
   const leadTime = calculateLeadTime(order);
+  const duration = differenceInDays(bar.orderEnd, bar.orderStart) + 1;
 
   const logisticRisk = hasLogisticRisk(order);
   const externalTeamNames = order.order_external_teams
@@ -68,7 +71,6 @@ export function DraggableOrderBar({
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    // Only open dialog if not dragging
     if (!isDragging && !transform?.x) {
       e.preventDefault();
       e.stopPropagation();
@@ -88,16 +90,31 @@ export function DraggableOrderBar({
             style={style}
             onClick={handleClick}
           >
-            {bar.width > 120 ? (
-              <div className="flex items-center gap-1 text-xs text-white truncate">
-                <span className="font-semibold">{order.order_code || "N/A"}</span>
-                <span className="opacity-75">- {order.customer.last_name}</span>
-              </div>
-            ) : bar.width > 60 ? (
-              <span className="text-xs text-white font-medium truncate">
-                {order.order_code || order.description.slice(0, 20)}
-              </span>
-            ) : null}
+            {/* Progress overlay */}
+            {progress !== undefined && progress > 0 && progress < 100 && (
+              <div
+                className="absolute inset-0 rounded-md"
+                style={{
+                  width: `${progress}%`,
+                  backgroundColor: "rgba(0,0,0,0.15)",
+                }}
+              />
+            )}
+            <div className="relative z-10 flex items-center gap-1 text-xs text-white truncate w-full">
+              {bar.width > 120 ? (
+                <>
+                  <span className="font-semibold">{order.order_code || "N/A"}</span>
+                  <span className="opacity-75">- {order.customer.last_name}</span>
+                  {bar.width > 200 && (
+                    <span className="ml-auto opacity-60 text-[10px]">{duration}g</span>
+                  )}
+                </>
+              ) : bar.width > 60 ? (
+                <span className="font-medium truncate">
+                  {order.order_code || order.description.slice(0, 20)}
+                </span>
+              ) : null}
+            </div>
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[250px]">
