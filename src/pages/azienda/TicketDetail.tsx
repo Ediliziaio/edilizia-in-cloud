@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { TicketChat } from "@/components/tickets/TicketChat";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { TicketAttachments } from "@/components/tickets/TicketAttachments";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
 import type { TicketDetail as TicketDetailType, TicketMessage, TicketStatus, TicketPriority } from "@/types/tickets";
 
@@ -354,6 +355,9 @@ export default function TicketDetail() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Allegati */}
+          <TicketAttachments ticketId={ticket.id} />
 
           {/* Linked Tasks */}
           <LinkedTasks
