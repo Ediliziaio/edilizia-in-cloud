@@ -105,7 +105,6 @@ export default function Warehouse() {
       return data as StockItem[];
     },
     enabled: !!effectiveCompany?.id,
-    staleTime: 5 * 60 * 1000,
   });
 
   if (!effectiveCompany) {
