@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,16 +40,47 @@ export default function Calendar() {
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [layerPanelOpen, setLayerPanelOpen] = useState(!isMobile);
+  // Layer visibility state — initialize from localStorage
+  const [layerPrefsLoaded, setLayerPrefsLoaded] = useState(false);
+  const [layerPanelOpen, setLayerPanelOpen] = useState(() => {
+    try { const p = JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}"); return p.layerPanelOpen ?? !isMobile; } catch { return !isMobile; }
+  });
+  const [showPosa, setShowPosa] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").showPosa ?? true; } catch { return true; }
+  });
+  const [showLavoro, setShowLavoro] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").showLavoro ?? true; } catch { return true; }
+  });
+  const [showAppuntamento, setShowAppuntamento] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").showAppuntamento ?? true; } catch { return true; }
+  });
+  const [showMerce, setShowMerce] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").showMerce ?? true; } catch { return true; }
+  });
+  const [showGoogleBusy, setShowGoogleBusy] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").showGoogleBusy ?? true; } catch { return true; }
+  });
+  const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(() => {
+    try { const arr = JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").visibleEmployeeIds; return arr ? new Set<string>(arr) : null; } catch { return null; }
+  });
+  const [visibleTeamIds, setVisibleTeamIds] = useState<Set<string> | null>(() => {
+    try { const arr = JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").visibleTeamIds; return arr ? new Set<string>(arr) : null; } catch { return null; }
+  });
 
-  // Layer visibility state
-  const [showPosa, setShowPosa] = useState(true);
-  const [showLavoro, setShowLavoro] = useState(true);
-  const [showAppuntamento, setShowAppuntamento] = useState(true);
-  const [showMerce, setShowMerce] = useState(true);
-  const [showGoogleBusy, setShowGoogleBusy] = useState(true);
-  const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(null); // null = all visible
-  const [visibleTeamIds, setVisibleTeamIds] = useState<Set<string> | null>(null); // null = all visible
+  // Persist layer prefs to localStorage
+  useEffect(() => {
+    const prefs = {
+      layerPanelOpen,
+      showPosa,
+      showLavoro,
+      showAppuntamento,
+      showMerce,
+      showGoogleBusy,
+      visibleEmployeeIds: visibleEmployeeIds ? Array.from(visibleEmployeeIds) : null,
+      visibleTeamIds: visibleTeamIds ? Array.from(visibleTeamIds) : null,
+    };
+    localStorage.setItem("calendar-layer-prefs", JSON.stringify(prefs));
+  }, [layerPanelOpen, showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, visibleEmployeeIds, visibleTeamIds]);
 
   const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],

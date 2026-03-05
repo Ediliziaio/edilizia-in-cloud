@@ -37,7 +37,6 @@ interface CalendarEvent {
 }
 
 
-
 interface CalendarMonthViewProps {
   orders: CalendarOrder[];
   appointments?: CalendarAppointment[];
