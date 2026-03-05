@@ -6065,6 +6065,7 @@ export type Database = {
         }
         Returns: Json
       }
+      get_my_company_id: { Args: never; Returns: string }
       get_plan_company_counts: {
         Args: never
         Returns: {
