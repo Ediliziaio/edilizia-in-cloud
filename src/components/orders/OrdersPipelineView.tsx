@@ -5,9 +5,10 @@ import {
   DragOverlay,
   DragStartEvent,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
-  closestCenter,
+  closestCorners,
 } from "@dnd-kit/core";
 import { OrdersPipelineColumn } from "./OrdersPipelineColumn";
 import { OrdersPipelineCard } from "./OrdersPipelineCard";
@@ -28,6 +29,12 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
       },
     })
   );
@@ -74,11 +81,17 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
     if (!over) return;
 
     const orderId = active.id as string;
-    const newStatusId = over.id as string;
     
     // Trova l'ordine corrente
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
+
+    // Risolvi lo status di destinazione (potrebbe essere una colonna o una card)
+    let newStatusId = over.id as string;
+    const overOrder = orders.find(o => o.id === over.id);
+    if (overOrder) {
+      newStatusId = overOrder.current_status_id || "";
+    }
 
     // Se lo stato è lo stesso, non fare nulla
     if (order.current_status_id === newStatusId) return;
@@ -100,7 +113,7 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={closestCorners}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
