@@ -42,7 +42,6 @@ interface WeekEvent {
 }
 
 
-
 export function CalendarWeekView({
   orders,
   appointments = [],
