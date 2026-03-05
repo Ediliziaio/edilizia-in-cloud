@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Calendar as CalendarIcon, GripVertical } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -15,6 +15,7 @@ interface OrdersPipelineCardProps {
 
 export function OrdersPipelineCard({ order, isDraggable = true }: OrdersPipelineCardProps) {
   const pendingPayments = getPendingPayments(order);
+  const navigate = useNavigate();
   
   const { 
     attributes, 
@@ -38,30 +39,32 @@ export function OrdersPipelineCard({ order, isDraggable = true }: OrdersPipeline
     <div
       ref={setNodeRef}
       style={style}
+      {...(isDraggable ? attributes : {})}
+      {...(isDraggable ? listeners : {})}
+      onClick={() => {
+        if (!isDragging) navigate(`/azienda/ordini/${order.id}`);
+      }}
       className={cn(
         "touch-none",
+        isDraggable && "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-50 z-50"
       )}
     >
       <Card className={cn(
         "p-3 transition-shadow bg-card group",
-        isDraggable && "cursor-grab active:cursor-grabbing hover:shadow-md",
+        isDraggable && "hover:shadow-md",
         isDragging && "shadow-lg ring-2 ring-primary"
       )}>
         <div className="flex gap-2">
-          {/* Drag Handle */}
+          {/* Grip icon (visual only) */}
           {isDraggable && (
-            <div 
-              {...attributes} 
-              {...listeners}
-              className="flex-shrink-0 flex items-start pt-0.5 text-muted-foreground/50 hover:text-muted-foreground"
-            >
+            <div className="flex-shrink-0 flex items-start pt-0.5 text-muted-foreground/50 hover:text-muted-foreground">
               <GripVertical className="h-4 w-4" />
             </div>
           )}
           
           {/* Card Content */}
-          <Link to={`/azienda/ordini/${order.id}`} className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0">
             <div className="space-y-2">
               {/* Codice */}
               <p className="font-medium text-sm">{order.order_code || "—"}</p>
@@ -99,7 +102,7 @@ export function OrdersPipelineCard({ order, isDraggable = true }: OrdersPipeline
                 )}
               </div>
             </div>
-          </Link>
+          </div>
         </div>
       </Card>
     </div>
