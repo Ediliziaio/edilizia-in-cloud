@@ -1,26 +1,26 @@
 
 
-# Colorazione margine ordini per soglia
-
-## Problema
-Nella tabella ordini (`OrdersTable.tsx`, riga 267), il margine è verde se ≥ 0, rosso se negativo. L'utente vuole 3 soglie: **verde** ≥ 30%, **arancione** 20-30%, **rosso** < 20%.
+# Miglioramento filtri data nella Dashboard
 
 ## Modifiche
 
-### `src/components/orders/OrdersTable.tsx` (riga 267-269)
-Sostituire la logica colore attuale:
-```tsx
-// Prima: solo verde/rosso
-grossMargin >= 0 ? "text-emerald-600" : "text-destructive"
+### 1. `src/components/dashboard/CompanyDashboardFilters.tsx`
+- Aggiungere preset **"Anno"** (`year`) tra "Mese" e "Personalizzato"
+- Quando si clicca **"Personalizzato"**, aprire automaticamente il Popover del calendario (usare stato `customOpen` controllato)
+- Il Popover si apre subito al click sul preset, senza bisogno di cliccare un secondo bottone
 
-// Dopo: 3 soglie
-marginPercent >= 30
-  ? "text-emerald-600 dark:text-emerald-400"
-  : marginPercent >= 20
-    ? "text-amber-600 dark:text-amber-400"
-    : "text-destructive"
-```
+### 2. `src/components/dashboard/CompanyDashboardFilters.tsx` — tipo `DatePreset`
+- Aggiungere `"year"` al tipo: `export type DatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "year" | "custom";`
 
-### `src/components/orders/OrderEconomics.tsx` (righe 410-425)
-Applicare la stessa logica a 3 soglie per il margine € e % nel dettaglio ordine, e aggiornare l'alert (righe 197-222) per usare soglia 20% invece di 10%.
+### 3. `src/hooks/useCompanyDashboardData.ts`
+- Aggiungere caso `"year"` nella funzione `getDateRange`:
+  ```ts
+  case "year":
+    return { from: startOfYear(now), to: endOfDay(now) };
+  ```
+- Importare `startOfYear` da `date-fns`
+
+### Comportamento "Personalizzato"
+- Il bottone "Personalizzato" diventa il trigger del Popover stesso: al click imposta `datePreset: "custom"` e apre il calendario range inline
+- Nessun bottone separato per aprire il calendario — click diretto sul preset
 
