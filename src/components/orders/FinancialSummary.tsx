@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/formatters";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,12 +29,12 @@ export type PaymentType = 'standard' | 'financing';
 export type AmountInputMode = 'net' | 'gross';
 
 // ── DatePickerField ─────────────────────────────────────────────
-const DatePickerField = React.forwardRef<HTMLDivElement, {
+function DatePickerField({ label, date, onDateChange, disabled = false }: {
   label: string;
   date?: Date;
   onDateChange: (date?: Date) => void;
   disabled?: boolean;
-}>(({ label, date, onDateChange, disabled = false }, ref) => {
+}) {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -63,13 +63,12 @@ const DatePickerField = React.forwardRef<HTMLDivElement, {
       </PopoverContent>
     </Popover>
   );
-});
-DatePickerField.displayName = "DatePickerField";
+}
 
 // ── PaymentStatusRow ────────────────────────────────────────────
 type PaymentStatus = 'non_pagato' | 'pagato';
 
-const PaymentStatusRow = React.forwardRef<HTMLDivElement, {
+function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidChange, onPaidDateChange, onExpectedDateChange, readOnly = false }: {
   label: string;
   amount: number;
   paid?: boolean;
@@ -79,7 +78,7 @@ const PaymentStatusRow = React.forwardRef<HTMLDivElement, {
   onPaidDateChange?: (date?: Date) => void;
   onExpectedDateChange?: (date?: Date) => void;
   readOnly?: boolean;
-}>(({ label, amount, paid, paidDate, expectedDate, onPaidChange, onPaidDateChange, onExpectedDateChange, readOnly = false }, ref) => {
+}) {
   if (amount <= 0) return null;
 
   const status: PaymentStatus = paid ? 'pagato' : 'non_pagato';
@@ -94,7 +93,7 @@ const PaymentStatusRow = React.forwardRef<HTMLDivElement, {
   };
 
   return (
-    <div ref={ref} className="flex flex-col gap-2 p-3 rounded-lg bg-muted/30 border">
+    <div className="flex flex-col gap-2 p-3 rounded-lg bg-muted/30 border">
       <div className="flex justify-between items-center">
         <span className="font-medium">{label}</span>
         <span className="font-semibold">{formatCurrency(amount)}</span>
@@ -145,8 +144,7 @@ const PaymentStatusRow = React.forwardRef<HTMLDivElement, {
       </div>
     </div>
   );
-});
-PaymentStatusRow.displayName = "PaymentStatusRow";
+}
 
 // ── FinancialSummary (editable) ─────────────────────────────────
 
@@ -197,16 +195,27 @@ export function FinancialSummary({
     }
   }, [totalAmount, inputMode, totalWithVat]);
 
-  // Sync raw amount inputs when installments structure changes
+  // Sync raw amount inputs only when installments structure changes (count/positions)
+  const installmentsStructureKey = installments
+    .filter(i => i.type !== 'balance')
+    .map(i => i.position)
+    .join(',');
+
   useEffect(() => {
-    const newRaw: Record<number, string> = {};
-    installments.forEach(i => {
-      if (i.type !== 'balance') {
-        newRaw[i.position] = i.amount > 0 ? i.amount.toString() : "";
-      }
+    setRawAmountInputs(prev => {
+      const newRaw: Record<number, string> = {};
+      installments.forEach(i => {
+        if (i.type !== 'balance') {
+          // Keep existing raw value if position already exists, otherwise init from amount
+          newRaw[i.position] = prev[i.position] !== undefined
+            ? prev[i.position]
+            : (i.amount > 0 ? i.amount.toString() : "");
+        }
+      });
+      return newRaw;
     });
-    setRawAmountInputs(newRaw);
-  }, [installments]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [installmentsStructureKey]);
 
   useEffect(() => {
     setRawFinancingCostInput(financingCost || "");
