@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, Save, Loader2, Mail, ClipboardList, Trash2, ExternalLink } from "lucide-react";
+import { ArrowLeft, User, Save, Loader2, Mail, ClipboardList, Trash2, ExternalLink, Phone, Calendar, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { getInitials, getAvatarColor } from "@/lib/contactUtils";
 
 export default function CompanyCustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -173,6 +174,11 @@ export default function CompanyCustomerDetail() {
     );
   }
 
+  const initials = getInitials(customer.first_name || "", customer.last_name);
+  const avatarColor = getAvatarColor(`${customer.first_name}${customer.last_name}`);
+  const displayedOrders = orders.slice(0, 5);
+  const hasMoreOrders = orders.length > 5;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -222,143 +228,179 @@ export default function CompanyCustomerDetail() {
         </AlertDialog>
       </div>
 
-      {/* Edit Form */}
-      <form onSubmit={handleSubmit}>
-        <Card className="max-w-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <User className="h-5 w-5" />
-              Modifica Dati Cliente
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" value={customer.email} disabled className="bg-muted" />
-              <p className="text-xs text-muted-foreground">L'email non può essere modificata</p>
-            </div>
+      {/* Two-column layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column — Edit Form (2/3) */}
+        <form onSubmit={handleSubmit} className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <User className="h-5 w-5" />
+                Modifica Dati Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" value={customer.email} disabled className="bg-muted" />
+                <p className="text-xs text-muted-foreground">L'email non può essere modificata</p>
+              </div>
 
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Dati Anagrafici</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">Nome <span className="text-destructive">*</span></Label>
-                  <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Mario" maxLength={50} required />
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Dati Anagrafici</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Nome <span className="text-destructive">*</span></Label>
+                    <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Mario" maxLength={50} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Cognome <span className="text-destructive">*</span></Label>
+                    <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Rossi" maxLength={50} required />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Cognome <span className="text-destructive">*</span></Label>
-                  <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Rossi" maxLength={50} required />
+                  <Label htmlFor="fiscalCode">CF / P.IVA</Label>
+                  <Input id="fiscalCode" value={fiscalCode} onChange={(e) => setFiscalCode(e.target.value)} placeholder="RSSMRA80A01H501U o 01234567890" maxLength={16} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Telefono</Label>
+                  <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" maxLength={20} />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="fiscalCode">CF / P.IVA</Label>
-                <Input id="fiscalCode" value={fiscalCode} onChange={(e) => setFiscalCode(e.target.value)} placeholder="RSSMRA80A01H501U o 01234567890" maxLength={16} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Telefono</Label>
-                <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" maxLength={20} />
-              </div>
-            </div>
 
-            <Separator />
+              <Separator />
 
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Indirizzi</h3>
-              <div className="space-y-2">
-                <Label htmlFor="address">Indirizzo Residenza / Sede Legale</Label>
-                <Textarea id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Via Roma 1, 00100 Roma" maxLength={200} rows={2} />
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Indirizzi</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="address">Indirizzo Residenza / Sede Legale</Label>
+                  <Textarea id="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Via Roma 1, 00100 Roma" maxLength={200} rows={2} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="siteAddress">Indirizzo Cantiere</Label>
+                  <Textarea id="siteAddress" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} placeholder="Via del Cantiere 5, 00100 Roma" maxLength={200} rows={2} />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="siteAddress">Indirizzo Cantiere</Label>
-                <Textarea id="siteAddress" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} placeholder="Via del Cantiere 5, 00100 Roma" maxLength={200} rows={2} />
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Note</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Note Aggiuntive</Label>
+                  <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note interne sul cliente..." maxLength={500} rows={3} />
+                </div>
               </div>
-            </div>
 
-            <Separator />
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Note</h3>
-              <div className="space-y-2">
-                <Label htmlFor="notes">Note Aggiuntive</Label>
-                <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note interne sul cliente..." maxLength={500} rows={3} />
+              <div className="flex justify-end gap-4 pt-4">
+                <Button type="button" variant="outline" onClick={() => navigate("/azienda/clienti")}>
+                  Annulla
+                </Button>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio...</>
+                  ) : (
+                    <><Save className="mr-2 h-4 w-4" />Salva Modifiche</>
+                  )}
+                </Button>
               </div>
-            </div>
+            </CardContent>
+          </Card>
+        </form>
 
-            <div className="flex justify-end gap-4 pt-4">
-              <Button type="button" variant="outline" onClick={() => navigate("/azienda/clienti")}>
-                Annulla
-              </Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio...</>
-                ) : (
-                  <><Save className="mr-2 h-4 w-4" />Salva Modifiche</>
+        {/* Right column — Sidebar (1/3) */}
+        <div className="space-y-6">
+          {/* Summary Card */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center text-center gap-3 mb-5">
+                <Avatar className={`h-16 w-16 ${avatarColor}`}>
+                  <AvatarFallback className="text-xl font-bold text-white bg-transparent">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-semibold text-lg">{customer.first_name} {customer.last_name}</p>
+                  <p className="text-sm text-muted-foreground">{customer.email}</p>
+                </div>
+              </div>
+
+              <Separator className="mb-4" />
+
+              <div className="space-y-3 text-sm">
+                {customer.phone && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Phone className="h-4 w-4 shrink-0" />
+                    <span>{customer.phone}</span>
+                  </div>
                 )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </form>
+                {customer.fiscal_code && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CreditCard className="h-4 w-4 shrink-0" />
+                    <span className="font-mono text-xs">{customer.fiscal_code}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="h-4 w-4 shrink-0" />
+                  <span>Cliente dal {format(new Date(customer.created_at), "dd MMM yyyy", { locale: it })}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Order History */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ClipboardList className="h-5 w-5" />
-            Storico Ordini ({orderCount})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {orders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nessun ordine associato a questo cliente.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Codice</TableHead>
-                  <TableHead>Descrizione</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead className="text-right">Importo</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => {
-                  const status = order.order_statuses as { name: string; color: string } | null;
-                  return (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.order_code || "—"}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{order.description}</TableCell>
-                      <TableCell>
-                        {status ? (
-                          <Badge variant="outline" className="gap-1.5">
-                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: status.color }} />
-                            {status.name}
-                          </Badge>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {format(new Date(order.created_at), "dd MMM yyyy", { locale: it })}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        € {Number(order.total_amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => navigate(`/azienda/ordini/${order.id}`)}>
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+          {/* Orders Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ClipboardList className="h-4 w-4" />
+                Ordini ({orderCount})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {orders.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nessun ordine associato.</p>
+              ) : (
+                <div className="space-y-2">
+                  {displayedOrders.map((order) => {
+                    const status = order.order_statuses as { name: string; color: string } | null;
+                    return (
+                      <div
+                        key={order.id}
+                        className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => navigate(`/azienda/ordini/${order.id}`)}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{order.order_code || "—"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(order.created_at), "dd MMM yyyy", { locale: it })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {status && (
+                            <Badge variant="outline" className="gap-1 text-xs">
+                              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: status.color }} />
+                              {status.name}
+                            </Badge>
+                          )}
+                          <span className="text-sm font-medium whitespace-nowrap">
+                            € {Number(order.total_amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                          </span>
+                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {hasMoreOrders && (
+                    <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => {/* scroll or expand */}}>
+                      Vedi tutti gli ordini ({orderCount})
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
