@@ -1,34 +1,32 @@
 
 
-# Analisi del progetto — Risultato e piano
+# Fix: Stipendi personale interno classificati come costi fissi nel grafico mensile
 
-## Contesto
+## Problema identificato
 
-Questo progetto (SaaS multi-tenant per edilizia) è già stato sottoposto a un audit completo recente (documentato in memoria: ~350 componenti, 27 hook, 28 Edge Function verificati). Ho eseguito una nuova analisi esplorativa su tutto il codebase.
+Nel file `src/hooks/useCompanyCostsData.ts`, gli stipendi dei dipendenti sono **correttamente** marcati come `cost_type: "fixed"` (riga 252). Tuttavia, nel calcolo della **distribuzione mensile** per il mini-grafico (righe 383-390), TUTTI i costi derivanti da ordini (`allOrderDerivedCosts`) vengono sommati nella colonna `variable` — **senza controllare il `cost_type`** del singolo costo.
 
-## Risultati dell'analisi
+Questo significa che gli stipendi (fissi) vengono conteggiati come variabili nel grafico, distorcendo la visualizzazione.
 
-### 1. Codice morto / orfano
-**Nessun file orfano trovato.** Tutti i componenti, hook, file lib e tipi risultano importati e utilizzati. L'audit precedente ha già rimosso i file inutilizzati (useMarketingTags, PermissionGuard, AdminMrrStats, AdminTrialFunnel, ecc.).
+```text
+Codice attuale (riga 383-390):
+  allOrderDerivedCosts.forEach((c) => {
+    ...
+    variable += c.amount;    ← BUG: tutto va in "variabile"
+  });
 
-### 2. Console e Network
-- **Zero errori in console** al momento della verifica
-- **Zero richieste di rete fallite** visibili
+Dovrebbe essere:
+  allOrderDerivedCosts.forEach((c) => {
+    ...
+    if (c.cost_type === "fixed") fixed += c.amount;
+    else variable += c.amount;
+  });
+```
 
-### 3. Struttura codice
-Il codice è ben organizzato: lazy loading su tutte le pagine, ErrorBoundary per ogni area, query deduplicate con React Query, memoizzazione applicata. Nessun problema strutturale evidente.
+## Modifica
 
----
+**File: `src/hooks/useCompanyCostsData.ts`** — riga 388:
+- Sostituire `variable += c.amount` con un check su `c.cost_type` per sommare correttamente fissi e variabili.
 
-## Cosa posso fare concretamente
-
-Dato che il codebase è già pulito e stabile, un audit "a tappeto" generico non produrrebbe risultati utili. Propongo invece di concentrarmi su **aree specifiche** che vuoi verificare o migliorare. Per esempio:
-
-- **Flusso ordini**: smoke test end-to-end (creazione → modifica → cambio stato → eliminazione)
-- **Filtri ordini**: verificare edge case (nessun risultato, combinazioni filtri, reset)
-- **Performance**: profiling di pagine specifiche che sembrano lente
-- **UX di una sezione specifica**: transizioni, loading states, empty states
-- **Mobile responsive**: verificare una sezione specifica su viewport mobile
-
-Quale area vuoi che verifichi in dettaglio?
+Nessun'altra modifica necessaria: la classificazione degli stipendi come `fixed` è già corretta ovunque (marginalità, break-even, tabella costi, export CSV).
 
