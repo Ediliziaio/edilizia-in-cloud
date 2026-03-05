@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
-import { subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
+import { subDays, startOfDay, endOfDay, startOfMonth, startOfYear } from "date-fns";
 import type { DatePreset, CompanyDashboardFiltersState } from "@/components/dashboard/CompanyDashboardFilters";
 
 export interface RecentOrder {
@@ -78,6 +78,8 @@ function getDateRange(preset: DatePreset, customFrom?: Date, customTo?: Date): {
       return { from: startOfDay(subDays(now, 30)), to: endOfDay(now) };
     case "month":
       return { from: startOfMonth(now), to: endOfDay(now) };
+    case "year":
+      return { from: startOfYear(now), to: endOfDay(now) };
     case "custom":
       return { from: customFrom || subDays(now, 30), to: customTo || now };
   }

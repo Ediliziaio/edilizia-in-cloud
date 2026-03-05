@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { CalendarDays, Filter, ListFilter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -9,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-export type DatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "custom";
+export type DatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "year" | "custom";
 
 export interface CompanyDashboardFiltersState {
   datePreset: DatePreset;
@@ -29,10 +30,12 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: "last7", label: "7 giorni" },
   { value: "last30", label: "30 giorni" },
   { value: "month", label: "Mese" },
+  { value: "year", label: "Anno" },
   { value: "custom", label: "Personalizzato" },
 ];
 
 export function CompanyDashboardFilters({ filters, onUpdate }: Props) {
+  const [customOpen, setCustomOpen] = useState(false);
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -61,42 +64,55 @@ export function CompanyDashboardFilters({ filters, onUpdate }: Props) {
 
       {/* Date presets */}
       <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
-        {DATE_PRESETS.map(p => (
-          <Button
-            key={p.value}
-            variant={filters.datePreset === p.value ? "default" : "ghost"}
-            size="sm"
-            className="h-7 text-xs px-2.5"
-            onClick={() => onUpdate({ datePreset: p.value })}
-          >
-            {p.label}
-          </Button>
-        ))}
-      </div>
-
-      {/* Custom date range */}
-      {filters.datePreset === "custom" && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
-              <CalendarDays className="h-3.5 w-3.5" />
-              {format(filters.dateFrom, "dd MMM", { locale: it })} – {format(filters.dateTo, "dd MMM", { locale: it })}
+        {DATE_PRESETS.map(p =>
+          p.value === "custom" ? (
+            <Popover key="custom" open={customOpen} onOpenChange={setCustomOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={filters.datePreset === "custom" ? "default" : "ghost"}
+                  size="sm"
+                  className="h-7 text-xs px-2.5 gap-1.5"
+                  onClick={() => {
+                    onUpdate({ datePreset: "custom" });
+                    setCustomOpen(true);
+                  }}
+                >
+                  {filters.datePreset === "custom" ? (
+                    <>
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      {format(filters.dateFrom, "dd MMM", { locale: it })} – {format(filters.dateTo, "dd MMM", { locale: it })}
+                    </>
+                  ) : (
+                    p.label
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="range"
+                  selected={{ from: filters.dateFrom, to: filters.dateTo }}
+                  onSelect={(range) => {
+                    if (range?.from) onUpdate({ dateFrom: range.from, dateTo: range.to || range.from });
+                  }}
+                  locale={it}
+                  numberOfMonths={2}
+                  className="pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <Button
+              key={p.value}
+              variant={filters.datePreset === p.value ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs px-2.5"
+              onClick={() => onUpdate({ datePreset: p.value })}
+            >
+              {p.label}
             </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="range"
-              selected={{ from: filters.dateFrom, to: filters.dateTo }}
-              onSelect={(range) => {
-                if (range?.from) onUpdate({ dateFrom: range.from, dateTo: range.to || range.from });
-              }}
-              locale={it}
-              numberOfMonths={2}
-              className="pointer-events-auto"
-            />
-          </PopoverContent>
-        </Popover>
-      )}
+          )
+        )}
+      </div>
 
       {/* Order status filter */}
       {orderStatuses && orderStatuses.length > 0 && (
