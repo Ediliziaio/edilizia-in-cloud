@@ -547,10 +547,8 @@ export default function Calendar() {
           ) : view === "heatmap" ? (
             <CalendarHeatmapView
               orders={scheduledOrders}
-              appointments={filteredAppointments}
               currentDate={currentDate}
               onDateChange={setCurrentDate}
-              hiddenEventTypes={hiddenEventTypes}
             />
           ) : (
             <CalendarGanttView

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   format,
@@ -18,37 +18,32 @@ import {
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, TrendingUp, CalendarOff, AlertTriangle, BarChart3, CalendarClock } from "lucide-react";
+import { ChevronLeft, ChevronRight, TrendingUp, CalendarOff, AlertTriangle, BarChart3 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Hammer, Package, Wrench, Users, UsersRound } from "lucide-react";
+import { Hammer, Wrench, Users, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS } from "@/lib/calendarUtils";
-import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
+import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT } from "@/lib/calendarUtils";
+import type { CalendarOrder } from "@/types/calendar";
 
 interface CalendarHeatmapViewProps {
   orders: CalendarOrder[];
-  appointments?: CalendarAppointment[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
-  hiddenEventTypes?: Set<string>;
 }
 
 interface DayWorkload {
   orders: CalendarOrder[];
-  appointments: CalendarAppointment[];
   total: number;
 }
 
 function getWorkloadForDay(
   orders: CalendarOrder[],
-  appointments: CalendarAppointment[],
-  day: Date,
-  hiddenEventTypes?: Set<string>
+  day: Date
 ): DayWorkload {
   const filteredOrders = orders.filter((order) => {
     const start = order.work_start_date ? parseISO(order.work_start_date) : null;
@@ -56,34 +51,24 @@ function getWorkloadForDay(
 
     // Check posa
     if (order.expected_date && isSameDay(parseISO(order.expected_date), day)) {
-      if (!hiddenEventTypes?.has("posa")) return true;
-    }
-
-    // Check merce
-    if (order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day)) {
-      if (!hiddenEventTypes?.has("merce")) return true;
+      return true;
     }
 
     // Check lavoro (range)
-    if (start && end && !hiddenEventTypes?.has("lavoro")) {
+    if (start && end) {
       if (isWithinInterval(day, { start, end })) {
         // Avoid double-counting if this day is already counted as posa
         const isPosaDay = order.expected_date && isSameDay(parseISO(order.expected_date), day);
-        if (!isPosaDay || hiddenEventTypes?.has("posa")) return true;
+        if (!isPosaDay) return true;
       }
     }
 
     return false;
   });
 
-  const filteredAppointments = hiddenEventTypes?.has("appuntamento")
-    ? []
-    : appointments.filter((apt) => isSameDay(parseISO(apt.appointment_date), day));
-
   return {
     orders: filteredOrders,
-    appointments: filteredAppointments,
-    total: filteredOrders.length + filteredAppointments.length,
+    total: filteredOrders.length,
   };
 }
 
@@ -103,7 +88,7 @@ function getHeatTextColor(count: number): string {
   return "text-red-900 dark:text-red-200";
 }
 
-export function CalendarHeatmapView({ orders, appointments = [], currentDate, onDateChange, hiddenEventTypes }: CalendarHeatmapViewProps) {
+export function CalendarHeatmapView({ orders, currentDate, onDateChange }: CalendarHeatmapViewProps) {
   const navigate = useNavigate();
 
   const days = useMemo(() => {
@@ -117,10 +102,10 @@ export function CalendarHeatmapView({ orders, appointments = [], currentDate, on
   const dayWorkloads = useMemo(() => {
     const map = new Map<string, DayWorkload>();
     days.forEach((day) => {
-      map.set(format(day, "yyyy-MM-dd"), getWorkloadForDay(orders, appointments, day, hiddenEventTypes));
+      map.set(format(day, "yyyy-MM-dd"), getWorkloadForDay(orders, day));
     });
     return map;
-  }, [days, orders, appointments, hiddenEventTypes]);
+  }, [days, orders]);
 
   const stats = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
@@ -181,7 +166,7 @@ export function CalendarHeatmapView({ orders, appointments = [], currentDate, on
 
             {days.map((day, idx) => {
               const key = format(day, "yyyy-MM-dd");
-              const workload = dayWorkloads.get(key) ?? { orders: [], appointments: [], total: 0 };
+              const workload = dayWorkloads.get(key) ?? { orders: [], total: 0 };
               const count = workload.total;
               const isToday = isSameDay(day, new Date());
               const isCurrentMonth = isSameMonth(day, currentDate);
@@ -207,9 +192,7 @@ export function CalendarHeatmapView({ orders, appointments = [], currentDate, on
                   </div>
                   {isCurrentMonth && count > 0 && (() => {
                     const hasPosa = workload.orders.some(o => o.expected_date && isSameDay(parseISO(o.expected_date), day));
-                    const hasMerce = workload.orders.some(o => o.warehouse_arrival_date && isSameDay(parseISO(o.warehouse_arrival_date), day));
                     const hasLavoro = workload.orders.some(o => o.work_start_date);
-                    const hasAppointment = workload.appointments.length > 0;
                     return (
                       <div className="flex flex-col items-center gap-0.5">
                         <div className="flex items-center gap-1">
@@ -222,9 +205,7 @@ export function CalendarHeatmapView({ orders, appointments = [], currentDate, on
                         </div>
                         <div className="flex gap-0.5">
                           {hasPosa && <Hammer className="h-2.5 w-2.5 text-blue-500" />}
-                          {hasMerce && <Package className="h-2.5 w-2.5 text-amber-500" />}
                           {hasLavoro && <Wrench className="h-2.5 w-2.5 text-green-500" />}
-                          {hasAppointment && <CalendarClock className="h-2.5 w-2.5 text-purple-500" />}
                         </div>
                       </div>
                     );
@@ -254,7 +235,6 @@ export function CalendarHeatmapView({ orders, appointments = [], currentDate, on
                       <div className="p-2 space-y-1">
                         {workload.orders.map((order) => {
                           const isPosa = order.expected_date && isSameDay(parseISO(order.expected_date), day);
-                          const isMerce = order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day);
 
                           return (
                             <button
@@ -265,8 +245,6 @@ export function CalendarHeatmapView({ orders, appointments = [], currentDate, on
                               <div className="flex-shrink-0">
                                 {isPosa ? (
                                   <Hammer className="h-4 w-4 text-blue-500" />
-                                ) : isMerce ? (
-                                  <Package className="h-4 w-4 text-amber-500" />
                                 ) : (
                                   <Wrench className="h-4 w-4 text-green-500" />
                                 )}
@@ -310,31 +288,6 @@ export function CalendarHeatmapView({ orders, appointments = [], currentDate, on
                                 />
                               )}
                             </button>
-                          );
-                        })}
-                        {workload.appointments.map((apt) => {
-                          const Icon = APPOINTMENT_ICONS[apt.appointment_type] || CalendarClock;
-                          return (
-                            <div
-                              key={apt.id}
-                              className="w-full flex items-center gap-2 p-2 rounded-md text-left text-sm hover:bg-accent transition-colors"
-                            >
-                              <div className="flex-shrink-0">
-                                <Icon className="h-4 w-4 text-purple-500" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium truncate">{apt.title}</p>
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {apt.appointment_time ? `${apt.appointment_time} — ` : ""}{apt.appointment_type}
-                                </p>
-                                {apt.assigned_profile && (
-                                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 mt-0.5">
-                                    <Users className="h-2.5 w-2.5" />
-                                    {apt.assigned_profile.first_name} {apt.assigned_profile.last_name}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
                           );
                         })}
                       </div>
