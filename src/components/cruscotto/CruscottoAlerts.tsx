@@ -41,22 +41,22 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         link: "/azienda/marketing/contatti",
       });
     }
-    if ((marketingAlerts as any).stale_leads_2h > 0) {
+    if (marketingAlerts.stale_leads_2h > 0) {
       alerts.push({
         id: "stale-leads-2h",
         level: "info",
         icon: Clock,
-        message: `${(marketingAlerts as any).stale_leads_2h} lead nuovi non contattati da 2h`,
+        message: `${marketingAlerts.stale_leads_2h} lead nuovi non contattati da 2h`,
         action: "Contattare prima che diventino freddi",
         link: "/azienda/marketing/contatti",
       });
     }
-    if ((marketingAlerts as any).pending_appointments > 0) {
+    if (marketingAlerts.pending_appointments > 0) {
       alerts.push({
         id: "pending-appointments",
         level: "warning",
         icon: CalendarCheck,
-        message: `${(marketingAlerts as any).pending_appointments} appuntamenti passati non completati`,
+        message: `${marketingAlerts.pending_appointments} appuntamenti passati non completati`,
         action: "Aggiornare stato o riprogrammare",
         link: "/azienda/marketing/calendario",
       });
