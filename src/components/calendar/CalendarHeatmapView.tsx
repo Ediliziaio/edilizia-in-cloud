@@ -13,7 +13,7 @@ import {
   addMonths,
   subMonths,
   isWithinInterval,
-  isWeekend,
+  getDay,
 } from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -111,7 +111,7 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
     const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-    const weekdays = monthDays.filter((d) => !isWeekend(d));
+    const weekdays = monthDays.filter((d) => getDay(d) !== 0);
 
     let totalWork = 0;
     let peakCount = 0;
@@ -177,7 +177,7 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange }: Calen
                     "min-h-[80px] p-2 transition-colors flex flex-col items-center",
                   isCurrentMonth ? getHeatColor(count) : "bg-muted/30",
                     !isCurrentMonth && "opacity-40",
-                    isCurrentMonth && isWeekend(day) && "opacity-60 ring-1 ring-inset ring-muted-foreground/20",
+                    isCurrentMonth && getDay(day) === 0 && "opacity-60 ring-1 ring-inset ring-muted-foreground/20",
                     isCurrentMonth && count > 0 && "cursor-pointer hover:opacity-80"
                   )}
                 >
