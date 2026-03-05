@@ -1,28 +1,33 @@
 
 
-# Aggiungere Upload Documenti alla Creazione Ticket
+# Fix: Errore caricamento messaggi ticket
 
-## Contesto
-Entrambi i form di creazione ticket (lato azienda `CreateCompanyTicket.tsx` e lato cliente `CreateTicket.tsx`) non hanno la possibilita di allegare file. Il bucket `ticket-attachments` e la logica di upload esistono gia in `TicketChat.tsx`.
+## Problema
+La query su `ticket_messages` usa il hint `profiles!ticket_messages_sender_id_fkey` per fare il join col profilo del mittente. Ma la foreign key `ticket_messages_sender_id_fkey` punta a `auth.users`, non a `public.profiles`. PostgREST non riesce a risolvere la relazione e restituisce errore 400.
 
-## Piano
+Questo errore si verifica sia nel dettaglio ticket lato azienda che lato cliente.
 
-### Modifiche a `CreateCompanyTicket.tsx`
-- Aggiungere stato `pendingFiles: File[]` per i file selezionati prima dell'invio
-- Aggiungere un input file con bottone (icona Paperclip), accetta immagini/PDF/documenti, multiplo
-- Mostrare lista file selezionati con possibilita di rimuoverli (nome + dimensione + X)
-- Nel `mutationFn`, dopo la creazione del ticket e del messaggio iniziale, uploadare ogni file al bucket `ticket-attachments` sotto `{ticketId}/{uuid}-{filename}` e inserire un record in `ticket_messages` con `attachment_url` per ciascun file
-- Validazione: max 5 file, max 10MB per file, tipi consentiti (immagini, PDF, doc/docx)
+## Soluzione
+Rimuovere il hint esplicito della FK e fare il join implicito `sender:profiles(...)` — PostgREST puo risolvere la relazione tramite il campo `sender_id` che corrisponde a `profiles.id` (stesso UUID di `auth.users.id`). In alternativa, se il join implicito non funziona (perche non c'e FK diretta verso profiles), si puo fare una query separata per i nomi dei sender e mapparli client-side.
 
-### Modifiche a `CreateTicket.tsx` (lato cliente)
-- Stessa logica: stato `pendingFiles`, input file, lista preview, upload su submit
-- Stessi vincoli di validazione
+L'approccio piu sicuro: **creare una FK** da `ticket_messages.sender_id` verso `profiles.id`, oppure **rimuovere il join** e fare 2 query separate (messaggi + profili dei sender).
 
-### File coinvolti
+Approccio scelto: **Migrazione SQL** per aggiungere una FK verso `profiles.id` (che ha lo stesso ID di `auth.users.id`), poi il hint funzionera.
+
+Ma c'e un problema: non possiamo avere due FK sullo stesso campo. Quindi dobbiamo:
+1. Droppare la FK esistente verso `auth.users`
+2. Creare una nuova FK verso `public.profiles`
+
+Oppure piu semplice: **rimuovere il hint dalla query** e usare il join senza hint, oppure fare 2 query.
+
+**Approccio finale piu sicuro (zero migrazione):** Rimuovere il hint FK e fare il fetch dei nomi sender separatamente, poi mapparli.
+
+## File da modificare
+
 | File | Modifica |
 |------|----------|
-| `src/pages/azienda/CreateCompanyTicket.tsx` | Aggiungere file picker + upload post-creazione |
-| `src/pages/cliente/CreateTicket.tsx` | Aggiungere file picker + upload post-creazione |
+| `src/pages/azienda/TicketDetail.tsx` | Rimuovere hint FK, fare query messaggi senza join profiles, poi fetch sender names separato |
+| `src/pages/cliente/CustomerTicketDetail.tsx` | Stessa modifica |
 
-Nessuna migrazione DB necessaria: il bucket e la colonna `attachment_url` su `ticket_messages` esistono gia.
+In pratica: fetch messaggi senza il join `sender:profiles!...`, poi con i `sender_id` unici fare una query a `profiles` per ottenere i nomi, e mapparli nei messaggi.
 
