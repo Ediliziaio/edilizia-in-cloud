@@ -56,6 +56,9 @@ export default function OrdersList() {
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
   const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [salespersonFilter, setSalespersonFilter] = useState<string>("all");
+  const [laborFilter, setLaborFilter] = useState<string>("all");
+  const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [importOpen, setImportOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ORDERS_PER_PAGE = 20;
@@ -89,7 +92,7 @@ export default function OrdersList() {
       if (orderIds.length === 0) return [];
       const { data, error } = await supabase
         .from("order_items")
-        .select("order_id, purchase_price, quantity, vat_rate")
+        .select("order_id, purchase_price, quantity, vat_rate, supplier_id")
         .in("order_id", orderIds);
       if (error) throw error;
       return data;
@@ -221,6 +224,54 @@ export default function OrdersList() {
     }
     return map;
   }, [employeeCosts, externalTeamCosts, employeeProfiles, externalTeamProfiles]);
+
+  // Build supplier map from order_items
+  const supplierIds = useMemo(() => [...new Set(itemCosts.map(i => i.supplier_id).filter(Boolean) as string[])], [itemCosts]);
+
+  const { data: supplierProfiles = [] } = useQuery({
+    queryKey: ["supplier-profiles", supplierIds],
+    queryFn: async () => {
+      if (supplierIds.length === 0) return [];
+      const { data, error } = await supabase.from("suppliers").select("id, name").in("id", supplierIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: supplierIds.length > 0,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const supplierMap = useMemo(() => {
+    const nameMap = new Map(supplierProfiles.map(s => [s.id, s.name]));
+    const map = new Map<string, string[]>();
+    for (const item of itemCosts) {
+      if (!item.supplier_id) continue;
+      const name = nameMap.get(item.supplier_id);
+      if (name) {
+        const existing = map.get(item.order_id) || [];
+        if (!existing.includes(name)) existing.push(name);
+        map.set(item.order_id, existing);
+      }
+    }
+    return map;
+  }, [itemCosts, supplierProfiles]);
+
+  // Unique lists for filter dropdowns
+  const uniqueSalespeople = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const sp of salespersonProfiles) map.set(sp.id, `${sp.first_name} ${sp.last_name}`);
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [salespersonProfiles]);
+
+  const uniqueLabor = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of employeeProfiles) map.set(`emp-${e.id}`, `${e.first_name} ${e.last_name}`);
+    for (const t of externalTeamProfiles) map.set(`team-${t.id}`, t.name);
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [employeeProfiles, externalTeamProfiles]);
+
+  const uniqueSuppliers = useMemo(() => {
+    return supplierProfiles.map(s => ({ id: s.id, name: s.name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [supplierProfiles]);
 
   // Column visibility state
   const OPTIONAL_COLUMNS = [
@@ -397,7 +448,8 @@ export default function OrdersList() {
     expectedDateRange.from || expectedDateRange.to;
 
   const hasAnyFilter = !!(hasDateFilters || searchQuery || statusFilter !== "all" ||
-    paymentFilter !== "all" || customerFilter !== "all" || amountMin || amountMax);
+    paymentFilter !== "all" || customerFilter !== "all" || amountMin || amountMax ||
+    salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all");
 
   const uniqueCustomers = useMemo(() => {
     const customerMap = new Map<string, { id: string; name: string }>();
@@ -418,6 +470,9 @@ export default function OrdersList() {
     setAmountMin("");
     setAmountMax("");
     setMonthFilter("all");
+    setSalespersonFilter("all");
+    setLaborFilter("all");
+    setSupplierFilter("all");
     setContractDateRange({ from: undefined, to: undefined });
     setWarehouseDateRange({ from: undefined, to: undefined });
     setExpectedDateRange({ from: undefined, to: undefined });
@@ -492,12 +547,35 @@ export default function OrdersList() {
       }
     }
 
+    // New filters: salesperson, labor, supplier
+    const matchesSalesperson = salespersonFilter === "all" || 
+      (salespeopleMap.get(order.id) || []).some(name => {
+        const profile = salespersonProfiles.find(p => `${p.first_name} ${p.last_name}` === name);
+        return profile && profile.id === salespersonFilter;
+      });
+
+    const matchesLabor = laborFilter === "all" ||
+      (laborMap.get(order.id) || []).some(name => {
+        const emp = employeeProfiles.find(e => `${e.first_name} ${e.last_name}` === name);
+        if (emp && `emp-${emp.id}` === laborFilter) return true;
+        const team = externalTeamProfiles.find(t => t.name === name);
+        if (team && `team-${team.id}` === laborFilter) return true;
+        return false;
+      });
+
+    const matchesSupplier = supplierFilter === "all" ||
+      (supplierMap.get(order.id) || []).some(name => {
+        const sup = supplierProfiles.find(s => s.name === name);
+        return sup && sup.id === supplierFilter;
+      });
+
     return matchesSearch && matchesStatus && matchesPayment && matchesCustomer && matchesAmount &&
-      matchesContractDate && matchesWarehouseDate && matchesExpectedDate;
+      matchesContractDate && matchesWarehouseDate && matchesExpectedDate &&
+      matchesSalesperson && matchesLabor && matchesSupplier;
   });
 
   // Reset page when filters change
-  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${amountMin}|${amountMax}|${monthFilter}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}`;
+  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}`;
   useEffect(() => { setCurrentPage(1); }, [filterKey]);
 
   // Pagination
@@ -705,6 +783,15 @@ export default function OrdersList() {
         onExpectedDateRangeChange={setExpectedDateRange}
         hasAnyFilter={hasAnyFilter}
         onClearAllFilters={clearAllFilters}
+        salespersonFilter={salespersonFilter}
+        onSalespersonFilterChange={setSalespersonFilter}
+        uniqueSalespeople={uniqueSalespeople}
+        laborFilter={laborFilter}
+        onLaborFilterChange={setLaborFilter}
+        uniqueLabor={uniqueLabor}
+        supplierFilter={supplierFilter}
+        onSupplierFilterChange={setSupplierFilter}
+        uniqueSuppliers={uniqueSuppliers}
       />
 
       {/* Content */}
