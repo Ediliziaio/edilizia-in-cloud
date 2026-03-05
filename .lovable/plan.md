@@ -1,35 +1,38 @@
 
 
-# Drag-and-Drop per Documenti Ordine
+# Miglioramento pagina Clienti
 
-## Intervento
+## Modifiche previste
 
-Aggiungere supporto drag-and-drop nativo (HTML5 Drag Events) ai due componenti di upload documenti: `PendingFilesUpload.tsx` (creazione ordine) e `OrderAttachments.tsx` (dettaglio ordine). Non servono librerie esterne — basta `onDragOver`, `onDragLeave`, `onDrop`.
+### 1. Migrazione DB: aggiungere `salesperson_id` alla tabella `profiles`
+- Nuova colonna nullable `salesperson_id UUID` con foreign key verso `salespeople(id) ON DELETE SET NULL`
+- Nessun impatto sui dati esistenti (nullable, default null)
 
-## Modifiche
+### 2. `CustomersList.tsx` — Filtri, colonna data, colonna venditore
 
-### 1. `PendingFilesUpload.tsx`
-- Aggiungere stato `isDragging` per evidenziare la drop zone
-- Wrappare il `CardContent` con handler `onDragOver`, `onDragLeave`, `onDrop`
-- Nel `onDrop`, riutilizzare la stessa logica di validazione esistente (MIME, size, limite file)
-- Quando non ci sono file e non si sta trascinando: messaggio attuale + hint "oppure trascina qui"
-- Quando si trascina: overlay visivo con bordo tratteggiato e icona Upload
-- La drop zone copre l'intera Card
+**Query**: aggiungere `created_at` e `salesperson_id` al select dei profili. Caricare anche i salespeople per risolvere i nomi.
 
-### 2. `OrderAttachments.tsx`
-- Stessa logica drag-and-drop nel `CardContent` del componente principale (solo quando `editable = true`)
-- Il drop attiva direttamente l'upload (stessa logica di `handleFileUpload` ma per array di file)
-- Overlay visivo durante il drag
+**Filtri** (sotto la search bar, in riga):
+- Filtro **Venditore**: select con lista venditori attivi + opzione "Tutti"
+- Filtro **Con/Senza ordini**: select con "Tutti", "Con ordini", "Senza ordini"
 
-### UI della drop zone
-- Bordo tratteggiato `border-dashed border-2 border-primary/50`
-- Sfondo `bg-primary/5`
-- Icona Upload centrata con testo "Trascina i file qui"
-- Transizione fluida con `transition-colors`
+**Nuove colonne tabella**:
+- **Data inserimento** (`created_at`): formattata `dd MMM yyyy`
+- **Venditore** (`salesperson_id`): nome venditore o "—"
+
+**Ordinamento**: aggiungere sort su `created_at` e `first_name` (click su header)
+
+### 3. `CustomersList.tsx` — Select venditore inline
+- Nella colonna Venditore, mostrare un piccolo select inline (o badge cliccabile) per assegnare/cambiare venditore direttamente dalla lista
+- Mutazione di update `profiles.salesperson_id` con invalidazione cache
+
+### 4. `CompanyCustomerDetail.tsx` — Aggiungere SalespersonSelect
+- Nella scheda di dettaglio cliente, aggiungere il componente `SalespersonSelect` esistente per gestire l'associazione venditore
 
 ### File modificati
 | File | Modifica |
 |------|----------|
-| `PendingFilesUpload.tsx` | Drop zone + stato drag + validazione drop |
-| `OrderAttachments.tsx` | Drop zone + upload diretto da drop |
+| Migrazione SQL | `ALTER TABLE profiles ADD COLUMN salesperson_id` + FK |
+| `CustomersList.tsx` | Filtri, colonne data+venditore, sort, assign inline |
+| `CompanyCustomerDetail.tsx` | SalespersonSelect nel form |
 
