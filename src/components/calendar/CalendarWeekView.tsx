@@ -7,15 +7,11 @@ import {
   isToday,
   isSameDay,
   parseISO,
-  addWeeks,
-  subWeeks,
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown, CalendarClock, Check } from "lucide-react";
+import { Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, ChevronDown, CalendarClock, Check } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
@@ -120,8 +116,6 @@ export function CalendarWeekView({
     }
   };
 
-  const handlePrevWeek = () => onDateChange(subWeeks(currentDate, 1));
-  const handleNextWeek = () => onDateChange(addWeeks(currentDate, 1));
 
   const renderEventCard = (event: WeekEvent, idx: number) => {
     // Google busy slot
@@ -234,24 +228,9 @@ export function CalendarWeekView({
   };
 
   return (
-    <Card>
-      <CardContent className="p-4">
-        {/* Header navigazione */}
-        <div className="flex items-center justify-between mb-4">
-          <Button variant="outline" size="icon" onClick={handlePrevWeek}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <h2 className="text-lg font-semibold">
-            {format(weekStart, "d MMM", { locale: it })} -{" "}
-            {format(weekEnd, "d MMM yyyy", { locale: it })}
-          </h2>
-          <Button variant="outline" size="icon" onClick={handleNextWeek}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Mobile: lista verticale collassabile */}
-        {isMobile ? (
+    <>
+      {/* Mobile: lista verticale collassabile */}
+      {isMobile ? (
           <div className="space-y-2">
             {weekDays.map((day) => {
               const events = getOrderEventsForDay(day);
@@ -346,38 +325,37 @@ export function CalendarWeekView({
           </div>
         )}
 
-        {/* Legenda */}
-        <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t text-xs">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-blue-100 dark:bg-blue-900/40" />
-            <Hammer className="h-3 w-3 text-blue-600" />
-            <span className="text-muted-foreground">Posa prevista</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-orange-100 dark:bg-orange-900/40" />
-            <Package className="h-3 w-3 text-orange-600" />
-            <span className="text-muted-foreground">Arrivo merce</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-green-100 dark:bg-green-900/40" />
-            <Wrench className="h-3 w-3 text-green-600" />
-            <span className="text-muted-foreground">Lavori in corso</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <AlertTriangle className="h-3 w-3 text-amber-500" />
-            <span className="text-muted-foreground">Rischio logistico</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-indigo-100 dark:bg-indigo-900/40" />
-            <CalendarClock className="h-3 w-3 text-indigo-600" />
-            <span className="text-muted-foreground">Appuntamenti</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded border border-dashed border-muted-foreground/40 bg-muted/60" />
-            <span className="text-muted-foreground">Google Calendar (occupato)</span>
-          </div>
+      {/* Legenda */}
+      <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t text-xs">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded bg-blue-100 dark:bg-blue-900/40" />
+          <Hammer className="h-3 w-3 text-blue-600" />
+          <span className="text-muted-foreground">Posa prevista</span>
         </div>
-      </CardContent>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded bg-orange-100 dark:bg-orange-900/40" />
+          <Package className="h-3 w-3 text-orange-600" />
+          <span className="text-muted-foreground">Arrivo merce</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded bg-green-100 dark:bg-green-900/40" />
+          <Wrench className="h-3 w-3 text-green-600" />
+          <span className="text-muted-foreground">Lavori in corso</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <AlertTriangle className="h-3 w-3 text-amber-500" />
+          <span className="text-muted-foreground">Rischio logistico</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded bg-indigo-100 dark:bg-indigo-900/40" />
+          <CalendarClock className="h-3 w-3 text-indigo-600" />
+          <span className="text-muted-foreground">Appuntamenti</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded border border-dashed border-muted-foreground/40 bg-muted/60" />
+          <span className="text-muted-foreground">Google Calendar (occupato)</span>
+        </div>
+      </div>
 
       {editingOrder && (
         <EditOrderDatesDialog
@@ -396,6 +374,6 @@ export function CalendarWeekView({
         }}
         showOrderSelect={true}
       />
-    </Card>
+    </>
   );
 }
