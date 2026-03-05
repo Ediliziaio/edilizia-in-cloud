@@ -31,7 +31,7 @@ import { OrderErrors } from "@/components/orders/OrderErrors";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
-import { CustomerDatesCard } from "@/components/orders/CustomerDatesCard";
+import { InlineEditableDatesCard } from "@/components/orders/InlineEditableDatesCard";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 
@@ -650,14 +650,13 @@ export default function OrderDetail() {
             vatRate={order.vat_rate || 22}
           />
           <OrderErrors orderId={id!} />
-          <CustomerDatesCard warehouseArrivalDate={order.warehouse_arrival_date} workStartDate={order.work_start_date} workEndDate={order.work_end_date} />
-          
-          {order.expected_date && (
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" />Consegna Prevista</CardTitle></CardHeader>
-              <CardContent><p className="font-medium">{formatDate(order.expected_date)}</p></CardContent>
-            </Card>
-          )}
+          <InlineEditableDatesCard
+            orderId={order.id}
+            expectedDate={order.expected_date}
+            warehouseArrivalDate={order.warehouse_arrival_date}
+            workStartDate={order.work_start_date}
+            workEndDate={order.work_end_date}
+          />
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
