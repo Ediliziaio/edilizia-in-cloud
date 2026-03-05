@@ -1,43 +1,22 @@
 
 
-# Redesign pagina Dettaglio Cliente — Layout a due colonne
+# Aggiungere tutti i campi cliente al dialog di creazione ordine
 
 ## Problema
-Il form ha `max-w-xl` (~36rem) e lascia tutto lo spazio destro vuoto. Lo storico ordini è sotto, creando una pagina lunga e sbilanciata.
+Il dialog "Nuovo Cliente" dentro la creazione ordine (`CreateCustomerDialog.tsx`) ha solo 5 campi (nome, cognome, email, telefono, indirizzo), mentre la pagina dedicata (`CreateCustomer.tsx`) ne ha 8 (aggiunge CF/P.IVA, indirizzo cantiere, note).
 
 ## Soluzione
-Convertire in layout a due colonne stile "detail page" coerente con il layout ordini (colonna principale 2/3 + sidebar 1/3):
+Aggiungere i 3 campi mancanti al dialog, inviandoli all'edge function `create-customer` che già li supporta.
 
-### Colonna sinistra (2/3) — Dati Cliente
-- Rimuovere `max-w-xl` dalla Card del form
-- Il form si espande e occupa lo spazio disponibile
-- Sezioni: Email, Dati Anagrafici, Indirizzi, Note, bottoni Salva/Annulla
+### Modifiche a `src/components/orders/CreateCustomerDialog.tsx`
 
-### Colonna destra (1/3) — Sidebar informativa
-- **Card Riepilogo**: avatar con iniziali, nome completo, email, telefono, data registrazione (`created_at`), CF/P.IVA — tutto read-only e compatto
-- **Card Storico Ordini**: spostare qui la tabella ordini in formato compatto (codice, stato badge, importo, link). Se molti ordini, mostrare gli ultimi 5 con link "Vedi tutti"
+1. **Nuovi state**: `fiscalCode`, `siteAddress`, `notes` (+ reset in `resetForm`)
+2. **Nuovi campi nel form** (dopo telefono, prima del footer):
+   - CF / P.IVA — `Input` con `maxLength={16}`
+   - Indirizzo Cantiere — `Textarea` rows=2
+   - Note — `Textarea` rows=2
+3. **Body della fetch**: aggiungere `fiscal_code`, `site_address`, `notes` alla chiamata `create-customer`
+4. **Rendere il dialog scrollabile**: aggiungere `max-h-[80vh] overflow-y-auto` al contenuto del form per gestire l'altezza su schermi piccoli
 
-### Struttura
-```text
-┌─────────────────────────┬──────────────┐
-│  Header (nome, back)    │   Elimina    │
-├─────────────────────────┴──────────────┤
-│                                        │
-│  ┌──────────────────┐ ┌─────────────┐  │
-│  │ Modifica Dati    │ │ Riepilogo   │  │
-│  │ Cliente          │ │ • Iniziali  │  │
-│  │                  │ │ • Email     │  │
-│  │ Nome / Cognome   │ │ • Tel       │  │
-│  │ CF/PIVA          │ │ • Dal: data │  │
-│  │ Telefono         │ │ • CF        │  │
-│  │ Indirizzi        │ ├─────────────┤  │
-│  │ Note             │ │ Ordini (N)  │  │
-│  │                  │ │ • ORD-001   │  │
-│  │ [Annulla] [Salva]│ │ • ORD-002   │  │
-│  └──────────────────┘ └─────────────┘  │
-└────────────────────────────────────────┘
-```
-
-### File modificato
-- `src/pages/azienda/CompanyCustomerDetail.tsx` — ristrutturazione del JSX, nessuna modifica alla logica
+Nessuna modifica all'edge function (già accetta questi campi). Nessuna modifica al DB.
 
