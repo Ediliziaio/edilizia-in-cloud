@@ -1,38 +1,38 @@
 
 
-# Bug: Filtro Venditori non mostra i venditori
+# Fix Drag & Drop nella Pipeline Ordini
 
-## Problema identificato
+## Problemi identificati
 
-Il codice in `OrdersList.tsx` (riga 158) cerca i nomi dei venditori nella tabella **`profiles`**, ma il campo `salesperson_id` in `order_salespeople` fa riferimento alla tabella **`salespeople`**, non a `profiles`.
-
-Dai dati di rete:
-- `order_salespeople.salesperson_id` = `b4f34373-...`, `0c4e3079-...`
-- Questi ID esistono nella tabella `salespeople` (Maurizio Trevisi, Luizia Antal, etc.)
-- La query a `profiles` con quegli ID restituisce array vuoto perche non sono profili utente
+1. **Warning React**: `OrdersPipelineCard` non usa `forwardRef`, causando problemi con `DragOverlay`
+2. **Collision detection sbagliata**: `closestCenter` non funziona bene per il drag tra colonne — va usato `closestCorners` (come nella Kanban Opportunità che funziona)
+3. **Touch support mancante**: Non c'è il `TouchSensor`, quindi il drag non funziona su mobile
 
 ## Fix
 
-**File: `src/pages/azienda/OrdersList.tsx`**
+### OrdersPipelineView.tsx
+- Cambiare `closestCenter` → `closestCorners`
+- Aggiungere `TouchSensor` ai sensors
+- Il `handleDragEnd` deve anche gestire il caso in cui si droppa su un'altra card (estrarre lo status dalla card target, come fa OpportunityKanbanView)
 
-Riga 154-164: cambiare la query `salespersonProfiles` da `profiles` a `salespeople`:
+### OrdersPipelineCard.tsx
+- Nessuna modifica strutturale necessaria — il `useDraggable` è già configurato correttamente
+
+### OrdersPipelineColumn.tsx  
+- Verificare che il `useDroppable` usi l'`id` corretto (già OK, usa `status.id`)
+
+## Dettaglio tecnico
+
+Il fix principale è nella collision detection e nella logica `handleDragEnd`: quando l'utente droppa una card su un'altra card (non direttamente sulla colonna), `over.id` sarà l'id dell'ordine, non dello stato. Bisogna risalire allo stato della colonna target. Cambio:
 
 ```typescript
-const { data: salespersonProfiles = [] } = useQuery({
-  queryKey: ["salesperson-profiles", salespersonIds],
-  queryFn: async () => {
-    if (salespersonIds.length === 0) return [];
-    const { data, error } = await supabase
-      .from("salespeople")
-      .select("id, first_name, last_name")
-      .in("id", salespersonIds);
-    if (error) throw error;
-    return data;
-  },
-  enabled: salespersonIds.length > 0,
-  staleTime: 10 * 60 * 1000,
-});
+// handleDragEnd: gestire drop su card oltre che su colonna
+let targetStatusId = over.id as string;
+const overOrder = orders.find(o => o.id === over.id);
+if (overOrder) {
+  targetStatusId = overOrder.current_status_id || "";
+}
 ```
 
-Un solo file, una riga cambiata (`profiles` -> `salespeople`). Questo corregge sia la colonna Venditore nella tabella sia il dropdown del filtro venditori.
+Due file da modificare: `OrdersPipelineView.tsx` (collision + sensors + drag end logic).
 
