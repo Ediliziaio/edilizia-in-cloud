@@ -18,10 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3, Plus, RefreshCw } from "lucide-react";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export default function Calendar() {
   const { effectiveCompany } = useAuth();
@@ -36,6 +37,7 @@ export default function Calendar() {
   const [externalTeamFilter, setExternalTeamFilter] = useState<string>("all");
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],
@@ -229,126 +231,54 @@ export default function Calendar() {
   }, [orders]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Calendario Lavori</h1>
-        <p className="text-muted-foreground">
-          Pianifica e visualizza i lavori programmati
-        </p>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Tutti gli stati" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti gli stati</SelectItem>
-            {statuses.map((status) => (
-              <SelectItem key={status.id} value={status.id}>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded"
-                    style={{ backgroundColor: status.color }}
-                  />
-                  {status.name}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={customerFilter} onValueChange={setCustomerFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Tutti i clienti" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti i clienti</SelectItem>
-            {uniqueCustomers.map((customer) => (
-              <SelectItem key={customer.id} value={customer.id}>
-                {customer.last_name} {customer.first_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Tutti gli operai" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti gli operai</SelectItem>
-            {companyEmployees.map((emp) => (
-              <SelectItem key={emp.id} value={emp.id}>
-                {emp.last_name} {emp.first_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={externalTeamFilter} onValueChange={setExternalTeamFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Tutte le squadre" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutte le squadre</SelectItem>
-            {externalTeams.map((team) => (
-              <SelectItem key={team.id} value={team.id}>
-                {team.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Resetta Filtri
-          </Button>
-        )}
-
-        <div className="flex items-center gap-2 ml-auto">
-          <Badge variant="secondary" className="font-normal">
-            {scheduledOrders.length} {scheduledOrders.length === 1 ? "ordine" : "ordini"}
-          </Badge>
-          {unplannedOrdersCount > 0 && (
-            <Badge variant="destructive" className="gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              {unplannedOrdersCount} non pianificati
-            </Badge>
-          )}
+    <div className="space-y-4">
+      {/* Header compatto: titolo + toggle viste + azioni */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Calendario Lavori</h1>
         </div>
-      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
         <ToggleGroup
           type="single"
           value={view}
           onValueChange={(value) => value && setView(value as CalendarViewType)}
           className="bg-muted rounded-lg p-1"
         >
-          <ToggleGroupItem value="month" aria-label="Vista Mese" className="gap-2">
+          <ToggleGroupItem value="month" aria-label="Vista Mese" className="gap-1.5 px-2.5">
             <CalendarIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">Mese</span>
+            <span className="hidden sm:inline text-xs">Mese</span>
           </ToggleGroupItem>
-          <ToggleGroupItem value="week" aria-label="Vista Settimana" className="gap-2">
+          <ToggleGroupItem value="week" aria-label="Vista Settimana" className="gap-1.5 px-2.5">
             <CalendarRange className="h-4 w-4" />
-            <span className="hidden sm:inline">Settimana</span>
+            <span className="hidden sm:inline text-xs">Settimana</span>
           </ToggleGroupItem>
-          <ToggleGroupItem value="heatmap" aria-label="Vista Carico" className="gap-2">
+          <ToggleGroupItem value="heatmap" aria-label="Vista Carico" className="gap-1.5 px-2.5">
             <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline">Carico</span>
+            <span className="hidden sm:inline text-xs">Carico</span>
           </ToggleGroupItem>
           {!isMobile && (
-            <ToggleGroupItem value="gantt" aria-label="Vista Gantt" className="gap-2">
+            <ToggleGroupItem value="gantt" aria-label="Vista Gantt" className="gap-1.5 px-2.5">
               <GanttChart className="h-4 w-4" />
-              <span className="hidden sm:inline">Gantt</span>
+              <span className="hidden sm:inline text-xs">Gantt</span>
             </ToggleGroupItem>
           )}
         </ToggleGroup>
 
         <div className="flex items-center gap-2">
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 relative">
+                <SlidersHorizontal className="h-4 w-4" />
+                Filtri
+                {hasActiveFilters && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    {[statusFilter, customerFilter, employeeFilter, externalTeamFilter].filter(f => f !== "all").length}
+                  </span>
+                )}
+              </Button>
+            </CollapsibleTrigger>
+          </Collapsible>
+
           {isGoogleConnected && (
             <Button
               variant="outline"
@@ -361,20 +291,107 @@ export default function Calendar() {
                 setSyncing(false);
               }}
             >
-              <RefreshCw className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
-              Sync Google
+              <RefreshCw className={cn("h-4 w-4 mr-1.5", syncing && "animate-spin")} />
+              <span className="hidden sm:inline">Sync</span>
             </Button>
           )}
           <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Appuntamento
+            <Plus className="h-4 w-4 mr-1.5" />
+            <span className="hidden sm:inline">Appuntamento</span>
           </Button>
           <Button variant="outline" size="sm" onClick={goToToday}>
-            <CalendarDays className="h-4 w-4 mr-2" />
-            Oggi
+            <CalendarDays className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Oggi</span>
           </Button>
         </div>
       </div>
+
+      {/* Pannello filtri collassabile */}
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <CollapsibleContent>
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="Tutti gli stati" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  {statuses.map((status) => (
+                    <SelectItem key={status.id} value={status.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded" style={{ backgroundColor: status.color }} />
+                        {status.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={customerFilter} onValueChange={setCustomerFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Tutti i clienti" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i clienti</SelectItem>
+                  {uniqueCustomers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.last_name} {customer.first_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Tutti gli operai" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli operai</SelectItem>
+                  {companyEmployees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.last_name} {emp.first_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={externalTeamFilter} onValueChange={setExternalTeamFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Tutte le squadre" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte le squadre</SelectItem>
+                  {externalTeams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-1.5">
+                  <RotateCcw className="h-4 w-4" />
+                  Resetta
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="font-normal">
+                {scheduledOrders.length} {scheduledOrders.length === 1 ? "ordine" : "ordini"}
+              </Badge>
+              {unplannedOrdersCount > 0 && (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  {unplannedOrdersCount} non pianificati
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {isLoading ? (
         <div className="flex items-center justify-center h-96">
