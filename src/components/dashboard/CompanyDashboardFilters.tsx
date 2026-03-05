@@ -25,12 +25,12 @@ interface Props {
 }
 
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: "year", label: "Anno" },
+  { value: "month", label: "Mese" },
+  { value: "last30", label: "30 giorni" },
+  { value: "last7", label: "7 giorni" },
   { value: "today", label: "Oggi" },
   { value: "yesterday", label: "Ieri" },
-  { value: "last7", label: "7 giorni" },
-  { value: "last30", label: "30 giorni" },
-  { value: "month", label: "Mese" },
-  { value: "year", label: "Anno" },
   { value: "custom", label: "Personalizzato" },
 ];
 

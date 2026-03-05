@@ -113,8 +113,8 @@ export function useCompanyDashboardData() {
   const companyId = effectiveCompany?.id;
 
   const [filters, setFilters] = useState<CompanyDashboardFiltersState>({
-    datePreset: "month",
-    dateFrom: startOfMonth(new Date()),
+    datePreset: "year",
+    dateFrom: startOfYear(new Date()),
     dateTo: endOfDay(new Date()),
     statusId: null,
   });
