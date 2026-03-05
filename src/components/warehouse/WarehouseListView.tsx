@@ -39,6 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 import { STATUS_CONFIG, isItemUrgent, isItemCritical, getDaysUntilPosa, getUrgencyLabel } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
+import WarehouseItemDetailDialog from "./WarehouseItemDetailDialog";
 
 interface WarehouseListViewProps {
   orderGroups: OrderWithItems[];
@@ -109,6 +110,7 @@ function WarehouseListView({
 }: WarehouseListViewProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [selectedItem, setSelectedItem] = useState<WarehouseItem | null>(null);
 
   const formatDate = (dateStr: string) => {
     return format(new Date(dateStr), "dd MMM", { locale: it });
@@ -289,9 +291,15 @@ function WarehouseListView({
                       <div
                         key={item.id}
                         className={cn(
-                          "flex items-center justify-between p-2 rounded bg-background border",
+                          "flex items-center justify-between p-2 rounded bg-background border cursor-pointer hover:bg-muted/40 transition-colors",
                           selectedItems.has(item.id) && "ring-1 ring-primary"
                         )}
+                        onClick={(e) => {
+                          // Don't open detail if clicking checkbox or select
+                          const target = e.target as HTMLElement;
+                          if (target.closest('[role="checkbox"]') || target.closest('[role="combobox"]') || target.closest('[data-radix-collection-item]')) return;
+                          setSelectedItem(item);
+                        }}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <Checkbox
@@ -394,6 +402,17 @@ function WarehouseListView({
           </Collapsible>
         );
       })}
+      {/* Item detail dialog */}
+      <WarehouseItemDetailDialog
+        item={selectedItem}
+        open={!!selectedItem}
+        onOpenChange={(open) => !open && setSelectedItem(null)}
+        onStatusChange={onStatusChange}
+        onUpdateNotes={onUpdateNotes}
+        getSupplierName={getSupplierName}
+        isUpdating={isUpdating}
+        stockMatch={selectedItem && selectedItem.status === "da_ordinare" ? findStockMatch(selectedItem.name) : null}
+      />
     </div>
   );
 }
