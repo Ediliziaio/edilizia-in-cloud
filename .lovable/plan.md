@@ -1,18 +1,22 @@
 
 
-# Fix: Filtro appuntamenti nella vista Carico (Heatmap)
+# Carico: Solo Pose e Lavori
 
-## Bug trovato
+## Problema
+La vista Carico attualmente mostra tutte le tipologie (posa, merce, appuntamenti, lavori) in base ai filtri Layer. L'utente vuole che mostri **solo** pose e lavori in corso — niente arrivo merce, niente appuntamenti.
 
-La vista Carico (Heatmap) usa `hiddenEventTypes?.has("appointment")` per filtrare gli appuntamenti, ma il valore effettivo impostato dal pannello Layer in `Calendar.tsx` è `"appuntamento"` (italiano). Risultato: disattivare il layer "Appuntamenti" nel pannello non ha effetto sulla Heatmap — gli appuntamenti vengono sempre contati.
+## Modifiche
 
-Le altre viste (Mese e Settimana) usano correttamente `"appuntamento"`.
+### `src/components/calendar/CalendarHeatmapView.tsx`
 
-## Fix
+1. **`getWorkloadForDay()`**: Rimuovere il blocco "Check merce" (righe 62-65) e rimuovere il conteggio appuntamenti (righe 79-81). Il totale sarà solo ordini con posa o lavoro.
 
-| File | Modifica |
-|------|----------|
-| `src/components/calendar/CalendarHeatmapView.tsx` riga 79 | Cambiare `"appointment"` → `"appuntamento"` |
+2. **Celle del calendario**: Rimuovere le icone merce (Package) e appuntamento (CalendarClock) dalle celle.
 
-Una sola riga da modificare. Nessun altro problema trovato nel resto del calendario.
+3. **Popover dettaglio giorno**: Rimuovere la sezione che elenca gli appuntamenti. Mostrare solo ordini di tipo posa e lavoro.
+
+4. **Props**: Rimuovere la prop `appointments` dato che non serve più. Rimuovere anche il filtro `hiddenEventTypes` per merce/appuntamento (la Heatmap mostrerà sempre e solo posa+lavoro, indipendentemente dai layer).
+
+### `src/pages/azienda/Calendar.tsx`
+- Rimuovere il passaggio di `appointments` alla `CalendarHeatmapView`.
 
