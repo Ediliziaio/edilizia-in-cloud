@@ -1,80 +1,75 @@
 
 
-# Ottimizzazione Cruscotto Aziendale
+# Analisi Cruscotto Aziendale — Spazi Vuoti e Dati Mancanti
 
-## Obiettivo
-Riorganizzare il cruscotto per mostrare subito i KPI finanziari e commerciali arricchiti, eliminare le sezioni superflue, e organizzare il dettaglio in 4 tab.
-
----
-
-## 1. Rimuovere componenti (CruscottoAziendale.tsx)
-
-Eliminare dal layout:
-- `DailyPriorities` (righe 76-81)
-- `WeeklyAgenda` (righe 82-85) + relativo grid wrapper
-- `ExecutiveSummary` (righe 96-102) — lasciare solo HealthScore a larghezza piena
-- Import relativi
+Dopo aver analizzato tutti i componenti, ecco cosa risulta vuoto o sottoutilizzato:
 
 ---
 
-## 2. Arricchire i KPI Finanziari (ExecutiveOverview.tsx)
+## 1. KPI senza confronto periodo precedente
 
-Aggiungere alla lista `FINANCIAL_KPIS` questi nuovi indicatori:
+5 dei 11 KPI finanziari e 0 dei nuovi hanno `getPrevValue: () => 0`, quindi **non mostrano mai il delta** (freccia verde/rossa):
+- N° Ordini, Costo Medio Ordine, Entrate Mese, Uscite Mese, Burn Rate, Da Incassare, Debiti Fornitori
 
-| KPI | Sorgente dati | Formato |
-|-----|--------------|---------|
-| **N° Ordini** | `operations.activeOrders` | numero |
-| **Costo Medio Ordine** | `finance.revenueThisMonth / operations.activeOrders` | valuta |
-| **Entrate Mese** | `finance.thisMonthIncome` | valuta |
-| **Uscite Mese** | `finance.thisMonthOutflow` | valuta |
-| **Burn Rate** | `finance.thisMonthOutflow / giornoDelMese` (€/giorno) | valuta/gg |
-
-Per rendere disponibili i dati `operations` nel componente:
-- Aggiungere `operations: OperationsData` alle Props di `ExecutiveOverview`
-- Passare `operations` dal componente padre
-- Usare i dati nelle definizioni KPI
-
-Grid finanziaria: da `lg:grid-cols-5` a `lg:grid-cols-6` per ospitare le card aggiuntive (11 KPI finanziari su 2 righe).
+**Fix**: Per i KPI basati su `finance`, calcolare i valori del periodo precedente usando `prevFromStr/prevToStr` già presenti nel hook. Per N° Ordini serve una query aggiuntiva per il conteggio ordini nel periodo precedente.
 
 ---
 
-## 3. Riorganizzare layout con Tab (CruscottoAziendale.tsx)
+## 2. Dati `weeklyAgenda` recuperati ma mai visualizzati
 
-Nuovo layout della pagina:
+Il hook `useCruscottoData` carica `weeklyAgenda` (pagamenti in arrivo, costi in scadenza, consegne, appuntamenti prossimi 7 giorni) ma dopo la rimozione del componente WeeklyAgenda **questi dati non appaiono da nessuna parte**.
 
-```text
-┌──────────────────────────────────────┐
-│ Header + Filtri                      │
-├──────────────────────────────────────┤
-│ Health Score (full width)            │
-├──────────────────────────────────────┤
-│ KPI Finanziari (strip di card)       │
-│ KPI Commerciali (strip di card)      │
-├──────────────────────────────────────┤
-│ Alerts                               │
-├──────────────────────────────────────┤
-│ [Finanza] [Marketing] [Vendite] [Ops]│
-│ ┌────────────────────────────────┐   │
-│ │ Contenuto tab attiva           │   │
-│ └────────────────────────────────┘   │
-├──────────────────────────────────────┤
-│ Trend (sempre visibile)              │
-└──────────────────────────────────────┘
-```
-
-**Contenuto delle 4 tab:**
-- **Finanza**: `FinanzaCashFlow` + `PipelineForecast`
-- **Marketing**: `MarketingControl` (Funnel + Sorgenti)
-- **Vendite**: `SalesControl` + `HRPerformance`
-- **Operazioni**: `OperationsDelivery`
+**Fix**: Creare un widget compatto "Prossimi 7 Giorni" da inserire nella tab **Operazioni** o come strip sotto gli Alerts — 4 mini-card orizzontali: Incassi Attesi, Costi in Scadenza, Consegne, Appuntamenti.
 
 ---
 
-## File da modificare
+## 3. Tab Operazioni troppo scarsa
 
-| File | Intervento |
-|------|-----------|
-| `ExecutiveOverview.tsx` | Aggiungere `operations` a Props, 5 nuovi KPI finanziari, aggiornare grid |
-| `CruscottoAziendale.tsx` | Rimuovere DailyPriorities/WeeklyAgenda/ExecutiveSummary, aggiungere Tabs con 4 pannelli, passare `operations` a ExecutiveOverview |
-| `useCruscottoData.ts` | Nessuna modifica — i dati necessari sono già disponibili |
+Mostra solo 4 card (Ordini Attivi, In Ritardo, Ticket Aperti, Pagamenti Scaduti). Manca:
+- La sezione "Prossimi 7 giorni" (widget sopra)
+- Una timeline/lista degli ordini in scadenza
+- Dettaglio importo pagamenti scaduti
+
+**Fix**: Aggiungere il widget WeeklyAgenda compatto + una mini-tabella "Ordini in scadenza questa settimana" con data prevista e stato.
+
+---
+
+## 4. Tab Finanza — manca grafico storico
+
+`FinanzaCashFlow` mostra solo numeri statici del mese corrente. Manca un grafico che mostri l'andamento entrate/uscite nel tempo.
+
+**Fix**: Aggiungere un grafico a barre (Recharts) con entrate vs uscite mensili usando dati storici dagli ordini.
+
+---
+
+## 5. Tab Marketing — nessun grafico ROI
+
+La tab mostra Funnel e tabella Sorgenti. Manca:
+- Grafico ROI per sorgente (barre o torta)
+- Grafico CPL/CPA nel tempo
+
+**Fix**: Aggiungere un grafico a barre ROI per source usando i dati `sources` già disponibili.
+
+---
+
+## 6. Trend in fondo — potrebbe essere vuoto
+
+Se non ci sono dati nel periodo, il grafico trend è completamente vuoto senza alcun messaggio.
+
+**Fix**: Aggiungere un empty state con messaggio "Dati insufficienti per mostrare il trend".
+
+---
+
+## Piano di intervento proposto
+
+| Priorità | Intervento | File |
+|-----------|-----------|------|
+| **Alta** | Aggiungere `prevValue` reali ai KPI finanziari (delta %) | `ExecutiveOverview.tsx`, `useCruscottoData.ts` |
+| **Alta** | Widget "Prossimi 7 Giorni" compatto nella tab Operazioni | Nuovo `WeeklySnapshot.tsx`, `OperationsDelivery.tsx` |
+| **Media** | Grafico entrate/uscite mensile nella tab Finanza | `FinanzaCashFlow.tsx` |
+| **Media** | Grafico ROI per sorgente nella tab Marketing | `MarketingControl.tsx` |
+| **Bassa** | Empty state per Trend vuoto | `CruscottoTrend.tsx` |
+| **Bassa** | Mini-tabella ordini in scadenza | `OperationsDelivery.tsx` |
+
+Vuoi che proceda con tutte le priorità o solo alcune?
 
