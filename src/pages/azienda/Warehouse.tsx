@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -39,9 +41,13 @@ import WarehouseKanbanView from "@/components/warehouse/WarehouseKanbanView";
 import WarehouseCalendarView from "@/components/warehouse/WarehouseCalendarView";
 import WarehouseListView from "@/components/warehouse/WarehouseListView";
 import WarehouseStockTab from "@/components/warehouse/WarehouseStockTab";
+import { WarehouseMapView } from "@/components/warehouse/WarehouseMapView";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
+import type { StockItem } from "@/types/warehouse";
 import { useWarehouseData } from "@/hooks/useWarehouseData";
+import { useWarehouseSections } from "@/hooks/useWarehouseSections";
+import { supabase } from "@/integrations/supabase/client";
 import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
 
 export default function Warehouse() {
@@ -82,6 +88,25 @@ export default function Warehouse() {
     refetch,
     effectiveCompany,
   } = useWarehouseData();
+
+  const { sections } = useWarehouseSections();
+  const [activeSectionFilter, setActiveSectionFilter] = useState("all");
+
+  const { data: fullStockItems = [] } = useQuery({
+    queryKey: ["warehouse-stock", effectiveCompany?.id],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("warehouse_stock")
+        .select("*")
+        .eq("company_id", effectiveCompany.id)
+        .order("name");
+      if (error) throw error;
+      return data as StockItem[];
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+  });
 
   if (!effectiveCompany) {
     return (
@@ -157,6 +182,16 @@ export default function Warehouse() {
 
       {/* Stats */}
       <WarehouseStats items={items} />
+
+      {/* Warehouse Map - always visible */}
+      <div className="print:hidden">
+        <WarehouseMapView
+          stockItems={fullStockItems}
+          sections={sections}
+          activeSectionFilter={activeSectionFilter}
+          onFilterSection={setActiveSectionFilter}
+        />
+      </div>
 
       {/* View Toggle & Filters */}
       <Card className="print:hidden">
