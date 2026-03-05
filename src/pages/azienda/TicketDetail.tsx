@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Package, User, Mail, Phone,
-  AlertCircle, RefreshCw, Save,
+  AlertCircle, RefreshCw, Save, ChevronDown,
 } from "lucide-react";
 import {
   formatRelativeTime,
@@ -25,6 +25,8 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TicketChat } from "@/components/tickets/TicketChat";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { TicketAttachments } from "@/components/tickets/TicketAttachments";
@@ -39,6 +41,7 @@ export default function TicketDetail() {
   const queryClient = useQueryClient();
   const [internalNotes, setInternalNotes] = useState<string>("");
   const [notesLoaded, setNotesLoaded] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const { markTicketAsRead } = useUnreadTicketCounts();
 
   // Mark ticket as read when opening
@@ -193,42 +196,53 @@ export default function TicketDetail() {
   const statusColor = getTicketStatusColor(ticket.status);
   const priorityColor = getTicketPriorityColor(ticket.priority);
 
+  // Update notesOpen when ticket loads with notes
+  if (ticket.internal_notes && !notesOpen && !notesLoaded) {
+    setNotesOpen(true);
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-start gap-4">
+    <div className="flex flex-col h-[calc(100vh-120px)]">
+      {/* Header migliorato con badge */}
+      <div className="flex items-start gap-4 pb-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/assistenza")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold">{ticket.subject}</h1>
-          <p className="text-sm text-muted-foreground">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-bold truncate">{ticket.subject}</h1>
+            <Badge variant="outline" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
+              {getTicketStatusLabel(ticket.status)}
+            </Badge>
+            <Badge variant="outline" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
+              {getTicketPriorityLabel(ticket.priority)}
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Aperto {formatRelativeTime(ticket.created_at)}
           </p>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
-        {/* Sidebar */}
-        <div className="space-y-4">
-          {/* Gestione Ticket: Stato + Priorità + Assegnato */}
+      <Separator className="mb-4" />
+
+      {/* Layout a colonne con scroll indipendente */}
+      <div className="grid md:grid-cols-3 gap-6 flex-1 min-h-0">
+        {/* Sidebar con scroll indipendente */}
+        <div className="overflow-y-auto pr-1 space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+          {/* Card unificata: Gestione + Contesto */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Gestione Ticket</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Stato</label>
+            <CardContent className="p-4 space-y-3">
+              {/* Stato */}
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs text-muted-foreground shrink-0">Stato</label>
                 <Select
                   value={ticket.status}
                   onValueChange={(v) => updateTicketMutation.mutate({ status: v })}
                   disabled={updateTicketMutation.isPending}
                 >
-                  <SelectTrigger>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
-                        {getTicketStatusLabel(ticket.status)}
-                      </Badge>
-                    </div>
+                  <SelectTrigger className="w-[160px] h-8 text-xs">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="aperto">Aperto</SelectItem>
@@ -237,19 +251,16 @@ export default function TicketDetail() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Priorità</label>
+              {/* Priorità */}
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs text-muted-foreground shrink-0">Priorità</label>
                 <Select
                   value={ticket.priority}
                   onValueChange={(v) => updateTicketMutation.mutate({ priority: v })}
                   disabled={updateTicketMutation.isPending}
                 >
-                  <SelectTrigger>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
-                        {getTicketPriorityLabel(ticket.priority)}
-                      </Badge>
-                    </div>
+                  <SelectTrigger className="w-[160px] h-8 text-xs">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="bassa">Bassa</SelectItem>
@@ -259,14 +270,15 @@ export default function TicketDetail() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Assegnato a</label>
+              {/* Assegnato */}
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs text-muted-foreground shrink-0">Assegnato</label>
                 <Select
                   value={ticket.assigned_to || "unassigned"}
                   onValueChange={(v) => updateTicketMutation.mutate({ assigned_to: v === "unassigned" ? null : v })}
                   disabled={updateTicketMutation.isPending}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-[160px] h-8 text-xs">
                     <SelectValue placeholder="Non assegnato" />
                   </SelectTrigger>
                   <SelectContent>
@@ -279,82 +291,87 @@ export default function TicketDetail() {
                   </SelectContent>
                 </Select>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Contesto: Cliente + Ordine */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Contesto</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Cliente</label>
-                <div className="space-y-1.5">
+              <Separator />
+
+              {/* Cliente */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">Cliente</label>
+                <div className="flex items-center gap-2">
+                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="font-medium text-sm">
+                    {ticket.customer?.first_name} {ticket.customer?.last_name}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                  <a href={`mailto:${ticket.customer?.email}`} className="text-xs text-primary hover:underline truncate">
+                    {ticket.customer?.email}
+                  </a>
+                </div>
+                {ticket.customer?.phone && (
                   <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium text-sm">
-                      {ticket.customer?.first_name} {ticket.customer?.last_name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <a href={`mailto:${ticket.customer?.email}`} className="text-sm text-primary hover:underline">
-                      {ticket.customer?.email}
+                    <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                    <a href={`tel:${ticket.customer?.phone}`} className="text-xs text-primary hover:underline">
+                      {ticket.customer?.phone}
                     </a>
                   </div>
-                  {ticket.customer?.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <a href={`tel:${ticket.customer?.phone}`} className="text-sm text-primary hover:underline">
-                        {ticket.customer?.phone}
-                      </a>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
+
+              {/* Ordine collegato */}
               {ticket.order && (
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Ordine Collegato</label>
-                  <Link to={`/azienda/ordini/${ticket.order.id}`} className="flex items-start gap-2 text-primary hover:underline">
-                    <Package className="h-4 w-4 mt-0.5" />
-                    <span className="text-sm">
-                      {ticket.order.description.length > 50
-                        ? ticket.order.description.substring(0, 50) + "..."
-                        : ticket.order.description}
-                    </span>
-                  </Link>
-                </div>
+                <>
+                  <Separator />
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Ordine</label>
+                    <Link to={`/azienda/ordini/${ticket.order.id}`} className="flex items-start gap-2 text-primary hover:underline">
+                      <Package className="h-3.5 w-3.5 mt-0.5" />
+                      <span className="text-xs">
+                        {ticket.order.description.length > 50
+                          ? ticket.order.description.substring(0, 50) + "..."
+                          : ticket.order.description}
+                      </span>
+                    </Link>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
 
-          {/* Note Interne */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Note Interne</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Textarea
-                value={internalNotes}
-                onChange={(e) => setInternalNotes(e.target.value)}
-                placeholder="Note visibili solo allo staff..."
-                rows={4}
-                maxLength={1000}
-                className="resize-none text-sm"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full"
-                disabled={updateTicketMutation.isPending || internalNotes === (ticket.internal_notes || "")}
-                onClick={() => updateTicketMutation.mutate({ internal_notes: internalNotes || null })}
-              >
-                <Save className="h-3.5 w-3.5 mr-1.5" />
-                Salva Note
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Note Interne collassabili */}
+          <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <button className="w-full flex items-center justify-between p-4 text-sm font-medium hover:bg-muted/50 rounded-t-lg transition-colors">
+                  <span>Note Interne</span>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${notesOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-4 pb-4 space-y-2">
+                  <Textarea
+                    value={internalNotes}
+                    onChange={(e) => setInternalNotes(e.target.value)}
+                    placeholder="Note visibili solo allo staff..."
+                    rows={3}
+                    maxLength={1000}
+                    className="resize-none text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    disabled={updateTicketMutation.isPending || internalNotes === (ticket.internal_notes || "")}
+                    onClick={() => updateTicketMutation.mutate({ internal_notes: internalNotes || null })}
+                  >
+                    <Save className="h-3.5 w-3.5 mr-1.5" />
+                    Salva Note
+                  </Button>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
           {/* Allegati */}
           <TicketAttachments ticketId={ticket.id} />
@@ -367,8 +384,8 @@ export default function TicketDetail() {
           />
         </div>
 
-        {/* Chat */}
-        <div className="md:col-span-2">
+        {/* Chat con scroll indipendente */}
+        <div className="md:col-span-2 min-h-0">
           <TicketChat
             ticketId={ticket.id}
             messages={messages}
@@ -377,7 +394,7 @@ export default function TicketDetail() {
               ["admin-ticket-messages", id!],
               ["company-tickets"],
             ]}
-            height="calc(100vh - 300px)"
+            height="calc(100vh - 220px)"
           />
         </div>
       </div>
