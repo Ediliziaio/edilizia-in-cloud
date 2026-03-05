@@ -1,8 +1,9 @@
 import { useMemo } from "react";
-import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
+import { Package, ShoppingCart, Truck, CheckCircle2, AlertOctagon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { isItemOverdue } from "@/types/warehouse";
 import type { WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseStatsProps {
@@ -56,6 +57,7 @@ export default function WarehouseStats({ items }: WarehouseStatsProps) {
     const inMagazzino = items.filter((i) => i.status === "in_magazzino");
     const ordinati = items.filter((i) => i.status === "ordinato");
     const daOrdinare = items.filter((i) => i.status === "da_ordinare");
+    const overdue = items.filter(isItemOverdue);
 
     const uniqueOrders = (arr: WarehouseItem[]) =>
       new Set(arr.map((i) => i.order.id)).size;
@@ -79,6 +81,10 @@ export default function WarehouseStats({ items }: WarehouseStatsProps) {
         completed: completedCount,
         total: totalItems,
       },
+      overdue: {
+        count: overdue.length,
+        orders: uniqueOrders(overdue),
+      },
       inMagazzino: {
         count: inMagazzino.length,
         orders: uniqueOrders(inMagazzino),
@@ -98,7 +104,7 @@ export default function WarehouseStats({ items }: WarehouseStatsProps) {
   }, [items]);
 
   return (
-    <div className="grid gap-4 md:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-5">
       {/* Completion Progress */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -109,6 +115,25 @@ export default function WarehouseStats({ items }: WarehouseStatsProps) {
           <ProgressRing percentage={stats.completion.percentage} />
           <p className="text-xs text-muted-foreground mt-2">
             {stats.completion.completed}/{stats.completion.total} installati
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* In Ritardo */}
+      <Card className={cn(stats.overdue.count > 0 && "border-destructive")}>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium">In Ritardo</CardTitle>
+          <AlertOctagon className={cn("h-4 w-4", stats.overdue.count > 0 ? "text-destructive" : "text-muted-foreground")} />
+        </CardHeader>
+        <CardContent>
+          <div className={cn("text-2xl font-bold", stats.overdue.count > 0 ? "text-destructive" : "text-muted-foreground")}>
+            {stats.overdue.count}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            in {stats.overdue.orders} ordini
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            posa scaduta, non pronti
           </p>
         </CardContent>
       </Card>

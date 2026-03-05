@@ -4121,6 +4121,7 @@ export type Database = {
           id: string
           is_paid: boolean | null
           name: string
+          notes: string | null
           order_id: string
           paid_date: string | null
           payment_method: string | null
@@ -4150,6 +4151,7 @@ export type Database = {
           id?: string
           is_paid?: boolean | null
           name: string
+          notes?: string | null
           order_id: string
           paid_date?: string | null
           payment_method?: string | null
@@ -4179,6 +4181,7 @@ export type Database = {
           id?: string
           is_paid?: boolean | null
           name?: string
+          notes?: string | null
           order_id?: string
           paid_date?: string | null
           payment_method?: string | null

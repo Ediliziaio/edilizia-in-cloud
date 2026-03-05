@@ -50,8 +50,10 @@ export default function Warehouse() {
     filteredItems,
     filteredGroups,
     suppliers,
+    stockItems,
     uniqueOrders,
     urgentItemsCount,
+    overdueItemsCount,
     viewMode,
     setViewMode,
     searchQuery,
@@ -73,6 +75,7 @@ export default function Warehouse() {
     handleStatusChange,
     handleMarkAllInstalled,
     handleBatchStatusChange,
+    handleUpdateNotes,
     getSupplierName,
     clearFilters,
     exportToCSV,
@@ -191,6 +194,7 @@ export default function Warehouse() {
                     <SelectItem value="order">Per ordine</SelectItem>
                     <SelectItem value="date">Per data posa</SelectItem>
                     <SelectItem value="status">Per stato</SelectItem>
+                    <SelectItem value="supplier">Per fornitore</SelectItem>
                   </SelectContent>
                 </Select>
               )}
@@ -216,6 +220,20 @@ export default function Warehouse() {
                 {urgentItemsCount > 0 && (
                   <span className="ml-1 bg-destructive-foreground text-destructive rounded-full px-1.5 py-0.5 text-xs font-bold">
                     {urgentItemsCount}
+                  </span>
+                )}
+              </Button>
+              <Button
+                variant={quickFilter === "overdue" ? "destructive" : "outline"}
+                size="sm"
+                onClick={() => setQuickFilter("overdue")}
+                className="gap-1"
+              >
+                <Clock className="h-4 w-4" />
+                In Ritardo
+                {overdueItemsCount > 0 && (
+                  <span className="ml-1 bg-destructive-foreground text-destructive rounded-full px-1.5 py-0.5 text-xs font-bold">
+                    {overdueItemsCount}
                   </span>
                 )}
               </Button>
@@ -329,6 +347,9 @@ export default function Warehouse() {
               onBatchStatusChange={handleBatchStatusChange}
               getSupplierName={getSupplierName}
               isUpdating={isUpdating}
+              stockItems={stockItems}
+              onUpdateNotes={handleUpdateNotes}
+              groupBy={groupBy}
             />
           )}
 
