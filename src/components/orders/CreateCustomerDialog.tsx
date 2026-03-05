@@ -2,7 +2,7 @@ import { useState } from "react";
 import { User, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,8 +28,7 @@ export function CreateCustomerDialog({
   onOpenChange,
   onCustomerCreated,
 }: CreateCustomerDialogProps) {
-  const { effectiveCompany, user } = useAuth();
-  const { toast } = useToast();
+  const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
 
   const [firstName, setFirstName] = useState("");
@@ -72,38 +71,22 @@ export function CreateCustomerDialog({
     e.preventDefault();
 
     if (!firstName.trim()) {
-      toast({
-        title: "Campo obbligatorio",
-        description: "Inserisci il nome del cliente.",
-        variant: "destructive",
-      });
+      toast.error("Campo obbligatorio", { description: "Inserisci il nome del cliente." });
       return;
     }
 
     if (!lastName.trim()) {
-      toast({
-        title: "Campo obbligatorio",
-        description: "Inserisci il cognome del cliente.",
-        variant: "destructive",
-      });
+      toast.error("Campo obbligatorio", { description: "Inserisci il cognome del cliente." });
       return;
     }
 
     if (!email.trim()) {
-      toast({
-        title: "Campo obbligatorio",
-        description: "Inserisci l'email del cliente.",
-        variant: "destructive",
-      });
+      toast.error("Campo obbligatorio", { description: "Inserisci l'email del cliente." });
       return;
     }
 
     if (!effectiveCompany?.id) {
-      toast({
-        title: "Errore",
-        description: "Azienda non trovata.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Azienda non trovata." });
       return;
     }
 
@@ -128,7 +111,7 @@ export function CreateCustomerDialog({
       if (data.error) throw new Error(data.error);
 
       // Invalidate customers query
-      queryClient.invalidateQueries({ queryKey: ["customers", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["customers", effectiveCompany?.id] });
 
       // Show password step
       setCreatedCustomerId(data.user_id);
@@ -136,10 +119,8 @@ export function CreateCustomerDialog({
       setShowPasswordStep(true);
     } catch (error: any) {
       console.error("Create customer error:", error);
-      toast({
-        title: "Errore",
+      toast.error("Errore", {
         description: error.message || "Si è verificato un errore durante la creazione del cliente.",
-        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
@@ -152,11 +133,7 @@ export function CreateCustomerDialog({
       setPasswordCopied(true);
       setTimeout(() => setPasswordCopied(false), 2000);
     } catch (err) {
-      toast({
-        title: "Errore",
-        description: "Impossibile copiare la password.",
-        variant: "destructive",
-      });
+      toast.error("Errore", { description: "Impossibile copiare la password." });
     }
   };
 
@@ -164,8 +141,7 @@ export function CreateCustomerDialog({
     const customerName = `${firstName} ${lastName}`;
     onCustomerCreated(createdCustomerId, customerName);
     handleClose();
-    toast({
-      title: "Cliente creato",
+    toast.success("Cliente creato", {
       description: `${customerName} è stato selezionato per l'ordine.`,
     });
   };
