@@ -155,7 +155,7 @@ export default function OrdersList() {
     queryKey: ["salesperson-profiles", salespersonIds],
     queryFn: async () => {
       if (salespersonIds.length === 0) return [];
-      const { data, error } = await supabase.from("profiles").select("id, first_name, last_name").in("id", salespersonIds);
+      const { data, error } = await supabase.from("salespeople").select("id, first_name, last_name").in("id", salespersonIds);
       if (error) throw error;
       return data;
     },
