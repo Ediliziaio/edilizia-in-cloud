@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Euro, X, CalendarDays, SlidersHorizontal } from "lucide-react";
+import { Search, Euro, X, CalendarDays, SlidersHorizontal, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -85,6 +85,8 @@ interface OrdersFiltersProps {
   supplierFilter: string;
   onSupplierFilterChange: (value: string) => void;
   uniqueSuppliers: NamedItem[];
+  hideCompleted: boolean;
+  onHideCompletedChange: (value: boolean) => void;
 }
 
 export function OrdersFilters({
@@ -121,6 +123,8 @@ export function OrdersFilters({
   supplierFilter,
   onSupplierFilterChange,
   uniqueSuppliers,
+  hideCompleted,
+  onHideCompletedChange,
 }: OrdersFiltersProps) {
   // Count active advanced filters
   const advancedFilterCount = [
@@ -190,6 +194,17 @@ export function OrdersFilters({
             ))}
           </SelectContent>
         </Select>
+
+        {/* In Corso toggle */}
+        <Button
+          variant={hideCompleted ? "default" : "outline"}
+          size="sm"
+          onClick={() => onHideCompletedChange(!hideCompleted)}
+          className="shrink-0"
+        >
+          <CheckCircle2 className="h-4 w-4 mr-2" />
+          In Corso
+        </Button>
 
         {/* Advanced filters toggle */}
         <Button
