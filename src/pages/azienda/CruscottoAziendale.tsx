@@ -12,7 +12,7 @@ import { HRPerformance } from "@/components/cruscotto/HRPerformance";
 import { CruscottoTrend } from "@/components/cruscotto/CruscottoTrend";
 import { EmptyStateGuide } from "@/components/cruscotto/EmptyStateGuide";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, AlertCircle, Landmark, Megaphone, Handshake, Settings2 } from "lucide-react";
+import { AlertCircle, Landmark, Megaphone, Handshake, Settings2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 

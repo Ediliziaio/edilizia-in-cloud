@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { ArrowDownLeft, ArrowUpRight, Landmark, CreditCard, Flame, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FinanceData } from "@/hooks/useCruscottoData";
-import { fmtCur, fmt } from "@/components/marketing/dashboard/utils";
+import { fmtCur } from "@/components/marketing/dashboard/utils";
 
 interface Props {
   finance: FinanceData;
