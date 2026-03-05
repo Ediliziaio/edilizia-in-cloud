@@ -16,11 +16,32 @@ export interface Installment {
 
 export function createDefaultInstallments(paymentType: PaymentType, numInstallments: number = 2): Installment[] {
   if (paymentType === 'financing') {
-    return [
-      { position: 0, label: 'Acconto', type: 'deposit', amount: 0, is_paid: false },
-      { position: 1, label: 'Finanziamento', type: 'financing', amount: 0, is_paid: false },
-      { position: 2, label: 'Saldo', type: 'balance', amount: 0, is_paid: false },
-    ];
+    const numDeposits = Math.max(0, numInstallments - 2);
+    const installments: Installment[] = [];
+    for (let i = 0; i < numDeposits; i++) {
+      installments.push({
+        position: i,
+        label: numDeposits === 1 ? 'Acconto' : `Acconto ${i + 1}`,
+        type: 'deposit',
+        amount: 0,
+        is_paid: false,
+      });
+    }
+    installments.push({
+      position: installments.length,
+      label: 'Finanziamento',
+      type: 'financing',
+      amount: 0,
+      is_paid: false,
+    });
+    installments.push({
+      position: installments.length,
+      label: 'Saldo',
+      type: 'balance',
+      amount: 0,
+      is_paid: false,
+    });
+    return installments;
   }
   const installments: Installment[] = [];
   for (let i = 0; i < numInstallments - 1; i++) {
