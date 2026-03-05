@@ -5675,6 +5675,44 @@ export type Database = {
           },
         ]
       }
+      warehouse_sections: {
+        Row: {
+          color: string | null
+          company_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          position: number | null
+        }
+        Insert: {
+          color?: string | null
+          company_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          position?: number | null
+        }
+        Update: {
+          color?: string | null
+          company_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_sections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       warehouse_stock: {
         Row: {
           company_id: string
@@ -5684,6 +5722,7 @@ export type Database = {
           min_stock_level: number
           name: string
           quantity: number
+          section_id: string | null
           supplier_id: string | null
           unit_cost: number
           updated_at: string
@@ -5697,6 +5736,7 @@ export type Database = {
           min_stock_level?: number
           name: string
           quantity?: number
+          section_id?: string | null
           supplier_id?: string | null
           unit_cost?: number
           updated_at?: string
@@ -5710,6 +5750,7 @@ export type Database = {
           min_stock_level?: number
           name?: string
           quantity?: number
+          section_id?: string | null
           supplier_id?: string | null
           unit_cost?: number
           updated_at?: string
@@ -5721,6 +5762,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_sections"
             referencedColumns: ["id"]
           },
           {

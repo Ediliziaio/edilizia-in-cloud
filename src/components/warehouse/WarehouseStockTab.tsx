@@ -3,25 +3,25 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
 import { StockItemDialog } from "./StockItemDialog";
 import { StockMovementDialog } from "./StockMovementDialog";
 import { StockMovementHistoryDialog } from "./StockMovementHistoryDialog";
+import { WarehouseSectionsManager } from "./WarehouseSectionsManager";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import type { StockItem } from "@/types/warehouse";
 
 export default function WarehouseStockTab() {
@@ -31,6 +31,7 @@ export default function WarehouseStockTab() {
   const companyId = effectiveCompany?.id;
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
   const [movementDialog, setMovementDialog] = useState<{
@@ -77,6 +78,12 @@ export default function WarehouseStockTab() {
   const getSupplierName = (id: string | null) =>
     !id ? "—" : (suppliers.find((s) => s.id === id)?.name || "—");
 
+  const { sections } = useWarehouseSections();
+  const getSectionName = (id: string | null) => {
+    if (!id) return null;
+    return sections.find((s) => s.id === id) || null;
+  };
+
   // Helper to insert a company_cost record
   const insertCostRecord = async (itemName: string, unitCost: number, qty: number, vatRate: number, supplierId?: string, costPaidDate?: string, costCategory?: string) => {
     if (!companyId) return;
@@ -108,6 +115,7 @@ export default function WarehouseStockTab() {
       unit_cost: number;
       vat_rate: number;
       supplier_id?: string;
+      section_id?: string;
       min_stock_level: number;
       registerCost?: boolean;
       costPaidDate?: string;
@@ -123,6 +131,7 @@ export default function WarehouseStockTab() {
             unit_cost: data.unit_cost,
             vat_rate: data.vat_rate,
             supplier_id: data.supplier_id || null,
+            section_id: data.section_id || null,
             min_stock_level: data.min_stock_level,
           })
           .eq("id", data.id);
@@ -136,6 +145,7 @@ export default function WarehouseStockTab() {
           unit_cost: data.unit_cost,
           vat_rate: data.vat_rate,
           supplier_id: data.supplier_id || null,
+          section_id: data.section_id || null,
           min_stock_level: data.min_stock_level,
         });
         if (error) throw error;
@@ -215,14 +225,22 @@ export default function WarehouseStockTab() {
   });
 
   const filtered = useMemo(() => {
-    if (!searchQuery) return stockItems;
+    let items = stockItems;
+    if (sectionFilter !== "all") {
+      if (sectionFilter === "none") {
+        items = items.filter((i) => !i.section_id);
+      } else {
+        items = items.filter((i) => i.section_id === sectionFilter);
+      }
+    }
+    if (!searchQuery) return items;
     const q = searchQuery.toLowerCase();
-    return stockItems.filter(
+    return items.filter(
       (item) =>
         item.name.toLowerCase().includes(q) ||
         (item.description && item.description.toLowerCase().includes(q))
     );
-  }, [stockItems, searchQuery]);
+  }, [stockItems, searchQuery, sectionFilter]);
 
   const lowStockItems = useMemo(
     () => stockItems.filter((i) => i.min_stock_level > 0 && i.quantity <= i.min_stock_level),
@@ -244,8 +262,11 @@ export default function WarehouseStockTab() {
         </Card>
       )}
 
-      {/* Header with search and add */}
-      <div className="flex items-center gap-4">
+      {/* Sections Manager */}
+      <WarehouseSectionsManager />
+
+      {/* Header with search, filter and add */}
+      <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -255,6 +276,26 @@ export default function WarehouseStockTab() {
             className="pl-9"
           />
         </div>
+        {sections.length > 0 && (
+          <Select value={sectionFilter} onValueChange={setSectionFilter}>
+            <SelectTrigger className="w-[180px]">
+              <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="Filtra zona" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte le zone</SelectItem>
+              <SelectItem value="none">Senza zona</SelectItem>
+              {sections.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                    {s.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Button onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
           <Plus className="h-4 w-4 mr-2" />
           Aggiungi Articolo
@@ -277,6 +318,7 @@ export default function WarehouseStockTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Articolo</TableHead>
+                  {sections.length > 0 && <TableHead>Zona</TableHead>}
                   <TableHead className="text-center">Qtà</TableHead>
                   <TableHead className="text-right">Costo Unit.</TableHead>
                   <TableHead className="text-right">Valore Totale</TableHead>
@@ -288,6 +330,7 @@ export default function WarehouseStockTab() {
               <TableBody>
                 {filtered.map((item) => {
                   const isLow = item.min_stock_level > 0 && item.quantity <= item.min_stock_level;
+                  const section = getSectionName(item.section_id);
                   return (
                     <TableRow key={item.id} className={isLow ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}>
                       <TableCell>
@@ -298,6 +341,18 @@ export default function WarehouseStockTab() {
                           )}
                         </div>
                       </TableCell>
+                      {sections.length > 0 && (
+                        <TableCell>
+                          {section ? (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: section.color }} />
+                              {section.name}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="text-center">
                         <Badge variant={isLow ? "destructive" : "secondary"}>
                           {item.quantity}

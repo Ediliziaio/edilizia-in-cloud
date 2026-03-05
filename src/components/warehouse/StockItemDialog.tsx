@@ -24,6 +24,7 @@ import type { StockItem } from "@/types/warehouse";
 import { format } from "date-fns";
 
 import { COST_CATEGORIES } from "@/types/warehouse";
+import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 
 interface StockItemDialogProps {
   open: boolean;
@@ -35,6 +36,7 @@ interface StockItemDialogProps {
     unit_cost: number;
     vat_rate: number;
     supplier_id?: string;
+    section_id?: string;
     min_stock_level: number;
     registerCost?: boolean;
     costPaidDate?: string;
@@ -58,9 +60,12 @@ export function StockItemDialog({
   const [vatRate, setVatRate] = useState<number>(22);
   const [supplierId, setSupplierId] = useState<string | undefined>();
   const [minStockLevel, setMinStockLevel] = useState("0");
+  const [sectionId, setSectionId] = useState<string | undefined>();
   const [registerCost, setRegisterCost] = useState(false);
   const [costPaidDate, setCostPaidDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [costCategory, setCostCategory] = useState("Magazzino");
+
+  const { sections } = useWarehouseSections();
 
   useEffect(() => {
     if (editingItem) {
@@ -70,6 +75,7 @@ export function StockItemDialog({
       setUnitCost(editingItem.unit_cost.toString());
       setVatRate(editingItem.vat_rate ?? 22);
       setSupplierId(editingItem.supplier_id || undefined);
+      setSectionId(editingItem.section_id || undefined);
       setMinStockLevel(editingItem.min_stock_level.toString());
       setRegisterCost(false);
     } else {
@@ -79,6 +85,7 @@ export function StockItemDialog({
       setUnitCost("0");
       setVatRate(22);
       setSupplierId(undefined);
+      setSectionId(undefined);
       setMinStockLevel("0");
       setRegisterCost(false);
       setCostPaidDate(format(new Date(), "yyyy-MM-dd"));
@@ -95,6 +102,7 @@ export function StockItemDialog({
       unit_cost: parseFloat(unitCost) || 0,
       vat_rate: vatRate,
       supplier_id: supplierId,
+      section_id: sectionId,
       min_stock_level: parseInt(minStockLevel) || 0,
       ...(registerCost && !editingItem
         ? { registerCost: true, costPaidDate, costCategory }
@@ -203,6 +211,31 @@ export function StockItemDialog({
               }}
             />
           </div>
+
+          {sections.length > 0 && (
+            <div className="space-y-2">
+              <Label>Zona Magazzino</Label>
+              <Select
+                value={sectionId || "__none__"}
+                onValueChange={(v) => setSectionId(v === "__none__" ? undefined : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Nessuna zona" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nessuna zona</SelectItem>
+                  {sections.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                        {s.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Cost registration toggle - only for new items */}
           {isCreating && (

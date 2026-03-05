@@ -119,6 +119,7 @@ export interface StockItem {
   unit_cost: number;
   vat_rate: number | null;
   supplier_id: string | null;
+  section_id: string | null;
   min_stock_level: number;
   created_at: string;
   updated_at: string;
