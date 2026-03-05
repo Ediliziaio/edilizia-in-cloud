@@ -1,36 +1,74 @@
 
 
-# Aggiungere Modifica Stato Pagamenti nel Dettaglio Ordine
+# Miglioramenti Magazzino - Prospettiva Logistica
 
-## Problema
-Nel Dettaglio Ordine, il `FinancialSummaryReadOnly` mostra lo stato dei pagamenti (Acconto 1, Acconto 2, Saldo, Finanziamento) come testo statico. L'utente deve andare in "Modifica Ordine" per cambiare lo stato pagato/non pagato.
+Dopo aver analizzato tutti i componenti del modulo Magazzino, ecco le aree di miglioramento principali da un punto di vista logistico professionale.
 
-## Soluzione
-Rendere lo stato di pagamento modificabile direttamente dal Dettaglio Ordine, mantenendo gli importi in sola lettura.
+---
 
-### Modifiche
+## 1. Vista "Ordini Fornitore" (raggruppamento per fornitore)
 
-**1. `src/components/orders/FinancialSummary.tsx` — Aggiungere interattività a `FinancialSummaryReadOnly`**
+**Problema**: Quando devi ordinare materiali, vuoi vedere tutti gli articoli "Da Ordinare" raggruppati per fornitore per fare un unico ordine per fornitore. Oggi devi cercarli manualmente tra ordini diversi.
 
-Aggiungere props opzionali di callback (`onDepositPaidToggle`, `onDeposit2PaidToggle`, `onBalancePaidToggle`, `onFinancingPaidToggle`) al componente `FinancialSummaryReadOnly`. Quando presenti, ogni riga di pagamento mostra un bottone/switch cliccabile per cambiare lo stato pagato/non pagato (con data automatica = oggi). Quando assenti, il comportamento resta identico a oggi (testo statico).
+**Soluzione**: Aggiungere un'opzione di raggruppamento "Per fornitore" nel GroupBy della lista. Ogni gruppo mostra il fornitore, il totale articoli da ordinare e il valore totale, con un bottone "Segna tutti come Ordinati" per processare un ordine fornitore in un click.
 
-Ogni riga di pagamento con importo > 0 diventa cliccabile: un click su "In attesa" lo cambia in "Pagato" (con data = oggi), e viceversa.
+---
 
-**2. `src/pages/azienda/OrderDetail.tsx` — Aggiungere mutation e passare callbacks**
+## 2. Articoli Scaduti / In Ritardo
 
-Creare una mutation `updatePaymentStatusMutation` che aggiorna i campi di pagamento sulla tabella `orders` (es. `deposit_paid`, `deposit_paid_date`, `deposit_2_paid`, `balance_paid`, `financing_paid`, ecc.) e invalida le query correlate (`["order", id]`, `["orders"]`).
+**Problema**: Non esiste nessun filtro o alert per articoli la cui data di posa e' GIA' passata ma che non sono ancora pronti (status da_ordinare o ordinato). Questi sono i problemi piu' critici per un responsabile logistico.
 
-Passare le callbacks a `FinancialSummaryReadOnly`:
-- `onDepositPaidToggle(paid: boolean)` → aggiorna `deposit_paid` + `deposit_paid_date`
-- `onDeposit2PaidToggle(paid: boolean)` → aggiorna `deposit_2_paid` + `deposit_2_paid_date`
-- `onBalancePaidToggle(paid: boolean)` → aggiorna `balance_paid` + `balance_paid_date`
-- `onFinancingPaidToggle(paid: boolean)` → aggiorna `financing_paid` + `financing_paid_date`
+**Soluzione**: Aggiungere un quick filter "In Ritardo" che mostra articoli con data posa nel passato e status non pronto. Aggiungere un contatore nel banner alert e nelle stats.
 
-Ogni toggle imposta la data di pagamento a oggi se `paid=true`, o a `null` se `paid=false`.
+---
 
-### UI
-Ogni riga di pagamento mostrerà un piccolo switch o bottone accanto allo stato, con feedback toast immediato ("Acconto 1 segnato come pagato", "Saldo segnato come da pagare").
+## 3. Collegamento Giacenze ↔ Articoli da Ordinare
 
-### Propagazione
-L'invalidazione delle query `["order", id]` e `["orders"]` garantisce che tutti i componenti che leggono quei dati (OrderEconomics, SupplierPaymentsCard, lista ordini, ecc.) si aggiornino automaticamente.
+**Problema**: Quando un articolo e' "Da Ordinare", il magazziniere non sa se lo ha gia' in giacenza. Le due sezioni (articoli ordini vs. giacenze stock) sono separate.
+
+**Soluzione**: Nella lista articoli "Da Ordinare", mostrare un indicatore se l'articolo e' gia' disponibile in giacenza (match per nome). Un badge "Disponibile in stock" con quantita' permette di evitare ordini inutili.
+
+---
+
+## 4. Stats migliorate: KPI operativi
+
+**Problema**: Le stats attuali mostrano solo conteggi statici. Mancano KPI operativi fondamentali.
+
+**Soluzione**: Aggiungere alla riga stats:
+- **In Ritardo**: conteggio articoli con posa passata e non pronti (card rossa)
+- Rendere la card "Completamento" piu' informativa con breakdown per stato
+
+---
+
+## 5. Note rapide sugli articoli
+
+**Problema**: Non c'e' modo di aggiungere note a un articolo (es. "attesa conferma fornitore", "pezzo in backorder", "arriva lunedi").
+
+**Soluzione**: Aggiungere un campo `notes` alla tabella `order_items` e un'icona nella lista/kanban per aggiungere/visualizzare note rapide tramite popover.
+
+---
+
+## Piano implementativo
+
+### Fase 1 - Impatto immediato (piu' critico)
+- **Quick filter "In Ritardo"** + contatore in stats e alerts
+- **GroupBy "Per fornitore"** nella vista lista
+
+### Fase 2 - Efficienza operativa
+- **Match giacenze** per articoli da ordinare (badge "Disponibile in stock")
+- **Note rapide** su articoli (migration + UI)
+
+### Modifiche tecniche
+
+**Database migration**:
+- `ALTER TABLE order_items ADD COLUMN notes TEXT DEFAULT NULL;`
+
+**File da modificare**:
+- `src/hooks/useWarehouseData.ts` — aggiungere quick filter "overdue", groupBy "supplier"
+- `src/pages/azienda/Warehouse.tsx` — aggiungere opzioni UI per nuovo filter e groupBy
+- `src/components/warehouse/WarehouseStats.tsx` — aggiungere card "In Ritardo"
+- `src/components/warehouse/WarehouseAlerts.tsx` — includere alert per articoli scaduti
+- `src/components/warehouse/WarehouseListView.tsx` — supporto raggruppamento fornitore, badge stock disponibile, icona note
+- `src/components/warehouse/WarehouseKanbanCard.tsx` — indicatore note
+- `src/types/warehouse.ts` — aggiungere `notes` al tipo `WarehouseItem`, utility `isItemOverdue`
 
