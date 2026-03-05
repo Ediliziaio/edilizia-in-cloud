@@ -1,65 +1,63 @@
 
 
-# Audit, pulizia e stabilizzazione del progetto
+# Miglioramento Gantt — Approccio da esperto logistico
 
-## Risultati dell'analisi
+## Problemi attuali
 
-Dopo aver analizzato ~30 componenti, ~28 hook, ~15 file lib, tutte le route in App.tsx, e i file del calendario, il progetto risulta **già molto pulito** grazie all'audit precedente. Ho identificato solo pochi elementi da rimuovere e miglioramenti UX minori.
+1. **`GanttZoom` include ancora "week"** — rimosso dalla vista calendario ma rimasto nel tipo e in tutto il Gantt (ZOOM_CONFIG, toggle, handlePrev/Next, getPeriodLabel, header rendering)
+2. **Header timeline a livello singolo** — i Gantt professionali usano doppio livello (mese sopra, giorni/settimane sotto)
+3. **Nessuna distinzione weekend** — sabato/domenica sono identici ai feriali
+4. **Ordini non ordinati** — appaiono in ordine casuale anziché per data di inizio
+5. **Nessun indicatore di progresso** — le barre non mostrano l'avanzamento temporale
+6. **Milestone dots senza Tooltip component** — usano solo `title` HTML nativo
+7. **Nessuna barra di capacità giornaliera** — non si vede quante risorse sono impegnate per giorno
 
----
+## Modifiche pianificate
 
-## 1) Codice morto da rimuovere
+### 1. `src/types/calendar.ts`
+- Rimuovere `"week"` da `GanttZoom`: `"year" | "quarter" | "month"`
 
-### `src/App.tsx` — riga 82
-- `const Employees = lazy(...)` importato ma **mai usato in nessuna Route**. La pagina `Employees` è usata solo tramite import diretto in `SettingsStaff.tsx`, quindi il lazy import in App.tsx è codice morto.
+### 2. `src/components/calendar/CalendarGanttView.tsx` — Riscrittura significativa
 
-### `src/pages/azienda/Calendar.tsx` — riga 1
-- `useCallback` importato da React ma **mai utilizzato** nel componente.
+**Pulizia week:**
+- Rimuovere `week` da `ZOOM_CONFIG`
+- Rimuovere tutti i `case "week"` da `handlePrev`, `handleNext`, `getPeriodLabel`, `useMemo` del range date
+- Rimuovere il `ToggleGroupItem value="week"` e l'import `Calendar`, `addWeeks`, `subWeeks`, `startOfWeek`, `endOfWeek`
+- Rimuovere il rendering condizionale `zoom === "week"` nell'header
 
----
+**Header a doppio livello:**
+- Riga superiore: nomi dei mesi (come ora)
+- Riga inferiore: numeri dei giorni (per zoom mese) o numeri settimane (per zoom trimestre), nulla per anno
+- Header totale da 12px → ~20px (due righe)
 
-## 2) Fix funzionali
+**Weekend shading:**
+- Colonne sabato/domenica con sfondo `bg-muted/40` + bordo più visibile
+- Applicare sia al grid lines che all'header inferiore
 
-### Nessun bug critico individuato
-- Le query sono tutte protette da `enabled: !!companyId`
-- Gli stati sono gestiti correttamente (reset su close del dialog, ecc.)
-- Le validazioni negli AppointmentDialog coprono i casi obbligatori
-- Non ci sono race condition evidenti
-- Console pulita (0 errori rilevati)
+**Ordinamento ordini:**
+- Ordinare per `work_start_date` (o `expected_date` come fallback), poi per cognome cliente
+- Ordini senza date vanno in fondo
 
----
+**Barra progresso:**
+- Calcolare % avanzamento = `(oggi - inizio) / (fine - inizio)` clamped 0-100%
+- Renderizzare una porzione più scura della barra fino alla % corrente
+- Solo per ordini con `work_start_date` e `work_end_date`
 
-## 3) Miglioramenti UX
+**Milestone con Tooltip proper:**
+- Sostituire i `div` con `title` con `Tooltip` + `TooltipTrigger` + `TooltipContent` di Radix
+- Mostrare data formattata e label nel tooltip
 
-### CalendarMonthView — feedback visivo sul click
-- Attualmente il `cursor-pointer` e `hover:bg-muted/30` sono già presenti (aggiunta recente). La UX è già fluida.
+**Barra capacità giornaliera (resource row):**
+- Riga in basso della timeline che mostra quanti ordini sono attivi per ogni giorno
+- Colorazione: verde (1-2), giallo (3-4), rosso (5+) — parametrizzabile
+- Aiuta il responsabile logistico a bilanciare il carico
 
-### Nessun vicolo cieco rilevato
-- Tutti i loading state sono gestiti (spinner, error state con retry)
-- I dialog hanno sempre CTA "Annulla" e azione principale
-- La pagina calendario ha fallback per errori con pulsante "Riprova"
+### 3. `src/components/calendar/DraggableOrderBar.tsx`
+- Aggiungere prop `progress` (0-100) per renderizzare la porzione completata della barra con un colore più scuro
+- Mostrare la durata in giorni sulla barra quando c'è spazio
 
----
-
-## 4) Piano di implementazione
-
-Le modifiche sono minime e sicure:
-
-1. **Rimuovere riga 82 di App.tsx** — `const Employees = lazy(...)` (import non usato)
-2. **Rimuovere `useCallback` dalla riga 1 di Calendar.tsx** — import non usato
-
-Nessun cambiamento funzionale. Solo pulizia di 2 import inutili.
-
----
-
-## 5) Conferma
-
-Il progetto è in buone condizioni:
-- Nessun file orfano
-- Nessun componente inutilizzato
-- Nessun hook morto
-- Tutti i lib file sono referenziati
-- Le edge function sono tutte collegate a funzionalità attive
-- Le route sono coerenti con i lazy import (eccetto l'Employees trovato)
-- Console pulita, nessun warning runtime
+## Impatto
+- Nessun cambiamento funzionale al drag-and-drop o al salvataggio date
+- UX molto più professionale e leggibile per la pianificazione logistica
+- Rimozione codice morto (week zoom)
 
