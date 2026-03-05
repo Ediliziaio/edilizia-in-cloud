@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
-import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
+
 import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
 import { CalendarLayerPanel } from "@/components/calendar/CalendarLayerPanel";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye } from "lucide-react";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
@@ -342,10 +342,6 @@ export default function Calendar() {
             <CalendarIcon className="h-4 w-4" />
             <span className="hidden sm:inline text-xs">Mese</span>
           </ToggleGroupItem>
-          <ToggleGroupItem value="week" aria-label="Vista Settimana" className="gap-1.5 px-2.5">
-            <CalendarRange className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs">Settimana</span>
-          </ToggleGroupItem>
           <ToggleGroupItem value="heatmap" aria-label="Vista Carico" className="gap-1.5 px-2.5">
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline text-xs">Carico</span>
@@ -526,16 +522,6 @@ export default function Calendar() {
             </div>
           ) : view === "month" ? (
             <CalendarMonthView
-              orders={scheduledOrders}
-              appointments={filteredAppointments}
-              busySlots={showGoogleBusy ? busySlots : []}
-              currentDate={currentDate}
-              onDateChange={setCurrentDate}
-              syncedAppointmentIds={syncedAppointmentIds}
-              hiddenEventTypes={hiddenEventTypes}
-            />
-          ) : view === "week" ? (
-            <CalendarWeekView
               orders={scheduledOrders}
               appointments={filteredAppointments}
               busySlots={showGoogleBusy ? busySlots : []}
