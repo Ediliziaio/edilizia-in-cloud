@@ -4064,6 +4064,53 @@ export type Database = {
           },
         ]
       }
+      order_installments: {
+        Row: {
+          amount: number
+          created_at: string
+          expected_date: string | null
+          id: string
+          is_paid: boolean
+          label: string
+          order_id: string
+          paid_date: string | null
+          position: number
+          type: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          expected_date?: string | null
+          id?: string
+          is_paid?: boolean
+          label?: string
+          order_id: string
+          paid_date?: string | null
+          position?: number
+          type?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          expected_date?: string | null
+          id?: string
+          is_paid?: boolean
+          label?: string
+          order_id?: string
+          paid_date?: string | null
+          position?: number
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_installments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_item_attachments: {
         Row: {
           created_at: string
@@ -5861,6 +5908,16 @@ export type Database = {
         Returns: boolean
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      create_order_atomic: {
+        Args: {
+          p_installments?: Json
+          p_items?: Json
+          p_order_data: Json
+          p_salesperson?: Json
+          p_user_id?: string
+        }
+        Returns: Json
+      }
       execute_automation: {
         Args: {
           p_company_id: string

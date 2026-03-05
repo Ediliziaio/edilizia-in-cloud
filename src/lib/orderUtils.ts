@@ -1,5 +1,163 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { OrderItem } from "@/components/orders/OrderItemsList";
+import type { PaymentType } from "@/components/orders/FinancialSummary";
+
+// ── Installment type ──────────────────────────────────────────────
+export interface Installment {
+  id?: string;
+  position: number;
+  label: string;
+  type: 'deposit' | 'balance' | 'financing';
+  amount: number;
+  is_paid: boolean;
+  paid_date?: string | null;
+  expected_date?: string | null;
+}
+
+export function createDefaultInstallments(paymentType: PaymentType, numInstallments: number = 2): Installment[] {
+  if (paymentType === 'financing') {
+    return [
+      { position: 0, label: 'Acconto', type: 'deposit', amount: 0, is_paid: false },
+      { position: 1, label: 'Finanziamento', type: 'financing', amount: 0, is_paid: false },
+      { position: 2, label: 'Saldo', type: 'balance', amount: 0, is_paid: false },
+    ];
+  }
+  const installments: Installment[] = [];
+  for (let i = 0; i < numInstallments - 1; i++) {
+    installments.push({
+      position: i,
+      label: numInstallments <= 3 ? `Acconto ${i + 1}` : `Rata ${i + 1}`,
+      type: 'deposit',
+      amount: 0,
+      is_paid: false,
+    });
+  }
+  installments.push({
+    position: numInstallments - 1,
+    label: 'Saldo',
+    type: 'balance',
+    amount: 0,
+    is_paid: false,
+  });
+  return installments;
+}
+
+export function buildInstallmentsFromLegacy(order: {
+  deposit_amount?: number | null;
+  deposit_paid?: boolean | null;
+  deposit_paid_date?: string | null;
+  deposit_expected_date?: string | null;
+  deposit_2_amount?: number | null;
+  deposit_2_paid?: boolean | null;
+  deposit_2_paid_date?: string | null;
+  deposit_2_expected_date?: string | null;
+  balance_amount?: number | null;
+  balance_paid?: boolean | null;
+  balance_paid_date?: string | null;
+  balance_expected_date?: string | null;
+  financing_amount?: number | null;
+  financing_paid?: boolean | null;
+  financing_paid_date?: string | null;
+  financing_expected_date?: string | null;
+  payment_type?: string | null;
+}): Installment[] {
+  const installments: Installment[] = [];
+  const paymentType = order.payment_type || 'standard';
+
+  if (paymentType === 'standard') {
+    if ((order.deposit_amount || 0) > 0) {
+      installments.push({
+        position: 0,
+        label: 'Acconto 1',
+        type: 'deposit',
+        amount: order.deposit_amount || 0,
+        is_paid: order.deposit_paid || false,
+        paid_date: order.deposit_paid_date,
+        expected_date: order.deposit_expected_date,
+      });
+    }
+    if ((order.deposit_2_amount || 0) > 0) {
+      installments.push({
+        position: installments.length,
+        label: 'Acconto 2',
+        type: 'deposit',
+        amount: order.deposit_2_amount || 0,
+        is_paid: order.deposit_2_paid || false,
+        paid_date: order.deposit_2_paid_date,
+        expected_date: order.deposit_2_expected_date,
+      });
+    }
+    installments.push({
+      position: installments.length,
+      label: 'Saldo',
+      type: 'balance',
+      amount: order.balance_amount || 0,
+      is_paid: order.balance_paid || false,
+      paid_date: order.balance_paid_date,
+      expected_date: order.balance_expected_date,
+    });
+  } else {
+    if ((order.deposit_amount || 0) > 0) {
+      installments.push({
+        position: 0,
+        label: 'Acconto',
+        type: 'deposit',
+        amount: order.deposit_amount || 0,
+        is_paid: order.deposit_paid || false,
+        paid_date: order.deposit_paid_date,
+        expected_date: order.deposit_expected_date,
+      });
+    }
+    installments.push({
+      position: installments.length,
+      label: 'Finanziamento',
+      type: 'financing',
+      amount: order.financing_amount || 0,
+      is_paid: order.financing_paid || false,
+      paid_date: order.financing_paid_date,
+      expected_date: order.financing_expected_date,
+    });
+    installments.push({
+      position: installments.length,
+      label: 'Saldo',
+      type: 'balance',
+      amount: order.balance_amount || 0,
+      is_paid: order.balance_paid || false,
+      paid_date: order.balance_paid_date,
+      expected_date: order.balance_expected_date,
+    });
+  }
+
+  return installments;
+}
+
+/** Map installments array to legacy order columns for backward compatibility */
+export function installmentsToLegacyColumns(installments: Installment[]) {
+  const deposits = installments.filter(i => i.type === 'deposit').sort((a, b) => a.position - b.position);
+  const balance = installments.find(i => i.type === 'balance');
+  const financing = installments.find(i => i.type === 'financing');
+
+  return {
+    deposit_amount: deposits[0]?.amount || 0,
+    deposit_paid: deposits[0]?.is_paid || false,
+    deposit_paid_date: deposits[0]?.paid_date || null,
+    deposit_expected_date: deposits[0]?.expected_date || null,
+    deposit_2_amount: deposits[1]?.amount || 0,
+    deposit_2_paid: deposits[1]?.is_paid || false,
+    deposit_2_paid_date: deposits[1]?.paid_date || null,
+    deposit_2_expected_date: deposits[1]?.expected_date || null,
+    balance_amount: balance?.amount || 0,
+    balance_paid: balance?.is_paid || false,
+    balance_paid_date: balance?.paid_date || null,
+    balance_expected_date: balance?.expected_date || null,
+    financing_amount: financing?.amount || 0,
+    financing_paid: financing?.is_paid || false,
+    financing_paid_date: financing?.paid_date || null,
+    financing_expected_date: financing?.expected_date || null,
+  };
+}
+
+// ── Existing types (unchanged) ────────────────────────────────────
 
 export interface OrderWithDetails {
   id: string;
@@ -17,7 +175,6 @@ export interface OrderWithDetails {
   warehouse_arrival_date: string | null;
   created_at: string;
   current_status_id: string | null;
-  // Financing
   financing_amount?: number | null;
   financing_paid?: boolean | null;
   financing_paid_date?: string | null;
@@ -104,13 +261,11 @@ export function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
 }
 
 export async function deleteOrderCascading(orderId: string): Promise<void> {
-  // First get item IDs to delete their attachments
   const { data: items } = await supabase.from("order_items").select("id").eq("order_id", orderId);
   if (items && items.length > 0) {
     const itemIds = items.map(i => i.id);
     await supabase.from("order_item_attachments").delete().in("order_item_id", itemIds);
   }
-  // Delete all related records in parallel
   await Promise.all([
     supabase.from("order_items").delete().eq("order_id", orderId),
     supabase.from("order_status_history").delete().eq("order_id", orderId),
@@ -121,8 +276,8 @@ export async function deleteOrderCascading(orderId: string): Promise<void> {
     supabase.from("order_errors").delete().eq("order_id", orderId),
     supabase.from("tasks").delete().eq("order_id", orderId),
     supabase.from("appointments").delete().eq("order_id", orderId),
+    supabase.from("order_installments" as any).delete().eq("order_id", orderId),
   ]);
-  // Finally delete the order itself
   const { error } = await supabase.from("orders").delete().eq("id", orderId);
   if (error) throw error;
 }

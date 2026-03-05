@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { OrderItem } from "@/components/orders/OrderItemsList";
 import type { PaymentType } from "@/components/orders/FinancialSummary";
+import type { Installment } from "@/lib/orderUtils";
 
 export interface OrderDraftData {
   customerId: string;
@@ -18,31 +19,33 @@ export interface OrderDraftData {
   // Financial
   paymentType: PaymentType;
   totalAmount: string;
-  depositAmount: string;
-  deposit2Amount: string;
-  financingAmount: string;
   vatRate: string;
-  // Payment status
-  depositPaid: boolean;
-  depositPaidDate: string | null;
-  depositExpectedDate: string | null;
-  deposit2Paid: boolean;
-  deposit2PaidDate: string | null;
-  deposit2ExpectedDate: string | null;
-  balancePaid: boolean;
-  balancePaidDate: string | null;
-  balanceExpectedDate: string | null;
-  // Financing payment status
-  financingPaid: boolean;
-  financingPaidDate: string | null;
-  financingExpectedDate: string | null;
   financingCost: string;
+  // Installments (new dynamic system)
+  installments: Installment[];
   // Items
   orderItems: OrderItem[];
   // Building bonus
   hasBuildingBonus: boolean;
   // Meta
   savedAt: string;
+
+  // Legacy fields (kept for backward compat with existing drafts)
+  depositAmount?: string;
+  deposit2Amount?: string;
+  financingAmount?: string;
+  depositPaid?: boolean;
+  depositPaidDate?: string | null;
+  depositExpectedDate?: string | null;
+  deposit2Paid?: boolean;
+  deposit2PaidDate?: string | null;
+  deposit2ExpectedDate?: string | null;
+  balancePaid?: boolean;
+  balancePaidDate?: string | null;
+  balanceExpectedDate?: string | null;
+  financingPaid?: boolean;
+  financingPaidDate?: string | null;
+  financingExpectedDate?: string | null;
 }
 
 const DRAFT_KEY_PREFIX = "order-draft-";
@@ -57,7 +60,7 @@ function dateToIso(d: Date | undefined): string | null {
   return d ? d.toISOString() : null;
 }
 
-function isoToDate(s: string | null): Date | undefined {
+function isoToDate(s: string | null | undefined): Date | undefined {
   return s ? new Date(s) : undefined;
 }
 
