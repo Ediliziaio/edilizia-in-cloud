@@ -35,6 +35,7 @@ export default function Calendar() {
   const [customerFilter, setCustomerFilter] = useState<string>("all");
   const [employeeFilter, setEmployeeFilter] = useState<string>("all");
   const [externalTeamFilter, setExternalTeamFilter] = useState<string>("all");
+  const [assignedToFilter, setAssignedToFilter] = useState<string>("all");
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -86,7 +87,24 @@ export default function Calendar() {
         .eq("company_id", effectiveCompany.id)
         .order("appointment_date", { ascending: true });
       if (error) throw error;
-      return (data || []) as CalendarAppointment[];
+
+      // Enrich with assigned profile names
+      const assignedIds = [...new Set((data || []).map(a => a.assigned_to).filter(Boolean))] as string[];
+      let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
+      if (assignedIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", assignedIds);
+        if (profiles) {
+          profilesMap = Object.fromEntries(profiles.map(p => [p.id, { first_name: p.first_name, last_name: p.last_name }]));
+        }
+      }
+
+      return (data || []).map(apt => ({
+        ...apt,
+        assigned_profile: apt.assigned_to ? profilesMap[apt.assigned_to] || null : null,
+      })) as CalendarAppointment[];
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
@@ -189,14 +207,29 @@ export default function Calendar() {
     setCurrentDate(new Date());
   };
 
+  // Fetch assignable staff users
+  const { data: assignableUsers = [] } = useQuery({
+    queryKey: ["assignable-users", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", effectiveCompany!.id)
+        .order("last_name");
+      return data || [];
+    },
+    enabled: !!effectiveCompany?.id,
+  });
+
   const resetFilters = () => {
     setStatusFilter("all");
     setCustomerFilter("all");
     setEmployeeFilter("all");
     setExternalTeamFilter("all");
+    setAssignedToFilter("all");
   };
 
-  const hasActiveFilters = statusFilter !== "all" || customerFilter !== "all" || employeeFilter !== "all" || externalTeamFilter !== "all";
+  const hasActiveFilters = statusFilter !== "all" || customerFilter !== "all" || employeeFilter !== "all" || externalTeamFilter !== "all" || assignedToFilter !== "all";
 
   // Filter orders that have at least one date
   const scheduledOrders = useMemo(() => {
@@ -224,6 +257,12 @@ export default function Calendar() {
         return true;
       });
   }, [orders, statusFilter, customerFilter, employeeFilter, externalTeamFilter]);
+
+  // Filter appointments by assignedTo
+  const filteredAppointments = useMemo(() => {
+    if (assignedToFilter === "all") return appointments;
+    return appointments.filter(apt => apt.assigned_to === assignedToFilter);
+  }, [appointments, assignedToFilter]);
 
   // Count orders without important dates
   const unplannedOrdersCount = useMemo(() => {
@@ -272,7 +311,7 @@ export default function Calendar() {
                 Filtri
                 {hasActiveFilters && (
                   <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                    {[statusFilter, customerFilter, employeeFilter, externalTeamFilter].filter(f => f !== "all").length}
+                    {[statusFilter, customerFilter, employeeFilter, externalTeamFilter, assignedToFilter].filter(f => f !== "all").length}
                   </span>
                 )}
               </Button>
@@ -370,6 +409,20 @@ export default function Calendar() {
                 </SelectContent>
               </Select>
 
+              <Select value={assignedToFilter} onValueChange={setAssignedToFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Assegnato a" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli utenti</SelectItem>
+                  {assignableUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.last_name} {user.first_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-1.5">
                   <RotateCcw className="h-4 w-4" />
@@ -408,7 +461,7 @@ export default function Calendar() {
       ) : view === "month" ? (
         <CalendarMonthView
           orders={scheduledOrders}
-          appointments={appointments}
+          appointments={filteredAppointments}
           busySlots={busySlots}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
@@ -417,7 +470,7 @@ export default function Calendar() {
       ) : view === "week" ? (
         <CalendarWeekView
           orders={scheduledOrders}
-          appointments={appointments}
+          appointments={filteredAppointments}
           busySlots={busySlots}
           currentDate={currentDate}
           onDateChange={setCurrentDate}

@@ -184,6 +184,7 @@ export function CalendarMonthView({
                             <p className="font-semibold">{apt.title}</p>
                             {apt.appointment_time && <p className="text-xs">Ore: {apt.appointment_time.slice(0, 5)}</p>}
                             {apt.description && <p className="text-xs text-muted-foreground">{apt.description}</p>}
+                            {apt.assigned_profile && <p className="text-xs flex items-center gap-1"><Users className="h-3 w-3" />Assegnato a: {apt.assigned_profile.first_name} {apt.assigned_profile.last_name}</p>}
                             {isSynced && <p className="text-xs text-green-500 flex items-center gap-1"><Check className="h-3 w-3" />Sincronizzato con Google</p>}
                             <p className="text-xs text-primary mt-1">Clicca per modificare</p>
                           </TooltipContent>

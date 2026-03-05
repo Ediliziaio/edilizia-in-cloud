@@ -175,6 +175,12 @@ export function CalendarWeekView({
               {apt.appointment_time.slice(0, 5)}
             </div>
           )}
+          {apt.assigned_profile && (
+            <div className="flex items-center gap-0.5 mt-0.5 opacity-70">
+              <Users className="h-2.5 w-2.5" />
+              <span className="text-[10px]">{apt.assigned_profile.first_name} {apt.assigned_profile.last_name}</span>
+            </div>
+          )}
         </button>
       );
     }
