@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
+import { encrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -137,8 +138,9 @@ serve(async (req) => {
         });
       }
 
-      // Store token (base64 encoded — documented as MVP; use pgcrypto in production)
-      const tokenEncrypted = btoa(accessToken);
+      // Store token with AES-GCM encryption
+      const encKey = getEncryptionKey();
+      const tokenEncrypted = await encrypt(accessToken, encKey);
       const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
       // Delete old credentials and insert new
@@ -195,7 +197,7 @@ serve(async (req) => {
         const pageTokenMap: Record<string, string> = {};
         for (const page of pagesData.data) {
           if (page.access_token) {
-            pageTokenMap[page.id] = btoa(page.access_token);
+            pageTokenMap[page.id] = await encrypt(page.access_token, encKey);
           }
         }
         // Update the integration credential with page tokens

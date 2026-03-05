@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +64,8 @@ serve(async (req) => {
       });
     }
 
-    const accessToken = atob(creds.access_token_encrypted);
+    const encKey = getEncryptionKey();
+    const accessToken = await decrypt(creds.access_token_encrypted, encKey);
 
     let result: any;
 
@@ -111,7 +113,7 @@ serve(async (req) => {
         // Get page access token from credentials (secure storage), not from meta_assets
         const pageTokens = (creds as any).meta_page_tokens || {};
         const pageAccessToken = pageTokens[pageAsset.asset_id]
-          ? atob(pageTokens[pageAsset.asset_id])
+          ? await decrypt(pageTokens[pageAsset.asset_id], encKey)
           : accessToken;
 
         const formsRes = await fetchWithRetry(
@@ -193,7 +195,7 @@ serve(async (req) => {
             .eq("id", formRecord.page_id)
             .single();
           if (pageAsset && pageTokens[pageAsset.asset_id]) {
-            bfToken = atob(pageTokens[pageAsset.asset_id]);
+            bfToken = await decrypt(pageTokens[pageAsset.asset_id], encKey);
           }
         }
 

@@ -63,6 +63,7 @@ export default function TicketDetail() {
           order:orders(id, description)
         `)
         .eq("id", id!)
+        .eq("company_id", effectiveCompany!.id)
         .single();
       if (error) throw error;
       const t = data as unknown as TicketDetailType;
@@ -72,7 +73,7 @@ export default function TicketDetail() {
       }
       return t;
     },
-    enabled: !!id,
+    enabled: !!id && !!effectiveCompany?.id,
     staleTime: 30 * 1000,
   });
 
@@ -138,7 +139,8 @@ export default function TicketDetail() {
       const { error } = await supabase
         .from("tickets")
         .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq("id", id!);
+        .eq("id", id!)
+        .eq("company_id", effectiveCompany!.id);
       if (error) throw error;
     },
     onSuccess: () => {
