@@ -30,6 +30,7 @@ interface TaskData {
   cost_id: string | null;
   contact_id: string | null;
   opportunity_id: string | null;
+  ticket_id: string | null;
   category: string;
 }
 
@@ -44,6 +45,7 @@ interface TaskDialogProps {
   defaultCostId?: string;
   defaultContactId?: string;
   defaultOpportunityId?: string;
+  defaultTicketId?: string;
 }
 
 const PRIORITIES = [
@@ -62,6 +64,7 @@ const CATEGORIES = [
   { value: "marketing", label: "Marketing" },
   { value: "contatti", label: "Contatti" },
   { value: "opportunita", label: "Opportunità" },
+  { value: "assistenza", label: "Assistenza" },
 ];
 
 const STATUSES = [
@@ -70,7 +73,7 @@ const STATUSES = [
   { value: "completata", label: "Completata" },
 ];
 
-export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId }: TaskDialogProps) {
+export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId }: TaskDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
@@ -87,6 +90,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   const [costId, setCostId] = useState<string>("");
   const [contactId, setContactId] = useState<string>("");
   const [opportunityId, setOpportunityId] = useState<string>("");
+  const [ticketId, setTicketId] = useState<string>("");
   const [category, setCategory] = useState("generale");
   const [saving, setSaving] = useState(false);
 
@@ -103,6 +107,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       setCostId(task.cost_id || "");
       setContactId(task.contact_id || "");
       setOpportunityId(task.opportunity_id || "");
+      setTicketId(task.ticket_id || "");
       setCategory(task.category);
     } else {
       setTitle("");
@@ -116,9 +121,10 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       setCostId(defaultCostId || "");
       setContactId(defaultContactId || "");
       setOpportunityId(defaultOpportunityId || "");
+      setTicketId(defaultTicketId || "");
       setCategory(defaultCategory || "generale");
     }
-  }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, onlyAssigned, user?.id]);
+  }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, onlyAssigned, user?.id]);
 
   const { data: assignableUsers = [] } = useQuery({
     queryKey: ["assignable-users", companyId],
@@ -240,6 +246,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         cost_id: category === "costi" && costId && costId !== "none" ? costId : null,
         contact_id: (category === "contatti" || category === "marketing") && contactId && contactId !== "none" ? contactId : null,
         opportunity_id: (category === "opportunita" || category === "marketing") && opportunityId && opportunityId !== "none" ? opportunityId : null,
+        ticket_id: category === "assistenza" && ticketId && ticketId !== "none" ? ticketId : (defaultTicketId || null),
         category,
         completed_at: status === "completata" ? new Date().toISOString() : null,
       };

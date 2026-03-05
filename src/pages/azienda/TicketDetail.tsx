@@ -26,6 +26,7 @@ import {
   SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { TicketChat } from "@/components/tickets/TicketChat";
+import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import type { TicketDetail as TicketDetailType, TicketMessage, TicketStatus, TicketPriority } from "@/types/tickets";
 
 export default function TicketDetail() {
@@ -329,6 +330,13 @@ export default function TicketDetail() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Linked Tasks */}
+          <LinkedTasks
+            ticketId={ticket.id}
+            category="assistenza"
+            companyId={effectiveCompany?.id}
+          />
         </div>
 
         {/* Chat */}
