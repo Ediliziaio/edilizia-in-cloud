@@ -36,5 +36,6 @@ export function mapAppointmentToEditData(apt: CalendarAppointment): AppointmentD
     assigned_to: apt.assigned_to,
     order_id: apt.order_id,
     is_completed: apt.is_completed,
+    status: apt.status || "confermato",
   };
 }
