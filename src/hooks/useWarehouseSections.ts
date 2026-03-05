@@ -61,10 +61,12 @@ export function useWarehouseSections() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: { id: string; name: string; description?: string; color: string }) => {
+      if (!companyId) throw new Error("No company");
       const { error } = await supabase
         .from("warehouse_sections")
         .update({ name: data.name, description: data.description || null, color: data.color })
-        .eq("id", data.id);
+        .eq("id", data.id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -76,7 +78,8 @@ export function useWarehouseSections() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("warehouse_sections").delete().eq("id", id);
+      if (!companyId) throw new Error("No company");
+      const { error } = await supabase.from("warehouse_sections").delete().eq("id", id).eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {

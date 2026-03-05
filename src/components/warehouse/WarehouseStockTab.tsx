@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
@@ -575,7 +575,7 @@ interface DraggableStockRowProps {
   onTask: () => void;
 }
 
-function DraggableStockRow({
+const DraggableStockRow = memo(function DraggableStockRow({
   item, isLow, section, isSelected, hasSections, supplierName,
   onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask,
 }: DraggableStockRowProps) {
@@ -647,6 +647,6 @@ function DraggableStockRow({
           </Button>
         </div>
       </TableCell>
-    </TableRow>
+  </TableRow>
   );
-}
+});

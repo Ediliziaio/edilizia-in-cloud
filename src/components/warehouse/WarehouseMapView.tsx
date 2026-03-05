@@ -13,6 +13,7 @@ interface WarehouseMapViewProps {
   activeSectionFilter: string;
   onFilterSection: (sectionId: string) => void;
   droppable?: boolean;
+  showTitle?: boolean;
 }
 
 interface SectionStats {
@@ -42,6 +43,7 @@ export function WarehouseMapView({
   activeSectionFilter,
   onFilterSection,
   droppable = false,
+  showTitle = true,
 }: WarehouseMapViewProps) {
   const statsBySection = useMemo(() => {
     const map = new Map<string | null, SectionStats>();
@@ -71,15 +73,17 @@ export function WarehouseMapView({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <MapPin className="h-4 w-4" />
-        Mappa Magazzino
-        {droppable && (
-          <span className="text-xs text-muted-foreground/70 ml-1">
-            — trascina articoli qui per spostarli
-          </span>
-        )}
-      </div>
+      {showTitle && (
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <MapPin className="h-4 w-4" />
+          Mappa Magazzino
+          {droppable && (
+            <span className="text-xs text-muted-foreground/70 ml-1">
+              — trascina articoli qui per spostarli
+            </span>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {sections.map((section) => {
           const stats = statsBySection.get(section.id) || {
