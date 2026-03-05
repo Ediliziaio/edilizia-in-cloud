@@ -16,6 +16,7 @@ interface LinkedTasksProps {
   costId?: string;
   contactId?: string;
   opportunityId?: string;
+  ticketId?: string;
   category: string;
   companyId?: string;
 }
@@ -27,7 +28,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgente: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, category, companyId: propCompanyId }: LinkedTasksProps) {
+export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, ticketId, category, companyId: propCompanyId }: LinkedTasksProps) {
   const { effectiveCompany } = useAuth();
   const companyId = propCompanyId || effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -35,7 +36,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
 
-  const filterKey = orderId ? `order-${orderId}` : stockItemId ? `stock-${stockItemId}` : costId ? `cost-${costId}` : contactId ? `contact-${contactId}` : opportunityId ? `opp-${opportunityId}` : "none";
+  const filterKey = orderId ? `order-${orderId}` : stockItemId ? `stock-${stockItemId}` : costId ? `cost-${costId}` : contactId ? `contact-${contactId}` : opportunityId ? `opp-${opportunityId}` : ticketId ? `ticket-${ticketId}` : "none";
 
   const { data: tasks = [] } = useQuery({
     queryKey: ["tasks", "linked", filterKey],
@@ -119,13 +120,14 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       if (orderId) query = query.eq("order_id", orderId);
       else if (stockItemId) query = query.eq("stock_item_id", stockItemId);
       else if (costId) query = query.eq("cost_id", costId);
+      else if (ticketId) query = query.eq("ticket_id", ticketId);
       else return [];
 
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!companyId && !!(orderId || stockItemId || costId || contactId || opportunityId),
+    enabled: !!companyId && !!(orderId || stockItemId || costId || contactId || opportunityId || ticketId),
   });
 
   const toggleMutation = useMutation({
@@ -165,6 +167,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       cost_id: task.cost_id,
       contact_id: task.contact_id,
       opportunity_id: task.opportunity_id,
+      ticket_id: task.ticket_id,
       category: task.category,
     });
     setDialogOpen(true);
@@ -182,6 +185,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
     cost_id: costId || null,
     contact_id: contactId || null,
     opportunity_id: opportunityId || null,
+    ticket_id: ticketId || null,
     category,
   });
 
@@ -270,6 +274,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         defaultCostId={costId}
         defaultContactId={contactId}
         defaultOpportunityId={opportunityId}
+        defaultTicketId={ticketId}
       />
     </>
   );

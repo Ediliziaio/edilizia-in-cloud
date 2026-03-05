@@ -5443,6 +5443,7 @@ export type Database = {
           priority: string
           status: string
           stock_item_id: string | null
+          ticket_id: string | null
           title: string
           updated_at: string
         }
@@ -5463,6 +5464,7 @@ export type Database = {
           priority?: string
           status?: string
           stock_item_id?: string | null
+          ticket_id?: string | null
           title: string
           updated_at?: string
         }
@@ -5483,6 +5485,7 @@ export type Database = {
           priority?: string
           status?: string
           stock_item_id?: string | null
+          ticket_id?: string | null
           title?: string
           updated_at?: string
         }
@@ -5534,6 +5537,13 @@ export type Database = {
             columns: ["stock_item_id"]
             isOneToOne: false
             referencedRelation: "warehouse_stock"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
             referencedColumns: ["id"]
           },
         ]
