@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { format, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, startOfWeek, endOfWeek } from "date-fns";
+import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
@@ -10,7 +12,6 @@ import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Select,
   SelectContent,
@@ -18,7 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
@@ -204,8 +207,34 @@ export default function Calendar() {
     );
   }, [orders]);
 
-  const goToToday = () => {
-    setCurrentDate(new Date());
+  const goToToday = () => setCurrentDate(new Date());
+
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  const goPrev = useCallback(() => {
+    if (view === "month") setCurrentDate(d => subMonths(d, 1));
+    else if (view === "week") setCurrentDate(d => subWeeks(d, 1));
+    else setCurrentDate(d => subDays(d, 1));
+  }, [view]);
+
+  const goNext = useCallback(() => {
+    if (view === "month") setCurrentDate(d => addMonths(d, 1));
+    else if (view === "week") setCurrentDate(d => addWeeks(d, 1));
+    else setCurrentDate(d => addDays(d, 1));
+  }, [view]);
+
+  const dateLabel = useMemo(() => {
+    if (view === "month") return format(currentDate, "MMMM yyyy", { locale: it });
+    if (view === "week") {
+      const ws = startOfWeek(currentDate, { weekStartsOn: 1 });
+      const we = endOfWeek(currentDate, { weekStartsOn: 1 });
+      return `${format(ws, "d MMM", { locale: it })} – ${format(we, "d MMM yyyy", { locale: it })}`;
+    }
+    return format(currentDate, "EEEE d MMMM yyyy", { locale: it });
+  }, [currentDate, view]);
+
+  const handleDateSelect = (d: Date | undefined) => {
+    if (d) { setCurrentDate(d); setDatePickerOpen(false); }
   };
 
   // Fetch assignable staff users
@@ -272,38 +301,11 @@ export default function Calendar() {
 
   return (
     <div className="space-y-4">
-      {/* Header compatto: titolo + toggle viste + azioni */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Calendario Lavori</h1>
+      {/* Header: titolo + azioni */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <h1 className="text-xl font-bold">Calendario Lavori</h1>
         </div>
-
-        <ToggleGroup
-          type="single"
-          value={view}
-          onValueChange={(value) => value && setView(value as CalendarViewType)}
-          className="bg-muted rounded-lg p-1"
-        >
-          <ToggleGroupItem value="month" aria-label="Vista Mese" className="gap-1.5 px-2.5">
-            <CalendarIcon className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs">Mese</span>
-          </ToggleGroupItem>
-          <ToggleGroupItem value="week" aria-label="Vista Settimana" className="gap-1.5 px-2.5">
-            <CalendarRange className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs">Settimana</span>
-          </ToggleGroupItem>
-          <ToggleGroupItem value="heatmap" aria-label="Vista Carico" className="gap-1.5 px-2.5">
-            <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs">Carico</span>
-          </ToggleGroupItem>
-          {!isMobile && (
-            <ToggleGroupItem value="gantt" aria-label="Vista Gantt" className="gap-1.5 px-2.5">
-              <GanttChart className="h-4 w-4" />
-              <span className="hidden sm:inline text-xs">Gantt</span>
-            </ToggleGroupItem>
-          )}
-        </ToggleGroup>
-
         <div className="flex items-center gap-2">
           <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
             <CollapsibleTrigger asChild>
@@ -336,14 +338,50 @@ export default function Calendar() {
             </Button>
           )}
           <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            <span className="hidden sm:inline">Appuntamento</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={goToToday}>
-            <CalendarDays className="h-4 w-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Oggi</span>
+            <Plus className="h-4 w-4 mr-1" />
+            Nuovo
           </Button>
         </div>
+      </div>
+
+      {/* Navigation bar stile marketing */}
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="sm" onClick={goToToday}>Oggi</Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goPrev}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goNext}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <PopoverTrigger asChild>
+            <button className="text-sm font-medium hover:text-primary transition-colors cursor-pointer capitalize">
+              {dateLabel}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <CalendarPicker
+              mode="single"
+              selected={currentDate}
+              onSelect={handleDateSelect}
+              locale={it}
+              className="p-3 pointer-events-auto"
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Select value={view} onValueChange={(v) => setView(v as CalendarViewType)}>
+          <SelectTrigger className="w-[140px] h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="month">Mese</SelectItem>
+            <SelectItem value="week">Settimana</SelectItem>
+            <SelectItem value="heatmap">Carico</SelectItem>
+            {!isMobile && <SelectItem value="gantt">Gantt</SelectItem>}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Pannello filtri collassabile */}
