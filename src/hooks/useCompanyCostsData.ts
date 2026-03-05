@@ -385,7 +385,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
         if (!c.due_date) return;
         const d = new Date(c.due_date);
         if (d >= ms && d <= me) {
-          variable += c.amount;
+        if (c.cost_type === "fixed") fixed += c.amount;
+        else variable += c.amount;
         }
       });
       months.push({
