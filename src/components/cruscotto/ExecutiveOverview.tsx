@@ -2,16 +2,17 @@ import { memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { TrendingUp, TrendingDown, Minus, Euro, Percent, Users, CalendarCheck, Trophy, Target, Zap, CreditCard, Landmark } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Euro, Percent, Users, CalendarCheck, Trophy, Target, Zap, CreditCard, Landmark, Package, ArrowDownCircle, ArrowUpCircle, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KpiData } from "@/hooks/useMarketingDashboard";
-import type { FinanceData } from "@/hooks/useCruscottoData";
+import type { FinanceData, OperationsData } from "@/hooks/useCruscottoData";
 import { calcDelta, fmtCur, fmt } from "@/components/marketing/dashboard/utils";
 
 interface Props {
   kpi: KpiData | undefined;
   kpiPrev: KpiData | undefined;
   finance: FinanceData;
+  operations: OperationsData;
   isLoading: boolean;
 }
 
@@ -19,11 +20,11 @@ interface KpiDef {
   label: string;
   tooltip: string;
   icon: React.ElementType;
-  getValue: (kpi: KpiData | undefined, finance: FinanceData) => number;
-  getPrevValue: (kpiPrev: KpiData | undefined, finance: FinanceData) => number;
+  getValue: (kpi: KpiData | undefined, finance: FinanceData, operations: OperationsData) => number;
+  getPrevValue: (kpiPrev: KpiData | undefined, finance: FinanceData, operations: OperationsData) => number;
   format: (v: number) => string;
-  thresholds?: { green: number; yellow: number }; // above green = green, above yellow = yellow, below = red
-  invertColor?: boolean; // true = lower is better
+  thresholds?: { green: number; yellow: number };
+  invertColor?: boolean;
 }
 
 const FINANCIAL_KPIS: KpiDef[] = [
@@ -49,6 +50,22 @@ const FINANCIAL_KPIS: KpiDef[] = [
     format: fmtCur,
   },
   {
+    label: "N° Ordini",
+    tooltip: "Ordini attivi nel periodo",
+    icon: Package,
+    getValue: (_, _f, ops) => ops.activeOrders,
+    getPrevValue: () => 0,
+    format: fmt,
+  },
+  {
+    label: "Costo Medio Ordine",
+    tooltip: "Fatturato periodo / N° ordini attivi",
+    icon: Euro,
+    getValue: (_, f, ops) => ops.activeOrders > 0 ? f.revenueThisMonth / ops.activeOrders : 0,
+    getPrevValue: () => 0,
+    format: fmtCur,
+  },
+  {
     label: "Margine Lordo %",
     tooltip: "Media margine lordo sugli ordini",
     icon: Percent,
@@ -58,12 +75,41 @@ const FINANCIAL_KPIS: KpiDef[] = [
     thresholds: { green: 30, yellow: 15 },
   },
   {
+    label: "Entrate Mese",
+    tooltip: "Pagamenti attesi in entrata nel mese corrente",
+    icon: ArrowDownCircle,
+    getValue: (_, f) => f.thisMonthIncome,
+    getPrevValue: () => 0,
+    format: fmtCur,
+  },
+  {
+    label: "Uscite Mese",
+    tooltip: "Costi da pagare nel mese corrente",
+    icon: ArrowUpCircle,
+    getValue: (_, f) => f.thisMonthOutflow,
+    getPrevValue: () => 0,
+    format: fmtCur,
+    invertColor: true,
+  },
+  {
     label: "Cash Flow",
     tooltip: "Entrate – Uscite previste mese corrente",
     icon: Landmark,
     getValue: (_, f) => f.cashFlowNet,
     getPrevValue: () => 0,
     format: fmtCur,
+  },
+  {
+    label: "Burn Rate",
+    tooltip: "Uscite giornaliere medie (uscite mese / giorno corrente)",
+    icon: Flame,
+    getValue: (_, f) => {
+      const dayOfMonth = new Date().getDate();
+      return dayOfMonth > 0 ? f.thisMonthOutflow / dayOfMonth : 0;
+    },
+    getPrevValue: () => 0,
+    format: v => `${fmtCur(v)}/gg`,
+    invertColor: true,
   },
   {
     label: "Da Incassare",
@@ -145,7 +191,7 @@ const COMMERCIAL_KPIS: KpiDef[] = [
   },
 ];
 
-function KpiCard({ def, kpi, kpiPrev, finance, isLoading }: { def: KpiDef; kpi: KpiData | undefined; kpiPrev: KpiData | undefined; finance: FinanceData; isLoading: boolean }) {
+function KpiCard({ def, kpi, kpiPrev, finance, operations, isLoading }: { def: KpiDef; kpi: KpiData | undefined; kpiPrev: KpiData | undefined; finance: FinanceData; operations: OperationsData; isLoading: boolean }) {
   if (isLoading) {
     return (
       <Card className="p-4">
@@ -155,13 +201,12 @@ function KpiCard({ def, kpi, kpiPrev, finance, isLoading }: { def: KpiDef; kpi: 
     );
   }
 
-  const value = def.getValue(kpi, finance);
-  const prevValue = def.getPrevValue(kpiPrev, finance);
+  const value = def.getValue(kpi, finance, operations);
+  const prevValue = def.getPrevValue(kpiPrev, finance, operations);
   const delta = calcDelta(value, prevValue);
 
   const DeltaIcon = delta.direction === "up" ? TrendingUp : delta.direction === "down" ? TrendingDown : Minus;
 
-  // Color coding based on thresholds
   let valueColor = "text-foreground";
   if (def.thresholds) {
     if (value >= def.thresholds.green) valueColor = "text-emerald-600 dark:text-emerald-400";
@@ -169,7 +214,6 @@ function KpiCard({ def, kpi, kpiPrev, finance, isLoading }: { def: KpiDef; kpi: 
     else valueColor = "text-destructive";
   }
 
-  // Cash flow specific coloring
   if (def.label === "Cash Flow") {
     valueColor = value >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive";
   }
@@ -209,25 +253,23 @@ function KpiCard({ def, kpi, kpiPrev, finance, isLoading }: { def: KpiDef; kpi: 
   );
 }
 
-export const ExecutiveOverview = memo(function ExecutiveOverview({ kpi, kpiPrev, finance, isLoading }: Props) {
+export const ExecutiveOverview = memo(function ExecutiveOverview({ kpi, kpiPrev, finance, operations, isLoading }: Props) {
   return (
     <div className="space-y-4">
-      {/* Financial KPIs */}
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">KPI Finanziari</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {FINANCIAL_KPIS.map(def => (
-            <KpiCard key={def.label} def={def} kpi={kpi} kpiPrev={kpiPrev} finance={finance} isLoading={isLoading} />
+            <KpiCard key={def.label} def={def} kpi={kpi} kpiPrev={kpiPrev} finance={finance} operations={operations} isLoading={isLoading} />
           ))}
         </div>
       </div>
 
-      {/* Commercial KPIs */}
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">KPI Commerciali</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           {COMMERCIAL_KPIS.map(def => (
-            <KpiCard key={def.label} def={def} kpi={kpi} kpiPrev={kpiPrev} finance={finance} isLoading={isLoading} />
+            <KpiCard key={def.label} def={def} kpi={kpi} kpiPrev={kpiPrev} finance={finance} operations={operations} isLoading={isLoading} />
           ))}
         </div>
       </div>
