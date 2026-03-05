@@ -1,19 +1,28 @@
 
 
-# Aggiungere colori allo stato nella lista magazzino
+# Dettaglio Articolo Magazzino — Dialog on click
 
-## Problema
-Nella vista lista del magazzino, i selettori di stato ("Da Ordinare", "Ordinato", "In Magazzino", "Installato") sono tutti grigi/neutri senza distinzione visiva.
-
-## Soluzione
-Applicare i colori già definiti in `STATUS_CONFIG` al `SelectTrigger` di ogni articolo, così che il selettore abbia il colore di sfondo e testo corrispondente allo stato corrente.
+## Obiettivo
+Cliccando su un articolo nella lista magazzino si apre un dialog con tutte le informazioni disponibili sull'articolo.
 
 ## Modifiche
 
-**`src/components/warehouse/WarehouseListView.tsx`**:
-- Importare `STATUS_CONFIG` (già importato)
-- Al `SelectTrigger` (attualmente `className="w-32 h-8 text-xs"`), aggiungere dinamicamente le classi di colore dallo `STATUS_CONFIG[item.status]`: background color + text color
-- Es: "Da Ordinare" → sfondo ambra, "Ordinato" → sfondo blu, "In Magazzino" → sfondo verde, "Installato" → sfondo grigio
+**1. Nuovo componente `src/components/warehouse/WarehouseItemDetailDialog.tsx`**
 
-Risultato: ogni riga mostra immediatamente lo stato con il colore corretto, migliorando la leggibilità a colpo d'occhio.
+Dialog modale che mostra:
+- **Nome articolo** e descrizione
+- **Quantità** e **prezzo di acquisto**
+- **Stato** corrente (con colore) + possibilità di cambiarlo
+- **Fornitore** (nome)
+- **Ordine** collegato (codice + cliente) con link al dettaglio ordine
+- **Date**: data posa prevista, giorni rimanenti (con indicatore urgenza/ritardo)
+- **Note** (editabili inline)
+- **Giacenza corrispondente** (se presente match in stock)
+- **Ultimo aggiornamento** (updated_at)
+
+**2. Modifica `src/components/warehouse/WarehouseListView.tsx`**
+
+- Aggiungere stato `selectedItem` per tracciare l'articolo selezionato
+- Rendere la riga dell'articolo cliccabile (onClick sulla div principale, escludendo checkbox e select stato)
+- Renderizzare `WarehouseItemDetailDialog` in fondo al componente
 
