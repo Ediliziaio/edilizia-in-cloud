@@ -84,7 +84,7 @@ export default function OrdersList() {
   });
 
   // Batch queries for cost calculations
-  const orderIds = orders.map(o => o.id);
+  const orderIds = useMemo(() => orders.map(o => o.id), [orders]);
 
   const { data: itemCosts = [] } = useQuery({
     queryKey: ["order-items-costs", effectiveCompany?.id, orderIds],

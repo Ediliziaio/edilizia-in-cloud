@@ -43,6 +43,7 @@ import { OrderErrors } from "@/components/orders/OrderErrors";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
+import { CustomerDatesCard } from "@/components/orders/CustomerDatesCard";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, deleteOrderCascading } from "@/lib/orderUtils";
 
@@ -726,9 +727,9 @@ export default function OrderDetail() {
             <CardContent className="space-y-2">
               {order.customer ? (
                 <>
-                  <p className="font-medium">
+                  <Link to={`/azienda/clienti/${order.customer.id}`} className="font-medium text-primary hover:underline">
                     {order.customer.first_name} {order.customer.last_name}
-                  </p>
+                  </Link>
                   <p className="text-sm text-muted-foreground">{order.customer.email}</p>
                   {order.customer.phone && (
                     <p className="text-sm text-muted-foreground">{order.customer.phone}</p>
@@ -815,6 +816,13 @@ export default function OrderDetail() {
 
           {/* Order Errors */}
           <OrderErrors orderId={id!} />
+
+          {/* Operational Dates */}
+          <CustomerDatesCard
+            warehouseArrivalDate={order.warehouse_arrival_date}
+            workStartDate={order.work_start_date}
+            workEndDate={order.work_end_date}
+          />
 
           {/* Expected Date */}
           {order.expected_date && (
