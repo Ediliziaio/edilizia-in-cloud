@@ -74,4 +74,8 @@ export interface CalendarAppointment {
     order_code: string | null;
     description: string;
   } | null;
+  assigned_profile?: {
+    first_name: string;
+    last_name: string;
+  } | null;
 }
