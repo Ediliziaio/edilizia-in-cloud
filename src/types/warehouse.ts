@@ -21,6 +21,7 @@ export interface WarehouseItem {
     work_start_date: string | null;
     warehouse_arrival_date?: string | null;
     company_id: string;
+    current_status_id: string | null;
     customer: {
       first_name: string;
       last_name: string;
