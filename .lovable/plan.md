@@ -1,47 +1,67 @@
 
 
-# Audit Enterprise — Risultato Finale (5a verifica)
+# Miglioramento Caricamento Documenti Ordine
 
-## Stato
+## Problemi identificati
 
-Questo progetto e stato sottoposto a 5 audit consecutivi. Console pulita (zero errori), navigazione fluida confermata da session replay sulla pagina /azienda/ordini/nuovo.
+1. **Bucket storage pubblico** — il bucket `order-attachments` è impostato come `public: true`, il che significa che chiunque con l'URL può scaricare qualsiasi file. Deve essere privato con URL firmati (signed URLs).
+2. **Nessuna validazione MIME type** — i file vengono accettati basandosi solo sull'estensione nel tag `accept`, ma il tipo reale non viene verificato lato server.
+3. **Nessun limite al numero di file** — un utente potrebbe caricare un numero illimitato di file.
+4. **Storage policy troppo permissiva per DELETE** — qualsiasi utente autenticato può eliminare file di qualsiasi azienda.
+5. **`PendingFilesUpload` manca validazione tipo MIME** — accetta qualsiasi file se rinominato.
 
-## Interventi necessari: Nessuno
+## Piano di intervento
 
-| Priorita | Trovati | Note |
-|-----------|---------|------|
-| P0 | 0 | Nessun blocco, crash o vulnerabilita |
-| P1 | 1 | ~474 `as any` — bloccato da rigenerazione tipi, nessun impatto runtime |
-| P2 | 0 | Cleanup completato |
+### 1. Database migration — Rendere il bucket privato + policy restrittive
 
-## Verifiche confermate
+- Aggiornare il bucket `order-attachments` da `public = true` a `public = false`
+- Sostituire le storage policies:
+  - **SELECT**: solo utenti autenticati della stessa company (join su `orders`)
+  - **INSERT**: solo utenti autenticati (come ora)
+  - **DELETE**: solo utenti che appartengono alla company dell'ordine (non qualsiasi utente autenticato)
 
-- **Console**: pulita, zero errori
-- **Session replay**: navigazione fluida
-- **Lazy loading**: attivo su tutte le route
-- **React.memo/useMemo**: implementati su widget pesanti
-- **ErrorBoundary**: globale + per sezione
-- **staleTime**: 2-5min su query
-- **Multi-tenancy**: `effectiveCompany` ovunque, RLS attiva, `company_id` filtrato
-- **Sicurezza**: DOMPurify (XSS), RBAC (ProtectedRoute), rate limiting, audit log, ruoli in tabella separata
-- **Backup**: gestito da Lovable Cloud (giornaliero automatico)
-- **Osservabilita**: ErrorBoundary + QueryCache/MutationCache.onError + company_activity_log
-- **Feature recente**: upload documenti in creazione ordine (PendingFilesUpload) integrato e funzionante
+### 2. Codice — Usare signed URLs invece di public URLs
 
-## Output finale
+- **`OrderAttachments.tsx`**: Sostituire `getPublicUrl()` con `createSignedUrl()` (durata 1 ora). I link di download e anteprima useranno URL firmati temporanei.
+- **`CreateOrder.tsx`** (onSuccess upload): Stessa modifica — salvare il `filePath` nel DB (non l'URL pubblico) e generare signed URL al momento della visualizzazione.
+- **`CustomerOrderAttachments`**: Generare signed URLs on-the-fly per i download dei clienti.
 
-| Categoria | Risultato |
-|-----------|-----------|
-| Cose rimosse | Nessuna — gia completato |
-| Refactor | Nessuno necessario |
-| Bug corretti | Nessuno trovato |
-| Performance | Gia ottimizzate |
-| Sicurezza | Completa |
-| Multi-tenant | Conforme |
-| Backup/restore | Gestito da infrastruttura |
-| QA | Tutti i test superati |
+### 3. Codice — Validazione file robusta
 
-### Dichiarazione finale
+- **`PendingFilesUpload.tsx`**:
+  - Aggiungere whitelist MIME types (`application/pdf`, `image/jpeg`, `image/png`, `image/gif`, `application/msword`, ecc.)
+  - Validare `file.type` oltre all'estensione
+  - Limite massimo: 10 file per ordine
+  - Mostrare errore chiaro se tipo non valido
 
-**PRONTO PER PRODUZIONE** — Il codebase e stabile, sicuro, performante e privo di bug. L'unico debito tecnico residuo (474 `as any`) e bloccato dalla rigenerazione tipi e non ha impatto runtime. Nessun intervento di codice necessario.
+- **`OrderAttachments.tsx`** (upload handler):
+  - Stessa validazione MIME type
+  - Stessa logica signed URL
+
+### 4. Codice — Salvataggio path relativo nel DB
+
+- Cambiare da salvare `publicUrl` a salvare il `filePath` relativo (es. `orders/{id}/timestamp-file.pdf`)
+- Al momento della visualizzazione, generare signed URL dal path salvato
+- Questo garantisce che anche se il bucket diventa privato, i file restano accessibili solo tramite URL temporanei
+
+### 5. Storage policy più sicura per DELETE
+
+La nuova policy DELETE verificherà che il file appartenga a un ordine della company dell'utente, non solo che l'utente sia autenticato.
+
+### File modificati
+
+| File | Modifiche |
+|------|-----------|
+| `migration SQL` (nuovo) | Bucket privato, policy storage restrittive |
+| `src/components/orders/OrderAttachments.tsx` | Signed URLs, validazione MIME, salvataggio path relativo |
+| `src/components/orders/PendingFilesUpload.tsx` | Validazione MIME type, limite 10 file |
+| `src/pages/azienda/CreateOrder.tsx` | Signed URL nel flusso upload, salvataggio path relativo |
+
+### Risultato
+
+- File protetti: accessibili solo tramite URL firmati temporanei (1h)
+- Validazione tipo file sia client-side che nella logica di upload
+- Limite file per ordine
+- Storage policy tenant-scoped per DELETE
+- Path relativo nel DB per flessibilita futura
 
