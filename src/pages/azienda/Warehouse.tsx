@@ -1,7 +1,12 @@
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import type { OrderItemStatus } from "@/types/warehouse";
+import {
+  DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
+  type DragStartEvent, type DragEndEvent,
+} from "@dnd-kit/core";
 import {
   Warehouse as WarehouseIcon,
   Search,
@@ -17,10 +22,12 @@ import {
   RefreshCw,
   Eye,
   EyeOff,
+  GripVertical,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -46,7 +53,7 @@ import WarehouseStockTab from "@/components/warehouse/WarehouseStockTab";
 import { WarehouseMapView } from "@/components/warehouse/WarehouseMapView";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
-import type { StockItem } from "@/types/warehouse";
+import type { StockItem, WarehouseItem } from "@/types/warehouse";
 import { useWarehouseData } from "@/hooks/useWarehouseData";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import { supabase } from "@/integrations/supabase/client";
@@ -83,6 +90,7 @@ export default function Warehouse() {
     handleStatusChange,
     handleMarkAllInstalled,
     handleBatchStatusChange,
+    handleBatchSectionChange,
     handleUpdateNotes,
     getSupplierName,
     clearFilters,
@@ -111,6 +119,61 @@ export default function Warehouse() {
     enabled: !!effectiveCompany?.id,
   });
 
+  // Multi-selection state for order items DnD
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [draggingItem, setDraggingItem] = useState<WarehouseItem | null>(null);
+
+  const toggleItemSelection = useCallback((itemId: string) => {
+    setSelectedItemIds(prev => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }, []);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const item = filteredItems.find(i => i.id === event.active.id);
+    if (item) setDraggingItem(item);
+  }, [filteredItems]);
+
+  const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_magazzino", "installato"];
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setDraggingItem(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const itemId = active.id as string;
+
+    // Check if dropped on a map section
+    const sectionId = over.data.current?.sectionId as string | undefined;
+    if (sectionId) {
+      const idsToMove = selectedItemIds.has(itemId) && selectedItemIds.size > 1
+        ? Array.from(selectedItemIds)
+        : [itemId];
+      const resolvedSectionId = sectionId === "__none__" ? null : sectionId;
+      handleBatchSectionChange(idsToMove, resolvedSectionId);
+      setSelectedItemIds(new Set());
+      return;
+    }
+
+    // Check if dropped on a kanban status column
+    const newStatus = over.id as string;
+    if (STATUSES.includes(newStatus as OrderItemStatus)) {
+      const item = filteredItems.find(i => i.id === itemId);
+      if (item && item.status !== newStatus) {
+        handleStatusChange(itemId, newStatus as OrderItemStatus);
+      }
+    }
+  }, [selectedItemIds, handleBatchSectionChange, filteredItems, handleStatusChange]);
+
   if (!effectiveCompany) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -118,6 +181,9 @@ export default function Warehouse() {
       </div>
     );
   }
+
+  const isOrderItemView = viewMode !== "stock" && viewMode !== "calendar";
+  const showDroppableMap = isOrderItemView && showMap && sections.length > 0;
 
   return (
     <div className="space-y-6 print:space-y-4">
@@ -186,12 +252,17 @@ export default function Warehouse() {
       {/* Stats */}
       <WarehouseStats items={items} />
 
-      {/* Warehouse Map - toggleable, hidden when stock tab is active (stock tab has its own droppable map) */}
+      {/* Warehouse Map - toggleable */}
       {viewMode !== "stock" && (
         <div className="print:hidden">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               Mappa Magazzino
+              {isOrderItemView && showMap && sections.length > 0 && (
+                <span className="text-xs text-muted-foreground/70 ml-1">
+                  — trascina articoli qui per assegnarli a una zona
+                </span>
+              )}
             </div>
             <Button
               variant="ghost"
@@ -215,6 +286,7 @@ export default function Warehouse() {
               activeSectionFilter="all"
               onFilterSection={() => {}}
               showTitle={false}
+              droppable={isOrderItemView}
             />
           )}
         </div>
@@ -400,7 +472,34 @@ export default function Warehouse() {
           </CardContent>
         </Card>
       ) : (
-        <>
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          {/* Selection bar */}
+          {selectedItemIds.size > 0 && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="py-3 flex items-center gap-3">
+                <span className="text-sm font-medium">
+                  {selectedItemIds.size} articol{selectedItemIds.size === 1 ? "o" : "i"} selezionat{selectedItemIds.size === 1 ? "o" : "i"}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Trascina sulla mappa per assegnare zona
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => setSelectedItemIds(new Set())}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Deseleziona
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {viewMode === "list" && (
             <WarehouseListView
               orderGroups={filteredGroups}
@@ -422,13 +521,30 @@ export default function Warehouse() {
               onUpdateNotes={handleUpdateNotes}
               getSupplierName={getSupplierName}
               isUpdating={isUpdating}
+              selectedIds={selectedItemIds}
+              onToggleSelection={toggleItemSelection}
             />
           )}
 
           {viewMode === "calendar" && (
             <WarehouseCalendarView items={filteredItems} />
           )}
-        </>
+
+          {/* Drag Overlay */}
+          <DragOverlay dropAnimation={null}>
+            {draggingItem && (
+              <div className="bg-background border rounded-md shadow-lg px-4 py-2 flex items-center gap-2 text-sm font-medium opacity-90">
+                <GripVertical className="h-4 w-4 text-muted-foreground" />
+                {draggingItem.name}
+                {selectedItemIds.has(draggingItem.id) && selectedItemIds.size > 1 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    +{selectedItemIds.size - 1}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
       )}
     </div>
   );

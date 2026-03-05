@@ -11,6 +11,8 @@ interface WarehouseKanbanColumnProps {
   items: WarehouseItem[];
   getSupplierName: (supplierId: string | null) => string | null;
   onSelectItem: (item: WarehouseItem) => void;
+  selectedIds?: Set<string>;
+  onToggleSelection?: (itemId: string) => void;
 }
 
 export default function WarehouseKanbanColumn({ 
@@ -18,6 +20,8 @@ export default function WarehouseKanbanColumn({
   items, 
   getSupplierName,
   onSelectItem,
+  selectedIds = new Set(),
+  onToggleSelection,
 }: WarehouseKanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const config = STATUS_CONFIG[status];
@@ -51,6 +55,8 @@ export default function WarehouseKanbanColumn({
                   item={item}
                   supplierName={getSupplierName(item.supplier_id)}
                   onSelect={onSelectItem}
+                  isSelected={selectedIds.has(item.id)}
+                  onToggleSelection={onToggleSelection}
                 />
               ))
             )}

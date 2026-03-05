@@ -13,6 +13,7 @@ export interface WarehouseItem {
   purchase_price: number | null;
   notes: string | null;
   updated_at?: string | null;
+  section_id?: string | null;
   order: {
     id: string;
     order_code: string | null;

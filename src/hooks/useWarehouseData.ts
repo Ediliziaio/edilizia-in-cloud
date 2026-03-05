@@ -49,6 +49,7 @@ export function useWarehouseData() {
           purchase_price,
           notes,
           updated_at,
+          section_id,
           order:orders!inner(
             id,
             order_code,
@@ -310,6 +311,25 @@ export function useWarehouseData() {
     },
   });
 
+  // Batch update section mutation (for DnD to map)
+  const batchUpdateSectionMutation = useMutation({
+    mutationFn: async ({ itemIds, sectionId }: { itemIds: string[]; sectionId: string | null }) => {
+      const { error } = await supabase
+        .from("order_items")
+        .update({ section_id: sectionId, updated_at: new Date().toISOString() } as any)
+        .in("id", itemIds);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
+      const count = variables.itemIds.length;
+      toast.success("Articoli spostati", { description: `${count} articol${count === 1 ? "o" : "i"} spostat${count === 1 ? "o" : "i"} nella zona.` });
+    },
+    onError: () => {
+      toast.error("Errore", { description: "Impossibile spostare gli articoli." });
+    },
+  });
+
   const handleStatusChange = (itemId: string, status: OrderItemStatus) => {
     updateItemStatusMutation.mutate({ itemId, status });
   };
@@ -375,7 +395,11 @@ export function useWarehouseData() {
     toast.success("Esportazione completata", { description: `${filteredItems.length} articoli esportati.` });
   };
 
-  const isUpdating = updateItemStatusMutation.isPending || batchUpdateMutation.isPending;
+  const isUpdating = updateItemStatusMutation.isPending || batchUpdateMutation.isPending || batchUpdateSectionMutation.isPending;
+
+  const handleBatchSectionChange = (itemIds: string[], sectionId: string | null) => {
+    batchUpdateSectionMutation.mutate({ itemIds, sectionId });
+  };
 
   return {
     // Data
@@ -411,6 +435,7 @@ export function useWarehouseData() {
     handleStatusChange,
     handleMarkAllInstalled,
     handleBatchStatusChange,
+    handleBatchSectionChange,
     handleUpdateNotes: (itemId: string, notes: string | null) => updateItemNotesMutation.mutate({ itemId, notes }),
     getSupplierName,
     clearFilters,

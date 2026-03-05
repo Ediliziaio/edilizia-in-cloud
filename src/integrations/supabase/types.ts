@@ -4128,6 +4128,7 @@ export type Database = {
           position: number | null
           purchase_price: number | null
           quantity: number | null
+          section_id: string | null
           standard_cost: number | null
           status: string | null
           stock_item_id: string | null
@@ -4158,6 +4159,7 @@ export type Database = {
           position?: number | null
           purchase_price?: number | null
           quantity?: number | null
+          section_id?: string | null
           standard_cost?: number | null
           status?: string | null
           stock_item_id?: string | null
@@ -4188,6 +4190,7 @@ export type Database = {
           position?: number | null
           purchase_price?: number | null
           quantity?: number | null
+          section_id?: string | null
           standard_cost?: number | null
           status?: string | null
           stock_item_id?: string | null
@@ -4202,6 +4205,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_sections"
             referencedColumns: ["id"]
           },
           {
