@@ -7,10 +7,13 @@ import {
   ChevronDown,
   ExternalLink,
   Package,
+  StickyNote,
+  PackageCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Collapsible,
   CollapsibleContent,
@@ -23,6 +26,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { STATUS_CONFIG, isItemUrgent, isItemCritical, getDaysUntilPosa, getUrgencyLabel } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
@@ -34,6 +47,9 @@ interface WarehouseListViewProps {
   onBatchStatusChange: (itemIds: string[], status: OrderItemStatus) => void;
   getSupplierName: (supplierId: string | null) => string | null;
   isUpdating: boolean;
+  stockItems?: { id: string; name: string; quantity: number }[];
+  onUpdateNotes?: (itemId: string, notes: string | null) => void;
+  groupBy?: string;
 }
 
 function getStatusIndicators(items: WarehouseItem[]) {
@@ -44,6 +60,42 @@ function getStatusIndicators(items: WarehouseItem[]) {
   };
 }
 
+function ItemNotePopover({ item, onUpdateNotes }: { item: WarehouseItem; onUpdateNotes?: (itemId: string, notes: string | null) => void }) {
+  const [noteText, setNoteText] = useState(item.notes || "");
+  const [open, setOpen] = useState(false);
+
+  const handleSave = () => {
+    onUpdateNotes?.(item.id, noteText.trim() || null);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setNoteText(item.notes || ""); }}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+          <StickyNote className={cn("h-3.5 w-3.5", item.notes ? "text-amber-500" : "text-muted-foreground/40")} />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3" align="end">
+        <Textarea
+          value={noteText}
+          onChange={(e) => setNoteText(e.target.value)}
+          placeholder="Aggiungi nota..."
+          className="text-sm min-h-[60px]"
+        />
+        <div className="flex justify-end gap-2 mt-2">
+          {item.notes && (
+            <Button variant="ghost" size="sm" onClick={() => { onUpdateNotes?.(item.id, null); setOpen(false); }}>
+              Cancella
+            </Button>
+          )}
+          <Button size="sm" onClick={handleSave}>Salva</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function WarehouseListView({
   orderGroups,
   onStatusChange,
@@ -51,6 +103,9 @@ function WarehouseListView({
   onBatchStatusChange,
   getSupplierName,
   isUpdating,
+  stockItems = [],
+  onUpdateNotes,
+  groupBy,
 }: WarehouseListViewProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -85,9 +140,16 @@ function WarehouseListView({
     setSelectedItems(new Set());
   };
 
+  // Stock matching: find stock item by name (case-insensitive partial match)
+  const findStockMatch = (itemName: string) => {
+    const nameLower = itemName.toLowerCase();
+    return stockItems.find(s => s.name.toLowerCase() === nameLower || nameLower.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(nameLower));
+  };
+
   // Check if order is urgent (any item urgent/critical)
   const isOrderUrgent = (group: OrderWithItems) => group.items.some(isItemUrgent);
   const isOrderCritical = (group: OrderWithItems) => group.items.some(isItemCritical);
+  const isSupplierGroup = groupBy === "supplier";
 
   if (orderGroups.length === 0) {
     return (
@@ -110,28 +172,13 @@ function WarehouseListView({
             {selectedItems.size} selezionati
           </span>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleBatchAction("ordinato")}
-              disabled={isUpdating}
-            >
+            <Button variant="outline" size="sm" onClick={() => handleBatchAction("ordinato")} disabled={isUpdating}>
               Ordinato
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleBatchAction("in_magazzino")}
-              disabled={isUpdating}
-            >
+            <Button variant="outline" size="sm" onClick={() => handleBatchAction("in_magazzino")} disabled={isUpdating}>
               In Magazzino
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleBatchAction("installato")}
-              disabled={isUpdating}
-            >
+            <Button variant="outline" size="sm" onClick={() => handleBatchAction("installato")} disabled={isUpdating}>
               Installato
             </Button>
           </div>
@@ -144,7 +191,6 @@ function WarehouseListView({
         const isExpanded = expandedOrders.has(group.orderId);
         const urgent = isOrderUrgent(group);
         const critical = isOrderCritical(group);
-        // Get min daysUntil from urgent items for display
         const urgentDays = group.items
           .map(getDaysUntilPosa)
           .filter((d): d is number => d !== null && d >= 0 && d <= 7);
@@ -159,11 +205,11 @@ function WarehouseListView({
             <div 
               className={cn(
                 "border rounded-lg transition-colors",
-                critical && "border-destructive",
-                urgent && !critical && "border-amber-500"
+                !isSupplierGroup && critical && "border-destructive",
+                !isSupplierGroup && urgent && !critical && "border-amber-500"
               )}
             >
-              {/* Order header row */}
+              {/* Group header row */}
               <CollapsibleTrigger asChild>
                 <div 
                   className={cn(
@@ -172,13 +218,15 @@ function WarehouseListView({
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    {/* Order code & customer */}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-medium truncate">
-                          {group.orderCode || "Ordine"} - {group.customerName}
+                          {isSupplierGroup
+                            ? group.orderCode
+                            : `${group.orderCode || "Ordine"} - ${group.customerName}`
+                          }
                         </span>
-                        {(urgent || critical) && daysUntil !== null && (
+                        {!isSupplierGroup && (urgent || critical) && daysUntil !== null && (
                           <Badge 
                             variant="destructive" 
                             className={cn(
@@ -186,11 +234,11 @@ function WarehouseListView({
                               !critical && "bg-amber-500 hover:bg-amber-600"
                             )}
                           >
-                            {daysUntil !== null && getUrgencyLabel(daysUntil)}
+                            {getUrgencyLabel(daysUntil)}
                           </Badge>
                         )}
                       </div>
-                      {group.expectedDate && (
+                      {!isSupplierGroup && group.expectedDate && (
                         <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                           <Calendar className="h-3 w-3" />
                           Posa: {formatDate(group.expectedDate)}
@@ -200,7 +248,6 @@ function WarehouseListView({
                   </div>
 
                   <div className="flex items-center gap-3">
-                    {/* Status indicators */}
                     <div className="flex items-center gap-1">
                       {indicators.ready > 0 && (
                         <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs">
@@ -219,12 +266,10 @@ function WarehouseListView({
                       )}
                     </div>
 
-                    {/* Items count */}
                     <span className="text-xs text-muted-foreground">
                       {group.items.length} art.
                     </span>
 
-                    {/* Expand icon */}
                     <ChevronDown className={cn(
                       "h-4 w-4 text-muted-foreground transition-transform",
                       isExpanded && "rotate-180"
@@ -238,6 +283,7 @@ function WarehouseListView({
                 <div className="p-2 space-y-1 bg-muted/20">
                   {group.items.map((item) => {
                     const supplierName = getSupplierName(item.supplier_id);
+                    const stockMatch = item.status === "da_ordinare" ? findStockMatch(item.name) : null;
 
                     return (
                       <div
@@ -256,54 +302,91 @@ function WarehouseListView({
                             {item.quantity || 1}x
                           </Badge>
                           <div className="min-w-0">
-                            <p className="font-medium text-sm truncate">{item.name}</p>
-                            {supplierName && (
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-sm truncate">{item.name}</p>
+                              {stockMatch && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 text-xs shrink-0 gap-1">
+                                      <PackageCheck className="h-3 w-3" />
+                                      {stockMatch.quantity} in stock
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    Disponibile in giacenza: {stockMatch.name} ({stockMatch.quantity} pz)
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                            {(supplierName || (isSupplierGroup && item.order.order_code)) && (
                               <p className="text-xs text-muted-foreground truncate">
-                                {supplierName}
+                                {isSupplierGroup
+                                  ? `${item.order.order_code || "Ordine"} - ${item.order.customer.first_name} ${item.order.customer.last_name}`
+                                  : supplierName}
                               </p>
                             )}
                           </div>
                         </div>
 
-                        <Select
-                          value={item.status}
-                          onValueChange={(value) =>
-                            onStatusChange(item.id, value as OrderItemStatus)
-                          }
-                          disabled={isUpdating}
-                        >
-                          <SelectTrigger className="w-32 h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                              <SelectItem key={status} value={status}>
-                                {config.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-1">
+                          <ItemNotePopover item={item} onUpdateNotes={onUpdateNotes} />
+                          <Select
+                            value={item.status}
+                            onValueChange={(value) =>
+                              onStatusChange(item.id, value as OrderItemStatus)
+                            }
+                            disabled={isUpdating}
+                          >
+                            <SelectTrigger className="w-32 h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                                <SelectItem key={status} value={status}>
+                                  {config.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     );
                   })}
 
-                  {/* Order actions */}
+                  {/* Group actions */}
                   <div className="flex items-center justify-between pt-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs"
-                      onClick={() => onMarkAllInstalled(group.items)}
-                      disabled={isUpdating}
-                    >
-                      Segna tutti installati
-                    </Button>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link to={`/azienda/ordini/${group.orderId}`} className="text-xs">
-                        <ExternalLink className="h-3 w-3 mr-1" />
-                        Vai all'ordine
-                      </Link>
-                    </Button>
+                    {isSupplierGroup ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => onBatchStatusChange(
+                          group.items.filter(i => i.status === "da_ordinare").map(i => i.id),
+                          "ordinato"
+                        )}
+                        disabled={isUpdating || group.items.filter(i => i.status === "da_ordinare").length === 0}
+                      >
+                        Segna tutti come Ordinati
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => onMarkAllInstalled(group.items)}
+                        disabled={isUpdating}
+                      >
+                        Segna tutti installati
+                      </Button>
+                    )}
+                    {!isSupplierGroup && (
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link to={`/azienda/ordini/${group.orderId}`} className="text-xs">
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Vai all'ordine
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CollapsibleContent>

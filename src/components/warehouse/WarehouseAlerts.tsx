@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import type { WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseAlert {
-  type: "critical" | "warning";
+  type: "critical" | "warning" | "overdue";
   title: string;
   orderId: string;
   orderCode: string | null;
@@ -63,7 +63,19 @@ function calculateAlerts(items: WarehouseItem[]): WarehouseAlert[] {
       const expectedDate = new Date(group.expectedDate);
       const daysUntil = differenceInDays(expectedDate, today);
 
-      if (daysUntil <= 7 && daysUntil >= 0) {
+      if (daysUntil < 0) {
+        // Overdue
+        alerts.push({
+          type: "overdue",
+          title: `${Math.abs(daysUntil)}g scaduto`,
+          orderId: group.orderId,
+          orderCode: group.orderCode,
+          customerName: group.customerName,
+          daysUntilPosa: daysUntil,
+          expectedDate: group.expectedDate,
+          itemsCount: notReadyItems.length,
+        });
+      } else if (daysUntil <= 7) {
         alerts.push({
           type: daysUntil <= 3 ? "critical" : "warning",
           title: daysUntil === 0 
@@ -91,7 +103,8 @@ export default function WarehouseAlerts({ items }: WarehouseAlertsProps) {
 
   if (alerts.length === 0) return null;
 
-  const criticalCount = alerts.filter(a => a.type === "critical").length;
+  const criticalCount = alerts.filter(a => a.type === "critical" || a.type === "overdue").length;
+  const overdueCount = alerts.filter(a => a.type === "overdue").length;
 
   const formatDate = (dateStr: string) => {
     return format(new Date(dateStr), "dd MMM", { locale: it });
@@ -114,9 +127,14 @@ export default function WarehouseAlerts({ items }: WarehouseAlertsProps) {
           )} />
           <span className="text-sm font-medium">
             {alerts.length} {alerts.length === 1 ? "avviso" : "avvisi"}
-            {criticalCount > 0 && (
+            {overdueCount > 0 && (
               <span className="text-destructive ml-1">
-                ({criticalCount} {criticalCount === 1 ? "urgente" : "urgenti"})
+                ({overdueCount} in ritardo)
+              </span>
+            )}
+            {criticalCount > overdueCount && (
+              <span className="text-destructive ml-1">
+                ({criticalCount - overdueCount} {criticalCount - overdueCount === 1 ? "urgente" : "urgenti"})
               </span>
             )}
           </span>
@@ -138,7 +156,7 @@ export default function WarehouseAlerts({ items }: WarehouseAlertsProps) {
             key={alert.orderId}
             className={cn(
               "flex items-center justify-between p-3 rounded-lg border text-sm",
-              alert.type === "critical"
+              alert.type === "critical" || alert.type === "overdue"
                 ? "bg-destructive/5 border-destructive/20"
                 : "bg-amber-50/50 border-amber-200/50 dark:bg-amber-950/10"
             )}
@@ -146,10 +164,10 @@ export default function WarehouseAlerts({ items }: WarehouseAlertsProps) {
             <div className="flex items-center gap-3">
               <span className={cn(
                 "font-bold text-xs px-2 py-0.5 rounded",
-                alert.type === "critical" 
-                  ? "bg-destructive text-destructive-foreground" 
-                  : "bg-amber-500 text-white"
-              )}>
+                  alert.type === "critical" || alert.type === "overdue"
+                    ? "bg-destructive text-destructive-foreground" 
+                    : "bg-amber-500 text-white"
+                )}>
                 {alert.title}
               </span>
               <span className="font-medium">

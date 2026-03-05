@@ -1,10 +1,15 @@
 import { useDraggable } from "@dnd-kit/core";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { GripVertical, FileText, User, Calendar, Building2, MoreVertical } from "lucide-react";
+import { GripVertical, FileText, User, Calendar, Building2, MoreVertical, StickyNote } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,6 +87,18 @@ export default function WarehouseKanbanCard({ item, supplierName }: WarehouseKan
             >
               {daysUntil !== null && getUrgencyLabel(daysUntil)}
             </Badge>
+          )}
+
+          {/* Notes indicator */}
+          {item.notes && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <StickyNote className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[200px]">
+                <p className="text-xs">{item.notes}</p>
+              </TooltipContent>
+            </Tooltip>
           )}
           
           {/* Menu dettagli - isolato dal drag context */}

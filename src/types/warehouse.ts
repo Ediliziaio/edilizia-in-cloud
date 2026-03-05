@@ -11,6 +11,7 @@ export interface WarehouseItem {
   status: OrderItemStatus;
   supplier_id: string | null;
   purchase_price: number | null;
+  notes: string | null;
   updated_at?: string | null;
   order: {
     id: string;
@@ -98,6 +99,14 @@ export function getUrgencyLabel(daysUntil: number): string {
   if (daysUntil === 0) return "OGGI";
   if (daysUntil === 1) return "Domani";
   return `${daysUntil}g`;
+}
+
+/** True if item is overdue: posa date is in the past and status is not ready */
+export function isItemOverdue(item: WarehouseItem): boolean {
+  if (item.status === "in_magazzino" || item.status === "installato") return false;
+  const daysUntil = getDaysUntilPosa(item);
+  if (daysUntil === null) return false;
+  return daysUntil < 0;
 }
 
 // Stock types

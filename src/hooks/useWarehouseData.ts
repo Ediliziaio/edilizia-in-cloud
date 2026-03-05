@@ -5,12 +5,12 @@ import { useAuth } from "@/contexts/AuthContext";
 
 import { toast } from "sonner";
 import { format, differenceInDays, startOfWeek, endOfWeek, addWeeks } from "date-fns";
-import { STATUS_CONFIG, isItemUrgent } from "@/types/warehouse";
+import { STATUS_CONFIG, isItemUrgent, isItemOverdue } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
 export type ViewMode = "list" | "kanban" | "calendar" | "stock";
-export type GroupBy = "order" | "date" | "status";
-export type QuickFilter = "all" | "urgent" | "thisWeek" | "nextWeek";
+export type GroupBy = "order" | "date" | "status" | "supplier";
+export type QuickFilter = "all" | "urgent" | "overdue" | "thisWeek" | "nextWeek";
 
 export function useWarehouseData() {
   const { effectiveCompany } = useAuth();
@@ -47,6 +47,7 @@ export function useWarehouseData() {
           status,
           supplier_id,
           purchase_price,
+          notes,
           updated_at,
           order:orders!inner(
             id,
@@ -89,6 +90,25 @@ export function useWarehouseData() {
     staleTime: 10 * 60 * 1000,
   });
 
+  // Fetch stock items for matching
+  const {
+    data: stockItems = [],
+  } = useQuery({
+    queryKey: ["warehouse-stock-names", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("warehouse_stock")
+        .select("id, name, quantity")
+        .eq("company_id", companyId)
+        .gt("quantity", 0);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const isLoading = isLoadingItems || isLoadingSuppliers;
   const isError = isErrorItems || isErrorSuppliers;
   const refetch = () => {
@@ -123,6 +143,8 @@ export function useWarehouseData() {
         const daysUntil = differenceInDays(new Date(expectedDate), today);
         return daysUntil <= 7 && daysUntil >= 0;
       });
+    } else if (quickFilter === "overdue") {
+      filtered = filtered.filter((item) => isItemOverdue(item));
     } else if (quickFilter === "thisWeek") {
       const weekStart = startOfWeek(today, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
@@ -182,6 +204,30 @@ export function useWarehouseData() {
     } else if (groupBy === "status") {
       const statusOrder: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_magazzino", "installato"];
       sortedItems.sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
+    } else if (groupBy === "supplier") {
+      sortedItems.sort((a, b) => (a.supplier_id || "").localeCompare(b.supplier_id || ""));
+    }
+
+    if (groupBy === "supplier") {
+      // Group by supplier instead of order
+      const supplierGrouped = new Map<string, OrderWithItems>();
+      sortedItems.forEach((item) => {
+        const key = item.supplier_id || "__no_supplier__";
+        if (!supplierGrouped.has(key)) {
+          const name = item.supplier_id
+            ? (suppliers.find(s => s.id === item.supplier_id)?.name || "Fornitore sconosciuto")
+            : "Senza fornitore";
+          supplierGrouped.set(key, {
+            orderId: key,
+            orderCode: name,
+            customerName: "",
+            expectedDate: null,
+            items: [],
+          });
+        }
+        supplierGrouped.get(key)!.items.push(item);
+      });
+      return Array.from(supplierGrouped.values());
     }
 
     sortedItems.forEach((item) => {
@@ -208,7 +254,7 @@ export function useWarehouseData() {
     }
 
     return result;
-  }, [filteredItems, groupBy]);
+  }, [filteredItems, groupBy, suppliers]);
 
   // Update item status mutation
   const updateItemStatusMutation = useMutation({
@@ -246,6 +292,24 @@ export function useWarehouseData() {
     },
   });
 
+  // Update item notes mutation
+  const updateItemNotesMutation = useMutation({
+    mutationFn: async ({ itemId, notes }: { itemId: string; notes: string | null }) => {
+      const { error } = await supabase
+        .from("order_items")
+        .update({ notes, updated_at: new Date().toISOString() })
+        .eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
+      toast.success("Nota aggiornata");
+    },
+    onError: () => {
+      toast.error("Errore", { description: "Impossibile aggiornare la nota." });
+    },
+  });
+
   const handleStatusChange = (itemId: string, status: OrderItemStatus) => {
     updateItemStatusMutation.mutate({ itemId, status });
   };
@@ -277,6 +341,11 @@ export function useWarehouseData() {
   // Count urgent items
   const urgentItemsCount = useMemo(() => {
     return items.filter(isItemUrgent).length;
+  }, [items]);
+
+  // Count overdue items
+  const overdueItemsCount = useMemo(() => {
+    return items.filter(isItemOverdue).length;
   }, [items]);
 
   // Export to CSV
@@ -314,8 +383,10 @@ export function useWarehouseData() {
     filteredItems,
     filteredGroups,
     suppliers,
+    stockItems,
     uniqueOrders,
     urgentItemsCount,
+    overdueItemsCount,
     // State
     viewMode,
     setViewMode,
@@ -340,6 +411,7 @@ export function useWarehouseData() {
     handleStatusChange,
     handleMarkAllInstalled,
     handleBatchStatusChange,
+    handleUpdateNotes: (itemId: string, notes: string | null) => updateItemNotesMutation.mutate({ itemId, notes }),
     getSupplierName,
     clearFilters,
     exportToCSV,
