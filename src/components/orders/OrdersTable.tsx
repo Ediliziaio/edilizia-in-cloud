@@ -264,7 +264,13 @@ export function OrdersTable({
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className={grossMargin >= 0 ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-destructive font-medium"}>
+                    <span className={`font-medium ${
+                      marginPercent >= 30
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : marginPercent >= 20
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-destructive"
+                    }`}>
                       {formatCurrency(grossMargin)} - {marginPercent.toFixed(1)}%
                     </span>
                   </TableCell>
