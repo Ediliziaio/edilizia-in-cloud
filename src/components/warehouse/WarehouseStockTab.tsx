@@ -1,13 +1,14 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -19,6 +20,7 @@ import { StockItemDialog } from "./StockItemDialog";
 import { StockMovementDialog } from "./StockMovementDialog";
 import { StockMovementHistoryDialog } from "./StockMovementHistoryDialog";
 import { WarehouseSectionsManager } from "./WarehouseSectionsManager";
+import { WarehouseMapView } from "./WarehouseMapView";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
@@ -26,7 +28,6 @@ import type { StockItem } from "@/types/warehouse";
 
 export default function WarehouseStockTab() {
   const { effectiveCompany, user } = useAuth();
-  
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
@@ -41,6 +42,8 @@ export default function WarehouseStockTab() {
   }>({ open: false, type: "carico", item: null });
   const [historyItem, setHistoryItem] = useState<StockItem | null>(null);
   const [taskItem, setTaskItem] = useState<StockItem | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchTargetSection, setBatchTargetSection] = useState<string>("");
 
   // Fetch stock items
   const { data: stockItems = [], isLoading } = useQuery({
@@ -58,7 +61,7 @@ export default function WarehouseStockTab() {
     enabled: !!companyId,
   });
 
-  // Fetch suppliers for display (shared queryKey with useWarehouseData)
+  // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers", companyId],
     queryFn: async () => {
@@ -150,7 +153,6 @@ export default function WarehouseStockTab() {
         });
         if (error) throw error;
 
-        // Register cost if requested (only for new items)
         if (data.registerCost) {
           await insertCostRecord(data.name, data.unit_cost, data.quantity, data.vat_rate, data.supplier_id, data.costPaidDate, data.costCategory);
         }
@@ -171,13 +173,7 @@ export default function WarehouseStockTab() {
   // Movement mutation
   const movementMutation = useMutation({
     mutationFn: async ({
-      stockItemId,
-      type,
-      quantity,
-      notes,
-      registerCost,
-      costPaidDate,
-      costCategory,
+      stockItemId, type, quantity, notes, registerCost, costPaidDate, costCategory,
     }: {
       stockItemId: string;
       type: "carico" | "scarico";
@@ -187,7 +183,6 @@ export default function WarehouseStockTab() {
       costPaidDate?: string;
       costCategory?: string;
     }) => {
-      // Insert movement
       const { error: movError } = await supabase.from("warehouse_movements").insert({
         stock_item_id: stockItemId,
         movement_type: type,
@@ -197,18 +192,16 @@ export default function WarehouseStockTab() {
       });
       if (movError) throw movError;
 
-      // Update stock quantity
       const currentItem = stockItems.find((i) => i.id === stockItemId);
       if (!currentItem) throw new Error("Articolo non trovato");
       const newQty = type === "carico" ? currentItem.quantity + quantity : currentItem.quantity - quantity;
-      
+
       const { error: updError } = await supabase
         .from("warehouse_stock")
         .update({ quantity: Math.max(0, newQty) })
         .eq("id", stockItemId);
       if (updError) throw updError;
 
-      // Register cost if requested (only for carico)
       if (registerCost && type === "carico") {
         await insertCostRecord(currentItem.name, currentItem.unit_cost, quantity, currentItem.vat_rate ?? 22, currentItem.supplier_id || undefined, costPaidDate, costCategory);
       }
@@ -221,6 +214,26 @@ export default function WarehouseStockTab() {
     },
     onError: () => {
       toast.error("Errore", { description: "Impossibile registrare il movimento." });
+    },
+  });
+
+  // Batch move mutation
+  const batchMoveMutation = useMutation({
+    mutationFn: async ({ ids, sectionId }: { ids: string[]; sectionId: string | null }) => {
+      const { error } = await supabase
+        .from("warehouse_stock")
+        .update({ section_id: sectionId })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      setSelectedIds(new Set());
+      setBatchTargetSection("");
+      toast.success("Articoli spostati", { description: `${selectedIds.size} articoli aggiornati.` });
+    },
+    onError: () => {
+      toast.error("Errore", { description: "Impossibile spostare gli articoli." });
     },
   });
 
@@ -247,6 +260,31 @@ export default function WarehouseStockTab() {
     [stockItems]
   );
 
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((i) => i.id)));
+    }
+  }, [filtered, selectedIds.size]);
+
+  const handleBatchMove = () => {
+    if (!batchTargetSection || selectedIds.size === 0) return;
+    batchMoveMutation.mutate({
+      ids: Array.from(selectedIds),
+      sectionId: batchTargetSection === "__none__" ? null : batchTargetSection,
+    });
+  };
+
   return (
     <div className="space-y-4">
       {/* Low stock alert */}
@@ -264,6 +302,14 @@ export default function WarehouseStockTab() {
 
       {/* Sections Manager */}
       <WarehouseSectionsManager />
+
+      {/* Warehouse Map */}
+      <WarehouseMapView
+        stockItems={stockItems}
+        sections={sections}
+        activeSectionFilter={sectionFilter}
+        onFilterSection={setSectionFilter}
+      />
 
       {/* Header with search, filter and add */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -302,6 +348,53 @@ export default function WarehouseStockTab() {
         </Button>
       </div>
 
+      {/* Batch action bar */}
+      {selectedIds.size > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="py-3 flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-medium">
+              {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
+            </span>
+            {sections.length > 0 && (
+              <>
+                <Select value={batchTargetSection} onValueChange={setBatchTargetSection}>
+                  <SelectTrigger className="w-[180px] h-8">
+                    <SelectValue placeholder="Zona destinazione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Rimuovi zona</SelectItem>
+                    {sections.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                          {s.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  onClick={handleBatchMove}
+                  disabled={!batchTargetSection || batchMoveMutation.isPending}
+                >
+                  <MoveRight className="h-4 w-4 mr-1" />
+                  Sposta
+                </Button>
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Deseleziona
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Table */}
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Caricamento...</div>
@@ -317,6 +410,13 @@ export default function WarehouseStockTab() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={selectedIds.size === filtered.length && filtered.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Seleziona tutti"
+                    />
+                  </TableHead>
                   <TableHead>Articolo</TableHead>
                   {sections.length > 0 && <TableHead>Zona</TableHead>}
                   <TableHead className="text-center">Qtà</TableHead>
@@ -331,8 +431,16 @@ export default function WarehouseStockTab() {
                 {filtered.map((item) => {
                   const isLow = item.min_stock_level > 0 && item.quantity <= item.min_stock_level;
                   const section = getSectionName(item.section_id);
+                  const isSelected = selectedIds.has(item.id);
                   return (
                     <TableRow key={item.id} className={isLow ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}>
+                      <TableCell>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(item.id)}
+                          aria-label={`Seleziona ${item.name}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div>
                           <span className="font-medium">{item.name}</span>
@@ -364,45 +472,19 @@ export default function WarehouseStockTab() {
                       <TableCell className="text-center">{item.min_stock_level || "—"}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Task"
-                            onClick={() => setTaskItem(item)}
-                          >
+                          <Button variant="ghost" size="icon" title="Task" onClick={() => setTaskItem(item)}>
                             <CheckSquare className="h-4 w-4 text-primary" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Storico"
-                            onClick={() => setHistoryItem(item)}
-                          >
+                          <Button variant="ghost" size="icon" title="Storico" onClick={() => setHistoryItem(item)}>
                             <History className="h-4 w-4 text-muted-foreground" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Carico"
-                            onClick={() => setMovementDialog({ open: true, type: "carico", item })}
-                          >
+                          <Button variant="ghost" size="icon" title="Carico" onClick={() => setMovementDialog({ open: true, type: "carico", item })}>
                             <ArrowUpCircle className="h-4 w-4 text-emerald-600" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Scarico"
-                            onClick={() => setMovementDialog({ open: true, type: "scarico", item })}
-                            disabled={item.quantity === 0}
-                          >
+                          <Button variant="ghost" size="icon" title="Scarico" onClick={() => setMovementDialog({ open: true, type: "scarico", item })} disabled={item.quantity === 0}>
                             <ArrowDownCircle className="h-4 w-4 text-red-500" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Modifica"
-                            onClick={() => { setEditingItem(item); setDialogOpen(true); }}
-                          >
+                          <Button variant="ghost" size="icon" title="Modifica" onClick={() => { setEditingItem(item); setDialogOpen(true); }}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                         </div>
@@ -422,27 +504,18 @@ export default function WarehouseStockTab() {
         onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditingItem(null); }}
         editingItem={editingItem}
         isPending={saveMutation.isPending}
-        onSave={(data) =>
-          saveMutation.mutate({ ...data, id: editingItem?.id })
-        }
+        onSave={(data) => saveMutation.mutate({ ...data, id: editingItem?.id })}
       />
-
       <StockMovementDialog
         open={movementDialog.open}
-        onOpenChange={(v) => {
-          if (!v) setMovementDialog({ open: false, type: "carico", item: null });
-        }}
+        onOpenChange={(v) => { if (!v) setMovementDialog({ open: false, type: "carico", item: null }); }}
         type={movementDialog.type}
         itemName={movementDialog.item?.name || ""}
         maxQuantity={movementDialog.type === "scarico" ? movementDialog.item?.quantity : undefined}
         isPending={movementMutation.isPending}
         onSave={(data) => {
           if (!movementDialog.item) return;
-          movementMutation.mutate({
-            stockItemId: movementDialog.item.id,
-            type: movementDialog.type,
-            ...data,
-          });
+          movementMutation.mutate({ stockItemId: movementDialog.item.id, type: movementDialog.type, ...data });
         }}
       />
       <StockMovementHistoryDialog
@@ -450,17 +523,13 @@ export default function WarehouseStockTab() {
         onOpenChange={(v) => { if (!v) setHistoryItem(null); }}
         item={historyItem}
       />
-
-      {/* Task Dialog for stock item */}
       <Dialog open={!!taskItem} onOpenChange={(v) => { if (!v) setTaskItem(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Task - {taskItem?.name}</DialogTitle>
             <DialogDescription>Attività collegate a questo articolo</DialogDescription>
           </DialogHeader>
-          {taskItem && (
-            <LinkedTasks stockItemId={taskItem.id} category="magazzino" />
-          )}
+          {taskItem && <LinkedTasks stockItemId={taskItem.id} category="magazzino" />}
         </DialogContent>
       </Dialog>
     </div>
