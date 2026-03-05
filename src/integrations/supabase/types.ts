@@ -5971,6 +5971,20 @@ export type Database = {
           user_count: number
         }[]
       }
+      get_customers_paginated: {
+        Args: {
+          p_company_id: string
+          p_has_orders?: string
+          p_limit?: number
+          p_offset?: number
+          p_salesperson_id?: string
+          p_salesperson_none?: boolean
+          p_search?: string
+          p_sort_dir?: string
+          p_sort_field?: string
+        }
+        Returns: Json
+      }
       get_feature_usage_stats: { Args: never; Returns: Json }
       get_marketing_dashboard_stats: {
         Args: {

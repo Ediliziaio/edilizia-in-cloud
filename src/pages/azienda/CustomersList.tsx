@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil, Trash2, Download, Upload, MoreVertical, AlertTriangle, ArrowUpDown, Calendar, UserCheck } from "lucide-react";
+import { Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check, Pencil, Trash2, Download, Upload, MoreVertical, AlertTriangle, ArrowUpDown, Calendar, UserCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,6 +50,11 @@ interface CustomerWithOrders {
   salesperson_id: string | null;
 }
 
+interface PaginatedResult {
+  rows: CustomerWithOrders[];
+  total_count: number;
+}
+
 interface ResetPasswordResult {
   newPassword: string;
   customer: {
@@ -62,6 +67,8 @@ interface ResetPasswordResult {
 
 type SortField = "name" | "created_at";
 type SortDir = "asc" | "desc";
+
+const PAGE_SIZES = [25, 50, 100];
 
 const CUSTOMER_IMPORT_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true },
@@ -80,6 +87,8 @@ export default function CustomersList() {
   const [filterOrders, setFilterOrders] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const [importOpen, setImportOpen] = useState(false);
   const [resetPasswordDialog, setResetPasswordDialog] = useState<{
     open: boolean;
@@ -110,40 +119,53 @@ export default function CustomersList() {
 
   const salespersonMap = new Map(salespeople.map(sp => [sp.id, sp]));
 
-  const { data: customers = [], isLoading, isError } = useQuery({
-    queryKey: ["customers-list", effectiveCompany?.id],
-    queryFn: async () => {
-      if (!effectiveCompany?.id) return [];
+  // Reset page when filters change
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setPage(0);
+  };
+  const handleFilterSalesperson = (value: string) => {
+    setFilterSalesperson(value);
+    setPage(0);
+  };
+  const handleFilterOrders = (value: string) => {
+    setFilterOrders(value);
+    setPage(0);
+  };
+  const handlePageSizeChange = (value: string) => {
+    setPageSize(Number(value));
+    setPage(0);
+  };
+
+  // Build RPC params
+  const rpcParams = {
+    p_company_id: effectiveCompany?.id ?? "",
+    p_search: searchQuery || null,
+    p_salesperson_id: filterSalesperson !== "all" && filterSalesperson !== "none" ? filterSalesperson : null,
+    p_salesperson_none: filterSalesperson === "none",
+    p_has_orders: filterOrders,
+    p_sort_field: sortField,
+    p_sort_dir: sortDir,
+    p_offset: page * pageSize,
+    p_limit: pageSize,
+  };
+
+  const { data: paginatedData, isLoading, isError } = useQuery({
+    queryKey: ["customers-list", effectiveCompany?.id, searchQuery, filterSalesperson, filterOrders, sortField, sortDir, page, pageSize],
+    queryFn: async (): Promise<PaginatedResult> => {
+      if (!effectiveCompany?.id) return { rows: [], total_count: 0 };
       
-      const [rolesRes, ordersRes] = await Promise.all([
-        supabase.from("user_roles").select("user_id").eq("role", "customer"),
-        supabase.from("orders").select("customer_id").eq("company_id", effectiveCompany.id),
-      ]);
-
-      const customerIds = (rolesRes.data || []).map(r => r.user_id);
-      if (customerIds.length === 0) return [];
-
-      const { data: customerProfiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email, phone, fiscal_code, address, site_address, notes, created_at, salesperson_id")
-        .eq("company_id", effectiveCompany.id)
-        .in("id", customerIds);
-
-      if (profilesError) throw profilesError;
-
-      const orderCountMap = new Map<string, number>();
-      (ordersRes.data || []).forEach((order) => {
-        orderCountMap.set(order.customer_id, (orderCountMap.get(order.customer_id) || 0) + 1);
-      });
-
-      return (customerProfiles || []).map((customer) => ({
-        ...customer,
-        order_count: orderCountMap.get(customer.id) || 0,
-      })) as CustomerWithOrders[];
+      const { data, error } = await supabase.rpc("get_customers_paginated", rpcParams as any);
+      if (error) throw error;
+      return data as unknown as PaginatedResult;
     },
     enabled: !!effectiveCompany?.id,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
   });
+
+  const customers = paginatedData?.rows ?? [];
+  const totalCount = paginatedData?.total_count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   // Inline salesperson assignment mutation
   const assignSalespersonMutation = useMutation({
@@ -213,38 +235,6 @@ export default function CustomersList() {
     },
   });
 
-  // Filter + sort
-  const filteredCustomers = customers
-    .filter((customer) => {
-      const q = searchQuery.toLowerCase();
-      const matchSearch =
-        customer.first_name.toLowerCase().includes(q) ||
-        customer.last_name.toLowerCase().includes(q) ||
-        customer.email.toLowerCase().includes(q) ||
-        (customer.phone?.toLowerCase().includes(q) ?? false) ||
-        (customer.fiscal_code?.toLowerCase().includes(q) ?? false);
-      if (!matchSearch) return false;
-
-      if (filterSalesperson !== "all") {
-        if (filterSalesperson === "none" && customer.salesperson_id !== null) return false;
-        if (filterSalesperson !== "none" && customer.salesperson_id !== filterSalesperson) return false;
-      }
-
-      if (filterOrders === "with" && customer.order_count === 0) return false;
-      if (filterOrders === "without" && customer.order_count > 0) return false;
-
-      return true;
-    })
-    .sort((a, b) => {
-      const dir = sortDir === "asc" ? 1 : -1;
-      if (sortField === "name") {
-        const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
-        const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
-        return nameA.localeCompare(nameB) * dir;
-      }
-      return (new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()) * dir;
-    });
-
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -252,12 +242,13 @@ export default function CustomersList() {
       setSortField(field);
       setSortDir("asc");
     }
+    setPage(0);
   };
 
-  // Export CSV
+  // Export CSV (current filtered page)
   const exportCustomersCSV = useCallback(() => {
     const rows = [["Nome", "Cognome", "Email", "Telefono", "Codice Fiscale", "Indirizzo", "Indirizzo Cantiere", "Note", "N. Ordini", "Data Inserimento", "Venditore"]];
-    filteredCustomers.forEach((c) => {
+    customers.forEach((c) => {
       const sp = c.salesperson_id ? salespersonMap.get(c.salesperson_id) : null;
       rows.push([
         c.first_name, c.last_name, c.email, c.phone || "", c.fiscal_code || "",
@@ -275,7 +266,42 @@ export default function CustomersList() {
     a.click();
     URL.revokeObjectURL(url);
     toast({ title: "CSV esportato" });
-  }, [filteredCustomers, salespersonMap, toast]);
+  }, [customers, salespersonMap, toast]);
+
+  // Export ALL filtered (no pagination)
+  const exportAllCSV = useCallback(async () => {
+    if (!effectiveCompany?.id) return;
+    try {
+      const { data, error } = await supabase.rpc("get_customers_paginated", {
+        ...rpcParams,
+        p_offset: 0,
+        p_limit: 100000,
+      } as any);
+      if (error) throw error;
+      const result = data as unknown as PaginatedResult;
+      const csvRows = [["Nome", "Cognome", "Email", "Telefono", "Codice Fiscale", "Indirizzo", "Indirizzo Cantiere", "Note", "N. Ordini", "Data Inserimento", "Venditore"]];
+      (result.rows || []).forEach((c) => {
+        const sp = c.salesperson_id ? salespersonMap.get(c.salesperson_id) : null;
+        csvRows.push([
+          c.first_name, c.last_name, c.email, c.phone || "", c.fiscal_code || "",
+          c.address || "", c.site_address || "", c.notes || "", String(c.order_count),
+          c.created_at ? format(new Date(c.created_at), "dd/MM/yyyy") : "",
+          sp ? `${sp.first_name} ${sp.last_name}` : "",
+        ]);
+      });
+      const csv = csvRows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `clienti-tutti-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "CSV esportato", description: `${result.total_count} clienti esportati` });
+    } catch {
+      toast({ title: "Errore", description: "Impossibile esportare i clienti", variant: "destructive" });
+    }
+  }, [effectiveCompany?.id, rpcParams, salespersonMap, toast]);
 
   // Import handler
   const handleCustomersImport = useCallback(async (rows: Record<string, string>[]) => {
@@ -323,6 +349,9 @@ export default function CustomersList() {
     });
   };
 
+  const rangeStart = totalCount === 0 ? 0 : page * pageSize + 1;
+  const rangeEnd = Math.min((page + 1) * pageSize, totalCount);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -341,7 +370,11 @@ export default function CustomersList() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={exportCustomersCSV}>
                 <Download className="h-4 w-4 mr-2" />
-                Esporta CSV
+                Esporta pagina CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportAllCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Esporta tutti CSV
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setImportOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
@@ -365,12 +398,12 @@ export default function CustomersList() {
           <Input
             placeholder="Cerca per nome, email, telefono, CF..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-10"
           />
         </div>
         <div className="flex flex-wrap gap-3">
-          <Select value={filterSalesperson} onValueChange={setFilterSalesperson}>
+          <Select value={filterSalesperson} onValueChange={handleFilterSalesperson}>
             <SelectTrigger className="w-[200px]">
               <div className="flex items-center gap-2">
                 <UserCheck className="h-4 w-4 text-muted-foreground" />
@@ -387,7 +420,7 @@ export default function CustomersList() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={filterOrders} onValueChange={setFilterOrders}>
+          <Select value={filterOrders} onValueChange={handleFilterOrders}>
             <SelectTrigger className="w-[180px]">
               <div className="flex items-center gap-2">
                 <ClipboardList className="h-4 w-4 text-muted-foreground" />
@@ -427,7 +460,7 @@ export default function CustomersList() {
             ))}
           </CardContent>
         </Card>
-      ) : filteredCustomers.length === 0 ? (
+      ) : customers.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Users className="h-12 w-12 text-muted-foreground mb-4" />
@@ -479,7 +512,7 @@ export default function CustomersList() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCustomers.map((customer) => {
+              {customers.map((customer) => {
                 const sp = customer.salesperson_id ? salespersonMap.get(customer.salesperson_id) : null;
                 return (
                   <TableRow key={customer.id}>
@@ -611,6 +644,51 @@ export default function CustomersList() {
               })}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t">
+            <p className="text-sm text-muted-foreground">
+              Mostrando {rangeStart}–{rangeEnd} di {totalCount} clienti
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Righe:</span>
+                <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+                  <SelectTrigger className="h-8 w-[70px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZES.map((s) => (
+                      <SelectItem key={s} value={String(s)}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-sm text-muted-foreground">
+                Pagina {page + 1} di {totalPages}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={page === 0}
+                  onClick={() => setPage(p => p - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={page >= totalPages - 1}
+                  onClick={() => setPage(p => p + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
         </Card>
       )}
 
