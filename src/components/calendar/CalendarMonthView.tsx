@@ -9,8 +9,13 @@ import {
   isSameMonth,
   isSameDay,
   parseISO,
+  addMonths,
+  subMonths,
 } from "date-fns";
-import { Hammer, Package, AlertTriangle, Users, UsersRound, CalendarClock, Check } from "lucide-react";
+import { it } from "date-fns/locale";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ChevronLeft, ChevronRight, Hammer, Package, AlertTriangle, Users, UsersRound, CalendarClock, Check } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -90,19 +95,30 @@ export function CalendarMonthView({
   const weekDays = WEEK_DAYS_IT;
 
   return (
-    <div>
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-4">
+        <Button variant="ghost" size="icon" onClick={() => onDateChange(subMonths(currentDate, 1))}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <h2 className="text-lg font-semibold capitalize">
+          {format(currentDate, "MMMM yyyy", { locale: it })}
+        </h2>
+        <Button variant="ghost" size="icon" onClick={() => onDateChange(addMonths(currentDate, 1))}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
       <TooltipProvider delayDuration={200}>
-        <div className="flex-1 overflow-auto border rounded-lg bg-background">
-          <div className="grid grid-cols-7 border-b sticky top-0 z-10 bg-background">
-            {weekDays.map((day) => (
-              <div
-                key={day}
-                className="p-2 text-center text-xs font-medium text-muted-foreground uppercase border-r last:border-r-0"
-              >
-                {day}
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden">
+          {weekDays.map((day) => (
+            <div
+              key={day}
+              className="bg-muted-foreground/5 p-2 text-center text-sm font-medium text-muted-foreground"
+            >
+              {day}
+            </div>
+          ))}
+
           {days.map((day, dayIdx) => {
             const dayEvents = getEventsForDay(day);
             const isToday = isSameDay(day, new Date());
@@ -112,9 +128,8 @@ export function CalendarMonthView({
               <div
                 key={dayIdx}
                 className={cn(
-                  "border-r last:border-r-0 border-b last:border-b-0 min-h-[100px] p-1 transition-colors",
-                  !isCurrentMonth && "opacity-40",
-                  isToday && "bg-primary/5"
+                  "min-h-[100px] bg-background p-1 transition-colors",
+                  !isCurrentMonth && "bg-muted/50"
                 )}
               >
                 <div
@@ -275,6 +290,6 @@ export function CalendarMonthView({
         onSaved={() => { setEditingAppointment(null); }}
         showOrderSelect={true}
       />
-    </div>
+    </Card>
   );
 }
