@@ -14,7 +14,7 @@ interface CollectedPayment {
   orderId: string;
   orderCode: string | null;
   customerName: string;
-  type: "Acconto 1" | "Acconto 2" | "Saldo" | "Finanziamento";
+  type: string;
   amount: number;
   paidDate: Date;
 }
