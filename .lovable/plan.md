@@ -1,84 +1,46 @@
 
 
-# Miglioramento Sezione Ordini — Colonne dinamiche, link su codice, data ordine
+# Nuovi Filtri Ordini + UX Migliorata
 
-## Obiettivo
-1. Rendere il **codice ordine** cliccabile → apre il dettaglio
-2. Aggiungere la colonna **Data Ordine** (created_at)
-3. Aggiungere **colonne opzionali** configurabili dall'utente: Venditore, Manodopera (dipendenti/squadre esterne), con possibilità di attivare/disattivare colonne dalla UI
+## Problema attuale
+I filtri sono disposti su 2 righe con ~12 elementi visibili contemporaneamente, creando un "mapazzone". Mancano i filtri per Venditore, Manodopera e Fornitore.
 
----
+## Soluzione UX: Filtri a due livelli
 
-## 1. Codice ordine cliccabile (OrdersTable.tsx)
+**Riga 1 — Filtri principali** (sempre visibili): Ricerca + Stato + Pagamento + Mese
 
-Trasformare la cella "Codice" da testo semplice a `<Link>` verso `/azienda/ordini/${order.id}`:
+**Riga 2 — Filtri avanzati collassabili**: Un pulsante "Più filtri" con badge contatore mostra/nasconde la riga con: Cliente, Venditore, Manodopera, Fornitore, Importo, Date (contratto, magazzino, posa). Quando un filtro avanzato è attivo, la riga resta aperta e il pulsante mostra il conteggio filtri attivi. Chips/badge colorati indicano i filtri attivi.
 
-```tsx
-<TableCell className="font-medium">
-  <Link to={`/azienda/ordini/${order.id}`} className="text-primary hover:underline">
-    {order.order_code || "—"}
-  </Link>
-</TableCell>
-```
+## Nuovi filtri da aggiungere
 
----
+| Filtro | Dati sorgente | Logica |
+|--------|--------------|--------|
+| **Venditore** | `salespeopleMap` (già costruita in OrdersList) | Mostra ordini dove `salespeopleMap.get(orderId)` contiene il venditore selezionato |
+| **Manodopera** | `laborMap` (già costruita in OrdersList) | Mostra ordini dove `laborMap.get(orderId)` contiene il lavoratore/squadra selezionato |
+| **Fornitore** | Nuova query `order_items.supplier_id` + `suppliers(id, name)` | Mostra ordini che hanno almeno un item con quel fornitore |
 
-## 2. Colonna "Data Ordine"
+## Dati aggiuntivi necessari (OrdersList.tsx)
 
-Aggiungere dopo "Codice" una colonna con `format(new Date(order.created_at), "dd/MM/yyyy")`. Il dato `created_at` è già presente nell'interfaccia `OrderWithDetails`.
+1. **Fornitori per ordine**: Espandere la query `order_items` per includere `supplier_id`, poi query `suppliers` per i nomi. Costruire `supplierMap: Map<string, string[]>` (order_id → nomi fornitori).
+2. **Liste uniche** per popolare i Select: `uniqueSalespeople`, `uniqueLabor`, `uniqueSuppliers` — estratti dalle mappe esistenti.
 
----
+## Modifiche ai file
 
-## 3. Colonne opzionali configurabili
+### OrdersFilters.tsx
+- Aggiungere stato `showAdvanced` per collassare/espandere la seconda riga
+- Riga 1: Ricerca + Stato + Pagamento + Mese (invariata)
+- Pulsante "Più filtri" con badge contatore filtri avanzati attivi
+- Riga 2 (collassabile): Cliente, Venditore, Manodopera, Fornitore, Importo, 3x Date
+- Nuove props: `salespersonFilter`, `laborFilter`, `supplierFilter` + relativi `onChange` + liste uniche
+- Bottone "Pulisci filtri" resta in fondo alla riga 2
 
-### Dati aggiuntivi necessari (da OrdersList.tsx)
-Le query per `order_employees`, `order_external_teams`, `order_salespeople` già esistono ma selezionano solo costi. Occorre **espandere** le query per includere nomi:
-
-- `order_salespeople`: aggiungere `salesperson:profiles!order_salespeople_salesperson_id_fkey(first_name, last_name)`
-- `order_employees`: aggiungere `employee:employees!order_employees_employee_id_fkey(first_name, last_name)`
-- `order_external_teams`: aggiungere `external_team:external_teams!order_external_teams_external_team_id_fkey(name)`
-
-### Struttura colonne opzionali
-
-Definire un set di colonne extra disponibili:
-
-| Chiave | Label | Sorgente |
-|--------|-------|----------|
-| `date` | Data Ordine | `order.created_at` — **sempre visibile** |
-| `salesperson` | Venditore | `salespeopleMap.get(order.id)` |
-| `employees` | Manodopera | `employeesMap.get(order.id)` + `teamsMap.get(order.id)` |
-| `expected_date` | Data Prevista | `order.expected_date` |
-| `warehouse_date` | Data Magazzino | `order.warehouse_arrival_date` |
-
-### UI per attivare/disattivare colonne
-
-Aggiungere un pulsante **"Colonne"** con un `DropdownMenu` con checkbox per ogni colonna opzionale. Lo stato viene salvato in `localStorage` per persistenza tra sessioni.
-
-### Filtro per venditore e manodopera
-
-Aggiungere in `OrdersFilters.tsx` (o nella pagina OrdersList):
-- **Filtro Venditore**: Select con lista venditori unici estratti da `salespeopleData`
-- **Filtro Manodopera**: Select con lista dipendenti/squadre unici
-
-I filtri vengono applicati nella logica `filteredOrders` in OrdersList.tsx.
-
----
-
-## 4. Passaggio dati a OrdersTable
-
-Nuove props per OrdersTable:
-- `salespeopleMap: Map<string, string[]>` (order_id → nomi venditori)
-- `employeesMap: Map<string, string[]>` (order_id → nomi dipendenti + squadre)
-- `visibleColumns: Set<string>` (colonne attive)
-
----
-
-## File da modificare
-
-| File | Intervento |
-|------|-----------|
-| `OrdersTable.tsx` | Codice cliccabile, colonna Data, colonne opzionali condizionali (venditore, manodopera, date), nuove props |
-| `OrdersList.tsx` | Espandere query salespeople/employees/teams per includere nomi, costruire mappe nomi, stato colonne con localStorage, filtri venditore/manodopera, pulsante "Colonne", passare nuovi dati a OrdersTable |
+### OrdersList.tsx
+- Aggiungere 3 nuovi state: `salespersonFilter`, `laborFilter`, `supplierFilter`
+- Aggiungere query per `suppliers` (nomi) e costruire `supplierMap`
+- Aggiungere `uniqueSalespeople`, `uniqueLabor`, `uniqueSuppliers` con `useMemo`
+- Aggiungere logica di filtraggio per i 3 nuovi filtri in `filteredOrders`
+- Aggiornare `hasAnyFilter` e `clearAllFilters`
+- Passare nuove props a `<OrdersFilters>`
 
 Nessuna migrazione DB necessaria — i dati sono già tutti nelle tabelle esistenti.
 
