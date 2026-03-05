@@ -1,58 +1,47 @@
 
 
-# Allegati Ticket + Notifiche Email — Piano
+# Allegati Ticket + Attività Collegate ai Ticket
 
-## 1. Allegati File ai Messaggi Ticket
+## Stato Attuale
 
-### DB Migration
-- Creare bucket storage `ticket-attachments` (privato)
-- RLS storage: upload/download per customer (proprio ticket) e staff (company tickets)
-- La colonna `attachment_url` esiste già su `ticket_messages` — nessuna modifica schema necessaria
+- **Allegati**: gia' completamente implementati in `TicketChat.tsx` — bottone clip, upload a bucket `ticket-attachments`, preview immagini, download file. Il bucket storage esiste. **Nessuna modifica necessaria.**
+- **Tasks/Attivita'**: il componente `LinkedTasks` esiste e supporta `orderId`, `stockItemId`, `costId`, `contactId`, `opportunityId`. Ma la tabella `tasks` **non ha `ticket_id`** e il componente non supporta ticket.
 
-### Frontend — `TicketChat.tsx`
-- Aggiungere bottone clip (Paperclip) accanto al campo messaggio
-- Input file hidden, accept: `image/*,.pdf,.doc,.docx,.xls,.xlsx`
-- Max 10MB per file
-- Upload a `ticket-attachments/{ticketId}/{uuid}-{filename}`
-- Salvare URL in `attachment_url` al momento dell'insert del messaggio
-- Visualizzare allegati nei messaggi: anteprima immagine inline, link download per altri file
-- Indicatore upload in corso (spinner/progress)
+## Piano
 
-### Tipo `TicketMessage`
-- Aggiungere `attachment_url?: string | null` al tipo
+### 1. Migrazione DB — Aggiungere `ticket_id` alla tabella `tasks`
 
-### Query messaggi
-- Includere `attachment_url` nelle select di `TicketDetail.tsx` e `CustomerTicketDetail.tsx`
+```sql
+ALTER TABLE public.tasks ADD COLUMN ticket_id UUID REFERENCES public.tickets(id) ON DELETE SET NULL;
+CREATE INDEX idx_tasks_ticket_id ON public.tasks (ticket_id);
+```
 
-## 2. Notifiche Email su Aggiornamenti Ticket
+### 2. Aggiornare `LinkedTasks.tsx`
 
-### Edge Function `ticket-notify`
-- Trigger: chiamata da DB trigger via `pg_net` su:
-  - `ticket_messages` INSERT → notifica il destinatario (se staff ha risposto → notifica cliente, se cliente ha risposto → notifica staff/assigned_to)
-  - `tickets` UPDATE su `status` → notifica cliente del cambio stato
-- Recupera email destinatario da `profiles`
-- Recupera subject del ticket
-- Invia email usando Lovable AI (modello leggero) per generare corpo email professionale, oppure template statico HTML
-- Richiede un servizio email transazionale — useremo `LOVABLE_API_KEY` con un endpoint di invio se disponibile, altrimenti predisporremo l'infrastruttura per integrazione futura con un servizio email
+- Aggiungere prop `ticketId?: string`
+- Aggiungere logica query per filtrare per `ticket_id`
+- Passare `defaultTicketId` a `TaskDialog`
 
-### DB Migration
-- Trigger function `notify_ticket_update()` che chiama `net.http_post` verso l'edge function
-- Abilitare estensione `pg_net` se non già attiva
-- Trigger su `ticket_messages` AFTER INSERT
-- Trigger su `tickets` AFTER UPDATE OF status
+### 3. Aggiornare `TaskDialog.tsx`
 
-### config.toml
-- Aggiungere `[functions.ticket-notify]` con `verify_jwt = false`
+- Aggiungere `ticket_id` a `TaskData` interface
+- Aggiungere `defaultTicketId` prop
+- Includere `ticket_id` nell'insert/update
 
-## File modificati
+### 4. Integrare `LinkedTasks` nel `TicketDetail.tsx` (lato azienda)
+
+- Aggiungere il componente `LinkedTasks` nella sidebar, sotto le note interne, con `ticketId={ticket.id}`
+
+### 5. Integrare `LinkedTasks` nel `CustomerTicketDetail.tsx` (lato cliente)
+
+- Aggiungere una sezione attivita' sotto il ticket (solo visualizzazione se opportuno)
+
+### File modificati
 
 | File | Modifica |
 |------|----------|
-| Migrazione SQL | Bucket storage + RLS + trigger notifiche |
-| `supabase/functions/ticket-notify/index.ts` | Edge function notifiche email |
-| `supabase/config.toml` | Registrazione edge function |
-| `src/types/tickets.ts` | `attachment_url` su `TicketMessage` |
-| `src/components/tickets/TicketChat.tsx` | Upload file + visualizzazione allegati |
-| `src/pages/azienda/TicketDetail.tsx` | Select `attachment_url` |
-| `src/pages/cliente/CustomerTicketDetail.tsx` | Select `attachment_url` |
+| Migrazione SQL | `ticket_id` su `tasks` + indice |
+| `src/components/tasks/LinkedTasks.tsx` | Prop `ticketId`, filtro query |
+| `src/components/tasks/TaskDialog.tsx` | `ticket_id` in data + default prop |
+| `src/pages/azienda/TicketDetail.tsx` | Aggiungere `LinkedTasks` nella sidebar |
 
