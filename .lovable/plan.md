@@ -1,24 +1,34 @@
 
 
-# Fix: Sabato è giorno lavorativo, solo Domenica è festivo
+# Verifica date nella vista Carico
 
-## Bug trovato
+## Dati attuali nel database
 
-La funzione `isWeekend()` di date-fns restituisce `true` sia per Sabato che per Domenica. Attualmente il codice usa `isWeekend()` in due punti:
+C'e un solo ordine con date di lavoro:
+- **"Cliente 1"** (Enrico Goldoni) — `work_start_date: 2026-04-22`, `work_end_date: 2026-04-24`, nessuna `expected_date`
 
-1. **Riga 114 (statistiche)**: `monthDays.filter((d) => !isWeekend(d))` — esclude Sabato dal calcolo della media/giorno, giorni vuoti, picco e giorni critici. **Errato**: Sabato è lavorativo.
+## Verifica logica
 
-2. **Riga 180 (stile celle)**: `isWeekend(day)` — rende Sabato visivamente attenuato come la Domenica. **Errato**: Sabato dovrebbe apparire come un giorno normale.
+La funzione `getWorkloadForDay()` per questo ordine:
+- 22 aprile: `isWithinInterval(22 apr, {22 apr, 24 apr})` → **incluso** (corretto)
+- 23 aprile: `isWithinInterval(23 apr, {22 apr, 24 apr})` → **incluso** (corretto)
+- 24 aprile: `isWithinInterval(24 apr, {22 apr, 24 apr})` → **incluso** (corretto)
+- 25 aprile: fuori intervallo → **escluso** (corretto)
 
-## Fix
+La logica e corretta. L'ordine apparira nei giorni 22, 23, 24 aprile con conteggio 1 per ciascun giorno, icona Wrench (lavoro).
 
-Sostituire `isWeekend(day)` con `getDay(day) === 0` (solo Domenica) in entrambi i punti:
+## Piano di verifica
 
-### `src/components/calendar/CalendarHeatmapView.tsx`
+1. **Navigare al calendario nella vista Carico, mese Aprile 2026** e verificare visivamente che i giorni 22-24 mostrino conteggio 1 con icona lavoro
+2. **Cliccare su uno dei giorni** per verificare che il popover mostri l'ordine "Cliente 1 — Goldoni"
 
-1. **Import**: Aggiungere `getDay` dall'import di date-fns
-2. **Riga 114**: `monthDays.filter((d) => getDay(d) !== 0)` — Sabato incluso nelle statistiche
-3. **Riga 180**: `getDay(day) === 0` — Solo Domenica attenuata visivamente
+## Ordine di test
 
-Risultato: Media/giorno, picco, giorni vuoti e giorni critici calcolati correttamente su Lun-Sab. La Domenica resta esclusa e visivamente distinta.
+Per testare anche la posa e il doppio conteggio, non posso creare ordini direttamente (servirebbe un `customer_id` valido e un `company_id`). Suggerisco di **usare l'interfaccia dell'app** per creare un ordine di test con:
+- Data posa (expected_date): es. 23 aprile 2026
+- Lavori dal 21 al 23 aprile 2026
+
+Questo permetterebbe di verificare che il 23 aprile conti 2 ordini (uno per posa, uno per lavoro del Cliente 1) e che non ci sia doppio conteggio se lo stesso ordine ha posa e lavoro lo stesso giorno.
+
+Vuoi che proceda con la verifica visiva nel browser?
 
