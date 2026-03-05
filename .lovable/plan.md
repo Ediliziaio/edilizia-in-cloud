@@ -1,75 +1,60 @@
 
 
-# Analisi Cruscotto Aziendale — Spazi Vuoti e Dati Mancanti
+# Ottimizzazione Cruscotto Aziendale — Pulizia, Bug Fix e UX
 
-Dopo aver analizzato tutti i componenti, ecco cosa risulta vuoto o sottoutilizzato:
+## 1. Codice morto da rimuovere
 
----
+4 file orfani nella cartella `src/components/cruscotto/` non importati da nessuna parte:
 
-## 1. KPI senza confronto periodo precedente
+| File | Motivo |
+|------|--------|
+| `DailyPriorities.tsx` | Rimosso dal layout, nessun import |
+| `ExecutiveSummary.tsx` | Rimosso dal layout, nessun import |
+| `WeeklyAgenda.tsx` | Sostituito da `WeeklySnapshot.tsx`, nessun import |
+| `QuickActions.tsx` | Rimosso dal layout, nessun import |
 
-5 dei 11 KPI finanziari e 0 dei nuovi hanno `getPrevValue: () => 0`, quindi **non mostrano mai il delta** (freccia verde/rossa):
-- N° Ordini, Costo Medio Ordine, Entrate Mese, Uscite Mese, Burn Rate, Da Incassare, Debiti Fornitori
+Import inutile in `CruscottoAziendale.tsx`: `Loader2` importato da lucide ma mai usato.
 
-**Fix**: Per i KPI basati su `finance`, calcolare i valori del periodo precedente usando `prevFromStr/prevToStr` già presenti nel hook. Per N° Ordini serve una query aggiuntiva per il conteggio ordini nel periodo precedente.
+## 2. Bug fix
 
----
+| Bug | File | Fix |
+|-----|------|-----|
+| `(marketingAlerts as any).stale_leads_2h` e `pending_appointments` — cast `as any` inutili, il tipo `AlertsData` ha già quei campi | `CruscottoAlerts.tsx` | Rimuovere tutti i cast `as any` (righe 44, 49, 54, 59) |
+| KPI "Proiezione Mese" mostra `getPrevValue: () => 0` — delta mai visibile ma semanticamente corretto (è una proiezione, non ha "precedente") | `ExecutiveOverview.tsx` | Nessuna modifica necessaria — è intenzionale |
+| `FinanzaCashFlow.tsx` importa `fmt` ma non lo usa | `FinanzaCashFlow.tsx` | Rimuovere import inutile |
 
-## 2. Dati `weeklyAgenda` recuperati ma mai visualizzati
+## 3. Miglioramenti UX
 
-Il hook `useCruscottoData` carica `weeklyAgenda` (pagamenti in arrivo, costi in scadenza, consegne, appuntamenti prossimi 7 giorni) ma dopo la rimozione del componente WeeklyAgenda **questi dati non appaiono da nessuna parte**.
+| Miglioramento | File | Dettaglio |
+|---------------|------|-----------|
+| Empty state nelle tab quando dati assenti | Tutti i tab content | Aggiungere messaggi guida quando `sales`, `funnel`, `sources` sono vuoti — evita schermate bianche |
+| Tab Vendite: empty state per HRPerformance già presente (riga 36) — OK | — | — |
+| Tab Finanza: aggiungere empty state quando entrate e uscite sono entrambe 0 | `FinanzaCashFlow.tsx` | Messaggio "Nessun dato finanziario nel periodo" |
+| Tab Marketing: aggiungere empty state quando sources e funnel vuoti | `MarketingControl.tsx` | Messaggio con CTA |
+| Tab Operazioni: il layout è solido, nessun dead-end | — | — |
+| Loading skeleton per il grafico ROI in MarketingControl | `MarketingControl.tsx` | Aggiungere `isLoading` check prima del grafico |
 
-**Fix**: Creare un widget compatto "Prossimi 7 Giorni" da inserire nella tab **Operazioni** o come strip sotto gli Alerts — 4 mini-card orizzontali: Incassi Attesi, Costi in Scadenza, Consegne, Appuntamenti.
+## 4. File da modificare
 
----
+| File | Intervento |
+|------|-----------|
+| `CruscottoAziendale.tsx` | Rimuovere import `Loader2` |
+| `CruscottoAlerts.tsx` | Rimuovere 4 cast `as any` |
+| `FinanzaCashFlow.tsx` | Rimuovere import `fmt` inutile, aggiungere empty state quando tutto è 0 |
+| `MarketingControl.tsx` | Aggiungere empty state per tab vuota, skeleton per loading grafico |
 
-## 3. Tab Operazioni troppo scarsa
+## 5. File da eliminare
 
-Mostra solo 4 card (Ordini Attivi, In Ritardo, Ticket Aperti, Pagamenti Scaduti). Manca:
-- La sezione "Prossimi 7 giorni" (widget sopra)
-- Una timeline/lista degli ordini in scadenza
-- Dettaglio importo pagamenti scaduti
+- `src/components/cruscotto/DailyPriorities.tsx`
+- `src/components/cruscotto/ExecutiveSummary.tsx`
+- `src/components/cruscotto/WeeklyAgenda.tsx`
+- `src/components/cruscotto/QuickActions.tsx`
 
-**Fix**: Aggiungere il widget WeeklyAgenda compatto + una mini-tabella "Ordini in scadenza questa settimana" con data prevista e stato.
+## Output atteso
 
----
-
-## 4. Tab Finanza — manca grafico storico
-
-`FinanzaCashFlow` mostra solo numeri statici del mese corrente. Manca un grafico che mostri l'andamento entrate/uscite nel tempo.
-
-**Fix**: Aggiungere un grafico a barre (Recharts) con entrate vs uscite mensili usando dati storici dagli ordini.
-
----
-
-## 5. Tab Marketing — nessun grafico ROI
-
-La tab mostra Funnel e tabella Sorgenti. Manca:
-- Grafico ROI per sorgente (barre o torta)
-- Grafico CPL/CPA nel tempo
-
-**Fix**: Aggiungere un grafico a barre ROI per source usando i dati `sources` già disponibili.
-
----
-
-## 6. Trend in fondo — potrebbe essere vuoto
-
-Se non ci sono dati nel periodo, il grafico trend è completamente vuoto senza alcun messaggio.
-
-**Fix**: Aggiungere un empty state con messaggio "Dati insufficienti per mostrare il trend".
-
----
-
-## Piano di intervento proposto
-
-| Priorità | Intervento | File |
-|-----------|-----------|------|
-| **Alta** | Aggiungere `prevValue` reali ai KPI finanziari (delta %) | `ExecutiveOverview.tsx`, `useCruscottoData.ts` |
-| **Alta** | Widget "Prossimi 7 Giorni" compatto nella tab Operazioni | Nuovo `WeeklySnapshot.tsx`, `OperationsDelivery.tsx` |
-| **Media** | Grafico entrate/uscite mensile nella tab Finanza | `FinanzaCashFlow.tsx` |
-| **Media** | Grafico ROI per sorgente nella tab Marketing | `MarketingControl.tsx` |
-| **Bassa** | Empty state per Trend vuoto | `CruscottoTrend.tsx` |
-| **Bassa** | Mini-tabella ordini in scadenza | `OperationsDelivery.tsx` |
-
-Vuoi che proceda con tutte le priorità o solo alcune?
+- **Rimossi**: 4 file orfani, 1 import inutile (`Loader2`), 1 import inutile (`fmt`), 4 cast `as any`
+- **Bug corretti**: Type safety in CruscottoAlerts, import puliti
+- **UX migliorata**: Empty state in tab Finanza e Marketing, nessun vicolo cieco
+- **Console**: Nessun warning/errore aggiuntivo introdotto
+- **Comportamento funzionale**: invariato
 
