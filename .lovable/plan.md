@@ -1,32 +1,37 @@
 
+Obiettivo: correggere definitivamente la classificazione dei costi “stipendio personale interno” in modo che compaiano nei **Fissi** e non nei **Variabili**.
 
-# Fix: Stipendi personale interno classificati come costi fissi nel grafico mensile
+1) Analisi causa radice (già verificata)
+- In `src/hooks/useCompanyCostsData.ts` gli stipendi sono creati correttamente come `cost_type: "fixed"` (`employeeAsFixedCosts`).
+- Il problema reale è nel calcolo delle liste tabellari:
+  - `fixedCosts` (riga ~426) prende solo `filteredCosts` (manuali), quindi **esclude** i costi derivati da ordine.
+  - `variableCostsWithOrders` (riga ~428) concatena `manualVariableCosts + filteredOrderItemCosts`.
+  - `filteredOrderItemCosts` contiene **tutti** i costi derivati (anche stipendi), quindi gli stipendi finiscono nei Variabili.
 
-## Problema identificato
+2) Refactor mirato della logica liste (senza cambiare UX)
+- Introdurre una lista unica filtrata dei costi derivati (riuso della logica attuale), poi splittarla per tipo:
+  - `filteredOrderDerivedFixedCosts = filteredOrderDerivedCosts.filter(c => c.cost_type === "fixed")`
+  - `filteredOrderDerivedVariableCosts = filteredOrderDerivedCosts.filter(c => c.cost_type === "variable")`
+- Comporre le liste finali così:
+  - `fixedCosts = [...manualFixedCosts, ...filteredOrderDerivedFixedCosts]`
+  - `variableCostsWithOrders = [...manualVariableCosts, ...filteredOrderDerivedVariableCosts]`
+  - `allCostsSorted` resta la unione completa (manuali + derivati).
 
-Nel file `src/hooks/useCompanyCostsData.ts`, gli stipendi dei dipendenti sono **correttamente** marcati come `cost_type: "fixed"` (riga 252). Tuttavia, nel calcolo della **distribuzione mensile** per il mini-grafico (righe 383-390), TUTTI i costi derivanti da ordini (`allOrderDerivedCosts`) vengono sommati nella colonna `variable` — **senza controllare il `cost_type`** del singolo costo.
+3) Allineamenti conseguenti
+- Aggiornare i nomi variabili per evitare ambiguità (`filteredOrderItemCosts` -> `filteredOrderDerivedCosts`).
+- Verificare che export CSV e contatori tab continuino a usare la lista completa (non solo variabili).
+- Sistemare eventuale indentazione residua nel blocco `monthlyDistribution` per mantenibilità.
 
-Questo significa che gli stipendi (fissi) vengono conteggiati come variabili nel grafico, distorcendo la visualizzazione.
+4) Verifica funzionale obbligatoria
+- Test su `/azienda/costi`:
+  - Tab “Fissi”: gli stipendi compaiono.
+  - Tab “Variabili”: gli stipendi non compaiono più.
+  - Tab “Tutti”: gli stipendi restano visibili con badge “Fisso”.
+- Test filtri principali (stato, categoria, origine) per assicurare coerenza.
+- Controllo rapido regressioni: mark paid/unpaid su costi da ordine non deve rompersi.
 
-```text
-Codice attuale (riga 383-390):
-  allOrderDerivedCosts.forEach((c) => {
-    ...
-    variable += c.amount;    ← BUG: tutto va in "variabile"
-  });
-
-Dovrebbe essere:
-  allOrderDerivedCosts.forEach((c) => {
-    ...
-    if (c.cost_type === "fixed") fixed += c.amount;
-    else variable += c.amount;
-  });
-```
-
-## Modifica
-
-**File: `src/hooks/useCompanyCostsData.ts`** — riga 388:
-- Sostituire `variable += c.amount` con un check su `c.cost_type` per sommare correttamente fissi e variabili.
-
-Nessun'altra modifica necessaria: la classificazione degli stipendi come `fixed` è già corretta ovunque (marginalità, break-even, tabella costi, export CSV).
-
+5) Hardening extra (stabilità UI)
+- Separatamente, correggere il warning console su `CostsTable`:
+  - “Function components cannot be given refs … check render method of CostsTable”.
+  - Fare audit dei `TooltipTrigger asChild` per assicurare child con `forwardRef` (es. evitare combinazioni nested `asChild` problematiche).
+- Nota qualità: verificare e rimuovere qualsiasi modifica accidentale a file non modificabili manualmente (es. `.env`).
