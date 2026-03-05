@@ -9,20 +9,23 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  MessageSquare, 
+import {
+  MessageSquare,
   Search,
   Filter,
   ChevronRight,
   User,
   Package,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Plus,
 } from "lucide-react";
-import { 
-  formatRelativeTime, 
-  getTicketStatusColor, 
-  getTicketStatusLabel 
+import {
+  formatRelativeTime,
+  getTicketStatusColor,
+  getTicketStatusLabel,
+  getTicketPriorityColor,
+  getTicketPriorityLabel,
 } from "@/lib/formatters";
 import {
   Select,
@@ -45,6 +48,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { effectiveCompany } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
   const { data: tickets = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["company-tickets", effectiveCompany?.id],
@@ -52,17 +56,14 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       const { data, error } = await supabase
         .from("tickets")
         .select(`
-          id,
-          subject,
-          status,
-          created_at,
-          updated_at,
-          order_id,
+          id, subject, status, priority, created_at, updated_at, last_message_at,
+          order_id, assigned_to, category,
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email),
-          order:orders(description)
+          order:orders(description),
+          assignee:profiles!tickets_assigned_to_fkey(first_name, last_name)
         `)
         .eq("company_id", effectiveCompany!.id)
-        .order("updated_at", { ascending: false });
+        .order("last_message_at", { ascending: false, nullsFirst: false });
 
       if (error) throw error;
       return data as unknown as TicketListItem[];
@@ -73,15 +74,14 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
 
   const filteredTickets = tickets.filter((ticket) => {
     const query = searchQuery.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       ticket.subject.toLowerCase().includes(query) ||
       ticket.customer?.first_name?.toLowerCase().includes(query) ||
       ticket.customer?.last_name?.toLowerCase().includes(query) ||
       ticket.customer?.email?.toLowerCase().includes(query);
-    
     const matchesStatus = statusFilter === "all" || ticket.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
+    const matchesPriority = priorityFilter === "all" || ticket.priority === priorityFilter;
+    return matchesSearch && matchesStatus && matchesPriority;
   });
 
   const statusCounts = {
@@ -124,11 +124,19 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   return (
     <div ref={ref} className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Assistenza</h1>
-        <p className="text-muted-foreground">
-          Gestisci i ticket di supporto dei clienti
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Assistenza</h1>
+          <p className="text-muted-foreground">
+            Gestisci i ticket di supporto dei clienti
+          </p>
+        </div>
+        <Button asChild>
+          <Link to="/azienda/assistenza/nuovo">
+            <Plus className="mr-2 h-4 w-4" />
+            Crea Ticket
+          </Link>
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -148,13 +156,13 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setStatusFilter("in_lavorazione")}>
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">In Lavorazione</p>
-            <p className="text-2xl font-bold text-warning">{statusCounts.in_lavorazione}</p>
+            <p className="text-2xl font-bold" style={{ color: "hsl(45 93% 47%)" }}>{statusCounts.in_lavorazione}</p>
           </CardContent>
         </Card>
         <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setStatusFilter("risolto")}>
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Risolti</p>
-            <p className="text-2xl font-bold text-success">{statusCounts.risolto}</p>
+            <p className="text-2xl font-bold" style={{ color: "hsl(142 76% 36%)" }}>{statusCounts.risolto}</p>
           </CardContent>
         </Card>
       </div>
@@ -174,13 +182,25 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filtra per stato" />
+              <SelectValue placeholder="Stato" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti ({statusCounts.all})</SelectItem>
               <SelectItem value="aperto">Aperti ({statusCounts.aperto})</SelectItem>
               <SelectItem value="in_lavorazione">In Lavorazione ({statusCounts.in_lavorazione})</SelectItem>
               <SelectItem value="risolto">Risolti ({statusCounts.risolto})</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Priorità" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte</SelectItem>
+              <SelectItem value="bassa">Bassa</SelectItem>
+              <SelectItem value="normale">Normale</SelectItem>
+              <SelectItem value="alta">Alta</SelectItem>
+              <SelectItem value="urgente">Urgente</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -193,7 +213,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium">Nessun ticket trovato</h3>
             <p className="text-muted-foreground text-center mt-2">
-              {searchQuery || statusFilter !== "all"
+              {searchQuery || statusFilter !== "all" || priorityFilter !== "all"
                 ? "Prova a modificare i filtri di ricerca"
                 : "Non ci sono ancora ticket di assistenza"}
             </p>
@@ -206,8 +226,10 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               <TableRow>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Oggetto</TableHead>
+                <TableHead>Priorità</TableHead>
                 <TableHead>Ordine</TableHead>
                 <TableHead>Stato</TableHead>
+                <TableHead>Assegnato a</TableHead>
                 <TableHead>Aggiornato</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
@@ -215,6 +237,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             <TableBody>
               {filteredTickets.map((ticket) => {
                 const statusColor = getTicketStatusColor(ticket.status);
+                const priorityColor = getTicketPriorityColor(ticket.priority);
                 return (
                   <TableRow key={ticket.id}>
                     <TableCell>
@@ -232,6 +255,18 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                     </TableCell>
                     <TableCell>
                       <p className="font-medium line-clamp-1">{ticket.subject}</p>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        style={{
+                          backgroundColor: priorityColor.bg,
+                          color: priorityColor.text,
+                          borderColor: priorityColor.border,
+                        }}
+                      >
+                        {getTicketPriorityLabel(ticket.priority)}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       {ticket.order ? (
@@ -257,8 +292,17 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                         {getTicketStatusLabel(ticket.status)}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      {ticket.assignee ? (
+                        <span className="text-sm">
+                          {ticket.assignee.first_name} {ticket.assignee.last_name}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatRelativeTime(ticket.updated_at)}
+                      {formatRelativeTime(ticket.last_message_at || ticket.updated_at)}
                     </TableCell>
                     <TableCell>
                       <Button variant="ghost" size="icon" asChild>

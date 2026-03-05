@@ -1,4 +1,5 @@
 export type TicketStatus = "aperto" | "in_lavorazione" | "risolto";
+export type TicketPriority = "bassa" | "normale" | "alta" | "urgente";
 
 export interface TicketMessage {
   id: string;
@@ -15,9 +16,13 @@ export interface TicketListItem {
   id: string;
   subject: string;
   status: TicketStatus;
+  priority: TicketPriority;
   created_at: string;
   updated_at: string;
+  last_message_at: string | null;
   order_id: string | null;
+  assigned_to: string | null;
+  category: string | null;
   customer?: {
     first_name: string;
     last_name: string;
@@ -26,15 +31,23 @@ export interface TicketListItem {
   order?: {
     description: string;
   } | null;
+  assignee?: {
+    first_name: string;
+    last_name: string;
+  } | null;
 }
 
 export interface TicketDetail {
   id: string;
   subject: string;
   status: TicketStatus;
+  priority: TicketPriority;
   created_at: string;
   customer_id: string;
   order_id: string | null;
+  assigned_to: string | null;
+  category: string | null;
+  internal_notes: string | null;
   customer?: {
     first_name: string;
     last_name: string;
@@ -51,6 +64,7 @@ export interface CustomerTicketListItem {
   id: string;
   subject: string;
   status: TicketStatus;
+  priority: TicketPriority;
   created_at: string;
   updated_at: string;
   order_id: string | null;
@@ -63,6 +77,7 @@ export interface CustomerTicketDetail {
   id: string;
   subject: string;
   status: TicketStatus;
+  priority: TicketPriority;
   created_at: string;
   order_id: string | null;
   order?: {
