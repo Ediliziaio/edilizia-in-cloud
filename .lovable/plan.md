@@ -1,41 +1,47 @@
 
 
-# Persistenza Layer + Pulizia e Stabilizzazione Calendario
+# Pulizia, Stabilizzazione e UX — Calendario
 
-## 1. Persistenza preferenze layer in localStorage
+## Analisi completata
+
+Ho analizzato i file del calendario e identificato i seguenti interventi necessari:
+
+## 1. Codice morto da rimuovere
+
+| File | Problema |
+|------|----------|
+| `Calendar.tsx` riga 44 | `layerPrefsLoaded` / `setLayerPrefsLoaded` dichiarato ma mai usato |
+| `CalendarMonthView.tsx` riga 38-39 | Doppia riga vuota residua |
+| `CalendarWeekView.tsx` riga 44 | Riga vuota extra dopo l'interface `WeekEvent` |
+
+## 2. Ottimizzazione localStorage
+
+Attualmente ogni `useState` fa un `JSON.parse(localStorage.getItem(...))` separatamente — lo stesso JSON viene parsato 8 volte al mount. Refactoring: parsare una sola volta in una costante fuori dagli state.
+
+```tsx
+const savedPrefs = (() => {
+  try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}"); }
+  catch { return {}; }
+})();
+```
+
+Poi ogni useState accede a `savedPrefs.showPosa ?? true` ecc.
+
+## 3. Fix funzionali
+
+Nessun bug bloccante trovato. Le checkbox toggle/untoggle correttamente (confermato da session replay), la persistenza localStorage funziona, le sezioni collassabili sono già operative.
+
+## 4. Riepilogo modifiche
 
 **File: `src/pages/azienda/Calendar.tsx`**
-
-Creare un hook/logica che:
-- Al mount, legge da `localStorage` la chiave `calendar-layer-prefs` (JSON con `showPosa`, `showLavoro`, `showAppuntamento`, `showMerce`, `showGoogleBusy`, `visibleEmployeeIds`, `visibleTeamIds`, `layerPanelOpen`)
-- Inizializza gli state con i valori salvati (fallback ai default attuali)
-- Ad ogni cambio di questi state, salva in localStorage (debounce con `useEffect`)
-
-## 2. Sezioni collassabili nel pannello Layer
-
-**File: `src/components/calendar/CalendarLayerPanel.tsx`**
-
-Le sezioni "Calendario Lavori" e "Calendario Magazzino" usano già `<Collapsible defaultOpen>`. Funzionano correttamente come collassabili. Il `ChevronDown` nell'header fa da trigger. Nessun intervento necessario: la funzionalità c'e' già.
-
-## 3. Fix console warning (ref su function component)
-
-Il warning "Function components cannot be given refs" viene da `CalendarMonthView` che passa `TooltipProvider` e `AppointmentDialog` come children senza `forwardRef`.
+- Rimuovere `layerPrefsLoaded` e `setLayerPrefsLoaded` (dead code)
+- Refactoring: parsare localStorage una sola volta e passare i valori agli state initializer
 
 **File: `src/components/calendar/CalendarMonthView.tsx`**
-- L'`AppointmentDialog` viene renderizzato dentro la `Card` ma non è wrappato in un `TooltipTrigger` (che richiede ref). Il warning probabilmente viene dal fatto che `TooltipProvider` è passato come child diretto al grid. Verificare e risolvere togliendo eventuali `ref` impliciti o usando `forwardRef` dove necessario.
+- Rimuovere riga vuota extra (riga 38)
 
-## 4. Pulizia codice
+**File: `src/components/calendar/CalendarWeekView.tsx`**
+- Rimuovere riga vuota extra (riga 44)
 
-- Rimuovere righe vuote extra (linee 38-39 in `CalendarMonthView`, linee 43-44 in `CalendarWeekView`)
-- Verificare che non ci siano import inutilizzati nei file toccati
-- Il `Badge` import in `Calendar.tsx` è usato. `Collapsible` import è usato. Tutto ok.
-
-## Riepilogo file da modificare
-
-| File | Cosa |
-|------|------|
-| `src/pages/azienda/Calendar.tsx` | Persistenza localStorage per tutti gli state del layer panel |
-| `src/components/calendar/CalendarLayerPanel.tsx` | Nessuna modifica (collapsible già funzionante) |
-| `src/components/calendar/CalendarMonthView.tsx` | Fix warning ref, pulizia righe vuote |
-| `src/components/calendar/CalendarWeekView.tsx` | Pulizia righe vuote |
+Nessun cambio funzionale. Solo pulizia e micro-ottimizzazione.
 
