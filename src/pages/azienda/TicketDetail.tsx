@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { TicketChat } from "@/components/tickets/TicketChat";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
+import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
 import type { TicketDetail as TicketDetailType, TicketMessage, TicketStatus, TicketPriority } from "@/types/tickets";
 
 export default function TicketDetail() {
@@ -37,6 +38,14 @@ export default function TicketDetail() {
   const queryClient = useQueryClient();
   const [internalNotes, setInternalNotes] = useState<string>("");
   const [notesLoaded, setNotesLoaded] = useState(false);
+  const { markTicketAsRead } = useUnreadTicketCounts();
+
+  // Mark ticket as read when opening
+  useEffect(() => {
+    if (id) {
+      markTicketAsRead(id);
+    }
+  }, [id, markTicketAsRead]);
 
   const { data: ticket, isLoading: ticketLoading, isError: ticketError, refetch: refetchTicket } = useQuery({
     queryKey: ["admin-ticket", id],
