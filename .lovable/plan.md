@@ -1,22 +1,24 @@
 
 
-# Carico: Solo Pose e Lavori
+# Fix: Sabato è giorno lavorativo, solo Domenica è festivo
 
-## Problema
-La vista Carico attualmente mostra tutte le tipologie (posa, merce, appuntamenti, lavori) in base ai filtri Layer. L'utente vuole che mostri **solo** pose e lavori in corso — niente arrivo merce, niente appuntamenti.
+## Bug trovato
 
-## Modifiche
+La funzione `isWeekend()` di date-fns restituisce `true` sia per Sabato che per Domenica. Attualmente il codice usa `isWeekend()` in due punti:
+
+1. **Riga 114 (statistiche)**: `monthDays.filter((d) => !isWeekend(d))` — esclude Sabato dal calcolo della media/giorno, giorni vuoti, picco e giorni critici. **Errato**: Sabato è lavorativo.
+
+2. **Riga 180 (stile celle)**: `isWeekend(day)` — rende Sabato visivamente attenuato come la Domenica. **Errato**: Sabato dovrebbe apparire come un giorno normale.
+
+## Fix
+
+Sostituire `isWeekend(day)` con `getDay(day) === 0` (solo Domenica) in entrambi i punti:
 
 ### `src/components/calendar/CalendarHeatmapView.tsx`
 
-1. **`getWorkloadForDay()`**: Rimuovere il blocco "Check merce" (righe 62-65) e rimuovere il conteggio appuntamenti (righe 79-81). Il totale sarà solo ordini con posa o lavoro.
+1. **Import**: Aggiungere `getDay` dall'import di date-fns
+2. **Riga 114**: `monthDays.filter((d) => getDay(d) !== 0)` — Sabato incluso nelle statistiche
+3. **Riga 180**: `getDay(day) === 0` — Solo Domenica attenuata visivamente
 
-2. **Celle del calendario**: Rimuovere le icone merce (Package) e appuntamento (CalendarClock) dalle celle.
-
-3. **Popover dettaglio giorno**: Rimuovere la sezione che elenca gli appuntamenti. Mostrare solo ordini di tipo posa e lavoro.
-
-4. **Props**: Rimuovere la prop `appointments` dato che non serve più. Rimuovere anche il filtro `hiddenEventTypes` per merce/appuntamento (la Heatmap mostrerà sempre e solo posa+lavoro, indipendentemente dai layer).
-
-### `src/pages/azienda/Calendar.tsx`
-- Rimuovere il passaggio di `appointments` alla `CalendarHeatmapView`.
+Risultato: Media/giorno, picco, giorni vuoti e giorni critici calcolati correttamente su Lun-Sab. La Domenica resta esclusa e visivamente distinta.
 
