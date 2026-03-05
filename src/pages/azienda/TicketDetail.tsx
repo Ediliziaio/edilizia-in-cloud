@@ -77,14 +77,28 @@ export default function TicketDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ticket_messages")
-        .select(`
-          id, message, sender_id, created_at, attachment_url,
-          sender:profiles!ticket_messages_sender_id_fkey(first_name, last_name)
-        `)
+        .select("id, message, sender_id, created_at, attachment_url")
         .eq("ticket_id", id!)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return data as unknown as TicketMessage[];
+
+      // Fetch sender profiles separately
+      const senderIds = [...new Set((data || []).map((m) => m.sender_id).filter(Boolean))];
+      let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
+      if (senderIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", senderIds);
+        for (const p of profiles || []) {
+          profilesMap[p.id] = { first_name: p.first_name, last_name: p.last_name };
+        }
+      }
+
+      return (data || []).map((m) => ({
+        ...m,
+        sender: profilesMap[m.sender_id] || null,
+      })) as TicketMessage[];
     },
     enabled: !!id,
     staleTime: 30 * 1000,
