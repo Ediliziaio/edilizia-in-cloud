@@ -31,6 +31,7 @@ interface CalendarWeekViewProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
   syncedAppointmentIds?: Set<string>;
+  hiddenEventTypes?: Set<string>;
 }
 
 interface WeekEvent {
@@ -49,6 +50,7 @@ export function CalendarWeekView({
   currentDate,
   onDateChange,
   syncedAppointmentIds,
+  hiddenEventTypes = new Set(),
 }: CalendarWeekViewProps) {
   const isMobile = useIsMobile();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
@@ -67,13 +69,13 @@ export function CalendarWeekView({
   const getOrderEventsForDay = (day: Date): WeekEvent[] => {
     const events: WeekEvent[] = [];
     orders.forEach((order) => {
-      if (order.expected_date && isSameDay(parseISO(order.expected_date), day)) {
+      if (!hiddenEventTypes.has("posa") && order.expected_date && isSameDay(parseISO(order.expected_date), day)) {
         events.push({ order, type: "posa" });
       }
-      if (order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day)) {
+      if (!hiddenEventTypes.has("merce") && order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day)) {
         events.push({ order, type: "merce" });
       }
-      if (order.work_start_date) {
+      if (!hiddenEventTypes.has("lavoro") && order.work_start_date) {
         const workStart = parseISO(order.work_start_date);
         const workEnd = order.work_end_date ? parseISO(order.work_end_date) : workStart;
         if (day >= workStart && day <= workEnd) {
@@ -84,17 +86,21 @@ export function CalendarWeekView({
         }
       }
     });
-    appointments.forEach((apt) => {
-      if (isSameDay(parseISO(apt.appointment_date), day)) {
-        events.push({ appointment: apt, type: "appointment" });
-      }
-    });
-    busySlots.forEach((slot) => {
-      const slotStart = parseISO(slot.start_at);
-      if (slot.is_all_day ? isSameDay(slotStart, day) : isSameDay(slotStart, day)) {
-        events.push({ busySlot: slot, type: "google_busy" });
-      }
-    });
+    if (!hiddenEventTypes.has("appuntamento")) {
+      appointments.forEach((apt) => {
+        if (isSameDay(parseISO(apt.appointment_date), day)) {
+          events.push({ appointment: apt, type: "appointment" });
+        }
+      });
+    }
+    if (!hiddenEventTypes.has("google_busy")) {
+      busySlots.forEach((slot) => {
+        const slotStart = parseISO(slot.start_at);
+        if (slot.is_all_day ? isSameDay(slotStart, day) : isSameDay(slotStart, day)) {
+          events.push({ busySlot: slot, type: "google_busy" });
+        }
+      });
+    }
     return events;
   };
 
