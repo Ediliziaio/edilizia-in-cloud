@@ -42,7 +42,6 @@ interface WeekEvent {
   type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy";
 }
 
-
 export function CalendarWeekView({
   orders,
   appointments = [],
