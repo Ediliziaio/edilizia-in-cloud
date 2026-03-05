@@ -303,14 +303,6 @@ export default function WarehouseStockTab() {
       {/* Sections Manager */}
       <WarehouseSectionsManager />
 
-      {/* Warehouse Map */}
-      <WarehouseMapView
-        stockItems={stockItems}
-        sections={sections}
-        activeSectionFilter={sectionFilter}
-        onFilterSection={setSectionFilter}
-      />
-
       {/* Header with search, filter and add */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
