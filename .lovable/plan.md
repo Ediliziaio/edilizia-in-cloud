@@ -1,21 +1,24 @@
 
 
-# Fix: RLS policy warehouse_sections per super_admin
+# Mappa visuale del magazzino nella pagina principale
 
-## Problema
-La policy RLS attuale controlla `company_id IN (SELECT company_id FROM profiles WHERE id = auth.uid())`. Quando un super_admin sta impersonando un'azienda, il `company_id` usato nell'insert (quello dell'azienda impersonata) non corrisponde al `company_id` del profilo del super_admin, causando il blocco.
+## Obiettivo
+Spostare la `WarehouseMapView` dalla tab "Giacenze" alla pagina principale del magazzino (`Warehouse.tsx`), rendendola sempre visibile indipendentemente dalla tab attiva (Lista, Kanban, Calendario, Giacenze).
 
-## Soluzione
-Aggiungere una policy separata per i super_admin, come fatto per tutte le altre tabelle del progetto:
+## Modifiche
 
-```sql
-CREATE POLICY "Super admins can manage all warehouse sections"
-  ON public.warehouse_sections FOR ALL
-  USING (public.has_role(auth.uid(), 'super_admin'));
-```
+### 1. `src/pages/azienda/Warehouse.tsx`
+- Importare `WarehouseMapView` e `useWarehouseSections`
+- Recuperare `sections` dal hook e `stockItems` dai dati già presenti
+- Aggiungere stato `activeSectionFilter` per il filtro cliccabile dalla mappa
+- Renderizzare `WarehouseMapView` subito dopo le stats (`WarehouseStats`) e prima della card filtri, visibile in tutte le view
+- Quando si clicca una sezione nella mappa, applicare il filtro anche alla lista/kanban (se applicabile)
 
-## File da modificare
-- **Migrazione SQL** — aggiungere la policy super_admin su `warehouse_sections`
+### 2. `src/components/warehouse/WarehouseStockTab.tsx`
+- Rimuovere il rendering di `WarehouseMapView` dalla tab Giacenze (evitare duplicazione)
+- Mantenere invariato il filtro `sectionFilter` interno alla tab
 
-Un singolo cambio, nessuna modifica al codice frontend.
+### File coinvolti
+- **Modificare** `src/pages/azienda/Warehouse.tsx` — aggiungere mappa + hook sezioni
+- **Modificare** `src/components/warehouse/WarehouseStockTab.tsx` — rimuovere mappa duplicata
 
