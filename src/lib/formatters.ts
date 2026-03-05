@@ -1,9 +1,6 @@
 import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
-/**
- * Format a number as Italian currency (EUR)
- */
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
@@ -11,41 +8,23 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-/**
- * Format a date string as "d MMMM yyyy" in Italian
- * Example: "5 Febbraio 2026"
- */
 export function formatDate(date: string | Date): string {
   return format(new Date(date), "d MMMM yyyy", { locale: it });
 }
 
-/**
- * Format a date string as "d MMM yyyy" in Italian (short month)
- * Example: "5 Feb 2026"
- */
 export function formatDateShort(date: string | Date): string {
   return format(new Date(date), "d MMM yyyy", { locale: it });
 }
 
-/**
- * Format a date string with time as "d MMM yyyy 'alle' HH:mm" in Italian
- * Example: "5 Feb 2026 alle 14:30"
- */
 export function formatDateTime(date: string | Date): string {
   return format(new Date(date), "d MMM yyyy 'alle' HH:mm", { locale: it });
 }
 
-/**
- * Format a date as relative time ("2 ore fa", "ieri", etc.)
- */
 export function formatRelativeTime(date: string | Date): string {
   return formatDistanceToNow(new Date(date), { addSuffix: true, locale: it });
 }
 
-/**
- * Get status badge color classes based on ticket status
- */
-export function getTicketStatusColor(status: "aperto" | "in_lavorazione" | "risolto"): {
+export function getTicketStatusColor(status: string): {
   bg: string;
   text: string;
   border: string;
@@ -78,10 +57,7 @@ export function getTicketStatusColor(status: "aperto" | "in_lavorazione" | "riso
   }
 }
 
-/**
- * Get human-readable status label
- */
-export function getTicketStatusLabel(status: "aperto" | "in_lavorazione" | "risolto"): string {
+export function getTicketStatusLabel(status: string): string {
   switch (status) {
     case "aperto":
       return "Aperto";
@@ -91,5 +67,59 @@ export function getTicketStatusLabel(status: "aperto" | "in_lavorazione" | "riso
       return "Risolto";
     default:
       return status;
+  }
+}
+
+export function getTicketPriorityColor(priority: string): {
+  bg: string;
+  text: string;
+  border: string;
+} {
+  switch (priority) {
+    case "bassa":
+      return {
+        bg: "hsl(var(--muted))",
+        text: "hsl(var(--muted-foreground))",
+        border: "hsl(var(--border))",
+      };
+    case "normale":
+      return {
+        bg: "hsl(210 100% 50% / 0.1)",
+        text: "hsl(210 100% 50%)",
+        border: "hsl(210 100% 50% / 0.3)",
+      };
+    case "alta":
+      return {
+        bg: "hsl(25 95% 53% / 0.1)",
+        text: "hsl(25 95% 53%)",
+        border: "hsl(25 95% 53% / 0.3)",
+      };
+    case "urgente":
+      return {
+        bg: "hsl(0 84% 60% / 0.1)",
+        text: "hsl(0 84% 60%)",
+        border: "hsl(0 84% 60% / 0.3)",
+      };
+    default:
+      return {
+        bg: "hsl(var(--muted))",
+        text: "hsl(var(--muted-foreground))",
+        border: "hsl(var(--border))",
+      };
+  }
+}
+
+export function getTicketPriorityLabel(priority: string): string {
+  switch (priority) {
+    case "bassa":
+      return "Bassa";
+    case "normale":
+      return "Normale";
+    case "alta":
+      return "Alta";
+    case "urgente":
+      return "Urgente";
+    default:
+      return priority;
   }
 }

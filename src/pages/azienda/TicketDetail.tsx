@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,36 +8,34 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  ArrowLeft, 
-  Package, 
-  User,
-  Mail,
-  Phone,
-  AlertCircle,
-  RefreshCw
+import {
+  ArrowLeft, Package, User, Mail, Phone,
+  AlertCircle, RefreshCw, Save,
 } from "lucide-react";
-import { 
-  formatRelativeTime, 
-  getTicketStatusColor, 
-  getTicketStatusLabel 
+import {
+  formatRelativeTime,
+  getTicketStatusColor,
+  getTicketStatusLabel,
+  getTicketPriorityColor,
+  getTicketPriorityLabel,
 } from "@/lib/formatters";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { TicketChat } from "@/components/tickets/TicketChat";
-import type { TicketDetail as TicketDetailType, TicketMessage, TicketStatus } from "@/types/tickets";
+import type { TicketDetail as TicketDetailType, TicketMessage, TicketStatus, TicketPriority } from "@/types/tickets";
 
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
+  const [internalNotes, setInternalNotes] = useState<string>("");
+  const [notesLoaded, setNotesLoaded] = useState(false);
 
   const { data: ticket, isLoading: ticketLoading, isError: ticketError, refetch: refetchTicket } = useQuery({
     queryKey: ["admin-ticket", id],
@@ -44,14 +43,20 @@ export default function TicketDetail() {
       const { data, error } = await supabase
         .from("tickets")
         .select(`
-          id, subject, status, created_at, customer_id, order_id,
+          id, subject, status, priority, created_at, customer_id, order_id,
+          assigned_to, category, internal_notes,
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email, phone),
           order:orders(id, description)
         `)
         .eq("id", id!)
         .single();
       if (error) throw error;
-      return data as unknown as TicketDetailType;
+      const t = data as unknown as TicketDetailType;
+      if (!notesLoaded) {
+        setInternalNotes(t.internal_notes || "");
+        setNotesLoaded(true);
+      }
+      return t;
     },
     enabled: !!id,
     staleTime: 30 * 1000,
@@ -75,21 +80,36 @@ export default function TicketDetail() {
     staleTime: 30 * 1000,
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async (newStatus: TicketStatus) => {
+  // Staff members for assignment dropdown
+  const { data: staffMembers = [] } = useQuery({
+    queryKey: ["company-staff-members", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", effectiveCompany!.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const updateTicketMutation = useMutation({
+    mutationFn: async (updates: Record<string, unknown>) => {
       const { error } = await supabase
         .from("tickets")
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", id!);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast({ title: "Stato aggiornato", description: "Lo stato del ticket è stato modificato." });
+      toast({ title: "Aggiornato", description: "Ticket aggiornato con successo." });
       queryClient.invalidateQueries({ queryKey: ["admin-ticket", id] });
       queryClient.invalidateQueries({ queryKey: ["company-tickets"] });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile aggiornare lo stato.", variant: "destructive" });
+      toast({ title: "Errore", description: "Impossibile aggiornare il ticket.", variant: "destructive" });
     },
   });
 
@@ -136,6 +156,7 @@ export default function TicketDetail() {
   }
 
   const statusColor = getTicketStatusColor(ticket.status);
+  const priorityColor = getTicketPriorityColor(ticket.priority);
 
   return (
     <div className="space-y-6">
@@ -154,6 +175,7 @@ export default function TicketDetail() {
       <div className="grid md:grid-cols-3 gap-6">
         {/* Sidebar */}
         <div className="space-y-4">
+          {/* Status */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Stato</CardTitle>
@@ -161,8 +183,8 @@ export default function TicketDetail() {
             <CardContent>
               <Select
                 value={ticket.status}
-                onValueChange={(value) => updateStatusMutation.mutate(value as TicketStatus)}
-                disabled={updateStatusMutation.isPending}
+                onValueChange={(v) => updateTicketMutation.mutate({ status: v })}
+                disabled={updateTicketMutation.isPending}
               >
                 <SelectTrigger>
                   <div className="flex items-center gap-2">
@@ -180,6 +202,61 @@ export default function TicketDetail() {
             </CardContent>
           </Card>
 
+          {/* Priority */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Priorità</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select
+                value={ticket.priority}
+                onValueChange={(v) => updateTicketMutation.mutate({ priority: v })}
+                disabled={updateTicketMutation.isPending}
+              >
+                <SelectTrigger>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
+                      {getTicketPriorityLabel(ticket.priority)}
+                    </Badge>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bassa">Bassa</SelectItem>
+                  <SelectItem value="normale">Normale</SelectItem>
+                  <SelectItem value="alta">Alta</SelectItem>
+                  <SelectItem value="urgente">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
+          {/* Assigned to */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Assegnato a</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select
+                value={ticket.assigned_to || "unassigned"}
+                onValueChange={(v) => updateTicketMutation.mutate({ assigned_to: v === "unassigned" ? null : v })}
+                disabled={updateTicketMutation.isPending}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Non assegnato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Non assegnato</SelectItem>
+                  {staffMembers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.first_name} {s.last_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
+          {/* Customer */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Cliente</CardTitle>
@@ -208,6 +285,7 @@ export default function TicketDetail() {
             </CardContent>
           </Card>
 
+          {/* Linked Order */}
           {ticket.order && (
             <Card>
               <CardHeader className="pb-3">
@@ -225,6 +303,32 @@ export default function TicketDetail() {
               </CardContent>
             </Card>
           )}
+
+          {/* Internal Notes */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Note Interne</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Textarea
+                value={internalNotes}
+                onChange={(e) => setInternalNotes(e.target.value)}
+                placeholder="Note visibili solo allo staff..."
+                rows={4}
+                className="resize-none text-sm"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                disabled={updateTicketMutation.isPending || internalNotes === (ticket.internal_notes || "")}
+                onClick={() => updateTicketMutation.mutate({ internal_notes: internalNotes || null })}
+              >
+                <Save className="h-3.5 w-3.5 mr-1.5" />
+                Salva Note
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Chat */}

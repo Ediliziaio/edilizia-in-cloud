@@ -13,15 +13,10 @@ import type { TicketMessage } from "@/types/tickets";
 interface TicketChatProps {
   ticketId: string;
   messages: TicketMessage[];
-  /** The customer's user ID — used to distinguish customer vs admin bubbles */
   customerId?: string;
-  /** If true, hides the reply form (e.g. resolved tickets) */
   disabled?: boolean;
-  /** Message shown when disabled */
   disabledMessage?: string;
-  /** Query keys to invalidate after sending */
   invalidateKeys?: string[][];
-  /** Height style for the card */
   height?: string;
 }
 
@@ -40,9 +35,35 @@ export function TicketChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [newMessage, setNewMessage] = useState("");
 
+  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Realtime subscription for new messages
+  useEffect(() => {
+    const channel = supabase
+      .channel(`ticket-messages-${ticketId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "ticket_messages",
+          filter: `ticket_id=eq.${ticketId}`,
+        },
+        () => {
+          invalidateKeys.forEach((key) =>
+            queryClient.invalidateQueries({ queryKey: key })
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [ticketId, queryClient, invalidateKeys]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async () => {
@@ -54,11 +75,6 @@ export function TicketChat({
           message: newMessage.trim(),
         });
       if (error) throw error;
-
-      await supabase
-        .from("tickets")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("id", ticketId);
     },
     onSuccess: () => {
       setNewMessage("");
@@ -81,12 +97,17 @@ export function TicketChat({
     sendMessageMutation.mutate();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (newMessage.trim() && !sendMessageMutation.isPending) {
+        sendMessageMutation.mutate();
+      }
+    }
+  };
 
   return (
-    <Card
-      className="flex flex-col"
-      style={{ height, minHeight: "300px" }}
-    >
+    <Card className="flex flex-col" style={{ height, minHeight: "300px" }}>
       <CardHeader className="border-b flex-shrink-0">
         <CardTitle className="text-lg">Conversazione</CardTitle>
       </CardHeader>
@@ -144,7 +165,8 @@ export function TicketChat({
             <Textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Scrivi un messaggio..."
+              onKeyDown={handleKeyDown}
+              placeholder="Scrivi un messaggio... (Enter per inviare, Shift+Enter per a capo)"
               rows={2}
               className="resize-none"
             />

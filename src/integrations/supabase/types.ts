@@ -5575,31 +5575,46 @@ export type Database = {
       }
       tickets: {
         Row: {
+          assigned_to: string | null
+          category: string | null
           company_id: string
           created_at: string
           customer_id: string
           id: string
+          internal_notes: string | null
+          last_message_at: string | null
           order_id: string | null
+          priority: Database["public"]["Enums"]["ticket_priority"]
           status: Database["public"]["Enums"]["ticket_status"]
           subject: string
           updated_at: string
         }
         Insert: {
+          assigned_to?: string | null
+          category?: string | null
           company_id: string
           created_at?: string
           customer_id: string
           id?: string
+          internal_notes?: string | null
+          last_message_at?: string | null
           order_id?: string | null
+          priority?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
           subject: string
           updated_at?: string
         }
         Update: {
+          assigned_to?: string | null
+          category?: string | null
           company_id?: string
           created_at?: string
           customer_id?: string
           id?: string
+          internal_notes?: string | null
+          last_message_at?: string | null
           order_id?: string | null
+          priority?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
           subject?: string
           updated_at?: string
@@ -6042,6 +6057,7 @@ export type Database = {
         | "pittura"
         | "ristrutturazioni"
         | "altro"
+      ticket_priority: "bassa" | "normale" | "alta" | "urgente"
       ticket_status: "aperto" | "in_lavorazione" | "risolto"
     }
     CompositeTypes: {
@@ -6189,6 +6205,7 @@ export const Constants = {
         "ristrutturazioni",
         "altro",
       ],
+      ticket_priority: ["bassa", "normale", "alta", "urgente"],
       ticket_status: ["aperto", "in_lavorazione", "risolto"],
     },
   },

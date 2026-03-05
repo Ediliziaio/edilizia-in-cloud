@@ -17,7 +17,7 @@ import {
   AlertCircle,
   RefreshCw
 } from "lucide-react";
-import { formatRelativeTime, getTicketStatusColor, getTicketStatusLabel } from "@/lib/formatters";
+import { formatRelativeTime, getTicketStatusColor, getTicketStatusLabel, getTicketPriorityColor, getTicketPriorityLabel } from "@/lib/formatters";
 import {
   Select,
   SelectContent,
@@ -36,7 +36,7 @@ export default function CustomerSupport() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")
-        .select(`id, subject, status, created_at, updated_at, order_id, order:orders(description)`)
+        .select(`id, subject, status, priority, created_at, updated_at, order_id, order:orders(description)`)
         .eq("customer_id", user!.id)
         .order("updated_at", { ascending: false });
       if (error) throw error;
@@ -141,6 +141,7 @@ export default function CustomerSupport() {
         <div className="space-y-3">
           {filteredTickets.map((ticket) => {
             const statusColor = getTicketStatusColor(ticket.status);
+            const priorityColor = getTicketPriorityColor(ticket.priority);
             return (
               <Card key={ticket.id} className="overflow-hidden hover:shadow-md transition-shadow">
                 <Link to={`/cliente/assistenza/${ticket.id}`}>
@@ -162,6 +163,9 @@ export default function CustomerSupport() {
                         <div className="flex items-center gap-3 ml-8">
                           <Badge variant="outline" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
                             {getTicketStatusLabel(ticket.status)}
+                          </Badge>
+                          <Badge variant="outline" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
+                            {getTicketPriorityLabel(ticket.priority)}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
                             Aggiornato {formatRelativeTime(ticket.updated_at)}

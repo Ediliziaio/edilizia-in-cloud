@@ -79,6 +79,7 @@ const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const Automations = lazy(() => import("@/pages/azienda/Automations"));
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
+const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
 
 
 // Marketing
@@ -233,6 +234,7 @@ const App = () => (
                 <Route path="clienti/:id" element={<CompanyCustomerDetail />} />
                 
                 <Route path="assistenza" element={<TicketsList />} />
+                <Route path="assistenza/nuovo" element={<CreateCompanyTicket />} />
                 <Route path="assistenza/:id" element={<TicketDetail />} />
                 <Route path="previsionale" element={<CashFlowForecast />} />
                 <Route path="costi" element={<CompanyCosts />} />

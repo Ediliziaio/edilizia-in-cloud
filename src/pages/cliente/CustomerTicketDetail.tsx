@@ -10,7 +10,9 @@ import { ArrowLeft, Package, AlertCircle, RefreshCw } from "lucide-react";
 import { 
   formatRelativeTime, 
   getTicketStatusColor, 
-  getTicketStatusLabel 
+  getTicketStatusLabel,
+  getTicketPriorityColor,
+  getTicketPriorityLabel,
 } from "@/lib/formatters";
 import { TicketChat } from "@/components/tickets/TicketChat";
 import type { CustomerTicketDetail as CustomerTicketDetailType, TicketMessage } from "@/types/tickets";
@@ -24,7 +26,7 @@ export default function CustomerTicketDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")
-        .select(`id, subject, status, created_at, order_id, order:orders(id, description)`)
+        .select(`id, subject, status, priority, created_at, order_id, order:orders(id, description)`)
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -93,6 +95,7 @@ export default function CustomerTicketDetail() {
   }
 
   const statusColor = getTicketStatusColor(ticket.status);
+  const priorityColor = getTicketPriorityColor(ticket.priority);
   const isResolved = ticket.status === "risolto";
 
   return (
@@ -104,9 +107,14 @@ export default function CustomerTicketDetail() {
         <div className="flex-1">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <h1 className="text-xl font-bold text-foreground">{ticket.subject}</h1>
-            <Badge variant="outline" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
-              {getTicketStatusLabel(ticket.status)}
-            </Badge>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
+                {getTicketStatusLabel(ticket.status)}
+              </Badge>
+              <Badge variant="outline" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
+                {getTicketPriorityLabel(ticket.priority)}
+              </Badge>
+            </div>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             Aperto {formatRelativeTime(ticket.created_at)}
