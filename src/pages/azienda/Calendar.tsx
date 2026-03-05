@@ -40,32 +40,23 @@ export default function Calendar() {
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  // Layer visibility state — initialize from localStorage
-  const [layerPrefsLoaded, setLayerPrefsLoaded] = useState(false);
-  const [layerPanelOpen, setLayerPanelOpen] = useState(() => {
-    try { const p = JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}"); return p.layerPanelOpen ?? !isMobile; } catch { return !isMobile; }
-  });
-  const [showPosa, setShowPosa] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").showPosa ?? true; } catch { return true; }
-  });
-  const [showLavoro, setShowLavoro] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").showLavoro ?? true; } catch { return true; }
-  });
-  const [showAppuntamento, setShowAppuntamento] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").showAppuntamento ?? true; } catch { return true; }
-  });
-  const [showMerce, setShowMerce] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").showMerce ?? true; } catch { return true; }
-  });
-  const [showGoogleBusy, setShowGoogleBusy] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").showGoogleBusy ?? true; } catch { return true; }
-  });
-  const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(() => {
-    try { const arr = JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").visibleEmployeeIds; return arr ? new Set<string>(arr) : null; } catch { return null; }
-  });
-  const [visibleTeamIds, setVisibleTeamIds] = useState<Set<string> | null>(() => {
-    try { const arr = JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}").visibleTeamIds; return arr ? new Set<string>(arr) : null; } catch { return null; }
-  });
+  // Layer visibility state — initialize from localStorage (parse once)
+  const savedPrefs = (() => {
+    try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}"); }
+    catch { return {}; }
+  })();
+  const [layerPanelOpen, setLayerPanelOpen] = useState(savedPrefs.layerPanelOpen ?? !isMobile);
+  const [showPosa, setShowPosa] = useState(savedPrefs.showPosa ?? true);
+  const [showLavoro, setShowLavoro] = useState(savedPrefs.showLavoro ?? true);
+  const [showAppuntamento, setShowAppuntamento] = useState(savedPrefs.showAppuntamento ?? true);
+  const [showMerce, setShowMerce] = useState(savedPrefs.showMerce ?? true);
+  const [showGoogleBusy, setShowGoogleBusy] = useState(savedPrefs.showGoogleBusy ?? true);
+  const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(
+    savedPrefs.visibleEmployeeIds ? new Set<string>(savedPrefs.visibleEmployeeIds) : null
+  );
+  const [visibleTeamIds, setVisibleTeamIds] = useState<Set<string> | null>(
+    savedPrefs.visibleTeamIds ? new Set<string>(savedPrefs.visibleTeamIds) : null
+  );
 
   // Persist layer prefs to localStorage
   useEffect(() => {
