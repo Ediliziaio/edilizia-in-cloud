@@ -1,7 +1,3 @@
-import { useState, useMemo, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,31 +9,8 @@ import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
 import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
 import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
-import { CompanyDashboardFilters, type CompanyDashboardFiltersState, type DatePreset } from "@/components/dashboard/CompanyDashboardFilters";
-import { subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
-
-interface RecentOrder {
-  id: string;
-  description: string;
-  total_amount: number;
-  created_at: string;
-  customer: {
-    first_name: string;
-    last_name: string;
-  };
-  status: {
-    name: string;
-    color: string;
-  } | null;
-}
-
-interface UrgentItem {
-  id: string;
-  name: string;
-  orderCode: string | null;
-  customerName: string;
-  daysLeft: number;
-}
+import { CompanyDashboardFilters } from "@/components/dashboard/CompanyDashboardFilters";
+import { useCompanyDashboardData } from "@/hooks/useCompanyDashboardData";
 
 function DeltaIndicator({ current, previous }: { current: number; previous: number }) {
   if (previous === 0 && current === 0) return null;
@@ -54,381 +27,14 @@ function DeltaIndicator({ current, previous }: { current: number; previous: numb
     </span>
   );
 }
-function getDateRange(preset: DatePreset, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
-  const now = new Date();
-  switch (preset) {
-    case "today":
-      return { from: startOfDay(now), to: endOfDay(now) };
-    case "yesterday": {
-      const y = subDays(now, 1);
-      return { from: startOfDay(y), to: endOfDay(y) };
-    }
-    case "last7":
-      return { from: startOfDay(subDays(now, 7)), to: endOfDay(now) };
-    case "last30":
-      return { from: startOfDay(subDays(now, 30)), to: endOfDay(now) };
-    case "month":
-      return { from: startOfMonth(now), to: endOfDay(now) };
-    case "custom":
-      return { from: customFrom || subDays(now, 30), to: customTo || now };
-  }
-}
 
 export default function CompanyDashboard() {
-  const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
-
-  // --- Filters state ---
-  const [filters, setFilters] = useState<CompanyDashboardFiltersState>({
-    datePreset: "month",
-    dateFrom: startOfMonth(new Date()),
-    dateTo: endOfDay(new Date()),
-    statusId: null,
-  });
-
-  const updateFilters = useCallback((partial: Partial<CompanyDashboardFiltersState>) => {
-    setFilters(prev => {
-      const next = { ...prev, ...partial };
-      if (partial.datePreset && partial.datePreset !== "custom") {
-        const range = getDateRange(partial.datePreset);
-        next.dateFrom = range.from;
-        next.dateTo = range.to;
-      }
-      return next;
-    });
-  }, []);
-
-  const dateRange = useMemo(() => getDateRange(filters.datePreset, filters.dateFrom, filters.dateTo), [filters.datePreset, filters.dateFrom, filters.dateTo]);
-
-  // Calculate comparison period (same duration shifted back)
-  const prevRange = useMemo(() => {
-    const durationMs = dateRange.to.getTime() - dateRange.from.getTime();
-    return {
-      from: new Date(dateRange.from.getTime() - durationMs - 86400000),
-      to: new Date(dateRange.from.getTime() - 1),
-    };
-  }, [dateRange]);
-
-  const { data: dashboardData, isLoading, isError } = useQuery({
-    queryKey: ["dashboard-data", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId],
-    queryFn: async () => {
-      const now = new Date();
-      const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-      const sevenDaysFromNow = new Date(now);
-      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-
-      const todayStr = now.toISOString().split("T")[0];
-      const thisMonthEndStr = thisMonthEnd.toISOString().split("T")[0];
-      const sevenDaysStr = sevenDaysFromNow.toISOString().split("T")[0];
-
-      const dateFromStr = dateRange.from.toISOString();
-      const dateToStr = dateRange.to.toISOString();
-      const prevFromStr = prevRange.from.toISOString();
-      const prevToStr = prevRange.to.toISOString();
-
-      const [
-        ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes,
-        urgentItemsRes, costsRes,
-        // Prev month comparisons
-        prevOrdersRes, prevCustomersRes, prevTicketsRes,
-        // CEO strip: revenue & margin
-        ordersThisMonthRes, ordersPrevMonthRes,
-        // Weekly deadlines: supplier costs due within 7 days
-        supplierCostsDueRes,
-        // Weekly deadlines: upcoming works
-        upcomingWorksRes,
-      ] = await Promise.all([
-        // Orders count (filtered)
-        (() => {
-          let q: any = supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId!)
-            .gte("created_at", dateFromStr).lte("created_at", dateToStr);
-          if (filters.statusId) q = q.eq("status_id", filters.statusId);
-          return q;
-        })(),
-        // Customers (filtered)
-        (() => {
-          let q: any = supabase.from("orders").select("customer_id").eq("company_id", companyId!)
-            .gte("created_at", dateFromStr).lte("created_at", dateToStr);
-          if (filters.statusId) q = q.eq("status_id", filters.statusId);
-          return q;
-        })(),
-        supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", companyId!).eq("status", "aperto"),
-        // Recent orders (filtered)
-        (() => {
-          let q: any = supabase.from("orders")
-            .select(`id, description, total_amount, created_at,
-              customer:profiles!orders_customer_id_fkey(first_name, last_name),
-              status:order_statuses(name, color)`)
-            .eq("company_id", companyId!)
-            .gte("created_at", dateFromStr).lte("created_at", dateToStr);
-          if (filters.statusId) q = q.eq("status_id", filters.statusId);
-          return q.order("created_at", { ascending: false }).limit(5);
-        })(),
-        supabase
-          .from("orders")
-          .select("description, deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
-          .eq("company_id", companyId!),
-        supabase
-          .from("order_items")
-          .select(`id, name, status,
-            order:orders!inner(id, order_code, work_start_date, expected_date, company_id,
-              customer:profiles!orders_customer_id_fkey(first_name, last_name))`)
-          .eq("order.company_id", companyId!)
-          .neq("status", "installato")
-          .neq("status", "in_magazzino"),
-        supabase
-          .from("company_costs")
-          .select("amount, due_date, is_paid")
-          .eq("company_id", companyId!)
-          .eq("is_paid", false),
-        // Prev period: orders
-        supabase.from("orders").select("id", { count: "exact", head: true })
-          .eq("company_id", companyId!)
-          .gte("created_at", prevFromStr)
-          .lte("created_at", prevToStr),
-        // Prev period: customers
-        supabase.from("orders").select("customer_id")
-          .eq("company_id", companyId!)
-          .gte("created_at", prevFromStr)
-          .lte("created_at", prevToStr),
-        // Prev month: tickets (snapshot not meaningful — skip delta for tickets)
-        supabase.from("tickets").select("id", { count: "exact", head: true })
-          .eq("company_id", companyId!)
-          .eq("status", "aperto"),
-        // Current period orders with amounts for revenue + margin
-        supabase.from("orders")
-          .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
-          .eq("company_id", companyId!)
-          .gte("created_at", dateFromStr)
-          .lte("created_at", dateToStr),
-        // Prev period orders with amounts
-        supabase.from("orders")
-          .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
-          .eq("company_id", companyId!)
-          .gte("created_at", prevFromStr)
-          .lte("created_at", prevToStr),
-        // Supplier costs due within 7 days
-        supabase.from("company_costs")
-          .select("name, amount, due_date")
-          .eq("company_id", companyId!)
-          .eq("is_paid", false)
-          .gte("due_date", todayStr)
-          .lte("due_date", sevenDaysStr)
-          .order("due_date"),
-        // Upcoming works in 7 days
-        supabase.from("orders")
-          .select("order_code, work_start_date, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
-          .eq("company_id", companyId!)
-          .gte("work_start_date", todayStr)
-          .lte("work_start_date", sevenDaysStr)
-          .order("work_start_date"),
-      ]);
-
-      // === Stat card values ===
-      const totalOrders = ordersRes.count || 0;
-      const totalCustomers = new Set(customersRes.data?.map((o: any) => o.customer_id) || []).size;
-      const openTickets = ticketsRes.count || 0;
-
-      // Previous month stats for delta
-      const prevOrdersCount = prevOrdersRes.count || 0;
-      const prevCustomersCount = new Set(prevCustomersRes.data?.map((o: any) => o.customer_id) || []).size;
-
-      // === Pending revenue + overdue ===
-      let pendingRevenue = 0;
-      let pendingOrdersCount = 0;
-      let overduePayments = 0;
-      let overdueCount = 0;
-
-      // Receivables due within 7 days for weekly deadlines
-      const weeklyReceivables: Array<{
-        orderDescription: string;
-        customerName: string;
-        amount: number;
-        expectedDate: string;
-        daysLeft: number;
-      }> = [];
-
-      pendingRevenueRes.data?.forEach((order: any) => {
-        let orderPending = 0;
-        const customerName = `${order.customer?.first_name || ""} ${order.customer?.last_name || ""}`.trim();
-
-        const checkPayment = (paid: boolean, amount: number, expectedDate: string | null) => {
-          if (!paid && amount > 0) {
-            orderPending += amount;
-            if (expectedDate && expectedDate < todayStr) {
-              overduePayments += amount;
-              overdueCount++;
-            }
-            // Weekly deadlines
-            if (expectedDate && expectedDate >= todayStr && expectedDate <= sevenDaysStr) {
-              const daysLeft = Math.ceil((new Date(expectedDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-              weeklyReceivables.push({
-                orderDescription: order.description || "Ordine",
-                customerName,
-                amount,
-                expectedDate,
-                daysLeft: Math.max(0, daysLeft),
-              });
-            }
-          }
-        };
-
-        checkPayment(order.deposit_paid, Number(order.deposit_amount), order.deposit_expected_date);
-        checkPayment(order.deposit_2_paid, Number(order.deposit_2_amount), order.deposit_2_expected_date);
-        checkPayment(order.balance_paid, Number(order.balance_amount), order.balance_expected_date);
-        checkPayment(order.financing_paid, Number(order.financing_amount), order.financing_expected_date);
-
-        if (orderPending > 0) {
-          pendingRevenue += orderPending;
-          pendingOrdersCount++;
-        }
-      });
-
-      // === Cash flow (this month / next month) ===
-      let thisMonthIncome = 0;
-      let nextMonthTotal = 0;
-
-      pendingRevenueRes.data?.forEach((order: any) => {
-        const addIfInRange = (paid: boolean, amount: number, date: string | null) => {
-          if (!paid && date) {
-            const d = new Date(date);
-            if (d <= thisMonthEnd) thisMonthIncome += Number(amount) || 0;
-            else if (d <= nextMonthEnd) nextMonthTotal += Number(amount) || 0;
-          }
-        };
-        addIfInRange(order.deposit_paid, order.deposit_amount, order.deposit_expected_date);
-        addIfInRange(order.deposit_2_paid, order.deposit_2_amount, order.deposit_2_expected_date);
-        addIfInRange(order.balance_paid, order.balance_amount, order.balance_expected_date);
-        addIfInRange(order.financing_paid, order.financing_amount, order.financing_expected_date);
-      });
-
-      // Unpaid costs this month (outflows)
-      let unpaidCostsThisMonth = 0;
-      costsRes.data?.forEach(cost => {
-        if (cost.due_date && cost.due_date <= thisMonthEndStr) {
-          unpaidCostsThisMonth += Number(cost.amount) || 0;
-        }
-      });
-
-      // === CEO Strip: Revenue & Margin ===
-      const calcRevenueAndMargin = (orders: any[]) => {
-        let revenue = 0;
-        let totalMarginPct = 0;
-        let marginCount = 0;
-
-        orders.forEach((o: any) => {
-          const total = Number(o.total_amount) || 0;
-          revenue += total;
-
-          const articleCost = (o.order_items || []).reduce(
-            (s: number, i: any) => s + (Number(i.purchase_price || 0) * Number(i.quantity || 1)), 0);
-          const laborCost =
-            (o.order_employees || []).reduce((s: number, e: any) => s + Number(e.total_cost || 0), 0) +
-            (o.order_external_teams || []).reduce((s: number, t: any) => s + Number(t.total_cost || 0), 0);
-          const totalCost = articleCost + laborCost;
-
-          if (total > 0 && totalCost > 0) {
-            totalMarginPct += ((total - totalCost) / total) * 100;
-            marginCount++;
-          }
-        });
-
-        return { revenue, margin: marginCount > 0 ? totalMarginPct / marginCount : 0 };
-      };
-
-      const thisMonthStats = calcRevenueAndMargin(ordersThisMonthRes.data || []);
-      const prevMonthStats = calcRevenueAndMargin(ordersPrevMonthRes.data || []);
-
-      // === Urgent items ===
-      const processedUrgentItems: UrgentItem[] = [];
-      urgentItemsRes.data?.forEach((item: any) => {
-        const expectedDate = item.order?.expected_date || item.order?.work_start_date;
-        if (expectedDate) {
-          const date = new Date(expectedDate);
-          const daysLeft = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          if (daysLeft >= 0 && daysLeft <= 7) {
-            processedUrgentItems.push({
-              id: item.id,
-              name: item.name,
-              orderCode: item.order.order_code,
-              customerName: `${item.order.customer.first_name} ${item.order.customer.last_name}`,
-              daysLeft,
-            });
-          }
-        }
-      });
-
-      // === Weekly deadlines: supplier costs ===
-      const weeklySupplierPayments = (supplierCostsDueRes.data || []).map((c: any) => ({
-        name: c.name,
-        amount: Number(c.amount),
-        dueDate: c.due_date,
-        daysLeft: Math.max(0, Math.ceil((new Date(c.due_date).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))),
-      }));
-
-      // === Weekly deadlines: upcoming works ===
-      const weeklyUpcomingWorks = (upcomingWorksRes.data || []).map((o: any) => ({
-        orderCode: o.order_code,
-        customerName: `${o.customer?.first_name || ""} ${o.customer?.last_name || ""}`.trim(),
-        workDate: o.work_start_date,
-        daysLeft: Math.max(0, Math.ceil((new Date(o.work_start_date).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))),
-      }));
-
-      // === Financial alerts ===
-      const financialAlerts: { type: "warning" | "error"; message: string }[] = [];
-      if (overdueCount > 0) {
-        financialAlerts.push({
-          type: "error",
-          message: `${overdueCount} pagamenti scaduti per ${formatCurrency(overduePayments)}`,
-        });
-      }
-      if (unpaidCostsThisMonth > thisMonthIncome && unpaidCostsThisMonth > 0) {
-        financialAlerts.push({
-          type: "warning",
-          message: `Uscite previste (${formatCurrency(unpaidCostsThisMonth)}) superiori agli incassi (${formatCurrency(thisMonthIncome)}) questo mese`,
-        });
-      }
-
-      return {
-        stats: { totalOrders, totalCustomers, openTickets, pendingRevenue, pendingOrdersCount },
-        prevStats: { totalOrders: prevOrdersCount, totalCustomers: prevCustomersCount },
-        recentOrders: (ordersDataRes.data as unknown as RecentOrder[]) || [],
-        cashFlow: {
-          thisMonthIncome,
-          thisMonthOutflow: unpaidCostsThisMonth,
-          netCashFlow: thisMonthIncome - unpaidCostsThisMonth,
-          nextMonth: nextMonthTotal,
-        },
-        ceoStrip: {
-          revenueThisMonth: thisMonthStats.revenue,
-          revenuePrevMonth: prevMonthStats.revenue,
-          marginThisMonth: thisMonthStats.margin,
-          marginPrevMonth: prevMonthStats.margin,
-          ordersThisMonth: (ordersThisMonthRes.data || []).length,
-          ordersPrevMonth: (ordersPrevMonthRes.data || []).length,
-        },
-        urgentItems: processedUrgentItems.slice(0, 5),
-        financialAlerts,
-        weeklyDeadlines: {
-          receivables: weeklyReceivables,
-          companyCosts: weeklySupplierPayments,
-          upcomingWorks: weeklyUpcomingWorks,
-        },
-      };
-    },
-    enabled: !!companyId,
-    staleTime: 2 * 60 * 1000,
-  });
-
-  const stats = dashboardData?.stats ?? { totalOrders: 0, totalCustomers: 0, openTickets: 0, pendingRevenue: 0, pendingOrdersCount: 0 };
-  const prevStats = dashboardData?.prevStats ?? { totalOrders: 0, totalCustomers: 0 };
-  const recentOrders = dashboardData?.recentOrders ?? [];
-  const cashFlow = dashboardData?.cashFlow ?? { thisMonthIncome: 0, thisMonthOutflow: 0, netCashFlow: 0, nextMonth: 0 };
-  const urgentItems = dashboardData?.urgentItems ?? [];
-  const financialAlerts = dashboardData?.financialAlerts ?? [];
-  const ceoStrip = dashboardData?.ceoStrip ?? { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, ordersThisMonth: 0, ordersPrevMonth: 0 };
-  const weeklyDeadlines = dashboardData?.weeklyDeadlines ?? { receivables: [], companyCosts: [], upcomingWorks: [] };
+  const {
+    companyId, filters, updateFilters,
+    isLoading, isError,
+    stats, prevStats, recentOrders, cashFlow, ceoStrip,
+    urgentItems, financialAlerts, weeklyDeadlines,
+  } = useCompanyDashboardData();
 
   const statCards = [
     {
@@ -496,7 +102,6 @@ export default function CompanyDashboard() {
     );
   }
 
-  // Cash flow progress bar
   const maxCashFlow = Math.max(cashFlow.thisMonthIncome, cashFlow.thisMonthOutflow, 1);
   const incomePercent = (cashFlow.thisMonthIncome / maxCashFlow) * 100;
   const outflowPercent = (cashFlow.thisMonthOutflow / maxCashFlow) * 100;
@@ -640,7 +245,7 @@ export default function CompanyDashboard() {
           </CardContent>
         </Card>
 
-        {/* Bilancio Mese (was: Previsionale Incassi) */}
+        {/* Bilancio Mese */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -657,7 +262,6 @@ export default function CompanyDashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Income */}
             <div className="space-y-1.5">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Entrate attese</span>
@@ -665,7 +269,6 @@ export default function CompanyDashboard() {
               </div>
               <Progress value={incomePercent} className="h-2 [&>div]:bg-emerald-500" />
             </div>
-            {/* Outflow */}
             <div className="space-y-1.5">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Uscite attese</span>
@@ -673,7 +276,6 @@ export default function CompanyDashboard() {
               </div>
               <Progress value={outflowPercent} className="h-2 [&>div]:bg-destructive" />
             </div>
-            {/* Net */}
             <div className={`flex items-center justify-between p-4 rounded-lg border ${
               cashFlow.netCashFlow >= 0
                 ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800"
@@ -687,7 +289,6 @@ export default function CompanyDashboard() {
               </div>
               <Euro className={`h-6 w-6 ${cashFlow.netCashFlow >= 0 ? "text-emerald-500" : "text-destructive"}`} />
             </div>
-            {/* Next month preview */}
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
               <div>
                 <p className="text-xs text-muted-foreground">Prossimo mese (entrate)</p>
@@ -704,7 +305,6 @@ export default function CompanyDashboard() {
 
       {/* Bottom Row */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Warehouse Alerts */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -748,10 +348,8 @@ export default function CompanyDashboard() {
           </CardContent>
         </Card>
 
-        {/* Supplier Payments Summary */}
         <SupplierPaymentsSummary />
 
-        {/* Weekly Deadlines (replaces Quick Actions) */}
         <WeeklyDeadlines
           receivables={weeklyDeadlines.receivables}
           companyCosts={weeklyDeadlines.companyCosts}
