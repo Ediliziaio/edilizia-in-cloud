@@ -1,57 +1,74 @@
 
 
-# Verifica Completa Calendario — Risultato Finale
+# Verifica Vista Settimana e Carico (Heatmap) — Risultati
 
-## Analisi eseguita
+## Vista Settimana: OK
 
-Ho analizzato tutti i file del sistema calendario:
-- `Calendar.tsx` (611 righe) — orchestrazione, filtri, layer, query
-- `CalendarMonthView.tsx` (317 righe) — vista mese
-- `CalendarWeekView.tsx` (410 righe) — vista settimana
-- `CalendarLayerPanel.tsx` (238 righe) — pannello layer
-- `AppointmentDialog.tsx` (411 righe) — dialog creazione/modifica appuntamenti
-- `EditOrderDatesDialog.tsx` (176 righe) — dialog modifica date ordini
-- `calendarUtils.ts` — utility e mapping
-- `calendar.ts` (types)
+La vista settimana gestisce correttamente tutti e tre i tipi di evento:
+- **Posa** (expected_date): riga 72-74
+- **Merce** (warehouse_arrival_date): riga 75-77
+- **Lavoro** (work_start_date → work_end_date range): righe 78-87, con logica anti-duplicato vs posa
+- **Appuntamenti** e **Google busy**: righe 89-101
+- Filtri `hiddenEventTypes` applicati correttamente su tutti i tipi
 
-## Stato: TUTTO OK
+Nessun bug trovato.
 
-Tutti i fix precedenti sono correttamente implementati e funzionanti:
+## Vista Carico (Heatmap): 2 problemi trovati
 
-| Funzionalità | Stato |
-|---|---|
-| Eventi "lavoro" vista Mese | OK (righe 82-88 MonthView) |
-| Eventi "lavoro" vista Settimana | OK (righe 79-88 WeekView) |
-| Query invalidation appuntamenti (Month) | OK (riga 310) |
-| Query invalidation appuntamenti (Week) | OK (riga 403) |
-| hideMarketingFields in entrambe le viste | OK |
-| Mapping status in calendarUtils | OK |
-| Tipo status in CalendarAppointment | OK |
-| localStorage persistenza layer prefs | OK |
-| Filtri Layer (posa/lavoro/merce/appuntamento/google_busy) | OK |
-| Filtro risorse (operai/squadre) | OK |
-| EditOrderDatesDialog → invalidazione calendar-orders | OK (riga 117) |
-| Collegamento ordini-calendario | OK |
-| Collegamento magazzino-calendario | OK |
-| AppointmentDialog salva status correttamente | OK (riga 209) |
-| Error/loading/empty states | OK |
+### BUG 1: Heatmap non rispetta i filtri Layer (hiddenEventTypes)
 
-## Unica micro-pulizia residua
+La `CalendarHeatmapView` **non riceve** `hiddenEventTypes` come prop. Di conseguenza, la funzione `getWorkloadForDay()` conta **sempre** tutti i tipi di evento (posa, merce, lavoro) indipendentemente dai toggle nel pannello Layer.
 
-| File | Problema |
-|---|---|
-| `CalendarWeekView.tsx` riga 45 | Riga vuota extra dopo chiusura interface `WeekEvent` |
+Se l'utente disattiva "Arrivo merce" nel Layer, la vista Mese e Settimana nascondono quegli eventi, ma la Heatmap continua a contarli.
 
-Questa è una modifica cosmetica di una sola riga (rimozione blank line). Nessun impatto funzionale.
+**Fix**: Passare `hiddenEventTypes` alla Heatmap e filtrare di conseguenza in `getWorkloadForDay()`.
 
-## Nessun bug trovato
+### BUG 2: Heatmap non include appuntamenti nel conteggio carico
 
-- Nessun codice morto residuo
-- Nessun import inutilizzato
-- Nessuna race condition
-- Nessun blocco UI o dead-end
-- Console pulita (nessun errore)
-- UX fluida: feedback su salvataggio, loading states, error states, CTA sempre presenti
+La Heatmap conta solo ordini (posa/merce/lavoro) ma **ignora completamente gli appuntamenti**. Questo rende il calcolo del "carico giornaliero" incompleto — un giorno con 0 ordini ma 3 appuntamenti risulta vuoto.
 
-**TUTTO OK** — Il sistema calendario è stabile, pulito e completamente funzionante.
+**Fix**: Passare `filteredAppointments` alla Heatmap e includerli nel conteggio.
+
+## File da modificare
+
+### `src/components/calendar/CalendarHeatmapView.tsx`
+1. Aggiungere props `hiddenEventTypes` e `appointments` all'interfaccia
+2. Aggiornare `getWorkloadForDay()` per rispettare i filtri e includere appuntamenti
+3. Aggiornare il popover per mostrare anche gli appuntamenti
+4. Aggiornare le iconcine nella cella per mostrare l'icona appuntamento
+
+### `src/pages/azienda/Calendar.tsx`
+1. Passare `hiddenEventTypes` e `filteredAppointments` alla `CalendarHeatmapView` (riga 548-552)
+
+### Dettaglio tecnico
+
+**Props aggiornate:**
+```tsx
+interface CalendarHeatmapViewProps {
+  orders: CalendarOrder[];
+  appointments?: CalendarAppointment[];
+  currentDate: Date;
+  onDateChange: (date: Date) => void;
+  hiddenEventTypes?: Set<string>;
+}
+```
+
+**Logica `getWorkloadForDay` aggiornata:**
+```tsx
+function getWorkloadForDay(orders, day, hiddenEventTypes) {
+  // filtra posa/merce/lavoro in base a hiddenEventTypes
+  // stessa logica attuale ma con check su hidden
+}
+```
+
+**In Calendar.tsx:**
+```tsx
+<CalendarHeatmapView
+  orders={scheduledOrders}
+  appointments={filteredAppointments}
+  currentDate={currentDate}
+  onDateChange={setCurrentDate}
+  hiddenEventTypes={hiddenEventTypes}
+/>
+```
 
