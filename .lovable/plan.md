@@ -1,30 +1,17 @@
 
 
-# Fix: filtro "Da Lavorare" troppo restrittivo
+# Tempistiche editabili inline nel Dettaglio Ordine
 
-## Problema
-Nel diff precedente, il blocco `else if (quickFilter === "urgent")` ha perso il suo `else if` ed e stato fuso dentro il blocco `active`. Risultato: il filtro "Da Lavorare" prima esclude installati/completati, poi applica ANCHE il filtro urgenza (solo articoli entro 7 giorni dalla posa e non in magazzino), eliminando quasi tutto.
+## Approccio
+Dallo screenshot, l'utente vuole i 4 date picker inline (come nella pagina Modifica Ordine) direttamente nella sidebar del Dettaglio Ordine, sostituendo la `CustomerDatesCard` read-only attuale.
 
-## Soluzione
-Righe 170-176 di `useWarehouseData.ts`: aggiungere `} else if (quickFilter === "urgent") {` prima del secondo blocco filter, separando le due logiche.
+## Modifiche
 
-**Prima** (bug):
-```
-if (quickFilter === "active") {
-  filtered = filtered.filter(...); // esclude installati + ordini completati
-  filtered = filtered.filter(...); // BUG: filtra anche per urgenza
-} else if (quickFilter === "overdue") {
-```
-
-**Dopo** (fix):
-```
-if (quickFilter === "active") {
-  filtered = filtered.filter(...); // esclude installati + ordini completati
-} else if (quickFilter === "urgent") {
-  filtered = filtered.filter(...); // urgenza separata
-} else if (quickFilter === "overdue") {
-```
-
-### File modificato
-- `src/hooks/useWarehouseData.ts` -- riga 169-170: aggiungere `} else if (quickFilter === "urgent") {`
+### `src/pages/azienda/OrderDetail.tsx`
+- Sostituire la riga 653 (`CustomerDatesCard` read-only) con una card "Tempistiche per il Cliente" contenente 4 date picker inline (Data Prevista, Arrivo Merce, Inizio Lavori, Fine Lavori) — stessa struttura della pagina EditOrder (righe 769-830)
+- Aggiungere stati locali per le 4 date, inizializzati dai dati dell'ordine
+- Al cambio di una data, salvarla immediatamente su Supabase (auto-save) e invalidare la query `["order", id]` — nessun bottone "Salva" necessario, modifica diretta
+- Layout: griglia a 2 colonne (`grid-cols-2`) nella sidebar (dato che è 1/3 dello schermo), oppure `grid-cols-1` se lo spazio è troppo stretto
+- Importare `Popover`, `PopoverTrigger`, `PopoverContent`, `Calendar`, `cn`, `format`, `parseISO` (molti già importati)
+- Rimuovere anche la card "Consegna Prevista" separata (righe 655-660) dato che "Data Prevista" sarà inclusa nei 4 picker
 
