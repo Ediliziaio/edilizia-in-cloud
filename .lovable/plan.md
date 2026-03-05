@@ -1,68 +1,84 @@
 
 
-# Audit 7a Verifica — Analisi modifiche recenti
+# Audit Tecnico — Report AS-IS e Piano Interventi
 
-## Bug P0 attivo (crash in produzione)
+## A) Stato Attuale delle Modifiche Recenti
 
-La pagina **Clienti** (`/azienda/clienti`) sta crashando con errore **"Invalid time value"**. Il crash e visibile nei console log e viene catturato dall'ErrorBoundary.
+Le ultime modifiche hanno introdotto: drag-and-drop documenti, filtri clienti, colonna data inserimento, assegnazione venditore inline, e fix P0/P1. L'audit si concentra sulle aree critiche residue.
 
-**Causa**: alla riga 506 di `CustomersList.tsx`, `format(new Date(customer.created_at), ...)` fallisce quando `created_at` e `null` o `undefined`. Lo stesso problema si presenta alla riga 244 nel sorting (`new Date(a.created_at).getTime()`), e alla riga 264 nell'export CSV.
+---
 
-Alcuni profili nel database possono avere `created_at` nullo (es. profili creati prima della migrazione o importati senza timestamp).
+## Bug e Problemi Identificati
 
-**Fix**: proteggere tutte le occorrenze di `new Date(customer.created_at)` con un fallback:
-- Riga 244 (sort): `new Date(a.created_at || 0).getTime()`
-- Riga 506 (tabella): `customer.created_at ? format(...) : "—"`
-- Riga 264 (CSV export): `c.created_at ? format(...) : ""`
+### P0 — Nessuno (risolti nell'iterazione precedente)
 
-## Bug P1 — `OrderItemAttachments.tsx` incoerenze residue
+### P1 — Console Warning: SalespersonSelect forwardRef
 
-1. **Riga 117**: il messaggio di errore dice "La dimensione massima e 5MB" ma il limite effettivo e 10MB (`MAX_FILE_SIZE = 10 * 1024 * 1024`).
-2. **Riga 292**: il testo helper dice "Max 5MB" ma il limite e 10MB.
-3. **Riga 314**: la thumbnail `<img src={att.file_url} .../>` usa il path relativo direttamente come `src` — non funzionera per i nuovi upload che salvano path relativi. Dovrebbe usare `getSignedDownloadUrl`.
+Il componente `SalespersonSelect` usato in `CompanyCustomerDetail.tsx` (riga 301) genera un warning React:
+> "Function components cannot be given refs"
 
-## Bug P1 — `CompanyCustomerDetail.tsx` — cast `as any`
+**Causa**: `SalespersonSelect` non usa `React.forwardRef`, ma viene passato come child in contesti che tentano di assegnare un ref.
+**Fix**: wrappare `SalespersonSelect` con `React.forwardRef`.
 
-Riga 90: `(customer as any).salesperson_id` — il campo `salesperson_id` e stato aggiunto alla migrazione ma il tipo auto-generato non lo riconosce ancora. Il cast `as any` funziona ma e fragile. L'alternativa e aggiungere il campo al select esplicito (gia fatto a riga 55) e accettare il cast temporaneo fino a rigenerazione tipi.
+### P1 — Sicurezza: update/delete profilo senza filtro company_id
 
-## Checklist modifiche recenti — Conformita
+In `CompanyCustomerDetail.tsx`:
+- **Riga 116**: `update().eq("id", id!)` — manca `.eq("company_id", effectiveCompany.id)` come defense-in-depth
+- **Riga 147**: `delete().eq("id", id!)` — stesso problema
 
-| Area | Stato | Note |
-|------|-------|------|
-| Signed URLs (OrderAttachments) | OK | `createSignedUrl` 1h, path relativo nel DB |
-| Signed URLs (EmployeeAttachments) | OK | Backward-compat con legacy URL |
-| Signed URLs (ExternalTeamAttachments) | OK | Stesso pattern |
-| Signed URLs (MarketingDocumentsPanel) | OK | Stesso pattern |
-| Signed URLs (OrderItemAttachments) | OK con bug P1 | Thumbnail rotta per nuovi upload |
-| Drag-and-drop (PendingFilesUpload) | OK | dragCounter pattern corretto |
-| Drag-and-drop (OrderAttachments) | OK | Solo quando `editable=true` |
-| MIME validation | OK | Whitelist coerente |
-| File size limit | OK (con testo errato) | 10MB effettivo, UI dice 5MB in OrderItemAttachments |
-| Filtri Clienti | OK (con crash) | Funzionalita corretta ma crash su `created_at` null |
-| Venditore inline | OK | Mutazione + invalidazione cache |
-| CSV export | OK (con crash) | Include venditore+data ma crash su null |
-| Multi-tenancy | OK | `effectiveCompany` usato ovunque |
-| RLS | OK | Nessuna modifica alle policy |
+In `CustomersList.tsx`:
+- **Riga 153**: `assignSalespersonMutation` update senza filtro `company_id`
 
-## Piano di intervento
+RLS copre questo lato server, ma il principio defense-in-depth richiede il filtro esplicito (come da memory `data-integrity/input-validation-standard`).
 
-### 1. Fix P0: `CustomersList.tsx` — protezione `created_at` null
-- Sort: fallback a epoch 0
-- Render tabella: conditional format o "—"
-- CSV export: conditional format o stringa vuota
+### P1 — Cast `as any` per salesperson_id
 
-### 2. Fix P1: `OrderItemAttachments.tsx` — 3 correzioni
-- Riga 117: messaggio "5MB" → "10MB"
-- Riga 292: testo "Max 5MB" → "Max 10MB"
-- Riga 314: sostituire `<img src={att.file_url}>` con signed URL (stato lazy come in `AttachmentItem`)
+`CompanyCustomerDetail.tsx` riga 90: `(customer as any).salesperson_id`. Il campo esiste nel select esplicito (riga 55) ma il tipo auto-generato non lo include ancora. Necessario type assertion locale tipizzata.
 
-### 3. Nessun altro intervento necessario
-Tutte le altre modifiche sono conformi agli standard enterprise.
+### P2 — SalespersonSelect onChange signature mismatch
 
-### File modificati
+In `CompanyCustomerDetail.tsx` riga 303: `onChange={(val) => setSalespersonId(val)}` — il componente `SalespersonSelect` si aspetta `(value: string, salesperson: Salesperson | null) => void` ma qui si passa solo il primo argomento. Funziona ma e un tipo incompatibile.
+
+---
+
+## Multi-Tenancy Checklist
+
+| Operazione | Tenant-scoped | Note |
+|------------|:---:|------|
+| Fetch clienti (CustomersList) | Si | `.eq("company_id", effectiveCompany.id)` |
+| Fetch dettaglio (CompanyCustomerDetail) | Parziale | fetch OK, update/delete mancano company_id |
+| Assign venditore inline | No | Solo `.eq("id", customerId)` |
+| Fetch ordini cliente | Si | `.eq("company_id", effectiveCompany!.id)` |
+| Fetch salespeople | Si | `.eq("company_id", effectiveCompany!.id)` |
+
+---
+
+## Piano Interventi
+
+### 1. Fix P1: forwardRef su SalespersonSelect
+- Wrappare il componente con `React.forwardRef` per eliminare il warning console
+
+### 2. Fix P1: defense-in-depth company_id
+- `CompanyCustomerDetail.tsx`: aggiungere `.eq("company_id", effectiveCompany!.id)` a update (riga 116) e delete (riga 147)
+- `CustomersList.tsx`: aggiungere `.eq("company_id", effectiveCompany!.id)` alla mutation assignSalesperson (riga 153-154)
+
+### 3. Fix P1: type safety salesperson_id
+- Creare un tipo locale esteso in `CompanyCustomerDetail.tsx` per evitare `as any`
+
+### 4. Fix P2: onChange signature
+- Allineare la callback onChange in `CompanyCustomerDetail.tsx` alla firma corretta del componente
+
+### File Modificati
 
 | File | Modifica |
 |------|----------|
-| `CustomersList.tsx` | Protezione null su `created_at` (3 punti) |
-| `OrderItemAttachments.tsx` | Testo 5MB→10MB, thumbnail con signed URL |
+| `SalespersonSelect.tsx` | `React.forwardRef` |
+| `CompanyCustomerDetail.tsx` | company_id su update/delete, tipo locale, onChange fix |
+| `CustomersList.tsx` | company_id su assign mutation |
+
+### Risultato Atteso
+- Console pulita (zero warning)
+- Defense-in-depth completo su tutte le mutazioni
+- Type safety senza cast `as any`
+- Nessuna regressione funzionale
 
