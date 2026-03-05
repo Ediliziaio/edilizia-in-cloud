@@ -13,9 +13,10 @@ import {
   subMonths,
 } from "date-fns";
 import { it } from "date-fns/locale";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, Package, AlertTriangle, Users, UsersRound, CalendarClock, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, AlertTriangle, Users, UsersRound, CalendarClock, Check } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -29,7 +30,7 @@ import type { CalendarOrder, CalendarAppointment, GoogleBusySlot } from "@/types
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 
 interface CalendarEvent {
-  type: "posa" | "merce" | "appointment" | "google_busy";
+  type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy";
   order?: CalendarOrder;
   appointment?: CalendarAppointment;
   busySlot?: GoogleBusySlot;
@@ -56,6 +57,7 @@ export function CalendarMonthView({
   syncedAppointmentIds,
   hiddenEventTypes = new Set(),
 }: CalendarMonthViewProps) {
+  const queryClient = useQueryClient();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
@@ -76,6 +78,13 @@ export function CalendarMonthView({
       }
       if (!hiddenEventTypes.has("merce") && order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day)) {
         events.push({ type: "merce", order, color: "#F59E0B" });
+      }
+      if (!hiddenEventTypes.has("lavoro") && order.work_start_date) {
+        const workStart = parseISO(order.work_start_date);
+        const workEnd = order.work_end_date ? parseISO(order.work_end_date) : workStart;
+        if (day >= workStart && day <= workEnd) {
+          events.push({ type: "lavoro", order, color: "#22C55E" });
+        }
       }
     });
     if (!hiddenEventTypes.has("appuntamento")) {
@@ -212,7 +221,7 @@ export function CalendarMonthView({
                             {event.order.status && (
                               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: event.order.status.color }} />
                             )}
-                            {event.type === "posa" ? <Hammer className="h-3 w-3 flex-shrink-0" /> : <Package className="h-3 w-3 flex-shrink-0" />}
+                            {event.type === "posa" ? <Hammer className="h-3 w-3 flex-shrink-0" /> : event.type === "lavoro" ? <Wrench className="h-3 w-3 flex-shrink-0" /> : <Package className="h-3 w-3 flex-shrink-0" />}
                             <span className="truncate font-medium">
                               {event.order.order_code || "Ordine"} - {event.order.customer.last_name}
                             </span>
@@ -221,7 +230,7 @@ export function CalendarMonthView({
                         </TooltipTrigger>
                         <TooltipContent side="right" className="max-w-xs">
                           <div className="space-y-1">
-                            <p className="font-semibold">{event.order.order_code || "N/A"} - {event.type === "posa" ? "Data Posa" : "Arrivo Merce"}</p>
+                            <p className="font-semibold">{event.order.order_code || "N/A"} - {event.type === "posa" ? "Data Posa" : event.type === "lavoro" ? "Lavori in corso" : "Arrivo Merce"}</p>
                             <p className="text-sm">{event.order.customer.first_name} {event.order.customer.last_name}</p>
                             {event.order.description && <p className="text-xs text-muted-foreground line-clamp-2">{event.order.description}</p>}
                             {event.order.status && (
@@ -275,6 +284,10 @@ export function CalendarMonthView({
           <span className="text-muted-foreground">Rischio logistico</span>
         </div>
         <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-green-500 flex items-center justify-center"><Wrench className="h-2.5 w-2.5 text-white" /></div>
+          <span className="text-muted-foreground">Lavori in corso</span>
+        </div>
+        <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-indigo-500 flex items-center justify-center"><CalendarClock className="h-2.5 w-2.5 text-white" /></div>
           <span className="text-muted-foreground">Appuntamenti</span>
         </div>
@@ -292,8 +305,12 @@ export function CalendarMonthView({
         open={appointmentDialogOpen}
         onOpenChange={setAppointmentDialogOpen}
         appointment={editingAppointment}
-        onSaved={() => { setEditingAppointment(null); }}
+        onSaved={() => {
+          setEditingAppointment(null);
+          queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        }}
         showOrderSelect={true}
+        hideMarketingFields={true}
       />
     </Card>
   );

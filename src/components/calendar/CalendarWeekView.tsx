@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   startOfWeek,
   endOfWeek,
@@ -51,6 +52,7 @@ export function CalendarWeekView({
   syncedAppointmentIds,
   hiddenEventTypes = new Set(),
 }: CalendarWeekViewProps) {
+  const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
@@ -398,8 +400,10 @@ export function CalendarWeekView({
         appointment={editingAppointment}
         onSaved={() => {
           setEditingAppointment(null);
+          queryClient.invalidateQueries({ queryKey: ["appointments"] });
         }}
         showOrderSelect={true}
+        hideMarketingFields={true}
       />
     </Card>
   );
