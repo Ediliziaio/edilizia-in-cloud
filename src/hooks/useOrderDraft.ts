@@ -29,23 +29,6 @@ export interface OrderDraftData {
   hasBuildingBonus: boolean;
   // Meta
   savedAt: string;
-
-  // Legacy fields (kept for backward compat with existing drafts)
-  depositAmount?: string;
-  deposit2Amount?: string;
-  financingAmount?: string;
-  depositPaid?: boolean;
-  depositPaidDate?: string | null;
-  depositExpectedDate?: string | null;
-  deposit2Paid?: boolean;
-  deposit2PaidDate?: string | null;
-  deposit2ExpectedDate?: string | null;
-  balancePaid?: boolean;
-  balancePaidDate?: string | null;
-  balanceExpectedDate?: string | null;
-  financingPaid?: boolean;
-  financingPaidDate?: string | null;
-  financingExpectedDate?: string | null;
 }
 
 const DRAFT_KEY_PREFIX = "order-draft-";
