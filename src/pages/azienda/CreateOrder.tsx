@@ -379,16 +379,13 @@ export default function CreateOrder() {
               .upload(filePath, file);
             if (uploadError) throw uploadError;
 
-            const { data: { publicUrl } } = supabase.storage
-              .from("order-attachments")
-              .getPublicUrl(filePath);
-
+            // Save relative path (not public URL) for signed URL generation
             const { error: dbError } = await supabase
               .from("order_attachments")
               .insert({
                 order_id: order.id,
                 file_name: file.name,
-                file_url: publicUrl,
+                file_url: filePath, // relative path, not public URL
                 file_type: file.type,
                 file_size: file.size,
                 uploaded_by: user!.id,
