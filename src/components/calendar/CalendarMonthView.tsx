@@ -61,6 +61,7 @@ export function CalendarMonthView({
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
+  const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>();
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
@@ -141,8 +142,13 @@ export function CalendarMonthView({
             return (
               <div
                 key={dayIdx}
+                onClick={() => {
+                  setEditingAppointment(null);
+                  setNewAppointmentDate(format(day, "yyyy-MM-dd"));
+                  setAppointmentDialogOpen(true);
+                }}
                 className={cn(
-                  "min-h-[100px] bg-background p-1 transition-colors",
+                  "min-h-[100px] bg-background p-1 transition-colors cursor-pointer hover:bg-muted/30",
                   !isCurrentMonth && "bg-muted/50"
                 )}
               >
@@ -182,8 +188,10 @@ export function CalendarMonthView({
                         <Tooltip key={`apt-${apt.id}-${eventIdx}`}>
                           <TooltipTrigger asChild>
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setEditingAppointment(mapAppointmentToEditData(apt));
+                                setNewAppointmentDate(undefined);
                                 setAppointmentDialogOpen(true);
                               }}
                               className={cn("w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate", apt.is_completed && "opacity-50")}
@@ -214,7 +222,7 @@ export function CalendarMonthView({
                       <Tooltip key={`${event.order.id}-${event.type}-${eventIdx}`}>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={() => setEditingOrder(event.order!)}
+                            onClick={(e) => { e.stopPropagation(); setEditingOrder(event.order!); }}
                             className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate"
                             style={{ backgroundColor: event.color }}
                           >
@@ -303,10 +311,18 @@ export function CalendarMonthView({
 
       <AppointmentDialog
         open={appointmentDialogOpen}
-        onOpenChange={setAppointmentDialogOpen}
+        onOpenChange={(open) => {
+          setAppointmentDialogOpen(open);
+          if (!open) {
+            setEditingAppointment(null);
+            setNewAppointmentDate(undefined);
+          }
+        }}
         appointment={editingAppointment}
+        defaultDate={newAppointmentDate}
         onSaved={() => {
           setEditingAppointment(null);
+          setNewAppointmentDate(undefined);
           queryClient.invalidateQueries({ queryKey: ["appointments"] });
         }}
         showOrderSelect={true}
