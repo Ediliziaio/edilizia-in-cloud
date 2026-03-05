@@ -69,6 +69,7 @@ export default function Warehouse() {
     uniqueOrders,
     urgentItemsCount,
     overdueItemsCount,
+    activeItemsCount,
     viewMode,
     setViewMode,
     searchQuery,
@@ -342,6 +343,20 @@ export default function Warehouse() {
                 onClick={() => setQuickFilter("all")}
               >
                 Tutti
+              </Button>
+              <Button
+                variant={quickFilter === "active" ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setQuickFilter("active")}
+                className="gap-1"
+              >
+                <WarehouseIcon className="h-4 w-4" />
+                Da Lavorare
+                {activeItemsCount > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                    {activeItemsCount}
+                  </Badge>
+                )}
               </Button>
               <Button
                 variant={quickFilter === "urgent" ? "destructive" : "outline"}

@@ -10,7 +10,7 @@ import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/war
 
 export type ViewMode = "list" | "kanban" | "calendar" | "stock";
 export type GroupBy = "order" | "date" | "status" | "supplier";
-export type QuickFilter = "all" | "urgent" | "overdue" | "thisWeek" | "nextWeek";
+export type QuickFilter = "all" | "active" | "urgent" | "overdue" | "thisWeek" | "nextWeek";
 
 export function useWarehouseData() {
   const { effectiveCompany } = useAuth();
@@ -25,7 +25,7 @@ export function useWarehouseData() {
   const [orderFilter, setOrderFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("order");
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("active");
 
   // Fetch all order items with order details
   const {
@@ -136,7 +136,9 @@ export function useWarehouseData() {
     let filtered = [...items];
     const today = new Date();
 
-    if (quickFilter === "urgent") {
+    if (quickFilter === "active") {
+      filtered = filtered.filter((item) => item.status !== "installato");
+    } else if (quickFilter === "urgent") {
       filtered = filtered.filter((item) => {
         if (item.status === "in_magazzino" || item.status === "installato") return false;
         const expectedDate = item.order.expected_date || item.order.work_start_date;
@@ -358,6 +360,11 @@ export function useWarehouseData() {
   const hasActiveFilters =
     searchQuery || statusFilter !== "all" || orderFilter !== "all" || supplierFilter !== "all" || quickFilter !== "all";
 
+  // Count active items (non-installato)
+  const activeItemsCount = useMemo(() => {
+    return items.filter((item) => item.status !== "installato").length;
+  }, [items]);
+
   // Count urgent items
   const urgentItemsCount = useMemo(() => {
     return items.filter(isItemUrgent).length;
@@ -411,6 +418,7 @@ export function useWarehouseData() {
     uniqueOrders,
     urgentItemsCount,
     overdueItemsCount,
+    activeItemsCount,
     // State
     viewMode,
     setViewMode,
