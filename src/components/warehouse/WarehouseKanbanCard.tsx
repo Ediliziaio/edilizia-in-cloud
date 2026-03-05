@@ -36,7 +36,7 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
     ? format(new Date(expectedDate), "d MMM", { locale: it })
     : null;
 
-  const config = STATUS_CONFIG[item.status];
+  const config = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare;
 
   return (
     <Card

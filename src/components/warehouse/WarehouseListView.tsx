@@ -345,7 +345,7 @@ function WarehouseListView({
                             }
                             disabled={isUpdating}
                           >
-                            <SelectTrigger className={cn("w-32 h-8 text-xs border-0 font-medium", STATUS_CONFIG[item.status].bgColor, STATUS_CONFIG[item.status].color)}>
+                            <SelectTrigger className={cn("w-32 h-8 text-xs border-0 font-medium", (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).bgColor, (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).color)}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
