@@ -40,7 +40,7 @@ export interface CustomerFilter {
   last_name: string;
 }
 
-export type GanttZoom = "year" | "quarter" | "month" | "week";
+export type GanttZoom = "year" | "quarter" | "month";
 
 export type CalendarViewType = "month" | "gantt" | "heatmap";
 

@@ -22,19 +22,22 @@ import {
   endOfQuarter,
   startOfMonth,
   endOfMonth,
-  startOfWeek,
-  endOfWeek,
   addYears,
   subYears,
   addDays,
-  addWeeks,
-  subWeeks,
+  isWeekend,
+  getISOWeek,
 } from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Calendar, AlertTriangle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { CalendarOrder, GanttZoom, OrderStatus } from "@/types/calendar";
@@ -53,10 +56,19 @@ const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; label: string }> = {
   year: { dayWidth: 3, label: "Anno" },
   quarter: { dayWidth: 8, label: "Trimestre" },
   month: { dayWidth: 25, label: "Mese" },
-  week: { dayWidth: 80, label: "Settimana" },
 };
 
 const ROW_HEIGHT = 50;
+
+function getOrderProgress(order: CalendarOrder): number | undefined {
+  if (!order.work_start_date || !order.work_end_date) return undefined;
+  const start = parseISO(order.work_start_date);
+  const end = parseISO(order.work_end_date);
+  const total = differenceInDays(end, start);
+  if (total <= 0) return undefined;
+  const elapsed = differenceInDays(new Date(), start);
+  return Math.max(0, Math.min(100, Math.round((elapsed / total) * 100)));
+}
 
 export function CalendarGanttView({
   orders,
@@ -74,11 +86,22 @@ export function CalendarGanttView({
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+      activationConstraint: { distance: 8 },
     })
   );
+
+  // Sort orders: by work_start_date (or expected_date), then by customer last_name. No dates = bottom.
+  const sortedOrders = useMemo(() => {
+    return [...orders].sort((a, b) => {
+      const dateA = a.work_start_date || a.expected_date || null;
+      const dateB = b.work_start_date || b.expected_date || null;
+      if (!dateA && !dateB) return a.customer.last_name.localeCompare(b.customer.last_name);
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      const cmp = dateA.localeCompare(dateB);
+      return cmp !== 0 ? cmp : a.customer.last_name.localeCompare(b.customer.last_name);
+    });
+  }, [orders]);
 
   const { startDate, endDate, days, months } = useMemo(() => {
     let start: Date;
@@ -96,10 +119,6 @@ export function CalendarGanttView({
       case "month":
         start = startOfMonth(currentDate);
         end = endOfMonth(currentDate);
-        break;
-      case "week":
-        start = startOfWeek(currentDate, { weekStartsOn: 1 });
-        end = endOfWeek(currentDate, { weekStartsOn: 1 });
         break;
     }
 
@@ -123,6 +142,20 @@ export function CalendarGanttView({
     }
   }, [todayOffset]);
 
+  // Capacity: count active orders per day
+  const capacityPerDay = useMemo(() => {
+    return days.map((day) => {
+      let count = 0;
+      for (const order of sortedOrders) {
+        const s = order.work_start_date ? parseISO(order.work_start_date) : order.expected_date ? parseISO(order.expected_date) : null;
+        if (!s) continue;
+        const e = order.work_end_date ? parseISO(order.work_end_date) : s;
+        if (day >= s && day <= e) count++;
+      }
+      return count;
+    });
+  }, [days, sortedOrders]);
+
   const getOrderBar = (order: CalendarOrder) => {
     const orderStart = order.work_start_date
       ? parseISO(order.work_start_date)
@@ -136,7 +169,6 @@ export function CalendarGanttView({
       ? parseISO(order.work_end_date)
       : orderStart;
 
-    // Check if order is within visible range
     if (orderEnd < startDate || orderStart > endDate) return null;
 
     const visibleStart = orderStart < startDate ? startDate : orderStart;
@@ -149,16 +181,13 @@ export function CalendarGanttView({
   };
 
   const getOrderColor = (order: CalendarOrder) => {
-    if (order.status?.color) {
-      return order.status.color;
-    }
+    if (order.status?.color) return order.status.color;
     const today = new Date();
     const orderStart = order.work_start_date
       ? parseISO(order.work_start_date)
       : order.expected_date
       ? parseISO(order.expected_date)
       : null;
-
     if (!orderStart) return "#3B82F6";
     return orderStart > today ? "#F59E0B" : "#3B82F6";
   };
@@ -169,15 +198,11 @@ export function CalendarGanttView({
 
     const orderData = active.data.current as { order: CalendarOrder; bar: { orderStart: Date; orderEnd: Date } };
     const daysMoved = Math.round(delta.x / dayWidth);
-
     if (daysMoved === 0) return;
 
     const order = orderData.order;
-    const currentStart = orderData.bar.orderStart;
-    const currentEnd = orderData.bar.orderEnd;
-
-    const newStart = addDays(currentStart, daysMoved);
-    const newEnd = addDays(currentEnd, daysMoved);
+    const newStart = addDays(orderData.bar.orderStart, daysMoved);
+    const newEnd = addDays(orderData.bar.orderEnd, daysMoved);
 
     try {
       const { error } = await supabase
@@ -189,7 +214,6 @@ export function CalendarGanttView({
         .eq("id", order.id);
 
       if (error) throw error;
-
       queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
       toast.success("Date lavoro aggiornate");
     } catch (error) {
@@ -209,9 +233,6 @@ export function CalendarGanttView({
       case "month":
         onDateChange(new Date(currentDate.getTime() - 30 * 24 * 60 * 60 * 1000));
         break;
-      case "week":
-        onDateChange(subWeeks(currentDate, 1));
-        break;
     }
   };
 
@@ -226,9 +247,6 @@ export function CalendarGanttView({
       case "month":
         onDateChange(new Date(currentDate.getTime() + 30 * 24 * 60 * 60 * 1000));
         break;
-      case "week":
-        onDateChange(addWeeks(currentDate, 1));
-        break;
     }
   };
 
@@ -241,9 +259,28 @@ export function CalendarGanttView({
         return `Q${q} ${format(currentDate, "yyyy")}`;
       case "month":
         return format(currentDate, "MMMM yyyy", { locale: it });
-      case "week":
-        return `${format(startDate, "d MMM", { locale: it })} - ${format(endDate, "d MMM yyyy", { locale: it })}`;
     }
+  };
+
+  // Unique week numbers for quarter view sub-header
+  const weekNumbers = useMemo(() => {
+    if (zoom !== "quarter") return [];
+    const seen = new Map<number, { start: number; count: number }>();
+    days.forEach((day, idx) => {
+      const wn = getISOWeek(day);
+      if (!seen.has(wn)) {
+        seen.set(wn, { start: idx, count: 0 });
+      }
+      seen.get(wn)!.count++;
+    });
+    return Array.from(seen.entries()).map(([wn, { start, count }]) => ({ wn, start, count }));
+  }, [days, zoom]);
+
+  const capacityColor = (count: number) => {
+    if (count === 0) return "bg-muted/30";
+    if (count <= 2) return "bg-green-500/60";
+    if (count <= 4) return "bg-yellow-500/60";
+    return "bg-red-500/60";
   };
 
   return (
@@ -267,10 +304,6 @@ export function CalendarGanttView({
           onValueChange={(value) => value && setZoom(value as GanttZoom)}
           className="bg-muted rounded-lg p-1"
         >
-          <ToggleGroupItem value="week" className="text-xs px-2">
-            <Calendar className="h-3 w-3 mr-1" />
-            Settimana
-          </ToggleGroupItem>
           <ToggleGroupItem value="month" className="text-xs px-2">
             <ZoomIn className="h-3 w-3 mr-1" />
             Mese
@@ -285,7 +318,7 @@ export function CalendarGanttView({
         </ToggleGroup>
       </div>
 
-      {orders.length === 0 ? (
+      {sortedOrders.length === 0 ? (
         <div className="flex items-center justify-center h-48 text-muted-foreground">
           Nessun lavoro programmato
         </div>
@@ -294,7 +327,8 @@ export function CalendarGanttView({
           <div className="flex border rounded-lg overflow-hidden">
             {/* Fixed left column - Client names + Lead Time */}
             <div className="flex-shrink-0 bg-muted/30 border-r min-w-[220px]">
-              <div className="h-12 border-b bg-muted/50 flex">
+              {/* Left header must match dual-level header height */}
+              <div className={cn("border-b bg-muted/50 flex", zoom === "month" || zoom === "quarter" ? "h-16" : "h-12")}>
                 <div className="flex-1 flex items-center px-3">
                   <span className="text-sm font-medium text-muted-foreground">
                     Cliente / Ordine
@@ -304,7 +338,7 @@ export function CalendarGanttView({
                   <span className="text-xs font-medium text-muted-foreground">LT</span>
                 </div>
               </div>
-              {orders.map((order, idx) => {
+              {sortedOrders.map((order, idx) => {
                 const leadTime = calculateLeadTime(order);
                 const initials = order.order_employees
                   ?.map((ae) => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`)
@@ -349,6 +383,10 @@ export function CalendarGanttView({
                   </div>
                 );
               })}
+              {/* Capacity row label */}
+              <div className="h-8 flex items-center px-3 bg-muted/40 border-t">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Carico</span>
+              </div>
             </div>
 
             {/* Scrollable timeline */}
@@ -356,48 +394,57 @@ export function CalendarGanttView({
               ref={scrollContainerRef}
               className="flex-1 overflow-x-auto relative"
             >
-              {/* Header */}
+              {/* Dual-level header */}
               <div
-                className="h-12 border-b bg-muted/50 flex sticky top-0 z-10"
+                className={cn("border-b bg-muted/50 sticky top-0 z-10", zoom === "month" || zoom === "quarter" ? "h-16" : "h-12")}
                 style={{ width: days.length * dayWidth }}
               >
-                {zoom === "week" ? (
-                  // Week view: show day names + numbers
-                  days.map((day, idx) => (
-                    <div
-                      key={idx}
-                      className={cn(
-                        "border-r flex flex-col items-center justify-center",
-                        isSameDay(day, new Date()) && "bg-primary/10"
-                      )}
-                      style={{ width: dayWidth }}
-                    >
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {format(day, "EEE", { locale: it })}
-                      </span>
-                      <span className="text-sm font-semibold">
-                        {format(day, "d")}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  // Other views: show months
-                  months.map((month, idx) => {
-                    const monthDays = days.filter(
-                      (d) => d.getMonth() === month.getMonth()
-                    );
+                {/* Level 1: Months */}
+                <div className="flex h-1/2">
+                  {months.map((month, idx) => {
+                    const monthDays = days.filter((d) => d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear());
                     const monthWidth = monthDays.length * dayWidth;
-
                     return (
                       <div
                         key={idx}
-                        className="border-r flex items-center justify-center text-sm font-medium text-muted-foreground"
+                        className="border-r border-b flex items-center justify-center text-xs font-medium text-muted-foreground"
                         style={{ width: monthWidth }}
                       >
-                        {format(month, zoom === "year" ? "MMM" : "MMMM", { locale: it })}
+                        {format(month, zoom === "year" ? "MMM" : "MMMM yyyy", { locale: it })}
                       </div>
                     );
-                  })
+                  })}
+                </div>
+                {/* Level 2: Days (month zoom) or Week numbers (quarter zoom) */}
+                {zoom === "month" && (
+                  <div className="flex h-1/2">
+                    {days.map((day, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "border-r flex items-center justify-center text-[10px]",
+                          isWeekend(day) && "bg-muted/60 text-muted-foreground/60",
+                          isSameDay(day, new Date()) && "bg-primary/15 font-bold text-primary"
+                        )}
+                        style={{ width: dayWidth }}
+                      >
+                        {format(day, "d")}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {zoom === "quarter" && (
+                  <div className="flex h-1/2">
+                    {weekNumbers.map(({ wn, start, count }) => (
+                      <div
+                        key={`w${wn}-${start}`}
+                        className="border-r flex items-center justify-center text-[10px] text-muted-foreground"
+                        style={{ width: count * dayWidth }}
+                      >
+                        W{wn}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -411,24 +458,26 @@ export function CalendarGanttView({
                   />
                 )}
 
-                {/* Day grid lines (show for month and week zoom) */}
-                {(zoom === "month" || zoom === "week") && (
+                {/* Day grid lines + weekend shading */}
+                {(zoom === "month" || zoom === "quarter") && (
                   <div className="absolute inset-0 flex">
                     {days.map((day, idx) => (
                       <div
                         key={idx}
                         className={cn(
-                          "border-r border-muted/50 flex-shrink-0",
+                          "border-r flex-shrink-0",
+                          isWeekend(day) ? "bg-muted/40 border-r-muted-foreground/20" : "border-muted/50",
                           isSameDay(day, new Date()) && "bg-primary/5"
                         )}
-                        style={{ width: dayWidth, height: orders.length * ROW_HEIGHT }}
+                        style={{ width: dayWidth, height: (sortedOrders.length * ROW_HEIGHT) + 32 }}
                       />
                     ))}
                   </div>
                 )}
 
-                {orders.map((order, idx) => {
+                {sortedOrders.map((order, idx) => {
                   const bar = getOrderBar(order);
+                  const progress = getOrderProgress(order);
 
                   // Milestone positions
                   const expectedPos = order.expected_date
@@ -454,27 +503,59 @@ export function CalendarGanttView({
                           bar={bar}
                           dayWidth={dayWidth}
                           color={getOrderColor(order)}
+                          progress={progress}
                         />
                       )}
-                      {/* Milestone: expected_date (blue dot) */}
+                      {/* Milestone: expected_date (blue diamond) */}
                       {expectedPos !== null && expectedPos >= 0 && expectedPos <= totalWidth && (
-                        <div
-                          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white z-10 pointer-events-none"
-                          style={{ left: expectedPos + dayWidth / 2 - 6 }}
-                          title="Data posa prevista"
-                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-background z-10"
+                              style={{ left: expectedPos + dayWidth / 2 - 6 }}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            <p className="font-medium">Data posa prevista</p>
+                            <p>{format(parseISO(order.expected_date!), "d MMMM yyyy", { locale: it })}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                       {/* Milestone: warehouse_arrival_date (amber dot) */}
                       {warehousePos !== null && warehousePos >= 0 && warehousePos <= totalWidth && (
-                        <div
-                          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-500 border-2 border-white z-10 pointer-events-none"
-                          style={{ left: warehousePos + dayWidth / 2 - 6 }}
-                          title="Arrivo merce"
-                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-500 border-2 border-background z-10"
+                              style={{ left: warehousePos + dayWidth / 2 - 6 }}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            <p className="font-medium">Arrivo merce</p>
+                            <p>{format(parseISO(order.warehouse_arrival_date!), "d MMMM yyyy", { locale: it })}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
                   );
                 })}
+
+                {/* Capacity row */}
+                <div className="flex h-8 border-t bg-muted/20">
+                  {capacityPerDay.map((count, idx) => (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "flex-shrink-0 flex items-center justify-center text-[9px] font-medium border-r border-muted/30",
+                        capacityColor(count),
+                        count > 0 && "text-foreground"
+                      )}
+                      style={{ width: dayWidth }}
+                    >
+                      {count > 0 && (zoom === "month" ? count : "")}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -485,20 +566,28 @@ export function CalendarGanttView({
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
         {statuses.slice(0, 5).map((status) => (
           <div key={status.id} className="flex items-center gap-2">
-            <div 
-              className="w-3 h-3 rounded" 
+            <div
+              className="w-3 h-3 rounded"
               style={{ backgroundColor: status.color }}
             />
             <span className="text-muted-foreground">{status.name}</span>
           </div>
         ))}
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-blue-500 border-2 border-background" />
+          <span className="text-muted-foreground">Data posa</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-amber-500 border-2 border-background" />
+          <span className="text-muted-foreground">Arrivo merce</span>
+        </div>
         <div className="flex items-center gap-2 ml-auto">
           <div className="w-0.5 h-4 bg-destructive" />
           <span className="text-muted-foreground">Oggi</span>
         </div>
       </div>
 
-      <LeadTimeStats orders={orders} />
+      <LeadTimeStats orders={sortedOrders} />
 
       {/* Unplanned orders section */}
       {(() => {
@@ -520,8 +609,8 @@ export function CalendarGanttView({
                   onClick={() => navigate(`/azienda/ordini/${order.id}`)}
                   className="flex items-center gap-2 p-2 bg-background rounded border hover:border-primary transition-colors text-left"
                 >
-                  <div 
-                    className="w-2 h-2 rounded-full flex-shrink-0" 
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
                     style={{ backgroundColor: order.status?.color || "#6B7280" }}
                   />
                   <div className="min-w-0 flex-1">
