@@ -1,42 +1,42 @@
 
 
-# UX Improvement: Tab "Incassato" del Previsionale Cassa
+# Creazione Dati Demo per Domus Group S.r.l.
 
-## Problemi Identificati
+## Dati trovati
+- **Company ID**: `728fc9cf-31d3-4a1e-9f01-a38c01902836`
+- **Fornitori esistenti**: Cosmet, Deghi, Lima Group, Marysoryna
+- **Stato iniziale**: "Contratto Firmato" (`8646e7a6-...`)
+- **Profiles**: nessuna FK verso auth.users → posso creare clienti direttamente
 
-1. **Nessun indicatore di progresso** — l'utente non vede a colpo d'occhio quanto ha incassato rispetto a quanto atteso nel mese
-2. **Filtri date poco intuitivi** — solo "Da/A" senza preset rapidi (questo mese, ultimo trimestre, anno)
-3. **Tabelle "Da Ricevere" sparse** — 2-3 card separate per mese rendono la pagina lunga; manca una vista unificata
-4. **Nessuna ricerca** — su tabelle con molti pagamenti non si puo cercare per cliente o ordine
-5. **Nessun totale sempre visibile** nella tabella incassato (solo con filtro date attivo)
-6. **Card sommario piatte** — nessuna differenziazione visiva tra incassato (positivo) e da ricevere (atteso)
-7. **Pagamenti scaduti non evidenziati** — i pagamenti attesi con data passata non hanno indicazione visiva
+## Piano di inserimento
 
-## Piano di Intervento
+### 1. Creare 5 clienti (profiles + user_roles)
 
-### 1. Progress Bar "Incassato vs Atteso" (nuova card hero)
-- Sostituire le 4 card con un layout a 2 righe:
-  - **Riga 1**: Card hero larga con progress bar circolare o lineare che mostra `incassato / (incassato + da ricevere)` per il mese corrente, con importi e percentuale
-  - **Riga 2**: 3 card compatte (Prossimo mese, Prossimi N mesi, Senza data)
+| # | Nome | Email |
+|---|------|-------|
+| 1 | Marco Bianchi | marco.bianchi@demo.it |
+| 2 | Laura Verdi | laura.verdi@demo.it |
+| 3 | Giuseppe Rossi | giuseppe.rossi@demo.it |
+| 4 | Francesca Neri | francesca.neri@demo.it |
+| 5 | Antonio Esposito | antonio.esposito@demo.it |
 
-### 2. Quick Date Presets
-- Aggiungere chip/bottoni rapidi sopra i filtri data: "Questo mese", "Ultimo trimestre", "Quest'anno", "Tutto"
-- Eliminare la necessita di aprire 2 date picker per i casi comuni
+### 2. Creare 5 ordini con rate e margini diversi
 
-### 3. Tabella "Da Ricevere" unificata
-- Unire le 2-3 sezioni "Da Ricevere" in una singola card con sotto-gruppi collassabili per mese
-- Aggiungere badge rosso per pagamenti con data scaduta (overdue)
-- Totale footer sempre visibile
+| # | Cliente | Imponibile | Rate | Margine target | Costo fornitura lordo (IVA 22%) |
+|---|---------|-----------|------|---------------|-------------------------------|
+| 1 | Bianchi | €15.000 | 2 (50/50) mar+apr | ~35% | €11.890 (→ netto €9.745) |
+| 2 | Verdi | €8.500 | 3 rate mar+apr+mag | ~25% | €7.778 (→ netto €6.375) |
+| 3 | Rossi | €22.000 | 4 rate mar+apr+apr+mag | ~10% | €24.156 (→ netto €19.800) |
+| 4 | Neri | €12.000 | 3 rate mar+apr+mag | ~20% | €11.712 (→ netto €9.600) |
+| 5 | Esposito | €6.000 | 2 rate apr+mag | ~30% | €5.124 (→ netto €4.200) |
 
-### 4. Ricerca inline
-- Aggiungere input di ricerca nella tabella incassato che filtra per cliente o codice ordine
+### 3. Per ogni ordine
+- **Order installments**: rate con date distribuite tra marzo, aprile e maggio 2026
+- **Order items**: 1-2 articoli per ordine con `purchase_price` (lordo) calibrato per raggiungere il margine target, assegnati ai fornitori esistenti
 
-### 5. Totale sempre visibile
-- Footer sticky con totale nella tabella incassato, non solo quando il filtro date e attivo
+### 4. Strumento
+- Edge function temporanea con service role per creare i profili (auth.users necessari per i ruoli) **oppure** inserimenti diretti via tool insert dato che non c'è FK su auth.users
 
-### File da modificare
-
-| File | Modifica |
-|------|----------|
-| `src/components/forecast/CollectedTab.tsx` | Riscrittura layout card, progress bar, quick presets, tabella unificata "Da Ricevere", ricerca inline, totale sticky |
+### Esecuzione
+Userò il tool di insert per eseguire le query SQL di inserimento in sequenza: profiles → user_roles → orders → order_installments → order_items → order_status_history.
 
