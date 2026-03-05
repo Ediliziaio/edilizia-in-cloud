@@ -1,59 +1,38 @@
 
 
-# Verifica e Fix: Filtri Calendario, Appuntamenti e Collegamento Ordini
+# Verifica Calendario End-to-End — Risultati
 
-## Problemi trovati
+## Stato attuale: quasi tutto OK
 
-### 1. BUG: AppointmentDialog dentro CalendarMonthView non aggiorna la lista
-Quando si modifica un appuntamento cliccandolo nella vista mese, il callback `onSaved` (riga 295) fa solo `setEditingAppointment(null)` ma **non invalida la query** `["appointments"]`. Risultato: dopo la modifica il calendario non si aggiorna finche' non si ricarica la pagina.
+Tutti i fix principali sono già implementati:
+- **Eventi "lavoro" nella vista Mese**: presente (righe 82-88 di CalendarMonthView)
+- **Query invalidation dopo salvataggio appuntamenti**: presente in entrambe le viste (Month riga 310, Week riga 403)
+- **hideMarketingFields={true}**: presente in entrambe le viste
+- **Collegamento ordini-calendario**: funzionante (EditOrderDatesDialog invalida `["calendar-orders"]`)
+- **Filtri Layer (posa/merce/lavoro/appuntamento/google_busy)**: funzionanti in entrambe le viste
+- **Persistenza localStorage**: funzionante
+- **Filtro risorse (dipendenti/squadre esterne)**: funzionante
 
-**Stesso problema** nella `CalendarWeekView` (da verificare).
+## Bug residuo trovato
 
-**Fix**: aggiungere `queryClient.invalidateQueries({ queryKey: ["appointments"] })` nel `onSaved` di entrambe le viste, e anche `hideMarketingFields` prop mancante.
+### `mapAppointmentToEditData` non mappa il campo `status`
 
-### 2. BUG: "Lavori in corso" non visibili nella vista Mese
-Il pannello Layer ha il toggle "Lavori in corso" che imposta `hiddenEventTypes.has("lavoro")`, ma la `CalendarMonthView.getEventsForDay()` **non genera mai eventi di tipo "lavoro"** (gestisce solo `posa`, `merce`, `appointment`, `google_busy`). La `CalendarWeekView` invece li gestisce correttamente (righe 77-84).
+**File: `src/lib/calendarUtils.ts`** riga 28-39
 
-**Fix**: Aggiungere la generazione degli eventi "lavoro" (work_start_date → work_end_date range) anche in `CalendarMonthView.getEventsForDay()`.
+L'`AppointmentData` ha un campo opzionale `status`, ma `mapAppointmentToEditData` non lo include. Quando si clicca un appuntamento per modificarlo, lo stato viene resettato al default "confermato" invece di mantenere il valore reale.
 
-### 3. BUG: filtro "Appuntamenti" nel Layer non filtra appuntamenti per risorsa
-Quando si deseleziona un operaio nel Layer, gli ordini vengono filtrati per risorsa, ma gli **appuntamenti** rimangono visibili indipendentemente dall'assegnazione. Questo è coerente col design (gli appuntamenti usano il filtro "Assegnato a" separato), quindi nessun intervento.
+**Fix**: Aggiungere `status: (apt as any).status || "confermato"` al return di `mapAppointmentToEditData`.
 
-### 4. Collegamento ordini-calendario: OK
-- `EditOrderDatesDialog` salva le date e invalida `["calendar-orders"]` → il calendario si aggiorna
-- Gli ordini con `work_start_date`, `expected_date` o `warehouse_arrival_date` appaiono correttamente
-- Le modifiche al magazzino (warehouse_arrival_date) si riflettono sugli eventi "merce"
+Inoltre, il tipo `CalendarAppointment` in `src/types/calendar.ts` non include `status`. Occorre aggiungerlo.
 
 ## File da modificare
 
-### `src/components/calendar/CalendarMonthView.tsx`
-1. Aggiungere eventi "lavoro" in `getEventsForDay()` per work_start_date/work_end_date range
-2. Nel `onSaved` di AppointmentDialog: aggiungere invalidazione query + `hideMarketingFields`
-3. Aggiungere `useQueryClient` import
+| File | Modifica |
+|------|----------|
+| `src/types/calendar.ts` | Aggiungere `status?: string` a `CalendarAppointment` |
+| `src/lib/calendarUtils.ts` | Mappare `status` in `mapAppointmentToEditData` |
 
-### `src/components/calendar/CalendarWeekView.tsx`
-1. Nel `onSaved` di AppointmentDialog: aggiungere invalidazione query + verificare `hideMarketingFields`
+## Note sul test browser
 
-### Dettaglio tecnico
-
-Per gli eventi "lavoro" in CalendarMonthView, aggiungere nella funzione `getEventsForDay`:
-```tsx
-if (!hiddenEventTypes.has("lavoro") && order.work_start_date) {
-  const workStart = parseISO(order.work_start_date);
-  const workEnd = order.work_end_date ? parseISO(order.work_end_date) : workStart;
-  if (day >= workStart && day <= workEnd) {
-    events.push({ type: "lavoro" as any, order, color: "#22C55E" });
-  }
-}
-```
-
-Il tipo `CalendarEvent.type` dovrà essere esteso per includere `"lavoro"` e il rendering dovrà gestire l'icona `Wrench` per quel tipo.
-
-Per l'invalidazione query nell'AppointmentDialog interno:
-```tsx
-onSaved={() => {
-  setEditingAppointment(null);
-  queryClient.invalidateQueries({ queryKey: ["appointments"] });
-}}
-```
+Non è possibile testare end-to-end in browser perche' la pagina richiede autenticazione. Il codice è stato verificato staticamente: tutti i data-flow (query → filtri → vista → dialog → invalidazione → refresh) sono corretti.
 
