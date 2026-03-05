@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Eye, Pencil, Trash2, X, ChevronDown } from "lucide-react";
+import { format } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,9 @@ interface OrdersTableProps {
   onBulkStatusChange?: (orderIds: string[], statusId: string) => void;
   onBulkDelete?: (orderIds: string[]) => void;
   isBulkUpdating?: boolean;
+  visibleColumns?: Set<string>;
+  salespeopleMap?: Map<string, string[]>;
+  laborMap?: Map<string, string[]>;
 }
 
 export function OrdersTable({
@@ -58,6 +62,9 @@ export function OrdersTable({
   onBulkStatusChange,
   onBulkDelete,
   isBulkUpdating = false,
+  visibleColumns = new Set(["date"]),
+  salespeopleMap = new Map(),
+  laborMap = new Map(),
 }: OrdersTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -177,6 +184,7 @@ export function OrdersTable({
                 />
               </TableHead>
               <TableHead>Codice</TableHead>
+              {visibleColumns.has("date") && <TableHead>Data</TableHead>}
               <TableHead>Descrizione</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead className="text-right">Tot. Ivato</TableHead>
@@ -185,6 +193,8 @@ export function OrdersTable({
               <TableHead className="text-right">Da Ricevere</TableHead>
               <TableHead className="text-right">Costi Var.</TableHead>
               <TableHead className="text-right">Margine</TableHead>
+              {visibleColumns.has("salesperson") && <TableHead>Venditore</TableHead>}
+              {visibleColumns.has("labor") && <TableHead>Manodopera</TableHead>}
               <TableHead>Pagamenti</TableHead>
               <TableHead>Stato</TableHead>
               <TableHead className="text-right">Azioni</TableHead>
@@ -215,8 +225,15 @@ export function OrdersTable({
                     />
                   </TableCell>
                   <TableCell className="font-medium">
-                    {order.order_code || "—"}
+                    <Link to={`/azienda/ordini/${order.id}`} className="text-primary hover:underline cursor-pointer">
+                      {order.order_code || "—"}
+                    </Link>
                   </TableCell>
+                  {visibleColumns.has("date") && (
+                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                      {format(new Date(order.created_at), "dd/MM/yyyy")}
+                    </TableCell>
+                  )}
                   <TableCell className="max-w-[150px] truncate">
                     {order.description}
                   </TableCell>
@@ -251,6 +268,16 @@ export function OrdersTable({
                       {formatCurrency(grossMargin)} - {marginPercent.toFixed(1)}%
                     </span>
                   </TableCell>
+                  {visibleColumns.has("salesperson") && (
+                    <TableCell className="text-sm">
+                      {(salespeopleMap.get(order.id) || []).join(", ") || "—"}
+                    </TableCell>
+                  )}
+                  {visibleColumns.has("labor") && (
+                    <TableCell className="text-sm">
+                      {(laborMap.get(order.id) || []).join(", ") || "—"}
+                    </TableCell>
+                  )}
                   <TableCell>
                     {pending.length === 0 ? (
                       <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-0">

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, Settings2 } from "lucide-react";
 import { format } from "date-fns";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
 import { OrdersStatsCards } from "@/components/orders/OrdersStatsCards";
 import { OrdersFilters } from "@/components/orders/OrdersFilters";
@@ -103,7 +104,7 @@ export default function OrdersList() {
       if (orderIds.length === 0) return [];
       const { data, error } = await supabase
         .from("order_employees")
-        .select("order_id, total_cost")
+        .select("order_id, total_cost, employee_id")
         .in("order_id", orderIds);
       if (error) throw error;
       return data;
@@ -118,7 +119,7 @@ export default function OrdersList() {
       if (orderIds.length === 0) return [];
       const { data, error } = await supabase
         .from("order_external_teams")
-        .select("order_id, total_cost, vat_rate")
+        .select("order_id, total_cost, vat_rate, external_team_id")
         .in("order_id", orderIds);
       if (error) throw error;
       return data;
@@ -133,7 +134,7 @@ export default function OrdersList() {
       if (orderIds.length === 0) return [];
       const { data, error } = await supabase
         .from("order_salespeople")
-        .select("order_id, commission_type, commission_value, deduction_amount")
+        .select("order_id, commission_type, commission_value, deduction_amount, salesperson_id")
         .in("order_id", orderIds);
       if (error) throw error;
       return data;
@@ -141,6 +142,110 @@ export default function OrdersList() {
     enabled: orderIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Fetch names for salespeople, employees, external teams
+  const salespersonIds = useMemo(() => [...new Set(salespeopleData.map(s => s.salesperson_id).filter(Boolean))], [salespeopleData]);
+  const employeeIds = useMemo(() => [...new Set(employeeCosts.map(e => e.employee_id).filter(Boolean))], [employeeCosts]);
+  const externalTeamIds = useMemo(() => [...new Set(externalTeamCosts.map(t => t.external_team_id).filter(Boolean))], [externalTeamCosts]);
+
+  const { data: salespersonProfiles = [] } = useQuery({
+    queryKey: ["salesperson-profiles", salespersonIds],
+    queryFn: async () => {
+      if (salespersonIds.length === 0) return [];
+      const { data, error } = await supabase.from("profiles").select("id, first_name, last_name").in("id", salespersonIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: salespersonIds.length > 0,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: employeeProfiles = [] } = useQuery({
+    queryKey: ["employee-profiles", employeeIds],
+    queryFn: async () => {
+      if (employeeIds.length === 0) return [];
+      const { data, error } = await supabase.from("employees").select("id, first_name, last_name").in("id", employeeIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: employeeIds.length > 0,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: externalTeamProfiles = [] } = useQuery({
+    queryKey: ["external-team-profiles", externalTeamIds],
+    queryFn: async () => {
+      if (externalTeamIds.length === 0) return [];
+      const { data, error } = await supabase.from("external_teams").select("id, name").in("id", externalTeamIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: externalTeamIds.length > 0,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Build name maps
+  const salespeopleMap = useMemo(() => {
+    const profileMap = new Map(salespersonProfiles.map(p => [p.id, `${p.first_name} ${p.last_name}`]));
+    const map = new Map<string, string[]>();
+    for (const sp of salespeopleData) {
+      const name = profileMap.get(sp.salesperson_id);
+      if (name) {
+        const existing = map.get(sp.order_id) || [];
+        if (!existing.includes(name)) existing.push(name);
+        map.set(sp.order_id, existing);
+      }
+    }
+    return map;
+  }, [salespeopleData, salespersonProfiles]);
+
+  const laborMap = useMemo(() => {
+    const empMap = new Map(employeeProfiles.map(e => [e.id, `${e.first_name} ${e.last_name}`]));
+    const teamMap = new Map(externalTeamProfiles.map(t => [t.id, t.name]));
+    const map = new Map<string, string[]>();
+    for (const e of employeeCosts) {
+      const name = empMap.get(e.employee_id);
+      if (name) {
+        const existing = map.get(e.order_id) || [];
+        if (!existing.includes(name)) existing.push(name);
+        map.set(e.order_id, existing);
+      }
+    }
+    for (const t of externalTeamCosts) {
+      const name = teamMap.get(t.external_team_id);
+      if (name) {
+        const existing = map.get(t.order_id) || [];
+        if (!existing.includes(name)) existing.push(name);
+        map.set(t.order_id, existing);
+      }
+    }
+    return map;
+  }, [employeeCosts, externalTeamCosts, employeeProfiles, externalTeamProfiles]);
+
+  // Column visibility state
+  const OPTIONAL_COLUMNS = [
+    { key: "date", label: "Data Ordine" },
+    { key: "salesperson", label: "Venditore" },
+    { key: "labor", label: "Manodopera" },
+  ] as const;
+
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem("orders-visible-columns");
+      if (saved) return new Set(JSON.parse(saved));
+    } catch {}
+    return new Set(["date"]);
+  });
+
+  const toggleColumn = (key: string) => {
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      localStorage.setItem("orders-visible-columns", JSON.stringify([...next]));
+      return next;
+    });
+  };
 
   // Build orderCosts map
   const orderCostsMap = useMemo(() => {
@@ -546,6 +651,24 @@ export default function OrdersList() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Colonne
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>Colonne visibili</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {OPTIONAL_COLUMNS.map(col => (
+                <DropdownMenuItem key={col.key} onSelect={(e) => e.preventDefault()} onClick={() => toggleColumn(col.key)}>
+                  <Checkbox checked={visibleColumns.has(col.key)} className="mr-2" />
+                  {col.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button asChild>
             <Link to="/azienda/ordini/nuovo">
               <Plus className="h-4 w-4 mr-2" />
@@ -636,6 +759,9 @@ export default function OrdersList() {
             onBulkStatusChange={handleBulkStatusChange}
             onBulkDelete={handleBulkDelete}
             isBulkUpdating={isBulkUpdating}
+            visibleColumns={visibleColumns}
+            salespeopleMap={salespeopleMap}
+            laborMap={laborMap}
           />
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-2">
