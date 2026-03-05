@@ -196,7 +196,12 @@ export function OrderEconomics({
 
   // Margin alert thresholds
   const isNegativeMargin = grossMargin < 0;
-  const isLowMargin = marginPercentage > 0 && marginPercentage < 10;
+  const isLowMargin = !isNegativeMargin && marginPercentage < 20;
+  const marginColorClass = marginPercentage >= 30
+    ? "text-emerald-600 dark:text-emerald-400"
+    : marginPercentage >= 20
+      ? "text-amber-600 dark:text-amber-400"
+      : "text-destructive";
 
   return (
     <Card>
@@ -400,27 +405,19 @@ export function OrderEconomics({
             <div className="flex justify-between items-center pt-2 border-t">
               <span className="flex items-center gap-2">
                 {grossMargin >= 0 ? (
-                  <TrendingUp className="h-4 w-4 text-green-600" />
+                  <TrendingUp className={`h-4 w-4 ${marginColorClass}`} />
                 ) : (
-                  <TrendingDown className="h-4 w-4 text-destructive" />
+                  <TrendingDown className={`h-4 w-4 ${marginColorClass}`} />
                 )}
                 Margine Lordo
               </span>
-              <span
-                className={`font-bold text-lg ${
-                  grossMargin >= 0 ? "text-green-600" : "text-destructive"
-                }`}
-              >
+              <span className={`font-bold text-lg ${marginColorClass}`}>
                 {formatCurrency(grossMargin)}
               </span>
             </div>
             <div className="flex justify-between">
               <span>Margine %</span>
-              <span
-                className={`font-medium ${
-                  marginPercentage >= 0 ? "text-green-600" : "text-destructive"
-                }`}
-              >
+              <span className={`font-medium ${marginColorClass}`}>
                 {marginPercentage.toFixed(1)}%
               </span>
             </div>
