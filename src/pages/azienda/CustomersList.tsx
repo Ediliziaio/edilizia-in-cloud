@@ -241,7 +241,7 @@ export default function CustomersList() {
         const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
         return nameA.localeCompare(nameB) * dir;
       }
-      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+      return (new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()) * dir;
     });
 
   const toggleSort = (field: SortField) => {
@@ -261,7 +261,7 @@ export default function CustomersList() {
       rows.push([
         c.first_name, c.last_name, c.email, c.phone || "", c.fiscal_code || "",
         c.address || "", c.site_address || "", c.notes || "", String(c.order_count),
-        format(new Date(c.created_at), "dd/MM/yyyy"),
+        c.created_at ? format(new Date(c.created_at), "dd/MM/yyyy") : "",
         sp ? `${sp.first_name} ${sp.last_name}` : "",
       ]);
     });
@@ -503,7 +503,7 @@ export default function CustomersList() {
                     </TableCell>
                     <TableCell>
                       <span className="text-sm text-muted-foreground">
-                        {format(new Date(customer.created_at), "dd MMM yyyy", { locale: it })}
+                        {customer.created_at ? format(new Date(customer.created_at), "dd MMM yyyy", { locale: it }) : "—"}
                       </span>
                     </TableCell>
                     <TableCell>
