@@ -1,42 +1,48 @@
 
 
-# Creazione Dati Demo per Domus Group S.r.l.
+# Inserimento Dati Demo Completi — Squadre Esterne e Provvigioni Agente
 
-## Dati trovati
-- **Company ID**: `728fc9cf-31d3-4a1e-9f01-a38c01902836`
-- **Fornitori esistenti**: Cosmet, Deghi, Lima Group, Marysoryna
-- **Stato iniziale**: "Contratto Firmato" (`8646e7a6-...`)
-- **Profiles**: nessuna FK verso auth.users → posso creare clienti direttamente
+## Stato Attuale
+- **5 clienti**: già creati (Bianchi, Verdi, Rossi, Neri, Esposito)
+- **5 ordini**: già creati con installments e order_items completi
+- **Mancante**: `order_salespeople` (provvigioni) e `order_external_teams` (squadre esterne)
+- **Squadre esterne disponibili**: solo 1 (Davide Fontana) → ne creo altre 2
+- **Venditori disponibili**: Maurizio Trevisi, Filippo Bellomo, Luizia Antal
 
-## Piano di inserimento
+## Piano di Inserimento
 
-### 1. Creare 5 clienti (profiles + user_roles)
+### 1. Creare 2 nuove squadre esterne
 
-| # | Nome | Email |
-|---|------|-------|
-| 1 | Marco Bianchi | marco.bianchi@demo.it |
-| 2 | Laura Verdi | laura.verdi@demo.it |
-| 3 | Giuseppe Rossi | giuseppe.rossi@demo.it |
-| 4 | Francesca Neri | francesca.neri@demo.it |
-| 5 | Antonio Esposito | antonio.esposito@demo.it |
+| Nome | Contatto | Specializzazione |
+|------|----------|-----------------|
+| Edil Service Srl | Marco Ferretti | Idraulica/posa bagni |
+| Tecno Tetti Snc | Paolo Galli | Coperture/tetti |
 
-### 2. Creare 5 ordini con rate e margini diversi
+### 2. Assegnare squadre esterne ai 5 ordini
 
-| # | Cliente | Imponibile | Rate | Margine target | Costo fornitura lordo (IVA 22%) |
-|---|---------|-----------|------|---------------|-------------------------------|
-| 1 | Bianchi | €15.000 | 2 (50/50) mar+apr | ~35% | €11.890 (→ netto €9.745) |
-| 2 | Verdi | €8.500 | 3 rate mar+apr+mag | ~25% | €7.778 (→ netto €6.375) |
-| 3 | Rossi | €22.000 | 4 rate mar+apr+apr+mag | ~10% | €24.156 (→ netto €19.800) |
-| 4 | Neri | €12.000 | 3 rate mar+apr+mag | ~20% | €11.712 (→ netto €9.600) |
-| 5 | Esposito | €6.000 | 2 rate apr+mag | ~30% | €5.124 (→ netto €4.200) |
+| Ordine | Squadra | Costo lordo | IVA |
+|--------|---------|------------|-----|
+| ORD-001 (Bianchi, bagno €15K) | Davide Fontana | €1.800 | 22% |
+| ORD-002 (Verdi, finestre €8.5K) | Davide Fontana | €1.200 | 22% |
+| ORD-003 (Rossi, tetto €22K) | Tecno Tetti Snc | €3.500 | 22% |
+| ORD-004 (Neri, fotovoltaico €12K) | Edil Service Srl | €2.000 | 22% |
+| ORD-005 (Esposito, pittura €6K) | Edil Service Srl | €800 | 22% |
 
-### 3. Per ogni ordine
-- **Order installments**: rate con date distribuite tra marzo, aprile e maggio 2026
-- **Order items**: 1-2 articoli per ordine con `purchase_price` (lordo) calibrato per raggiungere il margine target, assegnati ai fornitori esistenti
+### 3. Assegnare provvigioni venditori ai 5 ordini
 
-### 4. Strumento
-- Edge function temporanea con service role per creare i profili (auth.users necessari per i ruoli) **oppure** inserimenti diretti via tool insert dato che non c'è FK su auth.users
+| Ordine | Venditore | Tipo | Valore | Importo |
+|--------|-----------|------|--------|---------|
+| ORD-001 | Trevisi | % venduto | 5% | €750 |
+| ORD-002 | Bellomo | fisso | — | €400 |
+| ORD-003 | Trevisi | % venduto | 4% | €880 |
+| ORD-004 | Antal | % venduto | 6% | €720 |
+| ORD-005 | Bellomo | fisso | — | €250 |
 
-### Esecuzione
-Userò il tool di insert per eseguire le query SQL di inserimento in sequenza: profiles → user_roles → orders → order_installments → order_items → order_status_history.
+### File da modificare
+Nessun file di codice — solo inserimenti dati via tool SQL insert.
+
+### Sequenza
+1. INSERT 2 external_teams
+2. INSERT 5 order_external_teams
+3. INSERT 5 order_salespeople
 
