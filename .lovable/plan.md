@@ -1,43 +1,30 @@
 
 
-# Nascondere articoli degli ordini completati dal filtro "Da Lavorare"
+# Fix: filtro "Da Lavorare" troppo restrittivo
 
 ## Problema
-Attualmente il filtro "Da Lavorare" esclude solo gli articoli con status `installato`. Ma se un ordine ha raggiunto l'ultima fase del Progress Tracker (l'`order_status` con `position` più alta), i suoi articoli dovrebbero uscire automaticamente dalla vista attiva — anche se il singolo articolo non è marcato `installato`.
+Nel diff precedente, il blocco `else if (quickFilter === "urgent")` ha perso il suo `else if` ed e stato fuso dentro il blocco `active`. Risultato: il filtro "Da Lavorare" prima esclude installati/completati, poi applica ANCHE il filtro urgenza (solo articoli entro 7 giorni dalla posa e non in magazzino), eliminando quasi tutto.
 
 ## Soluzione
+Righe 170-176 di `useWarehouseData.ts`: aggiungere `} else if (quickFilter === "urgent") {` prima del secondo blocco filter, separando le due logiche.
 
-### 1. Aggiungere `current_status_id` alla query warehouse
-In `useWarehouseData.ts`, includere `current_status_id` nella select dell'ordine:
+**Prima** (bug):
 ```
-order:orders!inner(
-  id, order_code, expected_date, work_start_date,
-  warehouse_arrival_date, company_id, current_status_id,
-  customer:profiles!orders_customer_id_fkey(first_name, last_name)
-)
-```
-
-### 2. Fetch degli order_statuses della company
-Aggiungere una query per caricare gli `order_statuses` della company, per determinare quale sia l'ultima fase (quella con `position` massima).
-
-### 3. Aggiornare il filtro "active"
-Nel blocco `filteredItems`, il filtro `active` diventa:
-```
-// Escludi articoli installati O articoli il cui ordine è all'ultima fase
-filtered = filtered.filter(item => {
-  if (item.status === "installato") return false;
-  if (lastStatusId && item.order.current_status_id === lastStatusId) return false;
-  return true;
-});
+if (quickFilter === "active") {
+  filtered = filtered.filter(...); // esclude installati + ordini completati
+  filtered = filtered.filter(...); // BUG: filtra anche per urgenza
+} else if (quickFilter === "overdue") {
 ```
 
-### 4. Aggiornare il tipo `WarehouseItem`
-Aggiungere `current_status_id` all'interfaccia `order` in `src/types/warehouse.ts`.
+**Dopo** (fix):
+```
+if (quickFilter === "active") {
+  filtered = filtered.filter(...); // esclude installati + ordini completati
+} else if (quickFilter === "urgent") {
+  filtered = filtered.filter(...); // urgenza separata
+} else if (quickFilter === "overdue") {
+```
 
-### 5. Aggiornare `activeItemsCount`
-Usare la stessa logica per il conteggio nel badge.
-
-### File modificati
-- `src/types/warehouse.ts` — aggiungere `current_status_id` al tipo
-- `src/hooks/useWarehouseData.ts` — query + fetch statuses + logica filtro
+### File modificato
+- `src/hooks/useWarehouseData.ts` -- riga 169-170: aggiungere `} else if (quickFilter === "urgent") {`
 
