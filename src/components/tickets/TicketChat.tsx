@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Loader2, User, Paperclip, X, FileText, Download, Image as ImageIcon } from "lucide-react";
+import { Send, Loader2, User, Paperclip, X, FileText, Download, Image as ImageIcon, MessageSquare } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { formatDateTime } from "@/lib/formatters";
 import type { TicketMessage } from "@/types/tickets";
 
@@ -220,6 +221,13 @@ export function TicketChat({
         <CardTitle className="text-lg">Conversazione</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center py-12">
+            <MessageSquare className="h-12 w-12 text-muted-foreground/40 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">Nessun messaggio</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Scrivi il primo messaggio per iniziare la conversazione.</p>
+          </div>
+        )}
         {messages.map((msg) => {
           const isSelf = msg.sender_id === user?.id;
           const senderName = msg.sender
@@ -300,16 +308,23 @@ export function TicketChat({
               className="hidden"
               onChange={handleFileSelect}
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="flex-shrink-0 h-auto"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-            >
-              <Paperclip className="h-4 w-4" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="flex-shrink-0 h-auto"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Allega file (max 10MB)</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}

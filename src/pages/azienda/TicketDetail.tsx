@@ -209,136 +209,126 @@ export default function TicketDetail() {
       <div className="grid md:grid-cols-3 gap-6">
         {/* Sidebar */}
         <div className="space-y-4">
-          {/* Status */}
+          {/* Gestione Ticket: Stato + Priorità + Assegnato */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Stato</CardTitle>
+              <CardTitle className="text-sm font-medium">Gestione Ticket</CardTitle>
             </CardHeader>
-            <CardContent>
-              <Select
-                value={ticket.status}
-                onValueChange={(v) => updateTicketMutation.mutate({ status: v })}
-                disabled={updateTicketMutation.isPending}
-              >
-                <SelectTrigger>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
-                      {getTicketStatusLabel(ticket.status)}
-                    </Badge>
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="aperto">Aperto</SelectItem>
-                  <SelectItem value="in_lavorazione">In Lavorazione</SelectItem>
-                  <SelectItem value="risolto">Risolto</SelectItem>
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-
-          {/* Priority */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Priorità</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select
-                value={ticket.priority}
-                onValueChange={(v) => updateTicketMutation.mutate({ priority: v })}
-                disabled={updateTicketMutation.isPending}
-              >
-                <SelectTrigger>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
-                      {getTicketPriorityLabel(ticket.priority)}
-                    </Badge>
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bassa">Bassa</SelectItem>
-                  <SelectItem value="normale">Normale</SelectItem>
-                  <SelectItem value="alta">Alta</SelectItem>
-                  <SelectItem value="urgente">Urgente</SelectItem>
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-
-          {/* Assigned to */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Assegnato a</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select
-                value={ticket.assigned_to || "unassigned"}
-                onValueChange={(v) => updateTicketMutation.mutate({ assigned_to: v === "unassigned" ? null : v })}
-                disabled={updateTicketMutation.isPending}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Non assegnato" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">Non assegnato</SelectItem>
-                  {staffMembers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.first_name} {s.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-
-          {/* Customer */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Cliente</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">
-                  {ticket.customer?.first_name} {ticket.customer?.last_name}
-                </span>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Stato</label>
+                <Select
+                  value={ticket.status}
+                  onValueChange={(v) => updateTicketMutation.mutate({ status: v })}
+                  disabled={updateTicketMutation.isPending}
+                >
+                  <SelectTrigger>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
+                        {getTicketStatusLabel(ticket.status)}
+                      </Badge>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aperto">Aperto</SelectItem>
+                    <SelectItem value="in_lavorazione">In Lavorazione</SelectItem>
+                    <SelectItem value="risolto">Risolto</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <a href={`mailto:${ticket.customer?.email}`} className="text-sm text-primary hover:underline">
-                  {ticket.customer?.email}
-                </a>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Priorità</label>
+                <Select
+                  value={ticket.priority}
+                  onValueChange={(v) => updateTicketMutation.mutate({ priority: v })}
+                  disabled={updateTicketMutation.isPending}
+                >
+                  <SelectTrigger>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
+                        {getTicketPriorityLabel(ticket.priority)}
+                      </Badge>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bassa">Bassa</SelectItem>
+                    <SelectItem value="normale">Normale</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="urgente">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              {ticket.customer?.phone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <a href={`tel:${ticket.customer?.phone}`} className="text-sm text-primary hover:underline">
-                    {ticket.customer?.phone}
-                  </a>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Assegnato a</label>
+                <Select
+                  value={ticket.assigned_to || "unassigned"}
+                  onValueChange={(v) => updateTicketMutation.mutate({ assigned_to: v === "unassigned" ? null : v })}
+                  disabled={updateTicketMutation.isPending}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Non assegnato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Non assegnato</SelectItem>
+                    {staffMembers.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.first_name} {s.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Contesto: Cliente + Ordine */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Contesto</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Cliente</label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium text-sm">
+                      {ticket.customer?.first_name} {ticket.customer?.last_name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <a href={`mailto:${ticket.customer?.email}`} className="text-sm text-primary hover:underline">
+                      {ticket.customer?.email}
+                    </a>
+                  </div>
+                  {ticket.customer?.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <a href={`tel:${ticket.customer?.phone}`} className="text-sm text-primary hover:underline">
+                        {ticket.customer?.phone}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {ticket.order && (
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Ordine Collegato</label>
+                  <Link to={`/azienda/ordini/${ticket.order.id}`} className="flex items-start gap-2 text-primary hover:underline">
+                    <Package className="h-4 w-4 mt-0.5" />
+                    <span className="text-sm">
+                      {ticket.order.description.length > 50
+                        ? ticket.order.description.substring(0, 50) + "..."
+                        : ticket.order.description}
+                    </span>
+                  </Link>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Linked Order */}
-          {ticket.order && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Ordine Collegato</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Link to={`/azienda/ordini/${ticket.order.id}`} className="flex items-start gap-2 text-primary hover:underline">
-                  <Package className="h-4 w-4 mt-0.5" />
-                  <span className="text-sm">
-                    {ticket.order.description.length > 50
-                      ? ticket.order.description.substring(0, 50) + "..."
-                      : ticket.order.description}
-                  </span>
-                </Link>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Internal Notes */}
+          {/* Note Interne */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Note Interne</CardTitle>
