@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -36,17 +36,17 @@ interface PendingFilesUploadProps {
 
 export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || []);
+  const validateAndAddFiles = useCallback((selected: File[]) => {
     const valid: PendingFile[] = [];
-
     const remaining = MAX_FILES_PER_ORDER - files.length;
+
     if (remaining <= 0) {
       toast.error("Limite file raggiunto", {
         description: `Massimo ${MAX_FILES_PER_ORDER} file per ordine.`,
       });
-      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
@@ -75,8 +75,40 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
     if (valid.length > 0) {
       onFilesChange([...files, ...valid]);
     }
+  }, [files, onFilesChange]);
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files || []);
+    validateAndAddFiles(selected);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.items?.length) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length > 0) validateAndAddFiles(droppedFiles);
   };
 
   const removeFile = (index: number) => {
@@ -91,7 +123,13 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
   };
 
   return (
-    <Card>
+    <Card
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      className={`relative transition-colors ${isDragging ? "border-dashed border-2 border-primary/50 bg-primary/5" : ""}`}
+    >
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <Paperclip className="h-5 w-5" />
@@ -119,9 +157,17 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
         </div>
       </CardHeader>
       <CardContent>
+        {/* Drag overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-primary/5 border-2 border-dashed border-primary/50 pointer-events-none">
+            <Upload className="h-10 w-10 text-primary/60 mb-2" />
+            <p className="text-sm font-medium text-primary/70">Trascina i file qui</p>
+          </div>
+        )}
+
         {files.length === 0 ? (
           <p className="text-muted-foreground text-sm text-center py-4">
-            Nessun documento selezionato. I file verranno caricati alla creazione dell'ordine.
+            Nessun documento selezionato. Carica o trascina i file qui.
           </p>
         ) : (
           <div className="space-y-2">
