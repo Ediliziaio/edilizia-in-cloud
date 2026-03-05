@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Paperclip, Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import { ALLOWED_MIME_TYPES, MAX_FILES_PER_ORDER, isValidMimeType } from "./OrderAttachments";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_FORMATS = ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif";
@@ -33,14 +34,35 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
     const selected = Array.from(e.target.files || []);
     const valid: File[] = [];
 
+    const remaining = MAX_FILES_PER_ORDER - files.length;
+    if (remaining <= 0) {
+      toast.error("Limite file raggiunto", {
+        description: `Massimo ${MAX_FILES_PER_ORDER} file per ordine.`,
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     for (const file of selected) {
+      if (valid.length >= remaining) {
+        toast.warning("Limite file", {
+          description: `Solo ${remaining} file possono essere ancora aggiunti.`,
+        });
+        break;
+      }
+      if (!isValidMimeType(file.type)) {
+        toast.error("Tipo file non consentito", {
+          description: `"${file.name}" non è un formato valido. Supportati: PDF, Word, Excel, immagini.`,
+        });
+        continue;
+      }
       if (file.size > MAX_FILE_SIZE) {
         toast.error("File troppo grande", {
           description: `"${file.name}" supera il limite di 10MB.`,
         });
-      } else {
-        valid.push(file);
+        continue;
       }
+      valid.push(file);
     }
 
     if (valid.length > 0) {
@@ -75,6 +97,7 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
             size="sm"
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
+            disabled={files.length >= MAX_FILES_PER_ORDER}
           >
             <Upload className="h-4 w-4 mr-2" />
             Carica File
@@ -114,7 +137,7 @@ export function PendingFilesUpload({ files, onFilesChange }: PendingFilesUploadP
               </div>
             ))}
             <p className="text-xs text-muted-foreground text-center pt-1">
-              Formati: PDF, Word, Excel, immagini. Max 10MB per file.
+              Formati: PDF, Word, Excel, immagini. Max 10MB per file. ({files.length}/{MAX_FILES_PER_ORDER})
             </p>
           </div>
         )}

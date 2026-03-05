@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,11 +38,29 @@ import {
   Loader2 
 } from "lucide-react";
 
+// Shared MIME whitelist
+export const ALLOWED_MIME_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];
+
+export const MAX_FILES_PER_ORDER = 10;
+
+export function isValidMimeType(type: string): boolean {
+  return ALLOWED_MIME_TYPES.includes(type);
+}
+
 interface OrderAttachment {
   id: string;
   order_id: string;
   file_name: string;
-  file_url: string;
+  file_url: string; // Now stores relative path
   file_type: string;
   file_size: number;
   visible_to_customer: boolean;
@@ -66,6 +84,18 @@ function getFileIcon(fileType: string) {
   if (fileType.includes("word") || fileType.includes("document")) return "📝";
   if (fileType.includes("sheet") || fileType.includes("excel")) return "📊";
   return "📎";
+}
+
+/** Generate a signed URL (1h) from a relative file path */
+async function getSignedUrl(filePath: string): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from("order-attachments")
+    .createSignedUrl(filePath, 3600);
+  if (error) {
+    console.error("Signed URL error:", error);
+    return null;
+  }
+  return data.signedUrl;
 }
 
 export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsProps) {
@@ -122,10 +152,9 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
   // Delete attachment mutation
   const deleteAttachmentMutation = useMutation({
     mutationFn: async (attachment: OrderAttachment) => {
-      // Extract file path from URL
-      const urlParts = attachment.file_url.split("/order-attachments/");
-      if (urlParts.length > 1) {
-        const filePath = urlParts[1];
+      // file_url now stores the relative path
+      const filePath = attachment.file_url;
+      if (filePath) {
         await supabase.storage.from("order-attachments").remove([filePath]);
       }
 
@@ -157,11 +186,31 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
+    // Validate MIME type
+    if (!isValidMimeType(file.type)) {
+      toast({
+        title: "Tipo file non consentito",
+        description: "Formati supportati: PDF, Word, Excel, immagini (JPEG, PNG, GIF).",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       toast({
         title: "File troppo grande",
         description: "La dimensione massima consentita è 10MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate max files per order
+    if (attachments.length >= MAX_FILES_PER_ORDER) {
+      toast({
+        title: "Limite file raggiunto",
+        description: `Massimo ${MAX_FILES_PER_ORDER} file per ordine.`,
         variant: "destructive",
       });
       return;
@@ -182,18 +231,13 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("order-attachments")
-        .getPublicUrl(filePath);
-
-      // Save to database
+      // Save relative path to database (not public URL)
       const { error: dbError } = await supabase
         .from("order_attachments")
         .insert({
           order_id: orderId,
           file_name: file.name,
-          file_url: publicUrl,
+          file_url: filePath, // relative path, not public URL
           file_type: file.type,
           file_size: file.size,
           uploaded_by: user.id,
@@ -254,7 +298,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
         {editable && (
           <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline">
+              <Button size="sm" variant="outline" disabled={attachments.length >= MAX_FILES_PER_ORDER}>
                 <Upload className="h-4 w-4 mr-2" />
                 Carica File
               </Button>
@@ -294,7 +338,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground mt-2 text-center">
-                  Formati supportati: PDF, Word, Excel, immagini. Max 10MB.
+                  Formati supportati: PDF, Word, Excel, immagini. Max 10MB. ({attachments.length}/{MAX_FILES_PER_ORDER} file)
                 </p>
               </div>
               <DialogFooter>
@@ -313,7 +357,6 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
           </p>
         ) : (
           <>
-            {/* Visible to Customer Section */}
             {visibleAttachments.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
@@ -336,7 +379,6 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
               </div>
             )}
 
-            {/* Internal Only Section */}
             {internalAttachments.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
@@ -378,19 +420,35 @@ function AttachmentItem({
   onToggleVisibility,
   onDelete,
 }: AttachmentItemProps) {
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loadingUrl, setLoadingUrl] = useState(false);
+
+  const handleDownload = async () => {
+    if (signedUrl) {
+      window.open(signedUrl, "_blank");
+      return;
+    }
+    setLoadingUrl(true);
+    const url = await getSignedUrl(attachment.file_url);
+    setLoadingUrl(false);
+    if (url) {
+      setSignedUrl(url);
+      window.open(url, "_blank");
+    }
+  };
+
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
       <span className="text-lg">{getFileIcon(attachment.file_type)}</span>
       
       <div className="flex-1 min-w-0">
-        <a
-          href={attachment.file_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm font-medium hover:underline truncate block"
+        <button
+          onClick={handleDownload}
+          className="text-sm font-medium hover:underline truncate block text-left"
+          disabled={loadingUrl}
         >
           {attachment.file_name}
-        </a>
+        </button>
         <span className="text-xs text-muted-foreground">
           {formatFileSize(attachment.file_size)}
         </span>
@@ -452,10 +510,18 @@ function AttachmentItem({
           </>
         )}
 
-        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-          <a href={attachment.file_url} target="_blank" rel="noopener noreferrer">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={handleDownload}
+          disabled={loadingUrl}
+        >
+          {loadingUrl ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
             <Download className="h-4 w-4" />
-          </a>
+          )}
         </Button>
       </div>
     </div>
@@ -480,7 +546,6 @@ export function CustomerOrderAttachments({ orderId }: { orderId: string }) {
     enabled: !!orderId,
   });
 
-  // Don't show the card if there are no documents
   if (isLoading || attachments.length === 0) {
     return null;
   }
@@ -496,31 +561,47 @@ export function CustomerOrderAttachments({ orderId }: { orderId: string }) {
       <CardContent>
         <div className="space-y-2">
           {attachments.map((attachment) => (
-            <div
-              key={attachment.id}
-              className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30"
-            >
-              <span className="text-lg">{getFileIcon(attachment.file_type)}</span>
-              
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-medium truncate block">
-                  {attachment.file_name}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {formatFileSize(attachment.file_size)}
-                </span>
-              </div>
-
-              <Button variant="outline" size="sm" asChild>
-                <a href={attachment.file_url} target="_blank" rel="noopener noreferrer">
-                  <Download className="h-4 w-4 mr-2" />
-                  Scarica
-                </a>
-              </Button>
-            </div>
+            <CustomerAttachmentItem key={attachment.id} attachment={attachment} />
           ))}
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function CustomerAttachmentItem({ attachment }: { attachment: OrderAttachment }) {
+  const [loadingUrl, setLoadingUrl] = useState(false);
+
+  const handleDownload = async () => {
+    setLoadingUrl(true);
+    const url = await getSignedUrl(attachment.file_url);
+    setLoadingUrl(false);
+    if (url) {
+      window.open(url, "_blank");
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+      <span className="text-lg">{getFileIcon(attachment.file_type)}</span>
+      
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium truncate block">
+          {attachment.file_name}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {formatFileSize(attachment.file_size)}
+        </span>
+      </div>
+
+      <Button variant="outline" size="sm" onClick={handleDownload} disabled={loadingUrl}>
+        {loadingUrl ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Download className="h-4 w-4 mr-2" />
+        )}
+        Scarica
+      </Button>
+    </div>
   );
 }
