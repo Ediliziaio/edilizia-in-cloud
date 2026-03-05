@@ -1,11 +1,11 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Paperclip, Upload, FileText, Image, Download, Loader2 } from "lucide-react";
+import { Upload, FileText, Download, Loader2 } from "lucide-react";
 
 interface TicketAttachmentsProps {
   ticketId: string;
@@ -38,9 +38,30 @@ function isImage(url: string): boolean {
 
 export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.types.includes("Files")) setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) setIsDragging(false);
+  };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) uploadMutation.mutate(files);
+  };
 
   const { data: attachments = [], isLoading } = useQuery({
     queryKey: ["ticket-attachments", ticketId],
@@ -107,7 +128,19 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
   };
 
   return (
-    <Card>
+    <Card
+      className="relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-lg backdrop-blur-sm">
+          <Upload className="h-8 w-8 text-primary mb-2" />
+          <p className="text-sm font-medium text-primary">Rilascia per caricare</p>
+        </div>
+      )}
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium">Allegati</CardTitle>
