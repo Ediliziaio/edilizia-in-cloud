@@ -679,87 +679,6 @@ export default function OrderDetail() {
 
           {/* Order Documents */}
           <OrderAttachments orderId={id!} editable={true} />
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Stato Ordine
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <OrderProgressTracker
-                statuses={statuses}
-                currentStatusId={order.current_status_id}
-                statusHistory={progressHistory}
-                onStatusChange={handleStatusChange}
-                interactive={true}
-                size="md"
-              />
-            </CardContent>
-          </Card>
-
-          {/* Status History */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Storico Stati</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {statusHistory.length === 0 ? (
-                <p className="text-muted-foreground">Nessuno storico disponibile</p>
-              ) : (
-                <div className="space-y-4">
-                  {statusHistory.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: entry.status.color }}
-                        />
-                        <span className="font-medium">{entry.status.name}</span>
-                      </div>
-                      <span className="text-sm text-muted-foreground">
-                        {formatDateTime(entry.changed_at)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column - Sidebar */}
-        <div className="space-y-6">
-          {/* Customer Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Cliente
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {order.customer ? (
-                <>
-                  <p className="font-medium">
-                    {order.customer.first_name} {order.customer.last_name}
-                  </p>
-                  <p className="text-sm text-muted-foreground">{order.customer.email}</p>
-                  {order.customer.phone && (
-                    <p className="text-sm text-muted-foreground">{order.customer.phone}</p>
-                  )}
-                  {order.customer.address && (
-                    <p className="text-sm text-muted-foreground">{order.customer.address}</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-muted-foreground">Cliente non disponibile</p>
-              )}
-            </CardContent>
-          </Card>
 
           {/* Financial Summary */}
           <FinancialSummaryReadOnly
@@ -812,6 +731,89 @@ export default function OrderDetail() {
 
           {/* Order Errors */}
           <OrderErrors orderId={id!} />
+        </div>
+
+        {/* Right Column - Sidebar */}
+        <div className="space-y-6">
+          {/* Customer Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {order.customer ? (
+                <>
+                  <p className="font-medium">
+                    {order.customer.first_name} {order.customer.last_name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{order.customer.email}</p>
+                  {order.customer.phone && (
+                    <p className="text-sm text-muted-foreground">{order.customer.phone}</p>
+                  )}
+                  {order.customer.address && (
+                    <p className="text-sm text-muted-foreground">{order.customer.address}</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-muted-foreground">Cliente non disponibile</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Order Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Stato Ordine
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <OrderProgressTracker
+                statuses={statuses}
+                currentStatusId={order.current_status_id}
+                statusHistory={progressHistory}
+                onStatusChange={handleStatusChange}
+                interactive={true}
+                size="sm"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Status History */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Storico Stati</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {statusHistory.length === 0 ? (
+                <p className="text-muted-foreground">Nessuno storico disponibile</p>
+              ) : (
+                <div className="space-y-4">
+                  {statusHistory.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: entry.status.color }}
+                        />
+                        <span className="font-medium">{entry.status.name}</span>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {formatDateTime(entry.changed_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Expected Date */}
           {order.expected_date && (
