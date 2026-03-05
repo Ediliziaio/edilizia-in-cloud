@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN salesperson_id UUID REFERENCES public.salespeople(id) ON DELETE SET NULL;

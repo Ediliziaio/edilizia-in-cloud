@@ -27,6 +27,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { getInitials, getAvatarColor } from "@/lib/contactUtils";
+import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 
 export default function CompanyCustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +43,7 @@ export default function CompanyCustomerDetail() {
   const [address, setAddress] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [salespersonId, setSalespersonId] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -50,7 +52,7 @@ export default function CompanyCustomerDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone, address, fiscal_code, site_address, notes, company_id, created_at")
+        .select("id, first_name, last_name, email, phone, address, fiscal_code, site_address, notes, company_id, created_at, salesperson_id")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -85,6 +87,7 @@ export default function CompanyCustomerDetail() {
       setAddress(customer.address || "");
       setSiteAddress(customer.site_address || "");
       setNotes(customer.notes || "");
+      setSalespersonId((customer as any).salesperson_id || "");
     }
   }, [customer]);
 
@@ -108,6 +111,7 @@ export default function CompanyCustomerDetail() {
           address: address.trim() || null,
           site_address: siteAddress.trim() || null,
           notes: notes.trim() || null,
+          salesperson_id: salespersonId || null,
         })
         .eq("id", id!);
 
@@ -291,6 +295,14 @@ export default function CompanyCustomerDetail() {
                   <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note interne sul cliente..." maxLength={500} rows={3} />
                 </div>
               </div>
+
+              <Separator />
+
+              <SalespersonSelect
+                value={salespersonId}
+                onChange={(val) => setSalespersonId(val)}
+                disabled={isSaving}
+              />
 
               <div className="flex justify-end gap-4 pt-4">
                 <Button type="button" variant="outline" onClick={() => navigate("/azienda/clienti")}>
