@@ -28,7 +28,7 @@ export default function Calendar() {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { isGoogleConnected, pullBusySlots, reconcileSync, syncMode } = useGoogleCalendarSync();
-  const [view, setView] = useState<CalendarViewType>(isMobile ? "month" : "gantt");
+  const [view, setView] = useState<CalendarViewType>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [customerFilter, setCustomerFilter] = useState<string>("all");
