@@ -90,14 +90,24 @@ export default function TicketDetail() {
     staleTime: 30 * 1000,
   });
 
-  // Staff members for assignment dropdown
+  // Staff members for assignment dropdown (only staff roles, not customers)
   const { data: staffMembers = [] } = useQuery({
     queryKey: ["company-staff-members", effectiveCompany?.id],
     queryFn: async () => {
+      // Get user IDs with staff roles
+      const { data: roleData, error: roleErr } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["company_admin", "company_staff"]);
+      if (roleErr) throw roleErr;
+      const staffIds = (roleData || []).map((r) => r.user_id);
+      if (staffIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from("profiles")
         .select("id, first_name, last_name")
-        .eq("company_id", effectiveCompany!.id);
+        .eq("company_id", effectiveCompany!.id)
+        .in("id", staffIds);
       if (error) throw error;
       return data;
     },
@@ -325,6 +335,7 @@ export default function TicketDetail() {
                 onChange={(e) => setInternalNotes(e.target.value)}
                 placeholder="Note visibili solo allo staff..."
                 rows={4}
+                maxLength={1000}
                 className="resize-none text-sm"
               />
               <Button

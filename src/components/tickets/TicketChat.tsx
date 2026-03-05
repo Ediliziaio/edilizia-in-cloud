@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,6 +61,8 @@ export function TicketChat({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const stableInvalidateKeys = useMemo(() => invalidateKeys, [JSON.stringify(invalidateKeys)]);
+
   useEffect(() => {
     const channel = supabase
       .channel(`ticket-messages-${ticketId}`)
@@ -73,7 +75,7 @@ export function TicketChat({
           filter: `ticket_id=eq.${ticketId}`,
         },
         () => {
-          invalidateKeys.forEach((key) =>
+          stableInvalidateKeys.forEach((key) =>
             queryClient.invalidateQueries({ queryKey: key })
           );
         }
@@ -83,7 +85,7 @@ export function TicketChat({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [ticketId, queryClient, invalidateKeys]);
+  }, [ticketId, queryClient, stableInvalidateKeys]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -102,23 +104,17 @@ export function TicketChat({
   };
 
   const uploadFile = async (file: File): Promise<string | null> => {
-    const ext = file.name.split(".").pop() || "bin";
     const path = `${ticketId}/${crypto.randomUUID()}-${file.name}`;
     const { error } = await supabase.storage
       .from("ticket-attachments")
       .upload(path, file, { contentType: file.type });
     if (error) throw error;
 
-    const { data } = supabase.storage
-      .from("ticket-attachments")
-      .getPublicUrl(path);
-    // For private buckets we use createSignedUrl instead
     const { data: signedData, error: signedErr } = await supabase.storage
       .from("ticket-attachments")
-      .createSignedUrl(path, 60 * 60 * 24 * 365); // 1 year
+      .createSignedUrl(path, 60 * 60 * 24); // 24 hours
 
     if (signedErr || !signedData?.signedUrl) {
-      // Fallback to path-based reference
       return path;
     }
     return signedData.signedUrl;
@@ -320,6 +316,7 @@ export function TicketChat({
               onKeyDown={handleKeyDown}
               placeholder="Scrivi un messaggio... (Enter per inviare, Shift+Enter per a capo)"
               rows={2}
+              maxLength={2000}
               className="resize-none"
             />
             <Button
