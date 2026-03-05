@@ -132,13 +132,15 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
+      if (!companyId) throw new Error("Missing company_id");
       const { error } = await supabase
         .from("tasks")
         .update({
           status: completed ? "completata" : "da_fare",
           completed_at: completed ? new Date().toISOString() : null,
         })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {

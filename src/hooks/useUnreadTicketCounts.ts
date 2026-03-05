@@ -20,7 +20,7 @@ export function useUnreadTicketCounts(): UnreadCounts {
     if (!companyId || !userId) return;
     const batch = ++fetchRef.current;
 
-    // Get all ticket IDs for this company
+    // 1. Get all company tickets with their last_message_at
     const { data: tickets, error: ticketsErr } = await supabase
       .from("tickets")
       .select("id, last_message_at")
@@ -28,7 +28,7 @@ export function useUnreadTicketCounts(): UnreadCounts {
 
     if (ticketsErr || !tickets || batch !== fetchRef.current) return;
 
-    // Get user's read statuses
+    // 2. Get user's read statuses in a single query
     const { data: readStatuses } = await supabase
       .from("ticket_read_status")
       .select("ticket_id, last_read_at")
@@ -37,7 +37,7 @@ export function useUnreadTicketCounts(): UnreadCounts {
     const readMap = new Map<string, string>();
     readStatuses?.forEach((rs) => readMap.set(rs.ticket_id, rs.last_read_at));
 
-    // For tickets with messages after last_read, count unread
+    // 3. Filter tickets that potentially have unread messages
     const ticketsToCheck = tickets.filter((t) => {
       if (!t.last_message_at) return false;
       const lastRead = readMap.get(t.id);
@@ -49,20 +49,29 @@ export function useUnreadTicketCounts(): UnreadCounts {
       return;
     }
 
-    const counts: Record<string, number> = {};
+    // 4. Single aggregated query: count unread messages per ticket
+    // We fetch all messages for candidate tickets after the earliest last_read_at, then count client-side
+    const ticketIds = ticketsToCheck.map((t) => t.id);
+    const earliestRead = ticketsToCheck.reduce((min, t) => {
+      const lr = readMap.get(t.id) || new Date(0).toISOString();
+      return lr < min ? lr : min;
+    }, new Date().toISOString());
 
-    // Batch count unread messages per ticket
-    await Promise.all(
-      ticketsToCheck.map(async (t) => {
-        const lastRead = readMap.get(t.id) || new Date(0).toISOString();
-        const { count } = await supabase
-          .from("ticket_messages")
-          .select("*", { count: "exact", head: true })
-          .eq("ticket_id", t.id)
-          .gt("created_at", lastRead);
-        if (count && count > 0) counts[t.id] = count;
-      })
-    );
+    const { data: msgs, error: msgsErr } = await supabase
+      .from("ticket_messages")
+      .select("ticket_id, created_at")
+      .in("ticket_id", ticketIds)
+      .gt("created_at", earliestRead);
+
+    if (msgsErr || batch !== fetchRef.current) return;
+
+    const counts: Record<string, number> = {};
+    (msgs || []).forEach((m) => {
+      const lastRead = readMap.get(m.ticket_id) || new Date(0).toISOString();
+      if (m.created_at > lastRead) {
+        counts[m.ticket_id] = (counts[m.ticket_id] || 0) + 1;
+      }
+    });
 
     if (batch === fetchRef.current) setUnreadByTicket(counts);
   }, [companyId, userId]);
@@ -71,7 +80,7 @@ export function useUnreadTicketCounts(): UnreadCounts {
     fetchCounts();
   }, [fetchCounts]);
 
-  // Realtime: listen for new ticket_messages on company tickets
+  // Realtime: listen for new ticket_messages
   useEffect(() => {
     if (!companyId) return;
 
@@ -86,7 +95,6 @@ export function useUnreadTicketCounts(): UnreadCounts {
         },
         (payload) => {
           const msg = payload.new as { ticket_id: string; sender_id: string };
-          // If the sender is NOT the current user, increment count
           if (msg.sender_id !== userId) {
             setUnreadByTicket((prev) => ({
               ...prev,
