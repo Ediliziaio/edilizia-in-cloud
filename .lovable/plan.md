@@ -1,32 +1,43 @@
 
 
-# Filtro "Da Lavorare" come default nel Magazzino
+# Nascondere articoli degli ordini completati dal filtro "Da Lavorare"
 
 ## Problema
-Quando apri il magazzino vedi TUTTI gli articoli (anche installati e completati). Con 1000 ordini storici, i 10 da completare si perdono nel rumore.
+Attualmente il filtro "Da Lavorare" esclude solo gli articoli con status `installato`. Ma se un ordine ha raggiunto l'ultima fase del Progress Tracker (l'`order_status` con `position` più alta), i suoi articoli dovrebbero uscire automaticamente dalla vista attiva — anche se il singolo articolo non è marcato `installato`.
 
 ## Soluzione
 
-### 1. Nuovo QuickFilter "active" (Da Lavorare)
-- Aggiungere `"active"` al tipo `QuickFilter` in `useWarehouseData.ts`
-- Filtra escludendo `installato` — mostra solo `da_ordinare`, `ordinato`, `in_magazzino`
-- **Impostarlo come default** invece di `"all"`
-
-### 2. Logica filtro nel hook
-Nel blocco `filteredItems` aggiungere:
+### 1. Aggiungere `current_status_id` alla query warehouse
+In `useWarehouseData.ts`, includere `current_status_id` nella select dell'ordine:
 ```
-if (quickFilter === "active") {
-  filtered = filtered.filter(item => item.status !== "installato");
-}
+order:orders!inner(
+  id, order_code, expected_date, work_start_date,
+  warehouse_arrival_date, company_id, current_status_id,
+  customer:profiles!orders_customer_id_fkey(first_name, last_name)
+)
 ```
 
-### 3. Bottone UI nella toolbar
-Aggiungere un bottone "Da Lavorare" (con icona) come primo bottone dopo "Tutti", con variant `secondary` quando attivo. Sarà selezionato di default all'apertura.
+### 2. Fetch degli order_statuses della company
+Aggiungere una query per caricare gli `order_statuses` della company, per determinare quale sia l'ultima fase (quella con `position` massima).
 
-### 4. Conteggio nel bottone
-Mostrare il count degli articoli attivi (non installati) come badge, così l'utente sa subito quanti ne ha da gestire.
+### 3. Aggiornare il filtro "active"
+Nel blocco `filteredItems`, il filtro `active` diventa:
+```
+// Escludi articoli installati O articoli il cui ordine è all'ultima fase
+filtered = filtered.filter(item => {
+  if (item.status === "installato") return false;
+  if (lastStatusId && item.order.current_status_id === lastStatusId) return false;
+  return true;
+});
+```
+
+### 4. Aggiornare il tipo `WarehouseItem`
+Aggiungere `current_status_id` all'interfaccia `order` in `src/types/warehouse.ts`.
+
+### 5. Aggiornare `activeItemsCount`
+Usare la stessa logica per il conteggio nel badge.
 
 ### File modificati
-- `src/hooks/useWarehouseData.ts` — tipo QuickFilter + default + logica filtro
-- `src/pages/azienda/Warehouse.tsx` — bottone "Da Lavorare" nella toolbar
+- `src/types/warehouse.ts` — aggiungere `current_status_id` al tipo
+- `src/hooks/useWarehouseData.ts` — query + fetch statuses + logica filtro
 
