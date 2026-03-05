@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Paperclip, Upload, X, FileText, Image, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,6 +82,20 @@ function getFileIcon(fileType: string) {
   return <FileText className="h-4 w-4" />;
 }
 
+function ImageThumbnail({ fileUrl, fileName }: { fileUrl: string; fileName: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    getSignedDownloadUrl(fileUrl).then(setSrc);
+  }, [fileUrl]);
+  return src ? (
+    <img src={src} alt={fileName} className="h-10 w-10 object-cover rounded" />
+  ) : (
+    <div className="h-10 w-10 flex items-center justify-center bg-muted rounded">
+      <Image className="h-5 w-5" />
+    </div>
+  );
+}
+
 export function OrderItemAttachments({
   itemId,
   itemName,
@@ -114,7 +128,7 @@ export function OrderItemAttachments({
     if (file.size > MAX_FILE_SIZE) {
       toast({
         title: "File troppo grande",
-        description: "La dimensione massima è 5MB",
+        description: "La dimensione massima è 10MB",
         variant: "destructive",
       });
       return;
@@ -289,7 +303,7 @@ export function OrderItemAttachments({
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground mt-2">
-                  JPG, PNG, PDF, DOC - Max 5MB
+                  JPG, PNG, PDF, DOC - Max 10MB
                 </p>
               </div>
             )}
@@ -311,11 +325,7 @@ export function OrderItemAttachments({
                       className="flex items-center gap-3 flex-1 min-w-0 text-left hover:text-primary transition-colors"
                     >
                       {att.file_type.startsWith("image/") ? (
-                        <img
-                          src={att.file_url}
-                          alt={att.file_name}
-                          className="h-10 w-10 object-cover rounded"
-                        />
+                        <ImageThumbnail fileUrl={att.file_url} fileName={att.file_name} />
                       ) : (
                         <div className="h-10 w-10 flex items-center justify-center bg-muted rounded">
                           <FileText className="h-5 w-5" />
