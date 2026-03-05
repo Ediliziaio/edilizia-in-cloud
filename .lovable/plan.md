@@ -1,58 +1,41 @@
 
 
-# Sezioni/Zone del Magazzino
+# Selezione multipla batch + Mappa visuale magazzino
 
-## Obiettivo
-Permettere alle aziende di organizzare il proprio magazzino in sezioni/zone (es. "Scaffale A", "Area Elettrica", "Piano Interrato") e assegnare ogni articolo di giacenza a una sezione specifica, così da sapere esattamente dove trovare ogni materiale.
+## Verifiche funzionali
+Le sezioni del magazzino (CRUD, assegnazione articolo, filtro per zona) sono già implementate correttamente nel codice. Il warning in console riguarda un problema di `forwardRef` su `WarehouseListView`, non correlato alle sezioni.
 
-## Modifiche
+## Nuove funzionalità
 
-### 1. Database — Nuova tabella `warehouse_sections`
+### 1. Selezione multipla con azione batch "Sposta in zona"
 
-```sql
-CREATE TABLE public.warehouse_sections (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  description text,
-  color text DEFAULT '#6b7280',
-  position int DEFAULT 0,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(company_id, name)
-);
+**Modifica `WarehouseStockTab.tsx`**:
+- Aggiungere stato `selectedIds: Set<string>` per tracciare gli articoli selezionati
+- Aggiungere checkbox nella prima colonna di ogni riga + checkbox "seleziona tutti" nell'header
+- Mostrare una barra azioni batch quando `selectedIds.size > 0` con:
+  - Conteggio selezionati
+  - Select per scegliere la zona di destinazione
+  - Bottone "Sposta" che esegue un update batch `warehouse_stock.section_id` per tutti gli ID selezionati
+  - Bottone "Deseleziona tutto"
+- Mutation batch per aggiornare `section_id` su tutti gli articoli selezionati in una volta
 
-ALTER TABLE public.warehouse_sections ENABLE ROW LEVEL SECURITY;
+### 2. Mappa visuale del magazzino
 
--- RLS: solo utenti della stessa azienda
-CREATE POLICY "Users can manage own company sections"
-  ON public.warehouse_sections FOR ALL TO authenticated
-  USING (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()))
-  WITH CHECK (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
+**Nuovo componente `WarehouseMapView.tsx`**:
+- Griglia di card, una per ogni sezione + una card "Senza zona"
+- Ogni card mostra:
+  - Colore della sezione (bordo sinistro o sfondo leggero)
+  - Nome e descrizione della sezione
+  - Conteggio articoli assegnati
+  - Quantità totale e valore totale degli articoli nella zona
+  - Indicatore articoli sotto soglia minima (se presenti)
+- Cliccando su una card si attiva il filtro per quella sezione nella tabella sottostante
 
--- Aggiungere colonna section_id a warehouse_stock
-ALTER TABLE public.warehouse_stock
-  ADD COLUMN section_id uuid REFERENCES public.warehouse_sections(id) ON SET NULL;
-```
+**Integrazione in `WarehouseStockTab.tsx`**:
+- Renderizzare `WarehouseMapView` sopra la tabella (dopo `WarehouseSectionsManager`)
+- Passare `stockItems`, `sections`, callback `onFilterSection` che setta `sectionFilter`
 
-### 2. Gestione Sezioni — Nuovo componente `WarehouseSectionsManager`
-
-Una sezione nell'interfaccia magazzino (tab o pannello laterale nella tab "Giacenze") per:
-- Creare/modificare/eliminare sezioni con nome, descrizione e colore
-- Riordinare le sezioni (drag o frecce)
-- Vedere quanti articoli ci sono in ogni sezione
-
-### 3. Integrazione con articoli di giacenza
-
-- **`StockItemDialog`**: aggiungere un selettore "Sezione" (opzionale) per assegnare l'articolo a una zona
-- **`WarehouseStockTab`**: 
-  - Aggiungere colonna "Sezione" nella tabella con badge colorato
-  - Aggiungere filtro per sezione nella barra di ricerca
-  - Opzione di raggruppamento per sezione
-
-### 4. File da creare/modificare
-
-- **Creare** `src/components/warehouse/WarehouseSectionsManager.tsx` — CRUD sezioni
-- **Modificare** `src/components/warehouse/WarehouseStockTab.tsx` — colonna sezione, filtro, raggruppamento
-- **Modificare** `src/components/warehouse/StockItemDialog.tsx` — selettore sezione
-- **Modificare** `src/types/warehouse.ts` — tipo `StockItem` con `section_id`
+## File da modificare/creare
+- **Creare** `src/components/warehouse/WarehouseMapView.tsx`
+- **Modificare** `src/components/warehouse/WarehouseStockTab.tsx` — checkbox, batch action bar, mappa
 
