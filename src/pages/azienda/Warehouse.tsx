@@ -357,7 +357,9 @@ export default function Warehouse() {
             <WarehouseKanbanView
               items={filteredItems}
               onStatusChange={handleStatusChange}
+              onUpdateNotes={handleUpdateNotes}
               getSupplierName={getSupplierName}
+              isUpdating={isUpdating}
             />
           )}
 
