@@ -1,20 +1,23 @@
 
 
-# Separare appuntamenti Lavori da Marketing nel Calendario
+# Nascondere campi Marketing nel dialog appuntamenti del Calendario Lavori
 
 ## Problema
-La query appuntamenti in `Calendar.tsx` carica **tutti** gli appuntamenti senza filtro. Gli appuntamenti marketing hanno `calendar_id IS NOT NULL`, quelli di lavoro hanno `calendar_id IS NULL`. Attualmente si mescolano.
+Il dialog `AppointmentDialog` è condiviso tra il Calendario Lavori e il Marketing. Quando viene aperto dal Calendario Lavori, mostra campi irrilevanti: **Calendario** (marketing calendars) e **Contatto CRM** — che appartengono esclusivamente al contesto marketing/vendite.
 
 ## Intervento
 
-**File: `src/pages/azienda/Calendar.tsx`** — aggiungere un filtro alla query appuntamenti:
+**File: `src/components/appointments/AppointmentDialog.tsx`**
 
-```tsx
-.from("appointments")
-.select(...)
-.eq("company_id", effectiveCompany.id)
-.is("calendar_id", null)   // ← esclude gli appuntamenti marketing
-```
+Aggiungere una prop `hideMarketingFields?: boolean` (default `false`). Quando `true`:
+- Nasconde il selettore **Calendario** (marketing_calendars)
+- Nasconde il selettore **Contatto CRM**
+- Forza `calendar_id = null` e `contact_id = null` nel payload di salvataggio
+- Il campo **Stato** occupa l'intera larghezza quando il Calendario è nascosto
 
-Un solo filtro, una sola riga. Il Marketing Calendar già filtra con `.not("calendar_id", "is", null)`, quindi la separazione sarà simmetrica.
+**File: `src/pages/azienda/Calendar.tsx`**
+
+Passare `hideMarketingFields={true}` all'`AppointmentDialog` già presente.
+
+Nessuna modifica al database. Un solo prop aggiuntivo risolve la separazione visiva.
 
