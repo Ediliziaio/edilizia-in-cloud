@@ -1,17 +1,32 @@
 
 
-# Fix Crash Magazzino — Status "consegnato" non riconosciuto
+# Filtro "Da Lavorare" come default nel Magazzino
 
 ## Problema
-Le migrazioni demo hanno impostato alcuni `order_items` con status `"consegnato"`, ma il tipo `OrderItemStatus` e `STATUS_CONFIG` in `src/types/warehouse.ts` riconoscono solo 4 stati: `da_ordinare`, `ordinato`, `in_magazzino`, `installato`. Quando il componente `WarehouseListView` tenta `STATUS_CONFIG["consegnato"].bgColor`, ottiene `undefined` → crash.
+Quando apri il magazzino vedi TUTTI gli articoli (anche installati e completati). Con 1000 ordini storici, i 10 da completare si perdono nel rumore.
 
 ## Soluzione
 
-**Opzione scelta**: Correggere i dati nel DB. Lo status `consegnato` non è previsto dal sistema — va mappato a `in_magazzino` (merce arrivata/consegnata al magazzino) che è lo stato equivalente nel flusso esistente.
+### 1. Nuovo QuickFilter "active" (Da Lavorare)
+- Aggiungere `"active"` al tipo `QuickFilter` in `useWarehouseData.ts`
+- Filtra escludendo `installato` — mostra solo `da_ordinare`, `ordinato`, `in_magazzino`
+- **Impostarlo come default** invece di `"all"`
 
-### Azione
-1. **SQL migration**: `UPDATE order_items SET status = 'in_magazzino' WHERE status = 'consegnato';`
-2. **Defensive code**: Aggiungere un fallback in `WarehouseListView.tsx` riga 348 per evitare crash futuri se un valore sconosciuto arriva dal DB: `STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare`
+### 2. Logica filtro nel hook
+Nel blocco `filteredItems` aggiungere:
+```
+if (quickFilter === "active") {
+  filtered = filtered.filter(item => item.status !== "installato");
+}
+```
 
-Nessun altro file o sezione è affetto — il crash è isolato a questo singolo punto.
+### 3. Bottone UI nella toolbar
+Aggiungere un bottone "Da Lavorare" (con icona) come primo bottone dopo "Tutti", con variant `secondary` quando attivo. Sarà selezionato di default all'apertura.
+
+### 4. Conteggio nel bottone
+Mostrare il count degli articoli attivi (non installati) come badge, così l'utente sa subito quanti ne ha da gestire.
+
+### File modificati
+- `src/hooks/useWarehouseData.ts` — tipo QuickFilter + default + logica filtro
+- `src/pages/azienda/Warehouse.tsx` — bottone "Da Lavorare" nella toolbar
 
