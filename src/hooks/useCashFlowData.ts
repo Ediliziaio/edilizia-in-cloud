@@ -30,26 +30,20 @@ export function useCashFlowData() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  // Query ordini (tutti, per calcolare sia incassati che da ricevere)
-  const { data: orders = [], isLoading: loadingOrders } = useQuery({
-    queryKey: ["forecast-orders", companyId],
+  // Query installments (rate dinamiche da order_installments con join su orders)
+  const { data: installmentsData = [], isLoading: loadingOrders } = useQuery({
+    queryKey: ["forecast-installments", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
+      const { data, error } = await (supabase as any)
+        .from("order_installments")
         .select(`
-          id, order_code,
-          deposit_amount, deposit_paid, deposit_expected_date, deposit_paid_date,
-          deposit_2_amount, deposit_2_paid, deposit_2_expected_date, deposit_2_paid_date,
-          balance_amount, balance_paid, balance_expected_date, balance_paid_date,
-          financing_amount, financing_paid, financing_expected_date, financing_paid_date,
-          financing_cost, payment_type,
-          customer:profiles!orders_customer_id_fkey(first_name, last_name)
+          id, order_id, position, label, type, amount, is_paid, paid_date, expected_date,
+          order:orders!inner(id, order_code, company_id, customer:profiles!orders_customer_id_fkey(first_name, last_name))
         `)
-        .eq("company_id", companyId!)
-        .order("created_at", { ascending: false })
-        .limit(1000); // sicurezza: previsionale usa gli ultimi 1000 ordini; TODO filtro data rolling 3 anni
+        .eq("order.company_id", companyId!)
+        .order("position", { ascending: true });
       if (error) throw error;
-      return data;
+      return data || [];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -277,6 +271,9 @@ export function useCashFlowData() {
 
   const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories;
 
+  // Backwards-compat: expose installmentsData as "orders" for treasury module
+  const orders = installmentsData;
+
   // Fornitori unici
   const suppliers = useMemo<Supplier[]>(() => {
     const supplierMap = new Map<string, string>();
@@ -293,56 +290,22 @@ export function useCashFlowData() {
   // Entrate attese
   const expectedPayments = useMemo<ExpectedPayment[]>(() => {
     const payments: ExpectedPayment[] = [];
-    orders.forEach((order) => {
-      const customerName = order.customer
+    installmentsData.forEach((inst: any) => {
+      if (inst.is_paid || !inst.amount || Number(inst.amount) <= 0) return;
+      const order = inst.order;
+      const customerName = order?.customer
         ? `${order.customer.first_name} ${order.customer.last_name}`
         : "Cliente sconosciuto";
 
-      if (!order.deposit_paid && order.deposit_amount && order.deposit_amount > 0) {
-        payments.push({
-          orderId: order.id,
-          orderCode: order.order_code,
-          customerName,
-          type: "Acconto 1",
-          amount: Number(order.deposit_amount),
-          expectedDate: order.deposit_expected_date ? new Date(order.deposit_expected_date) : null,
-          direction: "in",
-        });
-      }
-      if (!order.deposit_2_paid && order.deposit_2_amount && order.deposit_2_amount > 0) {
-        payments.push({
-          orderId: order.id,
-          orderCode: order.order_code,
-          customerName,
-          type: "Acconto 2",
-          amount: Number(order.deposit_2_amount),
-          expectedDate: order.deposit_2_expected_date ? new Date(order.deposit_2_expected_date) : null,
-          direction: "in",
-        });
-      }
-      if (!order.balance_paid && order.balance_amount && order.balance_amount > 0) {
-        payments.push({
-          orderId: order.id,
-          orderCode: order.order_code,
-          customerName,
-          type: "Saldo",
-          amount: Number(order.balance_amount),
-          expectedDate: order.balance_expected_date ? new Date(order.balance_expected_date) : null,
-          direction: "in",
-        });
-      }
-      // Financing income
-      if (!order.financing_paid && order.financing_amount && order.financing_amount > 0) {
-        payments.push({
-          orderId: order.id,
-          orderCode: order.order_code,
-          customerName,
-          type: "Finanziamento",
-          amount: Number(order.financing_amount),
-          expectedDate: order.financing_expected_date ? new Date(order.financing_expected_date) : null,
-          direction: "in",
-        });
-      }
+      payments.push({
+        orderId: order?.id || inst.order_id,
+        orderCode: order?.order_code || null,
+        customerName,
+        type: inst.label || inst.type || "Rata",
+        amount: Number(inst.amount),
+        expectedDate: inst.expected_date ? new Date(inst.expected_date) : null,
+        direction: "in",
+      });
     });
     return payments.sort((a, b) => {
       if (!a.expectedDate && !b.expectedDate) return 0;
@@ -350,7 +313,7 @@ export function useCashFlowData() {
       if (!b.expectedDate) return -1;
       return a.expectedDate.getTime() - b.expectedDate.getTime();
     });
-  }, [orders]);
+  }, [installmentsData]);
 
   // Uscite attese (squadre esterne)
   const expectedExpenses = useMemo<ExpectedExpense[]>(() => {
