@@ -43,12 +43,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { TicketListItem } from "@/types/tickets";
+import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
 
 const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { effectiveCompany } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const { unreadByTicket, totalUnread } = useUnreadTicketCounts();
 
   const { data: tickets = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["company-tickets", effectiveCompany?.id],
@@ -144,7 +146,14 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setStatusFilter("all")}>
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">Totale</p>
-            <p className="text-2xl font-bold">{statusCounts.all}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-2xl font-bold">{statusCounts.all}</p>
+              {totalUnread > 0 && (
+                <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                  {totalUnread}
+                </span>
+              )}
+            </div>
           </CardContent>
         </Card>
         <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setStatusFilter("aperto")}>
@@ -254,7 +263,14 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <p className="font-medium line-clamp-1">{ticket.subject}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium line-clamp-1">{ticket.subject}</p>
+                        {unreadByTicket[ticket.id] > 0 && (
+                          <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
+                            {unreadByTicket[ticket.id]}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge

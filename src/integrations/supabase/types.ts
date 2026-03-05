@@ -5583,6 +5583,42 @@ export type Database = {
           },
         ]
       }
+      ticket_read_status: {
+        Row: {
+          id: string
+          last_read_at: string
+          ticket_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          last_read_at?: string
+          ticket_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          last_read_at?: string
+          ticket_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_read_status_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_read_status_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tickets: {
         Row: {
           assigned_to: string | null
