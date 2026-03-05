@@ -699,6 +699,11 @@ interface FinancialSummaryReadOnlyProps {
   financingExpectedDate?: string | null;
   financingCost?: number;
   hasBuildingBonus?: boolean;
+  // Optional toggle callbacks for inline editing
+  onDepositPaidToggle?: (paid: boolean) => void;
+  onDeposit2PaidToggle?: (paid: boolean) => void;
+  onBalancePaidToggle?: (paid: boolean) => void;
+  onFinancingPaidToggle?: (paid: boolean) => void;
 }
 
 export function FinancialSummaryReadOnly({
@@ -723,6 +728,10 @@ export function FinancialSummaryReadOnly({
   financingExpectedDate,
   financingCost,
   hasBuildingBonus,
+  onDepositPaidToggle,
+  onDeposit2PaidToggle,
+  onBalancePaidToggle,
+  onFinancingPaidToggle,
 }: FinancialSummaryReadOnlyProps) {
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
@@ -787,7 +796,7 @@ export function FinancialSummaryReadOnly({
                     <span className="text-muted-foreground">Acconto 1</span>
                     <span className="text-primary font-medium">{formatCurrency(depositAmount)}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center justify-between text-xs">
                     {depositPaid ? (
                       <span className="flex items-center gap-1 text-green-600">
                         <Check className="h-3 w-3" />
@@ -798,6 +807,13 @@ export function FinancialSummaryReadOnly({
                         <Clock className="h-3 w-3" />
                         In attesa {depositExpectedDate && `- Previsto ${formatPaymentDate(depositExpectedDate)}`}
                       </span>
+                    )}
+                    {onDepositPaidToggle && (
+                      <Switch
+                        checked={!!depositPaid}
+                        onCheckedChange={onDepositPaidToggle}
+                        className="scale-75"
+                      />
                     )}
                   </div>
                 </div>
@@ -810,7 +826,7 @@ export function FinancialSummaryReadOnly({
                     <span className="text-muted-foreground">Acconto 2</span>
                     <span className="text-primary font-medium">{formatCurrency(deposit2Amount)}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center justify-between text-xs">
                     {deposit2Paid ? (
                       <span className="flex items-center gap-1 text-green-600">
                         <Check className="h-3 w-3" />
@@ -821,6 +837,13 @@ export function FinancialSummaryReadOnly({
                         <Clock className="h-3 w-3" />
                         In attesa {deposit2ExpectedDate && `- Previsto ${formatPaymentDate(deposit2ExpectedDate)}`}
                       </span>
+                    )}
+                    {onDeposit2PaidToggle && (
+                      <Switch
+                        checked={!!deposit2Paid}
+                        onCheckedChange={onDeposit2PaidToggle}
+                        className="scale-75"
+                      />
                     )}
                   </div>
                 </div>
@@ -833,7 +856,7 @@ export function FinancialSummaryReadOnly({
                   <span className="font-bold text-lg">{formatCurrency(balanceAmount)}</span>
                 </div>
                 {balanceAmount > 0 && (
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center justify-between text-xs">
                     {balancePaid ? (
                       <span className="flex items-center gap-1 text-green-600">
                         <Check className="h-3 w-3" />
@@ -844,6 +867,13 @@ export function FinancialSummaryReadOnly({
                         <Clock className="h-3 w-3" />
                         In attesa {balanceExpectedDate && `- Previsto ${formatPaymentDate(balanceExpectedDate)}`}
                       </span>
+                    )}
+                    {onBalancePaidToggle && (
+                      <Switch
+                        checked={!!balancePaid}
+                        onCheckedChange={onBalancePaidToggle}
+                        className="scale-75"
+                      />
                     )}
                   </div>
                 )}
@@ -857,7 +887,7 @@ export function FinancialSummaryReadOnly({
                     <span className="text-muted-foreground">Acconto</span>
                     <span className="text-primary font-medium">{formatCurrency(depositAmount)}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center justify-between text-xs">
                     {depositPaid ? (
                       <span className="flex items-center gap-1 text-green-600">
                         <Check className="h-3 w-3" />
@@ -869,6 +899,13 @@ export function FinancialSummaryReadOnly({
                         In attesa {depositExpectedDate && `- Previsto ${formatPaymentDate(depositExpectedDate)}`}
                       </span>
                     )}
+                    {onDepositPaidToggle && (
+                      <Switch
+                        checked={!!depositPaid}
+                        onCheckedChange={onDepositPaidToggle}
+                        className="scale-75"
+                      />
+                    )}
                   </div>
                 </div>
               )}
@@ -877,7 +914,7 @@ export function FinancialSummaryReadOnly({
                   <span className="text-muted-foreground">Finanziamento</span>
                   <span className="font-medium">{formatCurrency(financingAmount)}</span>
                 </div>
-                <div className="flex items-center gap-2 text-xs">
+                <div className="flex items-center justify-between text-xs">
                   {financingPaid ? (
                     <span className="flex items-center gap-1 text-green-600">
                       <Check className="h-3 w-3" />
@@ -888,6 +925,13 @@ export function FinancialSummaryReadOnly({
                       <Clock className="h-3 w-3" />
                       In attesa {financingExpectedDate && `- Previsto ${formatPaymentDate(financingExpectedDate)}`}
                     </span>
+                  )}
+                  {onFinancingPaidToggle && (
+                    <Switch
+                      checked={!!financingPaid}
+                      onCheckedChange={onFinancingPaidToggle}
+                      className="scale-75"
+                    />
                   )}
                 </div>
               </div>
@@ -903,7 +947,7 @@ export function FinancialSummaryReadOnly({
                   <span className="font-bold text-lg">{formatCurrency(balanceAmount)}</span>
                 </div>
                 {balanceAmount > 0 && (
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center justify-between text-xs">
                     {balancePaid ? (
                       <span className="flex items-center gap-1 text-green-600">
                         <Check className="h-3 w-3" />
@@ -914,6 +958,13 @@ export function FinancialSummaryReadOnly({
                         <Clock className="h-3 w-3" />
                         In attesa {balanceExpectedDate && `- Previsto ${formatPaymentDate(balanceExpectedDate)}`}
                       </span>
+                    )}
+                    {onBalancePaidToggle && (
+                      <Switch
+                        checked={!!balancePaid}
+                        onCheckedChange={onBalancePaidToggle}
+                        className="scale-75"
+                      />
                     )}
                   </div>
                 )}

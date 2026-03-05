@@ -362,6 +362,41 @@ export default function OrderDetail() {
     },
   });
 
+  // Update payment status mutation
+  const updatePaymentStatusMutation = useMutation({
+    mutationFn: async (fields: Record<string, unknown>) => {
+      const { error } = await supabase
+        .from("orders")
+        .update(fields)
+        .eq("id", id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order", id] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: () => {
+      toast.error("Errore", { description: "Impossibile aggiornare lo stato del pagamento." });
+    },
+  });
+
+  const handlePaymentToggle = (
+    paidField: string,
+    dateField: string,
+    paid: boolean,
+    label: string
+  ) => {
+    const today = new Date().toISOString().split("T")[0];
+    updatePaymentStatusMutation.mutate(
+      { [paidField]: paid, [dateField]: paid ? today : null },
+      {
+        onSuccess: () => {
+          toast.success(paid ? `${label} segnato come pagato` : `${label} segnato come da pagare`);
+        },
+      }
+    );
+  };
+
   const handleStatusChange = (statusId: string) => {
     if (statusId === order?.current_status_id) return;
     
@@ -702,6 +737,10 @@ export default function OrderDetail() {
             financingExpectedDate={order.financing_expected_date}
             financingCost={order.financing_cost}
             hasBuildingBonus={order.has_building_bonus}
+            onDepositPaidToggle={(paid) => handlePaymentToggle("deposit_paid", "deposit_paid_date", paid, "Acconto 1")}
+            onDeposit2PaidToggle={(paid) => handlePaymentToggle("deposit_2_paid", "deposit_2_paid_date", paid, "Acconto 2")}
+            onBalancePaidToggle={(paid) => handlePaymentToggle("balance_paid", "balance_paid_date", paid, "Saldo")}
+            onFinancingPaidToggle={(paid) => handlePaymentToggle("financing_paid", "financing_paid_date", paid, "Finanziamento")}
           />
 
           {/* Order Economics */}
