@@ -23,61 +23,12 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import type { Installment } from "@/lib/orderUtils";
 
 export type PaymentType = 'standard' | 'financing';
 export type AmountInputMode = 'net' | 'gross';
-type PaymentStatus = 'non_pagato' | 'pagato';
 
-interface PaymentStatusProps {
-  depositPaid?: boolean;
-  depositPaidDate?: Date;
-  depositExpectedDate?: Date;
-  deposit2Paid?: boolean;
-  deposit2PaidDate?: Date;
-  deposit2ExpectedDate?: Date;
-  balancePaid?: boolean;
-  balancePaidDate?: Date;
-  balanceExpectedDate?: Date;
-  onDepositPaidChange?: (paid: boolean) => void;
-  onDepositPaidDateChange?: (date?: Date) => void;
-  onDepositExpectedDateChange?: (date?: Date) => void;
-  onDeposit2PaidChange?: (paid: boolean) => void;
-  onDeposit2PaidDateChange?: (date?: Date) => void;
-  onDeposit2ExpectedDateChange?: (date?: Date) => void;
-  onBalancePaidChange?: (paid: boolean) => void;
-  onBalancePaidDateChange?: (date?: Date) => void;
-  onBalanceExpectedDateChange?: (date?: Date) => void;
-  // Financing payment status
-  financingPaid?: boolean;
-  financingPaidDate?: Date;
-  financingExpectedDate?: Date;
-  financingCost?: string;
-  onFinancingPaidChange?: (paid: boolean) => void;
-  onFinancingPaidDateChange?: (date?: Date) => void;
-  onFinancingExpectedDateChange?: (date?: Date) => void;
-  onFinancingCostChange?: (value: string) => void;
-}
-
-interface FinancialSummaryProps extends PaymentStatusProps {
-  totalAmount: string;
-  depositAmount: string;
-  deposit2Amount: string;
-  financingAmount: string;
-  paymentType: PaymentType;
-  vatRate: string;
-  onTotalAmountChange: (value: string) => void;
-  onDepositAmountChange: (value: string) => void;
-  onDeposit2AmountChange: (value: string) => void;
-  onFinancingAmountChange: (value: string) => void;
-  onPaymentTypeChange: (value: PaymentType) => void;
-  onVatRateChange: (value: string) => void;
-  balance: number;
-  readOnly?: boolean;
-  // Building bonus
-  hasBuildingBonus?: boolean;
-  onHasBuildingBonusChange?: (value: boolean) => void;
-}
-
+// ── DatePickerField ─────────────────────────────────────────────
 const DatePickerField = React.forwardRef<HTMLDivElement, {
   label: string;
   date?: Date;
@@ -114,6 +65,9 @@ const DatePickerField = React.forwardRef<HTMLDivElement, {
   );
 });
 DatePickerField.displayName = "DatePickerField";
+
+// ── PaymentStatusRow ────────────────────────────────────────────
+type PaymentStatus = 'non_pagato' | 'pagato';
 
 const PaymentStatusRow = React.forwardRef<HTMLDivElement, {
   label: string;
@@ -194,68 +148,47 @@ const PaymentStatusRow = React.forwardRef<HTMLDivElement, {
 });
 PaymentStatusRow.displayName = "PaymentStatusRow";
 
+// ── FinancialSummary (editable) ─────────────────────────────────
+
+interface FinancialSummaryProps {
+  totalAmount: string;
+  vatRate: string;
+  paymentType: PaymentType;
+  installments: Installment[];
+  onInstallmentsChange: (installments: Installment[]) => void;
+  numInstallments: number;
+  onNumInstallmentsChange: (num: number) => void;
+  onTotalAmountChange: (value: string) => void;
+  onVatRateChange: (value: string) => void;
+  onPaymentTypeChange: (value: PaymentType) => void;
+  balance: number;
+  readOnly?: boolean;
+  hasBuildingBonus?: boolean;
+  onHasBuildingBonusChange?: (value: boolean) => void;
+  financingCost?: string;
+  onFinancingCostChange?: (value: string) => void;
+}
+
 export function FinancialSummary({
-  totalAmount,
-  depositAmount,
-  deposit2Amount,
-  financingAmount,
-  paymentType,
-  vatRate,
-  onTotalAmountChange,
-  onDepositAmountChange,
-  onDeposit2AmountChange,
-  onFinancingAmountChange,
-  onPaymentTypeChange,
-  onVatRateChange,
-  balance,
-  readOnly = false,
-  // Payment status props
-  depositPaid,
-  depositPaidDate,
-  depositExpectedDate,
-  deposit2Paid,
-  deposit2PaidDate,
-  deposit2ExpectedDate,
-  balancePaid,
-  balancePaidDate,
-  balanceExpectedDate,
-  onDepositPaidChange,
-  onDepositPaidDateChange,
-  onDepositExpectedDateChange,
-  onDeposit2PaidChange,
-  onDeposit2PaidDateChange,
-  onDeposit2ExpectedDateChange,
-  onBalancePaidChange,
-  onBalancePaidDateChange,
-  onBalanceExpectedDateChange,
-  // Financing payment status
-  financingPaid,
-  financingPaidDate,
-  financingExpectedDate,
-  financingCost,
-  onFinancingPaidChange,
-  onFinancingPaidDateChange,
-  onFinancingExpectedDateChange,
-  onFinancingCostChange,
-  // Building bonus
-  hasBuildingBonus,
-  onHasBuildingBonusChange,
+  totalAmount, vatRate, paymentType,
+  installments, onInstallmentsChange,
+  numInstallments, onNumInstallmentsChange,
+  onTotalAmountChange, onVatRateChange, onPaymentTypeChange,
+  balance, readOnly = false,
+  hasBuildingBonus, onHasBuildingBonusChange,
+  financingCost, onFinancingCostChange,
 }: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
-  
-  // Local state for raw input - this allows user to type freely
   const [rawTotalInput, setRawTotalInput] = useState(totalAmount);
-  const [rawDepositInput, setRawDepositInput] = useState(depositAmount);
-  const [rawDeposit2Input, setRawDeposit2Input] = useState(deposit2Amount);
-  const [rawFinancingInput, setRawFinancingInput] = useState(financingAmount);
   const [rawFinancingCostInput, setRawFinancingCostInput] = useState(financingCost || "");
-  
+  const [rawAmountInputs, setRawAmountInputs] = useState<Record<number, string>>({});
+
   const vat = parseFloat(vatRate) || 22;
   const total = parseFloat(totalAmount) || 0;
   const vatAmount = total * (vat / 100);
   const totalWithVat = total + vatAmount;
 
-  // Sync local state when prop changes externally (e.g., initial load)
+  // Sync raw total input
   useEffect(() => {
     if (inputMode === 'gross') {
       setRawTotalInput(totalWithVat > 0 ? totalWithVat.toFixed(2) : "");
@@ -264,23 +197,22 @@ export function FinancialSummary({
     }
   }, [totalAmount, inputMode, totalWithVat]);
 
+  // Sync raw amount inputs when installments structure changes
   useEffect(() => {
-    setRawDepositInput(depositAmount);
-  }, [depositAmount]);
-
-  useEffect(() => {
-    setRawDeposit2Input(deposit2Amount);
-  }, [deposit2Amount]);
-
-  useEffect(() => {
-    setRawFinancingInput(financingAmount);
-  }, [financingAmount]);
+    const newRaw: Record<number, string> = {};
+    installments.forEach(i => {
+      if (i.type !== 'balance') {
+        newRaw[i.position] = i.amount > 0 ? i.amount.toString() : "";
+      }
+    });
+    setRawAmountInputs(newRaw);
+  }, [installments]);
 
   useEffect(() => {
     setRawFinancingCostInput(financingCost || "");
   }, [financingCost]);
 
-  // Handle input mode change
+  // Input mode handlers
   const handleInputModeChange = (mode: AmountInputMode) => {
     setInputMode(mode);
     if (mode === 'gross') {
@@ -290,19 +222,16 @@ export function FinancialSummary({
     }
   };
 
-  // Handle total amount blur - sync with parent
   const handleTotalBlur = () => {
-    const value = rawTotalInput;
     if (inputMode === 'gross') {
-      const grossAmount = parseFloat(value) || 0;
+      const grossAmount = parseFloat(rawTotalInput) || 0;
       const netAmount = grossAmount / (1 + vat / 100);
       onTotalAmountChange(netAmount > 0 ? netAmount.toFixed(2) : "");
     } else {
-      onTotalAmountChange(value);
+      onTotalAmountChange(rawTotalInput);
     }
   };
 
-  // Handle VAT rate change - recalculate display if in gross mode
   const handleVatRateChange = (newRate: string) => {
     onVatRateChange(newRate);
     if (inputMode === 'gross' && rawTotalInput) {
@@ -312,20 +241,93 @@ export function FinancialSummary({
     }
   };
 
-  const handleDepositBlur = () => {
-    onDepositAmountChange(rawDepositInput);
+  // Installment handlers
+  const handleInstallmentAmountBlur = (position: number) => {
+    const raw = rawAmountInputs[position] || "";
+    const val = parseFloat(raw) || 0;
+    const updated = installments.map(i =>
+      i.position === position ? { ...i, amount: val } : i
+    );
+    onInstallmentsChange(updated);
   };
 
-  const handleDeposit2Blur = () => {
-    onDeposit2AmountChange(rawDeposit2Input);
+  const handleInstallmentPaidChange = (position: number, paid: boolean) => {
+    const updated = installments.map(i =>
+      i.position === position ? {
+        ...i,
+        is_paid: paid,
+        paid_date: paid ? new Date().toISOString().split('T')[0] : null,
+        expected_date: paid ? null : i.expected_date,
+      } : i
+    );
+    onInstallmentsChange(updated);
   };
 
-  const handleFinancingBlur = () => {
-    onFinancingAmountChange(rawFinancingInput);
+  const handleInstallmentDateChange = (position: number, field: 'paid_date' | 'expected_date', date?: Date) => {
+    const updated = installments.map(i =>
+      i.position === position ? {
+        ...i,
+        [field]: date ? date.toISOString().split('T')[0] : null,
+      } : i
+    );
+    onInstallmentsChange(updated);
   };
 
-  const handleFinancingCostBlur = () => {
-    onFinancingCostChange?.(rawFinancingCostInput);
+  // Render an installment amount input + payment status
+  const renderInstallmentInput = (inst: Installment, labelOverride?: string) => (
+    <div key={inst.position} className="space-y-2">
+      <Label>{labelOverride || inst.label}</Label>
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+        <Input
+          type="number" min="0" step="0.01"
+          value={rawAmountInputs[inst.position] ?? ""}
+          onChange={(e) => setRawAmountInputs(prev => ({ ...prev, [inst.position]: e.target.value }))}
+          onBlur={() => handleInstallmentAmountBlur(inst.position)}
+          className="pl-8" placeholder="0.00"
+          disabled={readOnly}
+        />
+      </div>
+      {inst.amount > 0 && (
+        <PaymentStatusRow
+          label={`Stato ${inst.label}`}
+          amount={inst.amount}
+          paid={inst.is_paid}
+          paidDate={inst.paid_date ? new Date(inst.paid_date) : undefined}
+          expectedDate={inst.expected_date ? new Date(inst.expected_date) : undefined}
+          onPaidChange={(paid) => handleInstallmentPaidChange(inst.position, paid)}
+          onPaidDateChange={(date) => handleInstallmentDateChange(inst.position, 'paid_date', date)}
+          onExpectedDateChange={(date) => handleInstallmentDateChange(inst.position, 'expected_date', date)}
+          readOnly={readOnly}
+        />
+      )}
+    </div>
+  );
+
+  // Render balance section
+  const renderBalance = (labelText: string) => {
+    const balanceInst = installments.find(i => i.type === 'balance');
+    return (
+      <div className="pt-4 border-t space-y-3">
+        <div className="flex justify-between items-center text-lg font-semibold">
+          <span>{labelText}</span>
+          <span>{formatCurrency(balance)}</span>
+        </div>
+        {balance > 0 && balanceInst && (
+          <PaymentStatusRow
+            label="Stato Saldo"
+            amount={balance}
+            paid={balanceInst.is_paid}
+            paidDate={balanceInst.paid_date ? new Date(balanceInst.paid_date) : undefined}
+            expectedDate={balanceInst.expected_date ? new Date(balanceInst.expected_date) : undefined}
+            onPaidChange={(paid) => handleInstallmentPaidChange(balanceInst.position, paid)}
+            onPaidDateChange={(date) => handleInstallmentDateChange(balanceInst.position, 'paid_date', date)}
+            onExpectedDateChange={(date) => handleInstallmentDateChange(balanceInst.position, 'expected_date', date)}
+            readOnly={readOnly}
+          />
+        )}
+      </div>
+    );
   };
 
   return (
@@ -371,19 +373,14 @@ export function FinancialSummary({
             {inputMode === 'gross' ? 'Importo Totale (IVA Inclusa)' : 'Importo Totale (Imponibile)'} *
           </Label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-              €
-            </span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
             <Input
               id="total"
-              type="number"
-              min="0"
-              step="0.01"
+              type="number" min="0" step="0.01"
               value={rawTotalInput}
               onChange={(e) => setRawTotalInput(e.target.value)}
               onBlur={handleTotalBlur}
-              className="pl-8"
-              placeholder="0.00"
+              className="pl-8" placeholder="0.00"
               disabled={readOnly}
             />
           </div>
@@ -392,14 +389,8 @@ export function FinancialSummary({
         {/* VAT Rate */}
         <div className="space-y-2">
           <Label>Aliquota IVA</Label>
-          <Select
-            value={vatRate}
-            onValueChange={handleVatRateChange}
-            disabled={readOnly}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
+          <Select value={vatRate} onValueChange={handleVatRateChange} disabled={readOnly}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="4">4%</SelectItem>
               <SelectItem value="10">10%</SelectItem>
@@ -463,212 +454,85 @@ export function FinancialSummary({
 
         {paymentType === 'standard' ? (
           <>
-            {/* Deposit 1 */}
-            <div className="space-y-2">
-              <Label htmlFor="deposit">Acconto 1</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  €
-                </span>
-                <Input
-                  id="deposit"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={rawDepositInput}
-                  onChange={(e) => setRawDepositInput(e.target.value)}
-                  onBlur={handleDepositBlur}
-                  className="pl-8"
-                  placeholder="0.00"
-                  disabled={readOnly}
-                />
+            {/* Number of installments selector */}
+            {!readOnly && (
+              <div className="space-y-2">
+                <Label>Numero Rate</Label>
+                <Select
+                  value={numInstallments.toString()}
+                  onValueChange={(v) => onNumInstallmentsChange(parseInt(v))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                      <SelectItem key={n} value={n.toString()}>
+                        {n} rate ({n - 1} {n - 1 === 1 ? 'Acconto' : 'Acconti'} + Saldo)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              {(parseFloat(depositAmount) || 0) > 0 && (
-                <PaymentStatusRow
-                  label="Stato Acconto 1"
-                  amount={parseFloat(depositAmount) || 0}
-                  paid={depositPaid}
-                  paidDate={depositPaidDate}
-                  expectedDate={depositExpectedDate}
-                  onPaidChange={onDepositPaidChange}
-                  onPaidDateChange={onDepositPaidDateChange}
-                  onExpectedDateChange={onDepositExpectedDateChange}
-                  readOnly={readOnly}
-                />
-              )}
-            </div>
+            )}
 
-            {/* Deposit 2 */}
-            <div className="space-y-2">
-              <Label htmlFor="deposit2">Acconto 2</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  €
-                </span>
-                <Input
-                  id="deposit2"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={rawDeposit2Input}
-                  onChange={(e) => setRawDeposit2Input(e.target.value)}
-                  onBlur={handleDeposit2Blur}
-                  className="pl-8"
-                  placeholder="0.00"
-                  disabled={readOnly}
-                />
-              </div>
-              {(parseFloat(deposit2Amount) || 0) > 0 && (
-                <PaymentStatusRow
-                  label="Stato Acconto 2"
-                  amount={parseFloat(deposit2Amount) || 0}
-                  paid={deposit2Paid}
-                  paidDate={deposit2PaidDate}
-                  expectedDate={deposit2ExpectedDate}
-                  onPaidChange={onDeposit2PaidChange}
-                  onPaidDateChange={onDeposit2PaidDateChange}
-                  onExpectedDateChange={onDeposit2ExpectedDateChange}
-                  readOnly={readOnly}
-                />
-              )}
-            </div>
+            {/* Deposit installments */}
+            {installments.filter(i => i.type === 'deposit').map(inst => renderInstallmentInput(inst))}
 
             {/* Balance */}
-            <div className="pt-4 border-t space-y-3">
-              <div className="flex justify-between items-center text-lg font-semibold">
-                <span>Saldo da Pagare</span>
-                <span>{formatCurrency(balance)}</span>
-              </div>
-              {balance > 0 && (
-                <PaymentStatusRow
-                  label="Stato Saldo"
-                  amount={balance}
-                  paid={balancePaid}
-                  paidDate={balancePaidDate}
-                  expectedDate={balanceExpectedDate}
-                  onPaidChange={onBalancePaidChange}
-                  onPaidDateChange={onBalancePaidDateChange}
-                  onExpectedDateChange={onBalanceExpectedDateChange}
-                  readOnly={readOnly}
-                />
-              )}
-            </div>
+            {renderBalance("Saldo da Pagare")}
           </>
         ) : (
           <>
-            {/* Deposit for financing (optional) */}
-            <div className="space-y-2">
-              <Label htmlFor="deposit-financing">Acconto (opzionale)</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  €
-                </span>
-                <Input
-                  id="deposit-financing"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={rawDepositInput}
-                  onChange={(e) => setRawDepositInput(e.target.value)}
-                  onBlur={handleDepositBlur}
-                  className="pl-8"
-                  placeholder="0.00"
-                  disabled={readOnly}
-                />
+            {/* Number of deposits selector for financing */}
+            {!readOnly && (
+              <div className="space-y-2">
+                <Label>Numero Acconti</Label>
+                <Select
+                  value={(numInstallments - 2).toString()}
+                  onValueChange={(v) => onNumInstallmentsChange(parseInt(v) + 2)}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[0, 1, 2, 3, 4, 5].map(n => (
+                      <SelectItem key={n} value={n.toString()}>
+                        {n === 0 ? 'Nessun acconto' : `${n} Accont${n === 1 ? 'o' : 'i'}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              {(parseFloat(depositAmount) || 0) > 0 && (
-                <PaymentStatusRow
-                  label="Stato Acconto"
-                  amount={parseFloat(depositAmount) || 0}
-                  paid={depositPaid}
-                  paidDate={depositPaidDate}
-                  expectedDate={depositExpectedDate}
-                  onPaidChange={onDepositPaidChange}
-                  onPaidDateChange={onDepositPaidDateChange}
-                  onExpectedDateChange={onDepositExpectedDateChange}
-                  readOnly={readOnly}
-                />
-              )}
-            </div>
+            )}
 
-            {/* Financing Amount */}
-            <div className="space-y-2">
-              <Label htmlFor="financing">Valore Finanziamento</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  €
-                </span>
-                <Input
-                  id="financing"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={rawFinancingInput}
-                  onChange={(e) => setRawFinancingInput(e.target.value)}
-                  onBlur={handleFinancingBlur}
-                  className="pl-8"
-                  placeholder="0.00"
-                  disabled={readOnly}
-                />
-              </div>
-              {(parseFloat(financingAmount) || 0) > 0 && (
-                <PaymentStatusRow
-                  label="Incasso Finanziamento"
-                  amount={parseFloat(financingAmount) || 0}
-                  paid={financingPaid}
-                  paidDate={financingPaidDate}
-                  expectedDate={financingExpectedDate}
-                  onPaidChange={onFinancingPaidChange}
-                  onPaidDateChange={onFinancingPaidDateChange}
-                  onExpectedDateChange={onFinancingExpectedDateChange}
-                  readOnly={readOnly}
-                />
-              )}
-            </div>
+            {/* Deposit installments (if any) */}
+            {installments.filter(i => i.type === 'deposit').map(inst =>
+              renderInstallmentInput(inst, inst.label + ' (opzionale)')
+            )}
+
+            {/* Financing amount */}
+            {(() => {
+              const finInst = installments.find(i => i.type === 'financing');
+              return finInst ? renderInstallmentInput(finInst, 'Valore Finanziamento') : null;
+            })()}
 
             {/* Financing Cost */}
             <div className="space-y-2">
               <Label htmlFor="financing-cost">Costo Finanziaria</Label>
               <p className="text-xs text-muted-foreground">Commissione da versare alla finanziaria (es. tasso zero)</p>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  €
-                </span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
                 <Input
                   id="financing-cost"
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="number" min="0" step="0.01"
                   value={rawFinancingCostInput}
                   onChange={(e) => setRawFinancingCostInput(e.target.value)}
-                  onBlur={handleFinancingCostBlur}
-                  className="pl-8"
-                  placeholder="0.00"
+                  onBlur={() => onFinancingCostChange?.(rawFinancingCostInput)}
+                  className="pl-8" placeholder="0.00"
                   disabled={readOnly}
                 />
               </div>
             </div>
 
             {/* Balance */}
-            <div className="pt-4 border-t space-y-3">
-              <div className="flex justify-between items-center text-lg font-semibold">
-                <span>Saldo Cliente</span>
-                <span>{formatCurrency(balance)}</span>
-              </div>
-              {balance > 0 && (
-                <PaymentStatusRow
-                  label="Stato Saldo"
-                  amount={balance}
-                  paid={balancePaid}
-                  paidDate={balancePaidDate}
-                  expectedDate={balanceExpectedDate}
-                  onPaidChange={onBalancePaidChange}
-                  onPaidDateChange={onBalancePaidDateChange}
-                  onExpectedDateChange={onBalanceExpectedDateChange}
-                  readOnly={readOnly}
-                />
-              )}
-            </div>
+            {renderBalance("Saldo Cliente")}
           </>
         )}
       </CardContent>
@@ -676,69 +540,78 @@ export function FinancialSummary({
   );
 }
 
-// Read-only version for detail views
+// ── FinancialSummaryReadOnly ────────────────────────────────────
+
 interface FinancialSummaryReadOnlyProps {
   totalAmount: number;
-  depositAmount: number;
-  deposit2Amount: number;
-  financingAmount: number;
-  paymentType: PaymentType;
-  balanceAmount: number;
   vatRate?: number;
-  depositPaid?: boolean;
-  depositPaidDate?: string | null;
-  depositExpectedDate?: string | null;
-  deposit2Paid?: boolean;
-  deposit2PaidDate?: string | null;
-  deposit2ExpectedDate?: string | null;
-  balancePaid?: boolean;
-  balancePaidDate?: string | null;
-  balanceExpectedDate?: string | null;
-  financingPaid?: boolean;
-  financingPaidDate?: string | null;
-  financingExpectedDate?: string | null;
-  financingCost?: number;
+  paymentType: PaymentType;
+  installments: Installment[];
   hasBuildingBonus?: boolean;
-  // Optional toggle callbacks for inline editing
-  onDepositPaidToggle?: (paid: boolean) => void;
-  onDeposit2PaidToggle?: (paid: boolean) => void;
-  onBalancePaidToggle?: (paid: boolean) => void;
-  onFinancingPaidToggle?: (paid: boolean) => void;
+  financingCost?: number;
+  onInstallmentPaidToggle?: (installment: Installment, paid: boolean) => void;
 }
 
 export function FinancialSummaryReadOnly({
   totalAmount,
-  depositAmount,
-  deposit2Amount,
-  financingAmount,
-  paymentType,
-  balanceAmount,
   vatRate = 22,
-  depositPaid,
-  depositPaidDate,
-  depositExpectedDate,
-  deposit2Paid,
-  deposit2PaidDate,
-  deposit2ExpectedDate,
-  balancePaid,
-  balancePaidDate,
-  balanceExpectedDate,
-  financingPaid,
-  financingPaidDate,
-  financingExpectedDate,
-  financingCost,
+  paymentType,
+  installments,
   hasBuildingBonus,
-  onDepositPaidToggle,
-  onDeposit2PaidToggle,
-  onBalancePaidToggle,
-  onFinancingPaidToggle,
+  financingCost,
+  onInstallmentPaidToggle,
 }: FinancialSummaryReadOnlyProps) {
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
 
+  const nonBalanceSum = installments
+    .filter(i => i.type !== 'balance')
+    .reduce((sum, i) => sum + i.amount, 0);
+  const balanceAmount = Math.max(0, totalWithVat - nonBalanceSum);
+
   const formatPaymentDate = (dateStr?: string | null) => {
     if (!dateStr) return null;
     return format(new Date(dateStr), "dd/MM/yyyy", { locale: it });
+  };
+
+  const renderPaymentRow = (inst: Installment, displayAmount?: number) => {
+    const amount = displayAmount ?? inst.amount;
+    if (amount <= 0 && inst.type !== 'balance') return null;
+
+    return (
+      <div key={inst.position} className="p-3 rounded-lg bg-muted/30 space-y-1">
+        <div className={cn("flex justify-between", inst.type === 'balance' && "pt-2 border-t")}>
+          <span className={inst.type === 'balance' ? "font-medium" : "text-muted-foreground"}>
+            {inst.label}
+          </span>
+          <span className={inst.type === 'balance' ? "font-bold text-lg" : "text-primary font-medium"}>
+            {formatCurrency(amount)}
+          </span>
+        </div>
+        {amount > 0 && (
+          <div className="flex items-center justify-between text-xs">
+            {inst.is_paid ? (
+              <span className="flex items-center gap-1 text-green-600">
+                <Check className="h-3 w-3" />
+                {inst.type === 'financing' ? 'Incassato' : 'Pagato'} {inst.paid_date && `il ${formatPaymentDate(inst.paid_date)}`}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-amber-600">
+                <Clock className="h-3 w-3" />
+                In attesa {inst.expected_date && `- Previsto ${formatPaymentDate(inst.expected_date)}`}
+              </span>
+            )}
+            {onInstallmentPaidToggle && (
+              <Switch
+                checked={!!inst.is_paid}
+                onCheckedChange={(paid) => onInstallmentPaidToggle(inst, paid)}
+                className="scale-75"
+              />
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -787,190 +660,28 @@ export function FinancialSummaryReadOnly({
         })()}
 
         <div className="pt-3 border-t space-y-3">
-          {paymentType === 'standard' ? (
-            <>
-              {/* Acconto 1 */}
-              {depositAmount > 0 && (
-                <div className="p-3 rounded-lg bg-muted/30 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Acconto 1</span>
-                    <span className="text-primary font-medium">{formatCurrency(depositAmount)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    {depositPaid ? (
-                      <span className="flex items-center gap-1 text-green-600">
-                        <Check className="h-3 w-3" />
-                        Pagato {depositPaidDate && `il ${formatPaymentDate(depositPaidDate)}`}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-amber-600">
-                        <Clock className="h-3 w-3" />
-                        In attesa {depositExpectedDate && `- Previsto ${formatPaymentDate(depositExpectedDate)}`}
-                      </span>
-                    )}
-                    {onDepositPaidToggle && (
-                      <Switch
-                        checked={!!depositPaid}
-                        onCheckedChange={onDepositPaidToggle}
-                        className="scale-75"
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
+          {/* Deposit installments */}
+          {installments.filter(i => i.type === 'deposit').map(inst => renderPaymentRow(inst))}
 
-              {/* Acconto 2 */}
-              {deposit2Amount > 0 && (
-                <div className="p-3 rounded-lg bg-muted/30 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Acconto 2</span>
-                    <span className="text-primary font-medium">{formatCurrency(deposit2Amount)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    {deposit2Paid ? (
-                      <span className="flex items-center gap-1 text-green-600">
-                        <Check className="h-3 w-3" />
-                        Pagato {deposit2PaidDate && `il ${formatPaymentDate(deposit2PaidDate)}`}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-amber-600">
-                        <Clock className="h-3 w-3" />
-                        In attesa {deposit2ExpectedDate && `- Previsto ${formatPaymentDate(deposit2ExpectedDate)}`}
-                      </span>
-                    )}
-                    {onDeposit2PaidToggle && (
-                      <Switch
-                        checked={!!deposit2Paid}
-                        onCheckedChange={onDeposit2PaidToggle}
-                        className="scale-75"
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
+          {/* Financing (if applicable) */}
+          {paymentType === 'financing' && (() => {
+            const finInst = installments.find(i => i.type === 'financing');
+            return finInst ? renderPaymentRow(finInst) : null;
+          })()}
 
-              {/* Saldo */}
-              <div className="p-3 rounded-lg bg-muted/30 space-y-1">
-                <div className="flex justify-between pt-2 border-t">
-                  <span className="font-medium">Saldo</span>
-                  <span className="font-bold text-lg">{formatCurrency(balanceAmount)}</span>
-                </div>
-                {balanceAmount > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    {balancePaid ? (
-                      <span className="flex items-center gap-1 text-green-600">
-                        <Check className="h-3 w-3" />
-                        Pagato {balancePaidDate && `il ${formatPaymentDate(balancePaidDate)}`}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-amber-600">
-                        <Clock className="h-3 w-3" />
-                        In attesa {balanceExpectedDate && `- Previsto ${formatPaymentDate(balanceExpectedDate)}`}
-                      </span>
-                    )}
-                    {onBalancePaidToggle && (
-                      <Switch
-                        checked={!!balancePaid}
-                        onCheckedChange={onBalancePaidToggle}
-                        className="scale-75"
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              {depositAmount > 0 && (
-                <div className="p-3 rounded-lg bg-muted/30 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Acconto</span>
-                    <span className="text-primary font-medium">{formatCurrency(depositAmount)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    {depositPaid ? (
-                      <span className="flex items-center gap-1 text-green-600">
-                        <Check className="h-3 w-3" />
-                        Pagato {depositPaidDate && `il ${formatPaymentDate(depositPaidDate)}`}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-amber-600">
-                        <Clock className="h-3 w-3" />
-                        In attesa {depositExpectedDate && `- Previsto ${formatPaymentDate(depositExpectedDate)}`}
-                      </span>
-                    )}
-                    {onDepositPaidToggle && (
-                      <Switch
-                        checked={!!depositPaid}
-                        onCheckedChange={onDepositPaidToggle}
-                        className="scale-75"
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
-              <div className="p-3 rounded-lg bg-muted/30 space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Finanziamento</span>
-                  <span className="font-medium">{formatCurrency(financingAmount)}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  {financingPaid ? (
-                    <span className="flex items-center gap-1 text-green-600">
-                      <Check className="h-3 w-3" />
-                      Incassato {financingPaidDate && `il ${formatPaymentDate(financingPaidDate)}`}
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-amber-600">
-                      <Clock className="h-3 w-3" />
-                      In attesa {financingExpectedDate && `- Previsto ${formatPaymentDate(financingExpectedDate)}`}
-                    </span>
-                  )}
-                  {onFinancingPaidToggle && (
-                    <Switch
-                      checked={!!financingPaid}
-                      onCheckedChange={onFinancingPaidToggle}
-                      className="scale-75"
-                    />
-                  )}
-                </div>
-              </div>
-              {(financingCost || 0) > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Costo Finanziaria</span>
-                  <span className="text-destructive font-medium">- {formatCurrency(financingCost || 0)}</span>
-                </div>
-              )}
-              <div className="p-3 rounded-lg bg-muted/30 space-y-1">
-                <div className="flex justify-between pt-2 border-t">
-                  <span className="font-medium">Saldo Cliente</span>
-                  <span className="font-bold text-lg">{formatCurrency(balanceAmount)}</span>
-                </div>
-                {balanceAmount > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    {balancePaid ? (
-                      <span className="flex items-center gap-1 text-green-600">
-                        <Check className="h-3 w-3" />
-                        Pagato {balancePaidDate && `il ${formatPaymentDate(balancePaidDate)}`}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-amber-600">
-                        <Clock className="h-3 w-3" />
-                        In attesa {balanceExpectedDate && `- Previsto ${formatPaymentDate(balanceExpectedDate)}`}
-                      </span>
-                    )}
-                    {onBalancePaidToggle && (
-                      <Switch
-                        checked={!!balancePaid}
-                        onCheckedChange={onBalancePaidToggle}
-                        className="scale-75"
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
+          {/* Financing cost */}
+          {paymentType === 'financing' && (financingCost || 0) > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Costo Finanziaria</span>
+              <span className="text-destructive font-medium">- {formatCurrency(financingCost || 0)}</span>
+            </div>
           )}
+
+          {/* Balance */}
+          {(() => {
+            const balanceInst = installments.find(i => i.type === 'balance');
+            return balanceInst ? renderPaymentRow(balanceInst, balanceAmount) : null;
+          })()}
         </div>
       </CardContent>
     </Card>

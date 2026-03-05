@@ -1,31 +1,34 @@
 import { formatCurrency } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Euro, Building2 } from "lucide-react";
+import type { Installment } from "@/lib/orderUtils";
 
 interface CustomerFinancialSummaryProps {
   totalAmount: number;
-  depositAmount: number;
-  deposit2Amount: number;
-  financingAmount: number;
-  paymentType: string;
-  balanceAmount: number;
   vatRate: number;
+  paymentType: string;
+  installments: Installment[];
   hasBuildingBonus?: boolean;
 }
 
 export function CustomerFinancialSummary({
   totalAmount,
-  depositAmount,
-  deposit2Amount,
-  financingAmount,
-  paymentType,
-  balanceAmount,
   vatRate,
+  paymentType,
+  installments,
   hasBuildingBonus,
 }: CustomerFinancialSummaryProps) {
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
-  const totalDeposits = depositAmount + deposit2Amount;
+  
+  const deposits = installments.filter(i => i.type === 'deposit');
+  const totalDeposits = deposits.reduce((sum, i) => sum + i.amount, 0);
+  const financingInst = installments.find(i => i.type === 'financing');
+  
+  const nonBalanceSum = installments
+    .filter(i => i.type !== 'balance')
+    .reduce((sum, i) => sum + i.amount, 0);
+  const clientBalance = Math.max(0, totalWithVat - nonBalanceSum);
 
   return (
     <Card>
@@ -77,41 +80,44 @@ export function CustomerFinancialSummary({
             <>
               {totalDeposits > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Acconti versati</span>
+                  <span className="text-muted-foreground">
+                    {deposits.length === 1 ? 'Acconto versato' : 'Acconti versati'}
+                  </span>
                   <span className="text-primary">- {formatCurrency(totalDeposits)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-lg">
                 <span>Saldo da Pagare</span>
-                <span>{formatCurrency(balanceAmount + (balanceAmount * vatRate / 100))}</span>
+                <span>{formatCurrency(clientBalance + (clientBalance * vatRate / 100 / (1 + vatRate / 100) * 0))}</span>
               </div>
             </>
           ) : (
             <>
-              {depositAmount > 0 && (
+              {totalDeposits > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Acconto versato</span>
-                  <span className="text-primary">- {formatCurrency(depositAmount)}</span>
+                  <span className="text-muted-foreground">
+                    {deposits.length === 1 ? 'Acconto versato' : 'Acconti versati'}
+                  </span>
+                  <span className="text-primary">- {formatCurrency(totalDeposits)}</span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Finanziamento</span>
-                <span>{formatCurrency(financingAmount)}</span>
-              </div>
-              {(() => {
-                const clientBalance = totalWithVat - depositAmount - financingAmount;
-                return clientBalance > 0 ? (
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Saldo da Pagare</span>
-                    <span>{formatCurrency(clientBalance)}</span>
-                  </div>
-                ) : (
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Saldo da Pagare</span>
-                    <span className="text-muted-foreground">€ 0,00</span>
-                  </div>
-                );
-              })()}
+              {financingInst && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Finanziamento</span>
+                  <span>{formatCurrency(financingInst.amount)}</span>
+                </div>
+              )}
+              {clientBalance > 0 ? (
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Saldo da Pagare</span>
+                  <span>{formatCurrency(clientBalance)}</span>
+                </div>
+              ) : (
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Saldo da Pagare</span>
+                  <span className="text-muted-foreground">€ 0,00</span>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">
                 Pagamento tramite finanziaria
               </p>

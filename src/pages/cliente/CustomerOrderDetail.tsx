@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +13,7 @@ import { CustomerDatesCard } from "@/components/orders/CustomerDatesCard";
 import { CustomerOrderAttachments } from "@/components/orders/OrderAttachments";
 import { ArrowLeft, Clock, CheckCircle2, MessageSquare, FileText, AlertCircle } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/formatters";
+import { type Installment, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 
 export default function CustomerOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -29,17 +31,49 @@ export default function CustomerOrderDetail() {
           financing_amount, payment_type, balance_amount, vat_rate,
           expected_date, created_at, current_status_id, company_id,
           warehouse_arrival_date, work_start_date, work_end_date,
+          deposit_paid, deposit_paid_date, deposit_expected_date,
+          deposit_2_paid, deposit_2_paid_date, deposit_2_expected_date,
+          balance_paid, balance_paid_date, balance_expected_date,
+          financing_paid, financing_paid_date, financing_expected_date,
+          has_building_bonus,
           status:order_statuses(name, color, icon)
         `)
         .eq("id", id!)
         .single();
-
       if (error) throw error;
       return data;
     },
     enabled: !!id && !!user,
-    staleTime: 2 * 60 * 1000, // 2 minuti
+    staleTime: 2 * 60 * 1000,
   });
+
+  // Fetch installments from DB
+  const { data: dbInstallments = [] } = useQuery({
+    queryKey: ["order-installments", id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("order_installments")
+        .select("*")
+        .eq("order_id", id!)
+        .order("position");
+      if (error) throw error;
+      return (data || []) as unknown as (Installment & { id: string })[];
+    },
+    enabled: !!id && !!user,
+  });
+
+  // Build installments for display
+  const displayInstallments: Installment[] = useMemo(() => {
+    if (dbInstallments.length > 0) {
+      return dbInstallments.map(i => ({
+        id: i.id, position: i.position, label: i.label,
+        type: i.type as Installment['type'], amount: i.amount,
+        is_paid: i.is_paid, paid_date: i.paid_date, expected_date: i.expected_date,
+      }));
+    }
+    if (!order) return [];
+    return buildInstallmentsFromLegacy(order);
+  }, [dbInstallments, order]);
 
   // Fetch all order statuses for this company
   const { data: statuses = [] } = useQuery({
@@ -50,12 +84,11 @@ export default function CustomerOrderDetail() {
         .select("id, name, icon, color, position")
         .eq("company_id", order!.company_id)
         .order("position");
-
       if (error) throw error;
       return data;
     },
     enabled: !!order?.company_id,
-    staleTime: 10 * 60 * 1000, // 10 minuti - statuses cambiano raramente
+    staleTime: 10 * 60 * 1000,
   });
 
   // Fetch status history
@@ -64,18 +97,14 @@ export default function CustomerOrderDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_status_history")
-        .select(`
-          id, status_id, changed_at,
-          status:order_statuses(name, color, icon)
-        `)
+        .select(`id, status_id, changed_at, status:order_statuses(name, color, icon)`)
         .eq("order_id", id!)
         .order("changed_at", { ascending: false });
-
       if (error) throw error;
       return data;
     },
     enabled: !!id,
-    staleTime: 2 * 60 * 1000, // 2 minuti
+    staleTime: 2 * 60 * 1000,
   });
 
   if (orderLoading) {
@@ -102,9 +131,7 @@ export default function CustomerOrderDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Ordine non trovato</p>
-        <Button variant="link" onClick={() => navigate("/cliente")}>
-          Torna ai miei ordini
-        </Button>
+        <Button variant="link" onClick={() => navigate("/cliente")}>Torna ai miei ordini</Button>
       </div>
     );
   }
@@ -118,20 +145,12 @@ export default function CustomerOrderDetail() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/cliente")}
-        >
+        <Button variant="ghost" size="icon" onClick={() => navigate("/cliente")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">
-            Ordine #{order.id.slice(0, 8).toUpperCase()}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Creato il {formatDate(order.created_at)}
-          </p>
+          <h1 className="text-2xl font-bold">Ordine #{order.id.slice(0, 8).toUpperCase()}</h1>
+          <p className="text-sm text-muted-foreground">Creato il {formatDate(order.created_at)}</p>
         </div>
         <Button asChild variant="outline">
           <Link to={`/cliente/assistenza/nuovo?ordine=${order.id}`}>
@@ -143,22 +162,13 @@ export default function CustomerOrderDetail() {
 
       {/* Progress Tracker */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Stato dell'ordine</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-lg">Stato dell'ordine</CardTitle></CardHeader>
         <CardContent>
           {statuses.length > 0 ? (
-            <OrderProgressTracker
-              statuses={statuses}
-              currentStatusId={order.current_status_id}
-              statusHistory={historyForTracker}
-              interactive={false}
-              size="md"
-            />
+            <OrderProgressTracker statuses={statuses} currentStatusId={order.current_status_id}
+              statusHistory={historyForTracker} interactive={false} size="md" />
           ) : (
-            <p className="text-muted-foreground text-sm">
-              Nessuno stato configurato
-            </p>
+            <p className="text-muted-foreground text-sm">Nessuno stato configurato</p>
           )}
         </CardContent>
       </Card>
@@ -172,9 +182,7 @@ export default function CustomerOrderDetail() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-foreground whitespace-pre-wrap">
-            {order.description}
-          </p>
+          <p className="text-foreground whitespace-pre-wrap">{order.description}</p>
         </CardContent>
       </Card>
 
@@ -185,18 +193,16 @@ export default function CustomerOrderDetail() {
         workEndDate={order.work_end_date}
       />
 
-      {/* Order Documents (visible to customer) */}
+      {/* Order Documents */}
       <CustomerOrderAttachments orderId={order.id} />
 
-      {/* Financial Summary with VAT */}
+      {/* Financial Summary */}
       <CustomerFinancialSummary
         totalAmount={order.total_amount}
-        depositAmount={order.deposit_amount}
-        deposit2Amount={order.deposit_2_amount || 0}
-        financingAmount={order.financing_amount || 0}
-        paymentType={order.payment_type || 'standard'}
-        balanceAmount={order.balance_amount}
         vatRate={order.vat_rate || 22}
+        paymentType={order.payment_type || 'standard'}
+        installments={displayInstallments}
+        hasBuildingBonus={order.has_building_bonus}
       />
 
       {/* Status History Timeline */}
@@ -215,33 +221,18 @@ export default function CustomerOrderDetail() {
                 return (
                   <div key={item.id} className="flex items-start gap-3">
                     <div className="flex flex-col items-center">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: status?.color || "hsl(var(--muted))" }}
-                      />
-                      {index < statusHistory.length - 1 && (
-                        <div className="w-0.5 h-8 bg-muted mt-1" />
-                      )}
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: status?.color || "hsl(var(--muted))" }} />
+                      {index < statusHistory.length - 1 && <div className="w-0.5 h-8 bg-muted mt-1" />}
                     </div>
                     <div className="flex-1 -mt-0.5">
                       <div className="flex items-center gap-2">
-                        <Badge
-                          variant="secondary"
-                          style={{ 
-                            backgroundColor: `${status?.color}20`,
-                            color: status?.color 
-                          }}
-                        >
+                        <Badge variant="secondary" style={{ backgroundColor: `${status?.color}20`, color: status?.color }}>
                           {status?.name || "Stato sconosciuto"}
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatDateTime(item.changed_at)}
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">{formatDateTime(item.changed_at)}</p>
                     </div>
-                    {index === 0 && (
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                    )}
+                    {index === 0 && <CheckCircle2 className="h-4 w-4 text-primary" />}
                   </div>
                 );
               })}
