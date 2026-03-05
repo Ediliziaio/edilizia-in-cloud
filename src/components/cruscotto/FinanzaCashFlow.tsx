@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { ArrowDownLeft, ArrowUpRight, Landmark, CreditCard, Flame, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FinanceData } from "@/hooks/useCruscottoData";
@@ -157,6 +157,39 @@ export const FinanzaCashFlow = memo(function FinanzaCashFlow({ finance, isLoadin
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+      {/* Visual bar chart: Income vs Outflow */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Entrate vs Uscite</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={[
+                  { name: "Entrate", value: finance.thisMonthIncome, fill: "hsl(142, 76%, 36%)" },
+                  { name: "Uscite", value: finance.thisMonthOutflow, fill: "hsl(0, 84%, 60%)" },
+                  { name: "Netto", value: finance.cashFlowNet, fill: finance.cashFlowNet >= 0 ? "hsl(142, 76%, 36%)" : "hsl(0, 84%, 60%)" },
+                ]}
+                margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+              >
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={v => fmtCur(v)} tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(v: number) => fmtCur(v)} contentStyle={{ fontSize: 12 }} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {[
+                    { fill: "hsl(142, 76%, 36%)" },
+                    { fill: "hsl(0, 84%, 60%)" },
+                    { fill: finance.cashFlowNet >= 0 ? "hsl(142, 76%, 36%)" : "hsl(0, 84%, 60%)" },
+                  ].map((entry, i) => (
+                    <Cell key={i} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
     </div>

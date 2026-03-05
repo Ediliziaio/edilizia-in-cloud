@@ -17,7 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CruscottoAziendale() {
-  const { marketing, operations, finance, isLoading, error, filters, updateFilters } = useCruscottoData();
+  const { marketing, operations, finance, weeklyAgenda, isLoading, error, filters, updateFilters } = useCruscottoData();
 
   const hasOrders = operations.activeOrders > 0 || finance.revenueThisMonth > 0;
   const hasLeads = (marketing?.kpi?.leads_total ?? 0) > 0;
@@ -128,7 +128,7 @@ export default function CruscottoAziendale() {
         </TabsContent>
 
         <TabsContent value="operazioni">
-          <OperationsDelivery operations={operations} isLoading={isLoading} />
+          <OperationsDelivery operations={operations} weeklyAgenda={weeklyAgenda} isLoading={isLoading} />
         </TabsContent>
       </Tabs>
 

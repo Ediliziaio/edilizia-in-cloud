@@ -3,15 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClipboardList, AlertTriangle, HeadphonesIcon, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { OperationsData } from "@/hooks/useCruscottoData";
+import type { OperationsData, WeeklyAgendaData } from "@/hooks/useCruscottoData";
+import { fmtCur } from "@/components/marketing/dashboard/utils";
 import { Link } from "react-router-dom";
+import { WeeklySnapshot } from "./WeeklySnapshot";
 
 interface Props {
   operations: OperationsData;
+  weeklyAgenda: WeeklyAgendaData;
   isLoading: boolean;
 }
 
-export const OperationsDelivery = memo(function OperationsDelivery({ operations, isLoading }: Props) {
+export const OperationsDelivery = memo(function OperationsDelivery({ operations, weeklyAgenda, isLoading }: Props) {
   const items = [
     {
       label: "Ordini Attivi",
@@ -73,6 +76,19 @@ export const OperationsDelivery = memo(function OperationsDelivery({ operations,
           );
         })}
       </div>
+
+      {/* Overdue amount detail */}
+      {operations.overdueAmount > 0 && (
+        <Card className="p-4 border-destructive/30 bg-destructive/5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Importo Pagamenti Scaduti</span>
+            <span className="text-lg font-bold tabular-nums text-destructive">{fmtCur(operations.overdueAmount)}</span>
+          </div>
+        </Card>
+      )}
+
+      {/* Weekly Snapshot */}
+      <WeeklySnapshot data={weeklyAgenda} isLoading={isLoading} />
     </div>
   );
 });
