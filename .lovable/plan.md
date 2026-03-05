@@ -1,32 +1,73 @@
 
 
-# Drag & Drop articoli sulla mappa + toggle visibilità mappa
+# Audit tecnico: Magazzino (Mappa + DnD + Stock Tab)
 
-## Obiettivo
-1. Permettere il drag & drop degli articoli dalla tab Giacenze direttamente sulle card della mappa per assegnarli a una sezione
-2. Aggiungere un toggle per mostrare/nascondere la mappa magazzino nella pagina principale
+## Report AS-IS
 
-## Approccio tecnico
+### Moduli analizzati
+- `Warehouse.tsx` — pagina principale con mappa globale read-only
+- `WarehouseStockTab.tsx` — tab Giacenze con DnD, selezione multipla, batch move
+- `WarehouseMapView.tsx` — componente mappa con droppable support
+- `useWarehouseSections.ts` — hook CRUD sezioni
 
-### 1. Drag & Drop sulla mappa (tab Giacenze)
+### Problemi trovati e priorità
 
-Il progetto usa già `@dnd-kit/core` e `@dnd-kit/sortable`. La mappa e la tabella stock coesistono nella stessa pagina. Il DnD va implementato **solo nella tab Giacenze** (`WarehouseStockTab.tsx`) dove l'utente gestisce gli articoli.
+#### P0 — Sicurezza / Data Isolation
 
-**Modifiche:**
+1. **`useWarehouseSections` — update e delete senza `company_id` filter** (righe 64-67, 79)
+   - `updateMutation` filtra solo per `.eq("id", data.id)` senza `.eq("company_id", companyId!)`. Un utente potrebbe manipolare l'ID per modificare sezioni di un altro tenant.
+   - `deleteMutation` stesso problema: filtra solo per `.eq("id", id)`.
+   - Fix: aggiungere `.eq("company_id", companyId!)` a entrambe le mutazioni.
 
-- **`WarehouseStockTab.tsx`**: Wrappare il contenuto in un `DndContext`. Ogni riga della tabella diventa un `Draggable` (usando `useDraggable` di dnd-kit). Aggiungere un `DragOverlay` che mostra il nome dell'articolo trascinato.
-- **`WarehouseMapView.tsx`**: Ogni `SectionCard` diventa un `droppable` (usando `useDroppable` di dnd-kit). Aggiungere prop opzionale `droppable?: boolean` per abilitare il comportamento solo quando servito. Visual feedback: evidenziazione della card quando un articolo viene trascinato sopra (bg colorato, ring).
-- Al drop: richiamare la `batchMoveMutation` già esistente con l'ID dell'articolo e la sezione target.
+2. **`warehouse_movements` insert senza `company_id`** (`WarehouseStockTab.tsx:196-202`)
+   - La tabella `warehouse_movements` non ha un campo `company_id` visibile nell'insert. Se la tabella lo richiede, manca; se la RLS si basa solo su `stock_item_id`, va verificato che sia sufficiente. In ogni caso il record `warehouse_movements` non è direttamente tenant-scoped.
+   - Fix: verificare schema e, se presente, aggiungere `company_id` all'insert.
 
-### 2. Toggle visibilità mappa
+#### P1 — Duplicazione / Inconsistenza
 
-- **`Warehouse.tsx`**: Aggiungere stato `showMap` (default `true`, persistito in `localStorage`). Aggiungere un bottone toggle accanto al titolo "Mappa Magazzino" (icona `Eye`/`EyeOff`). Wrappare il render della mappa in una condizione `showMap`.
+3. **Mappa duplicata nella pagina principale E nella tab Giacenze**
+   - `Warehouse.tsx` (riga 212) rende una `WarehouseMapView` read-only.
+   - `WarehouseStockTab.tsx` (riga 357) rende una seconda `WarehouseMapView` con `droppable`.
+   - L'utente vede DUE mappe quando è nella tab Giacenze. La mappa globale non è droppable e non serve a nulla quando la tab Giacenze è attiva.
+   - Fix: nascondere la mappa globale quando `viewMode === "stock"`, oppure passare il DnD context dalla pagina globale e rimuovere la mappa dalla tab.
 
-## File da modificare
+4. **Filtro mappa globale `activeSectionFilter` non collegato a nessuna view**
+   - `Warehouse.tsx` mantiene `activeSectionFilter` ma non lo passa a nessuna view (List, Kanban, Calendar). Cliccando sulla mappa globale si attiva il ring visivo ma non filtra nulla.
+   - Fix: rendere la mappa globale puramente informativa (rimuovere `onFilterSection` e il ring) oppure collegare il filtro alle view.
 
-| File | Intervento |
-|------|-----------|
-| `src/components/warehouse/WarehouseStockTab.tsx` | Aggiungere DndContext, righe draggable, DragOverlay, handler drop |
-| `src/components/warehouse/WarehouseMapView.tsx` | Aggiungere `useDroppable` alle SectionCard, prop `droppable`, visual feedback |
-| `src/pages/azienda/Warehouse.tsx` | Toggle show/hide mappa con localStorage |
+5. **Import `WarehouseMapView` ancora presente in `WarehouseStockTab.tsx`** — non è dead code questa volta (viene usato per il DnD), ma crea la duplicazione visiva del punto 3.
+
+#### P1 — UX
+
+6. **Due mappe visivamente identiche nella stessa pagina**
+   - Confusione per l'utente: quale mappa usare? Quella sopra non è droppable, quella sotto sì, ma hanno lo stesso aspetto.
+   - Fix: se si mantengono entrambe, differenziare visivamente (es. la mappa globale mostra solo stats, quella nella tab ha il label "trascina qui").
+
+7. **Mappa globale mostra "Mappa Magazzino" come label duplicata** — sia in `Warehouse.tsx` (riga 194) che dentro `WarehouseMapView.tsx` (riga 76). Il titolo appare due volte.
+   - Fix: rimuovere il titolo interno dal componente quando è renderizzato dalla pagina principale (prop `showTitle?: boolean`).
+
+#### P2 — Code Quality / Performance
+
+8. **`DraggableStockRow` non è memoizzato**
+   - Ogni cambio di stato (selezione, drag) causa ri-render di tutte le righe. Con molti articoli questo è un problema.
+   - Fix: wrappare in `React.memo` con comparatore personalizzato.
+
+9. **`useWarehouseSections` non filtra per `company_id` su update/delete** — già coperto in P0.
+
+10. **Console warning `forwardRef`** visibile nei log — proviene da `MarketingAppointmentDialog`, non correlato al magazzino ma presente nella sessione.
+
+---
+
+## Piano interventi
+
+| # | Priorità | Intervento | File |
+|---|----------|-----------|------|
+| 1 | P0 | Aggiungere `.eq("company_id")` a update e delete in `useWarehouseSections` | `useWarehouseSections.ts` |
+| 2 | P1 | Nascondere mappa globale quando `viewMode === "stock"` per evitare duplicazione | `Warehouse.tsx` |
+| 3 | P1 | Rendere mappa globale puramente informativa (rimuovere `activeSectionFilter` e onClick) o collegarla alle view | `Warehouse.tsx` |
+| 4 | P1 | Rimuovere titolo duplicato "Mappa Magazzino" dal componente quando renderizzato fuori dalla tab | `WarehouseMapView.tsx` + `Warehouse.tsx` |
+| 5 | P2 | Memoizzare `DraggableStockRow` con `React.memo` | `WarehouseStockTab.tsx` |
+
+### Dichiarazione
+**NON PRONTO PER PRODUZIONE** fino alla risoluzione del P0 (filtri `company_id` mancanti sulle mutazioni sezioni). Una volta applicati P0 e P1, la feature sarà conforme agli standard enterprise.
 
