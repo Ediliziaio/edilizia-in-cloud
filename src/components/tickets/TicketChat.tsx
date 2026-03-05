@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Loader2, User, Paperclip, X, FileText, Download, Image as ImageIcon, MessageSquare } from "lucide-react";
+import { Send, Loader2, User, Paperclip, X, FileText, Download, Image as ImageIcon, MessageSquare, Upload } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { formatDateTime } from "@/lib/formatters";
 import type { TicketMessage } from "@/types/tickets";
@@ -57,6 +57,35 @@ export function TicketChat({
   const [newMessage, setNewMessage] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.types.includes("Files")) setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) setIsDragging(false);
+  };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_FILE_SIZE) {
+      toast({ title: "File troppo grande", description: "La dimensione massima consentita è 10MB.", variant: "destructive" });
+      return;
+    }
+    setSelectedFile(file);
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -216,7 +245,20 @@ export function TicketChat({
   };
 
   return (
-    <Card className="flex flex-col" style={{ height, minHeight: "300px" }}>
+    <Card
+      className="flex flex-col relative"
+      style={{ height, minHeight: "300px" }}
+      onDragEnter={disabled ? undefined : handleDragEnter}
+      onDragLeave={disabled ? undefined : handleDragLeave}
+      onDragOver={disabled ? undefined : handleDragOver}
+      onDrop={disabled ? undefined : handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-lg backdrop-blur-sm">
+          <Upload className="h-10 w-10 text-primary mb-2" />
+          <p className="text-sm font-medium text-primary">Rilascia per allegare</p>
+        </div>
+      )}
       <CardHeader className="border-b flex-shrink-0">
         <CardTitle className="text-lg">Conversazione</CardTitle>
       </CardHeader>
