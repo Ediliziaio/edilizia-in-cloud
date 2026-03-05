@@ -1,60 +1,84 @@
 
 
-# Ottimizzazione Cruscotto Aziendale — Pulizia, Bug Fix e UX
+# Miglioramento Sezione Ordini — Colonne dinamiche, link su codice, data ordine
 
-## 1. Codice morto da rimuovere
+## Obiettivo
+1. Rendere il **codice ordine** cliccabile → apre il dettaglio
+2. Aggiungere la colonna **Data Ordine** (created_at)
+3. Aggiungere **colonne opzionali** configurabili dall'utente: Venditore, Manodopera (dipendenti/squadre esterne), con possibilità di attivare/disattivare colonne dalla UI
 
-4 file orfani nella cartella `src/components/cruscotto/` non importati da nessuna parte:
+---
 
-| File | Motivo |
-|------|--------|
-| `DailyPriorities.tsx` | Rimosso dal layout, nessun import |
-| `ExecutiveSummary.tsx` | Rimosso dal layout, nessun import |
-| `WeeklyAgenda.tsx` | Sostituito da `WeeklySnapshot.tsx`, nessun import |
-| `QuickActions.tsx` | Rimosso dal layout, nessun import |
+## 1. Codice ordine cliccabile (OrdersTable.tsx)
 
-Import inutile in `CruscottoAziendale.tsx`: `Loader2` importato da lucide ma mai usato.
+Trasformare la cella "Codice" da testo semplice a `<Link>` verso `/azienda/ordini/${order.id}`:
 
-## 2. Bug fix
+```tsx
+<TableCell className="font-medium">
+  <Link to={`/azienda/ordini/${order.id}`} className="text-primary hover:underline">
+    {order.order_code || "—"}
+  </Link>
+</TableCell>
+```
 
-| Bug | File | Fix |
-|-----|------|-----|
-| `(marketingAlerts as any).stale_leads_2h` e `pending_appointments` — cast `as any` inutili, il tipo `AlertsData` ha già quei campi | `CruscottoAlerts.tsx` | Rimuovere tutti i cast `as any` (righe 44, 49, 54, 59) |
-| KPI "Proiezione Mese" mostra `getPrevValue: () => 0` — delta mai visibile ma semanticamente corretto (è una proiezione, non ha "precedente") | `ExecutiveOverview.tsx` | Nessuna modifica necessaria — è intenzionale |
-| `FinanzaCashFlow.tsx` importa `fmt` ma non lo usa | `FinanzaCashFlow.tsx` | Rimuovere import inutile |
+---
 
-## 3. Miglioramenti UX
+## 2. Colonna "Data Ordine"
 
-| Miglioramento | File | Dettaglio |
-|---------------|------|-----------|
-| Empty state nelle tab quando dati assenti | Tutti i tab content | Aggiungere messaggi guida quando `sales`, `funnel`, `sources` sono vuoti — evita schermate bianche |
-| Tab Vendite: empty state per HRPerformance già presente (riga 36) — OK | — | — |
-| Tab Finanza: aggiungere empty state quando entrate e uscite sono entrambe 0 | `FinanzaCashFlow.tsx` | Messaggio "Nessun dato finanziario nel periodo" |
-| Tab Marketing: aggiungere empty state quando sources e funnel vuoti | `MarketingControl.tsx` | Messaggio con CTA |
-| Tab Operazioni: il layout è solido, nessun dead-end | — | — |
-| Loading skeleton per il grafico ROI in MarketingControl | `MarketingControl.tsx` | Aggiungere `isLoading` check prima del grafico |
+Aggiungere dopo "Codice" una colonna con `format(new Date(order.created_at), "dd/MM/yyyy")`. Il dato `created_at` è già presente nell'interfaccia `OrderWithDetails`.
 
-## 4. File da modificare
+---
+
+## 3. Colonne opzionali configurabili
+
+### Dati aggiuntivi necessari (da OrdersList.tsx)
+Le query per `order_employees`, `order_external_teams`, `order_salespeople` già esistono ma selezionano solo costi. Occorre **espandere** le query per includere nomi:
+
+- `order_salespeople`: aggiungere `salesperson:profiles!order_salespeople_salesperson_id_fkey(first_name, last_name)`
+- `order_employees`: aggiungere `employee:employees!order_employees_employee_id_fkey(first_name, last_name)`
+- `order_external_teams`: aggiungere `external_team:external_teams!order_external_teams_external_team_id_fkey(name)`
+
+### Struttura colonne opzionali
+
+Definire un set di colonne extra disponibili:
+
+| Chiave | Label | Sorgente |
+|--------|-------|----------|
+| `date` | Data Ordine | `order.created_at` — **sempre visibile** |
+| `salesperson` | Venditore | `salespeopleMap.get(order.id)` |
+| `employees` | Manodopera | `employeesMap.get(order.id)` + `teamsMap.get(order.id)` |
+| `expected_date` | Data Prevista | `order.expected_date` |
+| `warehouse_date` | Data Magazzino | `order.warehouse_arrival_date` |
+
+### UI per attivare/disattivare colonne
+
+Aggiungere un pulsante **"Colonne"** con un `DropdownMenu` con checkbox per ogni colonna opzionale. Lo stato viene salvato in `localStorage` per persistenza tra sessioni.
+
+### Filtro per venditore e manodopera
+
+Aggiungere in `OrdersFilters.tsx` (o nella pagina OrdersList):
+- **Filtro Venditore**: Select con lista venditori unici estratti da `salespeopleData`
+- **Filtro Manodopera**: Select con lista dipendenti/squadre unici
+
+I filtri vengono applicati nella logica `filteredOrders` in OrdersList.tsx.
+
+---
+
+## 4. Passaggio dati a OrdersTable
+
+Nuove props per OrdersTable:
+- `salespeopleMap: Map<string, string[]>` (order_id → nomi venditori)
+- `employeesMap: Map<string, string[]>` (order_id → nomi dipendenti + squadre)
+- `visibleColumns: Set<string>` (colonne attive)
+
+---
+
+## File da modificare
 
 | File | Intervento |
 |------|-----------|
-| `CruscottoAziendale.tsx` | Rimuovere import `Loader2` |
-| `CruscottoAlerts.tsx` | Rimuovere 4 cast `as any` |
-| `FinanzaCashFlow.tsx` | Rimuovere import `fmt` inutile, aggiungere empty state quando tutto è 0 |
-| `MarketingControl.tsx` | Aggiungere empty state per tab vuota, skeleton per loading grafico |
+| `OrdersTable.tsx` | Codice cliccabile, colonna Data, colonne opzionali condizionali (venditore, manodopera, date), nuove props |
+| `OrdersList.tsx` | Espandere query salespeople/employees/teams per includere nomi, costruire mappe nomi, stato colonne con localStorage, filtri venditore/manodopera, pulsante "Colonne", passare nuovi dati a OrdersTable |
 
-## 5. File da eliminare
-
-- `src/components/cruscotto/DailyPriorities.tsx`
-- `src/components/cruscotto/ExecutiveSummary.tsx`
-- `src/components/cruscotto/WeeklyAgenda.tsx`
-- `src/components/cruscotto/QuickActions.tsx`
-
-## Output atteso
-
-- **Rimossi**: 4 file orfani, 1 import inutile (`Loader2`), 1 import inutile (`fmt`), 4 cast `as any`
-- **Bug corretti**: Type safety in CruscottoAlerts, import puliti
-- **UX migliorata**: Empty state in tab Finanza e Marketing, nessun vicolo cieco
-- **Console**: Nessun warning/errore aggiuntivo introdotto
-- **Comportamento funzionale**: invariato
+Nessuna migrazione DB necessaria — i dati sono già tutti nelle tabelle esistenti.
 
