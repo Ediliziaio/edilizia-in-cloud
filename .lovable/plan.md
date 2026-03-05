@@ -1,38 +1,40 @@
 
 
-# Fix Drag & Drop nella Pipeline Ordini
+# Fix Drag & Drop Pipeline — Card non trascinabile
 
-## Problemi identificati
+## Problema
 
-1. **Warning React**: `OrdersPipelineCard` non usa `forwardRef`, causando problemi con `DragOverlay`
-2. **Collision detection sbagliata**: `closestCenter` non funziona bene per il drag tra colonne — va usato `closestCorners` (come nella Kanban Opportunità che funziona)
-3. **Touch support mancante**: Non c'è il `TouchSensor`, quindi il drag non funziona su mobile
+Il drag funziona solo se l'utente afferra la piccola icona `GripVertical` (6 dot handle). Ma nella pratica gli utenti cercano di trascinare l'intera card, che invece naviga al dettaglio ordine tramite il `Link`.
 
 ## Fix
 
-### OrdersPipelineView.tsx
-- Cambiare `closestCenter` → `closestCorners`
-- Aggiungere `TouchSensor` ai sensors
-- Il `handleDragEnd` deve anche gestire il caso in cui si droppa su un'altra card (estrarre lo status dalla card target, come fa OpportunityKanbanView)
-
 ### OrdersPipelineCard.tsx
-- Nessuna modifica strutturale necessaria — il `useDraggable` è già configurato correttamente
 
-### OrdersPipelineColumn.tsx  
-- Verificare che il `useDroppable` usi l'`id` corretto (già OK, usa `status.id`)
-
-## Dettaglio tecnico
-
-Il fix principale è nella collision detection e nella logica `handleDragEnd`: quando l'utente droppa una card su un'altra card (non direttamente sulla colonna), `over.id` sarà l'id dell'ordine, non dello stato. Bisogna risalire allo stato della colonna target. Cambio:
+1. Spostare `{...attributes} {...listeners}` sull'intero wrapper `div` esterno (non solo sull'icona grip)
+2. Sostituire il `Link` con un `div` + `onClick` che naviga solo se NON si sta trascinando (controllando `isDragging`)
+3. Mantenere l'icona grip come indicatore visivo ma senza listeners dedicati
 
 ```typescript
-// handleDragEnd: gestire drop su card oltre che su colonna
-let targetStatusId = over.id as string;
-const overOrder = orders.find(o => o.id === over.id);
-if (overOrder) {
-  targetStatusId = overOrder.current_status_id || "";
-}
+// Prima: listeners solo sul grip handle + Link che intercetta il click
+// Dopo: listeners sull'intera card, navigazione solo su click (non drag)
+
+const navigate = useNavigate();
+
+<div
+  ref={setNodeRef}
+  style={style}
+  {...attributes}
+  {...listeners}
+  onClick={() => {
+    if (!isDragging) navigate(`/azienda/ordini/${order.id}`);
+  }}
+  className={cn("touch-none cursor-grab active:cursor-grabbing", ...)}
+>
+  <Card>
+    {/* contenuto senza Link wrapper */}
+  </Card>
+</div>
 ```
 
-Due file da modificare: `OrdersPipelineView.tsx` (collision + sensors + drag end logic).
+Un solo file da modificare: `OrdersPipelineCard.tsx`.
 
