@@ -15,6 +15,8 @@ import {
   Clock,
   PackageOpen,
   RefreshCw,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -91,7 +93,10 @@ export default function Warehouse() {
 
   const { sections } = useWarehouseSections();
   const [activeSectionFilter, setActiveSectionFilter] = useState("all");
-
+  const [showMap, setShowMap] = useState(() => {
+    const stored = localStorage.getItem("warehouse-show-map");
+    return stored !== null ? stored === "true" : true;
+  });
   const { data: fullStockItems = [] } = useQuery({
     queryKey: ["warehouse-stock", effectiveCompany?.id],
     queryFn: async () => {
@@ -182,14 +187,35 @@ export default function Warehouse() {
       {/* Stats */}
       <WarehouseStats items={items} />
 
-      {/* Warehouse Map - always visible */}
+      {/* Warehouse Map - toggleable */}
       <div className="print:hidden">
-        <WarehouseMapView
-          stockItems={fullStockItems}
-          sections={sections}
-          activeSectionFilter={activeSectionFilter}
-          onFilterSection={setActiveSectionFilter}
-        />
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            Mappa Magazzino
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setShowMap((v) => {
+                localStorage.setItem("warehouse-show-map", String(!v));
+                return !v;
+              });
+            }}
+            className="gap-1.5 text-xs text-muted-foreground"
+          >
+            {showMap ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showMap ? "Nascondi mappa" : "Mostra mappa"}
+          </Button>
+        </div>
+        {showMap && (
+          <WarehouseMapView
+            stockItems={fullStockItems}
+            sections={sections}
+            activeSectionFilter={activeSectionFilter}
+            onFilterSection={setActiveSectionFilter}
+          />
+        )}
       </div>
 
       {/* View Toggle & Filters */}

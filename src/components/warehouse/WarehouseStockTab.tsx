@@ -1,9 +1,11 @@
 import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
+import { useDraggable } from "@dnd-kit/core";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +22,7 @@ import { StockItemDialog } from "./StockItemDialog";
 import { StockMovementDialog } from "./StockMovementDialog";
 import { StockMovementHistoryDialog } from "./StockMovementHistoryDialog";
 import { WarehouseSectionsManager } from "./WarehouseSectionsManager";
+import { WarehouseMapView } from "./WarehouseMapView";
 
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -44,6 +47,12 @@ export default function WarehouseStockTab() {
   const [taskItem, setTaskItem] = useState<StockItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchTargetSection, setBatchTargetSection] = useState<string>("");
+  const [draggingItem, setDraggingItem] = useState<StockItem | null>(null);
+
+  // DnD sensors — require 8px movement before activating to avoid interfering with clicks
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   // Fetch stock items
   const { data: stockItems = [], isLoading } = useQuery({
@@ -229,11 +238,12 @@ export default function WarehouseStockTab() {
         .eq("company_id", companyId!);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      const count = variables.ids.length;
       setSelectedIds(new Set());
       setBatchTargetSection("");
-      toast.success("Articoli spostati", { description: `${selectedIds.size} articoli aggiornati.` });
+      toast.success("Articoli spostati", { description: `${count} articol${count === 1 ? "o" : "i"} aggiornat${count === 1 ? "o" : "i"}.` });
     },
     onError: () => {
       toast.error("Errore", { description: "Impossibile spostare gli articoli." });
@@ -293,245 +303,350 @@ export default function WarehouseStockTab() {
     });
   };
 
+  // --- DnD handlers ---
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const itemId = event.active.data.current?.itemId as string | undefined;
+    if (itemId) {
+      const item = stockItems.find((i) => i.id === itemId) || null;
+      setDraggingItem(item);
+    }
+  }, [stockItems]);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setDraggingItem(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const sectionId = over.data.current?.sectionId as string | undefined;
+    if (!sectionId) return;
+
+    const itemId = active.data.current?.itemId as string | undefined;
+    if (!itemId) return;
+
+    // Determine which IDs to move: if the dragged item is part of selection, move all selected
+    const idsToMove = selectedIds.has(itemId) && selectedIds.size > 1
+      ? Array.from(selectedIds)
+      : [itemId];
+
+    const resolvedSectionId = sectionId === "__none__" ? null : sectionId;
+
+    batchMoveMutation.mutate({ ids: idsToMove, sectionId: resolvedSectionId });
+  }, [selectedIds, batchMoveMutation]);
+
   return (
-    <div className="space-y-4">
-      {/* Low stock alert */}
-      {lowStockItems.length > 0 && (
-        <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-          <CardContent className="py-3 flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
-            <span className="text-sm font-medium">
-              {lowStockItems.length} articol{lowStockItems.length === 1 ? "o" : "i"} sotto la soglia minima:{" "}
-              {lowStockItems.map((i) => `${i.name} (${i.quantity}/${i.min_stock_level})`).join(", ")}
-            </span>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Sections Manager */}
-      <WarehouseSectionsManager />
-
-      {/* Header with search, filter and add */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Cerca articolo..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        {sections.length > 0 && (
-          <Select value={sectionFilter} onValueChange={setSectionFilter}>
-            <SelectTrigger className="w-[180px]">
-              <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-              <SelectValue placeholder="Filtra zona" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutte le zone</SelectItem>
-              <SelectItem value="none">Senza zona</SelectItem>
-              {sections.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  <div className="flex items-center gap-2">
-                    <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                    {s.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div className="space-y-4">
+        {/* Low stock alert */}
+        {lowStockItems.length > 0 && (
+          <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+            <CardContent className="py-3 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              <span className="text-sm font-medium">
+                {lowStockItems.length} articol{lowStockItems.length === 1 ? "o" : "i"} sotto la soglia minima:{" "}
+                {lowStockItems.map((i) => `${i.name} (${i.quantity}/${i.min_stock_level})`).join(", ")}
+              </span>
+            </CardContent>
+          </Card>
         )}
-        <Button onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Aggiungi Articolo
-        </Button>
-      </div>
 
-      {/* Batch action bar */}
-      {selectedIds.size > 0 && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="py-3 flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-medium">
-              {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
-            </span>
-            {sections.length > 0 && (
-              <>
-                <Select value={batchTargetSection} onValueChange={setBatchTargetSection}>
-                  <SelectTrigger className="w-[180px] h-8">
-                    <SelectValue placeholder="Zona destinazione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Rimuovi zona</SelectItem>
-                    {sections.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        <div className="flex items-center gap-2">
-                          <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                          {s.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  size="sm"
-                  onClick={handleBatchMove}
-                  disabled={!batchTargetSection || batchMoveMutation.isPending}
-                >
-                  <MoveRight className="h-4 w-4 mr-1" />
-                  Sposta
-                </Button>
-              </>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { setSelectedIds(new Set()); setBatchTargetSection(""); }}
-            >
-              <X className="h-4 w-4 mr-1" />
-              Deseleziona
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+        {/* Sections Manager */}
+        <WarehouseSectionsManager />
 
-      {/* Table */}
-      {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">Caricamento...</div>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            {searchQuery ? "Nessun articolo trovato." : "Nessun articolo in giacenza. Clicca 'Aggiungi Articolo' per iniziare."}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={toggleSelectAll}
-                      aria-label="Seleziona tutti"
+        {/* Droppable Map (inside stock tab for DnD) */}
+        {sections.length > 0 && (
+          <WarehouseMapView
+            stockItems={stockItems}
+            sections={sections}
+            activeSectionFilter={sectionFilter}
+            onFilterSection={setSectionFilter}
+            droppable
+          />
+        )}
+
+        {/* Header with search, filter and add */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca articolo..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          {sections.length > 0 && (
+            <Select value={sectionFilter} onValueChange={setSectionFilter}>
+              <SelectTrigger className="w-[180px]">
+                <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Filtra zona" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte le zone</SelectItem>
+                <SelectItem value="none">Senza zona</SelectItem>
+                {sections.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                      {s.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button onClick={() => { setEditingItem(null); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Aggiungi Articolo
+          </Button>
+        </div>
+
+        {/* Batch action bar */}
+        {selectedIds.size > 0 && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="py-3 flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium">
+                {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
+              </span>
+              {sections.length > 0 && (
+                <>
+                  <Select value={batchTargetSection} onValueChange={setBatchTargetSection}>
+                    <SelectTrigger className="w-[180px] h-8">
+                      <SelectValue placeholder="Zona destinazione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Rimuovi zona</SelectItem>
+                      {sections.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          <div className="flex items-center gap-2">
+                            <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                            {s.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    onClick={handleBatchMove}
+                    disabled={!batchTargetSection || batchMoveMutation.isPending}
+                  >
+                    <MoveRight className="h-4 w-4 mr-1" />
+                    Sposta
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setSelectedIds(new Set()); setBatchTargetSection(""); }}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Deseleziona
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Table */}
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">Caricamento...</div>
+        ) : filtered.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              {searchQuery ? "Nessun articolo trovato." : "Nessun articolo in giacenza. Clicca 'Aggiungi Articolo' per iniziare."}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8" />
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Seleziona tutti"
+                      />
+                    </TableHead>
+                    <TableHead>Articolo</TableHead>
+                    {sections.length > 0 && <TableHead>Zona</TableHead>}
+                    <TableHead className="text-center">Qtà</TableHead>
+                    <TableHead className="text-right">Costo Unit.</TableHead>
+                    <TableHead className="text-right">Valore Totale</TableHead>
+                    <TableHead>Fornitore</TableHead>
+                    <TableHead className="text-center">Soglia</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((item) => (
+                    <DraggableStockRow
+                      key={item.id}
+                      item={item}
+                      isLow={item.min_stock_level > 0 && item.quantity <= item.min_stock_level}
+                      section={getSectionName(item.section_id)}
+                      isSelected={selectedIds.has(item.id)}
+                      hasSections={sections.length > 0}
+                      supplierName={getSupplierName(item.supplier_id)}
+                      onToggleSelect={() => toggleSelect(item.id)}
+                      onEdit={() => { setEditingItem(item); setDialogOpen(true); }}
+                      onCarico={() => setMovementDialog({ open: true, type: "carico", item })}
+                      onScarico={() => setMovementDialog({ open: true, type: "scarico", item })}
+                      onHistory={() => setHistoryItem(item)}
+                      onTask={() => setTaskItem(item)}
                     />
-                  </TableHead>
-                  <TableHead>Articolo</TableHead>
-                  {sections.length > 0 && <TableHead>Zona</TableHead>}
-                  <TableHead className="text-center">Qtà</TableHead>
-                  <TableHead className="text-right">Costo Unit.</TableHead>
-                  <TableHead className="text-right">Valore Totale</TableHead>
-                  <TableHead>Fornitore</TableHead>
-                  <TableHead className="text-center">Soglia</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((item) => {
-                  const isLow = item.min_stock_level > 0 && item.quantity <= item.min_stock_level;
-                  const section = getSectionName(item.section_id);
-                  const isSelected = selectedIds.has(item.id);
-                  return (
-                    <TableRow key={item.id} className={isLow ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}>
-                      <TableCell>
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleSelect(item.id)}
-                          aria-label={`Seleziona ${item.name}`}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <span className="font-medium">{item.name}</span>
-                          {item.description && (
-                            <p className="text-xs text-muted-foreground truncate max-w-[200px]">{item.description}</p>
-                          )}
-                        </div>
-                      </TableCell>
-                      {sections.length > 0 && (
-                        <TableCell>
-                          {section ? (
-                            <Badge variant="outline" className="text-xs gap-1">
-                              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: section.color }} />
-                              {section.name}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      )}
-                      <TableCell className="text-center">
-                        <Badge variant={isLow ? "destructive" : "secondary"}>
-                          {item.quantity}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.unit_cost)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.unit_cost * item.quantity)}</TableCell>
-                      <TableCell>{getSupplierName(item.supplier_id)}</TableCell>
-                      <TableCell className="text-center">{item.min_stock_level || "—"}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" title="Task" onClick={() => setTaskItem(item)}>
-                            <CheckSquare className="h-4 w-4 text-primary" />
-                          </Button>
-                          <Button variant="ghost" size="icon" title="Storico" onClick={() => setHistoryItem(item)}>
-                            <History className="h-4 w-4 text-muted-foreground" />
-                          </Button>
-                          <Button variant="ghost" size="icon" title="Carico" onClick={() => setMovementDialog({ open: true, type: "carico", item })}>
-                            <ArrowUpCircle className="h-4 w-4 text-emerald-600" />
-                          </Button>
-                          <Button variant="ghost" size="icon" title="Scarico" onClick={() => setMovementDialog({ open: true, type: "scarico", item })} disabled={item.quantity === 0}>
-                            <ArrowDownCircle className="h-4 w-4 text-red-500" />
-                          </Button>
-                          <Button variant="ghost" size="icon" title="Modifica" onClick={() => { setEditingItem(item); setDialogOpen(true); }}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Dialogs */}
-      <StockItemDialog
-        open={dialogOpen}
-        onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditingItem(null); }}
-        editingItem={editingItem}
-        isPending={saveMutation.isPending}
-        onSave={(data) => saveMutation.mutate({ ...data, id: editingItem?.id })}
-      />
-      <StockMovementDialog
-        open={movementDialog.open}
-        onOpenChange={(v) => { if (!v) setMovementDialog({ open: false, type: "carico", item: null }); }}
-        type={movementDialog.type}
-        itemName={movementDialog.item?.name || ""}
-        maxQuantity={movementDialog.type === "scarico" ? movementDialog.item?.quantity : undefined}
-        isPending={movementMutation.isPending}
-        onSave={(data) => {
-          if (!movementDialog.item) return;
-          movementMutation.mutate({ stockItemId: movementDialog.item.id, type: movementDialog.type, ...data });
-        }}
-      />
-      <StockMovementHistoryDialog
-        open={!!historyItem}
-        onOpenChange={(v) => { if (!v) setHistoryItem(null); }}
-        item={historyItem}
-      />
-      <Dialog open={!!taskItem} onOpenChange={(v) => { if (!v) setTaskItem(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Task - {taskItem?.name}</DialogTitle>
-            <DialogDescription>Attività collegate a questo articolo</DialogDescription>
-          </DialogHeader>
-          {taskItem && <LinkedTasks stockItemId={taskItem.id} category="magazzino" />}
-        </DialogContent>
-      </Dialog>
-    </div>
+        {/* Drag Overlay */}
+        <DragOverlay dropAnimation={null}>
+          {draggingItem && (
+            <div className="bg-background border rounded-md shadow-lg px-4 py-2 flex items-center gap-2 text-sm font-medium opacity-90">
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
+              {draggingItem.name}
+              {selectedIds.has(draggingItem.id) && selectedIds.size > 1 && (
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  +{selectedIds.size - 1}
+                </Badge>
+              )}
+            </div>
+          )}
+        </DragOverlay>
+
+        {/* Dialogs */}
+        <StockItemDialog
+          open={dialogOpen}
+          onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditingItem(null); }}
+          editingItem={editingItem}
+          isPending={saveMutation.isPending}
+          onSave={(data) => saveMutation.mutate({ ...data, id: editingItem?.id })}
+        />
+        <StockMovementDialog
+          open={movementDialog.open}
+          onOpenChange={(v) => { if (!v) setMovementDialog({ open: false, type: "carico", item: null }); }}
+          type={movementDialog.type}
+          itemName={movementDialog.item?.name || ""}
+          maxQuantity={movementDialog.type === "scarico" ? movementDialog.item?.quantity : undefined}
+          isPending={movementMutation.isPending}
+          onSave={(data) => {
+            if (!movementDialog.item) return;
+            movementMutation.mutate({ stockItemId: movementDialog.item.id, type: movementDialog.type, ...data });
+          }}
+        />
+        <StockMovementHistoryDialog
+          open={!!historyItem}
+          onOpenChange={(v) => { if (!v) setHistoryItem(null); }}
+          item={historyItem}
+        />
+        <Dialog open={!!taskItem} onOpenChange={(v) => { if (!v) setTaskItem(null); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Task - {taskItem?.name}</DialogTitle>
+              <DialogDescription>Attività collegate a questo articolo</DialogDescription>
+            </DialogHeader>
+            {taskItem && <LinkedTasks stockItemId={taskItem.id} category="magazzino" />}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </DndContext>
+  );
+}
+
+// --- Draggable row component ---
+
+interface DraggableStockRowProps {
+  item: StockItem;
+  isLow: boolean;
+  section: { name: string; color: string } | null;
+  isSelected: boolean;
+  hasSections: boolean;
+  supplierName: string;
+  onToggleSelect: () => void;
+  onEdit: () => void;
+  onCarico: () => void;
+  onScarico: () => void;
+  onHistory: () => void;
+  onTask: () => void;
+}
+
+function DraggableStockRow({
+  item, isLow, section, isSelected, hasSections, supplierName,
+  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask,
+}: DraggableStockRowProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `stock-${item.id}`,
+    data: { itemId: item.id },
+  });
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      className={`${isLow ? "bg-amber-50/50 dark:bg-amber-950/10" : ""} ${isDragging ? "opacity-40" : ""}`}
+    >
+      <TableCell className="w-8 cursor-grab active:cursor-grabbing" {...listeners} {...attributes}>
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </TableCell>
+      <TableCell>
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={onToggleSelect}
+          aria-label={`Seleziona ${item.name}`}
+        />
+      </TableCell>
+      <TableCell>
+        <div>
+          <span className="font-medium">{item.name}</span>
+          {item.description && (
+            <p className="text-xs text-muted-foreground truncate max-w-[200px]">{item.description}</p>
+          )}
+        </div>
+      </TableCell>
+      {hasSections && (
+        <TableCell>
+          {section ? (
+            <Badge variant="outline" className="text-xs gap-1">
+              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: section.color }} />
+              {section.name}
+            </Badge>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </TableCell>
+      )}
+      <TableCell className="text-center">
+        <Badge variant={isLow ? "destructive" : "secondary"}>
+          {item.quantity}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-right">{formatCurrency(item.unit_cost)}</TableCell>
+      <TableCell className="text-right">{formatCurrency(item.unit_cost * item.quantity)}</TableCell>
+      <TableCell>{supplierName}</TableCell>
+      <TableCell className="text-center">{item.min_stock_level || "—"}</TableCell>
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="icon" title="Task" onClick={onTask}>
+            <CheckSquare className="h-4 w-4 text-primary" />
+          </Button>
+          <Button variant="ghost" size="icon" title="Storico" onClick={onHistory}>
+            <History className="h-4 w-4 text-muted-foreground" />
+          </Button>
+          <Button variant="ghost" size="icon" title="Carico" onClick={onCarico}>
+            <ArrowUpCircle className="h-4 w-4 text-emerald-600" />
+          </Button>
+          <Button variant="ghost" size="icon" title="Scarico" onClick={onScarico} disabled={item.quantity === 0}>
+            <ArrowDownCircle className="h-4 w-4 text-red-500" />
+          </Button>
+          <Button variant="ghost" size="icon" title="Modifica" onClick={onEdit}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
