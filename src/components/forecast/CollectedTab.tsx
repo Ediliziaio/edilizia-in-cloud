@@ -37,23 +37,21 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
   const allCollected = useMemo<CollectedPayment[]>(() => {
     const collected: CollectedPayment[] = [];
 
-    orders.forEach((order: any) => {
-      const customerName = order.customer
+    orders.forEach((inst: any) => {
+      if (!inst.is_paid || !inst.paid_date || !inst.amount || Number(inst.amount) <= 0) return;
+      const order = inst.order;
+      const customerName = order?.customer
         ? `${order.customer.first_name} ${order.customer.last_name}`
         : "Cliente sconosciuto";
 
-      if (order.deposit_paid && order.deposit_paid_date && order.deposit_amount > 0) {
-        collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Acconto 1", amount: Number(order.deposit_amount), paidDate: new Date(order.deposit_paid_date) });
-      }
-      if (order.deposit_2_paid && order.deposit_2_paid_date && order.deposit_2_amount > 0) {
-        collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Acconto 2", amount: Number(order.deposit_2_amount), paidDate: new Date(order.deposit_2_paid_date) });
-      }
-      if (order.balance_paid && order.balance_paid_date && order.balance_amount > 0) {
-        collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Saldo", amount: Number(order.balance_amount), paidDate: new Date(order.balance_paid_date) });
-      }
-      if (order.financing_paid && order.financing_paid_date && order.financing_amount > 0) {
-        collected.push({ orderId: order.id, orderCode: order.order_code, customerName, type: "Finanziamento", amount: Number(order.financing_amount), paidDate: new Date(order.financing_paid_date) });
-      }
+      collected.push({
+        orderId: order?.id || inst.order_id,
+        orderCode: order?.order_code || null,
+        customerName,
+        type: inst.label || inst.type || "Rata",
+        amount: Number(inst.amount),
+        paidDate: new Date(inst.paid_date),
+      });
     });
 
     return collected.sort((a, b) => b.paidDate.getTime() - a.paidDate.getTime());

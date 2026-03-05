@@ -95,16 +95,17 @@ export function useCruscottoData() {
     staleTime: 120_000,
   });
 
-  // Shared payments query (used by both operations and finance)
+  // Shared installments query (used by both operations and finance)
   const { data: paymentsData } = useQuery({
-    queryKey: ["cruscotto-payments", companyId],
+    queryKey: ["cruscotto-installments", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("orders")
-        .select("deposit_amount, deposit_paid, deposit_expected_date, deposit_2_amount, deposit_2_paid, deposit_2_expected_date, balance_amount, balance_paid, balance_expected_date, financing_amount, financing_paid, financing_expected_date")
-        .eq("company_id", companyId!)
-        .or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false,financing_paid.eq.false");
+      const { data, error } = await (supabase as any)
+        .from("order_installments")
+        .select("amount, is_paid, expected_date, order:orders!inner(company_id)")
+        .eq("order.company_id", companyId!)
+        .eq("is_paid", false);
       if (error) throw error;
-      return data;
+      return data as { amount: number; is_paid: boolean; expected_date: string | null }[];
     },
     enabled: !!companyId,
     staleTime: 120_000,
@@ -133,17 +134,12 @@ export function useCruscottoData() {
 
       let overduePayments = 0;
       let overdueAmount = 0;
-      paymentsData?.forEach((order) => {
-        const check = (paid: boolean, amount: number, date: string | null) => {
-          if (!paid && amount > 0 && date && date < todayStr) {
-            overduePayments++;
-            overdueAmount += amount;
-          }
-        };
-        check(order.deposit_paid, Number(order.deposit_amount), order.deposit_expected_date);
-        check(order.deposit_2_paid, Number(order.deposit_2_amount), order.deposit_2_expected_date);
-        check(order.balance_paid, Number(order.balance_amount), order.balance_expected_date);
-        check(order.financing_paid, Number(order.financing_amount), order.financing_expected_date);
+      paymentsData?.forEach((inst) => {
+        const amount = Number(inst.amount) || 0;
+        if (amount > 0 && inst.expected_date && inst.expected_date < todayStr) {
+          overduePayments++;
+          overdueAmount += amount;
+        }
       });
 
       return {
@@ -203,17 +199,12 @@ export function useCruscottoData() {
       const prev = calc(prevOrdersRes.data || []);
 
       let pendingRevenue = 0, thisMonthIncome = 0, supplierDebt = 0;
-      paymentsData?.forEach((order) => {
-        const addPending = (paid: boolean, amount: number, date: string | null) => {
-          if (!paid && amount > 0) {
-            pendingRevenue += amount;
-            if (date && date <= thisMonthEndStr) thisMonthIncome += amount;
-          }
-        };
-        addPending(order.deposit_paid, Number(order.deposit_amount), order.deposit_expected_date);
-        addPending(order.deposit_2_paid, Number(order.deposit_2_amount), order.deposit_2_expected_date);
-        addPending(order.balance_paid, Number(order.balance_amount), order.balance_expected_date);
-        addPending(order.financing_paid, Number(order.financing_amount), order.financing_expected_date);
+      paymentsData?.forEach((inst) => {
+        const amount = Number(inst.amount) || 0;
+        if (amount > 0) {
+          pendingRevenue += amount;
+          if (inst.expected_date && inst.expected_date <= thisMonthEndStr) thisMonthIncome += amount;
+        }
       });
 
       let unpaidCosts = 0;
@@ -267,17 +258,12 @@ export function useCruscottoData() {
 
       // Reuse shared paymentsData for incoming payments calculation
       let incomingPayments = 0, incomingPaymentsCount = 0;
-      paymentsData?.forEach(order => {
-        const check = (paid: boolean, amount: number, date: string | null) => {
-          if (!paid && amount > 0 && date && date >= todayStr && date <= weekEndStr) {
-            incomingPayments += amount;
-            incomingPaymentsCount++;
-          }
-        };
-        check(order.deposit_paid, Number(order.deposit_amount), order.deposit_expected_date);
-        check(order.deposit_2_paid, Number(order.deposit_2_amount), order.deposit_2_expected_date);
-        check(order.balance_paid, Number(order.balance_amount), order.balance_expected_date);
-        check(order.financing_paid, Number(order.financing_amount), order.financing_expected_date);
+      paymentsData?.forEach((inst) => {
+        const amount = Number(inst.amount) || 0;
+        if (amount > 0 && inst.expected_date && inst.expected_date >= todayStr && inst.expected_date <= weekEndStr) {
+          incomingPayments += amount;
+          incomingPaymentsCount++;
+        }
       });
 
       let dueCosts = 0;
