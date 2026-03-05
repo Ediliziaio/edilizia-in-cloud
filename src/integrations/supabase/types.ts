@@ -4629,6 +4629,7 @@ export type Database = {
           last_name: string
           notes: string | null
           phone: string | null
+          salesperson_id: string | null
           site_address: string | null
           updated_at: string
         }
@@ -4643,6 +4644,7 @@ export type Database = {
           last_name: string
           notes?: string | null
           phone?: string | null
+          salesperson_id?: string | null
           site_address?: string | null
           updated_at?: string
         }
@@ -4657,6 +4659,7 @@ export type Database = {
           last_name?: string
           notes?: string | null
           phone?: string | null
+          salesperson_id?: string | null
           site_address?: string | null
           updated_at?: string
         }
@@ -4666,6 +4669,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
             referencedColumns: ["id"]
           },
         ]
