@@ -167,6 +167,7 @@ export function useWarehouseData() {
         if (lastStatusId && item.order.current_status_id === lastStatusId) return false;
         return true;
       });
+    } else if (quickFilter === "urgent") {
       filtered = filtered.filter((item) => {
         if (item.status === "in_magazzino" || item.status === "installato") return false;
         const expectedDate = item.order.expected_date || item.order.work_start_date;
