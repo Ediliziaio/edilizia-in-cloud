@@ -151,7 +151,8 @@ export default function CustomersList() {
       const { error } = await supabase
         .from("profiles")
         .update({ salesperson_id: salespersonId })
-        .eq("id", customerId);
+        .eq("id", customerId)
+        .eq("company_id", effectiveCompany!.id);
       if (error) throw error;
     },
     onSuccess: () => {

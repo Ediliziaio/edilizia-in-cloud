@@ -29,6 +29,21 @@ import { it } from "date-fns/locale";
 import { getInitials, getAvatarColor } from "@/lib/contactUtils";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 
+interface CustomerProfile {
+  id: string;
+  first_name: string | null;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  address: string | null;
+  fiscal_code: string | null;
+  site_address: string | null;
+  notes: string | null;
+  company_id: string | null;
+  created_at: string;
+  salesperson_id: string | null;
+}
+
 export default function CompanyCustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -56,7 +71,7 @@ export default function CompanyCustomerDetail() {
         .eq("id", id!)
         .single();
       if (error) throw error;
-      return data;
+      return data as unknown as CustomerProfile;
     },
     enabled: !!id,
   });
@@ -87,7 +102,7 @@ export default function CompanyCustomerDetail() {
       setAddress(customer.address || "");
       setSiteAddress(customer.site_address || "");
       setNotes(customer.notes || "");
-      setSalespersonId((customer as any).salesperson_id || "");
+      setSalespersonId(customer.salesperson_id || "");
     }
   }, [customer]);
 
@@ -113,7 +128,8 @@ export default function CompanyCustomerDetail() {
           notes: notes.trim() || null,
           salesperson_id: salespersonId || null,
         })
-        .eq("id", id!);
+        .eq("id", id!)
+        .eq("company_id", effectiveCompany!.id);
 
       if (error) throw error;
 
@@ -144,7 +160,8 @@ export default function CompanyCustomerDetail() {
       const { error } = await supabase
         .from("profiles")
         .delete()
-        .eq("id", id!);
+        .eq("id", id!)
+        .eq("company_id", effectiveCompany!.id);
 
       if (error) throw error;
 
@@ -300,7 +317,7 @@ export default function CompanyCustomerDetail() {
 
               <SalespersonSelect
                 value={salespersonId}
-                onChange={(val) => setSalespersonId(val)}
+                onChange={(val, _sp) => setSalespersonId(val)}
                 disabled={isSaving}
               />
 
