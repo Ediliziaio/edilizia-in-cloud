@@ -1,38 +1,58 @@
 
 
-# Ottimizzazione Kanban Magazzino — Card con più dettagli
+# Sezioni/Zone del Magazzino
 
-## Problema
-Attualmente le card Kanban mostrano solo una riga compatta: grip + quantità + nome + badge urgenza. Per vedere dettagli (cliente, ordine, fornitore, data) bisogna aprire il menu dropdown. Manca anche la possibilità di cliccare per aprire il dettaglio completo (come nella lista).
+## Obiettivo
+Permettere alle aziende di organizzare il proprio magazzino in sezioni/zone (es. "Scaffale A", "Area Elettrica", "Piano Interrato") e assegnare ogni articolo di giacenza a una sezione specifica, così da sapere esattamente dove trovare ogni materiale.
 
-## Soluzione
+## Modifiche
 
-### 1. Card Kanban riprogettata (layout multi-riga)
+### 1. Database — Nuova tabella `warehouse_sections`
 
-Trasformare `WarehouseKanbanCard` da layout a riga singola a card più informativa:
+```sql
+CREATE TABLE public.warehouse_sections (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  description text,
+  color text DEFAULT '#6b7280',
+  position int DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(company_id, name)
+);
 
-- **Riga 1**: Grip + Nome articolo (+ badge urgenza/ritardo a destra)
-- **Riga 2**: Icone compatte con info chiave inline:
-  - Quantità (`2x`)
-  - Cliente (nome troncato)
-  - Codice ordine
-- **Riga 3** (opzionale): Fornitore + Data posa
-- Indicatore note (icona StickyNote) se presenti
-- Bordo sinistro colorato in base alla colonna per rinforzo visivo
+ALTER TABLE public.warehouse_sections ENABLE ROW LEVEL SECURITY;
 
-### 2. Click per aprire il dettaglio
+-- RLS: solo utenti della stessa azienda
+CREATE POLICY "Users can manage own company sections"
+  ON public.warehouse_sections FOR ALL TO authenticated
+  USING (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()))
+  WITH CHECK (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
 
-- Cliccando sulla card si apre il `WarehouseItemDetailDialog` già esistente
-- Il drag funziona tramite il grip handle, il click sulla card apre il dialog
-- Rimuovere il dropdown menu (non più necessario, il dialog lo sostituisce)
+-- Aggiungere colonna section_id a warehouse_stock
+ALTER TABLE public.warehouse_stock
+  ADD COLUMN section_id uuid REFERENCES public.warehouse_sections(id) ON SET NULL;
+```
 
-### 3. Passare le props necessarie
+### 2. Gestione Sezioni — Nuovo componente `WarehouseSectionsManager`
 
-- `WarehouseKanbanView` e `WarehouseKanbanColumn` devono passare `onStatusChange`, `onUpdateNotes`, `getSupplierName`, e gestire lo stato `selectedItem` per il dialog
+Una sezione nell'interfaccia magazzino (tab o pannello laterale nella tab "Giacenze") per:
+- Creare/modificare/eliminare sezioni con nome, descrizione e colore
+- Riordinare le sezioni (drag o frecce)
+- Vedere quanti articoli ci sono in ogni sezione
 
-## File da modificare
+### 3. Integrazione con articoli di giacenza
 
-- **`src/components/warehouse/WarehouseKanbanCard.tsx`** — Redesign layout multi-riga, aggiungere onClick, rimuovere dropdown
-- **`src/components/warehouse/WarehouseKanbanColumn.tsx`** — Passare nuove props alle card
-- **`src/components/warehouse/WarehouseKanbanView.tsx`** — Aggiungere stato selectedItem, renderizzare il dialog, passare callbacks
+- **`StockItemDialog`**: aggiungere un selettore "Sezione" (opzionale) per assegnare l'articolo a una zona
+- **`WarehouseStockTab`**: 
+  - Aggiungere colonna "Sezione" nella tabella con badge colorato
+  - Aggiungere filtro per sezione nella barra di ricerca
+  - Opzione di raggruppamento per sezione
+
+### 4. File da creare/modificare
+
+- **Creare** `src/components/warehouse/WarehouseSectionsManager.tsx` — CRUD sezioni
+- **Modificare** `src/components/warehouse/WarehouseStockTab.tsx` — colonna sezione, filtro, raggruppamento
+- **Modificare** `src/components/warehouse/StockItemDialog.tsx` — selettore sezione
+- **Modificare** `src/types/warehouse.ts` — tipo `StockItem` con `section_id`
 
