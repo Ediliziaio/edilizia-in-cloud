@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,6 +7,7 @@ import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
+import { CalendarLayerPanel } from "@/components/calendar/CalendarLayerPanel";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, CalendarRange, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot } from "@/types/calendar";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
@@ -39,6 +40,16 @@ export default function Calendar() {
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [layerPanelOpen, setLayerPanelOpen] = useState(!isMobile);
+
+  // Layer visibility state
+  const [showPosa, setShowPosa] = useState(true);
+  const [showLavoro, setShowLavoro] = useState(true);
+  const [showAppuntamento, setShowAppuntamento] = useState(true);
+  const [showMerce, setShowMerce] = useState(true);
+  const [showGoogleBusy, setShowGoogleBusy] = useState(true);
+  const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(null); // null = all visible
+  const [visibleTeamIds, setVisibleTeamIds] = useState<Set<string> | null>(null); // null = all visible
 
   const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ["calendar-orders", effectiveCompany?.id],
@@ -255,15 +266,36 @@ export default function Calendar() {
           );
           if (!hasTeam) return false;
         }
+        // Resource layer filtering
+        const effectiveEmployeeIds = visibleEmployeeIds ?? new Set(companyEmployees.map(e => e.id));
+        const effectiveTeamIds = visibleTeamIds ?? new Set(externalTeams.map(t => t.id));
+        const hasVisibleEmployee = !order.order_employees?.length || order.order_employees.some(ae => effectiveEmployeeIds.has(ae.employee.id));
+        const hasVisibleTeam = !order.order_external_teams?.length || order.order_external_teams.some(aet => effectiveTeamIds.has(aet.external_team.id));
+        if (!hasVisibleEmployee && !hasVisibleTeam) return false;
         return true;
       });
-  }, [orders, statusFilter, customerFilter, employeeFilter, externalTeamFilter]);
+  }, [orders, statusFilter, customerFilter, employeeFilter, externalTeamFilter, visibleEmployeeIds, visibleTeamIds, companyEmployees, externalTeams]);
 
   // Filter appointments by assignedTo
   const filteredAppointments = useMemo(() => {
     if (assignedToFilter === "all") return appointments;
     return appointments.filter(apt => apt.assigned_to === assignedToFilter);
   }, [appointments, assignedToFilter]);
+
+  // Compute hidden event types for views
+  const hiddenEventTypes = useMemo(() => {
+    const hidden = new Set<string>();
+    if (!showPosa) hidden.add("posa");
+    if (!showLavoro) hidden.add("lavoro");
+    if (!showAppuntamento) hidden.add("appuntamento");
+    if (!showMerce) hidden.add("merce");
+    if (!showGoogleBusy) hidden.add("google_busy");
+    return hidden;
+  }, [showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy]);
+
+  // Effective visible sets for layer panel
+  const effectiveVisibleEmployees = useMemo(() => visibleEmployeeIds ?? new Set(companyEmployees.map(e => e.id)), [visibleEmployeeIds, companyEmployees]);
+  const effectiveVisibleTeams = useMemo(() => visibleTeamIds ?? new Set(externalTeams.map(t => t.id)), [visibleTeamIds, externalTeams]);
 
   // Count orders without important dates
   const unplannedOrdersCount = useMemo(() => {
@@ -342,6 +374,15 @@ export default function Calendar() {
           <Button variant="outline" size="sm" onClick={goToToday}>
             <CalendarDays className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Oggi</span>
+          </Button>
+          <Button
+            variant={layerPanelOpen ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setLayerPanelOpen(!layerPanelOpen)}
+            className="gap-1.5"
+          >
+            <Eye className="h-4 w-4" />
+            <span className="hidden sm:inline">Layer</span>
           </Button>
         </div>
       </div>
@@ -447,51 +488,92 @@ export default function Calendar() {
         </CollapsibleContent>
       </Collapsible>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="flex gap-4">
+        <div className="flex-1 min-w-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center h-96 gap-4 text-muted-foreground">
+              <AlertTriangle className="h-10 w-10 text-destructive" />
+              <p>Errore nel caricamento dei dati del calendario</p>
+              <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["calendar-orders"] })}>
+                Riprova
+              </Button>
+            </div>
+          ) : view === "month" ? (
+            <CalendarMonthView
+              orders={scheduledOrders}
+              appointments={filteredAppointments}
+              busySlots={showGoogleBusy ? busySlots : []}
+              currentDate={currentDate}
+              onDateChange={setCurrentDate}
+              syncedAppointmentIds={syncedAppointmentIds}
+              hiddenEventTypes={hiddenEventTypes}
+            />
+          ) : view === "week" ? (
+            <CalendarWeekView
+              orders={scheduledOrders}
+              appointments={filteredAppointments}
+              busySlots={showGoogleBusy ? busySlots : []}
+              currentDate={currentDate}
+              onDateChange={setCurrentDate}
+              syncedAppointmentIds={syncedAppointmentIds}
+              hiddenEventTypes={hiddenEventTypes}
+            />
+          ) : view === "heatmap" ? (
+            <CalendarHeatmapView
+              orders={scheduledOrders}
+              currentDate={currentDate}
+              onDateChange={setCurrentDate}
+            />
+          ) : (
+            <CalendarGanttView
+              orders={scheduledOrders}
+              allOrders={orders}
+              statuses={statuses}
+              currentDate={currentDate}
+              onDateChange={setCurrentDate}
+            />
+          )}
         </div>
-      ) : isError ? (
-        <div className="flex flex-col items-center justify-center h-96 gap-4 text-muted-foreground">
-          <AlertTriangle className="h-10 w-10 text-destructive" />
-          <p>Errore nel caricamento dei dati del calendario</p>
-          <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["calendar-orders"] })}>
-            Riprova
-          </Button>
-        </div>
-      ) : view === "month" ? (
-        <CalendarMonthView
-          orders={scheduledOrders}
-          appointments={filteredAppointments}
-          busySlots={busySlots}
-          currentDate={currentDate}
-          onDateChange={setCurrentDate}
-          syncedAppointmentIds={syncedAppointmentIds}
-        />
-      ) : view === "week" ? (
-        <CalendarWeekView
-          orders={scheduledOrders}
-          appointments={filteredAppointments}
-          busySlots={busySlots}
-          currentDate={currentDate}
-          onDateChange={setCurrentDate}
-          syncedAppointmentIds={syncedAppointmentIds}
-        />
-      ) : view === "heatmap" ? (
-        <CalendarHeatmapView
-          orders={scheduledOrders}
-          currentDate={currentDate}
-          onDateChange={setCurrentDate}
-        />
-      ) : (
-        <CalendarGanttView
-          orders={scheduledOrders}
-          allOrders={orders}
-          statuses={statuses}
-          currentDate={currentDate}
-          onDateChange={setCurrentDate}
-        />
-      )}
+
+        {layerPanelOpen && !isMobile && (
+          <CalendarLayerPanel
+            employees={companyEmployees}
+            externalTeams={externalTeams}
+            visibleEmployees={effectiveVisibleEmployees}
+            visibleTeams={effectiveVisibleTeams}
+            showPosa={showPosa}
+            showLavoro={showLavoro}
+            showAppuntamento={showAppuntamento}
+            showMerce={showMerce}
+            showGoogleBusy={showGoogleBusy}
+            onToggleEmployee={(id) => {
+              const next = new Set(effectiveVisibleEmployees);
+              next.has(id) ? next.delete(id) : next.add(id);
+              setVisibleEmployeeIds(next);
+            }}
+            onToggleTeam={(id) => {
+              const next = new Set(effectiveVisibleTeams);
+              next.has(id) ? next.delete(id) : next.add(id);
+              setVisibleTeamIds(next);
+            }}
+            onToggleAllEmployees={(v) => {
+              setVisibleEmployeeIds(v ? new Set(companyEmployees.map(e => e.id)) : new Set());
+            }}
+            onToggleAllTeams={(v) => {
+              setVisibleTeamIds(v ? new Set(externalTeams.map(t => t.id)) : new Set());
+            }}
+            onTogglePosa={setShowPosa}
+            onToggleLavoro={setShowLavoro}
+            onToggleAppuntamento={setShowAppuntamento}
+            onToggleMerce={setShowMerce}
+            onToggleGoogleBusy={setShowGoogleBusy}
+          />
+        )}
+      </div>
 
       <AppointmentDialog
         open={appointmentDialogOpen}

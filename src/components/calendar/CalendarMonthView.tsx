@@ -45,6 +45,7 @@ interface CalendarMonthViewProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
   syncedAppointmentIds?: Set<string>;
+  hiddenEventTypes?: Set<string>;
 }
 
 export function CalendarMonthView({
@@ -54,6 +55,7 @@ export function CalendarMonthView({
   currentDate,
   onDateChange,
   syncedAppointmentIds,
+  hiddenEventTypes = new Set(),
 }: CalendarMonthViewProps) {
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
@@ -70,25 +72,29 @@ export function CalendarMonthView({
   const getEventsForDay = (day: Date): CalendarEvent[] => {
     const events: CalendarEvent[] = [];
     orders.forEach((order) => {
-      if (order.expected_date && isSameDay(parseISO(order.expected_date), day)) {
+      if (!hiddenEventTypes.has("posa") && order.expected_date && isSameDay(parseISO(order.expected_date), day)) {
         events.push({ type: "posa", order, color: "#3B82F6" });
       }
-      if (order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day)) {
+      if (!hiddenEventTypes.has("merce") && order.warehouse_arrival_date && isSameDay(parseISO(order.warehouse_arrival_date), day)) {
         events.push({ type: "merce", order, color: "#F59E0B" });
       }
     });
-    appointments.forEach((apt) => {
-      if (isSameDay(parseISO(apt.appointment_date), day)) {
-        events.push({ type: "appointment", appointment: apt, color: "#6366F1" });
-      }
-    });
-    busySlots.forEach((slot) => {
-      const slotStart = parseISO(slot.start_at);
-      const slotEnd = parseISO(slot.end_at);
-      if (slot.is_all_day ? isSameDay(slotStart, day) : (day >= slotStart && day <= slotEnd) || isSameDay(slotStart, day)) {
-        events.push({ type: "google_busy", busySlot: slot, color: "#9CA3AF" });
-      }
-    });
+    if (!hiddenEventTypes.has("appuntamento")) {
+      appointments.forEach((apt) => {
+        if (isSameDay(parseISO(apt.appointment_date), day)) {
+          events.push({ type: "appointment", appointment: apt, color: "#6366F1" });
+        }
+      });
+    }
+    if (!hiddenEventTypes.has("google_busy")) {
+      busySlots.forEach((slot) => {
+        const slotStart = parseISO(slot.start_at);
+        const slotEnd = parseISO(slot.end_at);
+        if (slot.is_all_day ? isSameDay(slotStart, day) : (day >= slotStart && day <= slotEnd) || isSameDay(slotStart, day)) {
+          events.push({ type: "google_busy", busySlot: slot, color: "#9CA3AF" });
+        }
+      });
+    }
     return events;
   };
 
