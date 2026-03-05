@@ -20,7 +20,7 @@ import { StockItemDialog } from "./StockItemDialog";
 import { StockMovementDialog } from "./StockMovementDialog";
 import { StockMovementHistoryDialog } from "./StockMovementHistoryDialog";
 import { WarehouseSectionsManager } from "./WarehouseSectionsManager";
-import { WarehouseMapView } from "./WarehouseMapView";
+
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
@@ -137,7 +137,8 @@ export default function WarehouseStockTab() {
             section_id: data.section_id || null,
             min_stock_level: data.min_stock_level,
           })
-          .eq("id", data.id);
+          .eq("id", data.id)
+          .eq("company_id", companyId!);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("warehouse_stock").insert({
@@ -199,7 +200,8 @@ export default function WarehouseStockTab() {
       const { error: updError } = await supabase
         .from("warehouse_stock")
         .update({ quantity: Math.max(0, newQty) })
-        .eq("id", stockItemId);
+        .eq("id", stockItemId)
+        .eq("company_id", companyId!);
       if (updError) throw updError;
 
       if (registerCost && type === "carico") {
@@ -223,7 +225,8 @@ export default function WarehouseStockTab() {
       const { error } = await supabase
         .from("warehouse_stock")
         .update({ section_id: sectionId })
-        .in("id", ids);
+        .in("id", ids)
+        .eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -269,13 +272,18 @@ export default function WarehouseStockTab() {
     });
   }, []);
 
+  const allSelected = useMemo(
+    () => filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id)),
+    [filtered, selectedIds]
+  );
+
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === filtered.length) {
+    if (allSelected) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(filtered.map((i) => i.id)));
     }
-  }, [filtered, selectedIds.size]);
+  }, [filtered, allSelected]);
 
   const handleBatchMove = () => {
     if (!batchTargetSection || selectedIds.size === 0) return;
@@ -378,7 +386,7 @@ export default function WarehouseStockTab() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSelectedIds(new Set())}
+              onClick={() => { setSelectedIds(new Set()); setBatchTargetSection(""); }}
             >
               <X className="h-4 w-4 mr-1" />
               Deseleziona
@@ -404,7 +412,7 @@ export default function WarehouseStockTab() {
                 <TableRow>
                   <TableHead className="w-10">
                     <Checkbox
-                      checked={selectedIds.size === filtered.length && filtered.length > 0}
+                      checked={allSelected}
                       onCheckedChange={toggleSelectAll}
                       aria-label="Seleziona tutti"
                     />

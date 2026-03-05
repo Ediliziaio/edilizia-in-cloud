@@ -1,17 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Package, MapPin } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { StockItem } from "@/types/warehouse";
-
-interface WarehouseSection {
-  id: string;
-  name: string;
-  description: string | null;
-  color: string;
-  position: number;
-}
+import type { WarehouseSection } from "@/hooks/useWarehouseSections";
 
 interface WarehouseMapViewProps {
   stockItems: StockItem[];
@@ -120,7 +113,7 @@ export function WarehouseMapView({
   );
 }
 
-function SectionCard({
+const SectionCard = memo(function SectionCard({
   name,
   description,
   color,
@@ -168,4 +161,4 @@ function SectionCard({
       </CardContent>
     </Card>
   );
-}
+});
