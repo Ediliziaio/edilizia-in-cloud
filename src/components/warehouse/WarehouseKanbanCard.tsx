@@ -1,33 +1,20 @@
 import { useDraggable } from "@dnd-kit/core";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { GripVertical, FileText, User, Calendar, Building2, MoreVertical, StickyNote } from "lucide-react";
+import { GripVertical, User, FileText, Building2, Calendar, StickyNote } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { getDaysUntilPosa, isItemUrgent, isItemCritical, getUrgencyLabel } from "@/types/warehouse";
+import { getDaysUntilPosa, isItemUrgent, isItemCritical, isItemOverdue, getUrgencyLabel, STATUS_CONFIG } from "@/types/warehouse";
 import type { WarehouseItem } from "@/types/warehouse";
 
 interface WarehouseKanbanCardProps {
   item: WarehouseItem;
   supplierName?: string | null;
+  onSelect?: (item: WarehouseItem) => void;
 }
 
-export default function WarehouseKanbanCard({ item, supplierName }: WarehouseKanbanCardProps) {
+export default function WarehouseKanbanCard({ item, supplierName, onSelect }: WarehouseKanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -38,111 +25,91 @@ export default function WarehouseKanbanCard({ item, supplierName }: WarehouseKan
   const daysUntil = getDaysUntilPosa(item);
   const isUrgent = isItemUrgent(item);
   const isCritical = isItemCritical(item);
+  const overdue = isItemOverdue(item);
 
   const customerName = `${item.order.customer.first_name} ${item.order.customer.last_name}`;
   const expectedDate = item.order.expected_date || item.order.work_start_date;
-  const formattedDate = expectedDate 
-    ? format(new Date(expectedDate), "d MMM yyyy", { locale: it })
+  const formattedDate = expectedDate
+    ? format(new Date(expectedDate), "d MMM", { locale: it })
     : null;
+
+  const config = STATUS_CONFIG[item.status];
 
   return (
     <Card
       ref={setNodeRef}
+      onClick={() => onSelect?.(item)}
       className={cn(
-        "cursor-grab active:cursor-grabbing transition-all",
+        "cursor-pointer transition-all hover:shadow-md border-l-4",
         isDragging && "opacity-50 shadow-lg rotate-1",
-        isCritical && "border-destructive border-2",
-        isUrgent && !isCritical && "border-amber-500 border-2"
+        isCritical && "border-l-destructive",
+        isUrgent && !isCritical && "border-l-amber-500",
+        !isUrgent && !isCritical && config.color === "text-amber-600" && "border-l-amber-400",
+        !isUrgent && !isCritical && config.color === "text-blue-600" && "border-l-blue-400",
+        !isUrgent && !isCritical && config.color === "text-green-600" && "border-l-green-400",
+        !isUrgent && !isCritical && config.color === "text-muted-foreground" && "border-l-muted-foreground/40",
       )}
     >
-      <CardContent className="p-2">
-        <div className="flex items-center gap-2">
-          {/* Grip per drag */}
+      <CardContent className="p-2.5 space-y-1.5">
+        {/* Row 1: Grip + Name + Urgency */}
+        <div className="flex items-center gap-1.5">
           <div
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground shrink-0"
+            className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground shrink-0"
+            onClick={(e) => e.stopPropagation()}
           >
             <GripVertical className="h-4 w-4" />
           </div>
-          
-          {/* Quantità */}
-          <span className="text-xs text-muted-foreground font-mono shrink-0">
-            {item.quantity || 1}x
-          </span>
-          
-          {/* Nome articolo - occupa tutto lo spazio */}
-          <span className="flex-1 font-medium text-sm truncate">
-            {item.name}
-          </span>
-          
-          {/* Badge urgenza (solo se urgente) */}
-          {(isUrgent || isCritical) && (
-            <Badge 
-              variant={isCritical ? "destructive" : "default"}
+          <span className="flex-1 font-medium text-sm truncate">{item.name}</span>
+          {(isUrgent || isCritical || overdue) && daysUntil !== null && (
+            <Badge
+              variant={overdue || isCritical ? "destructive" : "default"}
               className={cn(
-                "text-xs shrink-0",
-                !isCritical && "bg-amber-500 hover:bg-amber-600 text-white"
+                "text-[10px] px-1.5 py-0 shrink-0",
+                !isCritical && !overdue && "bg-amber-500 hover:bg-amber-600 text-white"
               )}
             >
-              {daysUntil !== null && getUrgencyLabel(daysUntil)}
+              {overdue ? `${Math.abs(daysUntil)}g ritardo` : getUrgencyLabel(daysUntil)}
             </Badge>
           )}
-
-          {/* Notes indicator */}
           {item.notes && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <StickyNote className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[200px]">
-                <p className="text-xs">{item.notes}</p>
-              </TooltipContent>
-            </Tooltip>
+            <StickyNote className="h-3 w-3 text-amber-500 shrink-0" />
           )}
-          
-          {/* Menu dettagli - isolato dal drag context */}
-          <div 
-            onClick={(e) => e.stopPropagation()} 
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-6 w-6 shrink-0"
-                >
-                  <MoreVertical className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Dettagli Articolo</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {supplierName && (
-                  <DropdownMenuItem className="cursor-default">
-                    <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {supplierName}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem className="cursor-default">
-                  <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
-                  {item.order.order_code || "N/A"}
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-default">
-                  <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                  {customerName}
-                </DropdownMenuItem>
-                {formattedDate && (
-                  <DropdownMenuItem className="cursor-default">
-                    <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {formattedDate}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         </div>
+
+        {/* Row 2: Quantity + Customer + Order code */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground pl-5">
+          <span className="font-mono shrink-0">{item.quantity || 1}x</span>
+          <span className="flex items-center gap-1 truncate">
+            <User className="h-3 w-3 shrink-0" />
+            <span className="truncate">{customerName}</span>
+          </span>
+          {item.order.order_code && (
+            <span className="flex items-center gap-1 shrink-0">
+              <FileText className="h-3 w-3" />
+              {item.order.order_code}
+            </span>
+          )}
+        </div>
+
+        {/* Row 3: Supplier + Date (optional) */}
+        {(supplierName || formattedDate) && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground pl-5">
+            {supplierName && (
+              <span className="flex items-center gap-1 truncate">
+                <Building2 className="h-3 w-3 shrink-0" />
+                <span className="truncate">{supplierName}</span>
+              </span>
+            )}
+            {formattedDate && (
+              <span className="flex items-center gap-1 shrink-0 ml-auto">
+                <Calendar className="h-3 w-3" />
+                {formattedDate}
+              </span>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
