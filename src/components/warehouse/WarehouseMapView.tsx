@@ -1,4 +1,5 @@
 import { useMemo, memo } from "react";
+import { useDroppable } from "@dnd-kit/core";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Package, MapPin } from "lucide-react";
@@ -11,6 +12,7 @@ interface WarehouseMapViewProps {
   sections: WarehouseSection[];
   activeSectionFilter: string;
   onFilterSection: (sectionId: string) => void;
+  droppable?: boolean;
 }
 
 interface SectionStats {
@@ -39,6 +41,7 @@ export function WarehouseMapView({
   sections,
   activeSectionFilter,
   onFilterSection,
+  droppable = false,
 }: WarehouseMapViewProps) {
   const statsBySection = useMemo(() => {
     const map = new Map<string | null, SectionStats>();
@@ -71,6 +74,11 @@ export function WarehouseMapView({
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
         <MapPin className="h-4 w-4" />
         Mappa Magazzino
+        {droppable && (
+          <span className="text-xs text-muted-foreground/70 ml-1">
+            — trascina articoli qui per spostarli
+          </span>
+        )}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {sections.map((section) => {
@@ -83,13 +91,15 @@ export function WarehouseMapView({
           const isActive = activeSectionFilter === section.id;
 
           return (
-            <SectionCard
+            <DroppableSectionCard
               key={section.id}
+              droppableId={section.id}
               name={section.name}
               description={section.description}
               color={section.color}
               stats={stats}
               isActive={isActive}
+              droppable={droppable}
               onClick={() =>
                 onFilterSection(isActive ? "all" : section.id)
               }
@@ -98,17 +108,44 @@ export function WarehouseMapView({
         })}
 
         {/* Senza zona */}
-        <SectionCard
+        <DroppableSectionCard
+          droppableId="__none__"
           name="Senza zona"
           description={null}
           color="hsl(var(--muted-foreground))"
           stats={unassignedStats}
           isActive={activeSectionFilter === "none"}
+          droppable={droppable}
           onClick={() =>
             onFilterSection(activeSectionFilter === "none" ? "all" : "none")
           }
         />
       </div>
+    </div>
+  );
+}
+
+interface DroppableSectionCardProps {
+  droppableId: string;
+  name: string;
+  description: string | null;
+  color: string;
+  stats: SectionStats;
+  isActive: boolean;
+  droppable: boolean;
+  onClick: () => void;
+}
+
+function DroppableSectionCard({ droppableId, droppable: isDroppable, ...rest }: DroppableSectionCardProps) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `section-${droppableId}`,
+    data: { sectionId: droppableId },
+    disabled: !isDroppable,
+  });
+
+  return (
+    <div ref={setNodeRef}>
+      <SectionCard {...rest} isOver={isDroppable && isOver} />
     </div>
   );
 }
@@ -119,6 +156,7 @@ const SectionCard = memo(function SectionCard({
   color,
   stats,
   isActive,
+  isOver,
   onClick,
 }: {
   name: string;
@@ -126,12 +164,17 @@ const SectionCard = memo(function SectionCard({
   color: string;
   stats: SectionStats;
   isActive: boolean;
+  isOver?: boolean;
   onClick: () => void;
 }) {
   return (
     <Card
       className={`cursor-pointer transition-all hover:shadow-md border-l-4 ${
-        isActive ? "ring-2 ring-primary shadow-md" : ""
+        isOver
+          ? "ring-2 ring-primary bg-primary/10 shadow-lg scale-[1.03]"
+          : isActive
+          ? "ring-2 ring-primary shadow-md"
+          : ""
       }`}
       style={{ borderLeftColor: color }}
       onClick={onClick}
