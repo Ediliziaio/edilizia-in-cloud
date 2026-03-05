@@ -85,6 +85,7 @@ export default function Calendar() {
           order:orders!appointments_order_id_fkey(order_code, description)
         `)
         .eq("company_id", effectiveCompany.id)
+        .is("calendar_id", null)
         .order("appointment_date", { ascending: true });
       if (error) throw error;
 
