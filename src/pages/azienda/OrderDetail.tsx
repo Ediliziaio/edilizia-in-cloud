@@ -711,26 +711,6 @@ export default function OrderDetail() {
             items={economicsItems}
           />
 
-          {/* Supplier Payments */}
-          <SupplierPaymentsCard items={orderItems} companyId={effectiveCompany?.id || ""} />
-
-          {/* Labor Costs */}
-          <OrderLaborCosts orderId={id!} editable={true} />
-
-          {/* Commissions */}
-          <OrderCommissions
-            orderId={id!}
-            totalAmount={order.total_amount}
-            collectedAmount={
-              (order.deposit_paid ? order.deposit_amount : 0) +
-              (order.deposit_2_paid ? (order.deposit_2_amount || 0) : 0) +
-              (order.balance_paid ? order.balance_amount : 0)
-            }
-            vatRate={order.vat_rate || 22}
-          />
-
-          {/* Order Errors */}
-          <OrderErrors orderId={id!} />
         </div>
 
         {/* Right Column - Sidebar */}
@@ -814,6 +794,27 @@ export default function OrderDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Supplier Payments */}
+          <SupplierPaymentsCard items={orderItems} companyId={effectiveCompany?.id || ""} />
+
+          {/* Labor Costs */}
+          <OrderLaborCosts orderId={id!} editable={true} />
+
+          {/* Commissions */}
+          <OrderCommissions
+            orderId={id!}
+            totalAmount={order.total_amount}
+            collectedAmount={
+              (order.deposit_paid ? order.deposit_amount : 0) +
+              (order.deposit_2_paid ? (order.deposit_2_amount || 0) : 0) +
+              (order.balance_paid ? order.balance_amount : 0)
+            }
+            vatRate={order.vat_rate || 22}
+          />
+
+          {/* Order Errors */}
+          <OrderErrors orderId={id!} />
 
           {/* Expected Date */}
           {order.expected_date && (
