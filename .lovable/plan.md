@@ -1,41 +1,21 @@
 
 
-# Selezione multipla batch + Mappa visuale magazzino
+# Fix: RLS policy warehouse_sections per super_admin
 
-## Verifiche funzionali
-Le sezioni del magazzino (CRUD, assegnazione articolo, filtro per zona) sono già implementate correttamente nel codice. Il warning in console riguarda un problema di `forwardRef` su `WarehouseListView`, non correlato alle sezioni.
+## Problema
+La policy RLS attuale controlla `company_id IN (SELECT company_id FROM profiles WHERE id = auth.uid())`. Quando un super_admin sta impersonando un'azienda, il `company_id` usato nell'insert (quello dell'azienda impersonata) non corrisponde al `company_id` del profilo del super_admin, causando il blocco.
 
-## Nuove funzionalità
+## Soluzione
+Aggiungere una policy separata per i super_admin, come fatto per tutte le altre tabelle del progetto:
 
-### 1. Selezione multipla con azione batch "Sposta in zona"
+```sql
+CREATE POLICY "Super admins can manage all warehouse sections"
+  ON public.warehouse_sections FOR ALL
+  USING (public.has_role(auth.uid(), 'super_admin'));
+```
 
-**Modifica `WarehouseStockTab.tsx`**:
-- Aggiungere stato `selectedIds: Set<string>` per tracciare gli articoli selezionati
-- Aggiungere checkbox nella prima colonna di ogni riga + checkbox "seleziona tutti" nell'header
-- Mostrare una barra azioni batch quando `selectedIds.size > 0` con:
-  - Conteggio selezionati
-  - Select per scegliere la zona di destinazione
-  - Bottone "Sposta" che esegue un update batch `warehouse_stock.section_id` per tutti gli ID selezionati
-  - Bottone "Deseleziona tutto"
-- Mutation batch per aggiornare `section_id` su tutti gli articoli selezionati in una volta
+## File da modificare
+- **Migrazione SQL** — aggiungere la policy super_admin su `warehouse_sections`
 
-### 2. Mappa visuale del magazzino
-
-**Nuovo componente `WarehouseMapView.tsx`**:
-- Griglia di card, una per ogni sezione + una card "Senza zona"
-- Ogni card mostra:
-  - Colore della sezione (bordo sinistro o sfondo leggero)
-  - Nome e descrizione della sezione
-  - Conteggio articoli assegnati
-  - Quantità totale e valore totale degli articoli nella zona
-  - Indicatore articoli sotto soglia minima (se presenti)
-- Cliccando su una card si attiva il filtro per quella sezione nella tabella sottostante
-
-**Integrazione in `WarehouseStockTab.tsx`**:
-- Renderizzare `WarehouseMapView` sopra la tabella (dopo `WarehouseSectionsManager`)
-- Passare `stockItems`, `sections`, callback `onFilterSection` che setta `sectionFilter`
-
-## File da modificare/creare
-- **Creare** `src/components/warehouse/WarehouseMapView.tsx`
-- **Modificare** `src/components/warehouse/WarehouseStockTab.tsx` — checkbox, batch action bar, mappa
+Un singolo cambio, nessuna modifica al codice frontend.
 
