@@ -11,7 +11,7 @@ import { OperationsDelivery } from "@/components/cruscotto/OperationsDelivery";
 import { FinanzaCashFlow } from "@/components/cruscotto/FinanzaCashFlow";
 import { HRPerformance } from "@/components/cruscotto/HRPerformance";
 import { CruscottoTrend } from "@/components/cruscotto/CruscottoTrend";
-import { QuickActions } from "@/components/cruscotto/QuickActions";
+
 import { EmptyStateGuide } from "@/components/cruscotto/EmptyStateGuide";
 import { WeeklyAgenda } from "@/components/cruscotto/WeeklyAgenda";
 import { DailyPriorities } from "@/components/cruscotto/DailyPriorities";
@@ -47,13 +47,10 @@ export default function CruscottoAziendale() {
 
   return (
     <div className="space-y-6">
-      {/* Header + Quick Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
-          <p className="text-sm text-muted-foreground">Centro di controllo unificato — Gestione Interna + Marketing & Vendite</p>
-        </div>
-        <QuickActions />
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Cruscotto Aziendale</h1>
+        <p className="text-sm text-muted-foreground">Centro di controllo unificato — Gestione Interna + Marketing & Vendite</p>
       </div>
 
       {/* Error banner */}
