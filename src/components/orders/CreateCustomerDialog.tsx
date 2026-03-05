@@ -37,6 +37,9 @@ export function CreateCustomerDialog({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [fiscalCode, setFiscalCode] = useState("");
+  const [siteAddress, setSiteAddress] = useState("");
+  const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Success step state
@@ -51,6 +54,9 @@ export function CreateCustomerDialog({
     setEmail("");
     setPhone("");
     setAddress("");
+    setFiscalCode("");
+    setSiteAddress("");
+    setNotes("");
     setShowPasswordStep(false);
     setGeneratedPassword("");
     setCreatedCustomerId("");
@@ -111,6 +117,9 @@ export function CreateCustomerDialog({
           email: email.trim().toLowerCase(),
           phone: phone.trim() || null,
           address: address.trim() || null,
+          fiscal_code: fiscalCode.trim() || null,
+          site_address: siteAddress.trim() || null,
+          notes: notes.trim() || null,
           company_id: effectiveCompany.id,
         },
       });
@@ -163,7 +172,7 @@ export function CreateCustomerDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
         {!showPasswordStep ? (
           <>
             <DialogHeader>
@@ -228,6 +237,42 @@ export function CreateCustomerDialog({
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="Via Roma 1, 00100 Roma"
                   rows={2}
+                  maxLength={200}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dialog-fiscalCode">CF / P.IVA</Label>
+                <Input
+                  id="dialog-fiscalCode"
+                  value={fiscalCode}
+                  onChange={(e) => setFiscalCode(e.target.value)}
+                  placeholder="RSSMRA80A01H501U"
+                  maxLength={16}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dialog-siteAddress">Indirizzo Cantiere</Label>
+                <Textarea
+                  id="dialog-siteAddress"
+                  value={siteAddress}
+                  onChange={(e) => setSiteAddress(e.target.value)}
+                  placeholder="Via del Cantiere 5, 00100 Roma"
+                  rows={2}
+                  maxLength={200}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dialog-notes">Note</Label>
+                <Textarea
+                  id="dialog-notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Note aggiuntive sul cliente..."
+                  rows={2}
+                  maxLength={500}
                 />
               </div>
 
