@@ -25,7 +25,7 @@ interface MonthlyDistItem {
   Variabili: number;
   Pagati: number;
   Totale: number;
-  Cumulativo: number;
+  MediaMobile: number;
   isCurrent: boolean;
 }
 
@@ -235,7 +235,8 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
                 </Bar>
                 <Line
                   type="monotone"
-                  dataKey="Cumulativo"
+                  dataKey="MediaMobile"
+                  name="Media Mobile 3m"
                   stroke="hsl(var(--primary))"
                   strokeWidth={2}
                   dot={false}

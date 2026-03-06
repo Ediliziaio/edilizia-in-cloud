@@ -389,14 +389,14 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const monthlyDistribution = useMemo(() => {
     const now = new Date();
     const currentMonthStr = format(now, "yyyy-MM");
-    const months = [];
-    let cumulative = 0;
+    const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
+    // First pass: collect monthly totals
+    const raw: { month: string; monthKey: string; Fissi: number; Variabili: number; Pagati: number; Totale: number; isCurrent: boolean }[] = [];
     for (let i = -5; i <= 6; i++) {
       const ms = startOfMonth(addMonths(now, i));
       const me = endOfMonth(addMonths(now, i));
       const monthKey = format(ms, "yyyy-MM");
       let fixed = 0, variable = 0, paid = 0;
-      const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
       allRaw.forEach((c: any) => {
         if (!c.due_date) return;
         const d = new Date(c.due_date);
@@ -409,19 +409,23 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
           }
         }
       });
-      cumulative += fixed + variable + paid;
-      months.push({
+      raw.push({
         month: format(ms, "MMM yy", { locale: it }),
         monthKey,
         Fissi: fixed,
         Variabili: variable,
         Pagati: paid,
         Totale: fixed + variable + paid,
-        Cumulativo: cumulative,
         isCurrent: monthKey === currentMonthStr,
       });
     }
-    return months;
+    // Second pass: 3-month rolling average
+    return raw.map((item, i) => {
+      const prev = raw[i - 1]?.Totale ?? item.Totale;
+      const next = raw[i + 1]?.Totale ?? item.Totale;
+      const MediaMobile = Math.round((prev + item.Totale + next) / 3);
+      return { ...item, MediaMobile };
+    });
   }, [costs, allOrderDerivedCosts]);
 
   // Cost name counts for group delete
