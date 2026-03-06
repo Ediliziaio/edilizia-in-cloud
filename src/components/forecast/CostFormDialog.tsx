@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import { format } from "date-fns";
+import { format, differenceInMonths } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Plus, Check, Clock, Calculator, Filter, Info, Repeat,
@@ -32,11 +32,17 @@ import type { CostFormData } from "@/hooks/useCompanyCostsMutations";
 import { getNextDate } from "@/hooks/useCompanyCostsMutations";
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
 
-const DEFAULT_PERIODS: Record<string, number> = {
-  monthly: 12,
-  quarterly: 4,
-  yearly: 1,
-};
+function calculatePeriodsFromDates(dueDate: string, endDate: string, recurrence: string): number {
+  if (!dueDate || !endDate) return 0;
+  const start = new Date(dueDate);
+  const end = new Date(endDate);
+  if (end <= start) return 0;
+  const diffMonths = differenceInMonths(end, start);
+  if (recurrence === "monthly") return diffMonths + 1;
+  if (recurrence === "quarterly") return Math.floor(diffMonths / 3) + 1;
+  if (recurrence === "yearly") return (end.getFullYear() - start.getFullYear()) + 1;
+  return 1;
+}
 
 interface CostFormDialogProps {
   open: boolean;
@@ -97,9 +103,9 @@ export function CostFormDialog({
   }, [formData.amount, formData.vat_rate, formData.is_gross]);
 
   const periodsPreview = useMemo(() => {
-    if (formData.recurrence === "once" || !formData.due_date) return null;
-    const periods = Math.max(1, Math.min(60, parseInt(formData.periods) || 1));
-    if (periods <= 1) return null;
+    if (formData.recurrence === "once" || !formData.due_date || !formData.end_date) return null;
+    const periods = calculatePeriodsFromDates(formData.due_date, formData.end_date, formData.recurrence);
+    if (periods <= 0) return null;
     const baseDate = new Date(formData.due_date);
     const lastDate = getNextDate(baseDate, formData.recurrence, periods - 1);
     return {
@@ -107,7 +113,7 @@ export function CostFormDialog({
       from: format(baseDate, "MMM yyyy", { locale: it }),
       to: format(lastDate, "MMM yyyy", { locale: it }),
     };
-  }, [formData.recurrence, formData.due_date, formData.periods]);
+  }, [formData.recurrence, formData.due_date, formData.end_date]);
 
   const handleSubmit = () => {
     const amt = parseFloat(formData.amount);
@@ -282,8 +288,7 @@ export function CostFormDialog({
                 <Select
                   value={formData.recurrence}
                   onValueChange={(v) => {
-                    const newPeriods = v === "once" ? "1" : String(DEFAULT_PERIODS[v] || 1);
-                    setFormData({ ...formData, recurrence: v, periods: newPeriods });
+                    setFormData({ ...formData, recurrence: v });
                   }}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -303,8 +308,13 @@ export function CostFormDialog({
 
             {formData.recurrence !== "once" && !editingCost && (
               <div className="space-y-2">
-                <Label>Periodi da generare</Label>
-                <Input type="number" min={1} max={60} value={formData.periods} onChange={(e) => setFormData({ ...formData, periods: e.target.value })} className="w-32" />
+                <Label>Data fine contratto</Label>
+                <Input
+                  type="date"
+                  value={formData.end_date}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  min={formData.due_date || undefined}
+                />
                 {periodsPreview && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Repeat className="h-3 w-3" /> Verranno creati {periodsPreview.count} costi da {periodsPreview.from} a {periodsPreview.to}
