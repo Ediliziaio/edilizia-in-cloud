@@ -302,7 +302,7 @@ export function CostFormDialog({
               </div>
               <div>
                 <Label>Data scadenza *</Label>
-                <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} />
+                <Input type="date" value={formData.due_date || ""} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} />
               </div>
             </div>
 
@@ -311,7 +311,7 @@ export function CostFormDialog({
                 <Label>Data fine contratto</Label>
                 <Input
                   type="date"
-                  value={formData.end_date}
+                  value={formData.end_date || ""}
                   onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                   min={formData.due_date || undefined}
                 />
