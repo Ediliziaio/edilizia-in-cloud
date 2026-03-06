@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, startOfDay, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
@@ -198,6 +199,7 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
           headers={["Data prevista", "Ordine", "Squadra", "Importo"]}
           rows={filteredExpenses.map((e, i) => ({
             key: `${e.orderId}-${i}`,
+            orderId: e.orderId,
             cells: [
               e.expectedDate ? format(e.expectedDate, "dd/MM/yyyy") : "—",
               e.orderCode || "—",
@@ -216,6 +218,7 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
           headers={["Data prevista", "Ordine", "Venditore", "Importo"]}
           rows={filteredCommissions.map((c, i) => ({
             key: `${c.orderId}-${i}`,
+            orderId: c.orderId,
             cells: [
               c.expectedDate ? format(c.expectedDate, "dd/MM/yyyy") : "—",
               c.orderCode || "—",
@@ -234,6 +237,7 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
           headers={["Data prevista", "Ordine", "Fornitore", "Tipo", "Importo"]}
           rows={filteredSupplier.map((p, i) => ({
             key: `${p.orderItemId}-${i}`,
+            orderId: p.orderId,
             cells: [
               p.expectedDate ? format(p.expectedDate, "dd/MM/yyyy") : "—",
               p.orderCode || "—",
@@ -276,14 +280,14 @@ function CostSection({ title, total, headers, rows }: {
   title: string;
   total: number;
   headers: string[];
-  rows: { key: string; cells: string[] }[];
+  rows: { key: string; orderId?: string | null; cells: string[] }[];
 }) {
+  const navigate = useNavigate();
   const accessors = useMemo(() => {
-    const acc: Record<string, (item: { key: string; cells: string[] }) => string | number> = {};
+    const acc: Record<string, (item: { key: string; orderId?: string | null; cells: string[] }) => string | number> = {};
     headers.forEach((h, i) => {
       acc[h] = (row) => {
         const val = row.cells[i];
-        // Try parsing as number (remove currency symbols)
         const num = parseFloat(val.replace(/[^\d.,-]/g, "").replace(",", "."));
         return isNaN(num) ? val : num;
       };
@@ -319,7 +323,11 @@ function CostSection({ title, total, headers, rows }: {
           </TableHeader>
           <TableBody>
             {sortedItems.map(row => (
-              <TableRow key={row.key}>
+              <TableRow
+                key={row.key}
+                className={row.orderId ? "cursor-pointer hover:bg-muted/50" : ""}
+                onClick={() => row.orderId && navigate(`/azienda/ordini/${row.orderId}`)}
+              >
                 {row.cells.map((cell, i) => (
                   <TableCell key={i} className={`text-sm ${i === row.cells.length - 1 ? "text-right font-medium" : ""}`}>
                     {cell}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, startOfDay, isBefore, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { Search, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon } from "lucide-react";
@@ -33,6 +34,7 @@ interface CollectedTabProps {
 }
 
 export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
+  const navigate = useNavigate();
   const now = new Date();
   const [customMonths, setCustomMonths] = useState(3);
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
@@ -385,7 +387,11 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
               </TableHeader>
               <TableBody>
                 {sortedCollected.map((p, i) => (
-                  <TableRow key={`${p.orderId}-${p.type}-${i}`}>
+                  <TableRow
+                    key={`${p.orderId}-${p.type}-${i}`}
+                    className={p.orderId ? "cursor-pointer hover:bg-muted/50" : ""}
+                    onClick={() => p.orderId && navigate(`/azienda/ordini/${p.orderId}`)}
+                  >
                     <TableCell className="text-sm">{format(p.paidDate, "dd/MM/yyyy")}</TableCell>
                     <TableCell className="text-sm font-medium">{p.orderCode || "—"}</TableCell>
                     <TableCell className="text-sm">{p.customerName}</TableCell>
@@ -458,6 +464,7 @@ function ExpectedGroupSection({ groupKey, group, isExpanded, onToggle }: {
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const navigate = useNavigate();
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
       <CollapsibleTrigger asChild>
@@ -494,7 +501,11 @@ function ExpectedGroupSection({ groupKey, group, isExpanded, onToggle }: {
             </TableHeader>
             <TableBody>
               {group.payments.map((p, i) => (
-                <TableRow key={`${p.orderId}-${p.type}-${i}`}>
+                <TableRow
+                  key={`${p.orderId}-${p.type}-${i}`}
+                  className={p.orderId ? "cursor-pointer hover:bg-muted/50" : ""}
+                  onClick={() => p.orderId && navigate(`/azienda/ordini/${p.orderId}`)}
+                >
                   <TableCell className="text-sm">
                     <span className={group.isOverdue ? "text-destructive font-medium" : ""}>
                       {p.expectedDate ? format(p.expectedDate, "dd/MM/yyyy") : "—"}
