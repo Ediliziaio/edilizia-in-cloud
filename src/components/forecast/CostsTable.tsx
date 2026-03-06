@@ -422,26 +422,20 @@ export function CostsTable({
             </TableBody>
             {items.length > 0 && (
               <TableFooter>
-                <TableRow className="bg-muted/50 font-semibold">
-                  <TableCell />
-                  <TableCell>Totale ({items.length})</TableCell>
-                  <TableCell />
-                  {type === "all" && <TableCell />}
-                  <TableCell />
-                  <TableCell />
+              <TableRow className="bg-muted/50 font-semibold">
+                  <TableCell colSpan={type === "all" ? 6 : 5}>
+                    Totale ({items.length})
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalNet)}</TableCell>
                   <TableCell className="text-right tabular-nums text-xs text-violet-600 dark:text-violet-400">{formatCurrency(footerTotals.totalVat)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalGross)}</TableCell>
-                  <TableCell />
-                  <TableCell />
-                  <TableCell>
+                  <TableCell colSpan={3}>
                     <div className="flex flex-col gap-0.5 text-xs">
                       <span className="text-red-600">Da pagare: {formatCurrency(footerTotals.unpaidGross)}</span>
                       <span className="text-green-600">Pagato: {formatCurrency(footerTotals.paidGross)}</span>
                     </div>
                   </TableCell>
-                  {(type === "variable" || type === "all") && <TableCell />}
-                  <TableCell />
+                  <TableCell colSpan={(type === "variable" || type === "all") ? 2 : 1} />
                 </TableRow>
               </TableFooter>
             )}
