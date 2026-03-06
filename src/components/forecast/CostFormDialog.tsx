@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import { format, differenceInMonths } from "date-fns";
+import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Plus, Check, Clock, Calculator, Filter, Info, Repeat,
@@ -29,20 +29,8 @@ import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES, calculateNetFromGross, calculateGrossFromNet } from "@/lib/vatUtils";
 import { toast } from "sonner";
 import type { CostFormData } from "@/hooks/useCompanyCostsMutations";
-import { getNextDate } from "@/hooks/useCompanyCostsMutations";
+import { getNextDate, calculatePeriodsFromDates } from "@/hooks/useCompanyCostsMutations";
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
-
-function calculatePeriodsFromDates(dueDate: string, endDate: string, recurrence: string): number {
-  if (!dueDate || !endDate) return 0;
-  const start = new Date(dueDate);
-  const end = new Date(endDate);
-  if (end <= start) return 0;
-  const diffMonths = differenceInMonths(end, start);
-  if (recurrence === "monthly") return diffMonths + 1;
-  if (recurrence === "quarterly") return Math.floor(diffMonths / 3) + 1;
-  if (recurrence === "yearly") return (end.getFullYear() - start.getFullYear()) + 1;
-  return 1;
-}
 
 interface CostFormDialogProps {
   open: boolean;
@@ -288,7 +276,7 @@ export function CostFormDialog({
                 <Select
                   value={formData.recurrence}
                   onValueChange={(v) => {
-                    setFormData({ ...formData, recurrence: v });
+                    setFormData({ ...formData, recurrence: v, ...(v === "once" ? { end_date: "" } : {}) });
                   }}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -308,18 +296,22 @@ export function CostFormDialog({
 
             {formData.recurrence !== "once" && !editingCost && (
               <div className="space-y-2">
-                <Label>Data fine contratto</Label>
+                <Label>Data fine contratto *</Label>
                 <Input
                   type="date"
                   value={formData.end_date || ""}
                   onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                   min={formData.due_date || undefined}
                 />
-                {periodsPreview && (
+                {periodsPreview ? (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Repeat className="h-3 w-3" /> Verranno creati {periodsPreview.count} costi da {periodsPreview.from} a {periodsPreview.to}
                   </p>
-                )}
+                ) : formData.due_date && !formData.end_date ? (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <Info className="h-3 w-3" /> Seleziona la data fine contratto per generare i costi ricorrenti
+                  </p>
+                ) : null}
               </div>
             )}
 
@@ -350,7 +342,7 @@ export function CostFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
           <Button
             onClick={handleSubmit}
-            disabled={!formData.name || !formData.amount || !formData.due_date || isSaving}
+            disabled={!formData.name || !formData.amount || !formData.due_date || isSaving || (formData.recurrence !== "once" && !editingCost && !formData.end_date)}
           >
             {isSaving ? "Salvataggio..." : editingCost ? "Aggiorna" : periodsPreview ? `Crea ${periodsPreview.count} costi` : "Aggiungi"}
           </Button>
