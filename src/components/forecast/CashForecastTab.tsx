@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
-import { format, addMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay } from "date-fns";
+import { format, addMonths, startOfMonth, endOfMonth, subMonths, isWithinInterval, startOfDay, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
-import { X } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DatePickerButton } from "@/components/forecast/DatePickerButton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import type { ForecastStats, ExpectedPayment, ExpectedExpense, ExpectedCommission, ExpectedSupplierPayment, CompanyCostEntry } from "@/lib/forecastTypes";
 
@@ -31,21 +33,23 @@ interface UnifiedTransaction {
 }
 
 export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts }: CashForecastTabProps) {
+  const now = new Date();
   const [filter, setFilter] = useState<FilterCategory>("all");
   const [customMonths, setCustomMonths] = useState(3);
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [activePreset, setActivePreset] = useState<string>("all");
+  const [customPopoverOpen, setCustomPopoverOpen] = useState(false);
+
+  const thisMonthEnd = endOfMonth(now);
 
   // Calculate custom period stats from raw data
   const customPeriodStats = useMemo(() => {
-    const now = new Date();
     const start = startOfMonth(addMonths(now, 1));
     const end = endOfMonth(addMonths(now, customMonths));
-
     const inRange = (d: Date | null) => d && isWithinInterval(d, { start, end });
 
     const income = expectedPayments.filter(p => inRange(p.expectedDate)).reduce((s, p) => s + p.amount, 0);
-
     const expExternal = expectedExpenses.filter(e => !e.isPaid && inRange(e.expectedDate)).reduce((s, e) => s + e.amount, 0);
     const expCommissions = expectedCommissions.filter(c => inRange(c.expectedDate)).reduce((s, c) => s + c.amount, 0);
     const expSupplier = expectedSupplierPayments.filter(p => !p.isPaid && inRange(p.expectedDate)).reduce((s, p) => s + p.amount, 0);
@@ -54,6 +58,40 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     const expenses = expExternal + expCommissions + expSupplier + expCosts;
     return { income, expenses, net: income - expenses };
   }, [customMonths, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts]);
+
+  // Preset logic
+  const applyPreset = (preset: string) => {
+    setActivePreset(preset);
+    switch (preset) {
+      case "thisMonth":
+        setDateFrom(startOfMonth(now));
+        setDateTo(thisMonthEnd);
+        break;
+      case "lastQuarter":
+        setDateFrom(startOfMonth(subMonths(now, 3)));
+        setDateTo(endOfMonth(subMonths(now, 1)));
+        break;
+      case "thisYear":
+        setDateFrom(startOfYear(now));
+        setDateTo(thisMonthEnd);
+        break;
+      case "all":
+        setDateFrom(undefined);
+        setDateTo(undefined);
+        break;
+      case "custom":
+        setCustomPopoverOpen(true);
+        break;
+    }
+  };
+
+  const handleRangeSelect = (range: import("react-day-picker").DateRange | undefined) => {
+    setDateFrom(range?.from);
+    setDateTo(range?.to);
+    if (range?.from && range?.to) {
+      setCustomPopoverOpen(false);
+    }
+  };
 
   const transactions = useMemo<UnifiedTransaction[]>(() => {
     const items: UnifiedTransaction[] = [];
@@ -80,9 +118,6 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
         return a.date.getTime() - b.date.getTime();
       });
   }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, filter, dateFrom, dateTo]);
-
-  const clearDates = () => { setDateFrom(undefined); setDateTo(undefined); };
-  const hasDates = dateFrom || dateTo;
 
   return (
     <div className="space-y-6">
@@ -128,21 +163,55 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
       {/* Unified Transactions */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col gap-3">
             <CardTitle className="text-lg">Tutti i movimenti previsti</CardTitle>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Date From */}
-              <DatePickerButton label="Da" date={dateFrom} onSelect={setDateFrom} />
-              {/* Date To */}
-              <DatePickerButton label="A" date={dateTo} onSelect={setDateTo} />
-              {hasDates && (
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={clearDates}>
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              <div className="flex flex-wrap items-center border rounded-md">
+                {([
+                  { key: "thisMonth", label: "Questo mese" },
+                  { key: "lastQuarter", label: "Ultimo trimestre" },
+                  { key: "thisYear", label: "Quest'anno" },
+                  { key: "all", label: "Tutto" },
+                ] as const).map(({ key, label }) => (
+                  <Button
+                    key={key}
+                    variant={activePreset === key ? "default" : "ghost"}
+                    size="sm"
+                    className="h-8 text-xs rounded-none first:rounded-l-md last:rounded-r-md"
+                    onClick={() => applyPreset(key)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+                <Popover open={customPopoverOpen} onOpenChange={setCustomPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={activePreset === "custom" ? "default" : "ghost"}
+                      size="sm"
+                      className="h-8 text-xs rounded-none rounded-r-md"
+                      onClick={() => { setActivePreset("custom"); setCustomPopoverOpen(true); }}
+                    >
+                      <CalendarIcon className="h-3.5 w-3.5 mr-1" />
+                      {activePreset === "custom" && dateFrom && dateTo
+                        ? `${format(dateFrom, "dd MMM", { locale: it })} – ${format(dateTo, "dd MMM", { locale: it })}`
+                        : "Personalizzato"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="range"
+                      selected={dateFrom && dateTo ? { from: dateFrom, to: dateTo } : dateFrom ? { from: dateFrom } : undefined}
+                      onSelect={handleRangeSelect}
+                      numberOfMonths={2}
+                      locale={it}
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
               {/* Category filter */}
               <Select value={filter} onValueChange={(v) => setFilter(v as FilterCategory)}>
-                <SelectTrigger className="w-[140px] h-9">
+                <SelectTrigger className="w-[140px] h-8 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -212,4 +281,3 @@ function NetCard({ title, income, expenses, net }: { title: string; income: numb
     </Card>
   );
 }
-
