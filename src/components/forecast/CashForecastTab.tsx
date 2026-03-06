@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { format, addMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
@@ -134,6 +136,8 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
 
   const { sortConfig: txSort, toggleSort: toggleTxSort, sortedItems: sortedTransactions } = useTableSort(transactions, txAccessors);
 
+  const { paginatedItems: paginatedTx, currentPage, totalPages, pageSize, totalItems, setPage, setPageSize } = usePagination(sortedTransactions);
+
   return (
     <div className="space-y-6">
       {/* Net Cash Flow Cards */}
@@ -242,34 +246,44 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
           {transactions.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Nessun movimento previsto</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead column="date" label="Data" sortConfig={txSort} onSort={toggleTxSort} />
-                  <SortableTableHead column="description" label="Descrizione" sortConfig={txSort} onSort={toggleTxSort} />
-                  <SortableTableHead column="orderCode" label="Ordine" sortConfig={txSort} onSort={toggleTxSort} />
-                  <SortableTableHead column="category" label="Categoria" sortConfig={txSort} onSort={toggleTxSort} />
-                  <SortableTableHead column="amount" label="Importo" sortConfig={txSort} onSort={toggleTxSort} className="text-right" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedTransactions.map((t, i) => (
-                  <TableRow
-                    key={i}
-                    className={t.orderId ? "cursor-pointer hover:bg-muted/50" : ""}
-                    onClick={() => t.orderId && navigate(`/azienda/ordini/${t.orderId}`)}
-                  >
-                    <TableCell className="text-sm">{t.date ? format(t.date, "dd/MM/yyyy") : "—"}</TableCell>
-                    <TableCell className="text-sm">{t.description}</TableCell>
-                    <TableCell className="text-sm">{t.orderCode || "—"}</TableCell>
-                    <TableCell className="text-sm">{t.category}</TableCell>
-                    <TableCell className={`text-right text-sm font-medium ${t.direction === "in" ? "text-emerald-600" : "text-red-600"}`}>
-                      {t.direction === "in" ? "+" : "−"}{formatCurrency(t.amount)}
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableTableHead column="date" label="Data" sortConfig={txSort} onSort={toggleTxSort} />
+                    <SortableTableHead column="description" label="Descrizione" sortConfig={txSort} onSort={toggleTxSort} />
+                    <SortableTableHead column="orderCode" label="Ordine" sortConfig={txSort} onSort={toggleTxSort} />
+                    <SortableTableHead column="category" label="Categoria" sortConfig={txSort} onSort={toggleTxSort} />
+                    <SortableTableHead column="amount" label="Importo" sortConfig={txSort} onSort={toggleTxSort} className="text-right" />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginatedTx.map((t, i) => (
+                    <TableRow
+                      key={i}
+                      className={t.orderId ? "cursor-pointer hover:bg-muted/50" : ""}
+                      onClick={() => t.orderId && navigate(`/azienda/ordini/${t.orderId}`)}
+                    >
+                      <TableCell className="text-sm">{t.date ? format(t.date, "dd/MM/yyyy") : "—"}</TableCell>
+                      <TableCell className="text-sm">{t.description}</TableCell>
+                      <TableCell className="text-sm">{t.orderCode || "—"}</TableCell>
+                      <TableCell className="text-sm">{t.category}</TableCell>
+                      <TableCell className={`text-right text-sm font-medium ${t.direction === "in" ? "text-emerald-600" : "text-red-600"}`}>
+                        {t.direction === "in" ? "+" : "−"}{formatCurrency(t.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+              />
+            </>
           )}
         </CardContent>
       </Card>

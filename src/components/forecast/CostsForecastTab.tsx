@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { format, startOfMonth, endOfMonth, addMonths, isWithinInterval, startOfDay, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
@@ -292,6 +294,7 @@ function CostSection({ title, total, headers, rows }: {
   }, [headers]);
 
   const { sortConfig, toggleSort, sortedItems } = useTableSort(rows, accessors);
+  const { paginatedItems, currentPage, totalPages, pageSize, totalItems, setPage, setPageSize } = usePagination(sortedItems);
 
   return (
     <Card>
@@ -318,7 +321,7 @@ function CostSection({ title, total, headers, rows }: {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedItems.map(row => (
+            {paginatedItems.map(row => (
               <TableRow
                 key={row.key}
                 className={row.orderId ? "cursor-pointer hover:bg-muted/50" : ""}
@@ -333,6 +336,14 @@ function CostSection({ title, total, headers, rows }: {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       </CardContent>
     </Card>
   );
