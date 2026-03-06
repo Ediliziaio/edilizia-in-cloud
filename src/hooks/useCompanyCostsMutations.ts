@@ -18,6 +18,7 @@ export interface CostFormData {
   vat_rate: string;
   is_gross: boolean;
   periods: string;
+  end_date: string;
 }
 
 export const defaultFormData: CostFormData = {
@@ -33,6 +34,7 @@ export const defaultFormData: CostFormData = {
   vat_rate: "22",
   is_gross: false,
   periods: "12",
+  end_date: "",
 };
 
 function getNextDate(baseDate: Date, recurrence: string, offset: number): Date {
@@ -111,7 +113,21 @@ export function useCompanyCostsMutations({
         return { created: 1, isEdit: true };
       }
 
-      const periods = data.recurrence !== "once" ? Math.max(1, Math.min(60, parseInt(data.periods) || 1)) : 1;
+      let periods = 1;
+      if (data.recurrence !== "once") {
+        if (data.end_date && data.due_date) {
+          const start = new Date(data.due_date);
+          const end = new Date(data.end_date);
+          if (end > start) {
+            const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+            if (data.recurrence === "monthly") periods = Math.max(1, diffMonths + 1);
+            else if (data.recurrence === "quarterly") periods = Math.max(1, Math.floor(diffMonths / 3) + 1);
+            else if (data.recurrence === "yearly") periods = Math.max(1, end.getFullYear() - start.getFullYear() + 1);
+          }
+        } else {
+          periods = Math.max(1, Math.min(60, parseInt(data.periods) || 1));
+        }
+      }
       const baseDate = new Date(data.due_date);
       let created = 0;
 
