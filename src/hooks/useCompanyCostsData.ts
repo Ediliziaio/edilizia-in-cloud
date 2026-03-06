@@ -93,7 +93,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("id, name, quantity, purchase_price, status, payment_method, deposit_amount, deposit_paid, deposit_paid_date, balance_amount, balance_paid, balance_paid_date, balance_expected_date, is_paid, paid_date, supplier:suppliers(name), order:orders!inner(id, order_code, company_id)")
+        .select("id, name, quantity, purchase_price, status, payment_method, deposit_amount, deposit_paid, deposit_paid_date, balance_amount, balance_paid, balance_paid_date, balance_expected_date, is_paid, paid_date, supplier:suppliers(name, vat_rate), order:orders!inner(id, order_code, company_id)")
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!);
@@ -193,6 +193,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
           isFromOrder: true,
           orderItemStatus: item.status,
           supplierName,
+          vat_rate: item.supplier?.vat_rate ?? null,
         });
         rows.push({
           id: `${COST_ID_PREFIX.ORDER_ITEM_BALANCE}${item.id}`,
@@ -211,6 +212,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
           isFromOrder: true,
           orderItemStatus: item.status,
           supplierName,
+          vat_rate: item.supplier?.vat_rate ?? null,
         });
       } else {
         rows.push({
@@ -230,6 +232,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
           isFromOrder: true,
           orderItemStatus: item.status,
           supplierName,
+          vat_rate: item.supplier?.vat_rate ?? null,
         });
       }
     });
@@ -253,6 +256,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
       isFromOrder: true,
       supplierName: null,
+      vat_rate: 0,
     }));
   }, [externalTeamCosts]);
 
@@ -273,6 +277,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       order: null,
       isFromOrder: true,
       supplierName: null,
+      vat_rate: 0,
     }));
   }, [activeEmployees]);
 
@@ -293,6 +298,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
       isFromOrder: true,
       supplierName: null,
+      vat_rate: 0,
     }));
   }, [commissionCosts]);
 
