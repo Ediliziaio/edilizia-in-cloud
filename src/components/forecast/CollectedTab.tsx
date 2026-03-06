@@ -91,9 +91,8 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
     setActivePreset(preset);
     switch (preset) {
       case "thisMonth":
-        // Reset to undefined so default collectedThisMonth is used
-        setDateFrom(undefined);
-        setDateTo(undefined);
+        setDateFrom(thisMonthStart);
+        setDateTo(thisMonthEnd);
         break;
       case "lastQuarter": {
         const qStart = startOfMonth(subMonths(now, 3));
@@ -125,13 +124,28 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
   };
 
   const filteredCollected = useMemo(() => {
-    let items = dateFrom || dateTo
-      ? allCollected.filter(p => {
-          if (dateFrom && p.paidDate < startOfDay(dateFrom)) return false;
-          if (dateTo && p.paidDate > endOfMonth(dateTo)) return false;
-          return true;
-        })
-      : collectedThisMonth;
+    // "all" preset: no date filtering
+    if (activePreset === "all" && !dateFrom && !dateTo) {
+      let items = allCollected;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        items = items.filter(p =>
+          p.customerName.toLowerCase().includes(q) ||
+          (p.orderCode && p.orderCode.toLowerCase().includes(q))
+        );
+      }
+      return items;
+    }
+
+    // Use explicit date range (set by presets or custom)
+    const effectiveFrom = dateFrom || thisMonthStart;
+    const effectiveTo = dateTo || thisMonthEnd;
+
+    let items = allCollected.filter(p => {
+      if (p.paidDate < startOfDay(effectiveFrom)) return false;
+      if (p.paidDate > endOfMonth(effectiveTo)) return false;
+      return true;
+    });
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -141,7 +155,7 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
       );
     }
     return items;
-  }, [allCollected, collectedThisMonth, dateFrom, dateTo, searchQuery]);
+  }, [allCollected, activePreset, dateFrom, dateTo, searchQuery, thisMonthStart, thisMonthEnd]);
 
   const collectedAccessors = useMemo(() => ({
     date: (p: CollectedPayment) => p.paidDate,
