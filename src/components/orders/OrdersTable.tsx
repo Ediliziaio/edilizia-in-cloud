@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Eye, Pencil, Trash2, X, ChevronDown } from "lucide-react";
+import { useTableSort } from "@/hooks/useTableSort";
+import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
@@ -66,6 +68,25 @@ export function OrdersTable({
   salespeopleMap = new Map(),
   laborMap = new Map(),
 }: OrdersTableProps) {
+  const sortAccessors = useMemo(() => ({
+    order_code: (o: OrderWithDetails) => o.order_code || "",
+    created_at: (o: OrderWithDetails) => o.created_at,
+    description: (o: OrderWithDetails) => o.description || "",
+    customer: (o: OrderWithDetails) => o.customer ? `${o.customer.first_name} ${o.customer.last_name}` : "",
+    totalIvato: (o: OrderWithDetails) => o.total_amount * (1 + (o.vat_rate ?? 22) / 100),
+    total_amount: (o: OrderWithDetails) => o.total_amount,
+    collected: (o: OrderWithDetails) => getAmountCollected(o),
+    due: (o: OrderWithDetails) => getAmountDue(o),
+    variableCosts: (o: OrderWithDetails) => orderCosts.get(o.id)?.variableCosts ?? 0,
+    grossMargin: (o: OrderWithDetails) => orderCosts.get(o.id)?.grossMargin ?? o.total_amount,
+    salesperson: (o: OrderWithDetails) => (salespeopleMap.get(o.id) || []).join(", "),
+    labor: (o: OrderWithDetails) => (laborMap.get(o.id) || []).join(", "),
+    payments: (o: OrderWithDetails) => getPendingPayments(o).length,
+    status: (o: OrderWithDetails) => o.status?.name || "",
+  }), [orderCosts, salespeopleMap, laborMap]);
+
+  const { sortConfig, toggleSort, sortedItems } = useTableSort(orders, sortAccessors);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const allSelected = orders.length > 0 && selectedIds.size === orders.length;
@@ -183,25 +204,25 @@ export function OrdersTable({
                   aria-label="Seleziona tutti"
                 />
               </TableHead>
-              <TableHead>Codice</TableHead>
-              {visibleColumns.has("date") && <TableHead>Data</TableHead>}
-              <TableHead>Descrizione</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead className="text-right">Tot. Ivato</TableHead>
-              <TableHead className="text-right">Imponibile</TableHead>
-              <TableHead className="text-right">Incassato</TableHead>
-              <TableHead className="text-right">Da Ricevere</TableHead>
-              <TableHead className="text-right">Costi Var.</TableHead>
-              <TableHead className="text-right">Margine</TableHead>
-              {visibleColumns.has("salesperson") && <TableHead>Venditore</TableHead>}
-              {visibleColumns.has("labor") && <TableHead>Manodopera</TableHead>}
-              <TableHead>Pagamenti</TableHead>
-              <TableHead>Stato</TableHead>
+              <SortableTableHead column="order_code" label="Codice" sortConfig={sortConfig} onSort={toggleSort} />
+              {visibleColumns.has("date") && <SortableTableHead column="created_at" label="Data" sortConfig={sortConfig} onSort={toggleSort} />}
+              <SortableTableHead column="description" label="Descrizione" sortConfig={sortConfig} onSort={toggleSort} />
+              <SortableTableHead column="customer" label="Cliente" sortConfig={sortConfig} onSort={toggleSort} />
+              <SortableTableHead column="totalIvato" label="Tot. Ivato" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
+              <SortableTableHead column="total_amount" label="Imponibile" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
+              <SortableTableHead column="collected" label="Incassato" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
+              <SortableTableHead column="due" label="Da Ricevere" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
+              <SortableTableHead column="variableCosts" label="Costi Var." sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
+              <SortableTableHead column="grossMargin" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
+              {visibleColumns.has("salesperson") && <SortableTableHead column="salesperson" label="Venditore" sortConfig={sortConfig} onSort={toggleSort} />}
+              {visibleColumns.has("labor") && <SortableTableHead column="labor" label="Manodopera" sortConfig={sortConfig} onSort={toggleSort} />}
+              <SortableTableHead column="payments" label="Pagamenti" sortConfig={sortConfig} onSort={toggleSort} />
+              <SortableTableHead column="status" label="Stato" sortConfig={sortConfig} onSort={toggleSort} />
               <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map((order) => {
+            {sortedItems.map((order) => {
               const due = getAmountDue(order);
               const collected = getAmountCollected(order);
               const pending = getPendingPayments(order);
