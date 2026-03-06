@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, addDays } from "date-fns";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import {
@@ -107,7 +109,17 @@ export function CostsTable({
 
   const { sortConfig: costSort, toggleSort: toggleCostSort, sortedItems: sortedItems } = useTableSort(items, costAccessorsWithGross);
 
-  // Footer totals
+  const {
+    paginatedItems,
+    currentPage,
+    totalPages,
+    pageSize,
+    totalItems,
+    setPage,
+    setPageSize,
+  } = usePagination(sortedItems);
+
+  // Footer totals (calculated on ALL items, not just current page)
   const footerTotals = useMemo(() => {
     let totalNet = 0, totalVat = 0, totalGross = 0;
     let unpaidNet = 0, unpaidGross = 0, paidNet = 0, paidGross = 0;
@@ -123,7 +135,8 @@ export function CostsTable({
     return { totalNet, totalVat, totalGross, unpaidNet, unpaidGross, paidNet, paidGross };
   }, [items]);
 
-  const selectableItems = items.filter(c => !c.isFromOrder);
+  // "Select all" scoped to current page only
+  const selectableItems = paginatedItems.filter(c => !c.isFromOrder);
   const allSelectableIds = selectableItems.map(c => c.id);
   const allSelected = allSelectableIds.length > 0 && allSelectableIds.every(id => selectedIds.has(id));
   const someSelected = selectedIds.size > 0;
@@ -194,6 +207,7 @@ export function CostsTable({
           <p>Nessun costo trovato</p>
         </div>
       ) : (
+        <>
         <div className="rounded-md border">
           <Table>
               <TableHeader>
@@ -217,7 +231,7 @@ export function CostsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedItems.map((cost) => {
+              {paginatedItems.map((cost) => {
                 const vatRate = Number((cost as any).vat_rate) || 0;
                 const { grossAmount, vatAmount } = calculateGrossFromNet(cost.amount, vatRate);
                 const isSelected = selectedIds.has(cost.id);
@@ -433,6 +447,15 @@ export function CostsTable({
             )}
           </Table>
         </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+        </>
       )}
     </div>
   );
