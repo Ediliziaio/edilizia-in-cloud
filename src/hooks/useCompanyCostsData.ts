@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear } from "date-fns";
+import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear, differenceInCalendarDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
@@ -8,6 +8,7 @@ import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
 
 export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all" | "custom";
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
+export type StatusTabFilter = "all" | "sostenuti" | "previsti" | "in_ritardo" | "in_scadenza";
 
 export interface UnifiedCost {
   id: string;
@@ -38,10 +39,11 @@ export interface CostsFilters {
   categoryFilter: string;
   originFilter: "all" | "manual" | "order";
   customDateRange?: { start: Date; end: Date } | null;
+  statusTabFilter?: StatusTabFilter;
 }
 
 export function useCompanyCostsData(companyId: string | undefined, filters: CostsFilters, selectedYear?: number) {
-  const { periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange } = filters;
+  const { periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange, statusTabFilter = "all" } = filters;
   const yearForStats = selectedYear ?? new Date().getFullYear();
 
   // Helper to get period date range
@@ -64,7 +66,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
         .select("*, order:orders(id, order_code), supplier:suppliers(id, name, product_category, vat_rate)")
         .eq("company_id", companyId!)
         .order("due_date", { ascending: true })
-        .limit(5000); // sicurezza: evita full table scan; implementare range-date per date > 2 anni
+        .limit(5000);
       if (error) throw error;
       return data || [];
     },
@@ -390,27 +392,27 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     const now = new Date();
     const currentMonthStr = format(now, "yyyy-MM");
     const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
-    // First pass: collect monthly totals
-    const raw: { month: string; monthKey: string; Fissi: number; Variabili: number; PagatoEffettivo: number; Totale: number; isCurrent: boolean }[] = [];
+    const raw: { month: string; monthKey: string; Fissi: number; Variabili: number; PagatoEffettivo: number; Totale: number; Previsto: number; Sostenuto: number; isCurrent: boolean }[] = [];
     for (let i = -5; i <= 6; i++) {
       const ms = startOfMonth(addMonths(now, i));
       const me = endOfMonth(addMonths(now, i));
       const monthKey = format(ms, "yyyy-MM");
       let fixed = 0, variable = 0, paidEffective = 0;
+      let previsto = 0, sostenuto = 0;
       allRaw.forEach((c: any) => {
-        // Fissi/Variabili: ALL costs with due_date in month (paid or not)
         if (c.due_date) {
           const d = new Date(c.due_date);
           if (d >= ms && d <= me) {
             if (c.cost_type === "fixed") fixed += Number(c.amount);
             else variable += Number(c.amount);
+            previsto += Number(c.amount);
           }
         }
-        // PagatoEffettivo: costs with paid_date in month
         if (c.is_paid && c.paid_date) {
           const pd = new Date(c.paid_date);
           if (pd >= ms && pd <= me) {
             paidEffective += Number(c.amount);
+            sostenuto += Number(c.amount);
           }
         }
       });
@@ -421,6 +423,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
         Variabili: variable,
         PagatoEffettivo: paidEffective,
         Totale: fixed + variable,
+        Previsto: previsto,
+        Sostenuto: sostenuto,
         isCurrent: monthKey === currentMonthStr,
       });
     }
@@ -434,7 +438,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     return map;
   }, [costs]);
 
-  // VAT calculations for stats — includes both manual AND order-derived costs
+  // VAT calculations for stats
   const vatStats = useMemo(() => {
     let vatDebit = 0;
     let supplierUnpaid = 0;
@@ -452,13 +456,14 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     return { vatDebit, supplierUnpaid };
   }, [filteredCosts, filteredOrderItemCosts]);
 
-  // Computed sorted/filtered lists — split order-derived by cost_type
+  // Computed sorted/filtered lists
   const manualFixedCosts = filteredCosts.filter((c: any) => c.cost_type === "fixed");
   const manualVariableCosts = filteredCosts.filter((c: any) => c.cost_type === "variable");
   const orderDerivedFixed = filteredOrderItemCosts.filter((c) => c.cost_type === "fixed");
   const orderDerivedVariable = filteredOrderItemCosts.filter((c) => c.cost_type === "variable");
   const fixedCosts = [...manualFixedCosts, ...orderDerivedFixed];
   const variableCostsWithOrders = [...manualVariableCosts, ...orderDerivedVariable];
+
   const allCostsSorted = useMemo(() => {
     const now = new Date();
     const soon = addDays(now, 7);
@@ -478,7 +483,36 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     });
   }, [filteredCosts, filteredOrderItemCosts]);
 
-  // Stats — reactive to active filters (uses filtered data, not raw)
+  // Status tab pre-filtered lists
+  const statusTabLists = useMemo(() => {
+    const now = new Date();
+    const soon = addDays(now, 7);
+    const all = allCostsSorted;
+
+    const sostenuti = all.filter(c => c.is_paid);
+    const previsti = all.filter(c => c.recurrence !== "once" && !c.is_paid && c.due_date && new Date(c.due_date) > now);
+    const inRitardo = all.filter(c => !c.is_paid && c.due_date && new Date(c.due_date) < now);
+    const inScadenza = all.filter(c => {
+      if (c.is_paid || !c.due_date) return false;
+      const d = new Date(c.due_date);
+      return d >= now && d <= soon;
+    });
+
+    return { sostenuti, previsti, inRitardo, inScadenza };
+  }, [allCostsSorted]);
+
+  // Apply status tab filter
+  const statusTabFilteredCosts = useMemo(() => {
+    switch (statusTabFilter) {
+      case "sostenuti": return statusTabLists.sostenuti;
+      case "previsti": return statusTabLists.previsti;
+      case "in_ritardo": return statusTabLists.inRitardo;
+      case "in_scadenza": return statusTabLists.inScadenza;
+      default: return allCostsSorted;
+    }
+  }, [statusTabFilter, statusTabLists, allCostsSorted]);
+
+  // Stats — reactive to active filters
   const stats = useMemo(() => {
     const now = new Date();
     const soon = addDays(now, 7);
@@ -492,11 +526,16 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       const d = new Date(c.due_date);
       return d >= now && d <= soon;
     });
+    const previstiList = allFiltered.filter((c: any) => c.recurrence !== "once" && !c.is_paid && c.due_date && new Date(c.due_date) > now);
 
     const totalUnpaid = unpaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const totalPaid = paid.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const totalOverdue = overdue.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const totalExpiringSoon = expiringSoon.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const totalPrevisti = previstiList.reduce((s: number, c: any) => s + Number(c.amount), 0);
+
+    // Scostamento: previsto (all due in period) vs sostenuto (all paid in period)
+    const scostamento = totalPaid - (totalPaid + totalUnpaid - totalOverdue);
 
     return {
       totalUnpaidThisMonth: totalUnpaid,
@@ -509,10 +548,13 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       totalExpiringSoon,
       totalPeriod: totalUnpaid + totalPaid,
       totalCount: allFiltered.length,
+      totalPrevisti,
+      previstiCount: previstiList.length,
+      scostamento: totalPaid - totalPrevisti,
     };
   }, [filteredCosts, filteredOrderItemCosts]);
 
-  // Yearly stats — independent from period filters
+  // Yearly stats
   const yearlyStats = useMemo(() => {
     const yearStart = startOfYear(new Date(yearForStats, 0, 1));
     const yearEnd = endOfYear(new Date(yearForStats, 0, 1));
@@ -575,6 +617,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     fixedCosts,
     variableCostsWithOrders,
     allCostsSorted,
+    statusTabLists,
+    statusTabFilteredCosts,
     dynamicCategories,
     monthlyDistribution,
     costNameCounts,

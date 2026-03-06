@@ -335,7 +335,10 @@ export function CostFormDialog({
 
           <div>
             <Label>Note</Label>
-            <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Note aggiuntive..." rows={2} />
+            <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Note aggiuntive..." rows={2} maxLength={200} />
+            {formData.notes && (
+              <p className="text-[10px] text-muted-foreground text-right">{formData.notes.length}/200</p>
+            )}
           </div>
         </div>
         <DialogFooter>
