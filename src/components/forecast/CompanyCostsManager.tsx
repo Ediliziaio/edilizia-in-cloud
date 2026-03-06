@@ -64,11 +64,12 @@ export default function CompanyCostsManager() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [originFilter, setOriginFilter] = useState<"all" | "manual" | "order">("all");
   const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   // Data hook
   const data = useCompanyCostsData(companyId, {
     periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange,
-  });
+  }, selectedYear);
 
   // Period label for stats
   const periodLabel = periodFilter === "this_month" ? "Questo mese"
@@ -243,6 +244,9 @@ export default function CompanyCostsManager() {
             vatStats={data.vatStats}
             monthlyDistribution={data.monthlyDistribution}
             periodLabel={periodLabel}
+            yearlyStats={data.yearlyStats}
+            selectedYear={selectedYear}
+            onYearChange={setSelectedYear}
           />
 
           {/* Filters */}

@@ -40,8 +40,9 @@ export interface CostsFilters {
   customDateRange?: { start: Date; end: Date } | null;
 }
 
-export function useCompanyCostsData(companyId: string | undefined, filters: CostsFilters) {
+export function useCompanyCostsData(companyId: string | undefined, filters: CostsFilters, selectedYear?: number) {
   const { periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange } = filters;
+  const yearForStats = selectedYear ?? new Date().getFullYear();
 
   // Helper to get period date range
   const getPeriodRange = useMemo(() => {
@@ -384,36 +385,40 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     return Array.from(cats).sort();
   }, [costs, suppliers, allOrderDerivedCosts]);
 
-  // Monthly distribution for mini-chart
+  // Monthly distribution — 12 months (6 past + 6 future)
   const monthlyDistribution = useMemo(() => {
     const now = new Date();
+    const currentMonthStr = format(now, "yyyy-MM");
     const months = [];
-    for (let i = 0; i < 6; i++) {
+    let cumulative = 0;
+    for (let i = -5; i <= 6; i++) {
       const ms = startOfMonth(addMonths(now, i));
       const me = endOfMonth(addMonths(now, i));
-      let fixed = 0, variable = 0;
-      costs.forEach((c: any) => {
-        if (c.is_paid) return;
+      const monthKey = format(ms, "yyyy-MM");
+      let fixed = 0, variable = 0, paid = 0;
+      const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
+      allRaw.forEach((c: any) => {
         if (!c.due_date) return;
         const d = new Date(c.due_date);
         if (d >= ms && d <= me) {
-          if (c.cost_type === "fixed") fixed += Number(c.amount);
-          else variable += Number(c.amount);
+          if (c.is_paid) {
+            paid += Number(c.amount);
+          } else {
+            if (c.cost_type === "fixed") fixed += Number(c.amount);
+            else variable += Number(c.amount);
+          }
         }
       });
-      allOrderDerivedCosts.forEach((c) => {
-        if (c.is_paid) return;
-        if (!c.due_date) return;
-        const d = new Date(c.due_date);
-        if (d >= ms && d <= me) {
-        if (c.cost_type === "fixed") fixed += c.amount;
-        else variable += c.amount;
-        }
-      });
+      cumulative += fixed + variable + paid;
       months.push({
         month: format(ms, "MMM yy", { locale: it }),
+        monthKey,
         Fissi: fixed,
         Variabili: variable,
+        Pagati: paid,
+        Totale: fixed + variable + paid,
+        Cumulativo: cumulative,
+        isCurrent: monthKey === currentMonthStr,
       });
     }
     return months;
@@ -503,6 +508,28 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     };
   }, [filteredCosts, filteredOrderItemCosts]);
 
+  // Yearly stats — independent from period filters
+  const yearlyStats = useMemo(() => {
+    const yearStart = startOfYear(new Date(yearForStats, 0, 1));
+    const yearEnd = endOfYear(new Date(yearForStats, 0, 1));
+    const now = new Date();
+    const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
+    const yearCosts = allRaw.filter((c: any) => {
+      if (!c.due_date) return false;
+      const d = new Date(c.due_date);
+      return d >= yearStart && d <= yearEnd;
+    });
+    const total = yearCosts.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const paidItems = yearCosts.filter((c: any) => c.is_paid);
+    const unpaidItems = yearCosts.filter((c: any) => !c.is_paid);
+    const overdueItems = unpaidItems.filter((c: any) => c.due_date && new Date(c.due_date) < now);
+    const totalPaid = paidItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const totalUnpaid = unpaidItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const totalOverdue = overdueItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const pctPaid = total > 0 ? Math.round((totalPaid / total) * 100) : 0;
+    return { total, totalPaid, totalUnpaid, totalOverdue, pctPaid, count: yearCosts.length };
+  }, [costs, allOrderDerivedCosts, yearForStats]);
+
   // CSV export
   const exportCostsCSV = () => {
     const allForExport = [...filteredCosts, ...filteredOrderItemCosts];
@@ -549,6 +576,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     costNameCounts,
     vatStats,
     stats,
+    yearlyStats,
     isLoading,
     exportCostsCSV,
   };
