@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, addMonths, addQuarters, addYears } from "date-fns";
+import { format, addMonths, addQuarters, addYears, differenceInMonths } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -17,7 +17,6 @@ export interface CostFormData {
   supplier_id: string;
   vat_rate: string;
   is_gross: boolean;
-  periods: string;
   end_date: string;
 }
 
@@ -33,9 +32,20 @@ export const defaultFormData: CostFormData = {
   supplier_id: "",
   vat_rate: "22",
   is_gross: false,
-  periods: "12",
   end_date: "",
 };
+
+export function calculatePeriodsFromDates(dueDate: string, endDate: string, recurrence: string): number {
+  if (!dueDate || !endDate) return 0;
+  const start = new Date(dueDate);
+  const end = new Date(endDate);
+  if (end <= start) return 0;
+  const diffM = differenceInMonths(end, start);
+  if (recurrence === "monthly") return diffM + 1;
+  if (recurrence === "quarterly") return Math.floor(diffM / 3) + 1;
+  if (recurrence === "yearly") return (end.getFullYear() - start.getFullYear()) + 1;
+  return 1;
+}
 
 function getNextDate(baseDate: Date, recurrence: string, offset: number): Date {
   if (recurrence === "monthly") return addMonths(baseDate, offset);
@@ -114,19 +124,9 @@ export function useCompanyCostsMutations({
       }
 
       let periods = 1;
-      if (data.recurrence !== "once") {
-        if (data.end_date && data.due_date) {
-          const start = new Date(data.due_date);
-          const end = new Date(data.end_date);
-          if (end > start) {
-            const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-            if (data.recurrence === "monthly") periods = Math.max(1, diffMonths + 1);
-            else if (data.recurrence === "quarterly") periods = Math.max(1, Math.floor(diffMonths / 3) + 1);
-            else if (data.recurrence === "yearly") periods = Math.max(1, end.getFullYear() - start.getFullYear() + 1);
-          }
-        } else {
-          periods = Math.max(1, Math.min(60, parseInt(data.periods) || 1));
-        }
+      if (data.recurrence !== "once" && data.end_date && data.due_date) {
+        const calculated = calculatePeriodsFromDates(data.due_date, data.end_date, data.recurrence);
+        if (calculated > 0) periods = calculated;
       }
       const baseDate = new Date(data.due_date);
       let created = 0;

@@ -122,7 +122,6 @@ export default function CompanyCostsManager() {
       supplier_id: cost.supplier_id || "none",
       vat_rate: String(cost.vat_rate ?? 22),
       is_gross: false,
-      periods: "1",
       end_date: "",
     });
     setDialogOpen(true);
@@ -143,7 +142,6 @@ export default function CompanyCostsManager() {
       supplier_id: cost.supplier_id || "none",
       vat_rate: String(cost.vat_rate ?? 22),
       is_gross: false,
-      periods: "1",
       end_date: "",
     });
     setDialogOpen(true);
