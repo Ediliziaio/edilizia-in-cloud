@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { format, addMonths } from "date-fns";
-import { Building2, Plus, Search, Download, Upload } from "lucide-react";
+import { it } from "date-fns/locale";
+import { Building2, Plus, Search, Download, Upload, CalendarIcon } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
@@ -13,6 +14,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 
 import { useCompanyCostsData, type PeriodFilter, type StatusFilter, type UnifiedCost } from "@/hooks/useCompanyCostsData";
@@ -59,11 +63,21 @@ export default function CompanyCostsManager() {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [originFilter, setOriginFilter] = useState<"all" | "manual" | "order">("all");
+  const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
 
   // Data hook
   const data = useCompanyCostsData(companyId, {
-    periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter,
+    periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange,
   });
+
+  // Period label for stats
+  const periodLabel = periodFilter === "this_month" ? "Questo mese"
+    : periodFilter === "next_month" ? "Prossimo mese"
+    : periodFilter === "last_3_months" ? "Ultimi 3 mesi"
+    : periodFilter === "this_year" ? "Quest'anno"
+    : periodFilter === "custom" && customDateRange
+      ? `${format(customDateRange.start, "dd/MM/yy", { locale: it })} – ${format(customDateRange.end, "dd/MM/yy", { locale: it })}`
+    : "Tutti i periodi";
 
   // Mutations hook
   const mutations = useCompanyCostsMutations({
@@ -228,6 +242,7 @@ export default function CompanyCostsManager() {
             stats={data.stats}
             vatStats={data.vatStats}
             monthlyDistribution={data.monthlyDistribution}
+            periodLabel={periodLabel}
           />
 
           {/* Filters */}
@@ -236,7 +251,10 @@ export default function CompanyCostsManager() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Cerca costo o fornitore..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
             </div>
-            <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
+            <Select value={periodFilter} onValueChange={(v) => {
+              setPeriodFilter(v as PeriodFilter);
+              if (v !== "custom") setCustomDateRange(null);
+            }}>
               <SelectTrigger className="w-[160px]"><SelectValue placeholder="Periodo" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti i periodi</SelectItem>
@@ -244,8 +262,46 @@ export default function CompanyCostsManager() {
                 <SelectItem value="next_month">Prossimo mese</SelectItem>
                 <SelectItem value="last_3_months">Ultimi 3 mesi</SelectItem>
                 <SelectItem value="this_year">Quest'anno</SelectItem>
+                <SelectItem value="custom">Personalizzato</SelectItem>
               </SelectContent>
             </Select>
+            {periodFilter === "custom" && (
+              <div className="flex items-center gap-1.5">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("gap-1 text-xs", !customDateRange?.start && "text-muted-foreground")}>
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      {customDateRange?.start ? format(customDateRange.start, "dd/MM/yy") : "Da"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={customDateRange?.start}
+                      onSelect={(d) => d && setCustomDateRange(prev => ({ start: d, end: prev?.end || d }))}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <span className="text-xs text-muted-foreground">–</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("gap-1 text-xs", !customDateRange?.end && "text-muted-foreground")}>
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      {customDateRange?.end ? format(customDateRange.end, "dd/MM/yy") : "A"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={customDateRange?.end}
+                      onSelect={(d) => d && setCustomDateRange(prev => ({ start: prev?.start || d, end: d }))}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
               <SelectTrigger className="w-[140px]"><SelectValue placeholder="Stato" /></SelectTrigger>
               <SelectContent>
