@@ -237,16 +237,16 @@ export function MarginTab() {
           </div>
         </div>
         <Card>
-          <Table>
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
-                <SortableTableHead column="customerName" label="Cliente" sortConfig={marginSort} onSort={toggleMarginSort} className="min-w-[140px]" />
-                <SortableTableHead column="orderCode" label="Commessa" sortConfig={marginSort} onSort={toggleMarginSort} className="min-w-[130px]" />
-                <SortableTableHead column="totalAmount" label="Fatt. Imp." sortConfig={marginSort} onSort={toggleMarginSort} className="w-[120px] text-right" />
-                <SortableTableHead column="totalVariableCosts" label="Costi Var." sortConfig={marginSort} onSort={toggleMarginSort} className="w-[120px] text-right" />
-                <SortableTableHead column="grossMargin" label="Margine €" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[120px] text-right" />
-                <SortableTableHead column="marginPercent" label="Margine %" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[100px] text-right" />
-                <SortableTableHead column="status" label="Stato" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[110px] text-center" />
+                <SortableTableHead column="customerName" label="Cliente" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[18%]" />
+                <SortableTableHead column="orderCode" label="Commessa" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[16%]" />
+                <SortableTableHead column="totalAmount" label="Fatt. Imp." sortConfig={marginSort} onSort={toggleMarginSort} className="w-[14%] text-right" />
+                <SortableTableHead column="totalVariableCosts" label="Costi Var." sortConfig={marginSort} onSort={toggleMarginSort} className="w-[14%] text-right" />
+                <SortableTableHead column="grossMargin" label="Margine €" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[14%] text-right" />
+                <SortableTableHead column="marginPercent" label="Margine %" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[12%] text-right" />
+                <SortableTableHead column="status" label="Stato" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[12%] text-center" />
               </TableRow>
             </TableHeader>
             <TableBody>
