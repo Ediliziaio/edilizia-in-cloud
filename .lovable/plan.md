@@ -1,88 +1,48 @@
 
 
-# Audit di pulizia, stabilizzazione e UX — Modulo Costi Aziendali
+# Ottimizzazione UX Costi Aziendali
 
-## 1. Codice morto e pulizia
+## 1. Riepilogo Annuale in alto con switch Anno
 
-### `CostFormData.periods` — campo vestigiale
-Il campo `periods: string` nell'interfaccia `CostFormData` e nel `defaultFormData` (valore `"12"`) non è più impostato da nessuna UI dopo la sostituzione con `end_date`. Resta solo come fallback silenzioso in `useCompanyCostsMutations.ts` riga 128.
+**Cosa**: Aggiungere una sezione "Riepilogo Annuale" sopra le stats cards attuali, con un selettore anno (anno corrente / anno precedente). Mostra i KPI chiave dell'anno selezionato: totale costi, pagati, da pagare, % pagato.
 
-**Azione**: Rimuovere `periods` dall'interfaccia `CostFormData`, dal `defaultFormData`, e dai punti dove viene inizializzato (`openEdit`, `openDuplicate` in `CompanyCostsManager.tsx`). Il fallback nella mutation (riga 127-129) diventa codice morto — se `end_date` è vuoto e recurrence non è "once", si produce 1 periodo (già il default corretto).
+**Implementazione**:
 
-### Inconsistenza calcolo periodi
-`CostFormDialog.tsx` usa `differenceInMonths` di date-fns per il calcolo, ma `useCompanyCostsMutations.ts` usa un calcolo manuale `(end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth())`. Producono risultati identici per date intere, ma è codice duplicato e fragile.
+### `src/hooks/useCompanyCostsData.ts`
+- Aggiungere un parametro `selectedYear` ai filtri
+- Calcolare `yearlyStats` separatamente (non influenzato dai filtri periodo): filtra tutti i costi + order-derived per l'anno selezionato e calcola totale, pagati, da pagare, scaduti
+- Restituire `yearlyStats` dal hook
 
-**Azione**: Estrarre una singola funzione `calculatePeriodsFromDates` nel file mutations (o in `forecastTypes.ts`) e importarla in entrambi i file, eliminando la duplicazione.
-
-### Import non utilizzato in `CostFormDialog.tsx`
-L'import `useState` è usato, `useCallback` è usato, `useMemo` è usato — tutti attivi. L'icona `Info` da lucide è usata. Nessun import morto trovato in questo file.
-
-### Verifica globale hooks
-Tutti i 32 hook in `src/hooks/` sono attivamente importati e usati. Nessun file orfano trovato (confermato dall'audit precedente documentato in memoria).
-
----
-
-## 2. Bug funzionali
-
-### Bug 1: Calcolo inconsistente periodi tra preview e salvataggio
-La preview usa `differenceInMonths` (date-fns) che gestisce edge case come mesi di lunghezza diversa, mentre la mutation usa aritmetica raw sui mesi. Per date come 31 gennaio → 28 febbraio, i risultati possono divergere.
-
-**Fix**: Unificare su `differenceInMonths` di date-fns in entrambi i punti.
-
-### Bug 2: `periods` fallback crea comportamento silenzioso indesiderato
-Se un utente crea un costo ricorrente senza `end_date` (campo obbligatorio mancante), il fallback `parseInt(data.periods) || 1` usa il valore di default `"12"`, creando 12 costi silenziosi. Questo non dovrebbe mai accadere perché il bottone è disabilitato senza `due_date`, ma `end_date` non è validato come required.
-
-**Fix**: Aggiungere validazione: se recurrence non è "once" e `end_date` è vuoto, mostrare errore e bloccare il submit. Disabilitare il bottone quando `end_date` è richiesto ma mancante.
-
-### Bug 3: `min` attribute su `end_date` non funziona con valori empty
-Riga 316: `min={formData.due_date || undefined}` — corretto. Nessun bug qui.
-
----
-
-## 3. Miglioramenti UX
-
-### UX 1: Validazione `end_date` come campo required per costi ricorrenti
-Attualmente l'utente può tentare di salvare un costo ricorrente senza data fine contratto. Il bottone "Aggiungi" resta abilitato e il fallback crea 1 solo costo (confuso).
-
-**Fix**: Disabilitare il bottone submit quando `recurrence !== "once"` e `end_date` è vuoto. Mostrare un hint sotto il campo.
-
-### UX 2: Feedback visivo sulla preview periodi
-La preview "Verranno creati N costi da X a Y" è buona ma appare solo dopo aver compilato entrambe le date. Aggiungere un messaggio placeholder tipo "Seleziona la data fine contratto" quando `due_date` è presente ma `end_date` manca.
-
-### UX 3: Reset `end_date` quando si cambia ricorrenza a "Una tantum"
-Se l'utente seleziona "mensile", inserisce un `end_date`, poi cambia a "una tantum", il valore `end_date` resta in memoria. Aggiungere un reset automatico.
-
----
-
-## 4. Piano implementativo (file coinvolti)
-
-### `src/hooks/useCompanyCostsMutations.ts`
-- Rimuovere `periods` da `CostFormData` e `defaultFormData`
-- Importare `differenceInMonths` da date-fns
-- Sostituire il calcolo manuale dei periodi (righe 122-129) con la stessa logica di `calculatePeriodsFromDates`
-- Rimuovere il fallback `periods`
-
-### `src/components/forecast/CostFormDialog.tsx`
-- Spostare `calculatePeriodsFromDates` in un file condiviso o lasciarlo qui e importarlo nella mutation
-- Aggiungere validazione: disabilitare submit se ricorrente senza `end_date`
-- Aggiungere hint "Seleziona la data fine contratto" quando manca
-- Reset `end_date` quando ricorrenza cambia a "once"
+### `src/components/forecast/CostsStatsCards.tsx`
+- Aggiungere una nuova sezione in cima: una barra con titolo "Situazione {anno}" e due bottoni toggle (anno corrente / anno precedente)
+- Sotto la barra, 4 card orizzontali grandi: Totale Anno, Pagato, Da Pagare, Scaduto — con barra di progresso pagato/totale
+- Le 6 stats cards piccole esistenti restano sotto, filtrate per periodo
 
 ### `src/components/forecast/CompanyCostsManager.tsx`
-- Rimuovere `periods: "1"` da `openEdit` e `openDuplicate`
+- Aggiungere stato `selectedYear` (default: anno corrente)
+- Passarlo al hook e al componente stats
 
----
+## 2. Miglioramento Distribuzione Mensile Costi Futuri
 
-## Riepilogo deliverable
+**Cosa**: Il grafico attuale mostra solo 6 mesi futuri con barre stacked. Miglioramenti:
 
-| Tipo | Dettaglio |
+### `src/hooks/useCompanyCostsData.ts`
+- Estendere `monthlyDistribution` per mostrare 12 mesi (6 passati + 6 futuri) o in alternativa tutti i mesi dell'anno selezionato
+- Aggiungere il totale per mese come terzo dato per il tooltip
+- Includere anche i costi pagati come terza serie per confronto
+
+### `src/components/forecast/CostsStatsCards.tsx`
+- Ridisegnare il grafico: usare barre raggruppate (non stacked) con colori più distinti
+- Aggiungere una linea trend sovrapposta per il totale cumulativo
+- Migliorare il tooltip con breakdown dettagliato (Fissi, Variabili, Totale)
+- Aggiungere indicatore del mese corrente (evidenziazione della barra)
+- Rendere il grafico più alto (da 200px a 280px) per leggibilità
+
+## Riepilogo modifiche per file
+
+| File | Modifiche |
 |------|-----------|
-| Rimosso | Campo `periods` da interfaccia, default e inizializzazioni |
-| Rimosso | Fallback silenzioso `parseInt(data.periods)` |
-| Rimosso | Calcolo manuale duplicato periodi nella mutation |
-| Fix | Unificazione calcolo periodi (date-fns `differenceInMonths`) |
-| Fix | Validazione `end_date` come required per costi ricorrenti |
-| UX | Hint placeholder per `end_date` mancante |
-| UX | Reset automatico `end_date` su cambio ricorrenza a "once" |
-| UX | Bottone submit disabilitato correttamente |
+| `useCompanyCostsData.ts` | + `selectedYear` param, + `yearlyStats` output, estensione `monthlyDistribution` a 12 mesi con trend |
+| `CostsStatsCards.tsx` | + Sezione riepilogo annuale con toggle anno, + progress bar, miglioramento chart |
+| `CompanyCostsManager.tsx` | + stato `selectedYear`, passaggio a hook e componente |
 
