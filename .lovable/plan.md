@@ -1,29 +1,26 @@
 
 
-# Pianificazione costi ricorrenti — Data fine contratto invece di periodi manuali
+# Verifica: Data fine contratto e Data scadenza
 
-## Problema attuale
-Quando si crea un costo fisso con ricorrenza (mensile/trimestrale/annuale), il form chiede "Periodi da generare" come numero manuale. L'utente deve calcolare quanti mesi/trimestri mancano alla scadenza del contratto. Il comportamento corretto è: l'utente inserisce la **data di inizio** (scadenza) e la **data fine contratto**, e il sistema calcola automaticamente quanti periodi generare.
+## Stato attuale
+Ho verificato il flusso completo tra i tre file coinvolti:
 
-## Soluzione
+1. **`CostFormDialog.tsx`**: Il `periodsPreview` usa `useMemo` con dipendenze `[recurrence, due_date, end_date]` — si aggiorna correttamente quando cambiano le date. La funzione `calculatePeriodsFromDates` calcola i periodi in modo coerente.
 
-### Modifiche al form — `src/components/forecast/CostFormDialog.tsx`
+2. **`useCompanyCostsMutations.ts`**: La `saveMutation` usa la stessa logica di calcolo periodi (righe 116-129) — coerente con il form.
 
-1. **Sostituire** il campo "Periodi da generare" (`Input type="number"`) con un campo **"Data fine contratto"** (`Input type="date"`)
-2. **Calcolo automatico dei periodi**: in base a `due_date` (inizio) e `end_date` (fine contratto), calcolare automaticamente il numero di occorrenze in base alla ricorrenza:
-   - Mensile: differenza in mesi
-   - Trimestrale: differenza in mesi / 3
-   - Annuale: differenza in anni
-3. **Preview aggiornata**: mostrare "Verranno creati N costi da MMM yyyy a MMM yyyy" calcolato dalla data fine
-4. Aggiornare `periodsPreview` per usare `end_date` al posto di `periods`
+3. **`CompanyCostsManager.tsx`**: `end_date` è inizializzato a `""` in `openCreate`, `openEdit`, e `openDuplicate`.
 
-### Modifiche al modello dati — `src/hooks/useCompanyCostsMutations.ts`
+## Problema trovato
+C'è un warning React in console: **"A component is changing an uncontrolled input to be controlled"** — probabilmente dal campo `end_date`. Questo succede quando il valore dell'input passa da `undefined` a una stringa.
 
-5. Aggiungere `end_date: string` a `CostFormData`
-6. Nel `defaultFormData`, impostare `end_date: ""`
-7. Nella `saveMutation`, calcolare `periods` a runtime dalla differenza tra `due_date` e `end_date` prima del loop di inserimento — la logica di generazione resta invariata
+Il problema è nel `defaultFormData` in `useCompanyCostsMutations.ts` che ha `end_date: ""`, ma in `openCreate` (riga 107) si usa `{ ...defaultFormData, cost_type: type }` che dovrebbe funzionare. Tuttavia, se `formData.end_date` diventa `undefined` in qualche percorso (es. da un vecchio stato), l'input date diventa uncontrolled.
 
-### File coinvolti
-- `src/components/forecast/CostFormDialog.tsx` — UI del form
-- `src/hooks/useCompanyCostsMutations.ts` — tipo dati + calcolo periodi nel salvataggio
+## Fix proposto
+
+### `src/components/forecast/CostFormDialog.tsx`
+- Aggiungere fallback `value={formData.end_date || ""}` sul campo data fine contratto (riga 314)
+- Aggiungere fallback `value={formData.due_date || ""}` sul campo data scadenza (riga 305)
+
+Questo è un fix minimale che elimina il warning e garantisce che i campi siano sempre controllati, indipendentemente dallo stato del form.
 
