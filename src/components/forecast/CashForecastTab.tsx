@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, addMonths, startOfMonth, endOfMonth, subMonths, isWithinInterval, startOfDay, startOfYear } from "date-fns";
+import { format, addMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,9 +72,9 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
         setDateFrom(startOfMonth(now));
         setDateTo(thisMonthEnd);
         break;
-      case "lastQuarter":
-        setDateFrom(startOfMonth(subMonths(now, 3)));
-        setDateTo(endOfMonth(subMonths(now, 1)));
+      case "nextQuarter":
+        setDateFrom(startOfMonth(addMonths(now, 1)));
+        setDateTo(endOfMonth(addMonths(now, 3)));
         break;
       case "thisYear":
         setDateFrom(startOfYear(now));
@@ -111,7 +111,7 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
       .filter(t => filter === "all" || (filter === "income" ? t.direction === "in" : t.direction === "out"))
       .filter(t => {
         if (!dateFrom && !dateTo) return true;
-        if (!t.date) return !dateFrom && !dateTo;
+        if (!t.date) return true; // always show items without date
         if (dateFrom && t.date < startOfDay(dateFrom)) return false;
         if (dateTo && t.date > endOfMonth(dateTo)) return false;
         return true;
@@ -184,7 +184,7 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
               <div className="flex flex-wrap items-center border rounded-md">
                 {([
                   { key: "thisMonth", label: "Questo mese" },
-                  { key: "lastQuarter", label: "Ultimo trimestre" },
+                  { key: "nextQuarter", label: "Prossimo trimestre" },
                   { key: "thisYear", label: "Quest'anno" },
                   { key: "all", label: "Tutto" },
                 ] as const).map(({ key, label }) => (

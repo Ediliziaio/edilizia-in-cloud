@@ -29,8 +29,8 @@ export function useCashFlowData() {
   const { data: installmentsData = [], isLoading: loadingOrders } = useQuery({
     queryKey: ["forecast-installments", companyId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("order_installments")
+      const { data, error } = await supabase
+        .from("order_installments" as any)
         .select(`
           id, order_id, position, label, type, amount, is_paid, paid_date, expected_date,
           order:orders!inner(id, order_code, company_id, customer:profiles!orders_customer_id_fkey(first_name, last_name))

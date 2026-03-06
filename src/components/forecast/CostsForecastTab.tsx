@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, startOfDay, startOfYear } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, isWithinInterval, startOfDay, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,9 +59,9 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
         setDateFrom(thisMonthStart);
         setDateTo(thisMonthEnd);
         break;
-      case "lastQuarter": {
-        setDateFrom(startOfMonth(subMonths(now, 3)));
-        setDateTo(endOfMonth(subMonths(now, 1)));
+      case "nextQuarter": {
+        setDateFrom(startOfMonth(addMonths(now, 1)));
+        setDateTo(endOfMonth(addMonths(now, 3)));
         break;
       }
       case "thisYear":
@@ -86,12 +86,12 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
     }
   };
 
-  // Date filter
+  // Date filter — items without date are always shown (with visual indicator)
   const inDateRange = (d: Date | null) => {
     if (activePreset === "all" && !dateFrom && !dateTo) return true;
+    if (!d) return true; // always show items without a date
     const effectiveFrom = dateFrom || thisMonthStart;
     const effectiveTo = dateTo || thisMonthEnd;
-    if (!d) return false;
     if (d < startOfDay(effectiveFrom)) return false;
     if (d > endOfMonth(effectiveTo)) return false;
     return true;
@@ -145,7 +145,7 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
         <div className="flex flex-wrap items-center border rounded-md">
           {([
             { key: "thisMonth", label: "Questo mese" },
-            { key: "lastQuarter", label: "Ultimo trimestre" },
+            { key: "nextQuarter", label: "Prossimo trimestre" },
             { key: "thisYear", label: "Quest'anno" },
             { key: "all", label: "Tutto" },
           ] as const).map(({ key, label }) => (
