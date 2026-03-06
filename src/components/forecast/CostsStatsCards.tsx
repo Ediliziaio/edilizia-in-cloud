@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/formatters";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  Line, ComposedChart, Cell,
+  Cell,
 } from "recharts";
 
 interface YearlyStats {
@@ -25,7 +25,6 @@ interface MonthlyDistItem {
   Variabili: number;
   Pagati: number;
   Totale: number;
-  MediaMobile: number;
   isCurrent: boolean;
 }
 
@@ -181,7 +180,7 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
         <CardContent>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={monthlyDistribution}>
+              <BarChart data={monthlyDistribution}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="month"
@@ -233,16 +232,7 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
                     <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
                   ))}
                 </Bar>
-                <Line
-                  type="monotone"
-                  dataKey="MediaMobile"
-                  name="Media Mobile 3m"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={false}
-                  strokeDasharray="4 2"
-                />
-              </ComposedChart>
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>

@@ -419,13 +419,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
         isCurrent: monthKey === currentMonthStr,
       });
     }
-    // Second pass: 3-month rolling average
-    return raw.map((item, i) => {
-      const prev = raw[i - 1]?.Totale ?? item.Totale;
-      const next = raw[i + 1]?.Totale ?? item.Totale;
-      const MediaMobile = Math.round((prev + item.Totale + next) / 3);
-      return { ...item, MediaMobile };
-    });
+    return raw;
   }, [costs, allOrderDerivedCosts]);
 
   // Cost name counts for group delete
