@@ -338,7 +338,19 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   // Filtering logic for order-derived costs
   const filteredOrderItemCosts = useMemo(() => {
     if (originFilter === "manual") return [];
+    const now = new Date();
     let filtered = allOrderDerivedCosts;
+    if (periodFilter !== "all") {
+      let start: Date, end: Date;
+      if (periodFilter === "this_month") { start = startOfMonth(now); end = endOfMonth(now); }
+      else if (periodFilter === "next_month") { start = startOfMonth(addMonths(now, 1)); end = endOfMonth(addMonths(now, 1)); }
+      else if (periodFilter === "last_3_months") { start = startOfMonth(subMonths(now, 2)); end = endOfMonth(now); }
+      else { start = startOfYear(now); end = endOfYear(now); }
+      filtered = filtered.filter(c => {
+        if (!c.due_date) return false;
+        return isWithinInterval(new Date(c.due_date), { start, end });
+      });
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((c) => c.name.toLowerCase().includes(q) || (c.supplierName || "").toLowerCase().includes(q));
@@ -349,7 +361,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       filtered = filtered.filter((c) => c.category === categoryFilter);
     }
     return filtered;
-  }, [allOrderDerivedCosts, searchQuery, statusFilter, categoryFilter, originFilter]);
+  }, [allOrderDerivedCosts, periodFilter, searchQuery, statusFilter, categoryFilter, originFilter]);
 
   // Dynamic categories from costs + suppliers
   const dynamicCategories = useMemo(() => {
