@@ -3,7 +3,9 @@ import { format, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterva
 import { it } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import { SortableTableHead } from "@/components/ui/sortable-table-head";
+import { useTableSort, type SortConfig } from "@/hooks/useTableSort";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -276,6 +278,21 @@ function CostSection({ title, total, headers, rows }: {
   headers: string[];
   rows: { key: string; cells: string[] }[];
 }) {
+  const accessors = useMemo(() => {
+    const acc: Record<string, (item: { key: string; cells: string[] }) => string | number> = {};
+    headers.forEach((h, i) => {
+      acc[h] = (row) => {
+        const val = row.cells[i];
+        // Try parsing as number (remove currency symbols)
+        const num = parseFloat(val.replace(/[^\d.,-]/g, "").replace(",", "."));
+        return isNaN(num) ? val : num;
+      };
+    });
+    return acc;
+  }, [headers]);
+
+  const { sortConfig, toggleSort, sortedItems } = useTableSort(rows, accessors);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -288,11 +305,20 @@ function CostSection({ title, total, headers, rows }: {
         <Table>
           <TableHeader>
             <TableRow>
-              {headers.map(h => <TableHead key={h} className={h === "Importo" ? "text-right" : ""}>{h}</TableHead>)}
+              {headers.map(h => (
+                <SortableTableHead
+                  key={h}
+                  column={h}
+                  label={h}
+                  sortConfig={sortConfig}
+                  onSort={toggleSort}
+                  className={h === "Importo" ? "text-right" : ""}
+                />
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(row => (
+            {sortedItems.map(row => (
               <TableRow key={row.key}>
                 {row.cells.map((cell, i) => (
                   <TableCell key={i} className={`text-sm ${i === row.cells.length - 1 ? "text-right font-medium" : ""}`}>

@@ -3,7 +3,9 @@ import { format, addMonths, startOfMonth, endOfMonth, subMonths, isWithinInterva
 import { it } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import { SortableTableHead } from "@/components/ui/sortable-table-head";
+import { useTableSort } from "@/hooks/useTableSort";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -119,6 +121,16 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
       });
   }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, filter, dateFrom, dateTo]);
 
+  const txAccessors = useMemo(() => ({
+    date: (t: UnifiedTransaction) => t.date,
+    description: (t: UnifiedTransaction) => t.description,
+    orderCode: (t: UnifiedTransaction) => t.orderCode || "",
+    category: (t: UnifiedTransaction) => t.category,
+    amount: (t: UnifiedTransaction) => t.direction === "in" ? t.amount : -t.amount,
+  }), []);
+
+  const { sortConfig: txSort, toggleSort: toggleTxSort, sortedItems: sortedTransactions } = useTableSort(transactions, txAccessors);
+
   return (
     <div className="space-y-6">
       {/* Net Cash Flow Cards */}
@@ -230,15 +242,15 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Descrizione</TableHead>
-                  <TableHead>Ordine</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead className="text-right">Importo</TableHead>
+                  <SortableTableHead column="date" label="Data" sortConfig={txSort} onSort={toggleTxSort} />
+                  <SortableTableHead column="description" label="Descrizione" sortConfig={txSort} onSort={toggleTxSort} />
+                  <SortableTableHead column="orderCode" label="Ordine" sortConfig={txSort} onSort={toggleTxSort} />
+                  <SortableTableHead column="category" label="Categoria" sortConfig={txSort} onSort={toggleTxSort} />
+                  <SortableTableHead column="amount" label="Importo" sortConfig={txSort} onSort={toggleTxSort} className="text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((t, i) => (
+                {sortedTransactions.map((t, i) => (
                   <TableRow key={i}>
                     <TableCell className="text-sm">{t.date ? format(t.date, "dd/MM/yyyy") : "—"}</TableCell>
                     <TableCell className="text-sm">{t.description}</TableCell>

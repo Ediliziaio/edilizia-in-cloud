@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { format, addDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
@@ -11,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { SortableTableHead } from "@/components/ui/sortable-table-head";
+import { useTableSort } from "@/hooks/useTableSort";
 import {
   Tooltip, TooltipContent, TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -73,6 +76,28 @@ export function CostsTable({
 }: CostsTableProps) {
   const now = new Date();
   const soon = addDays(now, 7);
+
+  const costAccessors = useMemo(() => ({
+    name: (c: UnifiedCost) => c.name,
+    origin: (c: UnifiedCost) => c.isFromOrder ? "Da Ordine" : "Manuale",
+    costType: (c: UnifiedCost) => c.cost_type === "fixed" ? "Fisso" : "Variabile",
+    supplier: (c: UnifiedCost) => (c as any).supplier?.name || c.supplierName || "",
+    category: (c: UnifiedCost) => c.category || "",
+    amount: (c: UnifiedCost) => c.amount,
+    vatRate: (c: UnifiedCost) => Number((c as any).vat_rate) || 0,
+    recurrence: (c: UnifiedCost) => c.recurrence,
+    dueDate: (c: UnifiedCost) => c.due_date ? new Date(c.due_date) : null,
+    status: (c: UnifiedCost) => {
+      if (c.is_paid) return "Pagato";
+      const d = new Date(c.due_date);
+      if (d < now) return "Scaduto";
+      if (d <= soon) return "In scadenza";
+      return "Da pagare";
+    },
+    order: (c: UnifiedCost) => c.order?.order_code || "",
+  }), [now, soon]);
+
+  const { sortConfig: costSort, toggleSort: toggleCostSort, sortedItems: sortedItems } = useTableSort(items, costAccessors);
 
   const selectableItems = items.filter(c => !c.isFromOrder);
   const allSelectableIds = selectableItems.map(c => c.id);
@@ -147,27 +172,27 @@ export function CostsTable({
       ) : (
         <div className="rounded-md border">
           <Table>
-            <TableHeader>
+              <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
                   <Checkbox checked={allSelected} onCheckedChange={() => onToggleSelectAll(allSelectableIds)} aria-label="Seleziona tutti" />
                 </TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>Origine</TableHead>
-                {type === "all" && <TableHead>Tipo</TableHead>}
-                <TableHead>Fornitore</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead className="text-right">Imponibile</TableHead>
-                <TableHead>IVA</TableHead>
-                <TableHead>Ricorrenza</TableHead>
-                <TableHead>Scadenza</TableHead>
-                <TableHead>Stato</TableHead>
-                {(type === "variable" || type === "all") && <TableHead>Ordine</TableHead>}
+                <SortableTableHead column="name" label="Nome" sortConfig={costSort} onSort={toggleCostSort} />
+                <SortableTableHead column="origin" label="Origine" sortConfig={costSort} onSort={toggleCostSort} />
+                {type === "all" && <SortableTableHead column="costType" label="Tipo" sortConfig={costSort} onSort={toggleCostSort} />}
+                <SortableTableHead column="supplier" label="Fornitore" sortConfig={costSort} onSort={toggleCostSort} />
+                <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} />
+                <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right" />
+                <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} />
+                <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} />
+                <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} />
+                <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} />
+                {(type === "variable" || type === "all") && <SortableTableHead column="order" label="Ordine" sortConfig={costSort} onSort={toggleCostSort} />}
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((cost) => {
+              {sortedItems.map((cost) => {
                 const vatRate = Number((cost as any).vat_rate) || 0;
                 const { grossAmount, vatAmount } = calculateGrossFromNet(cost.amount, vatRate);
                 const isSelected = selectedIds.has(cost.id);
