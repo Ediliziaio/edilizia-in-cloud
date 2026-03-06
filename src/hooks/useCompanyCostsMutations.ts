@@ -120,7 +120,37 @@ export function useCompanyCostsMutations({
       if (editingCostId) {
         const { error } = await supabase.from("company_costs").update({ ...basePayload, due_date: data.due_date }).eq("id", editingCostId);
         if (error) throw error;
-        return { created: 1, isEdit: true };
+
+        // If end_date is set and recurrence is not "once", generate missing future occurrences
+        let additionalCreated = 0;
+        if (data.recurrence !== "once" && data.end_date && data.due_date) {
+          const periods = calculatePeriodsFromDates(data.due_date, data.end_date, data.recurrence);
+          const baseDate = new Date(data.due_date);
+          for (let i = 0; i < periods; i++) {
+            const date = getNextDate(baseDate, data.recurrence, i);
+            const dateStr = format(date, "yyyy-MM-dd");
+            // Skip the date we just updated
+            if (dateStr === data.due_date) continue;
+            // Check for existing duplicate
+            const { data: existing } = await supabase
+              .from("company_costs")
+              .select("id")
+              .eq("company_id", companyId!)
+              .eq("name", data.name)
+              .eq("due_date", dateStr)
+              .limit(1);
+            if (existing && existing.length > 0) continue;
+            const { error: insertErr } = await supabase.from("company_costs").insert({
+              ...basePayload,
+              due_date: dateStr,
+              is_paid: false,
+            });
+            if (insertErr) throw insertErr;
+            additionalCreated++;
+          }
+        }
+
+        return { created: 1 + additionalCreated, isEdit: true, additionalCreated };
       }
 
       let periods = 1;
@@ -162,7 +192,11 @@ export function useCompanyCostsMutations({
       onSaveSuccess();
 
       if (result.isEdit) {
-        toast({ title: "Costo aggiornato" });
+        if (result.additionalCreated && result.additionalCreated > 0) {
+          toast({ title: "Costo aggiornato", description: `Creati ${result.additionalCreated} nuovi costi ricorrenti` });
+        } else {
+          toast({ title: "Costo aggiornato" });
+        }
       } else if (result.created > 1) {
         const baseDate = result.baseDate as Date;
         const lastDate = getNextDate(baseDate, formRecurrence, result.created - 1);

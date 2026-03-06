@@ -294,7 +294,7 @@ export function CostFormDialog({
               </div>
             </div>
 
-            {formData.recurrence !== "once" && !editingCost && (
+            {formData.recurrence !== "once" && (
               <div className="space-y-2">
                 <Label>Data fine contratto *</Label>
                 <Input
@@ -305,7 +305,7 @@ export function CostFormDialog({
                 />
                 {periodsPreview ? (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Repeat className="h-3 w-3" /> Verranno creati {periodsPreview.count} costi da {periodsPreview.from} a {periodsPreview.to}
+                    <Repeat className="h-3 w-3" /> {editingCost ? `Verranno creati ${periodsPreview.count} nuovi costi aggiuntivi` : `Verranno creati ${periodsPreview.count} costi da ${periodsPreview.from} a ${periodsPreview.to}`}
                   </p>
                 ) : formData.due_date && !formData.end_date ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
@@ -342,7 +342,7 @@ export function CostFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
           <Button
             onClick={handleSubmit}
-            disabled={!formData.name || !formData.amount || !formData.due_date || isSaving || (formData.recurrence !== "once" && !editingCost && !formData.end_date)}
+            disabled={!formData.name || !formData.amount || !formData.due_date || isSaving || (formData.recurrence !== "once" && !formData.end_date)}
           >
             {isSaving ? "Salvataggio..." : editingCost ? "Aggiorna" : periodsPreview ? `Crea ${periodsPreview.count} costi` : "Aggiungi"}
           </Button>
