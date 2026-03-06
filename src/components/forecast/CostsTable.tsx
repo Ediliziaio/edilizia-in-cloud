@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format, addDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { useTableSort } from "@/hooks/useTableSort";
@@ -97,7 +97,31 @@ export function CostsTable({
     order: (c: UnifiedCost) => c.order?.order_code || "",
   }), [now, soon]);
 
-  const { sortConfig: costSort, toggleSort: toggleCostSort, sortedItems: sortedItems } = useTableSort(items, costAccessors);
+  const costAccessorsWithGross = useMemo(() => ({
+    ...costAccessors,
+    gross: (c: UnifiedCost) => {
+      const vr = Number((c as any).vat_rate) || 0;
+      return calculateGrossFromNet(c.amount, vr).grossAmount;
+    },
+  }), [costAccessors]);
+
+  const { sortConfig: costSort, toggleSort: toggleCostSort, sortedItems: sortedItems } = useTableSort(items, costAccessorsWithGross);
+
+  // Footer totals
+  const footerTotals = useMemo(() => {
+    let totalNet = 0, totalVat = 0, totalGross = 0;
+    let unpaidNet = 0, unpaidGross = 0, paidNet = 0, paidGross = 0;
+    items.forEach(c => {
+      const vr = Number((c as any).vat_rate) || 0;
+      const { grossAmount, vatAmount } = calculateGrossFromNet(c.amount, vr);
+      totalNet += c.amount;
+      totalVat += vatAmount;
+      totalGross += grossAmount;
+      if (c.is_paid) { paidNet += c.amount; paidGross += grossAmount; }
+      else { unpaidNet += c.amount; unpaidGross += grossAmount; }
+    });
+    return { totalNet, totalVat, totalGross, unpaidNet, unpaidGross, paidNet, paidGross };
+  }, [items]);
 
   const selectableItems = items.filter(c => !c.isFromOrder);
   const allSelectableIds = selectableItems.map(c => c.id);
@@ -184,6 +208,7 @@ export function CostsTable({
                 <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} />
                 <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right" />
                 <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} />
+                <SortableTableHead column="gross" label="Totale Lordo" sortConfig={costSort} onSort={toggleCostSort} className="text-right" />
                 <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} />
                 <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} />
                 <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} />
@@ -196,8 +221,11 @@ export function CostsTable({
                 const vatRate = Number((cost as any).vat_rate) || 0;
                 const { grossAmount, vatAmount } = calculateGrossFromNet(cost.amount, vatRate);
                 const isSelected = selectedIds.has(cost.id);
+                const dueDate = cost.due_date ? new Date(cost.due_date) : null;
+                const isOverdue = !cost.is_paid && dueDate && dueDate < now;
+                const isExpiring = !cost.is_paid && dueDate && dueDate >= now && dueDate <= soon;
                 return (
-                  <TableRow key={cost.id} className={`${cost.isFromOrder ? "bg-orange-50/50 dark:bg-orange-900/5" : ""} ${isSelected ? "bg-muted/50" : ""}`}>
+                  <TableRow key={cost.id} className={`${isOverdue ? "bg-red-50/60 dark:bg-red-900/10" : isExpiring ? "bg-orange-50/60 dark:bg-orange-900/10" : cost.isFromOrder ? "bg-orange-50/30 dark:bg-orange-900/5" : ""} ${isSelected ? "bg-muted/50" : ""}`}>
                     <TableCell>
                       {!cost.isFromOrder ? (
                         <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(cost.id)} aria-label={`Seleziona ${cost.name}`} />
@@ -255,6 +283,9 @@ export function CostsTable({
                       ) : (
                         <span className="text-muted-foreground text-xs">Esente</span>
                       )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {formatCurrency(grossAmount)}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
@@ -375,6 +406,31 @@ export function CostsTable({
                 );
               })}
             </TableBody>
+            {items.length > 0 && (
+              <TableFooter>
+                <TableRow className="bg-muted/50 font-semibold">
+                  <TableCell />
+                  <TableCell>Totale ({items.length})</TableCell>
+                  <TableCell />
+                  {type === "all" && <TableCell />}
+                  <TableCell />
+                  <TableCell />
+                  <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalNet)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-xs text-violet-600 dark:text-violet-400">{formatCurrency(footerTotals.totalVat)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalGross)}</TableCell>
+                  <TableCell />
+                  <TableCell />
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5 text-xs">
+                      <span className="text-red-600">Da pagare: {formatCurrency(footerTotals.unpaidGross)}</span>
+                      <span className="text-green-600">Pagato: {formatCurrency(footerTotals.paidGross)}</span>
+                    </div>
+                  </TableCell>
+                  {(type === "variable" || type === "all") && <TableCell />}
+                  <TableCell />
+                </TableRow>
+              </TableFooter>
+            )}
           </Table>
         </div>
       )}

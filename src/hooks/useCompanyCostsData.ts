@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, subMonths, startOfYear, endOfYear } from "date-fns";
+import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
 
-export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all";
+export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all" | "custom";
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
 
 export interface UnifiedCost {
@@ -37,10 +37,22 @@ export interface CostsFilters {
   supplierFilter: string;
   categoryFilter: string;
   originFilter: "all" | "manual" | "order";
+  customDateRange?: { start: Date; end: Date } | null;
 }
 
 export function useCompanyCostsData(companyId: string | undefined, filters: CostsFilters) {
-  const { periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter } = filters;
+  const { periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange } = filters;
+
+  // Helper to get period date range
+  const getPeriodRange = useMemo(() => {
+    const now = new Date();
+    if (periodFilter === "this_month") return { start: startOfMonth(now), end: endOfMonth(now) };
+    if (periodFilter === "next_month") return { start: startOfMonth(addMonths(now, 1)), end: endOfMonth(addMonths(now, 1)) };
+    if (periodFilter === "last_3_months") return { start: startOfMonth(subMonths(now, 2)), end: endOfMonth(now) };
+    if (periodFilter === "this_year") return { start: startOfYear(now), end: endOfYear(now) };
+    if (periodFilter === "custom" && customDateRange) return customDateRange;
+    return null;
+  }, [periodFilter, customDateRange]);
 
   // Query costs with supplier join
   const { data: costs = [], isLoading } = useQuery({
@@ -298,16 +310,11 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     const now = new Date();
     let filtered = costs as any[];
 
-    if (periodFilter !== "all") {
-      let start: Date, end: Date;
-      if (periodFilter === "this_month") { start = startOfMonth(now); end = endOfMonth(now); }
-      else if (periodFilter === "next_month") { start = startOfMonth(addMonths(now, 1)); end = endOfMonth(addMonths(now, 1)); }
-      else if (periodFilter === "last_3_months") { start = startOfMonth(subMonths(now, 2)); end = endOfMonth(now); }
-      else { start = startOfYear(now); end = endOfYear(now); }
+    if (getPeriodRange) {
+      const { start, end } = getPeriodRange;
       filtered = filtered.filter((c: any) => {
         if (!c.due_date) return false;
-        const d = new Date(c.due_date);
-        return isWithinInterval(d, { start, end });
+        return isWithinInterval(new Date(c.due_date), { start, end });
       });
     }
 
@@ -333,19 +340,15 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     }
 
     return filtered;
-  }, [costs, periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter]);
+  }, [costs, getPeriodRange, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter]);
 
   // Filtering logic for order-derived costs
   const filteredOrderItemCosts = useMemo(() => {
     if (originFilter === "manual") return [];
     const now = new Date();
     let filtered = allOrderDerivedCosts;
-    if (periodFilter !== "all") {
-      let start: Date, end: Date;
-      if (periodFilter === "this_month") { start = startOfMonth(now); end = endOfMonth(now); }
-      else if (periodFilter === "next_month") { start = startOfMonth(addMonths(now, 1)); end = endOfMonth(addMonths(now, 1)); }
-      else if (periodFilter === "last_3_months") { start = startOfMonth(subMonths(now, 2)); end = endOfMonth(now); }
-      else { start = startOfYear(now); end = endOfYear(now); }
+    if (getPeriodRange) {
+      const { start, end } = getPeriodRange;
       filtered = filtered.filter(c => {
         if (!c.due_date) return false;
         return isWithinInterval(new Date(c.due_date), { start, end });
@@ -361,7 +364,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       filtered = filtered.filter((c) => c.category === categoryFilter);
     }
     return filtered;
-  }, [allOrderDerivedCosts, periodFilter, searchQuery, statusFilter, categoryFilter, originFilter]);
+  }, [allOrderDerivedCosts, getPeriodRange, searchQuery, statusFilter, categoryFilter, originFilter]);
 
   // Dynamic categories from costs + suppliers
   const dynamicCategories = useMemo(() => {
@@ -417,22 +420,23 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     return map;
   }, [costs]);
 
-  // VAT calculations for stats
+  // VAT calculations for stats — includes both manual AND order-derived costs
   const vatStats = useMemo(() => {
     let vatDebit = 0;
     let supplierUnpaid = 0;
-    costs.forEach((c: any) => {
+    const allUnified = [...filteredCosts, ...filteredOrderItemCosts];
+    allUnified.forEach((c: any) => {
       if (!c.is_paid) {
         const rate = Number(c.vat_rate) || 0;
         const vatAmount = Number(c.amount) * (rate / 100);
         vatDebit += vatAmount;
-        if (c.supplier_id) {
+        if (c.supplier_id || c.supplierName || c.category === "Fornitori") {
           supplierUnpaid += Number(c.amount);
         }
       }
     });
     return { vatDebit, supplierUnpaid };
-  }, [costs]);
+  }, [filteredCosts, filteredOrderItemCosts]);
 
   // Computed sorted/filtered lists — split order-derived by cost_type
   const manualFixedCosts = filteredCosts.filter((c: any) => c.cost_type === "fixed");
@@ -442,36 +446,56 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const fixedCosts = [...manualFixedCosts, ...orderDerivedFixed];
   const variableCostsWithOrders = [...manualVariableCosts, ...orderDerivedVariable];
   const allCostsSorted = [...filteredCosts, ...filteredOrderItemCosts].sort((a: any, b: any) => {
+    const now = new Date();
+    const soon = addDays(now, 7);
+    const getPriority = (c: any) => {
+      if (c.is_paid) return 4;
+      const d = c.due_date ? new Date(c.due_date) : null;
+      if (d && d < now) return 1; // overdue
+      if (d && d <= soon) return 2; // expiring
+      return 3; // pending
+    };
+    const pA = getPriority(a), pB = getPriority(b);
+    if (pA !== pB) return pA - pB;
+    // Within same priority, sort by date ascending (except paid: descending)
     const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
     const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
-    return dateA - dateB;
+    return pA === 4 ? dateB - dateA : dateA - dateB;
   });
 
-  // Stats
+  // Stats — reactive to active filters (uses filtered data, not raw)
   const stats = useMemo(() => {
     const now = new Date();
-    const thisMonthInterval = { start: startOfMonth(now), end: endOfMonth(now) };
+    const soon = addDays(now, 7);
+    const allFiltered = [...filteredCosts, ...filteredOrderItemCosts] as any[];
 
-    const thisMonthUnpaid = costs.filter((c: any) => !c.is_paid && c.due_date && isWithinInterval(new Date(c.due_date), thisMonthInterval));
-    const thisMonthPaid = costs.filter((c: any) => c.is_paid && c.paid_date && isWithinInterval(new Date(c.paid_date), thisMonthInterval));
-    const overdueCosts = costs.filter((c: any) => !c.is_paid && new Date(c.due_date) < now);
+    const unpaid = allFiltered.filter((c: any) => !c.is_paid);
+    const paid = allFiltered.filter((c: any) => c.is_paid);
+    const overdue = unpaid.filter((c: any) => c.due_date && new Date(c.due_date) < now);
+    const expiringSoon = unpaid.filter((c: any) => {
+      if (!c.due_date) return false;
+      const d = new Date(c.due_date);
+      return d >= now && d <= soon;
+    });
 
-    const orderDerivedThisMonthUnpaid = allOrderDerivedCosts.filter(c => !c.is_paid && c.due_date && isWithinInterval(new Date(c.due_date), thisMonthInterval));
-    const orderDerivedThisMonthPaid = allOrderDerivedCosts.filter(c => c.is_paid && c.paid_date && isWithinInterval(new Date(c.paid_date), thisMonthInterval));
-
-    const totalUnpaidThisMonth = thisMonthUnpaid.reduce((s: number, c: any) => s + Number(c.amount), 0) + orderDerivedThisMonthUnpaid.reduce((s, c) => s + c.amount, 0);
-    const totalPaidThisMonth = thisMonthPaid.reduce((s: number, c: any) => s + Number(c.amount), 0) + orderDerivedThisMonthPaid.reduce((s, c) => s + c.amount, 0);
-    const totalOverdue = overdueCosts.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const totalUnpaid = unpaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const totalPaid = paid.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const totalOverdue = overdue.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const totalExpiringSoon = expiringSoon.reduce((s: number, c: any) => s + Number(c.amount), 0);
 
     return {
-      totalUnpaidThisMonth,
-      totalPaidThisMonth,
+      totalUnpaidThisMonth: totalUnpaid,
+      totalPaidThisMonth: totalPaid,
       totalOverdue,
-      unpaidCount: thisMonthUnpaid.length + orderDerivedThisMonthUnpaid.length,
-      paidCount: thisMonthPaid.length + orderDerivedThisMonthPaid.length,
-      overdueCount: overdueCosts.length,
+      unpaidCount: unpaid.length,
+      paidCount: paid.length,
+      overdueCount: overdue.length,
+      expiringSoonCount: expiringSoon.length,
+      totalExpiringSoon,
+      totalPeriod: totalUnpaid + totalPaid,
+      totalCount: allFiltered.length,
     };
-  }, [costs, allOrderDerivedCosts]);
+  }, [filteredCosts, filteredOrderItemCosts]);
 
   // CSV export
   const exportCostsCSV = () => {
