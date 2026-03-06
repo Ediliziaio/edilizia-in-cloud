@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, startOfDay, isBefore, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
-import { X, Search, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { Search, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DatePickerButton } from "@/components/forecast/DatePickerButton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import type { ExpectedPayment } from "@/lib/forecastTypes";
 
@@ -35,6 +37,8 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
+  const [activePreset, setActivePreset] = useState<string>("thisMonth");
+  const [customPopoverOpen, setCustomPopoverOpen] = useState(false);
 
   const thisMonthStart = startOfMonth(now);
   const thisMonthEnd = endOfMonth(now);
@@ -80,6 +84,7 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
 
   // Quick date presets
   const applyPreset = (preset: string) => {
+    setActivePreset(preset);
     switch (preset) {
       case "thisMonth":
         setDateFrom(thisMonthStart);
@@ -100,10 +105,20 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
         setDateFrom(undefined);
         setDateTo(undefined);
         break;
+      case "custom":
+        setCustomPopoverOpen(true);
+        break;
     }
   };
 
-  // Filtered collected for table (with search)
+  const handleRangeSelect = (range: { from?: Date; to?: Date } | undefined) => {
+    setDateFrom(range?.from);
+    setDateTo(range?.to);
+    if (range?.from && range?.to) {
+      setCustomPopoverOpen(false);
+    }
+  };
+
   const filteredCollected = useMemo(() => {
     let items = dateFrom || dateTo
       ? allCollected.filter(p => {
@@ -201,9 +216,7 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
     setExpandedMonths(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const clearDates = () => { setDateFrom(undefined); setDateTo(undefined); };
-  const hasDates = dateFrom || dateTo;
-  const showingFiltered = hasDates;
+  const showingFiltered = activePreset !== "thisMonth";
 
   return (
     <div className="space-y-6">
@@ -281,27 +294,52 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <CardTitle className="text-lg">
-                {showingFiltered ? "Già incassato — Periodo personalizzato" : `Già incassato — ${format(now, "MMMM yyyy", { locale: it })}`}
-              </CardTitle>
-              <div className="flex flex-wrap items-center gap-2">
-                <DatePickerButton label="Da" date={dateFrom} onSelect={setDateFrom} />
-                <DatePickerButton label="A" date={dateTo} onSelect={setDateTo} />
-                {hasDates && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={clearDates}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-            {/* Quick presets + search */}
+            <CardTitle className="text-lg">
+              {showingFiltered ? "Già incassato — Periodo personalizzato" : `Già incassato — ${format(now, "MMMM yyyy", { locale: it })}`}
+            </CardTitle>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-              <div className="flex flex-wrap gap-1">
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset("thisMonth")}>Questo mese</Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset("lastQuarter")}>Ultimo trimestre</Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset("thisYear")}>Quest'anno</Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset("all")}>Tutto</Button>
+              <div className="flex flex-wrap items-center border rounded-md">
+                {([
+                  { key: "thisMonth", label: "Questo mese" },
+                  { key: "lastQuarter", label: "Ultimo trimestre" },
+                  { key: "thisYear", label: "Quest'anno" },
+                  { key: "all", label: "Tutto" },
+                ] as const).map(({ key, label }) => (
+                  <Button
+                    key={key}
+                    variant={activePreset === key ? "default" : "ghost"}
+                    size="sm"
+                    className="h-8 text-xs rounded-none first:rounded-l-md last:rounded-r-md"
+                    onClick={() => applyPreset(key)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+                <Popover open={customPopoverOpen} onOpenChange={setCustomPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={activePreset === "custom" ? "default" : "ghost"}
+                      size="sm"
+                      className="h-8 text-xs rounded-none rounded-r-md"
+                      onClick={() => { setActivePreset("custom"); setCustomPopoverOpen(true); }}
+                    >
+                      <CalendarIcon className="h-3.5 w-3.5 mr-1" />
+                      {activePreset === "custom" && dateFrom && dateTo
+                        ? `${format(dateFrom, "dd MMM", { locale: it })} – ${format(dateTo, "dd MMM", { locale: it })}`
+                        : "Personalizzato"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="range"
+                      selected={dateFrom && dateTo ? { from: dateFrom, to: dateTo } : dateFrom ? { from: dateFrom } : undefined}
+                      onSelect={handleRangeSelect as any}
+                      numberOfMonths={2}
+                      locale={it}
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="relative flex-1 w-full sm:max-w-[250px]">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -309,7 +347,7 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
                   placeholder="Cerca cliente o ordine..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-7 text-xs pl-8"
+                  className="h-8 text-xs pl-8"
                 />
               </div>
             </div>
