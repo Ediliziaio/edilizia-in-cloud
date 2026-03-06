@@ -1,26 +1,18 @@
 
 
-# Verifica: Data fine contratto e Data scadenza
+# Fix: Dialog non scrollabile — bottone Crea irraggiungibile
 
-## Stato attuale
-Ho verificato il flusso completo tra i tre file coinvolti:
+## Problema
+Il `DialogContent` usa `fixed` + `translate-y(-50%)` centrato verticalmente, ma senza `max-height` né `overflow-y: auto`. Quando il contenuto del form è più alto del viewport, il bottone "Crea" finisce fuori schermo e non è raggiungibile.
 
-1. **`CostFormDialog.tsx`**: Il `periodsPreview` usa `useMemo` con dipendenze `[recurrence, due_date, end_date]` — si aggiorna correttamente quando cambiano le date. La funzione `calculatePeriodsFromDates` calcola i periodi in modo coerente.
+## Soluzione
 
-2. **`useCompanyCostsMutations.ts`**: La `saveMutation` usa la stessa logica di calcolo periodi (righe 116-129) — coerente con il form.
+### File: `src/components/forecast/CostFormDialog.tsx`
+Aggiungere `max-h-[85vh] overflow-y-auto` al `DialogContent` per rendere il dialog scrollabile:
 
-3. **`CompanyCostsManager.tsx`**: `end_date` è inizializzato a `""` in `openCreate`, `openEdit`, e `openDuplicate`.
+```tsx
+<DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+```
 
-## Problema trovato
-C'è un warning React in console: **"A component is changing an uncontrolled input to be controlled"** — probabilmente dal campo `end_date`. Questo succede quando il valore dell'input passa da `undefined` a una stringa.
-
-Il problema è nel `defaultFormData` in `useCompanyCostsMutations.ts` che ha `end_date: ""`, ma in `openCreate` (riga 107) si usa `{ ...defaultFormData, cost_type: type }` che dovrebbe funzionare. Tuttavia, se `formData.end_date` diventa `undefined` in qualche percorso (es. da un vecchio stato), l'input date diventa uncontrolled.
-
-## Fix proposto
-
-### `src/components/forecast/CostFormDialog.tsx`
-- Aggiungere fallback `value={formData.end_date || ""}` sul campo data fine contratto (riga 314)
-- Aggiungere fallback `value={formData.due_date || ""}` sul campo data scadenza (riga 305)
-
-Questo è un fix minimale che elimina il warning e garantisce che i campi siano sempre controllati, indipendentemente dallo stato del form.
+Questo è un fix di una riga che limita l'altezza del dialog all'85% del viewport e abilita lo scroll interno.
 
