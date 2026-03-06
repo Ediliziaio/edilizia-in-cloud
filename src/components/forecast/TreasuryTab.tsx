@@ -163,19 +163,14 @@ export function TreasuryTab({
     // --- ENTRATE: pagamenti ordini già incassati ---
     const incomeItems: { date: string | Date | null; amount: number; label: string }[] = [];
 
-    orders.forEach((order: any) => {
-      if (order.deposit_paid && order.deposit_amount > 0) {
-        incomeItems.push({ date: order.deposit_paid_date, amount: Number(order.deposit_amount), label: "Acconto 1" });
-      }
-      if (order.deposit_2_paid && order.deposit_2_amount > 0) {
-        incomeItems.push({ date: order.deposit_2_paid_date, amount: Number(order.deposit_2_amount), label: "Acconto 2" });
-      }
-      if (order.balance_paid && order.balance_amount > 0) {
-        incomeItems.push({ date: order.balance_paid_date, amount: Number(order.balance_amount), label: "Saldo" });
-      }
-      if (order.financing_paid && order.financing_amount > 0) {
-        incomeItems.push({ date: order.financing_paid_date, amount: Number(order.financing_amount), label: "Finanziamento" });
-      }
+    orders.forEach((inst: any) => {
+      if (!inst.is_paid || !inst.amount || Number(inst.amount) <= 0) return;
+      const typeLabel = inst.label || inst.type || "Rata";
+      incomeItems.push({
+        date: inst.paid_date,
+        amount: Number(inst.amount),
+        label: typeLabel,
+      });
     });
 
     const incomeByType: Record<string, { date: string | Date | null; amount: number }[]> = {};
@@ -416,7 +411,7 @@ export function TreasuryTab({
   };
 
   // Flatten tree for rendering
-  const flattenTree = (nodes: TreeNode[]): TreeNode[] => {
+  const visibleRows = useMemo(() => {
     const result: TreeNode[] = [];
     const recurse = (node: TreeNode) => {
       result.push(node);
@@ -424,14 +419,9 @@ export function TreasuryTab({
         node.children.forEach(recurse);
       }
     };
-    nodes.forEach(recurse);
+    [treeData.entrateNode, treeData.usciteNode].forEach(recurse);
     return result;
-  };
-
-  const visibleRows = useMemo(
-    () => flattenTree([treeData.entrateNode, treeData.usciteNode]),
-    [treeData, expandedRows]
-  );
+  }, [treeData, expandedRows]);
 
   const getRowStyle = (node: TreeNode) => {
     const isTopLevel = node.level === 0;
