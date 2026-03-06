@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { format, addMonths } from "date-fns";
 import { it } from "date-fns/locale";
-import { Building2, Plus, Search, Download, Upload, CalendarIcon } from "lucide-react";
+import { Building2, Plus, Search, Download, Upload, CalendarIcon, AlertTriangle } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
@@ -18,8 +18,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { formatCurrency } from "@/lib/formatters";
 
-import { useCompanyCostsData, type PeriodFilter, type StatusFilter, type UnifiedCost } from "@/hooks/useCompanyCostsData";
+import { useCompanyCostsData, type PeriodFilter, type StatusFilter, type StatusTabFilter, type UnifiedCost } from "@/hooks/useCompanyCostsData";
 import { useCompanyCostsMutations, type CostFormData, defaultFormData } from "@/hooks/useCompanyCostsMutations";
 import { CostsStatsCards } from "./CostsStatsCards";
 import { CostsTable } from "./CostsTable";
@@ -65,10 +67,11 @@ export default function CompanyCostsManager() {
   const [originFilter, setOriginFilter] = useState<"all" | "manual" | "order">("all");
   const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [statusTabFilter, setStatusTabFilter] = useState<StatusTabFilter>("all");
 
   // Data hook
   const data = useCompanyCostsData(companyId, {
-    periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange,
+    periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, customDateRange, statusTabFilter,
   }, selectedYear);
 
   // Period label for stats
@@ -100,7 +103,7 @@ export default function CompanyCostsManager() {
   // Reset selection when filters change
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter]);
+  }, [periodFilter, statusFilter, searchQuery, supplierFilter, categoryFilter, originFilter, statusTabFilter]);
 
   // Handlers
   const openCreate = (type: string) => {
@@ -203,6 +206,20 @@ export default function CompanyCostsManager() {
     }
   };
 
+  // Get items for current tab considering status tab filter
+  const getItemsForTab = (tab: string) => {
+    if (statusTabFilter !== "all") {
+      // When a status tab is active, show filtered items split by cost type
+      const items = data.statusTabFilteredCosts;
+      if (tab === "fixed") return items.filter(c => c.cost_type === "fixed");
+      if (tab === "variable") return items.filter(c => c.cost_type === "variable");
+      return items;
+    }
+    if (tab === "fixed") return data.fixedCosts;
+    if (tab === "variable") return data.variableCostsWithOrders;
+    return data.allCostsSorted;
+  };
+
   if (data.isLoading) {
     return (
       <Card>
@@ -239,6 +256,26 @@ export default function CompanyCostsManager() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Alert Banner — Overdue payments */}
+          {data.stats.overdueCount > 0 && (
+            <Alert className="border-orange-300 bg-orange-50 dark:bg-orange-900/10 dark:border-orange-700">
+              <AlertTriangle className="h-4 w-4 text-orange-600" />
+              <AlertDescription className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-orange-800 dark:text-orange-300">
+                  Hai <strong>{data.stats.overdueCount}</strong> pagament{data.stats.overdueCount === 1 ? "o scaduto" : "i scaduti"} per un totale di <strong>{formatCurrency(data.stats.totalOverdue)}</strong>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-orange-400 text-orange-700 hover:bg-orange-100 dark:border-orange-600 dark:text-orange-400 dark:hover:bg-orange-900/20"
+                  onClick={() => setStatusTabFilter("in_ritardo")}
+                >
+                  Visualizza
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <CostsStatsCards
             stats={data.stats}
             vatStats={data.vatStats}
@@ -247,6 +284,8 @@ export default function CompanyCostsManager() {
             yearlyStats={data.yearlyStats}
             selectedYear={selectedYear}
             onYearChange={setSelectedYear}
+            activeStatusTab={statusTabFilter}
+            onStatusTabChange={setStatusTabFilter}
           />
 
           {/* Filters */}
@@ -344,17 +383,42 @@ export default function CompanyCostsManager() {
             </Select>
           </div>
 
-          {/* Tabs */}
+          {/* Status Tabs */}
+          <div className="flex gap-1 flex-wrap">
+            {([
+              { value: "all" as StatusTabFilter, label: "Tutti", count: data.allCostsSorted.length },
+              { value: "sostenuti" as StatusTabFilter, label: "Sostenuti", count: data.statusTabLists.sostenuti.length },
+              { value: "previsti" as StatusTabFilter, label: "Previsti", count: data.statusTabLists.previsti.length },
+              { value: "in_ritardo" as StatusTabFilter, label: "In ritardo", count: data.statusTabLists.inRitardo.length },
+              { value: "in_scadenza" as StatusTabFilter, label: "In scadenza", count: data.statusTabLists.inScadenza.length },
+            ]).map(tab => (
+              <Button
+                key={tab.value}
+                variant={statusTabFilter === tab.value ? "default" : "outline"}
+                size="sm"
+                className={cn(
+                  "text-xs gap-1",
+                  tab.value === "in_ritardo" && tab.count > 0 && statusTabFilter !== tab.value && "border-red-300 text-red-700 dark:border-red-700 dark:text-red-400",
+                  tab.value === "in_scadenza" && tab.count > 0 && statusTabFilter !== tab.value && "border-orange-300 text-orange-700 dark:border-orange-700 dark:text-orange-400",
+                )}
+                onClick={() => setStatusTabFilter(tab.value)}
+              >
+                {tab.label} ({tab.count})
+              </Button>
+            ))}
+          </div>
+
+          {/* Type Tabs */}
           <Tabs defaultValue="all">
             <TabsList>
-              <TabsTrigger value="all">Tutti ({data.allCostsSorted.length})</TabsTrigger>
-              <TabsTrigger value="fixed">Fissi ({data.fixedCosts.length})</TabsTrigger>
-              <TabsTrigger value="variable">Variabili ({data.variableCostsWithOrders.length})</TabsTrigger>
+              <TabsTrigger value="all">Tutti ({getItemsForTab("all").length})</TabsTrigger>
+              <TabsTrigger value="fixed">Fissi ({getItemsForTab("fixed").length})</TabsTrigger>
+              <TabsTrigger value="variable">Variabili ({getItemsForTab("variable").length})</TabsTrigger>
             </TabsList>
             {["all", "fixed", "variable"].map((tab) => (
               <TabsContent key={tab} value={tab}>
                 <CostsTable
-                  items={tab === "all" ? data.allCostsSorted : tab === "fixed" ? data.fixedCosts : data.variableCostsWithOrders}
+                  items={getItemsForTab(tab)}
                   type={tab}
                   selectedIds={selectedIds}
                   costNameCounts={data.costNameCounts}

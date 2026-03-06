@@ -1,4 +1,5 @@
-import { AlertCircle, Check, Clock, Calculator, Truck, TrendingUp, CalendarDays } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, Check, Clock, Calculator, Truck, TrendingUp, CalendarDays, ArrowUpDown, Eye, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -8,6 +9,7 @@ import {
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   Cell,
 } from "recharts";
+import type { StatusTabFilter } from "@/hooks/useCompanyCostsData";
 
 interface YearlyStats {
   total: number;
@@ -25,6 +27,8 @@ interface MonthlyDistItem {
   Variabili: number;
   PagatoEffettivo: number;
   Totale: number;
+  Previsto: number;
+  Sostenuto: number;
   isCurrent: boolean;
 }
 
@@ -40,6 +44,9 @@ interface CostsStatsCardsProps {
     totalExpiringSoon: number;
     totalPeriod: number;
     totalCount: number;
+    totalPrevisti: number;
+    previstiCount: number;
+    scostamento: number;
   };
   vatStats: { vatDebit: number; supplierUnpaid: number };
   monthlyDistribution: MonthlyDistItem[];
@@ -47,11 +54,21 @@ interface CostsStatsCardsProps {
   yearlyStats: YearlyStats;
   selectedYear: number;
   onYearChange: (year: number) => void;
+  activeStatusTab?: StatusTabFilter;
+  onStatusTabChange?: (tab: StatusTabFilter) => void;
 }
 
 const currentYear = new Date().getFullYear();
 
-export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange }: CostsStatsCardsProps) {
+export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange }: CostsStatsCardsProps) {
+  const [chartView, setChartView] = useState<"current" | "comparison">("current");
+
+  const handleCardClick = (tab: StatusTabFilter) => {
+    if (onStatusTabChange) {
+      onStatusTabChange(activeStatusTab === tab ? "all" : tab);
+    }
+  };
+
   return (
     <>
       {/* Annual Summary */}
@@ -114,45 +131,60 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
         </div>
       </div>
 
-      {/* Period Stats */}
+      {/* Period Stats — Clickable Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-medium">Totale {periodLabel}</span>
-          </div>
-          <p className="text-xl font-bold text-blue-600 tabular-nums">{formatCurrency(stats.totalPeriod)}</p>
-          <p className="text-[10px] text-muted-foreground">{stats.totalCount} costi</p>
-        </div>
-        <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
-          <div className="flex items-center gap-2 mb-1">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <span className="text-xs font-medium">Da pagare</span>
-          </div>
-          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCurrency(stats.totalUnpaidThisMonth)}</p>
-          <p className="text-[10px] text-muted-foreground">
-            {stats.unpaidCount} da pagare
-            {stats.expiringSoonCount > 0 && (
-              <span className="text-orange-600 font-medium"> · {stats.expiringSoonCount} in scadenza 7gg</span>
-            )}
-          </p>
-        </div>
-        <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
+        <button
+          type="button"
+          className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${activeStatusTab === "sostenuti" ? "ring-2 ring-green-500 bg-green-100 dark:bg-green-900/20 border-green-400" : "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800"}`}
+          onClick={() => handleCardClick("sostenuti")}
+        >
           <div className="flex items-center gap-2 mb-1">
             <Check className="h-4 w-4 text-green-600" />
-            <span className="text-xs font-medium">Pagato</span>
+            <span className="text-xs font-medium">Sostenuti (reali)</span>
           </div>
           <p className="text-xl font-bold text-green-600 tabular-nums">{formatCurrency(stats.totalPaidThisMonth)}</p>
           <p className="text-[10px] text-muted-foreground">{stats.paidCount} pagati</p>
-        </div>
-        <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800">
+        </button>
+
+        <button
+          type="button"
+          className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${activeStatusTab === "previsti" ? "ring-2 ring-blue-500 bg-blue-100 dark:bg-blue-900/20 border-blue-400" : "bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800"}`}
+          onClick={() => handleCardClick("previsti")}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="h-4 w-4 text-blue-600" />
+            <span className="text-xs font-medium">Previsti (ricorrenti)</span>
+          </div>
+          <p className="text-xl font-bold text-blue-600 tabular-nums">{formatCurrency(stats.totalPrevisti)}</p>
+          <p className="text-[10px] text-muted-foreground">{stats.previstiCount} previsti</p>
+        </button>
+
+        <button
+          type="button"
+          className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${activeStatusTab === "in_ritardo" ? "ring-2 ring-red-500 bg-red-100 dark:bg-red-900/20 border-red-400" : "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800"}`}
+          onClick={() => handleCardClick("in_ritardo")}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <span className="text-xs font-medium">Da pagare (scaduti)</span>
+          </div>
+          <p className="text-xl font-bold text-red-600 tabular-nums">{formatCurrency(stats.totalOverdue)}</p>
+          <p className="text-[10px] text-muted-foreground">{stats.overdueCount} scaduti</p>
+        </button>
+
+        <button
+          type="button"
+          className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${activeStatusTab === "in_scadenza" ? "ring-2 ring-orange-500 bg-orange-100 dark:bg-orange-900/20 border-orange-400" : "bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800"}`}
+          onClick={() => handleCardClick("in_scadenza")}
+        >
           <div className="flex items-center gap-2 mb-1">
             <Clock className="h-4 w-4 text-orange-600" />
-            <span className="text-xs font-medium">Scaduti</span>
+            <span className="text-xs font-medium">In scadenza (7gg)</span>
           </div>
-          <p className="text-xl font-bold text-orange-600 tabular-nums">{formatCurrency(stats.totalOverdue)}</p>
-          <p className="text-[10px] text-muted-foreground">{stats.overdueCount} scaduti</p>
-        </div>
+          <p className="text-xl font-bold text-orange-600 tabular-nums">{formatCurrency(stats.totalExpiringSoon)}</p>
+          <p className="text-[10px] text-muted-foreground">{stats.expiringSoonCount} in scadenza</p>
+        </button>
+
         <div className="p-4 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800">
           <div className="flex items-center gap-2 mb-1">
             <Calculator className="h-4 w-4 text-violet-600" />
@@ -161,21 +193,53 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
           <p className="text-xl font-bold text-violet-600 tabular-nums">{formatCurrency(vatStats.vatDebit)}</p>
           <p className="text-[10px] text-muted-foreground">Su costi non pagati</p>
         </div>
-        <div className="p-4 rounded-lg bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800">
+
+        <div className={`p-4 rounded-lg border ${stats.scostamento >= 0 ? "bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800" : "bg-rose-50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-800"}`}>
           <div className="flex items-center gap-2 mb-1">
-            <Truck className="h-4 w-4 text-indigo-600" />
-            <span className="text-xs font-medium">Fornitori da pagare</span>
+            <ArrowUpDown className={`h-4 w-4 ${stats.scostamento >= 0 ? "text-emerald-600" : "text-rose-600"}`} />
+            <span className="text-xs font-medium">Scostamento</span>
           </div>
-          <p className="text-xl font-bold text-indigo-600 tabular-nums">{formatCurrency(vatStats.supplierUnpaid)}</p>
-          <p className="text-[10px] text-muted-foreground">Costi con fornitore</p>
+          <p className={`text-xl font-bold tabular-nums ${stats.scostamento >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+            {stats.scostamento >= 0 ? "+" : ""}{formatCurrency(stats.scostamento)}
+          </p>
+          <p className="text-[10px] text-muted-foreground">Sostenuto vs previsto</p>
         </div>
       </div>
 
       {/* Monthly Distribution Chart */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Distribuzione Mensile Costi</CardTitle>
-          <CardDescription>Previsto (per scadenza) vs Pagato effettivo (per data pagamento)</CardDescription>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <CardTitle className="text-base">Distribuzione Mensile Costi</CardTitle>
+              <CardDescription>
+                {chartView === "current"
+                  ? "Previsto (per scadenza) vs Pagato effettivo (per data pagamento)"
+                  : "Confronto Previsto vs Sostenuto per mese"
+                }
+              </CardDescription>
+            </div>
+            <div className="flex gap-1">
+              <Button
+                variant={chartView === "current" ? "default" : "outline"}
+                size="sm"
+                className="gap-1 text-xs"
+                onClick={() => setChartView("current")}
+              >
+                <BarChart3 className="h-3.5 w-3.5" />
+                Dettaglio
+              </Button>
+              <Button
+                variant={chartView === "comparison" ? "default" : "outline"}
+                size="sm"
+                className="gap-1 text-xs"
+                onClick={() => setChartView("comparison")}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Previsto vs Sostenuto
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="h-[280px]">
@@ -215,33 +279,73 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
                     fontSize: 12,
                   }}
                   labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+                  content={chartView === "comparison" ? ({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const previsto = payload.find(p => p.dataKey === "Previsto")?.value as number || 0;
+                    const sostenuto = payload.find(p => p.dataKey === "Sostenuto")?.value as number || 0;
+                    const delta = sostenuto - previsto;
+                    return (
+                      <div className="rounded-lg border bg-card p-3 shadow-md text-xs space-y-1">
+                        <p className="font-semibold text-foreground">{label}</p>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-blue-600">Previsto:</span>
+                          <span className="font-medium">{formatCurrency(previsto)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-green-600">Sostenuto:</span>
+                          <span className="font-medium">{formatCurrency(sostenuto)}</span>
+                        </div>
+                        <div className={`flex justify-between gap-4 pt-1 border-t font-semibold ${delta >= 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                          <span>Delta:</span>
+                          <span>{delta >= 0 ? "+" : ""}{formatCurrency(delta)}</span>
+                        </div>
+                      </div>
+                    );
+                  } : undefined}
                 />
                 <Legend />
-                <Bar dataKey="Fissi" fill="hsl(0 84.2% 60.2%)" radius={[2, 2, 0, 0]} barSize={16}>
-                  {monthlyDistribution.map((entry, i) => (
-                    <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
-                  ))}
-                </Bar>
-                <Bar dataKey="Variabili" fill="hsl(45 93% 47%)" radius={[2, 2, 0, 0]} barSize={16}>
-                  {monthlyDistribution.map((entry, i) => (
-                    <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
-                  ))}
-                </Bar>
-                <Bar
-                  dataKey="PagatoEffettivo"
-                  name="Pagato Effettivo"
-                  fill="hsl(142 76% 36%)"
-                  fillOpacity={0.25}
-                  stroke="hsl(142 76% 36%)"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 2"
-                  radius={[2, 2, 0, 0]}
-                  barSize={16}
-                >
-                  {monthlyDistribution.map((entry, i) => (
-                    <Cell key={i} fillOpacity={entry.isCurrent ? 0.35 : 0.2} />
-                  ))}
-                </Bar>
+                {chartView === "current" ? (
+                  <>
+                    <Bar dataKey="Fissi" fill="hsl(0 84.2% 60.2%)" radius={[2, 2, 0, 0]} barSize={16}>
+                      {monthlyDistribution.map((entry, i) => (
+                        <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="Variabili" fill="hsl(45 93% 47%)" radius={[2, 2, 0, 0]} barSize={16}>
+                      {monthlyDistribution.map((entry, i) => (
+                        <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
+                      ))}
+                    </Bar>
+                    <Bar
+                      dataKey="PagatoEffettivo"
+                      name="Pagato Effettivo"
+                      fill="hsl(142 76% 36%)"
+                      fillOpacity={0.25}
+                      stroke="hsl(142 76% 36%)"
+                      strokeWidth={1.5}
+                      strokeDasharray="4 2"
+                      radius={[2, 2, 0, 0]}
+                      barSize={16}
+                    >
+                      {monthlyDistribution.map((entry, i) => (
+                        <Cell key={i} fillOpacity={entry.isCurrent ? 0.35 : 0.2} />
+                      ))}
+                    </Bar>
+                  </>
+                ) : (
+                  <>
+                    <Bar dataKey="Previsto" fill="hsl(217 91% 60%)" radius={[2, 2, 0, 0]} barSize={20}>
+                      {monthlyDistribution.map((entry, i) => (
+                        <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="Sostenuto" fill="hsl(142 76% 36%)" radius={[2, 2, 0, 0]} barSize={20}>
+                      {monthlyDistribution.map((entry, i) => (
+                        <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
+                      ))}
+                    </Bar>
+                  </>
+                )}
               </BarChart>
             </ResponsiveContainer>
           </div>

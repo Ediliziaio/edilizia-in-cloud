@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, addDays } from "date-fns";
+import { format, addDays, differenceInCalendarDays } from "date-fns";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { it } from "date-fns/locale";
@@ -7,7 +7,8 @@ import { Link } from "react-router-dom";
 import {
   Plus, Check, Pencil, Trash2, Receipt, Repeat,
   Package, ExternalLink, Undo2, CheckSquare,
-  MoreHorizontal, X, Copy, AlertCircle,
+  MoreHorizontal, X, Copy, AlertCircle, AlertTriangle,
+  Clock, CircleDot,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,7 +77,6 @@ export function CostsTable({
   bulkMarkPaidPending,
   bulkMarkUnpaidPending,
 }: CostsTableProps) {
-  // Stabilize now/soon to prevent useMemo invalidation on every render
   const nowRef = useMemo(() => new Date(), []);
   const soonRef = useMemo(() => addDays(new Date(), 7), []);
 
@@ -95,7 +95,18 @@ export function CostsTable({
       const d = new Date(c.due_date);
       if (d < nowRef) return "Scaduto";
       if (d <= soonRef) return "In scadenza";
+      if (c.recurrence !== "once" && d > soonRef) return "Previsto";
       return "Da pagare";
+    },
+    delay: (c: UnifiedCost) => {
+      if (c.is_paid && c.paid_date && c.due_date) {
+        return differenceInCalendarDays(new Date(c.paid_date), new Date(c.due_date));
+      }
+      if (!c.is_paid && c.due_date) {
+        const d = new Date(c.due_date);
+        if (d < nowRef) return differenceInCalendarDays(nowRef, d);
+      }
+      return 0;
     },
     order: (c: UnifiedCost) => c.order?.order_code || "",
   }), [nowRef, soonRef]);
@@ -108,7 +119,7 @@ export function CostsTable({
     },
   }), [costAccessors]);
 
-  const { sortConfig: costSort, toggleSort: toggleCostSort, sortedItems: sortedItems } = useTableSort(items, costAccessorsWithGross);
+  const { sortConfig: costSort, toggleSort: toggleCostSort, sortedItems } = useTableSort(items, costAccessorsWithGross);
 
   const {
     paginatedItems,
@@ -120,7 +131,6 @@ export function CostsTable({
     setPageSize,
   } = usePagination(sortedItems);
 
-  // Footer totals (calculated on ALL items, not just current page)
   const footerTotals = useMemo(() => {
     let totalNet = 0, totalVat = 0, totalGross = 0;
     let unpaidNet = 0, unpaidGross = 0, paidNet = 0, paidGross = 0;
@@ -136,30 +146,76 @@ export function CostsTable({
     return { totalNet, totalVat, totalGross, unpaidNet, unpaidGross, paidNet, paidGross };
   }, [items]);
 
-  // "Select all" scoped to current page only
   const selectableItems = paginatedItems.filter(c => !c.isFromOrder);
   const allSelectableIds = selectableItems.map(c => c.id);
   const allSelected = allSelectableIds.length > 0 && allSelectableIds.every(id => selectedIds.has(id));
   const someSelected = selectedIds.size > 0;
 
   const getStatusBadge = (cost: UnifiedCost) => {
-    if (cost.isFromOrder) {
-      if (cost.is_paid) {
-        const paidLabel = cost.paid_date ? `Pagato il ${format(new Date(cost.paid_date), "dd/MM/yyyy", { locale: it })}` : "Pagato";
-        return <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400">{paidLabel}</Badge>;
-      }
-      if (cost.orderItemStatus === "ordinato") return <Badge className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Ordinato</Badge>;
-      return <Badge className="bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400">Da pagare</Badge>;
-    }
+    const dueDate = cost.due_date ? new Date(cost.due_date) : null;
+
     if (cost.is_paid) {
       const paidLabel = cost.paid_date ? `Pagato il ${format(new Date(cost.paid_date), "dd/MM/yyyy", { locale: it })}` : "Pagato";
-      return <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400">{paidLabel}</Badge>;
+      return (
+        <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 gap-1">
+          <Check className="h-3 w-3" /> {paidLabel}
+        </Badge>
+      );
     }
-    const dueDate = new Date(cost.due_date);
-    if (dueDate <= soonRef && dueDate >= nowRef) return <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400">In scadenza</Badge>;
-    if (dueDate < nowRef) return <Badge className="bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400">Scaduto</Badge>;
-    return <Badge className="bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400">Da pagare</Badge>;
+
+    if (dueDate && dueDate < nowRef) {
+      const days = differenceInCalendarDays(nowRef, dueDate);
+      return (
+        <Badge className="bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 gap-1">
+          <AlertTriangle className="h-3 w-3" /> Scaduto {days}gg
+        </Badge>
+      );
+    }
+
+    if (dueDate && dueDate >= nowRef && dueDate <= soonRef) {
+      const days = differenceInCalendarDays(dueDate, nowRef);
+      return (
+        <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 gap-1">
+          <Clock className="h-3 w-3" /> In scadenza ({days}gg)
+        </Badge>
+      );
+    }
+
+    if (cost.recurrence !== "once" && dueDate && dueDate > soonRef) {
+      return (
+        <Badge className="bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-900/30 dark:text-sky-400 gap-1">
+          <CircleDot className="h-3 w-3" /> Previsto
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge className="bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-900/30 dark:text-gray-400 gap-1">
+        Da pagare
+      </Badge>
+    );
   };
+
+  const getDelayCell = (cost: UnifiedCost) => {
+    if (cost.is_paid && cost.paid_date && cost.due_date) {
+      const delta = differenceInCalendarDays(new Date(cost.paid_date), new Date(cost.due_date));
+      if (delta > 0) return <span className="text-red-600 font-medium text-xs">+{delta}gg</span>;
+      if (delta < 0) return <span className="text-green-600 font-medium text-xs">{delta}gg</span>;
+      return <span className="text-muted-foreground text-xs">0gg</span>;
+    }
+    if (!cost.is_paid && cost.due_date) {
+      const d = new Date(cost.due_date);
+      if (d < nowRef) {
+        const days = differenceInCalendarDays(nowRef, d);
+        return <span className="text-red-600 font-semibold text-xs">+{days}gg</span>;
+      }
+    }
+    return <span className="text-muted-foreground text-xs">—</span>;
+  };
+
+  // Count columns for footer colSpan
+  const baseColCount = type === "all" ? 6 : 5;
+  const hasOrderCol = type === "variable" || type === "all";
 
   return (
     <div className="space-y-4">
@@ -233,7 +289,8 @@ export function CostsTable({
                 <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} />
                 <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} />
                 <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} />
-                {(type === "variable" || type === "all") && <SortableTableHead column="order" label="Ordine" sortConfig={costSort} onSort={toggleCostSort} />}
+                <SortableTableHead column="delay" label="Ritardo" sortConfig={costSort} onSort={toggleCostSort} />
+                {hasOrderCol && <SortableTableHead column="order" label="Ordine" sortConfig={costSort} onSort={toggleCostSort} />}
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
@@ -318,7 +375,8 @@ export function CostsTable({
                       {cost.due_date ? format(new Date(cost.due_date), "dd/MM/yyyy", { locale: it }) : "—"}
                     </TableCell>
                     <TableCell>{getStatusBadge(cost)}</TableCell>
-                    {(type === "variable" || type === "all") && (
+                    <TableCell>{getDelayCell(cost)}</TableCell>
+                    {hasOrderCol && (
                       <TableCell>
                         {cost.order ? (
                           <Link to={`/azienda/ordini/${cost.order.id}`} className="text-primary hover:underline text-sm flex items-center gap-1">
@@ -430,7 +488,7 @@ export function CostsTable({
             {items.length > 0 && (
               <TableFooter>
               <TableRow className="bg-muted/50 font-semibold">
-                  <TableCell colSpan={type === "all" ? 6 : 5}>
+                  <TableCell colSpan={baseColCount}>
                     Totale ({items.length})
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalNet)}</TableCell>
@@ -442,7 +500,7 @@ export function CostsTable({
                       <span className="text-green-600">Pagato: {formatCurrency(footerTotals.paidGross)}</span>
                     </div>
                   </TableCell>
-                  <TableCell colSpan={(type === "variable" || type === "all") ? 2 : 1} />
+                  <TableCell colSpan={hasOrderCol ? 2 : 1} />
                 </TableRow>
               </TableFooter>
             )}
