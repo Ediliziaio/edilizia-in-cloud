@@ -1,20 +1,50 @@
 
 
-# Fix distribuzione colonne tabella Marginalità
+# Fix bug: cambio stato articolo e aggiornamento previsionale
 
-## Problema
-Le colonne "Cliente" e "Commessa" hanno `min-w` ma nessun limite massimo, quindi il browser assegna loro tutto lo spazio rimanente creando un gap enorme. Le ultime 5 colonne numeriche hanno `w-[120px]` fisso e risultano troppo compresse.
+## Bug 1: Stato articolo non si aggiorna
 
-## Fix
-Usare `table-fixed` sul `<Table>` e ridistribuire le larghezze con percentuali proporzionate:
+**Causa**: In `OrderItemsList.tsx`, quando si cambia lo stato tramite il dropdown (riga 363-367), viene chiamato `onItemsChange`. Ma in `OrderDetail.tsx` (riga 570-573), `onItemsChange` cerca solo articoli nuovi senza `id`:
 
-- Cliente: `w-[18%]`
-- Commessa: `w-[16%]`
-- Fatt. Imp.: `w-[14%] text-right`
-- Costi Var.: `w-[14%] text-right`
-- Margine €: `w-[14%] text-right`
-- Margine %: `w-[12%] text-right`
-- Stato: `w-[12%] text-center`
+```typescript
+onItemsChange={(newItems) => {
+  const newItem = newItems.find(ni => !ni.id);
+  if (newItem) addItemMutation.mutate(newItem);
+}}
+```
 
-Questo distribuisce lo spazio in modo uniforme eliminando il gap e dando più respiro alle colonne numeriche.
+Gli articoli esistenti con stato modificato vengono ignorati.
+
+**Fix**: Modificare `handleStatusChange` in `OrderItemsList.tsx` per usare `onItemUpdate` (che salva direttamente su DB) invece di `onItemsChange` quando `onItemUpdate` e disponibile:
+
+```typescript
+const handleStatusChange = (index: number, status: OrderItemStatus) => {
+  const updatedItem = { ...items[index], status };
+  if (onItemUpdate) {
+    onItemUpdate(updatedItem);
+  } else {
+    const newItems = [...items];
+    newItems[index] = updatedItem;
+    onItemsChange(newItems);
+  }
+};
+```
+
+## Bug 2: Previsionale non aggiornato dopo modifica date
+
+**Causa**: `updateSingleItemMutation.onSuccess` invalida solo `["order-items", id]` ma non le query del previsionale che leggono da `order_items` con join su `orders`.
+
+**Fix**: Aggiungere invalidazione delle query del previsionale in `onSuccess`:
+
+```typescript
+onSuccess: () => {
+  queryClient.invalidateQueries({ queryKey: ["order-items", id] });
+  queryClient.invalidateQueries({ queryKey: ["cash-flow"] });
+  toast.success("Articolo aggiornato");
+},
+```
+
+## File coinvolti
+- `src/components/orders/OrderItemsList.tsx` — fix `handleStatusChange`
+- `src/pages/azienda/OrderDetail.tsx` — aggiungere invalidazione query previsionale
 
