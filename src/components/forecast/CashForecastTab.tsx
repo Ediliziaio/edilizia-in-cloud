@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, addMonths, startOfMonth, endOfMonth, subMonths, isWithinInterval, startOfDay, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
@@ -32,9 +33,11 @@ interface UnifiedTransaction {
   category: string;
   amount: number;
   direction: "in" | "out";
+  orderId: string | null;
 }
 
 export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts }: CashForecastTabProps) {
+  const navigate = useNavigate();
   const now = new Date();
   const [filter, setFilter] = useState<FilterCategory>("all");
   const [customMonths, setCustomMonths] = useState(3);
@@ -98,11 +101,11 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
   const transactions = useMemo<UnifiedTransaction[]>(() => {
     const items: UnifiedTransaction[] = [];
 
-    expectedPayments.forEach(p => items.push({ date: p.expectedDate, description: p.customerName, orderCode: p.orderCode, category: p.type, amount: p.amount, direction: "in" }));
-    expectedExpenses.forEach(e => items.push({ date: e.expectedDate, description: e.teamName, orderCode: e.orderCode, category: "Squadra Esterna", amount: e.amount, direction: "out" }));
-    expectedCommissions.forEach(c => items.push({ date: c.expectedDate, description: c.salespersonName, orderCode: c.orderCode, category: "Provvigione", amount: c.amount, direction: "out" }));
-    expectedSupplierPayments.filter(p => !p.isPaid).forEach(s => items.push({ date: s.expectedDate, description: s.supplierName, orderCode: s.orderCode, category: s.type, amount: s.amount, direction: "out" }));
-    expectedCompanyCosts.forEach(c => items.push({ date: c.expectedDate, description: c.name, orderCode: null, category: c.type, amount: c.amount, direction: "out" }));
+    expectedPayments.forEach(p => items.push({ date: p.expectedDate, description: p.customerName, orderCode: p.orderCode, category: p.type, amount: p.amount, direction: "in", orderId: p.orderId }));
+    expectedExpenses.forEach(e => items.push({ date: e.expectedDate, description: e.teamName, orderCode: e.orderCode, category: "Squadra Esterna", amount: e.amount, direction: "out", orderId: e.orderId }));
+    expectedCommissions.forEach(c => items.push({ date: c.expectedDate, description: c.salespersonName, orderCode: c.orderCode, category: "Provvigione", amount: c.amount, direction: "out", orderId: c.orderId }));
+    expectedSupplierPayments.filter(p => !p.isPaid).forEach(s => items.push({ date: s.expectedDate, description: s.supplierName, orderCode: s.orderCode, category: s.type, amount: s.amount, direction: "out", orderId: s.orderId }));
+    expectedCompanyCosts.forEach(c => items.push({ date: c.expectedDate, description: c.name, orderCode: null, category: c.type, amount: c.amount, direction: "out", orderId: null }));
 
     return items
       .filter(t => filter === "all" || (filter === "income" ? t.direction === "in" : t.direction === "out"))
@@ -251,7 +254,11 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
               </TableHeader>
               <TableBody>
                 {sortedTransactions.map((t, i) => (
-                  <TableRow key={i}>
+                  <TableRow
+                    key={i}
+                    className={t.orderId ? "cursor-pointer hover:bg-muted/50" : ""}
+                    onClick={() => t.orderId && navigate(`/azienda/ordini/${t.orderId}`)}
+                  >
                     <TableCell className="text-sm">{t.date ? format(t.date, "dd/MM/yyyy") : "—"}</TableCell>
                     <TableCell className="text-sm">{t.description}</TableCell>
                     <TableCell className="text-sm">{t.orderCode || "—"}</TableCell>

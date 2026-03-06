@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ function getMarginStatus(percent: number, threshold: number) {
 }
 
 export function MarginTab() {
+  const navigate = useNavigate();
   const data = useMarginData();
   const {
     isLoading, orders, avgMarginEur, avgMarginPercent,
@@ -258,7 +260,11 @@ export function MarginTab() {
                 sortedOrders.map((order) => {
                   const status = getMarginStatus(order.marginPercent, threshold);
                   return (
-                    <TableRow key={order.orderId}>
+                    <TableRow
+                      key={order.orderId}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`/azienda/ordini/${order.orderId}`)}
+                    >
                       <TableCell className="font-medium">{order.customerName}</TableCell>
                       <TableCell>{order.orderCode || order.description?.substring(0, 30)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(order.totalAmount)}</TableCell>
