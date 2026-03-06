@@ -6,7 +6,6 @@ import {
   endOfMonth,
   isWithinInterval,
   isSameMonth,
-  addDays,
   format,
 } from "date-fns";
 import { it } from "date-fns/locale";
@@ -19,11 +18,7 @@ import type {
   ExpectedSupplierPayment,
   CompanyCostEntry,
   ExternalTeamPayment,
-  MaterialCosts,
   ForecastStats,
-  CfoKpis,
-  CostsSummary,
-  Supplier,
 } from "@/lib/forecastTypes";
 
 export function useCashFlowData() {
@@ -274,18 +269,6 @@ export function useCashFlowData() {
   // Backwards-compat: expose installmentsData as "orders" for treasury module
   const orders = installmentsData;
 
-  // Fornitori unici
-  const suppliers = useMemo<Supplier[]>(() => {
-    const supplierMap = new Map<string, string>();
-    pendingItems.forEach((item: any) => {
-      if (item.supplier?.name) {
-        supplierMap.set(item.supplier_id || item.supplier.name, item.supplier.name);
-      }
-    });
-    return Array.from(supplierMap.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [pendingItems]);
 
   // Entrate attese
   const expectedPayments = useMemo<ExpectedPayment[]>(() => {
@@ -540,112 +523,6 @@ export function useCashFlowData() {
     };
   }, [expectedPayments, expectedExpenses, expectedCommissions, expectedCompanyCosts, expectedSupplierPayments, companyCosts]);
 
-  // CFO KPIs
-  const cfoKpis = useMemo<CfoKpis>(() => {
-    const now = new Date();
-    const totalExpensesAll = stats.total.expenses;
-    const totalIncomeAll = stats.total.income;
-    const ratio = totalExpensesAll > 0 ? totalIncomeAll / totalExpensesAll : 0;
-    const overdueCosts = expectedCompanyCosts.filter((c) => c.expectedDate && c.expectedDate < now);
-    const overdueTotal = overdueCosts.reduce((s, c) => s + c.amount, 0);
-    const monthlyRecurring = companyCosts
-      .filter((c: any) => c.recurrence === "monthly")
-      .reduce((s: number, c: any) => s + Number(c.amount), 0);
-    const burnRate = totalExpensesAll > 0 ? totalExpensesAll / 6 : 0;
-    return { ratio, overdueTotal, overdueCount: overdueCosts.length, monthlyRecurring, burnRate };
-  }, [stats, expectedCompanyCosts, companyCosts]);
-
-  // Chart data (6 mesi)
-  interface ChartDataPoint {
-    month: string;
-    Entrate: number;
-    "Squadre Esterne": number;
-    Provvigioni: number;
-    "Costi Fissi": number;
-    "Costi Variabili": number;
-    Fornitori: number;
-    Cumulativo: number;
-  }
-
-  const chartData = useMemo<ChartDataPoint[]>(() => {
-    const now = new Date();
-    let cumulative = 0;
-    const months: ChartDataPoint[] = [];
-
-    for (let i = 0; i < 6; i++) {
-      const monthDate = addMonths(now, i);
-      const monthIncome = expectedPayments
-        .filter((p) => p.expectedDate && isSameMonth(p.expectedDate, monthDate))
-        .reduce((sum, p) => sum + p.amount, 0);
-      const monthTeams = expectedExpenses
-        .filter((e) => e.expectedDate && isSameMonth(e.expectedDate, monthDate))
-        .reduce((sum, e) => sum + e.amount, 0);
-      const monthCommissions = expectedCommissions
-        .filter((c) => c.expectedDate && isSameMonth(c.expectedDate, monthDate))
-        .reduce((sum, c) => sum + c.amount, 0);
-
-      const monthFixedCosts = projectCostsForMonth(monthDate, "fixed");
-      const monthVariableCosts = projectCostsForMonth(monthDate, "variable");
-
-      const monthSupplier = expectedSupplierPayments
-        .filter((p) => !p.isPaid && p.expectedDate && isSameMonth(p.expectedDate, monthDate))
-        .reduce((sum, p) => sum + p.amount, 0);
-
-      const totalOut = monthTeams + monthCommissions + monthFixedCosts + monthVariableCosts + monthSupplier;
-      cumulative += monthIncome - totalOut;
-
-      months.push({
-        month: format(monthDate, "MMM yyyy", { locale: it }),
-        Entrate: monthIncome,
-        "Squadre Esterne": monthTeams,
-        Provvigioni: monthCommissions,
-        "Costi Fissi": monthFixedCosts,
-        "Costi Variabili": monthVariableCosts,
-        Fornitori: monthSupplier,
-        Cumulativo: cumulative,
-      });
-    }
-    return months;
-  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, companyCosts]);
-
-  // Costs summary
-  const costsSummary = useMemo<CostsSummary>(() => {
-    const now = new Date();
-    const soon = addDays(now, 30);
-    const upcoming = expectedCompanyCosts.filter((c) => c.expectedDate && c.expectedDate <= soon);
-    const fixedTotal = expectedCompanyCosts.filter((c) => c.costType === "fixed").reduce((s, c) => s + c.amount, 0);
-    const variableTotal = expectedCompanyCosts
-      .filter((c) => c.costType === "variable")
-      .reduce((s, c) => s + c.amount, 0);
-    return { upcoming, fixedTotal, variableTotal };
-  }, [expectedCompanyCosts]);
-
-  // Material costs calculator (needs supplier filter applied externally)
-  const getMaterialCosts = (supplierFilter: string): MaterialCosts => {
-    let filtered = pendingItems;
-    if (supplierFilter === "no-supplier") {
-      filtered = pendingItems.filter((i: any) => !i.supplier);
-    } else if (supplierFilter !== "all") {
-      filtered = pendingItems.filter((i: any) => i.supplier?.name === supplierFilter);
-    }
-
-    const daOrdinare = filtered.filter((i: any) => i.status === "da_ordinare");
-    const ordinati = filtered.filter((i: any) => i.status === "ordinato");
-
-    return {
-      toOrder: {
-        count: daOrdinare.length,
-        total: daOrdinare.reduce((sum: number, i: any) => sum + (i.purchase_price || 0) * (i.quantity || 1), 0),
-        items: daOrdinare,
-      },
-      ordered: {
-        count: ordinati.length,
-        total: ordinati.reduce((sum: number, i: any) => sum + (i.purchase_price || 0) * (i.quantity || 1), 0),
-        items: ordinati,
-      },
-    };
-  };
-
   return {
     isLoading,
     orders,
@@ -655,12 +532,6 @@ export function useCashFlowData() {
     expectedSupplierPayments,
     expectedCompanyCosts,
     stats,
-    cfoKpis,
-    chartData,
-    costsSummary,
-    suppliers,
-    pendingItems,
-    getMaterialCosts,
     // Treasury data
     paidCompanyCosts,
     paidExternalTeams,

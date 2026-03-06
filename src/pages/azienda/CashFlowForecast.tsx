@@ -9,7 +9,7 @@ import { CostsForecastTab } from "@/components/forecast/CostsForecastTab";
 import { CashForecastTab } from "@/components/forecast/CashForecastTab";
 import { TreasuryTab } from "@/components/forecast/TreasuryTab";
 import { MarginTab } from "@/components/forecast/MarginTab";
-import { formatCurrency } from "@/lib/formatters";
+
 
 export default function CashFlowForecast() {
   const {

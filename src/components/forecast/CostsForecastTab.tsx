@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
-import { format, startOfMonth, endOfMonth, addMonths, isWithinInterval, startOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, startOfDay, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
-import { X } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DatePickerButton } from "@/components/forecast/DatePickerButton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import type { ExpectedExpense, ExpectedCommission, ExpectedSupplierPayment, CompanyCostEntry } from "@/lib/forecastTypes";
 
@@ -22,9 +24,12 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
   const [customMonths, setCustomMonths] = useState(3);
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [activePreset, setActivePreset] = useState<string>("thisMonth");
+  const [customPopoverOpen, setCustomPopoverOpen] = useState(false);
 
-  const thisMonth = { start: startOfMonth(now), end: endOfMonth(now) };
-  const nextMonth = { start: startOfMonth(addMonths(now, 1)), end: endOfMonth(addMonths(now, 1)) };
+  const thisMonthStart = startOfMonth(now);
+  const thisMonthEnd = endOfMonth(now);
+  const nextMonthInterval = { start: startOfMonth(addMonths(now, 1)), end: endOfMonth(addMonths(now, 1)) };
 
   const unpaidSupplier = expectedSupplierPayments.filter(p => !p.isPaid);
 
@@ -32,11 +37,10 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
     items.filter(i => i.expectedDate && isWithinInterval(i.expectedDate, interval)).reduce((s, i) => s + i.amount, 0);
 
   const totals = useMemo(() => ({
-    thisMonth: sumInPeriod(expectedExpenses, thisMonth) + sumInPeriod(expectedCommissions, thisMonth) + sumInPeriod(unpaidSupplier, thisMonth) + sumInPeriod(expectedCompanyCosts, thisMonth),
-    nextMonth: sumInPeriod(expectedExpenses, nextMonth) + sumInPeriod(expectedCommissions, nextMonth) + sumInPeriod(unpaidSupplier, nextMonth) + sumInPeriod(expectedCompanyCosts, nextMonth),
+    thisMonth: sumInPeriod(expectedExpenses, { start: thisMonthStart, end: thisMonthEnd }) + sumInPeriod(expectedCommissions, { start: thisMonthStart, end: thisMonthEnd }) + sumInPeriod(unpaidSupplier, { start: thisMonthStart, end: thisMonthEnd }) + sumInPeriod(expectedCompanyCosts, { start: thisMonthStart, end: thisMonthEnd }),
+    nextMonth: sumInPeriod(expectedExpenses, nextMonthInterval) + sumInPeriod(expectedCommissions, nextMonthInterval) + sumInPeriod(unpaidSupplier, nextMonthInterval) + sumInPeriod(expectedCompanyCosts, nextMonthInterval),
   }), [expectedExpenses, expectedCommissions, unpaidSupplier, expectedCompanyCosts]);
 
-  // Custom period
   const customPeriodTotal = useMemo(() => {
     const start = startOfMonth(addMonths(now, 1));
     const end = endOfMonth(addMonths(now, customMonths));
@@ -44,8 +48,48 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
     return sumInPeriod(expectedExpenses, interval) + sumInPeriod(expectedCommissions, interval) + sumInPeriod(unpaidSupplier, interval) + sumInPeriod(expectedCompanyCosts, interval);
   }, [customMonths, expectedExpenses, expectedCommissions, unpaidSupplier, expectedCompanyCosts]);
 
-  // Date filter helper
+  // Preset logic
+  const applyPreset = (preset: string) => {
+    setActivePreset(preset);
+    switch (preset) {
+      case "thisMonth":
+        setDateFrom(undefined);
+        setDateTo(undefined);
+        break;
+      case "lastQuarter": {
+        setDateFrom(startOfMonth(subMonths(now, 3)));
+        setDateTo(endOfMonth(subMonths(now, 1)));
+        break;
+      }
+      case "thisYear":
+        setDateFrom(startOfYear(now));
+        setDateTo(thisMonthEnd);
+        break;
+      case "all":
+        setDateFrom(undefined);
+        setDateTo(undefined);
+        break;
+      case "custom":
+        setCustomPopoverOpen(true);
+        break;
+    }
+  };
+
+  const handleRangeSelect = (range: import("react-day-picker").DateRange | undefined) => {
+    setDateFrom(range?.from);
+    setDateTo(range?.to);
+    if (range?.from && range?.to) {
+      setCustomPopoverOpen(false);
+    }
+  };
+
+  // Date filter
   const inDateRange = (d: Date | null) => {
+    if (activePreset === "thisMonth" && !dateFrom && !dateTo) {
+      // Default: show current month
+      return !d || isWithinInterval(d, { start: thisMonthStart, end: thisMonthEnd });
+    }
+    if (activePreset === "all" && !dateFrom && !dateTo) return true;
     if (!dateFrom && !dateTo) return true;
     if (!d) return !dateFrom && !dateTo;
     if (dateFrom && d < startOfDay(dateFrom)) return false;
@@ -53,13 +97,11 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
     return true;
   };
 
-  const filteredExpenses = expectedExpenses.filter(e => inDateRange(e.expectedDate));
-  const filteredCommissions = expectedCommissions.filter(c => inDateRange(c.expectedDate));
-  const filteredSupplier = unpaidSupplier.filter(p => inDateRange(p.expectedDate));
-  const filteredCosts = expectedCompanyCosts.filter(c => inDateRange(c.expectedDate));
-
-  const clearDates = () => { setDateFrom(undefined); setDateTo(undefined); };
-  const hasDates = dateFrom || dateTo;
+  const showAll = activePreset === "all";
+  const filteredExpenses = expectedExpenses.filter(e => showAll || inDateRange(e.expectedDate));
+  const filteredCommissions = expectedCommissions.filter(c => showAll || inDateRange(c.expectedDate));
+  const filteredSupplier = unpaidSupplier.filter(p => showAll || inDateRange(p.expectedDate));
+  const filteredCosts = expectedCompanyCosts.filter(c => showAll || inDateRange(c.expectedDate));
 
   return (
     <div className="space-y-6">
@@ -99,16 +141,51 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
         </Card>
       </div>
 
-      {/* Date filters */}
+      {/* Date preset filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Filtra per periodo:</span>
-        <DatePickerButton label="Da" date={dateFrom} onSelect={setDateFrom} />
-        <DatePickerButton label="A" date={dateTo} onSelect={setDateTo} />
-        {hasDates && (
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={clearDates}>
-            <X className="h-4 w-4" />
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center border rounded-md">
+          {([
+            { key: "thisMonth", label: "Questo mese" },
+            { key: "lastQuarter", label: "Ultimo trimestre" },
+            { key: "thisYear", label: "Quest'anno" },
+            { key: "all", label: "Tutto" },
+          ] as const).map(({ key, label }) => (
+            <Button
+              key={key}
+              variant={activePreset === key ? "default" : "ghost"}
+              size="sm"
+              className="h-8 text-xs rounded-none first:rounded-l-md last:rounded-r-md"
+              onClick={() => applyPreset(key)}
+            >
+              {label}
+            </Button>
+          ))}
+          <Popover open={customPopoverOpen} onOpenChange={setCustomPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant={activePreset === "custom" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 text-xs rounded-none rounded-r-md"
+                onClick={() => { setActivePreset("custom"); setCustomPopoverOpen(true); }}
+              >
+                <CalendarIcon className="h-3.5 w-3.5 mr-1" />
+                {activePreset === "custom" && dateFrom && dateTo
+                  ? `${format(dateFrom, "dd MMM", { locale: it })} – ${format(dateTo, "dd MMM", { locale: it })}`
+                  : "Personalizzato"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="range"
+                selected={dateFrom && dateTo ? { from: dateFrom, to: dateTo } : dateFrom ? { from: dateFrom } : undefined}
+                onSelect={handleRangeSelect}
+                numberOfMonths={2}
+                locale={it}
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       {/* Squadre Esterne */}
@@ -186,7 +263,7 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
 
       {filteredExpenses.length === 0 && filteredCommissions.length === 0 && filteredSupplier.length === 0 && filteredCosts.length === 0 && (
         <p className="text-center text-muted-foreground py-8">
-          {hasDates ? "Nessun costo nel periodo selezionato" : "Nessun costo previsto"}
+          {activePreset !== "all" ? "Nessun costo nel periodo selezionato" : "Nessun costo previsto"}
         </p>
       )}
     </div>
@@ -230,4 +307,3 @@ function CostSection({ title, total, headers, rows }: {
     </Card>
   );
 }
-

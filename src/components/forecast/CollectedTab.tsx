@@ -4,7 +4,7 @@ import { it } from "date-fns/locale";
 import { Search, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // used for customMonths selector
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -87,8 +87,9 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
     setActivePreset(preset);
     switch (preset) {
       case "thisMonth":
-        setDateFrom(thisMonthStart);
-        setDateTo(thisMonthEnd);
+        // Reset to undefined so default collectedThisMonth is used
+        setDateFrom(undefined);
+        setDateTo(undefined);
         break;
       case "lastQuarter": {
         const qStart = startOfMonth(subMonths(now, 3));
@@ -111,7 +112,7 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
     }
   };
 
-  const handleRangeSelect = (range: { from?: Date; to?: Date } | undefined) => {
+  const handleRangeSelect = (range: import("react-day-picker").DateRange | undefined) => {
     setDateFrom(range?.from);
     setDateTo(range?.to);
     if (range?.from && range?.to) {
@@ -333,7 +334,7 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
                     <Calendar
                       mode="range"
                       selected={dateFrom && dateTo ? { from: dateFrom, to: dateTo } : dateFrom ? { from: dateFrom } : undefined}
-                      onSelect={handleRangeSelect as any}
+                      onSelect={handleRangeSelect}
                       numberOfMonths={2}
                       locale={it}
                       className={cn("p-3 pointer-events-auto")}

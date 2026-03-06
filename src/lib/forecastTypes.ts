@@ -18,10 +18,6 @@ export interface ExpectedExpense {
   direction: "out";
 }
 
-export interface DateRange {
-  from: Date | undefined;
-  to: Date | undefined;
-}
 
 export interface ExpectedCommission {
   orderId: string;
@@ -58,18 +54,6 @@ export interface ExternalTeamPayment {
   } | null;
 }
 
-export interface MaterialCosts {
-  toOrder: {
-    count: number;
-    total: number;
-    items: any[];
-  };
-  ordered: {
-    count: number;
-    total: number;
-    items: any[];
-  };
-}
 
 export interface ForecastStats {
   thisMonth: {
@@ -101,19 +85,6 @@ export interface ForecastStats {
   };
 }
 
-export interface CfoKpis {
-  ratio: number;
-  overdueTotal: number;
-  overdueCount: number;
-  monthlyRecurring: number;
-  burnRate: number;
-}
-
-export interface CostsSummary {
-  upcoming: CompanyCostEntry[];
-  fixedTotal: number;
-  variableTotal: number;
-}
 
 export interface ExpectedSupplierPayment {
   orderItemId: string;
@@ -127,10 +98,6 @@ export interface ExpectedSupplierPayment {
   direction: "out";
 }
 
-export interface Supplier {
-  id: string;
-  name: string;
-}
 
 export const RECURRENCE_LABELS: Record<string, string> = {
   once: "Una tantum",
