@@ -4,6 +4,8 @@ import { it } from "date-fns/locale";
 import { Search, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortableTableHead } from "@/components/ui/sortable-table-head";
+import { useTableSort } from "@/hooks/useTableSort";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // used for customMonths selector
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,6 +140,16 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
     }
     return items;
   }, [allCollected, collectedThisMonth, dateFrom, dateTo, searchQuery]);
+
+  const collectedAccessors = useMemo(() => ({
+    date: (p: CollectedPayment) => p.paidDate,
+    orderCode: (p: CollectedPayment) => p.orderCode || "",
+    customerName: (p: CollectedPayment) => p.customerName,
+    type: (p: CollectedPayment) => p.type,
+    amount: (p: CollectedPayment) => p.amount,
+  }), []);
+
+  const { sortConfig, toggleSort, sortedItems: sortedCollected } = useTableSort(filteredCollected, collectedAccessors);
 
   const filteredCollectedTotal = filteredCollected.reduce((s, p) => s + p.amount, 0);
 
@@ -364,15 +376,15 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Ordine</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="text-right">Importo</TableHead>
+                  <SortableTableHead column="date" label="Data" sortConfig={sortConfig} onSort={toggleSort} />
+                  <SortableTableHead column="orderCode" label="Ordine" sortConfig={sortConfig} onSort={toggleSort} />
+                  <SortableTableHead column="customerName" label="Cliente" sortConfig={sortConfig} onSort={toggleSort} />
+                  <SortableTableHead column="type" label="Tipo" sortConfig={sortConfig} onSort={toggleSort} />
+                  <SortableTableHead column="amount" label="Importo" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCollected.map((p, i) => (
+                {sortedCollected.map((p, i) => (
                   <TableRow key={`${p.orderId}-${p.type}-${i}`}>
                     <TableCell className="text-sm">{format(p.paidDate, "dd/MM/yyyy")}</TableCell>
                     <TableCell className="text-sm font-medium">{p.orderCode || "—"}</TableCell>

@@ -3,8 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table, TableBody, TableCell, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { SortableTableHead } from "@/components/ui/sortable-table-head";
+import { useTableSort } from "@/hooks/useTableSort";
 import {
   TrendingUp, TrendingDown, AlertTriangle, Target, Building2,
   Calculator, Lightbulb, BarChart3, ArrowUpRight, ArrowDownRight,
@@ -124,6 +126,18 @@ export function MarginTab() {
   const simNewProfit = simRevenueTarget * (simNewMargin / 100) - simNewFixedCosts;
   const simCashFlowDelta = simNewProfit - (currentMonthlyRevenue * (avgMarginPercent / 100) - totalFixedCostsMonthly);
 
+  const marginAccessors = useMemo(() => ({
+    customerName: (o: OrderMargin) => o.customerName,
+    orderCode: (o: OrderMargin) => o.orderCode || o.description || "",
+    totalAmount: (o: OrderMargin) => o.totalAmount,
+    totalVariableCosts: (o: OrderMargin) => o.totalVariableCosts,
+    grossMargin: (o: OrderMargin) => o.grossMargin,
+    marginPercent: (o: OrderMargin) => o.marginPercent,
+    status: (o: OrderMargin) => getMarginStatus(o.marginPercent, threshold).label,
+  }), [threshold]);
+
+  const { sortConfig: marginSort, toggleSort: toggleMarginSort, sortedItems: sortedOrders } = useTableSort(orders, marginAccessors);
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -224,13 +238,13 @@ export function MarginTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Commessa</TableHead>
-                <TableHead className="text-right">Fatt. Imp.</TableHead>
-                <TableHead className="text-right">Costi Var.</TableHead>
-                <TableHead className="text-right">Margine €</TableHead>
-                <TableHead className="text-right">Margine %</TableHead>
-                <TableHead className="text-center">Stato</TableHead>
+                <SortableTableHead column="customerName" label="Cliente" sortConfig={marginSort} onSort={toggleMarginSort} />
+                <SortableTableHead column="orderCode" label="Commessa" sortConfig={marginSort} onSort={toggleMarginSort} />
+                <SortableTableHead column="totalAmount" label="Fatt. Imp." sortConfig={marginSort} onSort={toggleMarginSort} className="text-right" />
+                <SortableTableHead column="totalVariableCosts" label="Costi Var." sortConfig={marginSort} onSort={toggleMarginSort} className="text-right" />
+                <SortableTableHead column="grossMargin" label="Margine €" sortConfig={marginSort} onSort={toggleMarginSort} className="text-right" />
+                <SortableTableHead column="marginPercent" label="Margine %" sortConfig={marginSort} onSort={toggleMarginSort} className="text-right" />
+                <SortableTableHead column="status" label="Stato" sortConfig={marginSort} onSort={toggleMarginSort} className="text-center" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -241,7 +255,7 @@ export function MarginTab() {
                   </TableCell>
                 </TableRow>
               ) : (
-                orders.map((order) => {
+                sortedOrders.map((order) => {
                   const status = getMarginStatus(order.marginPercent, threshold);
                   return (
                     <TableRow key={order.orderId}>
