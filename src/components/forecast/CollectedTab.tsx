@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, startOfDay, isBefore, startOfYear } from "date-fns";
 import { it } from "date-fns/locale";
 import { Search, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon } from "lucide-react";
@@ -166,6 +168,8 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
   }), []);
 
   const { sortConfig, toggleSort, sortedItems: sortedCollected } = useTableSort(filteredCollected, collectedAccessors);
+
+  const { paginatedItems: paginatedCollected, currentPage, totalPages, pageSize, totalItems, setPage, setPageSize } = usePagination(sortedCollected);
 
   const filteredCollectedTotal = filteredCollected.reduce((s, p) => s + p.amount, 0);
 
@@ -389,32 +393,42 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
               {searchQuery && " per questa ricerca"}
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead column="date" label="Data" sortConfig={sortConfig} onSort={toggleSort} />
-                  <SortableTableHead column="orderCode" label="Ordine" sortConfig={sortConfig} onSort={toggleSort} />
-                  <SortableTableHead column="customerName" label="Cliente" sortConfig={sortConfig} onSort={toggleSort} />
-                  <SortableTableHead column="type" label="Tipo" sortConfig={sortConfig} onSort={toggleSort} />
-                  <SortableTableHead column="amount" label="Importo" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedCollected.map((p, i) => (
-                  <TableRow
-                    key={`${p.orderId}-${p.type}-${i}`}
-                    className={p.orderId ? "cursor-pointer hover:bg-muted/50" : ""}
-                    onClick={() => p.orderId && navigate(`/azienda/ordini/${p.orderId}`)}
-                  >
-                    <TableCell className="text-sm">{format(p.paidDate, "dd/MM/yyyy")}</TableCell>
-                    <TableCell className="text-sm font-medium">{p.orderCode || "—"}</TableCell>
-                    <TableCell className="text-sm">{p.customerName}</TableCell>
-                    <TableCell className="text-sm">{p.type}</TableCell>
-                    <TableCell className="text-right text-sm font-medium text-emerald-600">{formatCurrency(p.amount)}</TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableTableHead column="date" label="Data" sortConfig={sortConfig} onSort={toggleSort} />
+                    <SortableTableHead column="orderCode" label="Ordine" sortConfig={sortConfig} onSort={toggleSort} />
+                    <SortableTableHead column="customerName" label="Cliente" sortConfig={sortConfig} onSort={toggleSort} />
+                    <SortableTableHead column="type" label="Tipo" sortConfig={sortConfig} onSort={toggleSort} />
+                    <SortableTableHead column="amount" label="Importo" sortConfig={sortConfig} onSort={toggleSort} className="text-right" />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginatedCollected.map((p, i) => (
+                    <TableRow
+                      key={`${p.orderId}-${p.type}-${i}`}
+                      className={p.orderId ? "cursor-pointer hover:bg-muted/50" : ""}
+                      onClick={() => p.orderId && navigate(`/azienda/ordini/${p.orderId}`)}
+                    >
+                      <TableCell className="text-sm">{format(p.paidDate, "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="text-sm font-medium">{p.orderCode || "—"}</TableCell>
+                      <TableCell className="text-sm">{p.customerName}</TableCell>
+                      <TableCell className="text-sm">{p.type}</TableCell>
+                      <TableCell className="text-right text-sm font-medium text-emerald-600">{formatCurrency(p.amount)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+              />
+            </>
           )}
           {/* Sticky total footer - always visible */}
           {filteredCollected.length > 0 && (
