@@ -342,7 +342,7 @@ export function CostFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
           <Button
             onClick={handleSubmit}
-            disabled={!formData.name || !formData.amount || !formData.due_date || isSaving || (formData.recurrence !== "once" && !formData.end_date)}
+            disabled={!formData.name || !formData.amount || !formData.due_date || isSaving || (formData.recurrence !== "once" && !editingCost && !formData.end_date)}
           >
             {isSaving ? "Salvataggio..." : editingCost ? "Aggiorna" : periodsPreview ? `Crea ${periodsPreview.count} costi` : "Aggiungi"}
           </Button>

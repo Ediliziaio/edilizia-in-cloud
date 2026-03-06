@@ -459,23 +459,24 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const orderDerivedVariable = filteredOrderItemCosts.filter((c) => c.cost_type === "variable");
   const fixedCosts = [...manualFixedCosts, ...orderDerivedFixed];
   const variableCostsWithOrders = [...manualVariableCosts, ...orderDerivedVariable];
-  const allCostsSorted = [...filteredCosts, ...filteredOrderItemCosts].sort((a: any, b: any) => {
+  const allCostsSorted = useMemo(() => {
     const now = new Date();
     const soon = addDays(now, 7);
-    const getPriority = (c: any) => {
-      if (c.is_paid) return 4;
-      const d = c.due_date ? new Date(c.due_date) : null;
-      if (d && d < now) return 1; // overdue
-      if (d && d <= soon) return 2; // expiring
-      return 3; // pending
-    };
-    const pA = getPriority(a), pB = getPriority(b);
-    if (pA !== pB) return pA - pB;
-    // Within same priority, sort by date ascending (except paid: descending)
-    const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
-    const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
-    return pA === 4 ? dateB - dateA : dateA - dateB;
-  });
+    return [...filteredCosts, ...filteredOrderItemCosts].sort((a: any, b: any) => {
+      const getPriority = (c: any) => {
+        if (c.is_paid) return 4;
+        const d = c.due_date ? new Date(c.due_date) : null;
+        if (d && d < now) return 1;
+        if (d && d <= soon) return 2;
+        return 3;
+      };
+      const pA = getPriority(a), pB = getPriority(b);
+      if (pA !== pB) return pA - pB;
+      const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
+      const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
+      return pA === 4 ? dateB - dateA : dateA - dateB;
+    });
+  }, [filteredCosts, filteredOrderItemCosts]);
 
   // Stats — reactive to active filters (uses filtered data, not raw)
   const stats = useMemo(() => {
