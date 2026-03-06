@@ -272,26 +272,26 @@ export function CostsTable({
       ) : (
         <>
         <div className="rounded-md border overflow-hidden">
-          <Table>
+          <Table className="table-fixed">
               <TableHeader>
               <TableRow>
-                <TableHead className="w-10">
+                <TableHead className="w-[3%]">
                   <Checkbox checked={allSelected} onCheckedChange={() => onToggleSelectAll(allSelectableIds)} aria-label="Seleziona tutti" />
                 </TableHead>
-                <SortableTableHead column="name" label="Nome" sortConfig={costSort} onSort={toggleCostSort} />
-                <SortableTableHead column="origin" label="Origine" sortConfig={costSort} onSort={toggleCostSort} />
-                {type === "all" && <SortableTableHead column="costType" label="Tipo" sortConfig={costSort} onSort={toggleCostSort} />}
-                <SortableTableHead column="supplier" label="Fornitore" sortConfig={costSort} onSort={toggleCostSort} />
-                <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} />
-                <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right" />
-                <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} />
-                <SortableTableHead column="gross" label="Totale Lordo" sortConfig={costSort} onSort={toggleCostSort} className="text-right" />
-                <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} />
-                <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} />
-                <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} />
-                <SortableTableHead column="delay" label="Ritardo" sortConfig={costSort} onSort={toggleCostSort} />
-                {hasOrderCol && <SortableTableHead column="order" label="Ordine" sortConfig={costSort} onSort={toggleCostSort} />}
-                <TableHead className="text-right">Azioni</TableHead>
+                <SortableTableHead column="name" label="Nome" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />
+                <SortableTableHead column="origin" label="Origine" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />
+                {type === "all" && <SortableTableHead column="costType" label="Tipo" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
+                <SortableTableHead column="supplier" label="Fornitore" sortConfig={costSort} onSort={toggleCostSort} className="w-[9%]" />
+                <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />
+                <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />
+                <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />
+                <SortableTableHead column="gross" label="Totale Lordo" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />
+                <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />
+                <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[8%]" />
+                <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} className="w-[8%]" />
+                <SortableTableHead column="delay" label="Ritardo" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />
+                {hasOrderCol && <SortableTableHead column="order" label="Ordine" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
+                <TableHead className="text-right w-[6%]">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -311,7 +311,7 @@ export function CostsTable({
                         <span className="block w-4" />
                       )}
                     </TableCell>
-                    <TableCell className="font-medium">{cost.name}</TableCell>
+                    <TableCell className="font-medium truncate">{cost.name}</TableCell>
                     <TableCell>
                       {cost.isFromOrder ? (
                         <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 gap-1 text-[10px] px-1.5">
@@ -330,12 +330,12 @@ export function CostsTable({
                         </Badge>
                       </TableCell>
                     )}
-                    <TableCell>
+                    <TableCell className="truncate">
                       {(cost as any).supplier?.name || cost.supplierName || (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
-                    <TableCell>{cost.category || "—"}</TableCell>
+                    <TableCell className="truncate">{cost.category || "—"}</TableCell>
                     <TableCell className="text-right">
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -366,7 +366,7 @@ export function CostsTable({
                       {formatCurrency(grossAmount)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-[10px] px-1.5">
                         <Repeat className="h-3 w-3 mr-1" />
                         {RECURRENCE_LABELS[cost.recurrence] || cost.recurrence}
                       </Badge>
