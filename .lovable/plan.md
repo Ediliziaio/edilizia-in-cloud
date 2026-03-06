@@ -1,41 +1,29 @@
 
 
-# Fix calcolo IVA nei Costi — Imponibile vs Lordo
+# Pianificazione costi ricorrenti — Data fine contratto invece di periodi manuali
 
-## Problema
-L'imponibile e il lordo risultano uguali perche il `vat_rate` non viene mai propagato correttamente:
-
-1. **Costi da ordine**: la query `order_items` fetcha solo `supplier:suppliers(name)` — manca `vat_rate`. Gli oggetti `UnifiedCost` generati non impostano mai `vat_rate`, quindi il calcolo usa `0` e lordo = imponibile.
-
-2. **Costi manuali**: il codice legge `c.vat_rate` (colonna del costo), ma se e `null` non fa fallback a `c.supplier?.vat_rate`. Molti costi hanno `vat_rate` nullo anche se il fornitore ha l'aliquota configurata.
+## Problema attuale
+Quando si crea un costo fisso con ricorrenza (mensile/trimestrale/annuale), il form chiede "Periodi da generare" come numero manuale. L'utente deve calcolare quanti mesi/trimestri mancano alla scadenza del contratto. Il comportamento corretto è: l'utente inserisce la **data di inizio** (scadenza) e la **data fine contratto**, e il sistema calcola automaticamente quanti periodi generare.
 
 ## Soluzione
 
-### File: `src/hooks/useCompanyCostsData.ts`
+### Modifiche al form — `src/components/forecast/CostFormDialog.tsx`
 
-1. **Query `order_items`** (riga ~96): aggiungere `vat_rate` al join supplier:
-   ```
-   supplier:suppliers(name, vat_rate)
-   ```
+1. **Sostituire** il campo "Periodi da generare" (`Input type="number"`) con un campo **"Data fine contratto"** (`Input type="date"`)
+2. **Calcolo automatico dei periodi**: in base a `due_date` (inizio) e `end_date` (fine contratto), calcolare automaticamente il numero di occorrenze in base alla ricorrenza:
+   - Mensile: differenza in mesi
+   - Trimestrale: differenza in mesi / 3
+   - Annuale: differenza in anni
+3. **Preview aggiornata**: mostrare "Verranno creati N costi da MMM yyyy a MMM yyyy" calcolato dalla data fine
+4. Aggiornare `periodsPreview` per usare `end_date` al posto di `periods`
 
-2. **Trasformazione order items** (~170-235): propagare `vat_rate` dal supplier nell'oggetto `UnifiedCost`:
-   ```typescript
-   vat_rate: item.supplier?.vat_rate ?? null,
-   ```
-   Per tutti e 3 i push (deposit, balance, full).
+### Modifiche al modello dati — `src/hooks/useCompanyCostsMutations.ts`
 
-3. **Trasformazione external teams, employees, commissions**: impostare `vat_rate: 0` esplicitamente (stipendi e provvigioni sono esenti IVA).
+5. Aggiungere `end_date: string` a `CostFormData`
+6. Nel `defaultFormData`, impostare `end_date: ""`
+7. Nella `saveMutation`, calcolare `periods` a runtime dalla differenza tra `due_date` e `end_date` prima del loop di inserimento — la logica di generazione resta invariata
 
-### File: `src/components/forecast/CostsTable.tsx`
-
-4. **Lettura `vat_rate`** (~127, ~235, ~89, ~105): aggiungere fallback al supplier:
-   ```typescript
-   const vr = Number(c.vat_rate) || Number((c as any).supplier?.vat_rate) || 0;
-   ```
-   Questo copre i costi manuali che hanno `vat_rate` nullo ma un fornitore con aliquota.
-
-### Impatto
-- Tutte le righe mostreranno il lordo corretto (imponibile + IVA del fornitore)
-- Il footer somma totali coerenti
-- Nessuna modifica al DB
+### File coinvolti
+- `src/components/forecast/CostFormDialog.tsx` — UI del form
+- `src/hooks/useCompanyCostsMutations.ts` — tipo dati + calcolo periodi nel salvataggio
 
