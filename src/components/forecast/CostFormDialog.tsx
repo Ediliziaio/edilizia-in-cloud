@@ -126,7 +126,7 @@ export function CostFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); onOpenChange(o); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingCost ? "Modifica Costo" : "Nuovo Costo"}</DialogTitle>
           <DialogDescription>
