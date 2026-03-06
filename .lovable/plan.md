@@ -1,45 +1,34 @@
 
 
-# Aggiungere ordinamento colonne con frecce su/giù nelle tabelle del Previsionale
+# Aggiungere ordinamento colonne alla tabella Ordini
 
-## Obiettivo
-Ogni colonna delle tabelle nei tab Incassato, Margine, Previsione Costi e Previsionale di Cassa avrà un header cliccabile con freccia su/giù per ordinare le righe in ordine crescente/decrescente.
+## Modifica
 
-## Approccio
+**File: `src/components/orders/OrdersTable.tsx`**
 
-### 1. Creare un componente riutilizzabile `SortableTableHead`
-**File nuovo: `src/components/ui/sortable-table-head.tsx`**
-- Componente che wrappa `TableHead` aggiungendo un'icona freccia (ArrowUp/ArrowDown/ArrowUpDown) e l'handler `onClick`
-- Props: `column` (chiave), `label`, `currentSort`, `onSort`, `className`
-- Stato visivo: freccia neutra (grigia) quando non attivo, freccia su o giù quando attivo
+Integrare `useTableSort` e `SortableTableHead` (già esistenti) per rendere tutte le colonne dati ordinabili con frecce su/giù.
 
-### 2. Creare un hook riutilizzabile `useTableSort`
-**File nuovo: `src/hooks/useTableSort.ts`**
-- Gestisce stato `{ column: string, direction: "asc" | "desc" }`
-- Espone `sortConfig`, `toggleSort(column)`, `sortData(items, accessors)`
-- Al click: prima volta = asc, secondo click = desc, terzo = reset
+**Colonne ordinabili** (escluse Checkbox e Azioni):
+- Codice (`order_code`)
+- Data (`created_at`)
+- Descrizione (`description`)
+- Cliente (nome completo)
+- Tot. Ivato (calcolato)
+- Imponibile (`total_amount`)
+- Incassato (calcolato via `getAmountCollected`)
+- Da Ricevere (calcolato via `getAmountDue`)
+- Costi Var. (da `orderCosts`)
+- Margine (da `orderCosts`)
+- Venditore (da `salespeopleMap`)
+- Manodopera (da `laborMap`)
+- Pagamenti (pending count)
+- Stato (`status.name`)
 
-### 3. Integrare nei 4 tab
+**Approccio**:
+1. Importare `useTableSort` e `SortableTableHead`
+2. Definire gli accessors con i valori calcolati (totalIvato, collected, due, margin, ecc.) — per i campi calcolati, pre-calcolarli in un oggetto intermedio o usare le funzioni helper inline
+3. Wrappare `orders` con `useTableSort`, poi iterare `sortedItems` invece di `orders` nel `TableBody`
+4. Sostituire ogni `<TableHead>` statico con `<SortableTableHead>` (tranne checkbox e azioni)
 
-**CollectedTab.tsx** — tabella "Già incassato" (5 colonne: Data, Ordine, Cliente, Tipo, Importo)
-- Aggiungere `useTableSort`, sostituire `TableHead` statici con `SortableTableHead`
-- Ordinare `filteredCollected` prima del render
-
-**MarginTab.tsx** — tabella ordini margine (7 colonne: Cliente, Commessa, Fatt.Imp., Costi Var., Margine €, Margine %, Stato)
-- Stessa integrazione, ordinare `orders` 
-
-**CashForecastTab.tsx** — tabella movimenti (5 colonne: Data, Descrizione, Ordine, Categoria, Importo)
-- Ordinare `transactions`
-
-**CostsForecastTab.tsx** — tabelle costi (headers dinamici via `CostCard`)
-- Passare sort config al componente `CostCard`, ordinare `rows`
-
-**CostsTable.tsx** — già fornito nel contesto, ha molte colonne
-- Stessa integrazione per tutte le colonne dati (escluse Checkbox e Azioni)
-
-### 4. Dettaglio UX
-- Header cliccabile con `cursor-pointer` e hover leggero
-- Icona `ArrowUpDown` (grigia) di default, `ArrowUp`/`ArrowDown` quando attivo
-- Ordinamento numerico per importi/percentuali, alfabetico per testo, cronologico per date
-- Nessuna modifica ai dati sottostanti, solo ordinamento visuale
+Nessuna modifica alla logica funzionale, solo ordinamento visuale.
 
