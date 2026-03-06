@@ -1,28 +1,19 @@
 
 
-# Scalabilità 10.000+ costi — Paginazione nella tabella Costi Aziendali
+# Ottimizzazione riga footer tabella Costi
 
 ## Problema
-La `CostsTable` renderizza **tutte** le righe nel DOM contemporaneamente. Con 10.000 costi il browser diventa inutilizzabile. Gli altri moduli del Previsionale usano gia `usePagination` + `TablePagination` (50 righe default), ma la sezione Costi no.
+Dallo screenshot, la riga footer ha troppo spazio vuoto tra "Totale (35)" e le colonne numeriche. Le celle vuote intermedie (Origine, Tipo, Fornitore, Categoria) occupano spazio inutilmente, e il riepilogo "Da pagare / Pagato" è troppo distante dai totali.
 
 ## Soluzione
-Aggiungere la paginazione client-side alla `CostsTable` usando gli stessi hook e componenti gia presenti nel progetto.
+Usare `colSpan` per collassare le celle vuote, rendendo la riga più compatta e leggibile:
 
-### Modifiche
+**`src/components/forecast/CostsTable.tsx`** — riga footer (~425-445):
+1. Prima cella: checkbox vuota (w-10)
+2. "Totale (N)" con `colSpan` che copre Nome + Origine + (Tipo se "all") + Fornitore + Categoria — elimina le 4-5 celle vuote
+3. Imponibile, IVA, Totale Lordo — ciascuna nella propria cella allineata a destra
+4. Riepilogo "Da pagare / Pagato" con `colSpan` che copre Ricorrenza + Scadenza + Stato — porta il riepilogo più vicino ai numeri
+5. Cella Ordine (se visibile) + Azioni — collassate con `colSpan`
 
-**`src/components/forecast/CostsTable.tsx`**:
-1. Importare `usePagination` e `TablePagination`
-2. Applicare `usePagination(sortedItems)` dopo il sorting — renderizzare solo `paginatedItems` nel `<TableBody>`
-3. Aggiungere `<TablePagination>` sotto la tabella con controlli pagina/dimensione
-4. Calcolare i `footerTotals` su `items` (tutti, non solo la pagina corrente) — cosi i totali restano globali
-5. Calcolare `selectableItems` e `allSelectableIds` sulla pagina corrente per il "seleziona tutti" (seleziona solo la pagina visibile)
-
-### Impatto
-- Rendering: da N righe a max 50 per pagina
-- Footer totali: rimangono calcolati su tutti gli items filtrati
-- Selezione: "seleziona tutti" seleziona solo la pagina corrente
-- Nessuna modifica al data layer o alle query
-
-### File coinvolto
-- `src/components/forecast/CostsTable.tsx` — unico file da modificare
+Risultato: layout più compatto, numeri ravvicinati al label, meno gap visivo.
 
