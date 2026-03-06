@@ -1,37 +1,22 @@
 
-Obiettivo: correggere definitivamente la classificazione dei costi “stipendio personale interno” in modo che compaiano nei **Fissi** e non nei **Variabili**.
 
-1) Analisi causa radice (già verificata)
-- In `src/hooks/useCompanyCostsData.ts` gli stipendi sono creati correttamente come `cost_type: "fixed"` (`employeeAsFixedCosts`).
-- Il problema reale è nel calcolo delle liste tabellari:
-  - `fixedCosts` (riga ~426) prende solo `filteredCosts` (manuali), quindi **esclude** i costi derivati da ordine.
-  - `variableCostsWithOrders` (riga ~428) concatena `manualVariableCosts + filteredOrderItemCosts`.
-  - `filteredOrderItemCosts` contiene **tutti** i costi derivati (anche stipendi), quindi gli stipendi finiscono nei Variabili.
+# Unificare i filtri data del tab "Incassato" con lo stile Dashboard
 
-2) Refactor mirato della logica liste (senza cambiare UX)
-- Introdurre una lista unica filtrata dei costi derivati (riuso della logica attuale), poi splittarla per tipo:
-  - `filteredOrderDerivedFixedCosts = filteredOrderDerivedCosts.filter(c => c.cost_type === "fixed")`
-  - `filteredOrderDerivedVariableCosts = filteredOrderDerivedCosts.filter(c => c.cost_type === "variable")`
-- Comporre le liste finali così:
-  - `fixedCosts = [...manualFixedCosts, ...filteredOrderDerivedFixedCosts]`
-  - `variableCostsWithOrders = [...manualVariableCosts, ...filteredOrderDerivedVariableCosts]`
-  - `allCostsSorted` resta la unione completa (manuali + derivati).
+## Problema attuale
+Nel tab "Incassato" del Previsionale Cassa, i filtri data usano due pulsanti separati "Da" e "A" più una riga di preset sotto. La Dashboard invece usa un design unificato: preset in una barra con bordo, e l'opzione "Personalizzato" che apre direttamente il calendario range.
 
-3) Allineamenti conseguenti
-- Aggiornare i nomi variabili per evitare ambiguità (`filteredOrderItemCosts` -> `filteredOrderDerivedCosts`).
-- Verificare che export CSV e contatori tab continuino a usare la lista completa (non solo variabili).
-- Sistemare eventuale indentazione residua nel blocco `monthlyDistribution` per mantenibilità.
+## Modifiche
 
-4) Verifica funzionale obbligatoria
-- Test su `/azienda/costi`:
-  - Tab “Fissi”: gli stipendi compaiono.
-  - Tab “Variabili”: gli stipendi non compaiono più.
-  - Tab “Tutti”: gli stipendi restano visibili con badge “Fisso”.
-- Test filtri principali (stato, categoria, origine) per assicurare coerenza.
-- Controllo rapido regressioni: mark paid/unpaid su costi da ordine non deve rompersi.
+**File: `src/components/forecast/CollectedTab.tsx`**
 
-5) Hardening extra (stabilità UI)
-- Separatamente, correggere il warning console su `CostsTable`:
-  - “Function components cannot be given refs … check render method of CostsTable”.
-  - Fare audit dei `TooltipTrigger asChild` per assicurare child con `forwardRef` (es. evitare combinazioni nested `asChild` problematiche).
-- Nota qualità: verificare e rimuovere qualsiasi modifica accidentale a file non modificabili manualmente (es. `.env`).
+Sostituire l'attuale sistema di filtri (righe 283-315) con il pattern della Dashboard:
+- Una singola barra con bordo contenente i preset: **Questo mese**, **Ultimo trimestre**, **Quest'anno**, **Tutto**, **Personalizzato**
+- Il pulsante "Personalizzato" apre un `Popover` con `Calendar mode="range"` a 2 mesi (identico alla Dashboard)
+- Quando "Personalizzato" è attivo, mostra le date selezionate nel pulsante (es. "05 mar – 31 mar")
+- Rimuovere i due `DatePickerButton` separati "Da" e "A"
+- La barra di ricerca resta accanto ai preset
+
+Stato attivo evidenziato con `variant="default"` (come in Dashboard), gli altri `variant="ghost"`.
+
+Nessuna modifica alla logica di filtraggio sottostante — solo il layout e l'interazione UX cambiano.
+
