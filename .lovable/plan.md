@@ -1,50 +1,33 @@
 
 
-# Fix bug: cambio stato articolo e aggiornamento previsionale
+# Fix filtro periodo per costi derivati da ordini
 
-## Bug 1: Stato articolo non si aggiorna
+## Problema
+Nella sezione Costi, il filtro periodo (es. "Prossimo mese") funziona solo per i costi manuali. I costi derivati da ordini (articoli fornitori, squadre esterne, provvigioni, stipendi) non vengono filtrati per periodo -- vengono sempre mostrati tutti.
 
-**Causa**: In `OrderItemsList.tsx`, quando si cambia lo stato tramite il dropdown (riga 363-367), viene chiamato `onItemsChange`. Ma in `OrderDetail.tsx` (riga 570-573), `onItemsChange` cerca solo articoli nuovi senza `id`:
+## Causa tecnica
+In `src/hooks/useCompanyCostsData.ts`:
+- `filteredCosts` (riga 296-336): applica correttamente `periodFilter` ai costi manuali
+- `filteredOrderItemCosts` (riga 339-352): **NON applica `periodFilter`** -- filtra solo per `searchQuery`, `statusFilter`, `categoryFilter` e `originFilter`
 
-```typescript
-onItemsChange={(newItems) => {
-  const newItem = newItems.find(ni => !ni.id);
-  if (newItem) addItemMutation.mutate(newItem);
-}}
-```
-
-Gli articoli esistenti con stato modificato vengono ignorati.
-
-**Fix**: Modificare `handleStatusChange` in `OrderItemsList.tsx` per usare `onItemUpdate` (che salva direttamente su DB) invece di `onItemsChange` quando `onItemUpdate` e disponibile:
+## Fix
+Aggiungere la stessa logica di filtro per periodo a `filteredOrderItemCosts`, usando il campo `due_date` dei costi derivati:
 
 ```typescript
-const handleStatusChange = (index: number, status: OrderItemStatus) => {
-  const updatedItem = { ...items[index], status };
-  if (onItemUpdate) {
-    onItemUpdate(updatedItem);
-  } else {
-    const newItems = [...items];
-    newItems[index] = updatedItem;
-    onItemsChange(newItems);
-  }
-};
+// In filteredOrderItemCosts, aggiungere filtro periodo:
+if (periodFilter !== "all") {
+  let start: Date, end: Date;
+  if (periodFilter === "this_month") { start = startOfMonth(now); end = endOfMonth(now); }
+  else if (periodFilter === "next_month") { start = startOfMonth(addMonths(now, 1)); end = endOfMonth(addMonths(now, 1)); }
+  else if (periodFilter === "last_3_months") { start = startOfMonth(subMonths(now, 2)); end = endOfMonth(now); }
+  else { start = startOfYear(now); end = endOfYear(now); }
+  filtered = filtered.filter(c => {
+    if (!c.due_date) return false;
+    return isWithinInterval(new Date(c.due_date), { start, end });
+  });
+}
 ```
 
-## Bug 2: Previsionale non aggiornato dopo modifica date
-
-**Causa**: `updateSingleItemMutation.onSuccess` invalida solo `["order-items", id]` ma non le query del previsionale che leggono da `order_items` con join su `orders`.
-
-**Fix**: Aggiungere invalidazione delle query del previsionale in `onSuccess`:
-
-```typescript
-onSuccess: () => {
-  queryClient.invalidateQueries({ queryKey: ["order-items", id] });
-  queryClient.invalidateQueries({ queryKey: ["cash-flow"] });
-  toast.success("Articolo aggiornato");
-},
-```
-
-## File coinvolti
-- `src/components/orders/OrderItemsList.tsx` — fix `handleStatusChange`
-- `src/pages/azienda/OrderDetail.tsx` — aggiungere invalidazione query previsionale
+## File coinvolto
+- `src/hooks/useCompanyCostsData.ts` -- aggiungere filtro periodo in `filteredOrderItemCosts` (riga ~339-352)
 
