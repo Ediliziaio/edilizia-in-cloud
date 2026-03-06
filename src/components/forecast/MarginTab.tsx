@@ -240,13 +240,13 @@ export function MarginTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <SortableTableHead column="customerName" label="Cliente" sortConfig={marginSort} onSort={toggleMarginSort} />
-                <SortableTableHead column="orderCode" label="Commessa" sortConfig={marginSort} onSort={toggleMarginSort} />
-                <SortableTableHead column="totalAmount" label="Fatt. Imp." sortConfig={marginSort} onSort={toggleMarginSort} className="text-right" />
-                <SortableTableHead column="totalVariableCosts" label="Costi Var." sortConfig={marginSort} onSort={toggleMarginSort} className="text-right" />
-                <SortableTableHead column="grossMargin" label="Margine €" sortConfig={marginSort} onSort={toggleMarginSort} className="text-right" />
-                <SortableTableHead column="marginPercent" label="Margine %" sortConfig={marginSort} onSort={toggleMarginSort} className="text-right" />
-                <SortableTableHead column="status" label="Stato" sortConfig={marginSort} onSort={toggleMarginSort} className="text-center" />
+                <SortableTableHead column="customerName" label="Cliente" sortConfig={marginSort} onSort={toggleMarginSort} className="min-w-[140px]" />
+                <SortableTableHead column="orderCode" label="Commessa" sortConfig={marginSort} onSort={toggleMarginSort} className="min-w-[130px]" />
+                <SortableTableHead column="totalAmount" label="Fatt. Imp." sortConfig={marginSort} onSort={toggleMarginSort} className="w-[120px] text-right" />
+                <SortableTableHead column="totalVariableCosts" label="Costi Var." sortConfig={marginSort} onSort={toggleMarginSort} className="w-[120px] text-right" />
+                <SortableTableHead column="grossMargin" label="Margine €" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[120px] text-right" />
+                <SortableTableHead column="marginPercent" label="Margine %" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[100px] text-right" />
+                <SortableTableHead column="status" label="Stato" sortConfig={marginSort} onSort={toggleMarginSort} className="w-[110px] text-center" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -267,12 +267,12 @@ export function MarginTab() {
                     >
                       <TableCell className="font-medium">{order.customerName}</TableCell>
                       <TableCell>{order.orderCode || order.description?.substring(0, 30)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(order.totalAmount)}</TableCell>
-                      <TableCell className="text-right text-red-600">{formatCurrency(order.totalVariableCosts)}</TableCell>
-                      <TableCell className={`text-right font-semibold ${order.grossMargin >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(order.totalAmount)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-red-600">{formatCurrency(order.totalVariableCosts)}</TableCell>
+                      <TableCell className={`text-right tabular-nums font-semibold ${order.grossMargin >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                         {formatCurrency(order.grossMargin)}
                       </TableCell>
-                      <TableCell className={`text-right font-semibold ${status.textColor}`}>
+                      <TableCell className={`text-right tabular-nums font-semibold ${status.textColor}`}>
                         {order.marginPercent.toFixed(1)}%
                       </TableCell>
                       <TableCell className="text-center">

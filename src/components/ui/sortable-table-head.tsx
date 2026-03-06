@@ -17,12 +17,18 @@ export function SortableTableHead({ column, label, sortConfig, onSort, className
     ? sortConfig.direction === "asc" ? ArrowUp : ArrowDown
     : ArrowUpDown;
 
+  const justifyClass = className?.includes("text-right")
+    ? "justify-end"
+    : className?.includes("text-center")
+    ? "justify-center"
+    : "justify-start";
+
   return (
     <TableHead
       className={cn("cursor-pointer select-none hover:bg-muted/50 transition-colors", className)}
       onClick={() => onSort(column)}
     >
-      <div className="flex items-center gap-1">
+      <div className={cn("flex items-center gap-1", justifyClass)}>
         <span>{label}</span>
         <Icon className={cn("h-3.5 w-3.5 shrink-0", isActive ? "text-foreground" : "text-muted-foreground/50")} />
       </div>
