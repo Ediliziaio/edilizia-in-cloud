@@ -23,7 +23,7 @@ interface MonthlyDistItem {
   monthKey: string;
   Fissi: number;
   Variabili: number;
-  Pagati: number;
+  PagatoEffettivo: number;
   Totale: number;
   isCurrent: boolean;
 }
@@ -175,7 +175,7 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Distribuzione Mensile Costi</CardTitle>
-          <CardDescription>Ultimi 6 mesi e prossimi 6 mesi — fissi, variabili e pagati</CardDescription>
+          <CardDescription>Previsto (per scadenza) vs Pagato effettivo (per data pagamento)</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[280px]">
@@ -227,9 +227,19 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
                     <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
                   ))}
                 </Bar>
-                <Bar dataKey="Pagati" fill="hsl(142 76% 36%)" radius={[2, 2, 0, 0]} barSize={16}>
+                <Bar
+                  dataKey="PagatoEffettivo"
+                  name="Pagato Effettivo"
+                  fill="hsl(142 76% 36%)"
+                  fillOpacity={0.25}
+                  stroke="hsl(142 76% 36%)"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 2"
+                  radius={[2, 2, 0, 0]}
+                  barSize={16}
+                >
                   {monthlyDistribution.map((entry, i) => (
-                    <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
+                    <Cell key={i} fillOpacity={entry.isCurrent ? 0.35 : 0.2} />
                   ))}
                 </Bar>
               </BarChart>

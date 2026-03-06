@@ -391,21 +391,26 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     const currentMonthStr = format(now, "yyyy-MM");
     const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
     // First pass: collect monthly totals
-    const raw: { month: string; monthKey: string; Fissi: number; Variabili: number; Pagati: number; Totale: number; isCurrent: boolean }[] = [];
+    const raw: { month: string; monthKey: string; Fissi: number; Variabili: number; PagatoEffettivo: number; Totale: number; isCurrent: boolean }[] = [];
     for (let i = -5; i <= 6; i++) {
       const ms = startOfMonth(addMonths(now, i));
       const me = endOfMonth(addMonths(now, i));
       const monthKey = format(ms, "yyyy-MM");
-      let fixed = 0, variable = 0, paid = 0;
+      let fixed = 0, variable = 0, paidEffective = 0;
       allRaw.forEach((c: any) => {
-        if (!c.due_date) return;
-        const d = new Date(c.due_date);
-        if (d >= ms && d <= me) {
-          if (c.is_paid) {
-            paid += Number(c.amount);
-          } else {
+        // Fissi/Variabili: ALL costs with due_date in month (paid or not)
+        if (c.due_date) {
+          const d = new Date(c.due_date);
+          if (d >= ms && d <= me) {
             if (c.cost_type === "fixed") fixed += Number(c.amount);
             else variable += Number(c.amount);
+          }
+        }
+        // PagatoEffettivo: costs with paid_date in month
+        if (c.is_paid && c.paid_date) {
+          const pd = new Date(c.paid_date);
+          if (pd >= ms && pd <= me) {
+            paidEffective += Number(c.amount);
           }
         }
       });
@@ -414,8 +419,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
         monthKey,
         Fissi: fixed,
         Variabili: variable,
-        Pagati: paid,
-        Totale: fixed + variable + paid,
+        PagatoEffettivo: paidEffective,
+        Totale: fixed + variable,
         isCurrent: monthKey === currentMonthStr,
       });
     }
