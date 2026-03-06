@@ -76,8 +76,9 @@ export function CostsTable({
   bulkMarkPaidPending,
   bulkMarkUnpaidPending,
 }: CostsTableProps) {
-  const now = new Date();
-  const soon = addDays(now, 7);
+  // Stabilize now/soon to prevent useMemo invalidation on every render
+  const nowRef = useMemo(() => new Date(), []);
+  const soonRef = useMemo(() => addDays(new Date(), 7), []);
 
   const costAccessors = useMemo(() => ({
     name: (c: UnifiedCost) => c.name,
@@ -92,12 +93,12 @@ export function CostsTable({
     status: (c: UnifiedCost) => {
       if (c.is_paid) return "Pagato";
       const d = new Date(c.due_date);
-      if (d < now) return "Scaduto";
-      if (d <= soon) return "In scadenza";
+      if (d < nowRef) return "Scaduto";
+      if (d <= soonRef) return "In scadenza";
       return "Da pagare";
     },
     order: (c: UnifiedCost) => c.order?.order_code || "",
-  }), [now, soon]);
+  }), [nowRef, soonRef]);
 
   const costAccessorsWithGross = useMemo(() => ({
     ...costAccessors,
@@ -155,8 +156,8 @@ export function CostsTable({
       return <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400">{paidLabel}</Badge>;
     }
     const dueDate = new Date(cost.due_date);
-    if (dueDate <= soon && dueDate >= now) return <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400">In scadenza</Badge>;
-    if (dueDate < now) return <Badge className="bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400">Scaduto</Badge>;
+    if (dueDate <= soonRef && dueDate >= nowRef) return <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400">In scadenza</Badge>;
+    if (dueDate < nowRef) return <Badge className="bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400">Scaduto</Badge>;
     return <Badge className="bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400">Da pagare</Badge>;
   };
 
@@ -202,9 +203,15 @@ export function CostsTable({
       )}
 
       {items.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
+        <div className="text-center py-12 text-muted-foreground">
           <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40" />
-          <p>Nessun costo trovato</p>
+          <p className="mb-3">Nessun costo trovato</p>
+          {type !== "all" && (
+            <Button size="sm" variant="outline" onClick={() => onOpenCreate(type === "variable" ? "variable" : "fixed")} className="gap-1">
+              <Plus className="h-4 w-4" />
+              Aggiungi il primo costo
+            </Button>
+          )}
         </div>
       ) : (
         <>
@@ -236,8 +243,8 @@ export function CostsTable({
                 const { grossAmount, vatAmount } = calculateGrossFromNet(cost.amount, vatRate);
                 const isSelected = selectedIds.has(cost.id);
                 const dueDate = cost.due_date ? new Date(cost.due_date) : null;
-                const isOverdue = !cost.is_paid && dueDate && dueDate < now;
-                const isExpiring = !cost.is_paid && dueDate && dueDate >= now && dueDate <= soon;
+                const isOverdue = !cost.is_paid && dueDate && dueDate < nowRef;
+                const isExpiring = !cost.is_paid && dueDate && dueDate >= nowRef && dueDate <= soonRef;
                 return (
                   <TableRow key={cost.id} className={`${isOverdue ? "bg-red-50/60 dark:bg-red-900/10" : isExpiring ? "bg-orange-50/60 dark:bg-orange-900/10" : cost.isFromOrder ? "bg-orange-50/30 dark:bg-orange-900/5" : ""} ${isSelected ? "bg-muted/50" : ""}`}>
                     <TableCell>
