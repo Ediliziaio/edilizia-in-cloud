@@ -86,7 +86,7 @@ export function CostsTable({
     supplier: (c: UnifiedCost) => (c as any).supplier?.name || c.supplierName || "",
     category: (c: UnifiedCost) => c.category || "",
     amount: (c: UnifiedCost) => c.amount,
-    vatRate: (c: UnifiedCost) => Number((c as any).vat_rate) || 0,
+    vatRate: (c: UnifiedCost) => Number(c.vat_rate) || Number((c as any).supplier?.vat_rate) || 0,
     recurrence: (c: UnifiedCost) => c.recurrence,
     dueDate: (c: UnifiedCost) => c.due_date ? new Date(c.due_date) : null,
     status: (c: UnifiedCost) => {
@@ -102,7 +102,7 @@ export function CostsTable({
   const costAccessorsWithGross = useMemo(() => ({
     ...costAccessors,
     gross: (c: UnifiedCost) => {
-      const vr = Number((c as any).vat_rate) || 0;
+      const vr = Number(c.vat_rate) || Number((c as any).supplier?.vat_rate) || 0;
       return calculateGrossFromNet(c.amount, vr).grossAmount;
     },
   }), [costAccessors]);
@@ -124,7 +124,7 @@ export function CostsTable({
     let totalNet = 0, totalVat = 0, totalGross = 0;
     let unpaidNet = 0, unpaidGross = 0, paidNet = 0, paidGross = 0;
     items.forEach(c => {
-      const vr = Number((c as any).vat_rate) || 0;
+      const vr = Number(c.vat_rate) || Number((c as any).supplier?.vat_rate) || 0;
       const { grossAmount, vatAmount } = calculateGrossFromNet(c.amount, vr);
       totalNet += c.amount;
       totalVat += vatAmount;
@@ -232,7 +232,7 @@ export function CostsTable({
             </TableHeader>
             <TableBody>
               {paginatedItems.map((cost) => {
-                const vatRate = Number((cost as any).vat_rate) || 0;
+                const vatRate = Number(cost.vat_rate) || Number((cost as any).supplier?.vat_rate) || 0;
                 const { grossAmount, vatAmount } = calculateGrossFromNet(cost.amount, vatRate);
                 const isSelected = selectedIds.has(cost.id);
                 const dueDate = cost.due_date ? new Date(cost.due_date) : null;
