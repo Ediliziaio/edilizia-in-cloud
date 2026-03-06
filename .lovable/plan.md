@@ -1,19 +1,41 @@
 
 
-# Ottimizzazione riga footer tabella Costi
+# Fix calcolo IVA nei Costi — Imponibile vs Lordo
 
 ## Problema
-Dallo screenshot, la riga footer ha troppo spazio vuoto tra "Totale (35)" e le colonne numeriche. Le celle vuote intermedie (Origine, Tipo, Fornitore, Categoria) occupano spazio inutilmente, e il riepilogo "Da pagare / Pagato" è troppo distante dai totali.
+L'imponibile e il lordo risultano uguali perche il `vat_rate` non viene mai propagato correttamente:
+
+1. **Costi da ordine**: la query `order_items` fetcha solo `supplier:suppliers(name)` — manca `vat_rate`. Gli oggetti `UnifiedCost` generati non impostano mai `vat_rate`, quindi il calcolo usa `0` e lordo = imponibile.
+
+2. **Costi manuali**: il codice legge `c.vat_rate` (colonna del costo), ma se e `null` non fa fallback a `c.supplier?.vat_rate`. Molti costi hanno `vat_rate` nullo anche se il fornitore ha l'aliquota configurata.
 
 ## Soluzione
-Usare `colSpan` per collassare le celle vuote, rendendo la riga più compatta e leggibile:
 
-**`src/components/forecast/CostsTable.tsx`** — riga footer (~425-445):
-1. Prima cella: checkbox vuota (w-10)
-2. "Totale (N)" con `colSpan` che copre Nome + Origine + (Tipo se "all") + Fornitore + Categoria — elimina le 4-5 celle vuote
-3. Imponibile, IVA, Totale Lordo — ciascuna nella propria cella allineata a destra
-4. Riepilogo "Da pagare / Pagato" con `colSpan` che copre Ricorrenza + Scadenza + Stato — porta il riepilogo più vicino ai numeri
-5. Cella Ordine (se visibile) + Azioni — collassate con `colSpan`
+### File: `src/hooks/useCompanyCostsData.ts`
 
-Risultato: layout più compatto, numeri ravvicinati al label, meno gap visivo.
+1. **Query `order_items`** (riga ~96): aggiungere `vat_rate` al join supplier:
+   ```
+   supplier:suppliers(name, vat_rate)
+   ```
+
+2. **Trasformazione order items** (~170-235): propagare `vat_rate` dal supplier nell'oggetto `UnifiedCost`:
+   ```typescript
+   vat_rate: item.supplier?.vat_rate ?? null,
+   ```
+   Per tutti e 3 i push (deposit, balance, full).
+
+3. **Trasformazione external teams, employees, commissions**: impostare `vat_rate: 0` esplicitamente (stipendi e provvigioni sono esenti IVA).
+
+### File: `src/components/forecast/CostsTable.tsx`
+
+4. **Lettura `vat_rate`** (~127, ~235, ~89, ~105): aggiungere fallback al supplier:
+   ```typescript
+   const vr = Number(c.vat_rate) || Number((c as any).supplier?.vat_rate) || 0;
+   ```
+   Questo copre i costi manuali che hanno `vat_rate` nullo ma un fornitore con aliquota.
+
+### Impatto
+- Tutte le righe mostreranno il lordo corretto (imponibile + IVA del fornitore)
+- Il footer somma totali coerenti
+- Nessuna modifica al DB
 
