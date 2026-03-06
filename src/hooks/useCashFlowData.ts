@@ -36,7 +36,8 @@ export function useCashFlowData() {
           order:orders!inner(id, order_code, company_id, customer:profiles!orders_customer_id_fkey(first_name, last_name))
         `)
         .eq("order.company_id", companyId!)
-        .order("position", { ascending: true });
+        .order("position", { ascending: true })
+        .limit(10000);
       if (error) throw error;
       return data || [];
     },
@@ -56,7 +57,8 @@ export function useCashFlowData() {
           external_team:external_teams(name)
         `)
         .eq("is_paid", false)
-        .eq("order.company_id", companyId!);
+        .eq("order.company_id", companyId!)
+        .limit(10000);
       if (error) throw error;
       return data as ExternalTeamPayment[];
     },
@@ -76,7 +78,8 @@ export function useCashFlowData() {
           order:orders!inner(id, order_code, company_id)
         `)
         .eq("is_paid", false)
-        .eq("order.company_id", companyId!);
+        .eq("order.company_id", companyId!)
+        .limit(10000);
       if (error) throw error;
       return data || [];
     },
@@ -97,7 +100,8 @@ export function useCashFlowData() {
         `)
         .in("status", ["da_ordinare", "ordinato"])
         .is("stock_item_id", null)
-        .eq("order.company_id", companyId!);
+        .eq("order.company_id", companyId!)
+        .limit(10000);
       if (error) throw error;
       return data || [];
     },
@@ -114,14 +118,15 @@ export function useCashFlowData() {
         .select(`
           id, name, purchase_price, quantity,
           balance_amount, balance_expected_date, balance_paid, balance_paid_date,
-          deposit_amount, deposit_paid, deposit_paid_date,
+          deposit_amount, deposit_expected_date, deposit_paid, deposit_paid_date,
           is_paid, paid_date, payment_method,
           supplier:suppliers(name),
           order:orders!inner(id, order_code, company_id)
         `)
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
-        .eq("order.company_id", companyId!);
+        .eq("order.company_id", companyId!)
+        .limit(10000);
       if (error) throw error;
       return data || [];
     },
@@ -138,7 +143,8 @@ export function useCashFlowData() {
         .select("*")
         .eq("company_id", companyId!)
         .eq("is_paid", false)
-        .order("due_date", { ascending: true });
+        .order("due_date", { ascending: true })
+        .limit(10000);
       if (error) throw error;
       return data || [];
     },
@@ -157,7 +163,8 @@ export function useCashFlowData() {
         .select("*")
         .eq("company_id", companyId!)
         .eq("is_paid", true)
-        .order("paid_date", { ascending: true });
+        .order("paid_date", { ascending: true })
+        .limit(10000);
       if (error) throw error;
       return data || [];
     },
@@ -177,7 +184,8 @@ export function useCashFlowData() {
           external_team:external_teams(name)
         `)
         .eq("is_paid", true)
-        .eq("order.company_id", companyId!);
+        .eq("order.company_id", companyId!)
+        .limit(10000);
       if (error) throw error;
       return data || [];
     },
@@ -197,7 +205,8 @@ export function useCashFlowData() {
           order:orders!inner(id, order_code, company_id)
         `)
         .eq("is_paid", true)
-        .eq("order.company_id", companyId!);
+        .eq("order.company_id", companyId!)
+        .limit(10000);
       if (error) throw error;
       return data || [];
     },
@@ -222,7 +231,8 @@ export function useCashFlowData() {
         `)
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
-        .eq("order.company_id", companyId!);
+        .eq("order.company_id", companyId!)
+        .limit(10000);
       if (error) throw error;
       // Filter only items with at least one payment made
       return (data || [])
@@ -378,7 +388,7 @@ export function useCashFlowData() {
             supplierName,
             type: "Acconto Fornitore",
             amount: depositAmt,
-            expectedDate: item.deposit_paid_date ? new Date(item.deposit_paid_date) : null,
+            expectedDate: item.deposit_expected_date ? new Date(item.deposit_expected_date) : null,
             isPaid: false,
             direction: "out",
           });

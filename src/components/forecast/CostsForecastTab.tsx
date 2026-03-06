@@ -56,8 +56,8 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
     setActivePreset(preset);
     switch (preset) {
       case "thisMonth":
-        setDateFrom(undefined);
-        setDateTo(undefined);
+        setDateFrom(thisMonthStart);
+        setDateTo(thisMonthEnd);
         break;
       case "lastQuarter": {
         setDateFrom(startOfMonth(subMonths(now, 3)));
@@ -88,23 +88,19 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
 
   // Date filter
   const inDateRange = (d: Date | null) => {
-    if (activePreset === "thisMonth" && !dateFrom && !dateTo) {
-      // Default: show current month
-      return !d || isWithinInterval(d, { start: thisMonthStart, end: thisMonthEnd });
-    }
     if (activePreset === "all" && !dateFrom && !dateTo) return true;
-    if (!dateFrom && !dateTo) return true;
-    if (!d) return !dateFrom && !dateTo;
-    if (dateFrom && d < startOfDay(dateFrom)) return false;
-    if (dateTo && d > endOfMonth(dateTo)) return false;
+    const effectiveFrom = dateFrom || thisMonthStart;
+    const effectiveTo = dateTo || thisMonthEnd;
+    if (!d) return false;
+    if (d < startOfDay(effectiveFrom)) return false;
+    if (d > endOfMonth(effectiveTo)) return false;
     return true;
   };
 
-  const showAll = activePreset === "all";
-  const filteredExpenses = expectedExpenses.filter(e => showAll || inDateRange(e.expectedDate));
-  const filteredCommissions = expectedCommissions.filter(c => showAll || inDateRange(c.expectedDate));
-  const filteredSupplier = unpaidSupplier.filter(p => showAll || inDateRange(p.expectedDate));
-  const filteredCosts = expectedCompanyCosts.filter(c => showAll || inDateRange(c.expectedDate));
+  const filteredExpenses = expectedExpenses.filter(e => inDateRange(e.expectedDate));
+  const filteredCommissions = expectedCommissions.filter(c => inDateRange(c.expectedDate));
+  const filteredSupplier = unpaidSupplier.filter(p => inDateRange(p.expectedDate));
+  const filteredCosts = expectedCompanyCosts.filter(c => inDateRange(c.expectedDate));
 
   return (
     <div className="space-y-6">
