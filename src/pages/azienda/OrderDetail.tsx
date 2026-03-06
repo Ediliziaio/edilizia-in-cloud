@@ -394,6 +394,9 @@ export default function OrderDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-pending-items"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-supplier-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["forecast-installments"] });
       toast.success("Articolo aggiornato");
     },
     onError: () => { toast.error("Errore nell'aggiornamento dell'articolo."); },

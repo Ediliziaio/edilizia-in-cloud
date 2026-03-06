@@ -361,9 +361,14 @@ export function OrderItemsList({
   };
 
   const handleStatusChange = (index: number, status: OrderItemStatus) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], status };
-    onItemsChange(newItems);
+    const updatedItem = { ...items[index], status };
+    if (onItemUpdate) {
+      onItemUpdate(updatedItem);
+    } else {
+      const newItems = [...items];
+      newItems[index] = updatedItem;
+      onItemsChange(newItems);
+    }
   };
 
   const handlePickFromStock = () => {
