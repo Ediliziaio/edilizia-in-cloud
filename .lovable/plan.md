@@ -1,50 +1,40 @@
 
 
-# Audit e Fix del Previsionale di Cassa
+# Paginazione tabelle del Previsionale di Cassa
 
-## Problemi Critici Trovati
+## Analisi
 
-### BUG 1 — TreasuryTab legge campi legacy inesistenti (CRITICO)
-**File**: `src/components/forecast/TreasuryTab.tsx` (righe 166-179)
+Il modulo carica dati da 6+ tabelle diverse (installments, external teams, commissions, supplier items, company costs) e li trasforma/unisce lato client. Una paginazione server-side pura richiederebbe una RPC/view che faccia UNION di tutte le sorgenti — complesso e fragile.
 
-Il tab Tesoreria legge `deposit_paid`, `deposit_amount`, `balance_paid`, ecc. dagli oggetti `orders`, ma `orders` e' in realta' `installmentsData` (da `useCashFlowData.ts` riga 280), cioe' record della tabella `order_installments` con campi `is_paid`, `amount`, `paid_date`, `type`. Il risultato e' che **tutte le entrate nella Tesoreria sono a zero** perche' i campi legacy non esistono sugli installments.
+L'approccio pragmatico e ad alto impatto: **paginazione lato rendering** con un hook riutilizzabile. I dati sono già caricati (max 10K per query), il collo di bottiglia reale è il rendering DOM di migliaia di righe.
 
-**Fix**: Riscrivere la logica income della Treasury per leggere correttamente `is_paid`, `amount`, `paid_date`, `type` dai record installment.
+## Piano
 
-### BUG 2 — Console warning: ExpectedGroupSection senza forwardRef
-**File**: `src/components/forecast/CollectedTab.tsx` (riga 475)
+### 1. Creare hook `usePagination`
+**File**: `src/hooks/usePagination.ts`
 
-`CollapsibleTrigger asChild` tenta di passare un ref a `ExpectedGroupSection` che non lo supporta. Non causa crash ma genera warning continui.
+Hook generico che accetta un array di items e ritorna:
+- `paginatedItems` — slice corrente
+- `currentPage`, `totalPages`, `pageSize`
+- `setPage`, `setPageSize`
+- `goNext`, `goPrev`
 
-**Fix**: Il trigger e' gia' su un `<button>`, non su `ExpectedGroupSection` stesso — il warning viene dal fatto che `Collapsible` wrappa il componente. Verificare e risolvere.
+### 2. Creare componente `TablePagination`
+**File**: `src/components/ui/table-pagination.tsx`
 
-### BUG 3 — Filtro "Ultimo trimestre" su tab previsionali mostra dati passati
-I tab Costi e Cassa filtrano per "ultimo trimestre" (3 mesi fa → mese scorso), ma i dati sono **previsionali futuri** (non pagati). Questo preset non ha senso per costi non ancora pagati e mostra quasi sempre zero risultati.
+Componente UI con: bottoni prev/next, indicatore pagina, selettore righe per pagina (25/50/100), conteggio totale items.
 
-**Fix**: Rinominare in "Prossimo trimestre" e impostare range al futuro, oppure adattare la logica per mostrare dati con date nel range passato che sono ancora non pagati.
+### 3. Integrare nei tab
 
-### ISSUE 4 — Nessuna gestione items senza data nel filtro CostsForecastTab
-Quando `inDateRange(null)` con un preset attivo diverso da "all", restituisce `false`. I costi senza data prevista scompaiono quando si seleziona qualsiasi filtro diverso da "Tutto".
+- **CollectedTab**: paginare `sortedCollected` nella tabella "Già incassato"
+- **CashForecastTab**: paginare `sortedTransactions`
+- **CostsForecastTab**: paginare le righe dentro ogni `CostSection`
+- **TreasuryTab**: paginare la tabella movimenti
 
-**Fix**: Aggiungere logica per mostrare sempre i costi senza data (o con una nota visiva).
+Ogni tabella mostra 50 righe di default con navigazione in basso.
 
-## Interventi di Hardening
+### 4. Dettaglio implementazione
 
-### 5. Eliminare `as any` su query installments
-`useCashFlowData.ts` riga 32: `(supabase as any)` — il tipo e' disponibile dopo la migration, rimuovere il cast.
-
-### 6. Memoizzazione mancante in TreasuryTab
-`flattenTree` (riga 419) e' una funzione ricreata ad ogni render ma usata dentro `useMemo`. Spostare dentro il `useMemo` o wrappare con `useCallback`.
-
-### 7. Query N+1 in useMarginData
-`useMarginData` esegue query cascading: prima carica ordini, poi 3 query separate filtrate per `order_id IN (...)`. Con 500 ordini, i filtri `IN` sono molto grandi. Accettabile per ora ma da monitorare.
-
-## Piano di Implementazione
-
-1. **Fix TreasuryTab income** — riscrivere il blocco entrate per leggere da installments (`is_paid`, `amount`, `paid_date`, `type/label`)
-2. **Fix console warning** — verificare e risolvere il ref issue su ExpectedGroupSection
-3. **Fix filtro "Ultimo trimestre"** nei tab Costi e Cassa — adattare il preset per i dati previsionali
-4. **Fix items senza data** — gestire `null` dates nei filtri di CostsForecastTab e CashForecastTab
-5. **Rimuovere `as any`** sulla query installments
-6. **Cleanup memoizzazione** in TreasuryTab
+Il flusso rimane: fetch → transform → filter → sort → **paginate** → render.
+La paginazione si resetta a pagina 1 quando cambiano filtri, ricerca o ordinamento.
 
