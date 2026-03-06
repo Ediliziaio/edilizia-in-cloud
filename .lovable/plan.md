@@ -1,40 +1,29 @@
 
 
-# Paginazione tabelle del Previsionale di Cassa
+# Fix allineamento colonne tabella Marginalità
 
-## Analisi
+## Problema
+Dalla screenshot si vede che le intestazioni delle colonne non sono allineate con i valori delle righe. I valori numerici (Fatt. Imp., Costi Var., Margine €, Margine %) sono `text-right` nelle celle ma le intestazioni tramite `SortableTableHead` non propagano correttamente l'allineamento — il flex container interno allinea il testo a sinistra anche quando la classe `text-right` è impostata.
 
-Il modulo carica dati da 6+ tabelle diverse (installments, external teams, commissions, supplier items, company costs) e li trasforma/unisce lato client. Una paginazione server-side pura richiederebbe una RPC/view che faccia UNION di tutte le sorgenti — complesso e fragile.
+## Causa tecnica
+`SortableTableHead` (riga 17-28 di `sortable-table-head.tsx`) usa `<div className="flex items-center gap-1">` internamente. Anche con `className="text-right"` sul `<TableHead>`, il div flex interno non rispetta `text-right` — serve `justify-end` sul div per colonne numeriche.
 
-L'approccio pragmatico e ad alto impatto: **paginazione lato rendering** con un hook riutilizzabile. I dati sono già caricati (max 10K per query), il collo di bottiglia reale è il rendering DOM di migliaia di righe.
+## Fix
 
-## Piano
+### 1. Aggiornare `SortableTableHead`
+Passare la classe `text-right`/`text-center` anche al div interno, convertendola in `justify-end`/`justify-center` per il flex container.
 
-### 1. Creare hook `usePagination`
-**File**: `src/hooks/usePagination.ts`
+### 2. Aggiungere larghezze fisse alle colonne della tabella Marginalità
+Impostare `w-[...]` o `min-w-[...]` su ogni colonna per garantire distribuzione uniforme:
+- Cliente: `min-w-[140px]`
+- Commessa: `min-w-[130px]`  
+- Fatt. Imp.: `w-[120px] text-right`
+- Costi Var.: `w-[120px] text-right`
+- Margine €: `w-[120px] text-right`
+- Margine %: `w-[100px] text-right`
+- Stato: `w-[110px] text-center`
 
-Hook generico che accetta un array di items e ritorna:
-- `paginatedItems` — slice corrente
-- `currentPage`, `totalPages`, `pageSize`
-- `setPage`, `setPageSize`
-- `goNext`, `goPrev`
-
-### 2. Creare componente `TablePagination`
-**File**: `src/components/ui/table-pagination.tsx`
-
-Componente UI con: bottoni prev/next, indicatore pagina, selettore righe per pagina (25/50/100), conteggio totale items.
-
-### 3. Integrare nei tab
-
-- **CollectedTab**: paginare `sortedCollected` nella tabella "Già incassato"
-- **CashForecastTab**: paginare `sortedTransactions`
-- **CostsForecastTab**: paginare le righe dentro ogni `CostSection`
-- **TreasuryTab**: paginare la tabella movimenti
-
-Ogni tabella mostra 50 righe di default con navigazione in basso.
-
-### 4. Dettaglio implementazione
-
-Il flusso rimane: fetch → transform → filter → sort → **paginate** → render.
-La paginazione si resetta a pagina 1 quando cambiano filtri, ricerca o ordinamento.
+### 3. Miglioramenti UX minori
+- Aggiungere `tabular-nums` alle celle numeriche per allineamento cifre
+- Padding più consistente tra header e celle
 
