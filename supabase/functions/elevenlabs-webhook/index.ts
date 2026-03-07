@@ -18,7 +18,6 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
 
-    // ElevenLabs webhook payload
     const {
       agent_id: elevenlabsAgentId,
       conversation_id: conversationId,
@@ -34,10 +33,10 @@ Deno.serve(async (req) => {
       return json({ error: "Missing agent_id or conversation_id" }, 400);
     }
 
-    // Look up internal agent by elevenlabs_agent_id
+    // Look up internal agent
     const { data: agent } = await adminClient
       .from("ai_agents")
-      .select("id, company_id")
+      .select("id, company_id, llm_model, tts_model")
       .eq("elevenlabs_agent_id", elevenlabsAgentId)
       .single();
 
@@ -80,7 +79,6 @@ Deno.serve(async (req) => {
         case "create_contact":
         case "get_lead_info": {
           if (parameters?.phone || parameters?.email) {
-            // Check if contact exists
             let query = adminClient
               .from("marketing_contacts")
               .select("id")
@@ -133,7 +131,7 @@ Deno.serve(async (req) => {
     }
 
     // Save conversation
-    const { error: convErr } = await adminClient
+    const { data: convRecord, error: convErr } = await adminClient
       .from("ai_agent_conversations")
       .insert({
         agent_id: agent.id,
@@ -144,31 +142,126 @@ Deno.serve(async (req) => {
         duration_seconds: durationSeconds,
         messages_count: messagesCount,
         status,
-      });
+      })
+      .select("id")
+      .single();
 
     if (convErr) {
       console.error("Error saving conversation:", convErr);
     }
 
-    // Decrement credits
-    const minutesUsed = Math.ceil(durationSeconds / 60);
-    if (minutesUsed > 0) {
-      const { data: credits } = await adminClient
-        .from("ai_agent_credits")
-        .select("minutes_used")
-        .eq("company_id", companyId)
-        .single();
+    // ============ CREDIT SYSTEM ============
+    const durationMin = Math.max(0.0167, durationSeconds / 60);
+    const ttsModel = agent.tts_model || "eleven_multilingual_v2";
 
-      if (credits) {
-        const currentUsed = credits.minutes_used ?? 0;
-        await adminClient
-          .from("ai_agent_credits")
-          .update({
-            minutes_used: currentUsed + minutesUsed,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("company_id", companyId);
-      }
+    // Get pricing for this LLM+TTS combo
+    const { data: pricing } = await adminClient
+      .from("platform_pricing")
+      .select("cost_real_per_min, cost_billed_per_min")
+      .eq("llm_model", agent.llm_model)
+      .eq("tts_model", ttsModel)
+      .maybeSingle();
+
+    const costRealPerMin = pricing?.cost_real_per_min || 0.0200;
+    const costBilledPerMin = pricing?.cost_billed_per_min || 0.0400;
+
+    const costRealTotal = Number((durationMin * costRealPerMin).toFixed(4));
+    const costBilledTotal = Number((durationMin * costBilledPerMin).toFixed(4));
+    const marginTotal = Number((costBilledTotal - costRealTotal).toFixed(4));
+
+    // Get current balance
+    const { data: credits } = await adminClient
+      .from("ai_credits")
+      .select("balance_eur, auto_recharge_enabled, auto_recharge_threshold, auto_recharge_amount, alert_threshold_eur, alert_email_sent_at")
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    const balanceBefore = credits?.balance_eur || 0;
+    const balanceAfter = Number((balanceBefore - costBilledTotal).toFixed(4));
+
+    // Deduct balance
+    if (credits) {
+      await adminClient
+        .from("ai_credits")
+        .update({
+          balance_eur: balanceAfter,
+          total_spent_eur: Number(((credits as Record<string, number>).total_spent_eur || 0) + costBilledTotal).toFixed(4),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("company_id", companyId);
+    } else {
+      // Auto-create with negative balance
+      await adminClient.from("ai_credits").insert({
+        company_id: companyId,
+        balance_eur: balanceAfter,
+        total_spent_eur: costBilledTotal,
+      });
+    }
+
+    // Record usage
+    await adminClient.from("ai_credit_usage").insert({
+      company_id: companyId,
+      conversation_id: convRecord?.id || null,
+      agent_id: agent.id,
+      duration_sec: durationSeconds,
+      duration_min: Number(durationMin.toFixed(4)),
+      llm_model: agent.llm_model,
+      tts_model: ttsModel,
+      cost_real_per_min: costRealPerMin,
+      cost_billed_per_min: costBilledPerMin,
+      cost_real_total: costRealTotal,
+      cost_billed_total: costBilledTotal,
+      margin_total: marginTotal,
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
+    });
+
+    // Handle low/zero balance
+    if (balanceAfter <= 0) {
+      await adminClient
+        .from("ai_credits")
+        .update({
+          calls_blocked: true,
+          blocked_at: new Date().toISOString(),
+          blocked_reason: "balance_zero",
+        })
+        .eq("company_id", companyId);
+
+      console.log(`[CREDITS] BLOCKED company ${companyId} — balance: €${balanceAfter}`);
+
+    } else if (credits?.auto_recharge_enabled && balanceAfter <= (credits?.auto_recharge_threshold || 5)) {
+      // Auto-recharge
+      const rechargeAmount = credits.auto_recharge_amount || 20;
+      const newBalance = Number((balanceAfter + rechargeAmount).toFixed(4));
+
+      await adminClient
+        .from("ai_credits")
+        .update({
+          balance_eur: newBalance,
+          total_recharged_eur: Number(((credits as Record<string, number>).total_recharged_eur || 0) + rechargeAmount).toFixed(4),
+        })
+        .eq("company_id", companyId);
+
+      await adminClient.from("ai_credit_topups").insert({
+        company_id: companyId,
+        amount_eur: rechargeAmount,
+        type: "auto",
+        status: "completed",
+        payment_method: (credits as Record<string, string>).auto_recharge_method || "card",
+        notes: `Ricarica automatica — saldo era €${balanceAfter.toFixed(2)}`,
+        processed_at: new Date().toISOString(),
+      });
+
+      console.log(`[CREDITS] Auto-recharge €${rechargeAmount} for company ${companyId} — new balance: €${newBalance}`);
+
+    } else if (balanceAfter <= (credits?.alert_threshold_eur || 5)) {
+      // Low balance alert
+      await adminClient
+        .from("ai_credits")
+        .update({ alert_email_sent_at: new Date().toISOString() })
+        .eq("company_id", companyId);
+
+      console.log(`[CREDITS] LOW balance alert for company ${companyId} — balance: €${balanceAfter}`);
     }
 
     // Audit log
@@ -184,10 +277,19 @@ Deno.serve(async (req) => {
         appointment_created: appointmentCreated,
         contact_id: contactId,
         tool_calls_count: tool_calls.length,
+        cost_billed: costBilledTotal,
+        cost_real: costRealTotal,
+        balance_after: balanceAfter,
       },
     });
 
-    return json({ success: true, conversation_saved: true, appointment_created: appointmentCreated });
+    return json({
+      success: true,
+      conversation_saved: true,
+      appointment_created: appointmentCreated,
+      cost_billed: costBilledTotal,
+      balance_after: balanceAfter,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     console.error("elevenlabs-webhook error:", message);

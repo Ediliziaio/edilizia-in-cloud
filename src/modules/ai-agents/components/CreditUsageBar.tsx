@@ -1,22 +1,26 @@
 import { Progress } from "@/components/ui/progress";
 
 interface CreditUsageBarProps {
-  used: number;
-  total: number;
+  spentEur: number;
+  rechargedEur: number;
   label?: string;
 }
 
-export function CreditUsageBar({ used, total, label }: CreditUsageBarProps) {
-  const pct = total > 0 ? Math.round((used / total) * 100) : 0;
-  const remaining = Math.max(0, total - used);
+export function CreditUsageBar({ spentEur, rechargedEur, label }: CreditUsageBarProps) {
+  const pct = rechargedEur > 0 ? Math.min(100, Math.round((spentEur / rechargedEur) * 100)) : 0;
+
+  const barColor =
+    pct > 80 ? "[&>div]:bg-destructive" :
+    pct > 60 ? "[&>div]:bg-amber-500" :
+    "[&>div]:bg-primary";
 
   return (
     <div className="space-y-2">
       {label && <p className="text-sm font-medium">{label}</p>}
-      <Progress value={pct} className="h-3" />
+      <Progress value={pct} className={`h-3 ${barColor}`} />
       <div className="flex justify-between text-xs text-muted-foreground">
-        <span>{used} / {total} minuti utilizzati ({pct}%)</span>
-        <span>{remaining} rimanenti</span>
+        <span>€{spentEur.toFixed(2)} usati — €{rechargedEur.toFixed(2)} totale ricaricato</span>
+        <span>{pct}%</span>
       </div>
     </div>
   );

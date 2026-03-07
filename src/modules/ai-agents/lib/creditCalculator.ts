@@ -1,28 +1,55 @@
 /**
- * Credit cost calculator for AI agent minutes.
+ * Credit cost calculator for AI agent usage (Euro-based).
  */
 
 export function calculateBilledCost(
-  minutesUsed: number,
-  costPerMinutePlatform: number,
-  markupMultiplier: number
+  durationMin: number,
+  costBilledPerMin: number
 ): number {
-  return minutesUsed * costPerMinutePlatform * markupMultiplier;
+  return Number((durationMin * costBilledPerMin).toFixed(4));
 }
 
-export function calculatePlatformCost(
-  minutesUsed: number,
-  costPerMinutePlatform: number
+export function calculateRealCost(
+  durationMin: number,
+  costRealPerMin: number
 ): number {
-  return minutesUsed * costPerMinutePlatform;
+  return Number((durationMin * costRealPerMin).toFixed(4));
 }
 
 export function calculateMargin(
-  minutesUsed: number,
-  costPerMinutePlatform: number,
-  costPerMinuteBilled: number
+  costBilledTotal: number,
+  costRealTotal: number
 ): number {
-  return minutesUsed * (costPerMinuteBilled - costPerMinutePlatform);
+  return Number((costBilledTotal - costRealTotal).toFixed(4));
+}
+
+export function calculateMarginPercent(
+  costBilledTotal: number,
+  costRealTotal: number
+): number {
+  if (costBilledTotal <= 0) return 0;
+  return Math.round(((costBilledTotal - costRealTotal) / costBilledTotal) * 100);
+}
+
+export function estimateMinutesRemaining(
+  balanceEur: number,
+  avgCostPerMin: number
+): number {
+  if (avgCostPerMin <= 0) return 0;
+  return Math.floor(balanceEur / avgCostPerMin);
+}
+
+export function estimateConversationsRemaining(
+  balanceEur: number,
+  avgCostPerMin: number,
+  avgDurationMin = 5
+): number {
+  if (avgCostPerMin <= 0) return 0;
+  return Math.floor(balanceEur / (avgCostPerMin * avgDurationMin));
+}
+
+export function formatEur(amount: number, decimals = 2): string {
+  return `€${amount.toFixed(decimals)}`;
 }
 
 export function formatMinutes(minutes: number): string {
