@@ -75,17 +75,16 @@ export default function AgentEditorPage() {
           <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/marketing/agente-ai")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/azienda/marketing/agente-ai">Agenti</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{agent.name}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <button
+              onClick={() => navigate("/azienda/marketing/agente-ai")}
+              className="hover:text-foreground transition-colors"
+            >
+              Agenti
+            </button>
+            <ChevronRight className="h-3.5 w-3.5" />
+            <span className="text-foreground font-medium">{agent.name}</span>
+          </div>
           <Badge variant={config.variant}>{config.label}</Badge>
         </div>
         <div className="flex items-center gap-2">
