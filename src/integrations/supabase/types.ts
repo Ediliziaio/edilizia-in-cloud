@@ -3896,6 +3896,54 @@ export type Database = {
           },
         ]
       }
+      marketing_opportunity_lists: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          filters: Json | null
+          id: string
+          name: string
+          pipeline_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          filters?: Json | null
+          id?: string
+          name: string
+          pipeline_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          filters?: Json | null
+          id?: string
+          name?: string
+          pipeline_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_opportunity_lists_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_opportunity_lists_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_opportunity_notes: {
         Row: {
           company_id: string

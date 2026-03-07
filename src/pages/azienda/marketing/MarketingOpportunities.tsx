@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download } from "lucide-react";
+import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download, Check, X } from "lucide-react";
 import { CardCustomizeSheet } from "@/components/opportunities/CardCustomizeSheet";
 import { useCardFieldPreferences, CardFieldPreferencesProvider } from "@/hooks/useCardFieldPreferences";
 import type { FieldDefinition } from "@/hooks/useCardFieldPreferences";
@@ -21,6 +21,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CreateListDialog } from "@/components/marketing/CreateListDialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -66,6 +68,65 @@ function MarketingOpportunitiesContent() {
   const bulkDelete = useBulkDeleteOpportunities();
   const { activeFields, layout, setActiveFields, setLayout } = useCardFieldPreferences();
   const [cardCustomizeOpen, setCardCustomizeOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Sorting state
+  const [sortField, setSortField] = useState<"name" | "value" | "created_at" | "updated_at">("created_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  // List state
+  const [createListOpen, setCreateListOpen] = useState(false);
+  const [activeListId, setActiveListId] = useState<string | null>(null);
+
+  // Fetch saved lists for current pipeline
+  const { data: savedLists = [] } = useQuery({
+    queryKey: ["marketing-opportunity-lists", companyId, selectedPipelineId],
+    queryFn: async () => {
+      if (!companyId || !selectedPipelineId) return [];
+      const { data, error } = await supabase
+        .from("marketing_opportunity_lists" as any)
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("pipeline_id", selectedPipelineId)
+        .order("created_at");
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    enabled: !!companyId && !!selectedPipelineId,
+  });
+
+  const createListMutation = useMutation({
+    mutationFn: async (listData: { name: string; description: string }) => {
+      if (!companyId || !selectedPipelineId) throw new Error("Missing IDs");
+      const { error } = await supabase.from("marketing_opportunity_lists" as any).insert({
+        company_id: companyId,
+        pipeline_id: selectedPipelineId,
+        name: listData.name,
+        description: listData.description || "",
+        filters: filters as any,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Elenco creato");
+      queryClient.invalidateQueries({ queryKey: ["marketing-opportunity-lists"] });
+    },
+    onError: () => toast.error("Errore nella creazione dell'elenco"),
+  });
+
+  const deleteListMutation = useMutation({
+    mutationFn: async (listId: string) => {
+      const { error } = await supabase.from("marketing_opportunity_lists" as any).delete().eq("id", listId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Elenco eliminato");
+      setActiveListId(null);
+      setFilters(EMPTY_FILTERS);
+      queryClient.invalidateQueries({ queryKey: ["marketing-opportunity-lists"] });
+    },
+    onError: () => toast.error("Errore nell'eliminazione"),
+  });
   const { data: oppCustomFields = [] } = useOpportunityCustomFields();
   const customFieldDefs: FieldDefinition[] = useMemo(() =>
     oppCustomFields.map((f) => ({ key: `custom_${f.id}`, label: f.name, section: "opportunity" })),
@@ -164,8 +225,23 @@ function MarketingOpportunitiesContent() {
       result = result.filter((o: any) => filters.tags.some((t) => (o.tags || []).includes(t)));
     }
 
+    // Sort
+    result = [...result].sort((a: any, b: any) => {
+      let cmp = 0;
+      if (sortField === "name") {
+        cmp = (a.name || "").localeCompare(b.name || "", "it", { sensitivity: "base" });
+      } else if (sortField === "value") {
+        cmp = (Number(a.value) || 0) - (Number(b.value) || 0);
+      } else if (sortField === "created_at") {
+        cmp = (a.created_at || "").localeCompare(b.created_at || "");
+      } else if (sortField === "updated_at") {
+        cmp = (a.updated_at || "").localeCompare(b.updated_at || "");
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
     return result;
-  }, [opportunities, searchQuery, filters]);
+  }, [opportunities, searchQuery, filters, sortField, sortDir]);
 
   const activeFilterCount = countActiveFilters(filters);
 
@@ -345,15 +421,47 @@ function MarketingOpportunitiesContent() {
       </div>
 
       <div className="flex items-center gap-1 border-b">
-        <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none border-b-2 border-primary font-semibold">Tutto</Button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none text-muted-foreground" disabled>+ Elenco</Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>Funzionalità in arrivo</TooltipContent>
-        </Tooltip>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`h-8 text-xs rounded-none ${!activeListId ? "border-b-2 border-primary font-semibold" : "text-muted-foreground"}`}
+          onClick={() => { setActiveListId(null); setFilters(EMPTY_FILTERS); }}
+        >
+          Tutto
+        </Button>
+        {savedLists.map((list: any) => (
+          <div key={list.id} className="flex items-center group">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`h-8 text-xs rounded-none ${activeListId === list.id ? "border-b-2 border-primary font-semibold" : "text-muted-foreground"}`}
+              onClick={() => {
+                setActiveListId(list.id);
+                if (list.filters && typeof list.filters === "object") {
+                  setFilters({ ...EMPTY_FILTERS, ...list.filters });
+                }
+              }}
+            >
+              {list.name}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+              onClick={(e) => { e.stopPropagation(); deleteListMutation.mutate(list.id); }}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        ))}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs rounded-none text-muted-foreground"
+          onClick={() => setCreateListOpen(true)}
+        >
+          + Elenco
+        </Button>
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -366,16 +474,34 @@ function MarketingOpportunitiesContent() {
               </Badge>
             )}
           </Button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button variant="outline" size="sm" className="h-8 text-xs" disabled>
-                  <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Funzionalità in arrivo</TooltipContent>
-          </Tooltip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs">
+                <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {[
+                { field: "name" as const, dir: "asc" as const, label: "Nome (A-Z)" },
+                { field: "name" as const, dir: "desc" as const, label: "Nome (Z-A)" },
+                { field: "value" as const, dir: "desc" as const, label: "Valore (alto-basso)" },
+                { field: "value" as const, dir: "asc" as const, label: "Valore (basso-alto)" },
+                { field: "created_at" as const, dir: "desc" as const, label: "Data creazione ↓" },
+                { field: "created_at" as const, dir: "asc" as const, label: "Data creazione ↑" },
+                { field: "updated_at" as const, dir: "desc" as const, label: "Ultima modifica ↓" },
+                { field: "updated_at" as const, dir: "asc" as const, label: "Ultima modifica ↑" },
+              ].map((opt) => (
+                <DropdownMenuItem
+                  key={`${opt.field}-${opt.dir}`}
+                  onClick={() => { setSortField(opt.field); setSortDir(opt.dir); }}
+                  className="flex items-center justify-between"
+                >
+                  {opt.label}
+                  {sortField === opt.field && sortDir === opt.dir && <Check className="h-3.5 w-3.5 ml-2" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -459,6 +585,11 @@ function MarketingOpportunitiesContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <CreateListDialog
+        open={createListOpen}
+        onOpenChange={setCreateListOpen}
+        onSave={(data) => createListMutation.mutateAsync(data)}
+      />
     </div>
   );
 }
