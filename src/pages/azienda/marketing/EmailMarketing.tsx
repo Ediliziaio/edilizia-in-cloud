@@ -4,6 +4,7 @@ import { BarChart3, Send, FileText } from "lucide-react";
 import { EmailStatsTab } from "@/components/email-marketing/EmailStatsTab";
 import { EmailCampaignsTab } from "@/components/email-marketing/EmailCampaignsTab";
 import { EmailTemplatesTab } from "@/components/email-marketing/EmailTemplatesTab";
+import { EmailCreditsWidget } from "@/components/email-marketing/EmailCreditsWidget";
 
 const EmailMarketing = () => {
   const [activeTab, setActiveTab] = useState("statistiche");
@@ -14,6 +15,8 @@ const EmailMarketing = () => {
         <h1 className="text-2xl font-bold text-foreground">Email Marketing</h1>
         <p className="text-muted-foreground">Gestisci campagne, template e monitora le performance</p>
       </div>
+
+      <EmailCreditsWidget />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
