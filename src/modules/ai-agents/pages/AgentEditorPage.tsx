@@ -4,11 +4,15 @@ import { AgentTab } from "../components/AgentTab";
 import { AgentKBTab } from "../components/AgentKBTab";
 import { AgentWidgetTab } from "../components/AgentWidgetTab";
 import { AgentAnalyticsTab } from "../components/AgentAnalyticsTab";
+import { AgentBranchTab } from "../components/AgentBranchTab";
+import { AgentTestTab } from "../components/AgentTestTab";
+import { AgentToolsTab } from "../components/AgentToolsTab";
+import { WorkflowCanvas } from "../components/WorkflowCanvas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Bot, Construction, ChevronRight } from "lucide-react";
+import { ArrowLeft, Construction, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
@@ -104,9 +108,11 @@ export default function AgentEditorPage() {
         <TabsList className="w-full justify-start flex-wrap h-auto gap-1">
           <TabsTrigger value="agent">Agente</TabsTrigger>
           <TabsTrigger value="workflow">Workflow</TabsTrigger>
+          <TabsTrigger value="branch">Branch</TabsTrigger>
           <TabsTrigger value="kb">Knowledge Base</TabsTrigger>
           <TabsTrigger value="analytics">Analisi</TabsTrigger>
           <TabsTrigger value="tools">Strumenti</TabsTrigger>
+          <TabsTrigger value="test">Test</TabsTrigger>
           <TabsTrigger value="widget">Widget</TabsTrigger>
           <TabsTrigger value="security">Sicurezza</TabsTrigger>
           <TabsTrigger value="advanced">Avanzato</TabsTrigger>
@@ -120,14 +126,24 @@ export default function AgentEditorPage() {
           />
         </TabsContent>
 
-        <TabsContent value="workflow"><ComingSoonTab title="Workflow" /></TabsContent>
+        <TabsContent value="workflow" className="mt-4">
+          <WorkflowCanvas />
+        </TabsContent>
+        <TabsContent value="branch" className="mt-4">
+          <AgentBranchTab />
+        </TabsContent>
         <TabsContent value="kb" className="mt-4">
           <AgentKBTab agentId={agent.id} companyId={agent.company_id} />
         </TabsContent>
         <TabsContent value="analytics" className="mt-4">
           <AgentAnalyticsTab agentId={agent.id} />
         </TabsContent>
-        <TabsContent value="tools"><ComingSoonTab title="Strumenti" /></TabsContent>
+        <TabsContent value="tools" className="mt-4">
+          <AgentToolsTab />
+        </TabsContent>
+        <TabsContent value="test" className="mt-4">
+          <AgentTestTab />
+        </TabsContent>
         <TabsContent value="widget" className="mt-4">
           <AgentWidgetTab agent={agent} />
         </TabsContent>

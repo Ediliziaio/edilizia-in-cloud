@@ -18,6 +18,8 @@ import {
   Mail,
   Gauge,
   BarChart3,
+  Database,
+  CreditCard,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
@@ -61,7 +63,9 @@ export const marketingNavItems: NavItem[] = [
   { title: "Attività", url: "/azienda/marketing/attivita", icon: CheckSquare, permissionKey: "canViewMarketingActivities", category: "marketing" },
   { title: "Appuntamenti", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", category: "marketing" },
   { title: "Automazioni", url: "/azienda/marketing/automazioni", icon: Zap, permissionKey: "canViewMarketingAutomations", category: "marketing" },
-  { title: "Agente AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing" },
+  { title: "Agenti AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing" },
+  { title: "KB Globale", url: "/azienda/marketing/agente-ai/knowledge-base", icon: Database, permissionKey: "canViewMarketingAiAgent", category: "marketing" },
+  { title: "Crediti AI", url: "/azienda/marketing/agente-ai/crediti", icon: CreditCard, permissionKey: "canViewMarketingAiAgent", category: "marketing" },
   { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", category: "marketing" },
   { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", category: "marketing" },
   { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: BarChart3, permissionKey: "canViewMarketingReports", category: "marketing" },
