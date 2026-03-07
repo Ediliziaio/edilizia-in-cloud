@@ -1,6 +1,9 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useAgent, useUpdateAgent } from "../hooks/useAgents";
 import { AgentTab } from "../components/AgentTab";
+import { AgentKBTab } from "../components/AgentKBTab";
+import { AgentWidgetTab } from "../components/AgentWidgetTab";
+import { AgentAnalyticsTab } from "../components/AgentAnalyticsTab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -118,10 +121,16 @@ export default function AgentEditorPage() {
         </TabsContent>
 
         <TabsContent value="workflow"><ComingSoonTab title="Workflow" /></TabsContent>
-        <TabsContent value="kb"><ComingSoonTab title="Knowledge Base" /></TabsContent>
-        <TabsContent value="analytics"><ComingSoonTab title="Analisi" /></TabsContent>
+        <TabsContent value="kb" className="mt-4">
+          <AgentKBTab agentId={agent.id} companyId={agent.company_id} />
+        </TabsContent>
+        <TabsContent value="analytics" className="mt-4">
+          <AgentAnalyticsTab agentId={agent.id} />
+        </TabsContent>
         <TabsContent value="tools"><ComingSoonTab title="Strumenti" /></TabsContent>
-        <TabsContent value="widget"><ComingSoonTab title="Widget" /></TabsContent>
+        <TabsContent value="widget" className="mt-4">
+          <AgentWidgetTab agent={agent} />
+        </TabsContent>
         <TabsContent value="security"><ComingSoonTab title="Sicurezza" /></TabsContent>
         <TabsContent value="advanced"><ComingSoonTab title="Avanzato" /></TabsContent>
       </Tabs>
