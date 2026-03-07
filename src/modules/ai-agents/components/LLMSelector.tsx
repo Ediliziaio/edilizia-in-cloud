@@ -31,8 +31,6 @@ export function LLMSelector({
   maxTokens = 4096, onMaxTokensChange,
 }: LLMSelectorProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [backupMode, setBackupMode] = useState<"default" | "custom" | "disabled">("default");
-  const [thinkingBudget, setThinkingBudget] = useState(false);
 
   return (
     <div className="space-y-3">
@@ -96,30 +94,28 @@ export function LLMSelector({
             <p className="text-xs text-muted-foreground">Numero massimo di token per risposta</p>
           </div>
 
-          {/* Thinking budget */}
-          <div className="flex items-center justify-between">
+          {/* Thinking budget — coming soon */}
+          <div className="flex items-center justify-between opacity-60">
             <div>
               <p className="text-sm font-medium">Budget di riflessione</p>
-              <p className="text-xs text-muted-foreground">Abilita ragionamento esteso</p>
+              <p className="text-xs text-muted-foreground">Prossimamente</p>
             </div>
-            <Switch checked={thinkingBudget} onCheckedChange={setThinkingBudget} />
+            <Switch checked={false} disabled />
           </div>
 
-          {/* Backup LLM */}
-          <div className="space-y-2">
+          {/* Backup LLM — coming soon */}
+          <div className="space-y-2 opacity-60">
             <Label className="text-sm">Backup LLM</Label>
-            <Select value={backupMode} onValueChange={(v) => setBackupMode(v as typeof backupMode)}>
+            <Select value="default" disabled>
               <SelectTrigger className="h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="default">Predefinito</SelectItem>
-                <SelectItem value="custom">Personalizzato</SelectItem>
-                <SelectItem value="disabled">Disabilitato</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Modello di fallback in caso di errore del modello principale
+              Prossimamente — Modello di fallback in caso di errore
             </p>
           </div>
         </CollapsibleContent>

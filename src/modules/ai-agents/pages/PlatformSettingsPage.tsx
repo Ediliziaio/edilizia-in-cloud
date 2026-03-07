@@ -12,7 +12,7 @@ import {
 import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe, DollarSign, AlertTriangle } from "lucide-react";
 import { LLMSelector } from "../components/LLMSelector";
 import { toast } from "sonner";
-import { elevenLabsClient } from "../lib/elevenLabsClient";
+import { callElevenLabsProxy } from "../hooks/useElevenLabsProxy";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -91,7 +91,7 @@ export default function PlatformSettingsPage() {
     }
     setTestStatus("loading");
     try {
-      await elevenLabsClient.testConnection();
+      await callElevenLabsProxy({ action: "get_voices" });
       setTestStatus("success");
       toast.success("Connessione riuscita");
     } catch {

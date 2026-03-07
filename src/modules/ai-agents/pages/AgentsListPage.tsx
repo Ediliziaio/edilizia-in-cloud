@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Bot, Plus } from "lucide-react";
 import { AgentCard } from "../components/AgentCard";
 import { CreateAgentWizard } from "../components/CreateAgentWizard";
-import { useAgents, useCreateAgent, useDeleteAgent, useUpdateAgent } from "../hooks/useAgents";
+import { useAgents, useCreateAgent, useDeleteAgent } from "../hooks/useAgents";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +23,7 @@ import {
 import { toast } from "sonner";
 
 export default function AgentsListPage() {
+  const queryClient = useQueryClient();
   const { data: agents, isLoading } = useAgents();
   const createAgent = useCreateAgent();
   const deleteAgent = useDeleteAgent();
@@ -29,21 +32,29 @@ export default function AgentsListPage() {
   const [archiveId, setArchiveId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
-  // We need a generic update mutation for archive
-  const archiveAgent = useUpdateAgent(archiveId ?? undefined);
+  // Stable mutation — always uses "archive-action" as key, passes id via mutationFn
+  const archiveMutation = useMutation({
+    mutationFn: async (agentId: string) => {
+      const { error } = await supabase
+        .from("ai_agents" as never)
+        .update({ status: "archived", updated_at: new Date().toISOString() } as never)
+        .eq("id", agentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
+      toast.success("Agente archiviato");
+      setArchiveId(null);
+    },
+    onError: () => {
+      toast.error("Errore nell'archiviazione");
+      setArchiveId(null);
+    },
+  });
 
   const handleConfirmArchive = () => {
     if (!archiveId) return;
-    archiveAgent.mutate({ status: "archived" }, {
-      onSuccess: () => {
-        toast.success("Agente archiviato");
-        setArchiveId(null);
-      },
-      onError: () => {
-        toast.error("Errore nell'archiviazione");
-        setArchiveId(null);
-      },
-    });
+    archiveMutation.mutate(archiveId);
   };
 
   const filteredAgents = agents?.filter(a =>

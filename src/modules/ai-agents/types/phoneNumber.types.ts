@@ -9,4 +9,4 @@ export interface PhoneNumber {
   created_at: string;
 }
 
-export type AIAgentPhoneNumber = PhoneNumber;
+
