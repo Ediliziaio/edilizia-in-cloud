@@ -179,6 +179,8 @@ export type Database = {
       ai_agent_credits: {
         Row: {
           company_id: string
+          cost_per_minute_billed: number
+          cost_per_minute_platform: number
           id: string
           minutes_used: number
           total_minutes_purchased: number
@@ -186,6 +188,8 @@ export type Database = {
         }
         Insert: {
           company_id: string
+          cost_per_minute_billed?: number
+          cost_per_minute_platform?: number
           id?: string
           minutes_used?: number
           total_minutes_purchased?: number
@@ -193,6 +197,8 @@ export type Database = {
         }
         Update: {
           company_id?: string
+          cost_per_minute_billed?: number
+          cost_per_minute_platform?: number
           id?: string
           minutes_used?: number
           total_minutes_purchased?: number
@@ -252,6 +258,54 @@ export type Database = {
           },
           {
             foreignKeyName: "ai_agent_knowledge_docs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_phone_numbers: {
+        Row: {
+          agent_id: string
+          company_id: string
+          created_at: string
+          elevenlabs_phone_id: string | null
+          id: string
+          label: string | null
+          phone_number: string
+          provider: string
+        }
+        Insert: {
+          agent_id: string
+          company_id: string
+          created_at?: string
+          elevenlabs_phone_id?: string | null
+          id?: string
+          label?: string | null
+          phone_number: string
+          provider?: string
+        }
+        Update: {
+          agent_id?: string
+          company_id?: string
+          created_at?: string
+          elevenlabs_phone_id?: string | null
+          id?: string
+          label?: string | null
+          phone_number?: string
+          provider?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_phone_numbers_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_phone_numbers_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
