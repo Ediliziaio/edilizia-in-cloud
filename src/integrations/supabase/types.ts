@@ -125,8 +125,11 @@ export type Database = {
           elevenlabs_conversation_id: string | null
           id: string
           messages_count: number
+          metadata: Json | null
           started_at: string
           status: string
+          summary: string | null
+          transcript: Json | null
         }
         Insert: {
           agent_id: string
@@ -137,8 +140,11 @@ export type Database = {
           elevenlabs_conversation_id?: string | null
           id?: string
           messages_count?: number
+          metadata?: Json | null
           started_at?: string
           status?: string
+          summary?: string | null
+          transcript?: Json | null
         }
         Update: {
           agent_id?: string
@@ -149,8 +155,11 @@ export type Database = {
           elevenlabs_conversation_id?: string | null
           id?: string
           messages_count?: number
+          metadata?: Json | null
           started_at?: string
           status?: string
+          summary?: string | null
+          transcript?: Json | null
         }
         Relationships: [
           {
