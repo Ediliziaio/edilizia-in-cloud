@@ -225,8 +225,23 @@ function MarketingOpportunitiesContent() {
       result = result.filter((o: any) => filters.tags.some((t) => (o.tags || []).includes(t)));
     }
 
+    // Sort
+    result = [...result].sort((a: any, b: any) => {
+      let cmp = 0;
+      if (sortField === "name") {
+        cmp = (a.name || "").localeCompare(b.name || "", "it", { sensitivity: "base" });
+      } else if (sortField === "value") {
+        cmp = (Number(a.value) || 0) - (Number(b.value) || 0);
+      } else if (sortField === "created_at") {
+        cmp = (a.created_at || "").localeCompare(b.created_at || "");
+      } else if (sortField === "updated_at") {
+        cmp = (a.updated_at || "").localeCompare(b.updated_at || "");
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
     return result;
-  }, [opportunities, searchQuery, filters]);
+  }, [opportunities, searchQuery, filters, sortField, sortDir]);
 
   const activeFilterCount = countActiveFilters(filters);
 
