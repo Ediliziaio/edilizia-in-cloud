@@ -15,6 +15,19 @@ export interface AIAgent {
   created_by: string;
   created_at: string;
   updated_at: string;
+  // Security fields
+  domain_whitelist?: string[];
+  require_auth?: boolean;
+  rate_limit_enabled?: boolean;
+  rate_limit_per_minute?: number;
+  // Advanced fields
+  conversation_timeout?: number;
+  max_duration?: number;
+  error_message?: string;
+  auto_end_on_silence?: boolean;
+  silence_timeout?: number;
+  // Tools config
+  tools_config?: Record<string, unknown>;
 }
 
 export interface AIAgentInsert {
@@ -41,6 +54,19 @@ export interface AIAgentUpdate {
   language?: string;
   is_interruptible?: boolean;
   status?: AgentStatus;
+  // Security
+  domain_whitelist?: string[];
+  require_auth?: boolean;
+  rate_limit_enabled?: boolean;
+  rate_limit_per_minute?: number;
+  // Advanced
+  conversation_timeout?: number;
+  max_duration?: number;
+  error_message?: string;
+  auto_end_on_silence?: boolean;
+  silence_timeout?: number;
+  // Tools
+  tools_config?: Record<string, unknown>;
 }
 
 export interface ElevenLabsVoice {
@@ -93,4 +119,8 @@ export type ProxyAction =
   | "update_agent"
   | "delete_agent"
   | "get_voices"
-  | "get_models";
+  | "get_models"
+  | "add_kb_doc"
+  | "remove_kb_doc"
+  | "list_kb_docs"
+  | "sync_kb";

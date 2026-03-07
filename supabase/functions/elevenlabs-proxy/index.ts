@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,8 +49,8 @@ Deno.serve(async (req) => {
       return json({ error: "Nessuna azienda associata" }, 403);
     }
 
-    // --- Get API key ---
-    const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
+    // --- Get API key from platform_settings first, then env fallback ---
+    const apiKey = await getPlatformSetting("elevenlabs_api_key", "ELEVENLABS_API_KEY");
     if (!apiKey) {
       return json({ error: "Chiave API ElevenLabs non configurata. Contattare l'amministratore." }, 500);
     }
@@ -62,7 +63,6 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "create_agent": {
-        // Create on ElevenLabs
         const elRes = await elFetch("/convai/agents/create", "POST", apiKey, {
           conversation_config: {
             agent: {
@@ -81,7 +81,6 @@ Deno.serve(async (req) => {
 
         const elAgentId = elRes?.agent_id;
 
-        // Save to DB
         const { data: newAgent, error: insertErr } = await adminClient
           .from("ai_agents")
           .insert({
@@ -108,7 +107,6 @@ Deno.serve(async (req) => {
 
       case "update_agent": {
         if (!agent_id) throw new Error("agent_id richiesto");
-        // Update on ElevenLabs
         const updateBody: Record<string, unknown> = {};
         if (payload?.system_prompt !== undefined) {
           updateBody.conversation_config = {
@@ -160,6 +158,53 @@ Deno.serve(async (req) => {
       case "get_models": {
         const models = await elFetch("/models", "GET", apiKey);
         result = models;
+        break;
+      }
+
+      // --- KB Sync Actions (FIX 8) ---
+      case "add_kb_doc": {
+        if (!agent_id) throw new Error("agent_id richiesto");
+        const docResult = await elFetch(`/convai/agents/${agent_id}/add-to-knowledge-base`, "POST", apiKey, {
+          url: payload?.source_url,
+          name: payload?.name,
+        });
+        result = { elevenlabs_doc_id: docResult?.id || null };
+        break;
+      }
+
+      case "remove_kb_doc": {
+        if (!agent_id || !payload?.doc_id) throw new Error("agent_id e doc_id richiesti");
+        try {
+          await elFetch(`/convai/agents/${agent_id}/remove-from-knowledge-base`, "POST", apiKey, {
+            document_id: payload.doc_id,
+          });
+        } catch {
+          // Doc may not exist on EL side
+        }
+        result = { success: true };
+        break;
+      }
+
+      case "list_kb_docs": {
+        if (!agent_id) throw new Error("agent_id richiesto");
+        try {
+          const docs = await elFetch(`/convai/agents/${agent_id}/knowledge-base`, "GET", apiKey);
+          result = docs;
+        } catch {
+          result = { documents: [] };
+        }
+        break;
+      }
+
+      case "sync_kb": {
+        // Sync local docs to EL — just returns current EL docs for comparison
+        if (!agent_id) throw new Error("agent_id richiesto");
+        try {
+          const elDocs = await elFetch(`/convai/agents/${agent_id}/knowledge-base`, "GET", apiKey);
+          result = { elevenlabs_docs: elDocs?.documents || [] };
+        } catch {
+          result = { elevenlabs_docs: [] };
+        }
         break;
       }
 

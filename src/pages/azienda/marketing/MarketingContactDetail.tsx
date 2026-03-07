@@ -11,7 +11,7 @@ import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
   FileText, Activity, StickyNote, CalendarDays, Target, Plus, Send, Search,
   Bell, User, Settings, X, Filter, UserPlus, ArrowRight, RefreshCw, UserCheck,
-  Loader2, Check, AlertCircle,
+  Loader2, Check, AlertCircle, Bot,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/use
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
+import { ContactAIConversations } from "@/modules/ai-agents/components/ContactAIConversations";
 
 // ── Contact Appointments Panel ──
 function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars, users }: {
@@ -263,13 +264,14 @@ function getDateLabel(dateStr: string) {
 }
 
 // ── RIGHT SIDEBAR TABS ──
-type RightTab = "activities" | "notes" | "appointments" | "opportunities" | "documents" | "settings";
+type RightTab = "activities" | "notes" | "appointments" | "opportunities" | "documents" | "ai_conversations" | "settings";
 const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
   { key: "documents", icon: FileText, label: "Documenti" },
   { key: "activities", icon: Activity, label: "Attività" },
   { key: "notes", icon: StickyNote, label: "Note" },
   { key: "appointments", icon: CalendarDays, label: "Calendario" },
   { key: "opportunities", icon: Target, label: "Opportunità" },
+  { key: "ai_conversations", icon: Bot, label: "Conversazioni AI" },
   { key: "settings", icon: Settings, label: "Impostazioni" },
 ];
 
@@ -1054,6 +1056,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   companyId={companyId}
                   compact
                 />
+              )}
+
+              {/* AI Conversations panel */}
+              {rightTab === "ai_conversations" && id && (
+                <ContactAIConversations contactId={id} />
               )}
 
               {/* Activities panel - LinkedTasks */}

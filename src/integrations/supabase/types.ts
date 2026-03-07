@@ -313,54 +313,141 @@ export type Database = {
           },
         ]
       }
+      ai_agent_tests: {
+        Row: {
+          agent_id: string
+          company_id: string
+          created_at: string | null
+          created_by: string
+          expected_outcome: string | null
+          id: string
+          name: string
+          result_summary: string | null
+          scenario: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id: string
+          company_id: string
+          created_at?: string | null
+          created_by: string
+          expected_outcome?: string | null
+          id?: string
+          name: string
+          result_summary?: string | null
+          scenario?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string
+          company_id?: string
+          created_at?: string | null
+          created_by?: string
+          expected_outcome?: string | null
+          id?: string
+          name?: string
+          result_summary?: string | null
+          scenario?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_tests_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_tests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agents: {
         Row: {
+          auto_end_on_silence: boolean | null
           company_id: string
+          conversation_timeout: number | null
           created_at: string
           created_by: string
+          domain_whitelist: string[] | null
           elevenlabs_agent_id: string | null
+          error_message: string | null
           first_message: string
           id: string
           is_interruptible: boolean
           language: string
           llm_model: string
+          max_duration: number | null
           name: string
+          rate_limit_enabled: boolean | null
+          rate_limit_per_minute: number | null
+          require_auth: boolean | null
+          silence_timeout: number | null
           status: string
           system_prompt: string
+          tools_config: Json | null
           tts_model: string | null
           updated_at: string
           voice_id: string | null
         }
         Insert: {
+          auto_end_on_silence?: boolean | null
           company_id: string
+          conversation_timeout?: number | null
           created_at?: string
           created_by: string
+          domain_whitelist?: string[] | null
           elevenlabs_agent_id?: string | null
+          error_message?: string | null
           first_message?: string
           id?: string
           is_interruptible?: boolean
           language?: string
           llm_model?: string
+          max_duration?: number | null
           name: string
+          rate_limit_enabled?: boolean | null
+          rate_limit_per_minute?: number | null
+          require_auth?: boolean | null
+          silence_timeout?: number | null
           status?: string
           system_prompt?: string
+          tools_config?: Json | null
           tts_model?: string | null
           updated_at?: string
           voice_id?: string | null
         }
         Update: {
+          auto_end_on_silence?: boolean | null
           company_id?: string
+          conversation_timeout?: number | null
           created_at?: string
           created_by?: string
+          domain_whitelist?: string[] | null
           elevenlabs_agent_id?: string | null
+          error_message?: string | null
           first_message?: string
           id?: string
           is_interruptible?: boolean
           language?: string
           llm_model?: string
+          max_duration?: number | null
           name?: string
+          rate_limit_enabled?: boolean | null
+          rate_limit_per_minute?: number | null
+          require_auth?: boolean | null
+          silence_timeout?: number | null
           status?: string
           system_prompt?: string
+          tools_config?: Json | null
           tts_model?: string | null
           updated_at?: string
           voice_id?: string | null

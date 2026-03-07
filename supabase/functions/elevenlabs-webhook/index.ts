@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, xi-signature",
 };
 
 Deno.serve(async (req) => {
@@ -15,6 +15,35 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // --- HMAC Signature Verification (FIX 11) ---
+    const webhookSecret = Deno.env.get("ELEVENLABS_WEBHOOK_SECRET");
+    if (webhookSecret) {
+      const signature = req.headers.get("xi-signature");
+      if (!signature) {
+        console.warn("[WEBHOOK] Missing xi-signature header");
+        return json({ error: "Missing signature" }, 401);
+      }
+
+      const rawBody = await req.clone().text();
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(webhookSecret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+      const expectedSig = Array.from(new Uint8Array(sig))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      if (signature !== expectedSig) {
+        console.warn("[WEBHOOK] Invalid signature");
+        return json({ error: "Invalid signature" }, 401);
+      }
+    }
 
     const body = await req.json();
 
@@ -183,7 +212,6 @@ Deno.serve(async (req) => {
 
     if (deductErr) {
       console.error("Error deducting credits (falling back to manual):", deductErr);
-      // Fallback: read-then-write (less safe but functional)
       const { data: credits } = await adminClient
         .from("ai_credits")
         .select("balance_eur, total_spent_eur")
@@ -211,7 +239,6 @@ Deno.serve(async (req) => {
         balanceAfter = -costBilledTotal;
       }
     } else {
-      // Atomic succeeded — extract balance info
       const result = updatedCredits as unknown as { balance_before: number; balance_after: number } | null;
       balanceBefore = result?.balance_before ?? 0;
       balanceAfter = result?.balance_after ?? 0;
@@ -249,7 +276,6 @@ Deno.serve(async (req) => {
       console.log(`[CREDITS] BLOCKED company ${companyId} — balance: €${balanceAfter}`);
 
     } else {
-      // Read auto-recharge settings
       const { data: creditSettings } = await adminClient
         .from("ai_credits")
         .select("auto_recharge_enabled, auto_recharge_threshold, auto_recharge_amount, auto_recharge_method, alert_threshold_eur, total_recharged_eur")
@@ -257,7 +283,6 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (creditSettings?.auto_recharge_enabled && balanceAfter <= (creditSettings.auto_recharge_threshold ?? 5)) {
-        // Auto-recharge
         const rechargeAmount = creditSettings.auto_recharge_amount ?? 20;
         const newBalance = Number((balanceAfter + rechargeAmount).toFixed(4));
 
