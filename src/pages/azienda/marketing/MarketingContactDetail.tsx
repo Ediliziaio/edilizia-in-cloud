@@ -1063,12 +1063,85 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         </ScrollArea>
 
         {/* Message input bar */}
-        <div className="h-12 border-t flex items-center px-3 gap-2 shrink-0">
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-            <Mail className="h-3.5 w-3.5" />
-          </Button>
-          <Input placeholder="Digita un messaggio..." className="border-0 bg-muted/50 shadow-none h-8 text-xs" disabled />
-          <Button size="icon" className="h-7 w-7 shrink-0"><Send className="h-3.5 w-3.5" /></Button>
+        <div className="border-t shrink-0">
+          {messageChannel === "email" && (
+            <div className="px-3 pt-2">
+              <Input
+                placeholder="Oggetto email..."
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))}
+                className="border-0 bg-muted/50 shadow-none h-7 text-xs"
+              />
+            </div>
+          )}
+          <div className="h-12 flex items-center px-3 gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                  {messageChannel === "whatsapp" ? <MessageSquare className="h-3.5 w-3.5 text-emerald-600" /> :
+                   messageChannel === "email" ? <Mail className="h-3.5 w-3.5 text-violet-600" /> :
+                   <Smartphone className="h-3.5 w-3.5 text-sky-600" />}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {contact.phone && (
+                  <DropdownMenuItem onClick={() => setMessageChannel("whatsapp")}>
+                    <MessageSquare className="h-3.5 w-3.5 mr-2 text-emerald-600" /> WhatsApp
+                  </DropdownMenuItem>
+                )}
+                {contact.email && (
+                  <DropdownMenuItem onClick={() => setMessageChannel("email")}>
+                    <Mail className="h-3.5 w-3.5 mr-2 text-violet-600" /> Email
+                  </DropdownMenuItem>
+                )}
+                {contact.phone && (
+                  <DropdownMenuItem onClick={() => setMessageChannel("sms")}>
+                    <Smartphone className="h-3.5 w-3.5 mr-2 text-sky-600" /> SMS
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Input
+              placeholder={`Scrivi messaggio ${messageChannel === "whatsapp" ? "WhatsApp" : messageChannel === "email" ? "email" : "SMS"}...`}
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value.slice(0, 5000))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && messageText.trim() && !sendMessage.isPending) {
+                  sendMessage.mutate({ channel: messageChannel, content: messageText.trim(), subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined });
+                }
+              }}
+              className="border-0 bg-muted/50 shadow-none h-8 text-xs"
+            />
+            <Button
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              disabled={!messageText.trim() || sendMessage.isPending}
+              onClick={() => sendMessage.mutate({ channel: messageChannel, content: messageText.trim(), subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined })}
+            >
+              {sendMessage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+
+          {/* Recent messages */}
+          {contactMessages.length > 0 && (
+            <div className="px-3 pb-2 max-h-32 overflow-y-auto">
+              <p className="text-[10px] font-medium text-muted-foreground mb-1">Messaggi recenti</p>
+              {contactMessages.slice(0, 5).map((msg: any) => (
+                <div key={msg.id} className="flex items-center gap-1.5 py-0.5">
+                  {msg.channel === "whatsapp" ? <MessageSquare className="h-3 w-3 text-emerald-600 shrink-0" /> :
+                   msg.channel === "email" ? <Mail className="h-3 w-3 text-violet-600 shrink-0" /> :
+                   <Smartphone className="h-3 w-3 text-sky-600 shrink-0" />}
+                  <span className="text-[10px] truncate flex-1">{msg.content}</span>
+                  <Badge variant={msg.status === "sent" ? "default" : msg.status === "failed" ? "destructive" : "secondary"} className="text-[8px] h-3.5 px-1">
+                    {msg.status}
+                  </Badge>
+                  <span className="text-[9px] text-muted-foreground shrink-0">
+                    {format(new Date(msg.created_at), "dd/MM HH:mm")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1175,9 +1248,69 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <OpportunitiesPanel contactId={id!} companyId={companyId!} />
               )}
 
-              {/* Settings placeholder */}
+              {/* Settings panel */}
               {rightTab === "settings" && (
-                <p className="text-[11px] text-muted-foreground text-center py-8">Prossimamente: impostazioni</p>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-[11px] font-medium">Lingua preferita</Label>
+                    <Select
+                      value={(contact as any).preferred_language || "italiano"}
+                      onValueChange={(val) => updateField.mutate({ field: "preferred_language", value: val })}
+                    >
+                      <SelectTrigger className="h-8 text-xs mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="italiano">Italiano</SelectItem>
+                        <SelectItem value="inglese">Inglese</SelectItem>
+                        <SelectItem value="tedesco">Tedesco</SelectItem>
+                        <SelectItem value="francese">Francese</SelectItem>
+                        <SelectItem value="spagnolo">Spagnolo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-[11px] font-medium">Canale preferito</Label>
+                    <Select
+                      value={(contact as any).preferred_channel || "whatsapp"}
+                      onValueChange={(val) => updateField.mutate({ field: "preferred_channel", value: val })}
+                    >
+                      <SelectTrigger className="h-8 text-xs mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                        <SelectItem value="email">Email</SelectItem>
+                        <SelectItem value="sms">SMS</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-[11px] font-medium">Opt-out comunicazioni</Label>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                        <span className="text-[11px]">WhatsApp</span>
+                      </div>
+                      <Switch
+                        checked={(contact as any).optout_whatsapp || false}
+                        onCheckedChange={(checked) => updateField.mutate({ field: "optout_whatsapp", value: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 text-violet-600" />
+                        <span className="text-[11px]">Email</span>
+                      </div>
+                      <Switch
+                        checked={(contact as any).optout_email || false}
+                        onCheckedChange={(checked) => updateField.mutate({ field: "optout_email", value: checked })}
+                      />
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </ScrollArea>
