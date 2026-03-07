@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 
 export default function AgentsListPage() {
+  const queryClient = useQueryClient();
   const { data: agents, isLoading } = useAgents();
   const createAgent = useCreateAgent();
   const deleteAgent = useDeleteAgent();

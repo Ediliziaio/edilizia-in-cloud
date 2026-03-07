@@ -44,10 +44,10 @@ export function WorkflowCanvas() {
 
   return (
     <div className="space-y-4">
-      <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-        <Construction className="h-4 w-4 text-amber-600" />
-        <AlertTitle className="text-amber-700 dark:text-amber-400">Funzionalità in sviluppo</AlertTitle>
-        <AlertDescription className="text-amber-600 dark:text-amber-500">
+      <Alert className="border-warning/50 bg-warning/10">
+        <Construction className="h-4 w-4 text-warning" />
+        <AlertTitle className="text-warning">Funzionalità in sviluppo</AlertTitle>
+        <AlertDescription className="text-warning/80">
           Il workflow visuale sarà disponibile in una prossima versione. Le modifiche effettuate qui non vengono salvate.
         </AlertDescription>
       </Alert>
