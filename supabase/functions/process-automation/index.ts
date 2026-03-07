@@ -505,6 +505,12 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     case "end_automation":
       return { success: true, output: { action: "end_automation" } };
 
+    case "sync_google":
+      return await executeSyncGoogle(supabase, cfg, entityId, companyId);
+
+    case "sync_meta_lead":
+      return await executeSyncMetaLead(supabase, cfg, entityId, companyId);
+
     default:
       return { success: true, output: { action: actionType, skipped: true, reason: "Not implemented yet" } };
   }
@@ -628,4 +634,131 @@ function jsonResponse(data: any, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+// ────────────────────────────────────────────────────
+// SYNC GOOGLE CALENDAR
+// ────────────────────────────────────────────────────
+async function executeSyncGoogle(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
+  const syncAction = cfg.sync_action || "sync_event";
+
+  if (syncAction === "sync_contact") {
+    // Google Calendar doesn't have a contact sync concept — log and succeed
+    console.log(`[sync_google] sync_contact for entity=${entityId} — logged (no GCal contact API)`);
+    return { success: true, output: { action: "sync_google", sync_action: "sync_contact", logged: true } };
+  }
+
+  // sync_event: find the most recent appointment for this contact, then push to Google Calendar
+  const { data: appointment } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("contact_id", entityId)
+    .eq("company_id", companyId)
+    .order("appointment_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!appointment) {
+    return { success: true, output: { action: "sync_google", sync_action: "sync_event", skipped: true, reason: "No appointment found for contact" } };
+  }
+
+  // Find a Google Calendar connection for this company
+  const { data: gcalConn } = await supabase
+    .from("google_calendar_connections")
+    .select("id, user_id, calendar_id")
+    .eq("company_id", companyId)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (!gcalConn) {
+    return { success: false, error: "No active Google Calendar connection for this company" };
+  }
+
+  // Call the existing google-calendar-sync edge function
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  try {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/google-calendar-sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        action: "push-event",
+        connectionId: gcalConn.id,
+        appointmentId: appointment.id,
+        companyId,
+      }),
+    });
+
+    const text = await resp.text();
+    let body: any;
+    try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 500) }; }
+
+    if (!resp.ok) {
+      return { success: false, error: `Google Calendar sync failed: HTTP ${resp.status}`, output: body };
+    }
+
+    return { success: true, output: { action: "sync_google", sync_action: "sync_event", appointment_id: appointment.id, gcal_response: body } };
+  } catch (e: any) {
+    return { success: false, error: `Google Calendar sync error: ${e.message}` };
+  }
+}
+
+// ────────────────────────────────────────────────────
+// SYNC META LEAD
+// ────────────────────────────────────────────────────
+async function executeSyncMetaLead(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
+  const syncAction = cfg.sync_action || "resync_lead";
+
+  if (syncAction === "sync_contact") {
+    console.log(`[sync_meta_lead] sync_contact for entity=${entityId} — logged`);
+    return { success: true, output: { action: "sync_meta_lead", sync_action: "sync_contact", logged: true } };
+  }
+
+  // resync_lead: call meta-process-leads to re-process leads for this company
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Get the Meta config for this company
+  const { data: metaConfig } = await supabase
+    .from("meta_ad_accounts")
+    .select("id, ad_account_id")
+    .eq("company_id", companyId)
+    .limit(1)
+    .maybeSingle();
+
+  if (!metaConfig) {
+    return { success: true, output: { action: "sync_meta_lead", sync_action: "resync_lead", skipped: true, reason: "No Meta ad account configured" } };
+  }
+
+  try {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/meta-process-leads`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        action: "process",
+        companyId,
+        adAccountId: metaConfig.ad_account_id,
+      }),
+    });
+
+    const text = await resp.text();
+    let body: any;
+    try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 500) }; }
+
+    if (!resp.ok) {
+      return { success: false, error: `Meta lead sync failed: HTTP ${resp.status}`, output: body };
+    }
+
+    return { success: true, output: { action: "sync_meta_lead", sync_action: "resync_lead", meta_response: body } };
+  } catch (e: any) {
+    return { success: false, error: `Meta lead sync error: ${e.message}` };
+  }
 }

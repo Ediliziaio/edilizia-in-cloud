@@ -156,8 +156,8 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
     items: [
       { id: "webhook_out", label: "Webhook uscita", icon: "ExternalLink", category: "integration" },
       { id: "external_api", label: "API esterna", icon: "Globe", category: "integration", description: "Chiama un'API esterna" },
-      { id: "sync_google", label: "Sync Google", icon: "RefreshCw", category: "integration", description: "Sincronizza con Google" },
-      { id: "sync_meta_lead", label: "Sync Meta Lead", icon: "RefreshCw", category: "integration", description: "Sincronizza con Meta Lead Ads" },
+      { id: "sync_google", label: "Sync Google Calendar", icon: "RefreshCw", category: "integration", description: "Sincronizza appuntamenti con Google Calendar" },
+      { id: "sync_meta_lead", label: "Sync Meta Lead", icon: "RefreshCw", category: "integration", description: "Re-sincronizza lead da Meta Lead Ads" },
     ],
   },
 ];
@@ -405,8 +405,8 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   end_automation: "Termina l'automazione per il contatto corrente.",
   webhook_out: "Invia una richiesta HTTP ad un endpoint esterno.",
   external_api: "Chiama un'API esterna con metodo e payload personalizzati.",
-  sync_google: "Sincronizza i dati con Google (placeholder per futura integrazione).",
-  sync_meta_lead: "Sincronizza i dati con Meta Lead Ads (placeholder per futura integrazione).",
+  sync_google: "Sincronizza appuntamenti ed eventi con Google Calendar tramite la connessione attiva.",
+  sync_meta_lead: "Sincronizza contatti con Meta Lead Ads. L'import dei lead è automatico via webhook; questa azione permette il re-sync manuale.",
 };
 
 // ── Action validation ──
