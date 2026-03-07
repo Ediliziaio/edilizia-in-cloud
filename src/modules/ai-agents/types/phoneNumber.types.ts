@@ -1,4 +1,4 @@
-export interface AIAgentPhoneNumber {
+export interface PhoneNumber {
   id: string;
   company_id: string;
   agent_id: string;
@@ -8,3 +8,5 @@ export interface AIAgentPhoneNumber {
   label: string | null;
   created_at: string;
 }
+
+export type AIAgentPhoneNumber = PhoneNumber;

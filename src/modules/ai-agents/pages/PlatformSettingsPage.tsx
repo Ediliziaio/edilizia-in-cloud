@@ -2,16 +2,19 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Shield, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
+import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe } from "lucide-react";
 import { LLMSelector } from "../components/LLMSelector";
 import { toast } from "sonner";
+import { elevenLabsClient } from "../lib/elevenLabsClient";
 
 export default function PlatformSettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [defaultLlm, setDefaultLlm] = useState("gemini-2.5-flash");
   const [markup, setMarkup] = useState("2.0");
+  const [domainWhitelist, setDomainWhitelist] = useState("");
   const [testStatus, setTestStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   const handleTestConnection = async () => {
@@ -20,11 +23,14 @@ export default function PlatformSettingsPage() {
       return;
     }
     setTestStatus("loading");
-    // In Phase 2 we'll actually call the edge function to test
-    setTimeout(() => {
+    try {
+      await elevenLabsClient.testConnection();
       setTestStatus("success");
       toast.success("Connessione riuscita");
-    }, 1500);
+    } catch {
+      setTestStatus("error");
+      toast.error("Connessione fallita. Verifica la API key.");
+    }
   };
 
   const handleSave = () => {
@@ -107,6 +113,25 @@ export default function PlatformSettingsPage() {
               Es. 2.0 = il cliente paga il doppio del costo reale ElevenLabs
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="h-4 w-4" /> Whitelist Domini
+          </CardTitle>
+          <CardDescription>
+            Domini autorizzati per il widget embed. Uno per riga.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            value={domainWhitelist}
+            onChange={(e) => setDomainWhitelist(e.target.value)}
+            placeholder={"esempio.it\nwww.miosito.com"}
+            rows={4}
+          />
         </CardContent>
       </Card>
 

@@ -20,6 +20,7 @@ import {
   BarChart3,
   Database,
   CreditCard,
+  Phone,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
@@ -65,6 +66,7 @@ export const marketingNavItems: NavItem[] = [
   { title: "Automazioni", url: "/azienda/marketing/automazioni", icon: Zap, permissionKey: "canViewMarketingAutomations", category: "marketing" },
   { title: "Agenti AI", url: "/azienda/marketing/agente-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing" },
   { title: "KB Globale", url: "/azienda/marketing/agente-ai/knowledge-base", icon: Database, permissionKey: "canViewMarketingAiAgent", category: "marketing" },
+  { title: "Numeri Telefono", url: "/azienda/marketing/agente-ai/numeri-telefono", icon: Phone, permissionKey: "canViewMarketingAiAgent", category: "marketing" },
   { title: "Crediti AI", url: "/azienda/marketing/agente-ai/crediti", icon: CreditCard, permissionKey: "canViewMarketingAiAgent", category: "marketing" },
   { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", category: "marketing" },
   { title: "WhatsApp", url: "/azienda/marketing/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", category: "marketing" },

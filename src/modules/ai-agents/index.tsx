@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import { AgentSidebar } from "./components/AgentSidebar";
 
 const AgentsListPage = lazy(() => import("./pages/AgentsListPage"));
 const AgentEditorPage = lazy(() => import("./pages/AgentEditorPage"));
@@ -17,17 +18,24 @@ const Fallback = () => (
 );
 
 export default function AIAgentsModule() {
+  const location = useLocation();
+  // Hide sidebar on agent editor pages (/:id)
+  const isEditorPage = /\/agente-ai\/[0-9a-f-]{36}/.test(location.pathname);
+
   return (
-    <Suspense fallback={<Fallback />}>
-      <Routes>
-        <Route index element={<AgentsListPage />} />
-        <Route path="knowledge-base" element={<PlatformKnowledgeBasePage />} />
-        <Route path="crediti" element={<AgentCreditsPage />} />
-        <Route path="numeri-telefono" element={<AgentPhoneNumbersPage />} />
-        <Route path="whatsapp" element={<AgentWhatsAppPage />} />
-        <Route path="impostazioni" element={<PlatformSettingsPage />} />
-        <Route path=":id" element={<AgentEditorPage />} />
-      </Routes>
-    </Suspense>
+    <div>
+      {!isEditorPage && <AgentSidebar />}
+      <Suspense fallback={<Fallback />}>
+        <Routes>
+          <Route index element={<AgentsListPage />} />
+          <Route path="knowledge-base" element={<PlatformKnowledgeBasePage />} />
+          <Route path="crediti" element={<AgentCreditsPage />} />
+          <Route path="numeri-telefono" element={<AgentPhoneNumbersPage />} />
+          <Route path="whatsapp" element={<AgentWhatsAppPage />} />
+          <Route path="impostazioni" element={<PlatformSettingsPage />} />
+          <Route path=":id" element={<AgentEditorPage />} />
+        </Routes>
+      </Suspense>
+    </div>
   );
 }
