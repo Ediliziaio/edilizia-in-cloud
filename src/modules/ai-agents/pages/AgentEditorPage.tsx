@@ -34,7 +34,7 @@ interface SecurityTabProps {
 }
 
 function SecurityTab({ agent, onSave }: SecurityTabProps) {
-  const agentAny = agent as Record<string, unknown>;
+  const agentAny = agent as unknown as Record<string, unknown>;
   const [domainWhitelist, setDomainWhitelist] = useState(
     ((agentAny.domain_whitelist as string[]) ?? []).join("\n")
   );
@@ -135,7 +135,7 @@ interface AdvancedTabProps {
 }
 
 function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
-  const agentAny = agent as Record<string, unknown>;
+  const agentAny = agent as unknown as Record<string, unknown>;
   const [conversationTimeout, setConversationTimeout] = useState(
     String((agentAny.conversation_timeout as number) ?? 300)
   );
