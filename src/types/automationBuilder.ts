@@ -405,8 +405,8 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   end_automation: "Termina l'automazione per il contatto corrente.",
   webhook_out: "Invia una richiesta HTTP ad un endpoint esterno.",
   external_api: "Chiama un'API esterna con metodo e payload personalizzati.",
-  sync_google: "Sincronizza i dati con Google (placeholder per futura integrazione).",
-  sync_meta_lead: "Sincronizza i dati con Meta Lead Ads (placeholder per futura integrazione).",
+  sync_google: "Sincronizza appuntamenti ed eventi con Google Calendar tramite la connessione attiva.",
+  sync_meta_lead: "Sincronizza contatti con Meta Lead Ads. L'import dei lead è automatico via webhook; questa azione permette il re-sync manuale.",
 };
 
 // ── Action validation ──

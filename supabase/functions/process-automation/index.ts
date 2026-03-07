@@ -505,6 +505,12 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     case "end_automation":
       return { success: true, output: { action: "end_automation" } };
 
+    case "sync_google":
+      return await executeSyncGoogle(supabase, cfg, entityId, companyId);
+
+    case "sync_meta_lead":
+      return await executeSyncMetaLead(supabase, cfg, entityId, companyId);
+
     default:
       return { success: true, output: { action: actionType, skipped: true, reason: "Not implemented yet" } };
   }

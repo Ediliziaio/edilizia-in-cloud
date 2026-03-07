@@ -695,28 +695,36 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
             <p className="text-xs text-muted-foreground">Questo nodo termina l'automazione per il contatto corrente. Non è necessaria alcuna configurazione aggiuntiva.</p>
           )}
 
-          {/* ── SYNC GOOGLE / META ── */}
-          {(actionType === "sync_google" || actionType === "sync_meta_lead") && (
+          {/* ── SYNC GOOGLE ── */}
+          {actionType === "sync_google" && (
             <div className="space-y-3">
               <div>
-                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Account</Label>
-                <Select value={node.config_json?.sync_account || ""} onValueChange={(v) => updateConfig("sync_account", v)}>
-                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue placeholder="Seleziona account..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default" className="text-xs">Account predefinito</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground mt-1">Integrazione disponibile in futuro.</p>
-              </div>
-              <div>
                 <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Azione</Label>
-                <Select value={node.config_json?.sync_action || "sync_contact"} onValueChange={(v) => updateConfig("sync_action", v)}>
+                <Select value={node.config_json?.sync_action || "sync_event"} onValueChange={(v) => updateConfig("sync_action", v)}>
                   <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="sync_contact" className="text-xs">Sincronizza contatto</SelectItem>
-                    <SelectItem value="sync_event" className="text-xs">Sincronizza evento</SelectItem>
+                    <SelectItem value="sync_event" className="text-xs">Sincronizza evento/appuntamento</SelectItem>
+                    <SelectItem value="sync_contact" className="text-xs">Sincronizza contatto (log)</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">Utilizza la connessione Google Calendar attiva per la company. Per "Sincronizza evento" verrà usato l'appuntamento più recente del contatto.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── SYNC META LEAD ── */}
+          {actionType === "sync_meta_lead" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Azione</Label>
+                <Select value={node.config_json?.sync_action || "resync_lead"} onValueChange={(v) => updateConfig("sync_action", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="resync_lead" className="text-xs">Re-sincronizza lead da Meta</SelectItem>
+                    <SelectItem value="sync_contact" className="text-xs">Sincronizza contatto (log)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">L'import dei lead da Meta è automatico via webhook. Questa azione forza un re-sync o registra l'attività.</p>
               </div>
             </div>
           )}
