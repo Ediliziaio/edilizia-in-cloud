@@ -3,6 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart3, Clock, MessageSquare, CalendarCheck, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { AnalyticsTable } from "./AnalyticsTable";
 
 interface Conversation {
   id: string;
@@ -11,6 +12,8 @@ interface Conversation {
   messages_count: number;
   appointment_created: boolean;
   started_at: string;
+  elevenlabs_conversation_id: string | null;
+  contact_id: string | null;
 }
 
 interface AgentAnalyticsTabProps {
@@ -54,30 +57,10 @@ export function AgentAnalyticsTab({ agentId }: AgentAnalyticsTabProps) {
   };
 
   const stats = [
-    {
-      label: "Conversazioni",
-      value: total,
-      icon: MessageSquare,
-      color: "text-primary",
-    },
-    {
-      label: "Durata media",
-      value: formatDuration(avgDuration),
-      icon: Clock,
-      color: "text-primary",
-    },
-    {
-      label: "Appuntamenti creati",
-      value: appointments,
-      icon: CalendarCheck,
-      color: "text-primary",
-    },
-    {
-      label: "Tasso completamento",
-      value: total > 0 ? `${Math.round((completed / total) * 100)}%` : "—",
-      icon: TrendingUp,
-      color: "text-primary",
-    },
+    { label: "Conversazioni", value: total, icon: MessageSquare, color: "text-primary" },
+    { label: "Durata media", value: formatDuration(avgDuration), icon: Clock, color: "text-primary" },
+    { label: "Appuntamenti creati", value: appointments, icon: CalendarCheck, color: "text-primary" },
+    { label: "Tasso completamento", value: total > 0 ? `${Math.round((completed / total) * 100)}%` : "—", icon: TrendingUp, color: "text-primary" },
   ];
 
   return (
@@ -121,7 +104,10 @@ export function AgentAnalyticsTab({ agentId }: AgentAnalyticsTabProps) {
         </div>
       </div>
 
-      {total === 0 && (
+      {/* Conversations table */}
+      {total > 0 ? (
+        <AnalyticsTable conversations={conversations ?? []} />
+      ) : (
         <div className="flex flex-col items-center justify-center py-12 text-center space-y-2">
           <MessageSquare className="h-10 w-10 text-muted-foreground/30" />
           <p className="text-muted-foreground text-sm">

@@ -3,11 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { VoiceSelector } from "./VoiceSelector";
 import { LLMSelector } from "./LLMSelector";
@@ -26,9 +22,10 @@ export function AgentTab({ agent, onSave, isSaving }: AgentTabProps) {
   const [voiceId, setVoiceId] = useState(agent.voice_id);
   const [llmModel, setLlmModel] = useState(agent.llm_model);
   const [language, setLanguage] = useState(agent.language);
+  const [defaultPersonality, setDefaultPersonality] = useState(true);
+  const [transcriptionEnabled, setTranscriptionEnabled] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Auto-save with debounce
   const triggerSave = useCallback(
     (update: AIAgentUpdate) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -86,6 +83,14 @@ export function AgentTab({ agent, onSave, isSaving }: AgentTabProps) {
           />
         </div>
 
+        <div className="flex items-center justify-between border rounded-lg p-3">
+          <div>
+            <p className="text-sm font-medium">Personalità predefinita</p>
+            <p className="text-xs text-muted-foreground">Usa il tono di voce predefinito per l'agente</p>
+          </div>
+          <Switch checked={defaultPersonality} onCheckedChange={setDefaultPersonality} />
+        </div>
+
         <div className="space-y-2">
           <Label>Primo messaggio</Label>
           <Textarea
@@ -102,6 +107,30 @@ export function AgentTab({ agent, onSave, isSaving }: AgentTabProps) {
             <p className="text-xs text-muted-foreground">L'utente può interrompere l'agente mentre parla</p>
           </div>
           <Switch checked={isInterruptible} onCheckedChange={handleInterruptibleChange} />
+        </div>
+
+        <div className="flex items-center justify-between border rounded-lg p-3">
+          <div>
+            <p className="text-sm font-medium">Trascrizione e riassunto post-chiamata</p>
+            <p className="text-xs text-muted-foreground">Genera automaticamente trascrizione e riassunto al termine della conversazione</p>
+          </div>
+          <Switch checked={transcriptionEnabled} onCheckedChange={setTranscriptionEnabled} />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Fuso orario</Label>
+          <Select defaultValue="Europe/Rome">
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Europe/Rome">Europe/Rome (CET)</SelectItem>
+              <SelectItem value="Europe/London">Europe/London (GMT)</SelectItem>
+              <SelectItem value="America/New_York">America/New_York (EST)</SelectItem>
+              <SelectItem value="America/Los_Angeles">America/Los_Angeles (PST)</SelectItem>
+              <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {isSaving && (
