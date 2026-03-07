@@ -1,44 +1,67 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-# FIX 10: Conversazioni AI nel Profilo Contatto — Analisi
+## Completato — Blocco A, B, C ✅
 
-## Stato attuale
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-La funzionalità richiesta è **già parzialmente implementata**:
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
-- `contact_id` esiste già nella tabella `ai_agent_conversations` con FK a `marketing_contacts`
-- Il tab "Conversazioni AI" esiste già nella sidebar destra del profilo contatto (riga 281)
-- Il componente `ContactAIConversations` è importato e renderizzato (riga 1186-1188)
-- Il webhook `elevenlabs-webhook` salva già `contact_id` quando elabora tool calls
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-## Cosa manca
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-La tabella `ai_agent_conversations` **non ha** i campi `summary`, `transcript`, `metadata`/`sentiment`. Il componente attuale mostra solo info base (durata, messaggi, status). Per completare il FIX servono:
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
-### 1. Migrazione DB — aggiungere colonne
-```sql
-ALTER TABLE ai_agent_conversations
-  ADD COLUMN IF NOT EXISTS summary text,
-  ADD COLUMN IF NOT EXISTS transcript jsonb,
-  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
-```
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-### 2. Aggiornare `elevenlabs-webhook/index.ts`
-- Il webhook riceve già `transcript` e `metadata` dal body ma non li salva
-- Aggiungere `summary`, `transcript`, `metadata` nell'INSERT della conversazione
-- Generare `summary` dal transcript (primi 100 chars dell'ultimo messaggio agente, o campo dal payload)
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-### 3. Migliorare `ContactAIConversations.tsx`
-- Mostrare il `summary` sotto ogni card
-- Aggiungere pulsante "Dettagli" che espande con `Collapsible` mostrando il transcript formattato (ruolo + testo per ogni messaggio)
-- Se `metadata.sentiment` è presente, mostrare un Badge colorato (positivo/neutro/negativo)
-- Aggiungere l'interfaccia `Conversation` con i nuovi campi
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-### File coinvolti
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
-| File | Azione |
-|------|--------|
-| SQL Migration | 3 nuove colonne su `ai_agent_conversations` |
-| `supabase/functions/elevenlabs-webhook/index.ts` | Salvare summary, transcript, metadata |
-| `src/modules/ai-agents/components/ContactAIConversations.tsx` | Espandere UI con dettagli, transcript, sentiment |
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
 
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
+
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
+
+## Da fare (prossimi step)
+
+### Priorità 3: Integrazioni rimanenti
+- Test runner reale con chiamata ElevenLabs (attualmente simulato)
+- Decremento crediti automatico via webhook (già funzionante)
+- Sync bidirezionale KB (upload file)
+
+### Priorità 4: Raffinamenti
+- `/docs/ai-agents-module.md` documentazione completa
+- Branch tab con logica reale
+- Workflow canvas con persistenza nodi
