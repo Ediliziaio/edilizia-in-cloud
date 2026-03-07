@@ -16,6 +16,8 @@ const EmailMarketing = () => {
         <p className="text-muted-foreground">Gestisci campagne, template e monitora le performance</p>
       </div>
 
+      <EmailCreditsWidget />
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="statistiche" className="gap-1.5">
