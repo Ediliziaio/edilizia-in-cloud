@@ -55,7 +55,7 @@ export function PhoneNumberManager() {
           <h1 className="text-2xl font-bold">Numeri di Telefono</h1>
           <Badge variant="outline">{numbers?.length ?? 0} numeri</Badge>
         </div>
-        <Button onClick={() => toast.info("L'acquisto numeri sarà disponibile nella prossima versione")} disabled>
+        <Button onClick={() => toast.info("L'acquisto numeri sarà disponibile nella prossima versione")}>
           <Plus className="h-4 w-4 mr-2" /> Acquista numero
         </Button>
       </div>

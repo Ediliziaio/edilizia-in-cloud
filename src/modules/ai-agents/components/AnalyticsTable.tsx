@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,9 +93,8 @@ export function AnalyticsTable({ conversations }: AnalyticsTableProps) {
               </TableRow>
             ) : (
               filtered.map((conv) => (
-                <>
+                <Fragment key={conv.id}>
                   <TableRow
-                    key={conv.id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => setExpandedId(expandedId === conv.id ? null : conv.id)}
                   >
@@ -142,7 +141,7 @@ export function AnalyticsTable({ conversations }: AnalyticsTableProps) {
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </Fragment>
               ))
             )}
           </TableBody>

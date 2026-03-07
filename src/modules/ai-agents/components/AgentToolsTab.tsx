@@ -12,6 +12,7 @@ import {
   PhoneOff, Globe, SkipForward, Users, Phone, Keyboard, Voicemail,
   Plus, Wrench, UserPlus, CalendarPlus, Search, Package,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -133,7 +134,15 @@ export function AgentToolsTab({ agentId }: AgentToolsTabProps) {
     { id: "get_availability", label: "Controlla disponibilità", description: "Verifica slot disponibili nel calendario", icon: Search },
   ];
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-[200px]" />
+        <Skeleton className="h-[150px]" />
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">

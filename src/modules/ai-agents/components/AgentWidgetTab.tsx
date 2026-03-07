@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -16,12 +14,7 @@ interface AgentWidgetTabProps {
   agent: AIAgent;
 }
 
-type WidgetPosition = "bottom-right" | "bottom-left";
-
 export function AgentWidgetTab({ agent }: AgentWidgetTabProps) {
-  const [position, setPosition] = useState<WidgetPosition>("bottom-right");
-  const [primaryColor, setPrimaryColor] = useState("#6366f1");
-  const [showBranding, setShowBranding] = useState(true);
   const [copied, setCopied] = useState(false);
 
   const elAgentId = agent.elevenlabs_agent_id;
@@ -83,21 +76,6 @@ export function AgentWidgetTab({ agent }: AgentWidgetTabProps) {
             </SelectContent>
           </Select>
         </div>
-
-        {codeType === "widget" && (
-          <div className="space-y-2">
-            <Label>Posizione</Label>
-            <Select value={position} onValueChange={(v) => setPosition(v as WidgetPosition)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="bottom-right">In basso a destra</SelectItem>
-                <SelectItem value="bottom-left">In basso a sinistra</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
 
         <div className="space-y-2">
           <Label>Codice da integrare</Label>

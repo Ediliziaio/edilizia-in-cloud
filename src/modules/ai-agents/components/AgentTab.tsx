@@ -22,8 +22,6 @@ export function AgentTab({ agent, onSave, isSaving }: AgentTabProps) {
   const [voiceId, setVoiceId] = useState(agent.voice_id);
   const [llmModel, setLlmModel] = useState(agent.llm_model);
   const [language, setLanguage] = useState(agent.language);
-  const [defaultPersonality, setDefaultPersonality] = useState(true);
-  const [transcriptionEnabled, setTranscriptionEnabled] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const triggerSave = useCallback(
@@ -83,13 +81,6 @@ export function AgentTab({ agent, onSave, isSaving }: AgentTabProps) {
           />
         </div>
 
-        <div className="flex items-center justify-between border rounded-lg p-3">
-          <div>
-            <p className="text-sm font-medium">Personalità predefinita</p>
-            <p className="text-xs text-muted-foreground">Usa il tono di voce predefinito per l'agente</p>
-          </div>
-          <Switch checked={defaultPersonality} onCheckedChange={setDefaultPersonality} />
-        </div>
 
         <div className="space-y-2">
           <Label>Primo messaggio</Label>
@@ -109,13 +100,6 @@ export function AgentTab({ agent, onSave, isSaving }: AgentTabProps) {
           <Switch checked={isInterruptible} onCheckedChange={handleInterruptibleChange} />
         </div>
 
-        <div className="flex items-center justify-between border rounded-lg p-3">
-          <div>
-            <p className="text-sm font-medium">Trascrizione e riassunto post-chiamata</p>
-            <p className="text-xs text-muted-foreground">Genera automaticamente trascrizione e riassunto al termine della conversazione</p>
-          </div>
-          <Switch checked={transcriptionEnabled} onCheckedChange={setTranscriptionEnabled} />
-        </div>
 
         <div className="space-y-2">
           <Label>Fuso orario</Label>

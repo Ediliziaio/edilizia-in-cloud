@@ -7,7 +7,8 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { GitBranch, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { GitBranch, MoreHorizontal, Plus, Trash2, Construction } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface Branch {
   id: string;
@@ -46,6 +47,13 @@ export function AgentBranchTab() {
 
   return (
     <div className="space-y-4">
+      <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+        <Construction className="h-4 w-4 text-amber-600" />
+        <AlertTitle className="text-amber-700 dark:text-amber-400">Funzionalità in sviluppo</AlertTitle>
+        <AlertDescription className="text-amber-600 dark:text-amber-500">
+          La gestione dei branch sarà disponibile in una prossima versione. Le modifiche effettuate qui non vengono salvate.
+        </AlertDescription>
+      </Alert>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <GitBranch className="h-5 w-5 text-muted-foreground" />

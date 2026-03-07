@@ -5,8 +5,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
   Play, Plus, ZoomIn, ZoomOut, Maximize2, MessageSquare,
-  UserPlus, CalendarPlus, Bell, PhoneOff,
+  UserPlus, CalendarPlus, Bell, PhoneOff, Construction,
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface WorkflowNode {
   id: string;
@@ -42,6 +43,14 @@ export function WorkflowCanvas() {
   };
 
   return (
+    <div className="space-y-4">
+      <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+        <Construction className="h-4 w-4 text-amber-600" />
+        <AlertTitle className="text-amber-700 dark:text-amber-400">Funzionalità in sviluppo</AlertTitle>
+        <AlertDescription className="text-amber-600 dark:text-amber-500">
+          Il workflow visuale sarà disponibile in una prossima versione. Le modifiche effettuate qui non vengono salvate.
+        </AlertDescription>
+      </Alert>
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
       {/* Canvas */}
       <div className="space-y-3">
@@ -106,6 +115,7 @@ export function WorkflowCanvas() {
           ))}
         </div>
       </div>
+    </div>
     </div>
   );
 }
