@@ -400,6 +400,10 @@ export default function PlatformSettingsPage() {
         </CardContent>
       </Card>
 
+
+      {/* Email Provider & Pricing */}
+      <EmailProviderSettings />
+
       {/* Default config */}
       <Card>
         <CardHeader>
