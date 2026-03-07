@@ -38,6 +38,7 @@ import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/use
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
+import { ContactAIConversations } from "@/modules/ai-agents/components/ContactAIConversations";
 
 // ── Contact Appointments Panel ──
 function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars, users }: {
@@ -1055,6 +1056,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   companyId={companyId}
                   compact
                 />
+              )}
+
+              {/* AI Conversations panel */}
+              {rightTab === "ai_conversations" && id && (
+                <ContactAIConversations contactId={id} />
               )}
 
               {/* Activities panel - LinkedTasks */}
