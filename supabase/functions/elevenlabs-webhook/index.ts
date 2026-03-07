@@ -56,7 +56,17 @@ Deno.serve(async (req) => {
       tool_calls = [],
       transcript = [],
       metadata = {},
+      summary: payloadSummary,
     } = body;
+
+    // Generate summary from transcript if not provided
+    const summaryText = payloadSummary
+      || (() => {
+          const agentMsgs = (transcript as { role?: string; message?: string }[])
+            .filter((m) => m.role === "agent" && m.message);
+          const last = agentMsgs[agentMsgs.length - 1];
+          return last ? last.message!.slice(0, 150) : null;
+        })();
 
     if (!elevenlabsAgentId || !conversationId) {
       return json({ error: "Missing agent_id or conversation_id" }, 400);
@@ -171,6 +181,9 @@ Deno.serve(async (req) => {
         duration_seconds: durationSeconds,
         messages_count: messagesCount,
         status,
+        summary: summaryText,
+        transcript: transcript.length > 0 ? transcript : null,
+        metadata: Object.keys(metadata).length > 0 ? metadata : {},
       })
       .select("id")
       .single();
