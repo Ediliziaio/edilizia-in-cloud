@@ -87,7 +87,7 @@ export default function AgentCreditsPage() {
     try {
       const { data, error } = await supabase.functions.invoke("topup-credits", {
         body: {
-          companyId: credits?.company_id,
+          companyId: credits?.company_id || fallbackCompanyId,
           amountEur: topupAmount,
           paymentMethod: "manual_admin",
         },
