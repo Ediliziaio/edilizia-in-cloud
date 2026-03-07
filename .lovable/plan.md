@@ -1,67 +1,66 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+# Piano: Modello di Billing Email per Azienda (stile AI Agents)
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+## Concetto
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+Stesso pattern dei crediti AI: tu (super admin) paghi SendGrid/Sendinblue, le aziende ti pagano un costo per email inviata con il tuo markup. Le API key vengono gestite a livello `platform_settings` (super admin), non dall'azienda.
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+## Cosa serve
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+### 1. Database — Nuova tabella `email_pricing` + `email_credits`
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+**`email_credits`** (wallet per azienda, come `ai_credits`):
+- `company_id` (FK → companies, UNIQUE)
+- `balance_eur` (saldo corrente)
+- `total_spent_eur` (totale speso)
+- `calls_blocked` (boolean — blocca invii se saldo insufficiente)
+- `auto_recharge_enabled`, `auto_recharge_threshold`, `auto_recharge_amount`
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+**`email_pricing`** (configurazione super admin, come `platform_pricing`):
+- `provider` (sendgrid, sendinblue, resend, etc.)
+- `cost_real_per_email` (quanto paghi tu)
+- `cost_billed_per_email` (quanto pagano le aziende)
+- `markup_multiplier`
+- `is_active`
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+**Funzione SQL `deduct_email_credits`** (atomica con `FOR UPDATE`, come `deduct_ai_credits`)
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+### 2. Edge Function `send-test-email` — Aggiornamento
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+- Legge la API key del provider da `platform_settings` (chiave `email_provider_api_key`)
+- Legge il provider attivo da `platform_settings` (chiave `email_provider` = "sendgrid" | "sendinblue" | "resend")
+- Deduce il costo dal wallet aziendale tramite `deduct_email_credits`
+- Supporta SendGrid API (`api.sendgrid.com/v3/mail/send`)
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+### 3. Super Admin — Impostazioni Email Provider
 
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
+Nella `PlatformSettingsPage.tsx` (già esistente per ElevenLabs), aggiungere una sezione:
+- Select provider (SendGrid / Sendinblue / Resend)
+- Campo API Key (salvata in `platform_settings`)
+- Tabella pricing con costo reale, markup, costo azienda (come la tabella pricing AI)
 
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+### 4. Dashboard Azienda — Widget Crediti Email
 
-## Da fare (prossimi step)
+Nel modulo marketing, card simile a quella AI credits:
+- Saldo email rimanente
+- Storico invii
+- Ricarica crediti
 
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
+### 5. Chiave API
 
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
+La chiave SendGrid/altro provider va salvata in `platform_settings` (tabella DB), NON come secret di ambiente. Questo è già il pattern usato per ElevenLabs e Meta. Il super admin la inserisce dalla UI delle impostazioni piattaforma.
+
+## File da modificare/creare
+
+| File | Azione |
+|------|--------|
+| SQL Migration | Creare `email_credits`, `email_pricing`, `deduct_email_credits()` |
+| `supabase/functions/send-test-email/index.ts` | Aggiornare per leggere provider da `platform_settings` e detrarre crediti |
+| `src/modules/ai-agents/pages/PlatformSettingsPage.tsx` | Aggiungere sezione Email Provider + Pricing |
+| `src/pages/azienda/marketing/MarketingAiAgent.tsx` o nuovo componente | Widget crediti email |
+
+## Nota importante
+
+Questo è un sistema complesso. Propongo di implementare **prima l'infrastruttura** (DB + edge function + UI super admin) e **poi** il widget lato azienda, in modo da poter testare step by step.
+
