@@ -251,7 +251,7 @@ export default function PlatformSettingsPage() {
                 <p className="text-xl font-extrabold">{formatEur(previewBilled, 4)}/min</p>
               </div>
             </div>
-            <p className="text-xs text-emerald-600 font-mono mt-2">
+            <p className="text-xs text-primary font-mono mt-2">
               Margine piattaforma: {previewMarginPct}% · {formatEur(previewBilled - previewReal, 4)} su ogni {formatEur(previewBilled, 4)}
             </p>
             <Button size="sm" className="mt-3" onClick={applyGlobalMarkup}>
@@ -313,7 +313,7 @@ export default function PlatformSettingsPage() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[10px]">
+                          <Badge variant="secondary" className="text-[10px]">
                             {marginPct}%
                           </Badge>
                         </TableCell>
