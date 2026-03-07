@@ -1,30 +1,67 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-# FIX 1: MarketingAiAgent — Enhance with Agent List + Recent Conversations
+## Completato — Blocco A, B, C ✅
 
-## Current State
-The page is NOT empty — it already has stat cards (agents count, credit balance, knowledge base), a blocked-calls banner, and quick action buttons. The user's request claims it's empty, which is incorrect. However, it IS missing:
-- A list of agents with direct edit links
-- A "recent conversations" section
-- A "Gestisci tutti gli agenti" button
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-## What to Change
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
-**File**: `src/pages/azienda/marketing/MarketingAiAgent.tsx`
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-Keep existing functionality (stats cards, blocked banner, quick actions) and ADD:
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-1. **Agent list section** — Use existing `useAgents()` hook data (already loaded) to show active agents in a card list with name, status badge, and "Configura" button linking to `/azienda/marketing/agente-ai/{id}`
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
-2. **Recent conversations query** — Add a `useQuery` fetching last 5 rows from `ai_agent_conversations` (columns: `id, agent_id, duration_seconds, status, started_at`). Join agent names from the already-loaded agents data. Note: the table has NO `summary` or `created_at` column — use `started_at` instead.
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-3. **"Gestisci tutti gli agenti" button** — Add in the header next to the title, navigating to `/azienda/marketing/agente-ai`
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-4. **Conversations section** — Show last 5 conversations with agent name, duration formatted as mm:ss, status badge, and relative date
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-## Adaptation Notes
-The user-provided code references `agent_type`, `is_active`, `summary`, `balance` fields that don't exist in the actual schema. The implementation will use the real schema: `status` (not `is_active`), `started_at` (not `created_at`), `balance_eur` (not `balance`), and no `summary` field.
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
-## No Database Changes Required
-All tables and RLS policies already exist.
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
 
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
+
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
+
+## Da fare (prossimi step)
+
+### Priorità 3: Integrazioni rimanenti
+- Test runner reale con chiamata ElevenLabs (attualmente simulato)
+- Decremento crediti automatico via webhook (già funzionante)
+- Sync bidirezionale KB (upload file)
+
+### Priorità 4: Raffinamenti
+- `/docs/ai-agents-module.md` documentazione completa
+- Branch tab con logica reale
+- Workflow canvas con persistenza nodi
