@@ -49,8 +49,17 @@ export async function decrementCredits(companyId: string, minutesUsed: number) {
   if (error) throw error;
 }
 
+interface ConversationRow {
+  id: string;
+  agent_id: string;
+  duration_seconds: number;
+  messages_count: number;
+  status: string;
+  started_at: string;
+}
+
 /** Get conversations linked to a specific contact */
-export async function getConversationsForContact(contactId: string) {
+export async function getConversationsForContact(contactId: string): Promise<ConversationRow[]> {
   const { data, error } = await supabase
     .from("ai_agent_conversations" as never)
     .select("*")

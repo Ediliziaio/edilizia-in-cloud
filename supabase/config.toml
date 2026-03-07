@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.elevenlabs-proxy]
 verify_jwt = false
+
+[functions.elevenlabs-webhook]
+verify_jwt = false

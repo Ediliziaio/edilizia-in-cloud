@@ -35,11 +35,21 @@ export function useAppointments(companyId: string | undefined) {
   });
 }
 
+interface ConversationRecord {
+  id: string;
+  agent_id: string;
+  company_id: string;
+  duration_seconds: number;
+  messages_count: number;
+  status: string;
+  started_at: string;
+}
+
 export function useConversationsForContact(contactId: string | undefined) {
   return useQuery({
     queryKey: ["ai-conversations-contact", contactId],
     enabled: !!contactId,
-    queryFn: async () => {
+    queryFn: async (): Promise<ConversationRecord[]> => {
       const { data, error } = await supabase
         .from("ai_agent_conversations" as never)
         .select("*")
