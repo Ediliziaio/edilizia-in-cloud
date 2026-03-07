@@ -28,13 +28,12 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: claimsErr } = await userClient.auth.getClaims(token);
-    if (claimsErr || !claims?.claims) {
+    const { data: { user }, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !user) {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    const userId = claims.claims.sub as string;
+    const userId = user.id;
 
     // Get user's company_id
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
