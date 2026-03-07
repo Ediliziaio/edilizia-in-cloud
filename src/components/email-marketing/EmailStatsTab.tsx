@@ -9,7 +9,6 @@ import { EmailTopCampaignsTable } from "./EmailTopCampaignsTable";
 import { CampaignCreateDropdown } from "./CampaignCreateDropdown";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format } from "date-fns";
 
 export function EmailStatsTab() {
   const { effectiveCompany: company } = useAuth();
@@ -17,13 +16,21 @@ export function EmailStatsTab() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  const rpcParams = useMemo(() => ({
+    p_company_id: company?.id ?? "",
+    p_campaign_id: campaignFilter !== "all" ? campaignFilter : null,
+    p_date_from: dateFrom ? new Date(dateFrom).toISOString() : null,
+    p_date_to: dateTo ? new Date(dateTo + "T23:59:59").toISOString() : null,
+  }), [company?.id, campaignFilter, dateFrom, dateTo]);
+
+  // Campaign list for filter dropdown
   const { data: campaigns = [] } = useQuery({
     queryKey: ["email-campaigns", company?.id],
     enabled: !!company?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_campaigns")
-        .select("*")
+        .select("id, name")
         .eq("company_id", company!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -31,120 +38,119 @@ export function EmailStatsTab() {
     },
   });
 
-  const { data: logs = [] } = useQuery({
-    queryKey: ["email-logs-stats", company?.id, campaignFilter, dateFrom, dateTo],
+  // 1) Summary stats via RPC
+  const { data: statsRaw } = useQuery({
+    queryKey: ["email-stats-summary", rpcParams],
     enabled: !!company?.id,
     queryFn: async () => {
-      let q = supabase
-        .from("email_logs")
-        .select("status, campaign_id, event_timestamp")
-        .eq("company_id", company!.id);
-      if (campaignFilter !== "all") q = q.eq("campaign_id", campaignFilter);
-      if (dateFrom) q = q.gte("event_timestamp", new Date(dateFrom).toISOString());
-      if (dateTo) q = q.lte("event_timestamp", new Date(dateTo + "T23:59:59").toISOString());
-      const { data, error } = await q;
+      const { data, error } = await supabase.rpc("get_email_stats_summary", rpcParams as any);
+      if (error) throw error;
+      return data?.[0] ?? null;
+    },
+  });
+
+  const stats = {
+    sent: Number(statsRaw?.total ?? 0),
+    delivered: Number(statsRaw?.delivered ?? 0),
+    opened: Number(statsRaw?.opened ?? 0),
+    clicked: Number(statsRaw?.clicked ?? 0),
+    bounced: Number(statsRaw?.bounced ?? 0),
+    unsubscribed: Number(statsRaw?.unsubscribed ?? 0),
+    spam: Number(statsRaw?.spam ?? 0),
+  };
+
+  const funnel = { ...stats, converted: 0 };
+
+  // 2) Per-campaign stats via RPC
+  const { data: campaignPerf = [] } = useQuery({
+    queryKey: ["email-stats-by-campaign", rpcParams],
+    enabled: !!company?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_email_stats_by_campaign", rpcParams as any);
+      if (error) throw error;
+      return (data || []).map((r: any) => ({
+        id: r.campaign_id,
+        name: r.campaign_name,
+        sent_at: r.sent_at,
+        delivered: Number(r.delivered),
+        opened: Number(r.opened),
+        clicked: Number(r.clicked),
+        type: r.campaign_type,
+      }));
+    },
+  });
+
+  // 3) Daily stats by type via RPC
+  const { data: dailyRaw = [] } = useQuery({
+    queryKey: ["email-stats-by-date", rpcParams],
+    enabled: !!company?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_email_stats_by_date", rpcParams as any);
       if (error) throw error;
       return data || [];
     },
   });
 
-  const count = (s: string) => logs.filter((l: any) => l.status === s).length;
-  const stats = {
-    sent: logs.length,
-    delivered: count("delivered") + count("opened") + count("clicked"),
-    opened: count("opened") + count("clicked"),
-    clicked: count("clicked"),
-    bounced: count("bounced"),
-    unsubscribed: count("unsubscribed"),
-    spam: count("spam"),
-  };
-
-  const funnel = { ...stats, converted: 0 };
-
-  // Build campaign performance data for table
-  const campaignPerf = campaigns
-    .filter((c: any) => c.sent_at)
-    .map((c: any) => {
-      const cLogs = logs.filter((l: any) => l.campaign_id === c.id);
-      const cCount = (s: string) => cLogs.filter((l: any) => l.status === s).length;
-      const delivered = cCount("delivered") + cCount("opened") + cCount("clicked");
-      return {
-        id: c.id,
-        name: c.name,
-        sent_at: c.sent_at,
-        delivered,
-        opened: cCount("opened") + cCount("clicked"),
-        clicked: cCount("clicked"),
-        type: c.type,
-      };
-    });
-
-  // Build chart datasets for all 3 metrics
+  // Build chart datasets from daily aggregated data
   const chartDatasets = useMemo(() => {
-    if (logs.length === 0) return { open_rate: [], click_rate: [], delivery_rate: [] };
+    if (dailyRaw.length === 0) return { open_rate: [], click_rate: [], delivery_rate: [] };
 
-    const campaignTypeMap = new Map<string, string>();
-    campaigns.forEach((c: any) => campaignTypeMap.set(c.id, c.type));
-
+    // Group by date_label, aggregate types
     const byDate = new Map<string, {
-      total: number;
-      delivered: number;
-      opened: number;
-      clicked: number;
+      total: number; delivered: number; opened: number; clicked: number;
       byType: Record<string, { delivered: number; opened: number; clicked: number }>;
     }>();
 
-    logs.forEach((l: any) => {
-      const date = format(new Date(l.event_timestamp), "dd/MM");
+    (dailyRaw as any[]).forEach((r) => {
+      const date = r.date_label;
       if (!byDate.has(date)) {
         byDate.set(date, {
           total: 0, delivered: 0, opened: 0, clicked: 0,
-          byType: { broadcast: { delivered: 0, opened: 0, clicked: 0 }, automation: { delivered: 0, opened: 0, clicked: 0 }, bulk: { delivered: 0, opened: 0, clicked: 0 } },
+          byType: {
+            broadcast: { delivered: 0, opened: 0, clicked: 0 },
+            automation: { delivered: 0, opened: 0, clicked: 0 },
+            bulk: { delivered: 0, opened: 0, clicked: 0 },
+          },
         });
       }
       const entry = byDate.get(date)!;
-      entry.total++;
-
-      const cType = campaignTypeMap.get(l.campaign_id) || "broadcast";
-      const isDelivered = l.status === "delivered" || l.status === "opened" || l.status === "clicked";
-      const isOpened = l.status === "opened" || l.status === "clicked";
-      const isClicked = l.status === "clicked";
-
-      if (isDelivered) { entry.delivered++; entry.byType[cType] && entry.byType[cType].delivered++; }
-      if (isOpened) { entry.opened++; entry.byType[cType] && entry.byType[cType].opened++; }
-      if (isClicked) { entry.clicked++; entry.byType[cType] && entry.byType[cType].clicked++; }
+      const t = Number(r.total);
+      entry.total += t;
+      entry.delivered += Number(r.delivered);
+      entry.opened += Number(r.opened);
+      entry.clicked += Number(r.clicked);
+      const cType = r.campaign_type || "broadcast";
+      if (entry.byType[cType]) {
+        entry.byType[cType].delivered += Number(r.delivered);
+        entry.byType[cType].opened += Number(r.opened);
+        entry.byType[cType].clicked += Number(r.clicked);
+      }
     });
 
     const pct = (n: number, d: number) => d > 0 ? Math.round((n / d) * 100) : 0;
-
     const entries = Array.from(byDate.entries());
 
     const open_rate = entries.map(([date, v]) => ({
-      date,
-      all: pct(v.opened, v.total),
+      date, all: pct(v.opened, v.total),
       broadcast: pct(v.byType.broadcast.opened, v.total),
       automation: pct(v.byType.automation.opened, v.total),
       bulk: pct(v.byType.bulk.opened, v.total),
     }));
-
     const click_rate = entries.map(([date, v]) => ({
-      date,
-      all: pct(v.clicked, v.total),
+      date, all: pct(v.clicked, v.total),
       broadcast: pct(v.byType.broadcast.clicked, v.total),
       automation: pct(v.byType.automation.clicked, v.total),
       bulk: pct(v.byType.bulk.clicked, v.total),
     }));
-
     const delivery_rate = entries.map(([date, v]) => ({
-      date,
-      all: pct(v.delivered, v.total),
+      date, all: pct(v.delivered, v.total),
       broadcast: pct(v.byType.broadcast.delivered, v.total),
       automation: pct(v.byType.automation.delivered, v.total),
       bulk: pct(v.byType.bulk.delivered, v.total),
     }));
 
     return { open_rate, click_rate, delivery_rate };
-  }, [logs, campaigns]);
+  }, [dailyRaw]);
 
   return (
     <div className="space-y-6">
