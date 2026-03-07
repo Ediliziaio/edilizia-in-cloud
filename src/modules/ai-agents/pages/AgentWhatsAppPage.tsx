@@ -4,8 +4,8 @@ import { Badge } from "@/components/ui/badge";
 export default function AgentWhatsAppPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
-      <div className="h-16 w-16 rounded-2xl bg-green-500/10 flex items-center justify-center">
-        <MessageCircle className="h-8 w-8 text-green-500" />
+      <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+        <MessageCircle className="h-8 w-8 text-primary" />
       </div>
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-bold">WhatsApp</h1>

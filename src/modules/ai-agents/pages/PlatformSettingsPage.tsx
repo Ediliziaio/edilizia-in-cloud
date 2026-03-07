@@ -74,7 +74,7 @@ export default function PlatformSettingsPage() {
               </Button>
             </div>
             {testStatus === "success" && (
-              <p className="text-sm text-green-600 flex items-center gap-1">
+              <p className="text-sm text-primary flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Connessione riuscita
               </p>
             )}

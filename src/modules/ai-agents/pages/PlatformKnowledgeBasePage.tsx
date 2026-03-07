@@ -157,9 +157,9 @@ export default function PlatformKnowledgeBasePage() {
 
   const typeIcon = (type: string) => {
     switch (type) {
-      case "url": return <Globe className="h-4 w-4 text-blue-500" />;
-      case "file": return <FileText className="h-4 w-4 text-orange-500" />;
-      case "text": return <Type className="h-4 w-4 text-green-500" />;
+      case "url": return <Globe className="h-4 w-4 text-primary" />;
+      case "file": return <FileText className="h-4 w-4 text-accent-foreground" />;
+      case "text": return <Type className="h-4 w-4 text-secondary-foreground" />;
       default: return <FileText className="h-4 w-4" />;
     }
   };
