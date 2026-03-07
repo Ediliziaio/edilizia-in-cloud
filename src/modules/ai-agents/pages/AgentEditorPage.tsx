@@ -5,15 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { ArrowLeft, Bot, Construction } from "lucide-react";
+import { ArrowLeft, Bot, Construction, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {

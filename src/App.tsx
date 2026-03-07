@@ -89,7 +89,7 @@ const MarketingOpportunities = lazy(() => import("@/pages/azienda/marketing/Mark
 const MarketingCalendar = lazy(() => import("@/pages/azienda/marketing/MarketingCalendar"));
 const MarketingAutomations = lazy(() => import("@/pages/azienda/marketing/MarketingAutomations"));
 const MarketingAutomationBuilder = lazy(() => import("@/pages/azienda/marketing/MarketingAutomationBuilder"));
-const MarketingAiAgent = lazy(() => import("@/pages/azienda/marketing/MarketingAiAgent"));
+const AIAgentsModule = lazy(() => import("@/modules/ai-agents"));
 const MarketingContactDetail = lazy(() => import("@/pages/azienda/marketing/MarketingContactDetail"));
 const MarketingTasks = lazy(() => import("@/pages/azienda/marketing/MarketingTasks"));
 const EmailMarketing = lazy(() => import("@/pages/azienda/marketing/EmailMarketing"));
@@ -252,7 +252,7 @@ const App = () => (
                 <Route path="marketing/attivita" element={<MarketingTasks />} />
                 <Route path="marketing/calendario" element={<MarketingCalendar />} />
                 <Route path="marketing/automazioni" element={<MarketingAutomations />} />
-                <Route path="marketing/agente-ai" element={<MarketingAiAgent />} />
+                <Route path="marketing/agente-ai/*" element={<AIAgentsModule />} />
                 <Route path="marketing/email" element={<EmailMarketing />} />
                 <Route path="marketing/email/campagna/:id/editor" element={<CampaignEditor />} />
                 <Route path="marketing/email/campagna/:id/builder" element={<DragDropEmailBuilder />} />
