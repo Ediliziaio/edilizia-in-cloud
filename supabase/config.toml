@@ -95,3 +95,9 @@ verify_jwt = false
 
 [functions.elevenlabs-webhook]
 verify_jwt = false
+
+[functions.check-credits-before-call]
+verify_jwt = false
+
+[functions.topup-credits]
+verify_jwt = false

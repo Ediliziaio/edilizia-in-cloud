@@ -21,6 +21,7 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState as useReactState } from "react";
 
 const TOPUP_OPTIONS = [
   { amount: 10, label: "€10" },
