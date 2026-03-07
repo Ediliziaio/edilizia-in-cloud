@@ -21,6 +21,7 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState as useReactState } from "react";
 
 const TOPUP_OPTIONS = [
   { amount: 10, label: "€10" },
@@ -40,6 +41,16 @@ export default function AgentCreditsPage() {
   const [customAmount, setCustomAmount] = useState("");
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isTopupLoading, setIsTopupLoading] = useState(false);
+  const [fallbackCompanyId, setFallbackCompanyId] = useReactState<string | null>(null);
+
+  // Fetch company_id from profile as fallback when credits wallet doesn't exist yet
+  useEffect(() => {
+    if (!credits?.company_id) {
+      supabase.from("profiles").select("company_id").limit(1).maybeSingle().then(({ data }) => {
+        if (data?.company_id) setFallbackCompanyId(data.company_id as string);
+      });
+    }
+  }, [credits?.company_id]);
 
   const balance = credits?.balance_eur ?? 0;
   const spent = credits?.total_spent_eur ?? 0;
@@ -76,7 +87,7 @@ export default function AgentCreditsPage() {
     try {
       const { data, error } = await supabase.functions.invoke("topup-credits", {
         body: {
-          companyId: credits?.company_id,
+          companyId: credits?.company_id || fallbackCompanyId,
           amountEur: topupAmount,
           paymentMethod: "manual_admin",
         },

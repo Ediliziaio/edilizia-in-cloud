@@ -1,70 +1,38 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-# Verifica Modulo AI Agents — Problemi Trovati e Fix
+## Completato in questo step
 
-## Stato attuale
+### Priorità 1 ✅
+1. ✅ **Migration SQL**: Tabella `ai_agent_phone_numbers` + colonne `cost_per_minute_platform`/`cost_per_minute_billed` su `ai_agent_credits`
+2. ✅ **Sidebar sottovoci**: Aggiunte voci "Agenti AI", "KB Globale", "Crediti AI" nella sidebar marketing
+3. ✅ **VoiceSelector potenziato**: Filtri genere, search, pannello laterale con slider stabilità/velocità/somiglianza, famiglia TTS, toggle modalità espressiva
+4. ✅ **LLMSelector potenziato**: Collapsible con temperatura slider, backup LLM, limite token, budget riflessione
+5. ✅ **AgentTab completamento**: Toggle personalità predefinita, fuso orario, trascrizione post-chiamata
+6. ✅ **Edge function auth fix**: Sostituito `getClaims()` con `getUser()`
 
-Il modulo è ben strutturato con: 10 tabelle DB corrette (`ai_agents`, `ai_credits`, `ai_credit_topups`, `ai_credit_usage`, `platform_pricing`, etc.), 8 pricing rows seeded, RLS policies su tutte le tabelle crediti, 3 edge functions (`elevenlabs-proxy`, `elevenlabs-webhook`, `check-credits-before-call`, `topup-credits`), e UI crediti pay-per-use funzionante.
+### Priorità 2 ✅
+7. ✅ **Tab Branch**: Tabella branch con divisione traffico + crea/elimina
+8. ✅ **Tab Test**: Area test con esecuzioni precedenti
+9. ✅ **Tab Workflow**: Canvas con nodi drag + toolbar zoom + nodi EdiliziaInCloud
+10. ✅ **Tab Strumenti**: Strumenti sistema con toggle + strumenti nativi EdiliziaInCloud
+11. ✅ **AgentAnalyticsTab potenziato**: Tabella conversazioni filtrabili con riga espandibile
 
-## Problemi da correggere
+### Componenti e tipi ✅
+12. ✅ `knowledgeBase.types.ts` + `phoneNumber.types.ts`
+13. ✅ `CreditUsageBar.tsx` + `AnalyticsTable.tsx` + `ConversationPlayer.tsx` + `WorkflowCanvas.tsx`
+14. ✅ `useAgentCredits.ts` hook
+15. ✅ `lib/creditCalculator.ts` + `lib/ediliziaSync.ts`
 
-### 1. config.toml — Mancano le nuove Edge Functions
-Le funzioni `check-credits-before-call` e `topup-credits` **non sono registrate** in `supabase/config.toml`. Senza `verify_jwt = false`, le chiamate falliranno con errore JWT.
+## Da fare (prossimi step)
 
-**Fix**: Aggiungere le entry nel config.toml.
+### Priorità 3: Integrazioni
+- `elevenlabs-webhook` edge function
+- PlatformSettingsPage con salvataggio reale su DB
+- Decremento crediti automatico via webhook
+- Visualizzazione conversazioni nella scheda Lead CRM
 
-### 2. Console Warning — CreditUsageBar ref
-La console mostra un warning: "Function components cannot be given refs" per `CreditUsageBar`. Il componente `Progress` di shadcn passa un ref, ma `CreditUsageBar` non lo forwarda.
-
-**Fix**: Non critico, ma si risolve aggiungendo `React.forwardRef` oppure semplicemente ignorabile.
-
-### 3. Tabella `ai_agent_credits` legacy ancora presente
-La vecchia tabella con `total_minutes_purchased` esiste ancora. Non causa problemi funzionali perché il codice usa `ai_credits`, ma genera confusione.
-
-**Fix**: Nessuna azione richiesta — è backward compat. La nuova logica usa correttamente `ai_credits`.
-
-### 4. `AgentAnalyticsPage.tsx` non esiste come file separato
-Il prompt specifica `AgentAnalyticsPage.tsx` ma l'analytics è integrato come tab nell'`AgentEditorPage` tramite `AgentAnalyticsTab`. Questo è corretto — la analytics è per-agente, non globale.
-
-**Fix**: Nessuna azione richiesta — l'architettura scelta è corretta.
-
-### 5. `useEdiliziaIntegration.ts` — Verificare collegamento
-Devo confermare che l'hook di integrazione CRM/calendario sia collegato.
-
----
-
-## Piano Fix (3 modifiche)
-
-### Fix 1: config.toml — Registrare le nuove edge functions
-Aggiungere:
-```toml
-[functions.check-credits-before-call]
-verify_jwt = false
-
-[functions.topup-credits]
-verify_jwt = false
-```
-
-### Fix 2: AgentCreditsPage — Gestire caso `credits` null nel topup
-Attualmente `handleTopup` invia `credits?.company_id` che potrebbe essere `undefined` se `credits` è null. Bisogna recuperare `company_id` dal profilo utente come fallback.
-
-### Fix 3: (opzionale) CreditUsageBar ref warning
-Il warning è cosmetico. Se si vuole risolverlo, basta non passare ref al componente — nessun impatto funzionale.
-
----
-
-## Verifiche positive (tutto OK)
-
-- DB schema: tutte le tabelle e colonne corrette ✅
-- `tts_model` aggiunto ad `ai_agents` ✅
-- `platform_pricing` con 8 rows seed ✅
-- `monthly_billing_summary` view creata ✅
-- RLS policies su tutte e 4 le tabelle crediti ✅
-- `init_company_credits()` trigger per auto-creare wallet ✅
-- Edge functions `elevenlabs-proxy`, `elevenlabs-webhook` registrate ✅
-- Webhook con logica crediti Euro completa ✅
-- `topup-credits` con auto-sblocco se `balance_zero` ✅
-- `check-credits-before-call` con verifica pricing per agent ✅
-- UI crediti con saldo, barra, stima conversazioni, topup manuale ✅
-- PlatformSettingsPage con pricing table inline editing ✅
-
+### Priorità 4: Raffinamenti
+- Sicurezza tab (whitelist domini, rate limiting)
+- Avanzato tab (timeout, max durata)
+- `/docs/ai-agents-module.md`
