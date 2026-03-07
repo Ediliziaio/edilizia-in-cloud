@@ -334,6 +334,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const [newNote, setNewNote] = useState("");
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState("");
+  const [messageText, setMessageText] = useState("");
+  const [messageChannel, setMessageChannel] = useState<"whatsapp" | "email" | "sms">("whatsapp");
+  const [emailSubject, setEmailSubject] = useState("");
 
   // ── Fetch calendars for appointment dialog ──
   const { data: calendarsList = [] } = useQuery({
