@@ -1,6 +1,9 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useAgent, useUpdateAgent } from "../hooks/useAgents";
 import { AgentTab } from "../components/AgentTab";
+import { AgentKBTab } from "../components/AgentKBTab";
+import { AgentWidgetTab } from "../components/AgentWidgetTab";
+import { AgentAnalyticsTab } from "../components/AgentAnalyticsTab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
