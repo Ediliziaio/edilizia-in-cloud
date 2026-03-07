@@ -546,7 +546,44 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     enabled: !!id,
   });
 
-  // ── Update contact field ──
+  // ── Fetch contact messages ──
+  const { data: contactMessages = [] } = useQuery({
+    queryKey: ["contact_messages", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data, error } = await supabase
+        .from("contact_messages")
+        .select("*")
+        .eq("contact_id", id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  // ── Send message mutation ──
+  const sendMessage = useMutation({
+    mutationFn: async (params: { channel: string; content: string; subject?: string }) => {
+      const { data, error } = await supabase.functions.invoke("send-contact-message", {
+        body: { contact_id: id, ...params },
+      });
+      if (error) throw error;
+      if (data?.success === false) throw new Error(data?.error || "Invio fallito");
+      return data;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["contact_messages", id] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
+      setMessageText("");
+      setEmailSubject("");
+      const channelLabel = vars.channel === "whatsapp" ? "WhatsApp" : vars.channel === "email" ? "Email" : "SMS";
+      toast.success(`Messaggio ${channelLabel} inviato`);
+    },
+    onError: (e: any) => toast.error(e.message || "Errore invio messaggio"),
+  });
+
+
   const updateField = useMutation({
     mutationFn: async ({ field, value }: { field: string; value: any }) => {
       const { error } = await supabase
