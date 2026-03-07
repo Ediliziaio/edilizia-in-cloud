@@ -474,16 +474,34 @@ function MarketingOpportunitiesContent() {
               </Badge>
             )}
           </Button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button variant="outline" size="sm" className="h-8 text-xs" disabled>
-                  <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Funzionalità in arrivo</TooltipContent>
-          </Tooltip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs">
+                <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {[
+                { field: "name" as const, dir: "asc" as const, label: "Nome (A-Z)" },
+                { field: "name" as const, dir: "desc" as const, label: "Nome (Z-A)" },
+                { field: "value" as const, dir: "desc" as const, label: "Valore (alto-basso)" },
+                { field: "value" as const, dir: "asc" as const, label: "Valore (basso-alto)" },
+                { field: "created_at" as const, dir: "desc" as const, label: "Data creazione ↓" },
+                { field: "created_at" as const, dir: "asc" as const, label: "Data creazione ↑" },
+                { field: "updated_at" as const, dir: "desc" as const, label: "Ultima modifica ↓" },
+                { field: "updated_at" as const, dir: "asc" as const, label: "Ultima modifica ↑" },
+              ].map((opt) => (
+                <DropdownMenuItem
+                  key={`${opt.field}-${opt.dir}`}
+                  onClick={() => { setSortField(opt.field); setSortDir(opt.dir); }}
+                  className="flex items-center justify-between"
+                >
+                  {opt.label}
+                  {sortField === opt.field && sortDir === opt.dir && <Check className="h-3.5 w-3.5 ml-2" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
