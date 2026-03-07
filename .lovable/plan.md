@@ -1,67 +1,67 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-# FIX 3: Email Campaign — Attach Files, Browser Preview, Test Send
+## Completato — Blocco A, B, C ✅
 
-## Current State
-Three buttons in `CampaignSendSettings.tsx` are placeholders showing `toast.info("Funzionalità in arrivo")`:
-- "Allega file" (line 205)
-- "Anteprima nel browser" (line 415)
-- "Invia email di test" (line 418)
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-## Implementation Plan
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
-### 1. File Attachments
-**In `CampaignSendSettings.tsx`:**
-- Add hidden `<input type="file" ref={fileInputRef} accept=".pdf,.png,.jpg,.xlsx" multiple>` 
-- Replace the "Allega file" toast button with one that triggers `fileInputRef.current?.click()`
-- Add state `attachedFiles: File[]` to track selected files
-- Show attached files as removable chips below the header
-- Create a storage bucket `campaign-attachments` via SQL migration
-- Add `useMutation` to upload files to `campaign-attachments/{campaignId}/` on save
-- Files are uploaded when the user clicks "Salva" (alongside other settings)
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-**SQL Migration:**
-```sql
-INSERT INTO storage.buckets (id, name, public) VALUES ('campaign-attachments', 'campaign-attachments', false);
-CREATE POLICY "Auth users can upload campaign attachments" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'campaign-attachments');
-CREATE POLICY "Auth users can read campaign attachments" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'campaign-attachments');
-CREATE POLICY "Auth users can delete campaign attachments" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'campaign-attachments');
-```
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-### 2. Browser Preview (Dialog)
-- Add a `Dialog` that opens when "Anteprima nel browser" is clicked
-- Inside: render the campaign's `html_content` (sanitized with DOMPurify) in a styled container
-- If no `html_content`, show `body_text` wrapped in a basic HTML template
-- Desktop + mobile toggle tabs in the dialog header
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
-### 3. Test Email Send
-- Add a `Dialog` with an email input field
-- On confirm, invoke edge function `send-test-email`
-- **BLOCKER: No `RESEND_API_KEY` secret exists.** The edge function needs it. I will:
-  1. Create the edge function `send-test-email/index.ts` with proper CORS headers and auth
-  2. Add `[functions.send-test-email] verify_jwt = false` to config.toml  
-  3. Request the user to add the `RESEND_API_KEY` secret before test sending works
-  4. The UI will show a clear error if the key is missing
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-**Edge function `send-test-email/index.ts`:**
-- CORS headers included
-- Auth via `getUser()` 
-- Fetches campaign by ID
-- Sends via Resend API using `RESEND_API_KEY` from env
-- Returns success/error JSON
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-### 4. New UI Components Added to `CampaignSendSettings.tsx`
-- `Dialog` import (from `@/components/ui/dialog`)
-- `useRef` for file input
-- 3 new state variables: `attachedFiles`, `previewOpen`, `testEmailOpen`, `testEmailAddress`
-- Removable chip list for attached files (with X button)
-- Preview Dialog with sanitized HTML render
-- Test Email Dialog with input + send button
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-### Files Changed
-| File | Action |
-|------|--------|
-| `src/pages/azienda/marketing/CampaignSendSettings.tsx` | Major edit — add all 3 features |
-| `supabase/functions/send-test-email/index.ts` | Create — edge function for test emails |
-| SQL migration | Create bucket `campaign-attachments` + RLS policies |
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
+
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
+
+## Da fare (prossimi step)
+
+### Priorità 3: Integrazioni rimanenti
+- Test runner reale con chiamata ElevenLabs (attualmente simulato)
+- Decremento crediti automatico via webhook (già funzionante)
+- Sync bidirezionale KB (upload file)
+
+### Priorità 4: Raffinamenti
+- `/docs/ai-agents-module.md` documentazione completa
+- Branch tab con logica reale
+- Workflow canvas con persistenza nodi

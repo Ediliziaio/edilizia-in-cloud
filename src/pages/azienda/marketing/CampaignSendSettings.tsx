@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import DOMPurify from "dompurify";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -28,6 +29,9 @@ import {
   CheckCircle2,
   Loader2,
   Users,
+  X,
+  Monitor,
+  Smartphone,
 } from "lucide-react";
 
 export default function CampaignSendSettings() {
@@ -35,6 +39,7 @@ export default function CampaignSendSettings() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { effectiveCompany: company } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [senderName, setSenderName] = useState("");
   const [senderEmail, setSenderEmail] = useState("");
@@ -52,6 +57,13 @@ export default function CampaignSendSettings() {
   const [additionalOpen, setAdditionalOpen] = useState(false);
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
 
+  // New state for 3 features
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
+  const [testEmailOpen, setTestEmailOpen] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState("");
+
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["campaign-send-settings", id],
     enabled: !!id,
@@ -66,7 +78,6 @@ export default function CampaignSendSettings() {
     },
   });
 
-  // Recipient count
   const { data: recipientCount = 0 } = useQuery({
     queryKey: ["recipient-count", company?.id],
     enabled: !!company?.id,
@@ -95,6 +106,18 @@ export default function CampaignSendSettings() {
     }
   }, [campaign]);
 
+  // Upload attached files to storage
+  const uploadFiles = async () => {
+    if (!attachedFiles.length || !id) return;
+    for (const file of attachedFiles) {
+      const path = `${id}/${Date.now()}_${file.name}`;
+      const { error } = await supabase.storage
+        .from("campaign-attachments")
+        .upload(path, file);
+      if (error) throw new Error(`Upload fallito: ${file.name}`);
+    }
+  };
+
   const saveMut = useMutation({
     mutationFn: async () => {
       const payload: Record<string, any> = {
@@ -114,9 +137,11 @@ export default function CampaignSendSettings() {
         .update(payload)
         .eq("id", id!);
       if (error) throw error;
+      await uploadFiles();
     },
     onSuccess: () => {
       toast.success("Impostazioni salvate");
+      setAttachedFiles([]);
       qc.invalidateQueries({ queryKey: ["email-campaigns"] });
     },
     onError: (e: any) => toast.error(e.message),
@@ -146,6 +171,7 @@ export default function CampaignSendSettings() {
         .update(payload)
         .eq("id", id!);
       if (error) throw error;
+      await uploadFiles();
     },
     onSuccess: () => {
       toast.success(sendMode === "scheduled" ? "Campagna programmata!" : "Campagna in invio!");
@@ -154,6 +180,34 @@ export default function CampaignSendSettings() {
     },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const testEmailMut = useMutation({
+    mutationFn: async () => {
+      if (!testEmailAddress) throw new Error("Inserisci un indirizzo email");
+      const { data, error } = await supabase.functions.invoke("send-test-email", {
+        body: { to: testEmailAddress, campaignId: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Email di test inviata!");
+      setTestEmailOpen(false);
+      setTestEmailAddress("");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setAttachedFiles((prev) => [...prev, ...files]);
+    e.target.value = "";
+  };
+
+  const removeFile = (index: number) => {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const requiredFields = [
     { label: "Email mittente", ok: !!senderEmail },
@@ -202,10 +256,42 @@ export default function CampaignSendSettings() {
                 <h1 className="text-xl font-semibold text-foreground">Invia o programma</h1>
                 <p className="text-sm text-muted-foreground">{campaign?.name}</p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => toast.info("Funzionalità in arrivo")}>
-                <Paperclip className="h-4 w-4 mr-1" /> Allega file
-              </Button>
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg,.xlsx"
+                  multiple
+                  className="hidden"
+                  onChange={handleFilesSelected}
+                />
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Paperclip className="h-4 w-4 mr-1" /> Allega file
+                </Button>
+              </div>
             </div>
+
+            {/* Attached files chips */}
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {attachedFiles.map((file, i) => (
+                  <span
+                    key={`${file.name}-${i}`}
+                    className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs text-foreground"
+                  >
+                    <Paperclip className="h-3 w-3" />
+                    {file.name}
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="ml-1 rounded-full hover:bg-destructive/20 p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Send mode tabs */}
             <Tabs value={sendMode} onValueChange={setSendMode}>
@@ -238,6 +324,7 @@ export default function CampaignSendSettings() {
                   placeholder="es. La tua azienda"
                   value={senderName}
                   onChange={(e) => setSenderName(e.target.value)}
+                  maxLength={50}
                 />
               </div>
               <div className="space-y-2">
@@ -286,6 +373,7 @@ export default function CampaignSendSettings() {
                 placeholder="L'oggetto della tua email..."
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
+                maxLength={200}
               />
             </div>
 
@@ -296,6 +384,7 @@ export default function CampaignSendSettings() {
                 value={previewText}
                 onChange={(e) => setPreviewText(e.target.value)}
                 rows={2}
+                maxLength={500}
               />
             </div>
 
@@ -412,10 +501,20 @@ export default function CampaignSendSettings() {
             {/* Quick actions */}
             <Card>
               <CardContent className="pt-4 space-y-2">
-                <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => toast.info("Funzionalità in arrivo")}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => setPreviewOpen(true)}
+                >
                   <Eye className="h-4 w-4 mr-2" /> Anteprima nel browser
                 </Button>
-                <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => toast.info("Funzionalità in arrivo")}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => setTestEmailOpen(true)}
+                >
                   <Mail className="h-4 w-4 mr-2" /> Invia email di test
                 </Button>
               </CardContent>
@@ -501,6 +600,12 @@ export default function CampaignSendSettings() {
                       <span className="font-medium text-foreground">{new Date(scheduledAt).toLocaleString("it-IT")}</span>
                     </div>
                   )}
+                  {attachedFiles.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Allegati:</span>
+                      <span className="font-medium text-foreground">{attachedFiles.length} file</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </AlertDialogDescription>
@@ -513,6 +618,97 @@ export default function CampaignSendSettings() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Browser preview dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Anteprima email</span>
+              <div className="flex gap-1">
+                <Button
+                  variant={previewDevice === "desktop" ? "default" : "outline"}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setPreviewDevice("desktop")}
+                >
+                  <Monitor className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={previewDevice === "mobile" ? "default" : "outline"}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setPreviewDevice("mobile")}
+                >
+                  <Smartphone className="h-4 w-4" />
+                </Button>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto flex justify-center bg-muted/50 rounded-md p-4">
+            <div
+              className="bg-background border rounded-md overflow-auto"
+              style={{
+                width: previewDevice === "mobile" ? "375px" : "100%",
+                maxWidth: "100%",
+                minHeight: "400px",
+              }}
+            >
+              {campaign?.html_content ? (
+                <div
+                  className="p-4"
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(campaign.html_content) }}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
+                  Nessun contenuto HTML disponibile
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Test email dialog */}
+      <Dialog open={testEmailOpen} onOpenChange={setTestEmailOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invia email di test</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Indirizzo email destinatario</Label>
+            <Input
+              type="email"
+              placeholder="test@esempio.com"
+              value={testEmailAddress}
+              onChange={(e) => setTestEmailAddress(e.target.value)}
+              maxLength={100}
+            />
+            <p className="text-xs text-muted-foreground">
+              L'email verrà inviata con oggetto prefissato [TEST]
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTestEmailOpen(false)}>
+              Annulla
+            </Button>
+            <Button
+              onClick={() => testEmailMut.mutate()}
+              disabled={testEmailMut.isPending || !testEmailAddress}
+            >
+              {testEmailMut.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Invio...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-1" /> Invia test
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
