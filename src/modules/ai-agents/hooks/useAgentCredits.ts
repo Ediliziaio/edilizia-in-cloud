@@ -62,6 +62,7 @@ export function useAgentCredits() {
       if (error) throw error;
       return data as unknown as AgentCredits | null;
     },
+    staleTime: 30_000,
   });
 }
 
@@ -99,10 +100,16 @@ export function useUsageByAgent() {
   return useQuery({
     queryKey: ["ai-credit-usage-by-agent"],
     queryFn: async () => {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
       const { data: usage, error } = await supabase
         .from("ai_credit_usage" as never)
         .select("agent_id, duration_min, cost_billed_total, llm_model, tts_model")
-        .order("created_at", { ascending: false });
+        .gte("created_at", startOfMonth.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1000);
       if (error) throw error;
 
       const { data: agents } = await supabase

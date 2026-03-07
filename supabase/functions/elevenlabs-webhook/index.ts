@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
       console.error("Error saving conversation:", convErr);
     }
 
-    // ============ CREDIT SYSTEM ============
+    // ============ CREDIT SYSTEM (ATOMIC) ============
     const durationMin = Math.max(0.0167, durationSeconds / 60);
     const ttsModel = agent.tts_model || "eleven_multilingual_v2";
 
@@ -169,33 +169,52 @@ Deno.serve(async (req) => {
     const costBilledTotal = Number((durationMin * costBilledPerMin).toFixed(4));
     const marginTotal = Number((costBilledTotal - costRealTotal).toFixed(4));
 
-    // Get current balance
-    const { data: credits } = await adminClient
-      .from("ai_credits")
-      .select("balance_eur, auto_recharge_enabled, auto_recharge_threshold, auto_recharge_amount, alert_threshold_eur, alert_email_sent_at")
-      .eq("company_id", companyId)
-      .maybeSingle();
+    // ATOMIC balance deduction — prevents race conditions with concurrent calls
+    const { data: updatedCredits, error: deductErr } = await adminClient.rpc(
+      "deduct_ai_credits" as never,
+      {
+        p_company_id: companyId,
+        p_cost: costBilledTotal,
+      }
+    );
 
-    const balanceBefore = credits?.balance_eur || 0;
-    const balanceAfter = Number((balanceBefore - costBilledTotal).toFixed(4));
+    let balanceBefore = 0;
+    let balanceAfter = 0;
 
-    // Deduct balance
-    if (credits) {
-      await adminClient
+    if (deductErr) {
+      console.error("Error deducting credits (falling back to manual):", deductErr);
+      // Fallback: read-then-write (less safe but functional)
+      const { data: credits } = await adminClient
         .from("ai_credits")
-        .update({
-          balance_eur: balanceAfter,
-          total_spent_eur: Number(((credits as Record<string, number>).total_spent_eur || 0) + costBilledTotal).toFixed(4),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("company_id", companyId);
+        .select("balance_eur, total_spent_eur")
+        .eq("company_id", companyId)
+        .maybeSingle();
+
+      balanceBefore = credits?.balance_eur ?? 0;
+      balanceAfter = Number((balanceBefore - costBilledTotal).toFixed(4));
+
+      if (credits) {
+        await adminClient
+          .from("ai_credits")
+          .update({
+            balance_eur: balanceAfter,
+            total_spent_eur: Number(((credits.total_spent_eur ?? 0) + costBilledTotal).toFixed(4)),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("company_id", companyId);
+      } else {
+        await adminClient.from("ai_credits").insert({
+          company_id: companyId,
+          balance_eur: -costBilledTotal,
+          total_spent_eur: costBilledTotal,
+        });
+        balanceAfter = -costBilledTotal;
+      }
     } else {
-      // Auto-create with negative balance
-      await adminClient.from("ai_credits").insert({
-        company_id: companyId,
-        balance_eur: balanceAfter,
-        total_spent_eur: costBilledTotal,
-      });
+      // Atomic succeeded — extract balance info
+      const result = updatedCredits as unknown as { balance_before: number; balance_after: number } | null;
+      balanceBefore = result?.balance_before ?? 0;
+      balanceAfter = result?.balance_after ?? 0;
     }
 
     // Record usage
@@ -229,39 +248,47 @@ Deno.serve(async (req) => {
 
       console.log(`[CREDITS] BLOCKED company ${companyId} — balance: €${balanceAfter}`);
 
-    } else if (credits?.auto_recharge_enabled && balanceAfter <= (credits?.auto_recharge_threshold || 5)) {
-      // Auto-recharge
-      const rechargeAmount = credits.auto_recharge_amount || 20;
-      const newBalance = Number((balanceAfter + rechargeAmount).toFixed(4));
-
-      await adminClient
+    } else {
+      // Read auto-recharge settings
+      const { data: creditSettings } = await adminClient
         .from("ai_credits")
-        .update({
-          balance_eur: newBalance,
-          total_recharged_eur: Number(((credits as Record<string, number>).total_recharged_eur || 0) + rechargeAmount).toFixed(4),
-        })
-        .eq("company_id", companyId);
+        .select("auto_recharge_enabled, auto_recharge_threshold, auto_recharge_amount, auto_recharge_method, alert_threshold_eur, total_recharged_eur")
+        .eq("company_id", companyId)
+        .maybeSingle();
 
-      await adminClient.from("ai_credit_topups").insert({
-        company_id: companyId,
-        amount_eur: rechargeAmount,
-        type: "auto",
-        status: "completed",
-        payment_method: (credits as Record<string, string>).auto_recharge_method || "card",
-        notes: `Ricarica automatica — saldo era €${balanceAfter.toFixed(2)}`,
-        processed_at: new Date().toISOString(),
-      });
+      if (creditSettings?.auto_recharge_enabled && balanceAfter <= (creditSettings.auto_recharge_threshold ?? 5)) {
+        // Auto-recharge
+        const rechargeAmount = creditSettings.auto_recharge_amount ?? 20;
+        const newBalance = Number((balanceAfter + rechargeAmount).toFixed(4));
 
-      console.log(`[CREDITS] Auto-recharge €${rechargeAmount} for company ${companyId} — new balance: €${newBalance}`);
+        await adminClient
+          .from("ai_credits")
+          .update({
+            balance_eur: newBalance,
+            total_recharged_eur: Number(((creditSettings.total_recharged_eur ?? 0) + rechargeAmount).toFixed(4)),
+          })
+          .eq("company_id", companyId);
 
-    } else if (balanceAfter <= (credits?.alert_threshold_eur || 5)) {
-      // Low balance alert
-      await adminClient
-        .from("ai_credits")
-        .update({ alert_email_sent_at: new Date().toISOString() })
-        .eq("company_id", companyId);
+        await adminClient.from("ai_credit_topups").insert({
+          company_id: companyId,
+          amount_eur: rechargeAmount,
+          type: "auto",
+          status: "completed",
+          payment_method: creditSettings.auto_recharge_method ?? "card",
+          notes: `Ricarica automatica — saldo era €${balanceAfter.toFixed(2)}`,
+          processed_at: new Date().toISOString(),
+        });
 
-      console.log(`[CREDITS] LOW balance alert for company ${companyId} — balance: €${balanceAfter}`);
+        console.log(`[CREDITS] Auto-recharge €${rechargeAmount} for company ${companyId} — new balance: €${newBalance}`);
+
+      } else if (balanceAfter <= (creditSettings?.alert_threshold_eur ?? 5)) {
+        await adminClient
+          .from("ai_credits")
+          .update({ alert_email_sent_at: new Date().toISOString() })
+          .eq("company_id", companyId);
+
+        console.log(`[CREDITS] LOW balance alert for company ${companyId} — balance: €${balanceAfter}`);
+      }
     }
 
     // Audit log

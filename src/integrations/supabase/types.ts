@@ -6579,6 +6579,10 @@ export type Database = {
         }
         Returns: Json
       }
+      deduct_ai_credits: {
+        Args: { p_company_id: string; p_cost: number }
+        Returns: Json
+      }
       execute_automation: {
         Args: {
           p_company_id: string
