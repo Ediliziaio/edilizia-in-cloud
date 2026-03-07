@@ -2040,6 +2040,59 @@ export type Database = {
           },
         ]
       }
+      email_credits: {
+        Row: {
+          alert_email_sent_at: string | null
+          alert_threshold_eur: number | null
+          auto_recharge_amount: number | null
+          auto_recharge_enabled: boolean | null
+          auto_recharge_threshold: number | null
+          balance_eur: number
+          company_id: string
+          id: string
+          sends_blocked: boolean
+          total_recharged_eur: number
+          total_spent_eur: number
+          updated_at: string
+        }
+        Insert: {
+          alert_email_sent_at?: string | null
+          alert_threshold_eur?: number | null
+          auto_recharge_amount?: number | null
+          auto_recharge_enabled?: boolean | null
+          auto_recharge_threshold?: number | null
+          balance_eur?: number
+          company_id: string
+          id?: string
+          sends_blocked?: boolean
+          total_recharged_eur?: number
+          total_spent_eur?: number
+          updated_at?: string
+        }
+        Update: {
+          alert_email_sent_at?: string | null
+          alert_threshold_eur?: number | null
+          auto_recharge_amount?: number | null
+          auto_recharge_enabled?: boolean | null
+          auto_recharge_threshold?: number | null
+          balance_eur?: number
+          company_id?: string
+          id?: string
+          sends_blocked?: boolean
+          total_recharged_eur?: number
+          total_spent_eur?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_credits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_folders: {
         Row: {
           company_id: string
@@ -2136,6 +2189,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      email_pricing: {
+        Row: {
+          cost_billed_per_email: number
+          cost_real_per_email: number
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string | null
+          markup_multiplier: number
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          cost_billed_per_email?: number
+          cost_real_per_email?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          markup_multiplier?: number
+          provider?: string
+          updated_at?: string
+        }
+        Update: {
+          cost_billed_per_email?: number
+          cost_real_per_email?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          markup_multiplier?: number
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       email_templates: {
         Row: {
@@ -6667,6 +6756,10 @@ export type Database = {
         Returns: Json
       }
       deduct_ai_credits: {
+        Args: { p_company_id: string; p_cost: number }
+        Returns: Json
+      }
+      deduct_email_credits: {
         Args: { p_company_id: string; p_cost: number }
         Returns: Json
       }
