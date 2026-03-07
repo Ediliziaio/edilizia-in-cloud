@@ -1,113 +1,132 @@
 
 
-# Piano Miglioramento Sezione Costi Aziendali
+# Piano: Modulo AI Agents — Fase 1
 
-## Analisi
+## Contesto
 
-La sezione è già ben strutturata con: KPI cards (annuali + periodo), tabella con paginazione/ordinamento, grafico distribuzione mensile, form completo, filtri avanzati. Il prompt chiede molte modifiche — le organizzo per priorità come richiesto.
-
----
-
-## Fase 1 — Badge stati migliorati + Colonna Ritardo
-
-### `CostsTable.tsx`
-- **Badge aggiornati**: Modificare `getStatusBadge()` per includere:
-  - 🟢 **Pagato** — verde (invariato)
-  - 🟡 **In scadenza** — giallo con testo "In scadenza (N gg)"
-  - 🔴 **Scaduto** — rosso con icona ⚠️ + "Scaduto Ngg" calcolato come `Math.ceil((now - due_date) / 86400000)`
-  - 🔵 **Previsto** — blu chiaro per costi ricorrenti con due_date futura > 7gg
-  - ⚪ **Da pagare** — grigio neutro (non scaduto, non in scadenza, non ricorrente futuro)
-
-- **Nuova colonna "Ritardo"**: Aggiungere tra Stato e Ordine
-  - Se scaduto non pagato: `+N gg` in rosso
-  - Se pagato e `paid_date` e `due_date` presenti: delta giorni (verde se anticipato, rosso se in ritardo)
-  - Altrimenti: `—`
+Il progetto usa `company_id` come tenant FK (non `workspace_id`). La sidebar usa `sidebarConfig.ts` con `marketingNavItems`. La route "Agente AI" esiste già come placeholder. Il sistema non ha ancora un secret `ELEVENLABS_API_KEY`. Le Edge Functions seguono un pattern consolidato (CORS, auth via header, service role client per operazioni privilegiate). La API key ElevenLabs va gestita a livello piattaforma (tabella `platform_elevenlabs_config`) con proxy edge function.
 
 ---
 
-## Fase 2 — KPI Cards ridisegnate
+## Fase 1 — Primo step da implementare
 
-### `CostsStatsCards.tsx`
-Sostituire le 6 card del blocco "Period Stats" con queste 6 card cliccabili:
+### 1. Migration SQL — Tabelle isolate
 
-| Card | Logica | Colore |
-|------|--------|--------|
-| Sostenuti (reali) | `is_paid === true` nel periodo | Verde |
-| Previsti (ricorrenti) | `recurrence !== "once" && !is_paid && due_date > now` | Blu |
-| Da pagare | `!is_paid && due_date < now` (scaduto) | Rosso |
-| In scadenza (7gg) | `!is_paid && due_date entro 7gg` | Arancione |
-| Pagato nel periodo | somma pagati nel periodo filtrato | Verde scuro |
-| Scostamento | delta previsto vs sostenuto | Dinamico +/- |
+Creare le seguenti tabelle (adattate al pattern `company_id` del progetto):
 
-### `CompanyCostsManager.tsx`
-- Aggiungere prop `onCardFilter` che imposta `statusFilter` quando si clicca una card
-- Le card filtrano la tabella sottostante al click
+- **`ai_agents`**: `id`, `company_id` (FK companies), `elevenlabs_agent_id`, `name`, `system_prompt`, `first_message`, `voice_id`, `llm_model` (default `gemini-2.5-flash`), `language` (default `it`), `is_interruptible`, `status` (text: draft/active/archived, default draft), `created_by`, `created_at`, `updated_at`
+- **`ai_agent_knowledge_docs`**: `id`, `agent_id` (FK nullable), `company_id` (FK), `elevenlabs_doc_id`, `name`, `type` (text: url/file/text), `source_url`, `created_by`, `created_at`
+- **`ai_agent_conversations`**: `id`, `agent_id` (FK), `company_id` (FK), `elevenlabs_conversation_id`, `duration_seconds`, `messages_count`, `status`, `started_at`, `contact_id` (FK nullable → marketing_contacts), `appointment_created` (default false)
+- **`ai_agent_credits`**: `id`, `company_id` (FK, unique), `total_minutes_purchased` (numeric default 0), `minutes_used` (numeric default 0), `updated_at`
+- **`platform_elevenlabs_config`**: `id`, `api_key_encrypted` (text), `default_llm` (text default `gemini-2.5-flash`), `markup_multiplier` (numeric default 2.0), `updated_at`. Singola riga piattaforma, no FK company.
+- **`ai_agent_audit_log`**: `id`, `company_id` (FK), `agent_id` (uuid nullable), `user_id` (uuid), `action` (text), `details` (jsonb), `created_at`
 
----
+RLS su tutte le tabelle con `get_my_company_id()` per isolamento tenant. `platform_elevenlabs_config` accessibile solo da super_admin.
 
-## Fase 3 — Tab aggiuntivi
+Indici su `company_id` per tutte le tabelle.
 
-### `CompanyCostsManager.tsx`
-Sostituire i tab `Tutti / Fissi / Variabili` con:
+### 2. Edge Function `elevenlabs-proxy`
+
+Proxy sicuro in `supabase/functions/elevenlabs-proxy/index.ts`:
+- Autenticazione utente via JWT
+- Legge `company_id` dal profilo utente
+- Legge `api_key_encrypted` da `platform_elevenlabs_config` e decripta con `_shared/encryption.ts`
+- Supporta azioni: `create_agent`, `get_agent`, `list_agents`, `update_agent`, `delete_agent`, `get_voices`, `get_models`
+- Forwarda a ElevenLabs API con la key decriptata
+- Logga su `ai_agent_audit_log`
+- Aggiungere `[functions.elevenlabs-proxy] verify_jwt = false` a config.toml
+
+### 3. Struttura modulo frontend
+
+Creare `src/modules/ai-agents/` con:
 
 ```
-[ Tutti ] [ Sostenuti ] [ Previsti ] [ In ritardo ] [ In scadenza ]
+index.tsx                    — lazy routes export
+pages/
+  AgentsListPage.tsx         — lista agenti + wizard creazione
+  AgentEditorPage.tsx        — editor con tab (solo tab Agente funzionante in fase 1)
+components/
+  AgentCard.tsx              — card agente per la lista
+  CreateAgentWizard.tsx      — dialog 2-step (tipo + form)
+  AgentTab.tsx               — tab principale (prompt, voce, LLM, primo messaggio)
+  VoiceSelector.tsx          — selettore voce con preview
+  LLMSelector.tsx            — selettore modello LLM
+hooks/
+  useAgents.ts               — CRUD agenti via React Query + edge function
+  useElevenLabsProxy.ts      — wrapper per chiamate all'edge function
+types/
+  agent.types.ts             — tipi TypeScript completi
 ```
 
-- **Sostenuti**: `is_paid === true`
-- **Previsti**: `recurrence !== "once" && !is_paid && due_date > now`
-- **In ritardo**: `!is_paid && due_date < now`
-- **In scadenza**: `!is_paid && due_date in [now, now+7gg]`
+### 4. Routing
 
-Ogni tab mostra il conteggio. La logica di filtraggio viene spostata in `useCompanyCostsData.ts` che esporrà le liste pre-filtrate.
-
----
-
-## Fase 4 — Alert Banner pagamenti scaduti
-
-### `CompanyCostsManager.tsx`
-Aggiungere un banner arancione sotto il titolo, visibile solo se `stats.overdueCount > 0`:
-
+In `App.tsx`, aggiungere sotto le marketing routes dentro CompanyLayout:
 ```
-⚠️ Hai N pagamenti scaduti per un totale di €XX.XXX — [Visualizza]
+<Route path="marketing/agente-ai/*" element={<AIAgentsModule />} />
 ```
+Con sub-routes:
+- `/` → `AgentsListPage`
+- `/:id` → `AgentEditorPage`
 
-Click su "Visualizza" → imposta tab su "In ritardo".
+Rimuovere il vecchio import `MarketingAiAgent` e la route `marketing/agente-ai`.
 
----
+### 5. Sidebar
 
-## Fase 5 — Grafico Previsto vs Sostenuto (toggle)
+Aggiornare `sidebarConfig.ts`: la voce "Agente AI" punta già a `/azienda/marketing/agente-ai` — non serve cambiare.
 
-### `CostsStatsCards.tsx`
-- Aggiungere stato `chartView: "current" | "comparison"` con toggle buttons
-- Vista "Previsto vs Sostenuto":
-  - Barra blu "Previsto" = somma costi con `due_date` nel mese
-  - Barra verde "Sostenuto" = somma costi con `paid_date` nel mese
-  - Tooltip con delta
+### 6. API Key ElevenLabs
 
-I dati necessari (`monthlyDistribution`) contengono già sia `Totale` (previsto) che `PagatoEffettivo` (sostenuto) — basta cambiare le `Bar` renderizzate.
+Prima di poter testare: richiedere il secret `ELEVENLABS_API_KEY` all'utente tramite `add_secret`. L'edge function lo userà.
 
----
-
-## Fase 6 — Form migliorato (nessuna migration necessaria)
-
-### `CostFormDialog.tsx`
-- Il campo "Tipo costo" (`fixed`/`variable`) è già presente — non serve "Sostenuto/Previsto" come tipo (è derivato dalla ricorrenza e dallo stato pagamento)
-- Il campo "Ricorrenza" con "Data fine contratto" è già presente
-- Il campo "Note" è già presente — aggiungere `maxLength={200}` alla Textarea
-- Il campo "Data scadenza" è già obbligatorio
-
-Non servono nuove colonne Supabase: la distinzione "sostenuto vs previsto" è calcolata client-side da `is_paid`, `recurrence` e `due_date`.
+Nella `PlatformSettingsPage` (fase successiva) il super_admin potrà salvare la key nella tabella `platform_elevenlabs_config` (criptata). Per la fase 1, si usa direttamente il secret Supabase.
 
 ---
 
-## File da modificare
+## Pagine — Dettaglio UI
 
-1. **`src/hooks/useCompanyCostsData.ts`** — Aggiungere liste pre-filtrate per i nuovi tab + dati per le card cliccabili
-2. **`src/components/forecast/CostsStatsCards.tsx`** — Ridisegnare card periodo + aggiungere toggle grafico + card cliccabili
-3. **`src/components/forecast/CostsTable.tsx`** — Badge migliorati + colonna Ritardo
-4. **`src/components/forecast/CompanyCostsManager.tsx`** — Nuovi tab + banner alert + gestione filtro da card
-5. **`src/components/forecast/CostFormDialog.tsx`** — maxLength su note
+### AgentsListPage
+- Header "Agenti AI" + badge conteggio + pulsante "+ Nuovo agente"
+- Tabella: Nome, Stato (badge colorato), Lingua, Modello LLM, Data creazione, Azioni (modifica/archivia/elimina)
+- Empty state con illustrazione
+- Skeleton loading
+- Click "+ Nuovo agente" apre `CreateAgentWizard`
 
-Nessuna migration Supabase necessaria.
+### CreateAgentWizard (Dialog 2-step)
+- **Step 1**: 3 card cliccabili — Agente Vuoto / Assistente Personale / Agente Aziendale
+- **Step 2**: Form — Nome (max 50), Sito web (opzionale), Obiettivo principale (textarea), Toggle solo chat
+- Submit → chiama edge function `create_agent` → salva in DB → redirect a editor
+
+### AgentEditorPage
+- Header con breadcrumb, badge stato, pulsanti Pubblica/Bozza
+- Tab bar: **Agente** | Workflow | Knowledge Base | Analisi | Strumenti | Widget | Sicurezza | Avanzato (tab non-Agente mostrano placeholder "In arrivo")
+- **Tab Agente** (2 colonne):
+  - Sinistra: Prompt sistema (textarea espandibile), Primo messaggio, Toggle interrompibile
+  - Destra: VoiceSelector (lista voci ElevenLabs con play preview), LLMSelector (dropdown modelli con latenza/costo), Lingua
+- Salvataggio auto-save con debounce → chiama edge function `update_agent`
+
+---
+
+## File da creare/modificare
+
+**Creare:**
+1. `src/modules/ai-agents/types/agent.types.ts`
+2. `src/modules/ai-agents/hooks/useElevenLabsProxy.ts`
+3. `src/modules/ai-agents/hooks/useAgents.ts`
+4. `src/modules/ai-agents/components/AgentCard.tsx`
+5. `src/modules/ai-agents/components/CreateAgentWizard.tsx`
+6. `src/modules/ai-agents/components/AgentTab.tsx`
+7. `src/modules/ai-agents/components/VoiceSelector.tsx`
+8. `src/modules/ai-agents/components/LLMSelector.tsx`
+9. `src/modules/ai-agents/pages/AgentsListPage.tsx`
+10. `src/modules/ai-agents/pages/AgentEditorPage.tsx`
+11. `src/modules/ai-agents/index.tsx`
+12. `supabase/functions/elevenlabs-proxy/index.ts`
+
+**Modificare:**
+13. `src/App.tsx` — sostituire route MarketingAiAgent con lazy module
+14. `supabase/config.toml` — aggiungere `[functions.elevenlabs-proxy]`
+
+**Migration SQL:** 1 migration con tutte le tabelle + RLS + indici
+
+**Secret:** richiedere `ELEVENLABS_API_KEY`
 
