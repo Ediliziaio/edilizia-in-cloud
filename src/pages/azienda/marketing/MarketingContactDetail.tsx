@@ -11,8 +11,12 @@ import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
   FileText, Activity, StickyNote, CalendarDays, Target, Plus, Send, Search,
   Bell, User, Settings, X, Filter, UserPlus, ArrowRight, RefreshCw, UserCheck,
-  Loader2, Check, AlertCircle, Bot,
+  Loader2, Check, AlertCircle, Bot, MessageSquare, Smartphone,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -227,6 +231,7 @@ function getActivityIcon(type: string) {
     case "updated": return <Settings className="h-3.5 w-3.5" />;
     case "note_added": return <StickyNote className="h-3.5 w-3.5" />;
     case "email_sent": return <Mail className="h-3.5 w-3.5" />;
+    case "message_sent": return <MessageSquare className="h-3.5 w-3.5" />;
     case "opportunity_linked":
     case "opportunity_created": return <Target className="h-3.5 w-3.5" />;
     case "stage_changed": return <ArrowRight className="h-3.5 w-3.5" />;
@@ -245,6 +250,7 @@ function getActivityColor(type: string) {
     case "updated": return "bg-blue-100 text-blue-600";
     case "note_added": return "bg-amber-100 text-amber-600";
     case "email_sent": return "bg-violet-100 text-violet-600";
+    case "message_sent": return "bg-emerald-100 text-emerald-600";
     case "opportunity_created": return "bg-purple-100 text-purple-600";
     case "stage_changed": return "bg-sky-100 text-sky-600";
     case "status_changed": return "bg-orange-100 text-orange-600";
