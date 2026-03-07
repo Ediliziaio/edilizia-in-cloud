@@ -68,6 +68,65 @@ function MarketingOpportunitiesContent() {
   const bulkDelete = useBulkDeleteOpportunities();
   const { activeFields, layout, setActiveFields, setLayout } = useCardFieldPreferences();
   const [cardCustomizeOpen, setCardCustomizeOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Sorting state
+  const [sortField, setSortField] = useState<"name" | "value" | "created_at" | "updated_at">("created_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  // List state
+  const [createListOpen, setCreateListOpen] = useState(false);
+  const [activeListId, setActiveListId] = useState<string | null>(null);
+
+  // Fetch saved lists for current pipeline
+  const { data: savedLists = [] } = useQuery({
+    queryKey: ["marketing-opportunity-lists", companyId, selectedPipelineId],
+    queryFn: async () => {
+      if (!companyId || !selectedPipelineId) return [];
+      const { data, error } = await supabase
+        .from("marketing_opportunity_lists" as any)
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("pipeline_id", selectedPipelineId)
+        .order("created_at");
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    enabled: !!companyId && !!selectedPipelineId,
+  });
+
+  const createListMutation = useMutation({
+    mutationFn: async (listData: { name: string; description: string }) => {
+      if (!companyId || !selectedPipelineId) throw new Error("Missing IDs");
+      const { error } = await supabase.from("marketing_opportunity_lists" as any).insert({
+        company_id: companyId,
+        pipeline_id: selectedPipelineId,
+        name: listData.name,
+        description: listData.description || "",
+        filters: filters as any,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Elenco creato");
+      queryClient.invalidateQueries({ queryKey: ["marketing-opportunity-lists"] });
+    },
+    onError: () => toast.error("Errore nella creazione dell'elenco"),
+  });
+
+  const deleteListMutation = useMutation({
+    mutationFn: async (listId: string) => {
+      const { error } = await supabase.from("marketing_opportunity_lists" as any).delete().eq("id", listId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Elenco eliminato");
+      setActiveListId(null);
+      setFilters(EMPTY_FILTERS);
+      queryClient.invalidateQueries({ queryKey: ["marketing-opportunity-lists"] });
+    },
+    onError: () => toast.error("Errore nell'eliminazione"),
+  });
   const { data: oppCustomFields = [] } = useOpportunityCustomFields();
   const customFieldDefs: FieldDefinition[] = useMemo(() =>
     oppCustomFields.map((f) => ({ key: `custom_${f.id}`, label: f.name, section: "opportunity" })),
