@@ -1362,6 +1362,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 });
