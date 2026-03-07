@@ -585,6 +585,11 @@ function MarketingOpportunitiesContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <CreateListDialog
+        open={createListOpen}
+        onOpenChange={setCreateListOpen}
+        onSave={(data) => createListMutation.mutateAsync(data)}
+      />
     </div>
   );
 }
