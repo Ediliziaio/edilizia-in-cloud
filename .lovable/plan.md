@@ -1,67 +1,47 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+# FIX 8: Gestione errori — API esterne non configurate
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+## Approccio
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+Le API esterne in questo progetto usano la tabella `platform_settings` per le credenziali (non env vars dirette). L'edge function verificherà la presenza delle chiavi in DB, con fallback su env vars, coerente con il pattern `getPlatformSetting` già usato ovunque.
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+## Componenti
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+### 1. Edge function `check-api-health/index.ts`
+- Autentica l'utente via JWT header
+- Legge da `platform_settings` le chiavi: `google_maps_api_key`, `meta_app_id`, `meta_app_secret`, `email_provider_api_key`, `elevenlabs_api_key`, `whatsapp_verify_token`
+- Controlla anche `messaging_whatsapp_config` per la company dell'utente (WhatsApp è per-company)
+- Controlla anche `integrations` per Meta (per-company)
+- Restituisce `{ whatsapp: bool, googlemaps: bool, meta: bool, email: bool, elevenlabs: bool }`
+- Config: `verify_jwt = false` in `config.toml`
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+### 2. Hook `useApiHealth` (`src/hooks/useApiHealth.ts`)
+- Chiama `check-api-health` via `supabase.functions.invoke`
+- Cache con `staleTime: 10 min` (non serve rinfrescare spesso)
+- Espone `{ services: Record<string, boolean>, isLoading }`
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+### 3. Componente `ApiHealthBanner` (`src/components/marketing/ApiHealthBanner.tsx`)
+- Riceve la lista servizi dal hook
+- Per ogni servizio non configurato: mostra un `Alert` con icona, nome servizio, e link "Configura ora" (→ `/piattaforma/impostazioni`)
+- Chiudibile con X; stato dismissione in `sessionStorage` per non ripetersi
+- Servizi mappati a pagine: WhatsApp → pagine WhatsApp/contatti, Google Maps → calendario, Meta → dashboard/opportunità, Email → email marketing, ElevenLabs → agente AI
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+### 4. Integrazione nelle pagine Marketing
+- Aggiungere `<ApiHealthBanner filter={["whatsapp"]} />` nelle pagine rilevanti:
+  - `MarketingWhatsApp.tsx` → filtra `whatsapp`
+  - `MarketingDashboard.tsx` → filtra `meta`, `email`
+  - `MarketingCalendar.tsx` → filtra `googlemaps`
+  - `EmailMarketing.tsx` → filtra `email`
+  - `MarketingContactDetail.tsx` → filtra `whatsapp`, `email`
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+## File coinvolti
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+| File | Azione |
+|------|--------|
+| `supabase/functions/check-api-health/index.ts` | Nuovo |
+| `supabase/config.toml` | Aggiungere entry |
+| `src/hooks/useApiHealth.ts` | Nuovo |
+| `src/components/marketing/ApiHealthBanner.tsx` | Nuovo |
+| 5 pagine marketing | Aggiungere banner |
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
-
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
-
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
-
-## Da fare (prossimi step)
-
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
-
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
