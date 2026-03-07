@@ -18,6 +18,8 @@ import {
   Mail,
   Gauge,
   BarChart3,
+  Database,
+  CreditCard,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
