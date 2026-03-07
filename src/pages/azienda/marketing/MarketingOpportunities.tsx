@@ -421,15 +421,47 @@ function MarketingOpportunitiesContent() {
       </div>
 
       <div className="flex items-center gap-1 border-b">
-        <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none border-b-2 border-primary font-semibold">Tutto</Button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button variant="ghost" size="sm" className="h-8 text-xs rounded-none text-muted-foreground" disabled>+ Elenco</Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>Funzionalità in arrivo</TooltipContent>
-        </Tooltip>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`h-8 text-xs rounded-none ${!activeListId ? "border-b-2 border-primary font-semibold" : "text-muted-foreground"}`}
+          onClick={() => { setActiveListId(null); setFilters(EMPTY_FILTERS); }}
+        >
+          Tutto
+        </Button>
+        {savedLists.map((list: any) => (
+          <div key={list.id} className="flex items-center group">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`h-8 text-xs rounded-none ${activeListId === list.id ? "border-b-2 border-primary font-semibold" : "text-muted-foreground"}`}
+              onClick={() => {
+                setActiveListId(list.id);
+                if (list.filters && typeof list.filters === "object") {
+                  setFilters({ ...EMPTY_FILTERS, ...list.filters });
+                }
+              }}
+            >
+              {list.name}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+              onClick={(e) => { e.stopPropagation(); deleteListMutation.mutate(list.id); }}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        ))}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs rounded-none text-muted-foreground"
+          onClick={() => setCreateListOpen(true)}
+        >
+          + Elenco
+        </Button>
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
