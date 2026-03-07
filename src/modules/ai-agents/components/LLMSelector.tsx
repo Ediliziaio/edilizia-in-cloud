@@ -72,7 +72,7 @@ export function LLMSelector({
             <Slider
               value={[temperature]}
               min={0} max={2} step={0.1}
-              onValueChange={([v]) => onTemperatureChange?.(v)}
+              onValueChange={([v]: number[]) => onTemperatureChange?.(v)}
             />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Deterministico</span>

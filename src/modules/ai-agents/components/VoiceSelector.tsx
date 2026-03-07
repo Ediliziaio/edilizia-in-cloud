@@ -174,7 +174,7 @@ export function VoiceSelector({
               <Slider
                 value={[stability]}
                 min={0} max={1} step={0.05}
-                onValueChange={([v]) => onStabilityChange?.(v)}
+                onValueChange={([v]: number[]) => onStabilityChange?.(v)}
               />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Variabile</span>
@@ -188,7 +188,7 @@ export function VoiceSelector({
               <Slider
                 value={[speed]}
                 min={0.7} max={1.2} step={0.05}
-                onValueChange={([v]) => onSpeedChange?.(v)}
+                onValueChange={([v]: number[]) => onSpeedChange?.(v)}
               />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Lento</span>
@@ -202,7 +202,7 @@ export function VoiceSelector({
               <Slider
                 value={[similarity]}
                 min={0} max={1} step={0.05}
-                onValueChange={([v]) => onSimilarityChange?.(v)}
+                onValueChange={([v]: number[]) => onSimilarityChange?.(v)}
               />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Bassa</span>
