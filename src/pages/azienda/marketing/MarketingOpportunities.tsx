@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download } from "lucide-react";
+import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download, Check, X } from "lucide-react";
 import { CardCustomizeSheet } from "@/components/opportunities/CardCustomizeSheet";
 import { useCardFieldPreferences, CardFieldPreferencesProvider } from "@/hooks/useCardFieldPreferences";
 import type { FieldDefinition } from "@/hooks/useCardFieldPreferences";
