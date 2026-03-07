@@ -11,8 +11,12 @@ import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
   FileText, Activity, StickyNote, CalendarDays, Target, Plus, Send, Search,
   Bell, User, Settings, X, Filter, UserPlus, ArrowRight, RefreshCw, UserCheck,
-  Loader2, Check, AlertCircle, Bot,
+  Loader2, Check, AlertCircle, Bot, MessageSquare, Smartphone,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -227,6 +231,7 @@ function getActivityIcon(type: string) {
     case "updated": return <Settings className="h-3.5 w-3.5" />;
     case "note_added": return <StickyNote className="h-3.5 w-3.5" />;
     case "email_sent": return <Mail className="h-3.5 w-3.5" />;
+    case "message_sent": return <MessageSquare className="h-3.5 w-3.5" />;
     case "opportunity_linked":
     case "opportunity_created": return <Target className="h-3.5 w-3.5" />;
     case "stage_changed": return <ArrowRight className="h-3.5 w-3.5" />;
@@ -245,6 +250,7 @@ function getActivityColor(type: string) {
     case "updated": return "bg-blue-100 text-blue-600";
     case "note_added": return "bg-amber-100 text-amber-600";
     case "email_sent": return "bg-violet-100 text-violet-600";
+    case "message_sent": return "bg-emerald-100 text-emerald-600";
     case "opportunity_created": return "bg-purple-100 text-purple-600";
     case "stage_changed": return "bg-sky-100 text-sky-600";
     case "status_changed": return "bg-orange-100 text-orange-600";
@@ -328,6 +334,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const [newNote, setNewNote] = useState("");
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState("");
+  const [messageText, setMessageText] = useState("");
+  const [messageChannel, setMessageChannel] = useState<"whatsapp" | "email" | "sms">("whatsapp");
+  const [emailSubject, setEmailSubject] = useState("");
 
   // ── Fetch calendars for appointment dialog ──
   const { data: calendarsList = [] } = useQuery({
@@ -537,7 +546,44 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     enabled: !!id,
   });
 
-  // ── Update contact field ──
+  // ── Fetch contact messages ──
+  const { data: contactMessages = [] } = useQuery({
+    queryKey: ["contact_messages", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data, error } = await supabase
+        .from("contact_messages")
+        .select("*")
+        .eq("contact_id", id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  // ── Send message mutation ──
+  const sendMessage = useMutation({
+    mutationFn: async (params: { channel: string; content: string; subject?: string }) => {
+      const { data, error } = await supabase.functions.invoke("send-contact-message", {
+        body: { contact_id: id, ...params },
+      });
+      if (error) throw error;
+      if (data?.success === false) throw new Error(data?.error || "Invio fallito");
+      return data;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["contact_messages", id] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
+      setMessageText("");
+      setEmailSubject("");
+      const channelLabel = vars.channel === "whatsapp" ? "WhatsApp" : vars.channel === "email" ? "Email" : "SMS";
+      toast.success(`Messaggio ${channelLabel} inviato`);
+    },
+    onError: (e: any) => toast.error(e.message || "Errore invio messaggio"),
+  });
+
+
   const updateField = useMutation({
     mutationFn: async ({ field, value }: { field: string; value: any }) => {
       const { error } = await supabase
@@ -1017,12 +1063,85 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         </ScrollArea>
 
         {/* Message input bar */}
-        <div className="h-12 border-t flex items-center px-3 gap-2 shrink-0">
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-            <Mail className="h-3.5 w-3.5" />
-          </Button>
-          <Input placeholder="Digita un messaggio..." className="border-0 bg-muted/50 shadow-none h-8 text-xs" disabled />
-          <Button size="icon" className="h-7 w-7 shrink-0"><Send className="h-3.5 w-3.5" /></Button>
+        <div className="border-t shrink-0">
+          {messageChannel === "email" && (
+            <div className="px-3 pt-2">
+              <Input
+                placeholder="Oggetto email..."
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))}
+                className="border-0 bg-muted/50 shadow-none h-7 text-xs"
+              />
+            </div>
+          )}
+          <div className="h-12 flex items-center px-3 gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                  {messageChannel === "whatsapp" ? <MessageSquare className="h-3.5 w-3.5 text-emerald-600" /> :
+                   messageChannel === "email" ? <Mail className="h-3.5 w-3.5 text-violet-600" /> :
+                   <Smartphone className="h-3.5 w-3.5 text-sky-600" />}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {contact.phone && (
+                  <DropdownMenuItem onClick={() => setMessageChannel("whatsapp")}>
+                    <MessageSquare className="h-3.5 w-3.5 mr-2 text-emerald-600" /> WhatsApp
+                  </DropdownMenuItem>
+                )}
+                {contact.email && (
+                  <DropdownMenuItem onClick={() => setMessageChannel("email")}>
+                    <Mail className="h-3.5 w-3.5 mr-2 text-violet-600" /> Email
+                  </DropdownMenuItem>
+                )}
+                {contact.phone && (
+                  <DropdownMenuItem onClick={() => setMessageChannel("sms")}>
+                    <Smartphone className="h-3.5 w-3.5 mr-2 text-sky-600" /> SMS
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Input
+              placeholder={`Scrivi messaggio ${messageChannel === "whatsapp" ? "WhatsApp" : messageChannel === "email" ? "email" : "SMS"}...`}
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value.slice(0, 5000))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && messageText.trim() && !sendMessage.isPending) {
+                  sendMessage.mutate({ channel: messageChannel, content: messageText.trim(), subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined });
+                }
+              }}
+              className="border-0 bg-muted/50 shadow-none h-8 text-xs"
+            />
+            <Button
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              disabled={!messageText.trim() || sendMessage.isPending}
+              onClick={() => sendMessage.mutate({ channel: messageChannel, content: messageText.trim(), subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined })}
+            >
+              {sendMessage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+
+          {/* Recent messages */}
+          {contactMessages.length > 0 && (
+            <div className="px-3 pb-2 max-h-32 overflow-y-auto">
+              <p className="text-[10px] font-medium text-muted-foreground mb-1">Messaggi recenti</p>
+              {contactMessages.slice(0, 5).map((msg: any) => (
+                <div key={msg.id} className="flex items-center gap-1.5 py-0.5">
+                  {msg.channel === "whatsapp" ? <MessageSquare className="h-3 w-3 text-emerald-600 shrink-0" /> :
+                   msg.channel === "email" ? <Mail className="h-3 w-3 text-violet-600 shrink-0" /> :
+                   <Smartphone className="h-3 w-3 text-sky-600 shrink-0" />}
+                  <span className="text-[10px] truncate flex-1">{msg.content}</span>
+                  <Badge variant={msg.status === "sent" ? "default" : msg.status === "failed" ? "destructive" : "secondary"} className="text-[8px] h-3.5 px-1">
+                    {msg.status}
+                  </Badge>
+                  <span className="text-[9px] text-muted-foreground shrink-0">
+                    {format(new Date(msg.created_at), "dd/MM HH:mm")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1129,9 +1248,69 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <OpportunitiesPanel contactId={id!} companyId={companyId!} />
               )}
 
-              {/* Settings placeholder */}
+              {/* Settings panel */}
               {rightTab === "settings" && (
-                <p className="text-[11px] text-muted-foreground text-center py-8">Prossimamente: impostazioni</p>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-[11px] font-medium">Lingua preferita</Label>
+                    <Select
+                      value={(contact as any).preferred_language || "italiano"}
+                      onValueChange={(val) => updateField.mutate({ field: "preferred_language", value: val })}
+                    >
+                      <SelectTrigger className="h-8 text-xs mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="italiano">Italiano</SelectItem>
+                        <SelectItem value="inglese">Inglese</SelectItem>
+                        <SelectItem value="tedesco">Tedesco</SelectItem>
+                        <SelectItem value="francese">Francese</SelectItem>
+                        <SelectItem value="spagnolo">Spagnolo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-[11px] font-medium">Canale preferito</Label>
+                    <Select
+                      value={(contact as any).preferred_channel || "whatsapp"}
+                      onValueChange={(val) => updateField.mutate({ field: "preferred_channel", value: val })}
+                    >
+                      <SelectTrigger className="h-8 text-xs mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                        <SelectItem value="email">Email</SelectItem>
+                        <SelectItem value="sms">SMS</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-3 pt-2 border-t">
+                    <Label className="text-[11px] font-medium">Opt-out comunicazioni</Label>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                        <span className="text-[11px]">WhatsApp</span>
+                      </div>
+                      <Switch
+                        checked={(contact as any).optout_whatsapp || false}
+                        onCheckedChange={(checked) => updateField.mutate({ field: "optout_whatsapp", value: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 text-violet-600" />
+                        <span className="text-[11px]">Email</span>
+                      </div>
+                      <Switch
+                        checked={(contact as any).optout_email || false}
+                        onCheckedChange={(checked) => updateField.mutate({ field: "optout_email", value: checked })}
+                      />
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </ScrollArea>

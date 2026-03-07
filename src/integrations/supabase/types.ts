@@ -1859,6 +1859,60 @@ export type Database = {
           },
         ]
       }
+      contact_messages: {
+        Row: {
+          channel: string
+          company_id: string
+          contact_id: string
+          content: string
+          created_at: string | null
+          id: string
+          sent_at: string | null
+          sent_by: string | null
+          status: string | null
+          subject: string | null
+        }
+        Insert: {
+          channel: string
+          company_id: string
+          contact_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string | null
+          subject?: string | null
+        }
+        Update: {
+          channel?: string
+          company_id?: string
+          contact_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       edge_function_rate_limits: {
         Row: {
           called_at: string
@@ -3600,8 +3654,12 @@ export type Database = {
           last_activity_at: string | null
           last_name: string | null
           notes: string | null
+          optout_email: boolean | null
+          optout_whatsapp: boolean | null
           phone: string | null
           postal_code: string | null
+          preferred_channel: string | null
+          preferred_language: string | null
           province: string | null
           source: string | null
           tags: string[]
@@ -3626,8 +3684,12 @@ export type Database = {
           last_activity_at?: string | null
           last_name?: string | null
           notes?: string | null
+          optout_email?: boolean | null
+          optout_whatsapp?: boolean | null
           phone?: string | null
           postal_code?: string | null
+          preferred_channel?: string | null
+          preferred_language?: string | null
           province?: string | null
           source?: string | null
           tags?: string[]
@@ -3652,8 +3714,12 @@ export type Database = {
           last_activity_at?: string | null
           last_name?: string | null
           notes?: string | null
+          optout_email?: boolean | null
+          optout_whatsapp?: boolean | null
           phone?: string | null
           postal_code?: string | null
+          preferred_channel?: string | null
+          preferred_language?: string | null
           province?: string | null
           source?: string | null
           tags?: string[]
