@@ -4,6 +4,11 @@ import { Loader2 } from "lucide-react";
 
 const AgentsListPage = lazy(() => import("./pages/AgentsListPage"));
 const AgentEditorPage = lazy(() => import("./pages/AgentEditorPage"));
+const PlatformKnowledgeBasePage = lazy(() => import("./pages/PlatformKnowledgeBasePage"));
+const AgentCreditsPage = lazy(() => import("./pages/AgentCreditsPage"));
+const AgentPhoneNumbersPage = lazy(() => import("./pages/AgentPhoneNumbersPage"));
+const AgentWhatsAppPage = lazy(() => import("./pages/AgentWhatsAppPage"));
+const PlatformSettingsPage = lazy(() => import("./pages/PlatformSettingsPage"));
 
 const Fallback = () => (
   <div className="flex items-center justify-center h-full min-h-[200px]">
@@ -16,6 +21,11 @@ export default function AIAgentsModule() {
     <Suspense fallback={<Fallback />}>
       <Routes>
         <Route index element={<AgentsListPage />} />
+        <Route path="knowledge-base" element={<PlatformKnowledgeBasePage />} />
+        <Route path="crediti" element={<AgentCreditsPage />} />
+        <Route path="numeri-telefono" element={<AgentPhoneNumbersPage />} />
+        <Route path="whatsapp" element={<AgentWhatsAppPage />} />
+        <Route path="impostazioni" element={<PlatformSettingsPage />} />
         <Route path=":id" element={<AgentEditorPage />} />
       </Routes>
     </Suspense>
