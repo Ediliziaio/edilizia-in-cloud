@@ -1,46 +1,67 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-# FIX 4: Statistiche Email — Aggregazione lato DB
+## Completato — Blocco A, B, C ✅
 
-## Problema
-`EmailStatsTab.tsx` scarica tutti i log raw client-side e fa `logs.filter()` per calcolare stats, funnel, chart e tabella campagne. Con migliaia di log crasha il browser.
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-## Soluzione
-Creare **3 funzioni Postgres** che aggregano tutto lato DB, poi chiamarle via RPC nel componente.
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
-### 1. SQL Migration — 3 funzioni RPC
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-**`get_email_stats_summary`** — Stats globali + funnel
-- Parametri: `p_company_id`, `p_campaign_id` (nullable), `p_date_from` (nullable), `p_date_to` (nullable)
-- Ritorna una singola riga: `total, delivered, opened, clicked, bounced, unsubscribed, spam`
-- Conta "delivered" come `status IN ('delivered','opened','clicked')`, "opened" come `status IN ('opened','clicked')` — stessa logica attuale
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-**`get_email_stats_by_campaign`** — Per la tabella top campagne
-- Parametri: `p_company_id`, `p_campaign_id` (nullable), `p_date_from`, `p_date_to`
-- Ritorna: `campaign_id, delivered, opened, clicked` raggruppato per campaign
-- Join con `email_campaigns` per nome/tipo/sent_at
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
-**`get_email_stats_by_date`** — Per il grafico performance
-- Parametri: `p_company_id`, `p_campaign_id` (nullable), `p_date_from`, `p_date_to`
-- Ritorna: `date_label, campaign_type, total, delivered, opened, clicked`
-- Raggruppato per data (troncata a giorno) e tipo campagna
-- Il componente calcola le percentuali dai numeri aggregati
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-Tutte `SECURITY DEFINER` con `SET search_path = public`.
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-### 2. Modifica `EmailStatsTab.tsx`
-- Rimuovere la query `email_logs` che scarica tutti i log raw
-- Sostituire con 3 chiamate `supabase.rpc()`:
-  - `get_email_stats_summary` → alimenta `stats`, `funnel`, `CampaignStatsCards`
-  - `get_email_stats_by_campaign` → alimenta `EmailTopCampaignsTable`
-  - `get_email_stats_by_date` → alimenta `EmailPerformanceChart`
-- Rimuovere tutto il calcolo `useMemo` client-side per `chartDatasets`
-- Rimuovere la funzione `count()` e i `logs.filter()`
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-### File modificati
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
-| File | Azione |
-|------|--------|
-| SQL Migration | 3 funzioni: `get_email_stats_summary`, `get_email_stats_by_campaign`, `get_email_stats_by_date` |
-| `src/components/email-marketing/EmailStatsTab.tsx` | Riscrittura queries con RPC, rimozione aggregazione client-side |
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
 
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
+
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
+
+## Da fare (prossimi step)
+
+### Priorità 3: Integrazioni rimanenti
+- Test runner reale con chiamata ElevenLabs (attualmente simulato)
+- Decremento crediti automatico via webhook (già funzionante)
+- Sync bidirezionale KB (upload file)
+
+### Priorità 4: Raffinamenti
+- `/docs/ai-agents-module.md` documentazione completa
+- Branch tab con logica reale
+- Workflow canvas con persistenza nodi
