@@ -6820,6 +6820,56 @@ export type Database = {
         }
         Returns: Json
       }
+      get_email_stats_by_campaign: {
+        Args: {
+          p_campaign_id?: string
+          p_company_id: string
+          p_date_from?: string
+          p_date_to?: string
+        }
+        Returns: {
+          campaign_id: string
+          campaign_name: string
+          campaign_type: string
+          clicked: number
+          delivered: number
+          opened: number
+          sent_at: string
+        }[]
+      }
+      get_email_stats_by_date: {
+        Args: {
+          p_campaign_id?: string
+          p_company_id: string
+          p_date_from?: string
+          p_date_to?: string
+        }
+        Returns: {
+          campaign_type: string
+          clicked: number
+          date_label: string
+          delivered: number
+          opened: number
+          total: number
+        }[]
+      }
+      get_email_stats_summary: {
+        Args: {
+          p_campaign_id?: string
+          p_company_id: string
+          p_date_from?: string
+          p_date_to?: string
+        }
+        Returns: {
+          bounced: number
+          clicked: number
+          delivered: number
+          opened: number
+          spam: number
+          total: number
+          unsubscribed: number
+        }[]
+      }
       get_feature_usage_stats: { Args: never; Returns: Json }
       get_marketing_dashboard_stats: {
         Args: {
