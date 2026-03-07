@@ -156,8 +156,8 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
     items: [
       { id: "webhook_out", label: "Webhook uscita", icon: "ExternalLink", category: "integration" },
       { id: "external_api", label: "API esterna", icon: "Globe", category: "integration", description: "Chiama un'API esterna" },
-      { id: "sync_google", label: "Sync Google", icon: "RefreshCw", category: "integration", description: "Sincronizza con Google" },
-      { id: "sync_meta_lead", label: "Sync Meta Lead", icon: "RefreshCw", category: "integration", description: "Sincronizza con Meta Lead Ads" },
+      { id: "sync_google", label: "Sync Google Calendar", icon: "RefreshCw", category: "integration", description: "Sincronizza appuntamenti con Google Calendar" },
+      { id: "sync_meta_lead", label: "Sync Meta Lead", icon: "RefreshCw", category: "integration", description: "Re-sincronizza lead da Meta Lead Ads" },
     ],
   },
 ];
