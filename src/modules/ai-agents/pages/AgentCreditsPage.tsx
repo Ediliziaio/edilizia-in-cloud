@@ -40,7 +40,7 @@ export default function AgentCreditsPage() {
   const [customAmount, setCustomAmount] = useState("");
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isTopupLoading, setIsTopupLoading] = useState(false);
-  const [fallbackCompanyId, setFallbackCompanyId] = useReactState<string | null>(null);
+  const [fallbackCompanyId, setFallbackCompanyId] = useState<string | null>(null);
 
   // Fetch company_id from profile as fallback when credits wallet doesn't exist yet
   useEffect(() => {
