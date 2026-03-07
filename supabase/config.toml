@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.ticket-notify]
 verify_jwt = false
+
+[functions.elevenlabs-proxy]
+verify_jwt = false

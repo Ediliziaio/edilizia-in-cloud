@@ -77,6 +77,247 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_agent_audit_log: {
+        Row: {
+          action: string
+          agent_id: string | null
+          company_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          agent_id?: string | null
+          company_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          agent_id?: string | null
+          company_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_conversations: {
+        Row: {
+          agent_id: string
+          appointment_created: boolean
+          company_id: string
+          contact_id: string | null
+          duration_seconds: number
+          elevenlabs_conversation_id: string | null
+          id: string
+          messages_count: number
+          started_at: string
+          status: string
+        }
+        Insert: {
+          agent_id: string
+          appointment_created?: boolean
+          company_id: string
+          contact_id?: string | null
+          duration_seconds?: number
+          elevenlabs_conversation_id?: string | null
+          id?: string
+          messages_count?: number
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          agent_id?: string
+          appointment_created?: boolean
+          company_id?: string
+          contact_id?: string | null
+          duration_seconds?: number
+          elevenlabs_conversation_id?: string | null
+          id?: string
+          messages_count?: number
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_conversations_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_credits: {
+        Row: {
+          company_id: string
+          id: string
+          minutes_used: number
+          total_minutes_purchased: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          minutes_used?: number
+          total_minutes_purchased?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          minutes_used?: number
+          total_minutes_purchased?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_credits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_knowledge_docs: {
+        Row: {
+          agent_id: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          elevenlabs_doc_id: string | null
+          id: string
+          name: string
+          source_url: string | null
+          type: string
+        }
+        Insert: {
+          agent_id?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          elevenlabs_doc_id?: string | null
+          id?: string
+          name: string
+          source_url?: string | null
+          type?: string
+        }
+        Update: {
+          agent_id?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          elevenlabs_doc_id?: string | null
+          id?: string
+          name?: string
+          source_url?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_knowledge_docs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_knowledge_docs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agents: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          elevenlabs_agent_id: string | null
+          first_message: string
+          id: string
+          is_interruptible: boolean
+          language: string
+          llm_model: string
+          name: string
+          status: string
+          system_prompt: string
+          updated_at: string
+          voice_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          elevenlabs_agent_id?: string | null
+          first_message?: string
+          id?: string
+          is_interruptible?: boolean
+          language?: string
+          llm_model?: string
+          name: string
+          status?: string
+          system_prompt?: string
+          updated_at?: string
+          voice_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          elevenlabs_agent_id?: string | null
+          first_message?: string
+          id?: string
+          is_interruptible?: boolean
+          language?: string
+          llm_model?: string
+          name?: string
+          status?: string
+          system_prompt?: string
+          updated_at?: string
+          voice_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           address_city: string | null
@@ -4593,6 +4834,30 @@ export type Database = {
           target_status?: string
           title?: string
           type?: string
+        }
+        Relationships: []
+      }
+      platform_elevenlabs_config: {
+        Row: {
+          api_key_encrypted: string | null
+          default_llm: string
+          id: string
+          markup_multiplier: number
+          updated_at: string
+        }
+        Insert: {
+          api_key_encrypted?: string | null
+          default_llm?: string
+          id?: string
+          markup_multiplier?: number
+          updated_at?: string
+        }
+        Update: {
+          api_key_encrypted?: string | null
+          default_llm?: string
+          id?: string
+          markup_multiplier?: number
+          updated_at?: string
         }
         Relationships: []
       }
