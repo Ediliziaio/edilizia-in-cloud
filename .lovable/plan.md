@@ -1,113 +1,38 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-# Piano Miglioramento Sezione Costi Aziendali
+## Completato in questo step
 
-## Analisi
+### Priorità 1 ✅
+1. ✅ **Migration SQL**: Tabella `ai_agent_phone_numbers` + colonne `cost_per_minute_platform`/`cost_per_minute_billed` su `ai_agent_credits`
+2. ✅ **Sidebar sottovoci**: Aggiunte voci "Agenti AI", "KB Globale", "Crediti AI" nella sidebar marketing
+3. ✅ **VoiceSelector potenziato**: Filtri genere, search, pannello laterale con slider stabilità/velocità/somiglianza, famiglia TTS, toggle modalità espressiva
+4. ✅ **LLMSelector potenziato**: Collapsible con temperatura slider, backup LLM, limite token, budget riflessione
+5. ✅ **AgentTab completamento**: Toggle personalità predefinita, fuso orario, trascrizione post-chiamata
+6. ✅ **Edge function auth fix**: Sostituito `getClaims()` con `getUser()`
 
-La sezione è già ben strutturata con: KPI cards (annuali + periodo), tabella con paginazione/ordinamento, grafico distribuzione mensile, form completo, filtri avanzati. Il prompt chiede molte modifiche — le organizzo per priorità come richiesto.
+### Priorità 2 ✅
+7. ✅ **Tab Branch**: Tabella branch con divisione traffico + crea/elimina
+8. ✅ **Tab Test**: Area test con esecuzioni precedenti
+9. ✅ **Tab Workflow**: Canvas con nodi drag + toolbar zoom + nodi EdiliziaInCloud
+10. ✅ **Tab Strumenti**: Strumenti sistema con toggle + strumenti nativi EdiliziaInCloud
+11. ✅ **AgentAnalyticsTab potenziato**: Tabella conversazioni filtrabili con riga espandibile
 
----
+### Componenti e tipi ✅
+12. ✅ `knowledgeBase.types.ts` + `phoneNumber.types.ts`
+13. ✅ `CreditUsageBar.tsx` + `AnalyticsTable.tsx` + `ConversationPlayer.tsx` + `WorkflowCanvas.tsx`
+14. ✅ `useAgentCredits.ts` hook
+15. ✅ `lib/creditCalculator.ts` + `lib/ediliziaSync.ts`
 
-## Fase 1 — Badge stati migliorati + Colonna Ritardo
+## Da fare (prossimi step)
 
-### `CostsTable.tsx`
-- **Badge aggiornati**: Modificare `getStatusBadge()` per includere:
-  - 🟢 **Pagato** — verde (invariato)
-  - 🟡 **In scadenza** — giallo con testo "In scadenza (N gg)"
-  - 🔴 **Scaduto** — rosso con icona ⚠️ + "Scaduto Ngg" calcolato come `Math.ceil((now - due_date) / 86400000)`
-  - 🔵 **Previsto** — blu chiaro per costi ricorrenti con due_date futura > 7gg
-  - ⚪ **Da pagare** — grigio neutro (non scaduto, non in scadenza, non ricorrente futuro)
+### Priorità 3: Integrazioni
+- `elevenlabs-webhook` edge function
+- PlatformSettingsPage con salvataggio reale su DB
+- Decremento crediti automatico via webhook
+- Visualizzazione conversazioni nella scheda Lead CRM
 
-- **Nuova colonna "Ritardo"**: Aggiungere tra Stato e Ordine
-  - Se scaduto non pagato: `+N gg` in rosso
-  - Se pagato e `paid_date` e `due_date` presenti: delta giorni (verde se anticipato, rosso se in ritardo)
-  - Altrimenti: `—`
-
----
-
-## Fase 2 — KPI Cards ridisegnate
-
-### `CostsStatsCards.tsx`
-Sostituire le 6 card del blocco "Period Stats" con queste 6 card cliccabili:
-
-| Card | Logica | Colore |
-|------|--------|--------|
-| Sostenuti (reali) | `is_paid === true` nel periodo | Verde |
-| Previsti (ricorrenti) | `recurrence !== "once" && !is_paid && due_date > now` | Blu |
-| Da pagare | `!is_paid && due_date < now` (scaduto) | Rosso |
-| In scadenza (7gg) | `!is_paid && due_date entro 7gg` | Arancione |
-| Pagato nel periodo | somma pagati nel periodo filtrato | Verde scuro |
-| Scostamento | delta previsto vs sostenuto | Dinamico +/- |
-
-### `CompanyCostsManager.tsx`
-- Aggiungere prop `onCardFilter` che imposta `statusFilter` quando si clicca una card
-- Le card filtrano la tabella sottostante al click
-
----
-
-## Fase 3 — Tab aggiuntivi
-
-### `CompanyCostsManager.tsx`
-Sostituire i tab `Tutti / Fissi / Variabili` con:
-
-```
-[ Tutti ] [ Sostenuti ] [ Previsti ] [ In ritardo ] [ In scadenza ]
-```
-
-- **Sostenuti**: `is_paid === true`
-- **Previsti**: `recurrence !== "once" && !is_paid && due_date > now`
-- **In ritardo**: `!is_paid && due_date < now`
-- **In scadenza**: `!is_paid && due_date in [now, now+7gg]`
-
-Ogni tab mostra il conteggio. La logica di filtraggio viene spostata in `useCompanyCostsData.ts` che esporrà le liste pre-filtrate.
-
----
-
-## Fase 4 — Alert Banner pagamenti scaduti
-
-### `CompanyCostsManager.tsx`
-Aggiungere un banner arancione sotto il titolo, visibile solo se `stats.overdueCount > 0`:
-
-```
-⚠️ Hai N pagamenti scaduti per un totale di €XX.XXX — [Visualizza]
-```
-
-Click su "Visualizza" → imposta tab su "In ritardo".
-
----
-
-## Fase 5 — Grafico Previsto vs Sostenuto (toggle)
-
-### `CostsStatsCards.tsx`
-- Aggiungere stato `chartView: "current" | "comparison"` con toggle buttons
-- Vista "Previsto vs Sostenuto":
-  - Barra blu "Previsto" = somma costi con `due_date` nel mese
-  - Barra verde "Sostenuto" = somma costi con `paid_date` nel mese
-  - Tooltip con delta
-
-I dati necessari (`monthlyDistribution`) contengono già sia `Totale` (previsto) che `PagatoEffettivo` (sostenuto) — basta cambiare le `Bar` renderizzate.
-
----
-
-## Fase 6 — Form migliorato (nessuna migration necessaria)
-
-### `CostFormDialog.tsx`
-- Il campo "Tipo costo" (`fixed`/`variable`) è già presente — non serve "Sostenuto/Previsto" come tipo (è derivato dalla ricorrenza e dallo stato pagamento)
-- Il campo "Ricorrenza" con "Data fine contratto" è già presente
-- Il campo "Note" è già presente — aggiungere `maxLength={200}` alla Textarea
-- Il campo "Data scadenza" è già obbligatorio
-
-Non servono nuove colonne Supabase: la distinzione "sostenuto vs previsto" è calcolata client-side da `is_paid`, `recurrence` e `due_date`.
-
----
-
-## File da modificare
-
-1. **`src/hooks/useCompanyCostsData.ts`** — Aggiungere liste pre-filtrate per i nuovi tab + dati per le card cliccabili
-2. **`src/components/forecast/CostsStatsCards.tsx`** — Ridisegnare card periodo + aggiungere toggle grafico + card cliccabili
-3. **`src/components/forecast/CostsTable.tsx`** — Badge migliorati + colonna Ritardo
-4. **`src/components/forecast/CompanyCostsManager.tsx`** — Nuovi tab + banner alert + gestione filtro da card
-5. **`src/components/forecast/CostFormDialog.tsx`** — maxLength su note
-
-Nessuna migration Supabase necessaria.
-
+### Priorità 4: Raffinamenti
+- Sicurezza tab (whitelist domini, rate limiting)
+- Avanzato tab (timeout, max durata)
+- `/docs/ai-agents-module.md`
