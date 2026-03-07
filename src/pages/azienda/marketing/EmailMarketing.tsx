@@ -4,6 +4,7 @@ import { BarChart3, Send, FileText } from "lucide-react";
 import { EmailStatsTab } from "@/components/email-marketing/EmailStatsTab";
 import { EmailCampaignsTab } from "@/components/email-marketing/EmailCampaignsTab";
 import { EmailTemplatesTab } from "@/components/email-marketing/EmailTemplatesTab";
+import { EmailCreditsWidget } from "@/components/email-marketing/EmailCreditsWidget";
 
 const EmailMarketing = () => {
   const [activeTab, setActiveTab] = useState("statistiche");
