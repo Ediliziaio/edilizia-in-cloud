@@ -1,0 +1,124 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    // Authenticate user
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const userId = claimsData.claims.sub;
+
+    const admin = createClient(supabaseUrl, serviceRoleKey);
+
+    // Get user's company_id
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("company_id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const companyId = profile?.company_id;
+
+    // Read platform_settings keys
+    const settingsKeys = [
+      "google_maps_api_key",
+      "meta_app_id",
+      "meta_app_secret",
+      "resend_api_key",
+      "elevenlabs_api_key",
+      "whatsapp_verify_token",
+    ];
+
+    const { data: settings } = await admin
+      .from("platform_settings")
+      .select("key, value")
+      .in("key", settingsKeys);
+
+    const settingsMap: Record<string, string> = {};
+    for (const row of settings || []) {
+      if (row.value) settingsMap[row.key] = row.value;
+    }
+
+    // Platform-level checks with env fallback
+    const googlemaps = !!(settingsMap["google_maps_api_key"] || Deno.env.get("GOOGLE_MAPS_API_KEY"));
+    const meta_platform = !!(
+      (settingsMap["meta_app_id"] || Deno.env.get("META_APP_ID")) &&
+      (settingsMap["meta_app_secret"] || Deno.env.get("META_APP_SECRET"))
+    );
+    const email = !!(settingsMap["resend_api_key"] || Deno.env.get("RESEND_API_KEY"));
+    const elevenlabs = !!(settingsMap["elevenlabs_api_key"] || Deno.env.get("ELEVENLABS_API_KEY"));
+    const whatsapp_platform = !!(settingsMap["whatsapp_verify_token"] || Deno.env.get("WHATSAPP_VERIFY_TOKEN"));
+
+    // Per-company checks
+    let whatsapp = whatsapp_platform;
+    let meta = meta_platform;
+
+    if (companyId) {
+      // Check WhatsApp per-company config
+      if (whatsapp_platform) {
+        const { data: waConfig } = await admin
+          .from("messaging_whatsapp_config")
+          .select("id")
+          .eq("company_id", companyId)
+          .maybeSingle();
+        whatsapp = !!waConfig;
+      }
+
+      // Check Meta per-company integration
+      if (meta_platform) {
+        const { data: metaInteg } = await admin
+          .from("integrations")
+          .select("id")
+          .eq("company_id", companyId)
+          .eq("provider", "meta")
+          .in("status", ["connected", "error", "token_expired"])
+          .maybeSingle();
+        meta = !!metaInteg;
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ whatsapp, googlemaps, meta, email, elevenlabs }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    console.error("check-api-health error:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});

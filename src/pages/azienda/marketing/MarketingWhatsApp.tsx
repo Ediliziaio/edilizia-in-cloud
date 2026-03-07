@@ -7,6 +7,7 @@ import { MessagingSettingsTab } from "@/components/messaging/MessagingSettingsTa
 import { WhatsAppBroadcastTab } from "@/components/marketing/whatsapp/WhatsAppBroadcastTab";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MessageCircle, Megaphone, Settings } from "lucide-react";
+import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 
 export default function MarketingWhatsApp() {
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
@@ -17,6 +18,8 @@ export default function MarketingWhatsApp() {
 
   return (
     <div className="space-y-4">
+      <ApiHealthBanner filter={["whatsapp"]} />
+
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-bold">WhatsApp Marketing</h1>
       </div>

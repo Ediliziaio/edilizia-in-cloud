@@ -16,6 +16,7 @@ import { DashboardForecast } from "@/components/marketing/dashboard/DashboardFor
 import { DashboardTrendChart } from "@/components/marketing/dashboard/DashboardTrendChart";
 import { exportToCSV } from "@/lib/csvExport";
 import { useAuth } from "@/contexts/AuthContext";
+import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 
 export default function MarketingDashboard() {
   const { data, isLoading, error, refetch, filters, updateFilters, permissions } = useMarketingDashboard();
@@ -73,6 +74,8 @@ export default function MarketingDashboard() {
 
   return (
     <div className="space-y-6">
+      <ApiHealthBanner filter={["meta", "email"]} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

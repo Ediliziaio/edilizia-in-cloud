@@ -1,0 +1,37 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+export type ApiServices = {
+  whatsapp: boolean;
+  googlemaps: boolean;
+  meta: boolean;
+  email: boolean;
+  elevenlabs: boolean;
+};
+
+const defaultServices: ApiServices = {
+  whatsapp: true,
+  googlemaps: true,
+  meta: true,
+  email: true,
+  elevenlabs: true,
+};
+
+export function useApiHealth() {
+  const { data: services = defaultServices, isLoading } = useQuery({
+    queryKey: ["api-health"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("check-api-health");
+      if (error) {
+        console.warn("Failed to check API health:", error);
+        return defaultServices;
+      }
+      return data as ApiServices;
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 15 * 60 * 1000,
+    retry: 1,
+  });
+
+  return { services, isLoading };
+}

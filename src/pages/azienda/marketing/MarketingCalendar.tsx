@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -525,6 +526,8 @@ export default function MarketingCalendar() {
 
   return (
     <div className="space-y-4">
+      <ApiHealthBanner filter={["googlemaps"]} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-6">

@@ -5,12 +5,15 @@ import { EmailStatsTab } from "@/components/email-marketing/EmailStatsTab";
 import { EmailCampaignsTab } from "@/components/email-marketing/EmailCampaignsTab";
 import { EmailTemplatesTab } from "@/components/email-marketing/EmailTemplatesTab";
 import { EmailCreditsWidget } from "@/components/email-marketing/EmailCreditsWidget";
+import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 
 const EmailMarketing = () => {
   const [activeTab, setActiveTab] = useState("statistiche");
 
   return (
     <div className="space-y-6">
+      <ApiHealthBanner filter={["email"]} />
+
       <div>
         <h1 className="text-2xl font-bold text-foreground">Email Marketing</h1>
         <p className="text-muted-foreground">Gestisci campagne, template e monitora le performance</p>
