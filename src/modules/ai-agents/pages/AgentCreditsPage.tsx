@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -11,7 +11,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { CreditCard, Wallet, TrendingUp, Clock, AlertTriangle, ShieldAlert } from "lucide-react";
+import { CreditCard, Wallet, Clock, ShieldAlert } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CreditUsageBar } from "../components/CreditUsageBar";
 import { useAgentCredits, useCreditTopups, useCreditUsage, useUsageByAgent } from "../hooks/useAgentCredits";
@@ -42,7 +42,22 @@ export default function AgentCreditsPage() {
   const [isTopupLoading, setIsTopupLoading] = useState(false);
   const [fallbackCompanyId, setFallbackCompanyId] = useState<string | null>(null);
 
-  // Fetch company_id from profile as fallback when credits wallet doesn't exist yet
+  // Auto-recharge state
+  const [autoRechargeEnabled, setAutoRechargeEnabled] = useState(false);
+  const [autoRechargeThreshold, setAutoRechargeThreshold] = useState("5");
+  const [autoRechargeAmount, setAutoRechargeAmount] = useState("20");
+  const [isSavingAutoRecharge, setIsSavingAutoRecharge] = useState(false);
+
+  // Load auto-recharge settings from credits
+  useEffect(() => {
+    if (credits) {
+      setAutoRechargeEnabled(credits.auto_recharge_enabled ?? false);
+      setAutoRechargeThreshold(String(credits.auto_recharge_threshold ?? 5));
+      setAutoRechargeAmount(String(credits.auto_recharge_amount ?? 20));
+    }
+  }, [credits]);
+
+  // Fetch company_id from profile as fallback
   useEffect(() => {
     if (!credits?.company_id) {
       supabase.from("profiles").select("company_id").limit(1).maybeSingle().then(({ data }) => {
@@ -56,7 +71,6 @@ export default function AgentCreditsPage() {
   const recharged = credits?.total_recharged_eur ?? 0;
   const blocked = credits?.calls_blocked ?? false;
 
-  // Estimate avg cost per min from usage
   const avgCostPerMin = usageByAgent && usageByAgent.length > 0
     ? usageByAgent.reduce((s, u) => s + u.cost, 0) / Math.max(1, usageByAgent.reduce((s, u) => s + u.minutes, 0))
     : 0.04;
@@ -102,6 +116,33 @@ export default function AgentCreditsPage() {
       console.error(err);
     } finally {
       setIsTopupLoading(false);
+    }
+  };
+
+  const handleSaveAutoRecharge = async () => {
+    setIsSavingAutoRecharge(true);
+    try {
+      const companyId = credits?.company_id || fallbackCompanyId;
+      if (!companyId) throw new Error("company_id mancante");
+
+      const { error } = await supabase
+        .from("ai_credits" as never)
+        .update({
+          auto_recharge_enabled: autoRechargeEnabled,
+          auto_recharge_threshold: parseFloat(autoRechargeThreshold) || 5,
+          auto_recharge_amount: parseFloat(autoRechargeAmount) || 20,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("company_id" as never, companyId as never);
+
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["ai-credits"] });
+      toast.success("Impostazioni ricarica automatica salvate");
+    } catch (err) {
+      toast.error("Errore nel salvataggio");
+      console.error(err);
+    } finally {
+      setIsSavingAutoRecharge(false);
     }
   };
 
@@ -154,20 +195,44 @@ export default function AgentCreditsPage() {
             <div>
               <p className="text-sm font-semibold text-foreground">Ricarica Automatica</p>
               <div className="flex items-center gap-2 mt-2">
-                <Switch checked={credits?.auto_recharge_enabled ?? false} disabled />
+                <Switch
+                  checked={autoRechargeEnabled}
+                  onCheckedChange={setAutoRechargeEnabled}
+                />
                 <span className="text-sm text-muted-foreground">
-                  {credits?.auto_recharge_enabled ? "Attiva" : "Disattivata"}
+                  {autoRechargeEnabled ? "Attiva" : "Disattivata"}
                 </span>
               </div>
-              {credits?.auto_recharge_enabled ? (
-                <Card className="bg-primary/5 border-primary/20 mt-3">
-                  <CardContent className="p-4 space-y-2 text-sm">
-                    <p>✅ Ricarica automatica attiva</p>
-                    <p>Soglia: <span className="font-mono">{formatEur(credits.auto_recharge_threshold)}</span></p>
-                    <p>Importo: <span className="font-mono">{formatEur(credits.auto_recharge_amount)}</span></p>
-                  </CardContent>
-                </Card>
-              ) : (
+              {autoRechargeEnabled && (
+                <div className="mt-3 space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Soglia (€) — ricarica quando il saldo scende sotto</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={autoRechargeThreshold}
+                      onChange={(e) => setAutoRechargeThreshold(e.target.value)}
+                      className="w-24 font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Importo ricarica (€)</Label>
+                    <Input
+                      type="number"
+                      min={5}
+                      step={5}
+                      value={autoRechargeAmount}
+                      onChange={(e) => setAutoRechargeAmount(e.target.value)}
+                      className="w-24 font-mono"
+                    />
+                  </div>
+                  <Button size="sm" onClick={handleSaveAutoRecharge} disabled={isSavingAutoRecharge}>
+                    {isSavingAutoRecharge ? "Salvataggio..." : "Salva"}
+                  </Button>
+                </div>
+              )}
+              {!autoRechargeEnabled && (
                 <p className="text-xs text-muted-foreground mt-2">
                   Con la ricarica automatica non perdi mai una chiamata.
                   <br />Soglia alert: {formatEur(credits?.alert_threshold_eur ?? 5)}

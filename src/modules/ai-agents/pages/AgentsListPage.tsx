@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Bot, Plus } from "lucide-react";
 import { AgentCard } from "../components/AgentCard";
 import { CreateAgentWizard } from "../components/CreateAgentWizard";
@@ -16,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 export default function AgentsListPage() {
   const { data: agents, isLoading } = useAgents();
@@ -23,12 +26,31 @@ export default function AgentsListPage() {
   const deleteAgent = useDeleteAgent();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [archiveId, setArchiveId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
-  const handleArchive = (id: string) => {
-    // Simple archive = update status
-    // We don't have useUpdateAgent without a fixed id, so we use delete for now
-    // In phase 2, we'll add proper archive
+  // We need a generic update mutation for archive
+  const archiveAgent = useUpdateAgent(archiveId ?? undefined);
+
+  const handleConfirmArchive = () => {
+    if (!archiveId) return;
+    archiveAgent.mutate({ status: "archived" }, {
+      onSuccess: () => {
+        toast.success("Agente archiviato");
+        setArchiveId(null);
+      },
+      onError: () => {
+        toast.error("Errore nell'archiviazione");
+        setArchiveId(null);
+      },
+    });
   };
+
+  const filteredAgents = agents?.filter(a =>
+    showArchived ? true : a.status !== "archived"
+  );
+
+  const archivedCount = agents?.filter(a => a.status === "archived").length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -43,6 +65,16 @@ export default function AgentsListPage() {
         </Button>
       </div>
 
+      {/* Filter: show archived */}
+      {archivedCount > 0 && (
+        <div className="flex items-center gap-2">
+          <Switch checked={showArchived} onCheckedChange={setShowArchived} id="show-archived" />
+          <Label htmlFor="show-archived" className="text-sm text-muted-foreground">
+            Mostra archiviati ({archivedCount})
+          </Label>
+        </div>
+      )}
+
       {/* Loading */}
       {isLoading && (
         <div className="space-y-3">
@@ -53,7 +85,7 @@ export default function AgentsListPage() {
       )}
 
       {/* Empty state */}
-      {!isLoading && agents?.length === 0 && (
+      {!isLoading && filteredAgents?.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
           <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
             <Bot className="h-8 w-8 text-primary" />
@@ -71,13 +103,13 @@ export default function AgentsListPage() {
       )}
 
       {/* Agent list */}
-      {!isLoading && agents && agents.length > 0 && (
+      {!isLoading && filteredAgents && filteredAgents.length > 0 && (
         <div className="space-y-3">
-          {agents.map((agent) => (
+          {filteredAgents.map((agent) => (
             <AgentCard
               key={agent.id}
               agent={agent}
-              onArchive={handleArchive}
+              onArchive={(id) => setArchiveId(id)}
               onDelete={(id) => setDeleteId(id)}
             />
           ))}
@@ -91,6 +123,24 @@ export default function AgentsListPage() {
         onSubmit={(data) => createAgent.mutate(data)}
         isLoading={createAgent.isPending}
       />
+
+      {/* Archive confirmation */}
+      <AlertDialog open={!!archiveId} onOpenChange={(open) => !open && setArchiveId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archiviare questo agente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              L'agente verrà archiviato e non sarà più visibile nella lista principale. Potrai riattivarlo in qualsiasi momento.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmArchive}>
+              Archivia
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>

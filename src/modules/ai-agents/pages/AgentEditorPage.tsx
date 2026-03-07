@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, ChevronRight, Shield, Settings2, Globe, Clock, AlertTriangle, Lock } from "lucide-react";
 import { toast } from "sonner";
+import type { AIAgent, AIAgentUpdate } from "../types/agent.types";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
   active: { label: "Attivo", variant: "default" },
@@ -27,11 +28,32 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   archived: { label: "Archiviato", variant: "outline" },
 };
 
-function SecurityTab() {
-  const [domainWhitelist, setDomainWhitelist] = useState("");
-  const [requireAuth, setRequireAuth] = useState(false);
-  const [rateLimitEnabled, setRateLimitEnabled] = useState(true);
-  const [rateLimitPerMinute, setRateLimitPerMinute] = useState("10");
+interface SecurityTabProps {
+  agent: AIAgent;
+  onSave: (update: AIAgentUpdate) => void;
+}
+
+function SecurityTab({ agent, onSave }: SecurityTabProps) {
+  const agentAny = agent as Record<string, unknown>;
+  const [domainWhitelist, setDomainWhitelist] = useState(
+    ((agentAny.domain_whitelist as string[]) ?? []).join("\n")
+  );
+  const [requireAuth, setRequireAuth] = useState((agentAny.require_auth as boolean) ?? false);
+  const [rateLimitEnabled, setRateLimitEnabled] = useState((agentAny.rate_limit_enabled as boolean) ?? true);
+  const [rateLimitPerMinute, setRateLimitPerMinute] = useState(
+    String((agentAny.rate_limit_per_minute as number) ?? 10)
+  );
+
+  const handleSave = () => {
+    const domains = domainWhitelist.split("\n").map(d => d.trim()).filter(Boolean);
+    onSave({
+      domain_whitelist: domains,
+      require_auth: requireAuth,
+      rate_limit_enabled: rateLimitEnabled,
+      rate_limit_per_minute: parseInt(rateLimitPerMinute) || 10,
+    } as AIAgentUpdate);
+    toast.success("Configurazione sicurezza salvata");
+  };
 
   return (
     <div className="space-y-6">
@@ -101,20 +123,45 @@ function SecurityTab() {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={() => toast.info("Configurazione sicurezza salvata (demo)")}>
-          Salva configurazione
-        </Button>
+        <Button onClick={handleSave}>Salva configurazione</Button>
       </div>
     </div>
   );
 }
 
-function AdvancedTab() {
-  const [conversationTimeout, setConversationTimeout] = useState("300");
-  const [maxDuration, setMaxDuration] = useState("1800");
-  const [errorMessage, setErrorMessage] = useState("Mi scusi, si è verificato un errore. Riproviamo.");
-  const [autoEndOnSilence, setAutoEndOnSilence] = useState(true);
-  const [silenceTimeout, setSilenceTimeout] = useState("30");
+interface AdvancedTabProps {
+  agent: AIAgent;
+  onSave: (update: AIAgentUpdate) => void;
+}
+
+function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
+  const agentAny = agent as Record<string, unknown>;
+  const [conversationTimeout, setConversationTimeout] = useState(
+    String((agentAny.conversation_timeout as number) ?? 300)
+  );
+  const [maxDuration, setMaxDuration] = useState(
+    String((agentAny.max_duration as number) ?? 1800)
+  );
+  const [errorMessage, setErrorMessage] = useState(
+    (agentAny.error_message as string) ?? "Mi scusi, si è verificato un errore. Riproviamo."
+  );
+  const [autoEndOnSilence, setAutoEndOnSilence] = useState(
+    (agentAny.auto_end_on_silence as boolean) ?? true
+  );
+  const [silenceTimeout, setSilenceTimeout] = useState(
+    String((agentAny.silence_timeout as number) ?? 30)
+  );
+
+  const handleSave = () => {
+    onSave({
+      conversation_timeout: parseInt(conversationTimeout) || 300,
+      max_duration: parseInt(maxDuration) || 1800,
+      error_message: errorMessage,
+      auto_end_on_silence: autoEndOnSilence,
+      silence_timeout: parseInt(silenceTimeout) || 30,
+    } as AIAgentUpdate);
+    toast.success("Configurazione avanzata salvata");
+  };
 
   return (
     <div className="space-y-6">
@@ -201,9 +248,7 @@ function AdvancedTab() {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={() => toast.info("Configurazione avanzata salvata (demo)")}>
-          Salva configurazione
-        </Button>
+        <Button onClick={handleSave}>Salva configurazione</Button>
       </div>
     </div>
   );
@@ -227,6 +272,10 @@ export default function AgentEditorPage() {
     updateAgent.mutate({ status: "draft" }, {
       onSuccess: () => toast.success("Agente impostato come bozza"),
     });
+  };
+
+  const handleUpdate = (update: AIAgentUpdate) => {
+    updateAgent.mutate(update);
   };
 
   if (isLoading) {
@@ -316,19 +365,19 @@ export default function AgentEditorPage() {
           <AgentAnalyticsTab agentId={agent.id} />
         </TabsContent>
         <TabsContent value="tools" className="mt-4">
-          <AgentToolsTab />
+          <AgentToolsTab agentId={agent.id} />
         </TabsContent>
         <TabsContent value="test" className="mt-4">
-          <AgentTestTab />
+          <AgentTestTab agentId={agent.id} companyId={agent.company_id} />
         </TabsContent>
         <TabsContent value="widget" className="mt-4">
           <AgentWidgetTab agent={agent} />
         </TabsContent>
         <TabsContent value="security" className="mt-4">
-          <SecurityTab />
+          <SecurityTab agent={agent} onSave={handleUpdate} />
         </TabsContent>
         <TabsContent value="advanced" className="mt-4">
-          <AdvancedTab />
+          <AdvancedTab agent={agent} onSave={handleUpdate} />
         </TabsContent>
       </Tabs>
     </div>

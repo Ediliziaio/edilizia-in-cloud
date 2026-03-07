@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe, DollarSign, TrendingUp } from "lucide-react";
+import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe, DollarSign, AlertTriangle } from "lucide-react";
 import { LLMSelector } from "../components/LLMSelector";
 import { toast } from "sonner";
 import { elevenLabsClient } from "../lib/elevenLabsClient";
@@ -36,7 +36,33 @@ export default function PlatformSettingsPage() {
   const [globalMarkup, setGlobalMarkup] = useState("2.0");
   const [domainWhitelist, setDomainWhitelist] = useState("");
   const [testStatus, setTestStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [isSaving, setIsSaving] = useState(false);
   const queryClient = useQueryClient();
+
+  // Load existing API key from platform_settings
+  const { data: savedSettings } = useQuery({
+    queryKey: ["platform-settings-elevenlabs"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("platform_settings" as never)
+        .select("key, value")
+        .in("key" as never, ["elevenlabs_api_key", "default_llm_model", "domain_whitelist"] as never);
+      return (data as unknown as { key: string; value: string }[]) ?? [];
+    },
+  });
+
+  useEffect(() => {
+    if (savedSettings) {
+      const keyVal = savedSettings.find(s => s.key === "elevenlabs_api_key")?.value;
+      const llmVal = savedSettings.find(s => s.key === "default_llm_model")?.value;
+      const domainVal = savedSettings.find(s => s.key === "domain_whitelist")?.value;
+      if (keyVal) setApiKey(keyVal);
+      if (llmVal) setDefaultLlm(llmVal);
+      if (domainVal) setDomainWhitelist(domainVal);
+    }
+  }, [savedSettings]);
+
+  const hasApiKey = !!(savedSettings?.find(s => s.key === "elevenlabs_api_key")?.value);
 
   // Fetch pricing
   const { data: pricing, isLoading: pricingLoading } = useQuery({
@@ -51,7 +77,6 @@ export default function PlatformSettingsPage() {
     },
   });
 
-  // Local editable copy of pricing
   const [editedPricing, setEditedPricing] = useState<PricingRow[]>([]);
   const [dirtyRows, setDirtyRows] = useState<Set<string>>(new Set());
 
@@ -75,8 +100,31 @@ export default function PlatformSettingsPage() {
     }
   };
 
-  const handleSave = () => {
-    toast.info("Il salvataggio della configurazione sarà disponibile nella prossima versione.");
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const settings = [
+        { key: "elevenlabs_api_key", value: apiKey.trim() },
+        { key: "default_llm_model", value: defaultLlm },
+        { key: "domain_whitelist", value: domainWhitelist.trim() },
+      ];
+
+      for (const setting of settings) {
+        if (!setting.value) continue;
+        const { error } = await supabase
+          .from("platform_settings" as never)
+          .upsert({ key: setting.key, value: setting.value, updated_at: new Date().toISOString() } as never, { onConflict: "key" as never });
+        if (error) throw error;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["platform-settings-elevenlabs"] });
+      toast.success("Configurazione salvata con successo");
+    } catch (err) {
+      console.error(err);
+      toast.error("Errore nel salvataggio della configurazione");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const updateRow = (id: string, field: keyof PricingRow, value: unknown) => {
@@ -84,7 +132,6 @@ export default function PlatformSettingsPage() {
       prev.map((r) => {
         if (r.id !== id) return r;
         const updated = { ...r, [field]: value };
-        // Auto-calculate billed if real or markup changed
         if (field === "cost_real_per_min" || field === "markup_multiplier") {
           updated.cost_billed_per_min = Number(
             ((updated.cost_real_per_min || 0) * (updated.markup_multiplier || 2)).toFixed(6)
@@ -144,7 +191,6 @@ export default function PlatformSettingsPage() {
     queryClient.invalidateQueries({ queryKey: ["platform-pricing"] });
   };
 
-  // Preview for global markup
   const previewReal = 0.02;
   const previewMarkup = parseFloat(globalMarkup) || 2;
   const previewBilled = previewReal * previewMarkup;
@@ -156,6 +202,21 @@ export default function PlatformSettingsPage() {
         <Shield className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">Impostazioni Piattaforma</h1>
       </div>
+
+      {/* API Key Missing Banner */}
+      {!hasApiKey && (
+        <Card className="border-destructive bg-destructive/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-destructive">API Key ElevenLabs non configurata</p>
+              <p className="text-xs text-destructive/80">
+                Gli agenti AI non potranno funzionare finché non configuri la chiave API qui sotto e salvi.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* API Key Section */}
       <Card>
@@ -215,7 +276,6 @@ export default function PlatformSettingsPage() {
           </CardTitle>
           <CardDescription>
             Configura i costi reali ElevenLabs e il markup addebitato alle aziende.
-            I prezzi vengono applicati in tempo reale a ogni conversazione.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -236,7 +296,6 @@ export default function PlatformSettingsPage() {
               />
             </div>
 
-            {/* Live preview */}
             <div className="bg-background border rounded-lg px-5 py-3 mt-4 grid grid-cols-3 gap-4 text-center">
               <div>
                 <p className="text-xs text-muted-foreground">Costo reale EL</p>
@@ -371,7 +430,9 @@ export default function PlatformSettingsPage() {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={handleSave}>Salva configurazione</Button>
+        <Button onClick={handleSave} disabled={isSaving}>
+          {isSaving ? "Salvataggio..." : "Salva configurazione"}
+        </Button>
       </div>
     </div>
   );
