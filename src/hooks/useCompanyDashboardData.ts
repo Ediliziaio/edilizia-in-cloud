@@ -434,5 +434,6 @@ export function useCompanyDashboardData() {
     weeklyDeadlines: dashboardData?.weeklyDeadlines ?? { receivables: [], companyCosts: [], upcomingWorks: [] },
     monthlyBalance: dashboardData?.monthlyBalance ?? [],
     revenueYTD: dashboardData?.revenueYTD ?? [],
+    agingReceivables: dashboardData?.agingReceivables ?? { overdue: 0, thisWeek: 0, thisMonth: 0, future: 0 },
   };
 }
