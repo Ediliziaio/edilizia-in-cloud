@@ -36,7 +36,7 @@ export interface AutomationConnection {
   created_at: string;
 }
 
-export type TriggerCategory = "contact" | "opportunity" | "appointment" | "communication" | "system";
+export type TriggerCategory = "contact" | "opportunity" | "appointment" | "communication" | "system" | "ai_agent";
 export type ActionCategory = "communication" | "crm" | "logic" | "integration";
 
 export interface PickerItem {
