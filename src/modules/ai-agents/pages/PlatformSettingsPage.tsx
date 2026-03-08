@@ -401,8 +401,7 @@ export default function PlatformSettingsPage() {
       </Card>
 
 
-      {/* Email Provider & Pricing */}
-      <EmailProviderSettings />
+      {/* Email Provider & Pricing — configurazione spostata in Admin Settings → Email */}
 
       {/* Default config */}
       <Card>

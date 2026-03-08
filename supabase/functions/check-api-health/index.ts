@@ -17,7 +17,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Authenticate user
+    // Authenticate user via getUser (standard SDK method)
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -30,17 +30,15 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const userId = claimsData.claims.sub;
-
+    const userId = user.id;
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
     // Get user's company_id
@@ -90,7 +88,6 @@ serve(async (req) => {
     let meta = meta_platform;
 
     if (companyId) {
-      // Check WhatsApp per-company config
       if (whatsapp_platform) {
         const { data: waConfig } = await admin
           .from("messaging_whatsapp_config")
@@ -100,7 +97,6 @@ serve(async (req) => {
         whatsapp = !!waConfig;
       }
 
-      // Check Meta per-company integration
       if (meta_platform) {
         const { data: metaInteg } = await admin
           .from("integrations")

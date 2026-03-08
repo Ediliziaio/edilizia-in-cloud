@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
 const corsHeaders = {
@@ -37,7 +36,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { to, testMode, stream, subject, html, campaignId, companyId } = body;
+    const { to, testMode, stream, subject, html, campaignId } = body;
 
     if (!to) {
       return new Response(
@@ -46,18 +45,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // === TEST MODE: direct send from Super Admin panel ===
+    // Determine stream and load settings
+    const providerStream = stream || "marketing";
+    const settings = await loadProviderSettings(providerStream);
+
+    if (!settings.apiKey) {
+      return new Response(
+        JSON.stringify({ error: `API Key non configurata per stream "${providerStream}". Vai in Impostazioni → Email Provider.` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // If testMode (Super Admin panel), send directly without campaign lookup
     if (testMode) {
-      const providerStream = stream || "marketing";
-      const settings = await loadProviderSettings(providerStream);
-
-      if (!settings.apiKey) {
-        return new Response(
-          JSON.stringify({ error: `API Key non configurata per stream "${providerStream}". Vai in Impostazioni → Email Provider.` }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
       const result = await sendViaProvider(settings.provider, settings.apiKey, {
         from: settings.fromDefault,
         to: [to],
@@ -71,10 +71,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // === CAMPAIGN MODE: existing flow ===
+    // Campaign test mode: send test of a specific campaign (no credit deduction)
     if (!campaignId) {
       return new Response(
-        JSON.stringify({ error: "Parametri mancanti: campaignId" }),
+        JSON.stringify({ error: "Parametri mancanti: campaignId o testMode" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -97,15 +97,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const settings = await loadProviderSettings("marketing");
-
-    if (!settings.apiKey) {
-      return new Response(
-        JSON.stringify({ error: "API Key del provider email non configurata." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const fromAddress = campaign.sender_email
       ? campaign.sender_name
         ? `${campaign.sender_name} <${campaign.sender_email}>`
@@ -121,24 +112,6 @@ Deno.serve(async (req) => {
       subject: `[TEST] ${campaign.subject || "Senza oggetto"}`,
       html: htmlBody,
     });
-
-    // Deduct credits if companyId provided
-    if (companyId) {
-      const { data: pricing } = await adminClient
-        .from("email_pricing")
-        .select("cost_billed_per_email")
-        .eq("provider", settings.provider)
-        .eq("is_active", true)
-        .limit(1)
-        .single();
-
-      if (pricing) {
-        await adminClient.rpc("deduct_email_credits", {
-          p_company_id: companyId,
-          p_cost: pricing.cost_billed_per_email,
-        });
-      }
-    }
 
     return new Response(JSON.stringify(result.body), {
       status: result.ok ? 200 : result.status,

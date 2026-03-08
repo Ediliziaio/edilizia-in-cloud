@@ -6,6 +6,8 @@ export type ApiServices = {
   googlemaps: boolean;
   meta: boolean;
   email: boolean;
+  email_marketing: boolean;
+  email_transactional: boolean;
   elevenlabs: boolean;
 };
 
@@ -14,6 +16,8 @@ const defaultServices: ApiServices = {
   googlemaps: true,
   meta: true,
   email: true,
+  email_marketing: true,
+  email_transactional: true,
   elevenlabs: true,
 };
 
@@ -28,7 +32,7 @@ export function useApiHealth() {
       }
       return data as ApiServices;
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 10 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     retry: 1,
   });

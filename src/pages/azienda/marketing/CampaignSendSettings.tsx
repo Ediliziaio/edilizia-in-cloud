@@ -201,6 +201,7 @@ export default function CampaignSendSettings() {
         auto_tag: autoTag,
         resend_to_unopened: resendToUnopened,
         scheduled_at: sendMode === "scheduled" && scheduledAt ? scheduledAt : null,
+        segment_json: buildSegmentJson(),
       };
       const { error: saveError } = await supabase
         .from("email_campaigns")
