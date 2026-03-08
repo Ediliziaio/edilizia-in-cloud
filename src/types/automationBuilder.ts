@@ -107,6 +107,16 @@ export const TRIGGER_CATEGORIES: { key: TriggerCategory; label: string; icon: st
       { id: "survey_submitted", label: "Sondaggio inviato", icon: "ClipboardCheck", category: "system" },
     ],
   },
+  {
+    key: "ai_agent",
+    label: "Agente AI",
+    icon: "Bot",
+    items: [
+      { id: "ai_conversation_ended", label: "Conversazione AI terminata", icon: "Bot", category: "ai_agent" },
+      { id: "ai_appointment_booked", label: "Appuntamento prenotato da AI", icon: "CalendarPlus", category: "ai_agent" },
+      { id: "ai_contact_created", label: "Contatto creato da AI", icon: "UserPlus", category: "ai_agent" },
+    ],
+  },
 ];
 
 export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: string; items: PickerItem[] }[] = [
