@@ -21,7 +21,7 @@ interface Props {
 }
 
 export function AutomationCanvas({
-  nodes, connections, selectedNodeId,
+  nodes, connections, selectedNodeId, nodeExecutionCounts,
   onSelectNode, onDeleteNode, onDuplicateNode, onAddAfterNode, onUpdateNode,
   onOpenTriggerPicker, onOpenActionPicker,
 }: Props) {
