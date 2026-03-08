@@ -327,6 +327,49 @@ export function useCompanyDashboardData() {
         financialAlerts.push({ type: "warning", message: `Uscite previste (${formatCurrency(unpaidCostsThisMonth)}) superiori agli incassi (${formatCurrency(thisMonthIncome)}) questo mese` });
       }
 
+      // Monthly Balance (last 6 months)
+      const monthlyBalance: { month: string; entrate: number; uscite: number }[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const ms = startOfMonth(subMonths(now, i));
+        const me = endOfMonth(subMonths(now, i));
+        const msStr = ms.toISOString().split("T")[0];
+        const meStr = me.toISOString().split("T")[0];
+        let entrate = 0;
+        pendingRevenueRes.data?.forEach((order: any) => {
+          const addIfInMonth = (paid: boolean, amount: number, date: string | null) => {
+            if (!paid && date && date >= msStr && date <= meStr) entrate += Number(amount) || 0;
+          };
+          addIfInMonth(order.deposit_paid, order.deposit_amount, order.deposit_expected_date);
+          addIfInMonth(order.deposit_2_paid, order.deposit_2_amount, order.deposit_2_expected_date);
+          addIfInMonth(order.balance_paid, order.balance_amount, order.balance_expected_date);
+          addIfInMonth(order.financing_paid, order.financing_amount, order.financing_expected_date);
+        });
+        let uscite = 0;
+        costsRes.data?.forEach(cost => {
+          if (cost.due_date && cost.due_date >= msStr && cost.due_date <= meStr) {
+            uscite += Number(cost.amount) || 0;
+          }
+        });
+        monthlyBalance.push({ month: format(ms, "MMM", { locale: it }), entrate, uscite });
+      }
+
+      // Revenue YTD
+      const revenueYTD: { month: string; revenue: number }[] = [];
+      const ytdStart = startOfYear(now);
+      const currentMonth = now.getMonth();
+      for (let m = 0; m <= currentMonth; m++) {
+        const ms = new Date(now.getFullYear(), m, 1);
+        const me = endOfMonth(ms);
+        const msStr = ms.toISOString();
+        const meStr = me.toISOString();
+        let revenue = 0;
+        (ordersThisMonthRes.data || []).forEach((o: any) => {
+          const createdAt = o.created_at || "";
+          if (createdAt >= msStr && createdAt <= meStr) revenue += Number(o.total_amount) || 0;
+        });
+        revenueYTD.push({ month: format(ms, "MMM", { locale: it }), revenue });
+      }
+
       return {
         stats: { totalOrders, totalCustomers, openTickets, pendingRevenue, pendingOrdersCount } as DashboardStats,
         prevStats: { totalOrders: prevOrdersCount, totalCustomers: prevCustomersCount } as PrevStats,
@@ -340,6 +383,8 @@ export function useCompanyDashboardData() {
         urgentItems: processedUrgentItems.slice(0, 5),
         financialAlerts,
         weeklyDeadlines: { receivables: weeklyReceivables, companyCosts: weeklySupplierPayments, upcomingWorks: weeklyUpcomingWorks } as WeeklyDeadlinesData,
+        monthlyBalance,
+        revenueYTD,
       };
     },
     enabled: !!companyId,
