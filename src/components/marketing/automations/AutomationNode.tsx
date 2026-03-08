@@ -64,6 +64,7 @@ export function getNodeBranches(nodeType: string): { key: string; label: string;
 interface Props {
   node: NodeType;
   isSelected: boolean;
+  executionCount?: number;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
