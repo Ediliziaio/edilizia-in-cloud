@@ -117,6 +117,15 @@ export const TRIGGER_CATEGORIES: { key: TriggerCategory; label: string; icon: st
       { id: "ai_contact_created", label: "Contatto creato da AI", icon: "UserPlus", category: "ai_agent" },
     ],
   },
+  {
+    key: "social_media",
+    label: "Social Media",
+    icon: "Share2",
+    items: [
+      { id: "facebook_lead_received", label: "Nuovo lead da Facebook", icon: "Share2", category: "social_media", description: "Si attiva quando arriva un nuovo lead da Facebook Lead Ads" },
+      { id: "facebook_lead_updated", label: "Lead Facebook aggiornato", icon: "Share2", category: "social_media", description: "Si attiva quando un lead Facebook esistente viene aggiornato" },
+    ],
+  },
 ];
 
 export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: string; items: PickerItem[] }[] = [
