@@ -110,6 +110,8 @@ export default function CompanyDashboard() {
 
   const totalYTDRevenue = useMemo(() => revenueYTD.reduce((s, r) => s + r.revenue, 0), [revenueYTD]);
 
+  const upcomingWorksCount = weeklyDeadlines.upcomingWorks?.length ?? 0;
+
   const statCards = [
     {
       title: "Ordini Totali",
@@ -142,14 +144,14 @@ export default function CompanyDashboard() {
       link: "/azienda/ticket",
     },
     {
-      title: "Da Incassare",
-      value: formatCurrency(stats.pendingRevenue),
+      title: "Prossimi Lavori",
+      value: upcomingWorksCount,
       prevValue: null as number | null,
-      icon: Euro,
-      color: "text-emerald-600",
-      bgColor: "bg-emerald-100",
-      description: `Da ${stats.pendingOrdersCount} ordini`,
-      link: "/azienda/previsionale",
+      icon: Package,
+      color: upcomingWorksCount > 0 ? "text-blue-600" : "text-muted-foreground",
+      bgColor: upcomingWorksCount > 0 ? "bg-blue-100" : "bg-muted",
+      description: upcomingWorksCount > 0 ? "In programma questa settimana" : "Nessun lavoro in programma",
+      link: "/azienda/ordini",
     },
   ];
 
