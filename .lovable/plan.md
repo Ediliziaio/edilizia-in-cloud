@@ -1,168 +1,142 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-## Ri-analisi Completa: Documento vs Implementazione — Stato Aggiornato
+## Completato — Blocco A, B, C ✅
 
-### Legenda
-- ✅ = Implementato e funzionante
-- ⚠️ = Parziale o con differenze
-- ❌ = Non implementato
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
----
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
-### PARTE 0 — Architettura e Shared Libraries
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-| Elemento | Stato | Note |
-|---|---|---|
-| `_shared/emailProvider.ts` — 5 provider | ✅ | SendGrid, Brevo, Resend, Elastic Email, Mailgun |
-| `_shared/emailProvider.ts` — `loadProviderSettings(stream)` | ✅ | Chiavi `email_marketing_*` / `email_transactional_*` |
-| `_shared/emailProvider.ts` — tracking nativo disabilitato | ✅ | SendGrid tracking_settings + Mailgun o:tracking |
-| `_shared/emailProvider.ts` — supporto attachments | ✅ | |
-| `_shared/emailCredits.ts` — deduct/add/getBalance/checkAutoTopup | ✅ | |
-| `_shared/getPlatformSetting.ts` | ✅ | |
-| **Discrepanza: sistema EUR vs crediti interi** | ⚠️ | Il DB usa `balance_eur` (float). Il documento prevede crediti interi (1 credito = 1 email). Tuttavia `send-email-campaign` usa `recipients.length` come costo, quindi funzionalmente 1 credito = 1 email anche se il campo si chiama `_eur`. Non critico ma naming inconsistente. |
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
----
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
-### PARTE 1 — Pannello SuperAdmin: Tab Email
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-| Elemento | Stato | Note |
-|---|---|---|
-| Tab Email in AdminSettings con 3 sub-tab | ✅ | Provider, Prezzi, Dashboard |
-| Provider Marketing: select, API key, from address | ✅ | |
-| Provider Marketing: from_name, domain (Mailgun) | ✅ | |
-| Provider Marketing: webhook URL read-only + copy | ✅ | |
-| Provider Marketing: badge stato (Connesso/Errore/Non configurato) | ✅ | Con data ultimo test |
-| Provider Transazionale: stesse feature | ✅ | |
-| Nota informativa transazionale | ✅ | Alert blu con spiegazione |
-| Prezzi & Margini: markup globale | ✅ | |
-| Prezzi & Margini: tabella tariffe per provider | ✅ | |
-| Prezzi & Margini: bonus signup | ✅ | |
-| Dashboard: KPI piattaforma (invii, aperture, click, bounce) | ✅ | |
-| Dashboard: selettore periodo (oggi/7d/30d/tutto) | ✅ | |
-| Dashboard: top 10 aziende via RPC | ✅ | Usa `get_top_companies_by_email` |
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
----
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-### PARTE 2 — Sezione Crediti Azienda
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
-| Elemento | Stato | Note |
-|---|---|---|
-| Pagina `SettingsCredits.tsx` | ✅ | Route `/azienda/impostazioni/crediti` |
-| Riepilogo multi-wallet (Email, AI, WhatsApp) | ✅ | 3 card + saldo totale |
-| Usage bar per wallet | ✅ | |
-| Storico movimenti email (tabella) | ✅ | Da `email_credits_log` |
-| Sidebar link "Crediti & Saldo" | ✅ | |
-| **Acquisto pacchetti crediti con Stripe** | ❌ | Nessuna UI per acquisto pacchetti |
-| **Auto Top-up con Stripe SetupIntent** | ❌ | Tabella `company_auto_topup` esiste, ma nessuna UI toggle/soglia/metodo pagamento |
-| `auto-topup-check` edge function | ❌ | |
-| `topup-credits` con prezzo dinamico da platform_settings | ❌ | Non gestisce email credits |
-| `stripe-webhook` per email credits | ❌ | Non gestisce purchase email credits |
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
+
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
 
 ---
 
-### PARTE 3 — Invio Campagne e Tracking
+## Email Dual-Provider + Sistema Crediti Universale
 
-| Elemento | Stato | Note |
-|---|---|---|
-| `send-email-campaign` edge function | ✅ | Bulk send con personalizzazione, tracking pixel, click wrap, unsubscribe header, credit deduction, segmentazione |
-| `email-tracking` edge function | ✅ | Open pixel, click redirect, unsubscribe con pagina HTML |
-| `email-provider-webhook` edge function | ✅ | Normalizzazione 5 provider (SendGrid, Brevo, Elastic, Mailgun, Resend) |
-| `send-test-email` con testMode | ✅ | |
-| `CampaignSendSettings.tsx` invoca `send-email-campaign` | ✅ | |
-| `CampaignSendSettings.tsx` widget saldo crediti | ✅ | Mostra balance e stima costo |
+### Fase 1 ✅ — Shared Libraries + DB Migrations
 
----
+**Database (migration applicata):**
+- ✅ Tabella `email_credits_log` (storico movimenti con RLS)
+- ✅ Tabella `company_auto_topup` (config auto-ricarica multi-wallet con RLS)
+- ✅ Colonne `sent_count`, `failed_count`, `completed_at`, `segment_json`, `credits_used` su `email_campaigns`
+- ✅ Colonne `unsubscribed`, `unsubscribed_at` su `marketing_contacts`
+- ✅ Colonne `provider_message_id`, `provider`, `stream`, `opened_at`, `clicked_at`, `error_message` su `email_logs`
+- ✅ RPC `get_platform_email_stats` (dashboard super admin)
+- ✅ RPC `deduct_email_credits_with_log` (detrazione atomica + log)
+- ✅ RPC `add_email_credits_with_log` (ricarica atomica + log)
+- ✅ RPC `get_email_stats_summary`, `get_email_stats_by_campaign`, `get_email_stats_by_date`
+- ✅ RPC `get_top_companies_by_email`
 
-### PARTE 4 — Email Transazionali (Stream Separato)
+**Edge Functions shared:**
+- ✅ `_shared/emailProvider.ts` — `sendViaProvider()` (SendGrid, Brevo, Resend, Elastic Email, Mailgun) + `loadProviderSettings()` + attachments + tracking disabilitato
+- ✅ `_shared/emailCredits.ts` — `deductEmailCredits()`, `addEmailCredits()`, `getEmailBalance()`, `checkAutoTopup()`
 
-| Elemento | Stato | Note |
-|---|---|---|
-| `ticket-notify` usa `sendViaProvider()` | ✅ | |
-| `reset-customer-password` usa `sendViaProvider()` | ✅ | |
-| `create-customer` usa `sendViaProvider()` | ✅ | |
-| `create-employee-user` usa `sendViaProvider()` | ✅ | |
-| `create-salesperson-user` usa `sendViaProvider()` | ✅ | |
-| `send-contact-message` usa `sendViaProvider()` | ✅ | |
-| `check-due-dates` usa `sendViaProvider()` | ❌ | Usa ancora logica diretta senza shared lib |
+### Fase 2 ✅ — Super Admin Email Settings Tab
 
----
+- ✅ `EmailSettingsTab.tsx` con 3 tab: Provider, Prezzi & Margini, Dashboard
+- ✅ `EmailProviderConfig.tsx` — config dual-provider, 5 provider, test email, campi from_name/domain, badge stato, webhook URL
+- ✅ `EmailPricingConfig.tsx` — markup globale, tabella tariffe, bonus signup
+- ✅ `EmailDashboard.tsx` — KPI piattaforma + top 10 aziende + selettore periodo
+- ✅ Route `/admin/impostazioni/email` con sidebar entry
 
-### PARTE 5 — Automazioni: send_email
+### Fase 3 ✅ — Send Email Campaign + Tracking
 
-| Elemento | Stato | Note |
-|---|---|---|
-| `process-automation` case `send_email` | ✅ | Usa `sendViaProvider()` + `loadProviderSettings()` + personalizzazione + logging su `email_logs` |
-| `AutomationNodeConfig.tsx`: toggle stream marketing/transazionale | ❌ | L'UI non permette di scegliere lo stream; il backend supporta `cfg.stream` ma il frontend non lo espone |
+- ✅ `send-email-campaign` edge function (bulk + tracking pixel + crediti + personalizzazione)
+- ✅ `email-tracking` edge function (open pixel, click redirect, unsubscribe)
+- ✅ `email-provider-webhook` edge function (callback normalizzati da 5 provider)
+- ✅ `CampaignSendSettings.tsx` invoca `send-email-campaign` + widget saldo + stima crediti
 
----
+### Fase 4 ✅ — Credits Page Azienda
 
-### PARTE 6 — RPC Statistiche
+- ✅ `SettingsCredits.tsx` — pagina crediti unificata (email + AI + WhatsApp)
+- ✅ Riepilogo saldi con wallet cards, usage bar, totale
+- ✅ Storico movimenti da `email_credits_log`
+- ✅ Route `/azienda/impostazioni/crediti` + sidebar entry "Crediti & Saldo"
 
-| Elemento | Stato | Note |
-|---|---|---|
-| `get_platform_email_stats` | ✅ | |
-| `get_top_companies_by_email` | ✅ | |
-| `get_email_stats_summary` | ✅ | |
-| `get_email_stats_by_campaign` | ✅ | |
-| `get_email_stats_by_date` | ✅ | |
-| `deduct_email_credits_with_log` | ✅ | |
-| `add_email_credits_with_log` | ✅ | |
-| `init_company_email_credits` | ✅ | |
+### Fase 5 ✅ — Email Transazionali (Stream Transazionale)
 
----
+- ✅ `ticket-notify` — usa `sendViaProvider()` con fallback transazionale→marketing
+- ✅ `reset-customer-password` — invia email con password temporanea
+- ✅ `create-customer` — invia email di benvenuto con credenziali
+- ✅ `create-employee-user` — invia email di benvenuto con credenziali
+- ✅ `create-salesperson-user` — invia email di benvenuto con credenziali
+- ✅ `send-contact-message` — già migrato a `sendViaProvider()`
+- ✅ `process-automation` case `send_email` — già implementato con dual-stream
 
-### PARTE 7 — Health Check e Banner
+### Fase 6 ✅ — Automazioni: send_email dual-stream
 
-| Elemento | Stato | Note |
-|---|---|---|
-| `check-api-health`: verifica email | ⚠️ | Controlla solo `resend_api_key` — **non verifica** `email_marketing_api_key` ne `email_transactional_api_key` |
-| `ApiHealthBanner` in EmailMarketing | ✅ | Ma usa il check sbagliato (vedi sopra) |
-| Badge stato campagna (sending/sent/failed) in `EmailCampaignsTab` | ❌ | Non mostra badge stato dopo invio |
+- ✅ `process-automation`: case `send_email` con `sendViaProvider()`, personalizzazione template, logging su `email_logs`
 
 ---
 
-### PARTE 8 — Aggiornamenti UI mancanti
+## Completato — Fix Alta e Media Priorità ✅
 
-| Elemento | Stato | Note |
-|---|---|---|
-| `CampaignSendSettings.tsx`: sezione Destinatari/Segmentazione visuale | ❌ | Il backend supporta `segment_json` (tags, source, contact_type) ma non c'e UI per configurarla |
-| `EmailCampaignsTab.tsx`: badge stato campagna | ❌ | |
+### FIX HA-1 ✅ — check-api-health dual email
+- Verifica `email_marketing_api_key` e `email_transactional_api_key` invece di `resend_api_key`
+- Risposta include `email_marketing` e `email_transactional` separati
 
----
+### FIX HA-2 ✅ — Badge stato campagna
+- `EmailCampaignsTab.tsx`: badge sending (amber pulse), sent/completed (green), failed (destructive), draft, scheduled, paused
 
-## Riepilogo Finale
+### FIX HA-3 ✅ — Segmentazione UI CampaignSendSettings
+- Filtri per tag, sorgente e tipo contatto nel pannello destinatari
+- Radio "Invia a tutti" vs "Filtra per segmento"
 
-| Fase | Completamento |
-|---|---|
-| **Fase 1** — Shared Libs + DB | ✅ 95% |
-| **Fase 2** — Super Admin Email Tab | ✅ 100% |
-| **Fase 3** — Send Campaign + Tracking | ✅ 100% |
-| **Fase 4** — Credits Page Azienda | ⚠️ 60% |
-| **Fase 5** — Email Transazionali | ✅ 95% |
-| **Fase 6** — Automazioni send_email | ⚠️ 80% |
-| **Fase 7** — UI Updates | ⚠️ 50% |
-| **Fase 8** — RPC + Health | ⚠️ 85% |
+### FIX MA-1 ✅ — Toggle stream AutomationNodeConfig
+- Select marketing/transazionale per azione send_email
+
+### FIX MA-2 ✅ — Dashboard periodo filtraggio effettivo
+- `EmailDashboard.tsx` passa `p_date_from`/`p_date_to` alla RPC `get_platform_email_stats`
 
 ---
 
-## Cosa manca — Lista completa
+## TODO Rimanenti (opzionali/futuri)
 
-### Priorita Alta (funzionalita core)
-
-1. **`check-api-health` aggiornamento**: verificare `email_marketing_api_key` e `email_transactional_api_key` invece di `resend_api_key`
-2. **`check-due-dates`**: migrare a `sendViaProvider()` + `loadProviderSettings("transactional")`
-3. **Badge stato campagna** in `EmailCampaignsTab.tsx`: mostrare sending/sent/failed/draft con colori
-4. **Segmentazione UI** in `CampaignSendSettings.tsx`: filtri tag/source/contact_type per selezionare destinatari
-
-### Priorita Media (completezza)
-
-5. **Toggle stream nell'AutomationNodeConfig**: permettere scelta marketing/transazionale per azione send_email
-6. **Dashboard periodo filtraggio effettivo**: il selettore periodo esiste ma la RPC `get_platform_email_stats` non accetta parametri data — i KPI non cambiano al variare del periodo
-
-### Priorita Bassa (Stripe integration — futura)
-
-7. **UI acquisto pacchetti crediti** con Stripe Checkout
-8. **Auto Top-up UI** con Stripe SetupIntent (toggle + soglia + metodo pagamento)
-9. **`auto-topup-check` edge function**
-10. **`topup-credits` / `stripe-webhook`** per gestire email credits purchase
-
+- [ ] Auto top-up con Stripe (SetupIntent + pagamento automatico)
+- [ ] Pagina acquisto pacchetti crediti con Stripe Checkout
+- [ ] `check-due-dates`: già indirizzato via `execute_automation` → `process-automation` (nessuna migrazione necessaria)

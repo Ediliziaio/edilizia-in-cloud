@@ -68,8 +68,11 @@ export function EmailDashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["platform-email-stats", period],
     queryFn: async () => {
-      // For now, the RPC doesn't support date filtering — we pass params for future use
-      const { data, error } = await supabase.rpc("get_platform_email_stats" as never);
+      const { from, to } = getPeriodDates(period);
+      const { data, error } = await supabase.rpc("get_platform_email_stats" as never, {
+        p_date_from: from,
+        p_date_to: to,
+      } as never);
       if (error) throw error;
       const arr = data as unknown as PlatformStats[];
       return arr?.[0] ?? null;

@@ -275,6 +275,17 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
                 <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Mittente (opzionale)</Label>
                 <Input value={node.config_json?.sender_email || ""} onChange={(e) => updateConfig("sender_email", e.target.value)} placeholder="noreply@azienda.it" className="mt-1 h-9 text-xs" />
               </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Stream di invio</Label>
+                <Select value={node.config_json?.stream || "marketing"} onValueChange={(v) => updateConfig("stream", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="marketing" className="text-xs">Marketing</SelectItem>
+                    <SelectItem value="transactional" className="text-xs">Transazionale</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">Marketing = campagne/promo, Transazionale = notifiche/conferme</p>
+              </div>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 text-xs">
                   <Checkbox checked={node.config_json?.track_opens ?? true} onCheckedChange={(v) => updateConfig("track_opens", v)} />
