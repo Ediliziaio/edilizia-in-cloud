@@ -1,11 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeaders, secureHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { requireAuth } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -13,6 +9,9 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Require authenticated user
+    await requireAuth(req, corsHeaders);
+
     const payload = await req.json();
     const { type, ticket_id, sender_id, old_status, new_status } = payload;
 
@@ -28,7 +27,7 @@ Deno.serve(async (req) => {
 
     if (ticketErr || !ticket) {
       console.error("Ticket not found:", ticketErr);
-      return new Response(JSON.stringify({ ok: false }), { headers: corsHeaders });
+      return jsonResponse({ ok: false });
     }
 
     let recipientIds: string[] = [];
@@ -56,7 +55,7 @@ Deno.serve(async (req) => {
     }
 
     if (recipientIds.length === 0) {
-      return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: corsHeaders });
+      return jsonResponse({ ok: true, skipped: true });
     }
 
     const { data: recipients } = await admin
@@ -65,7 +64,7 @@ Deno.serve(async (req) => {
       .in("id", recipientIds);
 
     if (!recipients || recipients.length === 0) {
-      return new Response(JSON.stringify({ ok: true, no_recipients: true }), { headers: corsHeaders });
+      return jsonResponse({ ok: true, no_recipients: true });
     }
 
     // Load transactional provider, fallback to marketing
@@ -99,15 +98,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({ ok: true, notified: sent.length > 0 ? sent : recipients.map((r) => r.email) }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ ok: true, notified: sent.length > 0 ? sent : recipients.map((r) => r.email) });
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error("ticket-notify error:", err);
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+    return errorResponse(String(err), 500);
   }
 });

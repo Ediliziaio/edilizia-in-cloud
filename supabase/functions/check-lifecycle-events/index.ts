@@ -1,9 +1,20 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+/** Verify that the caller is either a cron job (with x-cron-secret) or an authenticated user. */
+function verifyCronOrAuth(req: Request): void {
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const reqSecret = req.headers.get("x-cron-secret");
+  if (cronSecret && reqSecret === cronSecret) return;
+
+  const authHeader = req.headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) return;
+
+  throw new Response(JSON.stringify({ error: "Unauthorized: missing cron secret or JWT" }), {
+    status: 401,
+    headers: secureHeaders,
+  });
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,6 +22,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    verifyCronOrAuth(req);
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -69,7 +82,6 @@ Deno.serve(async (req) => {
     if (activeErr) throw activeErr;
 
     if (activeCompanies && activeCompanies.length > 0) {
-      // Get last order date per company
       const { data: orderStats } = await supabase
         .rpc("get_company_order_stats");
 
@@ -113,16 +125,15 @@ Deno.serve(async (req) => {
       if (!error) inserted++;
     }
 
-    return new Response(
-      JSON.stringify({ success: true, checked: (trialCompanies?.length || 0) + (activeCompanies?.length || 0), notifications_created: inserted }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({
+      success: true,
+      checked: (trialCompanies?.length || 0) + (activeCompanies?.length || 0),
+      notifications_created: inserted,
+    });
   } catch (error: unknown) {
+    if (error instanceof Response) return error;
     console.error("Lifecycle check error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse(message, 500);
   }
 });
