@@ -105,6 +105,7 @@ const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/Campai
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
 const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
+const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 
 // Customer
 const CustomerOrders = lazy(() => import("@/pages/cliente/CustomerOrders"));
