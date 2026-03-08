@@ -505,6 +505,16 @@ export function validateActionConfig(actionType: string, config: Record<string, 
         errors.push({ field: "target_node_id", message: "Seleziona un nodo destinazione" });
       }
       break;
+    case "remove_from_automation":
+      if (!config.target_flow_id) {
+        errors.push({ field: "target_flow_id", message: "Seleziona un workflow" });
+      }
+      break;
+    case "wait_for_event":
+      if (!config.await_event) {
+        errors.push({ field: "await_event", message: "Seleziona un evento da attendere" });
+      }
+      break;
   }
 
   return errors;
