@@ -8,7 +8,7 @@ import {
   Plus, Check, Pencil, Trash2, Receipt, Repeat,
   Package, ExternalLink, Undo2, CheckSquare,
   MoreHorizontal, X, Copy, AlertCircle, AlertTriangle,
-  Clock, CircleDot,
+  Clock, CircleDot, Settings2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
@@ -72,6 +73,21 @@ interface CostsTableProps {
   bulkMarkUnpaidPending: boolean;
 }
 
+const CONFIGURABLE_COLUMNS = [
+  { key: "origin", label: "Origine" },
+  { key: "costType", label: "Tipo" },
+  { key: "supplier", label: "Fornitore" },
+  { key: "category", label: "Categoria" },
+  { key: "amount", label: "Imponibile" },
+  { key: "vatRate", label: "IVA" },
+  { key: "gross", label: "Totale Lordo" },
+  { key: "recurrence", label: "Ricorrenza" },
+  { key: "dueDate", label: "Scadenza" },
+  { key: "status", label: "Stato" },
+  { key: "delay", label: "Ritardo" },
+  { key: "order", label: "Ordine" },
+] as const;
+
 export function CostsTable({
   items,
   type,
@@ -96,6 +112,18 @@ export function CostsTable({
   bulkMarkUnpaidPending,
 }: CostsTableProps) {
   const nowRef = useMemo(() => new Date(), []);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(CONFIGURABLE_COLUMNS.map(c => c.key)));
+
+  const toggleColumn = (key: string) => {
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const isColVisible = (key: string) => visibleColumns.has(key);
   const soonRef = useMemo(() => addDays(new Date(), 7), []);
 
   const costAccessors = useMemo(() => ({
@@ -231,20 +259,55 @@ export function CostsTable({
     return <span className="text-muted-foreground text-xs">—</span>;
   };
 
-  // Count columns for footer colSpan
-  const baseColCount = type === "all" ? 6 : 5;
-  const hasOrderCol = type === "variable" || type === "all";
+  // Count visible columns for footer colSpan
+  const hasOrderCol = (type === "variable" || type === "all") && isColVisible("order");
+  const footerLeadingCols = 2 + // checkbox + name (always visible)
+    (isColVisible("origin") ? 1 : 0) +
+    (type === "all" && isColVisible("costType") ? 1 : 0) +
+    (isColVisible("supplier") ? 1 : 0) +
+    (isColVisible("category") ? 1 : 0);
+  
+  const footerTrailingCols = 
+    (isColVisible("recurrence") ? 1 : 0) +
+    (isColVisible("dueDate") ? 1 : 0) +
+    (isColVisible("status") ? 1 : 0) +
+    (isColVisible("delay") ? 1 : 0);
 
   return (
     <div className="space-y-4">
-      {type !== "all" && (
-        <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-2">
+        {type !== "all" && (
           <Button size="sm" onClick={() => onOpenCreate(type === "variable" ? "variable" : "fixed")} className="gap-1">
             <Plus className="h-4 w-4" />
             Aggiungi {type === "fixed" ? "Costo Fisso" : "Costo Variabile"}
           </Button>
-        </div>
-      )}
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" className="gap-1">
+              <Settings2 className="h-4 w-4" />
+              Colonne
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>Colonne visibili</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {CONFIGURABLE_COLUMNS
+              .filter(col => col.key !== "costType" || type === "all")
+              .filter(col => col.key !== "order" || type === "variable" || type === "all")
+              .map(col => (
+                <DropdownMenuCheckboxItem
+                  key={col.key}
+                  checked={isColVisible(col.key)}
+                  onCheckedChange={() => toggleColumn(col.key)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {col.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       {someSelected && (
         <div className="flex items-center gap-2 flex-wrap p-3 rounded-lg bg-muted border">
@@ -297,17 +360,17 @@ export function CostsTable({
                   <Checkbox checked={allSelected} onCheckedChange={() => onToggleSelectAll(allSelectableIds)} aria-label="Seleziona tutti" />
                 </TableHead>
                 <SortableTableHead column="name" label="Nome" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />
-                <SortableTableHead column="origin" label="Origine" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />
-                {type === "all" && <SortableTableHead column="costType" label="Tipo" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
-                <SortableTableHead column="supplier" label="Fornitore" sortConfig={costSort} onSort={toggleCostSort} className="w-[9%]" />
-                <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />
-                <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />
-                <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />
-                <SortableTableHead column="gross" label="Totale Lordo" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />
-                <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />
-                <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[8%]" />
-                <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} className="w-[8%]" />
-                <SortableTableHead column="delay" label="Ritardo" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />
+                {isColVisible("origin") && <SortableTableHead column="origin" label="Origine" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
+                {type === "all" && isColVisible("costType") && <SortableTableHead column="costType" label="Tipo" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
+                {isColVisible("supplier") && <SortableTableHead column="supplier" label="Fornitore" sortConfig={costSort} onSort={toggleCostSort} className="w-[9%]" />}
+                {isColVisible("category") && <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
+                {isColVisible("amount") && <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />}
+                {isColVisible("vatRate") && <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />}
+                {isColVisible("gross") && <SortableTableHead column="gross" label="Totale Lordo" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />}
+                {isColVisible("recurrence") && <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
+                {isColVisible("dueDate") && <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[8%]" />}
+                {isColVisible("status") && <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} className="w-[8%]" />}
+                {isColVisible("delay") && <SortableTableHead column="delay" label="Ritardo" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />}
                 {hasOrderCol && <SortableTableHead column="order" label="Ordine" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
                 <TableHead className="text-right w-[6%]">Azioni</TableHead>
               </TableRow>
@@ -330,6 +393,7 @@ export function CostsTable({
                       )}
                     </TableCell>
                     <TableCell className="font-medium truncate">{cost.name}</TableCell>
+                    {isColVisible("origin") && (
                     <TableCell>
                       {cost.isFromOrder ? (
                         <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 gap-1 text-[10px] px-1.5">
@@ -341,18 +405,22 @@ export function CostsTable({
                         </Badge>
                       )}
                     </TableCell>
-                    {type === "all" && (
+                    )}
+                    {type === "all" && isColVisible("costType") && (
                       <TableCell>
                         <Badge variant="outline" className={cost.cost_type === "fixed" ? "border-red-400 text-red-600" : "border-amber-400 text-amber-600"}>
                           {cost.cost_type === "fixed" ? "Fisso" : "Variabile"}
                         </Badge>
                       </TableCell>
                     )}
+                    {isColVisible("supplier") && (
                     <TableCell className="truncate">
                       {(cost as any).supplier?.name || cost.supplierName || (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
+                    )}
+                    {isColVisible("category") && (
                     <TableCell className="truncate">
                       {cost.category ? (
                         <Badge variant="outline" className={cn("text-[10px] px-1.5", getCategoryColor(cost.category))}>
@@ -362,6 +430,8 @@ export function CostsTable({
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
+                    )}
+                    {isColVisible("amount") && (
                     <TableCell className="text-right">
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -379,6 +449,8 @@ export function CostsTable({
                         )}
                       </Tooltip>
                     </TableCell>
+                    )}
+                    {isColVisible("vatRate") && (
                     <TableCell>
                       {vatRate > 0 ? (
                         <Badge variant="outline" className="text-xs border-violet-300 text-violet-600 dark:text-violet-400">
@@ -388,20 +460,27 @@ export function CostsTable({
                         <span className="text-muted-foreground text-xs">Esente</span>
                       )}
                     </TableCell>
+                    )}
+                    {isColVisible("gross") && (
                     <TableCell className="text-right tabular-nums font-medium">
                       {formatCurrency(grossAmount)}
                     </TableCell>
+                    )}
+                    {isColVisible("recurrence") && (
                     <TableCell>
                       <Badge variant="outline" className="text-[10px] px-1.5">
                         <Repeat className="h-3 w-3 mr-1" />
                         {RECURRENCE_LABELS[cost.recurrence] || cost.recurrence}
                       </Badge>
                     </TableCell>
+                    )}
+                    {isColVisible("dueDate") && (
                     <TableCell>
                       {cost.due_date ? format(new Date(cost.due_date), "dd/MM/yyyy", { locale: it }) : "—"}
                     </TableCell>
-                    <TableCell>{getStatusBadge(cost)}</TableCell>
-                    <TableCell>{getDelayCell(cost)}</TableCell>
+                    )}
+                    {isColVisible("status") && <TableCell>{getStatusBadge(cost)}</TableCell>}
+                    {isColVisible("delay") && <TableCell>{getDelayCell(cost)}</TableCell>}
                     {hasOrderCol && (
                       <TableCell>
                         {cost.order ? (
@@ -514,18 +593,20 @@ export function CostsTable({
             {items.length > 0 && (
               <TableFooter>
               <TableRow className="bg-muted/50 font-semibold">
-                  <TableCell colSpan={baseColCount}>
+                  <TableCell colSpan={footerLeadingCols}>
                     Totale ({items.length})
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalNet)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-xs text-violet-600 dark:text-violet-400">{formatCurrency(footerTotals.totalVat)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalGross)}</TableCell>
-                  <TableCell colSpan={3}>
-                    <div className="flex flex-col gap-0.5 text-xs">
-                      <span className="text-red-600">Da pagare: {formatCurrency(footerTotals.unpaidGross)}</span>
-                      <span className="text-green-600">Pagato: {formatCurrency(footerTotals.paidGross)}</span>
-                    </div>
-                  </TableCell>
+                  {isColVisible("amount") && <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalNet)}</TableCell>}
+                  {isColVisible("vatRate") && <TableCell className="text-right tabular-nums text-xs text-violet-600 dark:text-violet-400">{formatCurrency(footerTotals.totalVat)}</TableCell>}
+                  {isColVisible("gross") && <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalGross)}</TableCell>}
+                  {footerTrailingCols > 0 && (
+                    <TableCell colSpan={footerTrailingCols}>
+                      <div className="flex flex-col gap-0.5 text-xs">
+                        <span className="text-red-600">Da pagare: {formatCurrency(footerTotals.unpaidGross)}</span>
+                        <span className="text-green-600">Pagato: {formatCurrency(footerTotals.paidGross)}</span>
+                      </div>
+                    </TableCell>
+                  )}
                   <TableCell colSpan={hasOrderCol ? 2 : 1} />
                 </TableRow>
               </TableFooter>
