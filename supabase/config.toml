@@ -110,3 +110,6 @@ verify_jwt = false
 
 [functions.check-api-health]
 verify_jwt = false
+
+[functions.send-whatsapp-reply]
+verify_jwt = false

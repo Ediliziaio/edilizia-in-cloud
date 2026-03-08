@@ -220,14 +220,19 @@ Deno.serve(async (req) => {
         .limit(1)
         .single();
 
-      if (!waConfig?.phone_number_id || !waConfig?.access_token) {
+      if (!waConfig?.phone_number_id || !waConfig?.access_token_encrypted) {
         return new Response(
           JSON.stringify({ error: "WhatsApp non configurato per questa azienda" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const result = await sendWhatsApp(waConfig.phone_number_id, waConfig.access_token, contact.phone, content);
+      // Decrypt access token
+      const { decrypt, getEncryptionKey } = await import("../_shared/encryption.ts");
+      const encKey = getEncryptionKey();
+      const decryptedToken = await decrypt(waConfig.access_token_encrypted, encKey);
+
+      const result = await sendWhatsApp(waConfig.phone_number_id, decryptedToken, contact.phone, content);
       if (!result.ok) {
         status = "failed";
         errorDetail = JSON.stringify(result.body);
