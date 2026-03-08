@@ -471,10 +471,10 @@ export default function CampaignSendSettings() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Filtra per sorgente</Label>
-                    <Select value={segmentSource} onValueChange={setSegmentSource}>
+                    <Select value={segmentSource || "all"} onValueChange={(v) => setSegmentSource(v === "all" ? "" : v)}>
                       <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Qualsiasi sorgente" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Qualsiasi</SelectItem>
+                        <SelectItem value="all">Qualsiasi</SelectItem>
                         <SelectItem value="meta">Meta</SelectItem>
                         <SelectItem value="google">Google</SelectItem>
                         <SelectItem value="website">Sito web</SelectItem>
@@ -486,10 +486,10 @@ export default function CampaignSendSettings() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Filtra per tipo contatto</Label>
-                    <Select value={segmentContactType} onValueChange={setSegmentContactType}>
+                    <Select value={segmentContactType || "all"} onValueChange={(v) => setSegmentContactType(v === "all" ? "" : v)}>
                       <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Qualsiasi tipo" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Qualsiasi</SelectItem>
+                        <SelectItem value="all">Qualsiasi</SelectItem>
                         <SelectItem value="lead">Lead</SelectItem>
                         <SelectItem value="prospect">Prospect</SelectItem>
                         <SelectItem value="customer">Cliente</SelectItem>

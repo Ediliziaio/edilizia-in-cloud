@@ -172,8 +172,10 @@ Deno.serve(async (req) => {
     let sentCount = 0;
     let failedCount = 0;
 
-    // Send emails one by one (batching can be added later)
-    for (const contact of recipients) {
+    // Send emails in parallel batches of 5
+    const BATCH_SIZE = 5;
+
+    async function sendToContact(contact: any) {
       try {
         // Personalize HTML
         let html = campaign.html_content || "<p>Nessun contenuto</p>";
@@ -189,7 +191,7 @@ Deno.serve(async (req) => {
         // Wrap links for click tracking
         html = html.replace(
           /href="(https?:\/\/[^"]+)"/g,
-          (match: string, url: string) => {
+          (_match: string, url: string) => {
             const trackUrl = `${supabaseUrl}/functions/v1/email-tracking?type=click&cid=${campaignId}&rid=${contact.id}&co=${companyId}&url=${encodeURIComponent(url)}`;
             return `href="${trackUrl}"`;
           }
@@ -223,10 +225,8 @@ Deno.serve(async (req) => {
           error_message: result.ok ? null : JSON.stringify(result.body),
         });
 
-        if (result.ok) sentCount++;
-        else failedCount++;
+        return result.ok;
       } catch (err: any) {
-        failedCount++;
         await adminClient.from("email_logs").insert({
           campaign_id: campaignId,
           contact_id: contact.id,
@@ -237,6 +237,16 @@ Deno.serve(async (req) => {
           event_timestamp: new Date().toISOString(),
           error_message: err.message,
         });
+        return false;
+      }
+    }
+
+    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+      const batch = recipients.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(batch.map(sendToContact));
+      for (const ok of results) {
+        if (ok) sentCount++;
+        else failedCount++;
       }
     }
 
