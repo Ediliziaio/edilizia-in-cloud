@@ -275,7 +275,7 @@ export default function CompanyDashboard() {
           <CardContent className="pt-4 pb-2">
             <div className="flex items-center justify-between mb-1">
               <div>
-                <p className="text-xs font-medium text-muted-foreground">Fatturato YTD</p>
+                <p className="text-xs font-medium text-muted-foreground">Fatturato Anno Corrente</p>
                 <p className="text-xl font-bold text-foreground tabular-nums">{formatCurrency(totalYTDRevenue)}</p>
               </div>
               <TrendingUp className="h-5 w-5 text-primary opacity-60" />
