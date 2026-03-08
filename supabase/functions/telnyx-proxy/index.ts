@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decrypt, encrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 
@@ -174,6 +175,14 @@ Deno.serve(async (req) => {
 
       case "send_sms": {
         if (!payload?.to || !payload?.body) throw new Error("to e body richiesti");
+
+        // Check billing override for SMS
+        if (companyId) {
+          const smsBilling = await getCompanyBillingConfig(adminClient, companyId, "sms");
+          if (!smsBilling.isEnabled) {
+            return json({ error: "Servizio SMS disabilitato per questa azienda" }, 403);
+          }
+        }
 
         const from = payload.from || null;
 

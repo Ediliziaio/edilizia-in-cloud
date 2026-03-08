@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 
@@ -181,6 +182,15 @@ Deno.serve(async (req) => {
 
     // ── SEND by channel ──
     if (channel === "email") {
+      // Check billing override for email
+      const emailBilling = await getCompanyBillingConfig(adminClient, contact.company_id, "email");
+      if (!emailBilling.isEnabled) {
+        return new Response(
+          JSON.stringify({ error: "Servizio email disabilitato per questa azienda" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       if (!contact.email) {
         return new Response(
           JSON.stringify({ error: "Il contatto non ha un indirizzo email" }),
@@ -215,6 +225,15 @@ Deno.serve(async (req) => {
         errorDetail = JSON.stringify(result.body);
       }
     } else if (channel === "whatsapp") {
+      // Check billing override for whatsapp
+      const waBilling = await getCompanyBillingConfig(adminClient, contact.company_id, "whatsapp");
+      if (!waBilling.isEnabled) {
+        return new Response(
+          JSON.stringify({ error: "Servizio WhatsApp disabilitato per questa azienda" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       if (!contact.phone) {
         return new Response(
           JSON.stringify({ error: "Il contatto non ha un numero di telefono" }),

@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { deductEmailCredits } from "../_shared/emailCredits.ts";
+import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 
@@ -141,20 +142,36 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Deduct credits upfront
-    const emailCost = recipients.length; // 1 credit = 1 email
-    try {
-      await deductEmailCredits(companyId, emailCost, {
-        description: `Campagna: ${campaign.name}`,
-        campaignId,
-        adminClient,
-      });
-    } catch (creditError: any) {
+    // Check billing overrides for email service
+    const billingConfig = await getCompanyBillingConfig(adminClient, companyId, "email");
+
+    if (!billingConfig.isEnabled) {
       await adminClient.from("email_campaigns").update({ status: "failed" }).eq("id", campaignId);
       return new Response(
-        JSON.stringify({ error: "Crediti insufficienti: " + creditError.message }),
-        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Servizio email disabilitato per questa azienda" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Deduct credits upfront (skip if service is free)
+    const emailCost = billingConfig.pricePerUnitEur
+      ? recipients.length * billingConfig.pricePerUnitEur
+      : recipients.length; // 1 credit = 1 email (default)
+
+    if (!billingConfig.isFree) {
+      try {
+        await deductEmailCredits(companyId, emailCost, {
+          description: `Campagna: ${campaign.name}`,
+          campaignId,
+          adminClient,
+        });
+      } catch (creditError: any) {
+        await adminClient.from("email_campaigns").update({ status: "failed" }).eq("id", campaignId);
+        return new Response(
+          JSON.stringify({ error: "Crediti insufficienti: " + creditError.message }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Build from address
