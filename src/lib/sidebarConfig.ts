@@ -18,6 +18,7 @@ import {
   Mail,
   Gauge,
   BarChart3,
+  Headphones,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
