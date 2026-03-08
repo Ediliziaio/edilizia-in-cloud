@@ -166,6 +166,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       setCompanyName(opportunity.company_name || "");
       setOppNotes(opportunity.notes || "");
       setOppTags(opportunity.tags || []);
+      setProbability(opportunity.probability ?? 50);
+      setExpectedCloseDate(opportunity.expected_close_date || "");
+      setLossReason(opportunity.loss_reason || "");
+      setLossNotes(opportunity.loss_notes || "");
       setTab((initialTab as Tab) || "details");
       setNewNote("");
       setChangingContact(false);
