@@ -49,7 +49,43 @@ Deno.serve(async (req) => {
       if (!companyId) return json({ error: "Nessuna azienda associata" }, 403);
     }
 
-    // Load Telnyx settings
+    const body = await req.json();
+    const { action, payload } = body;
+
+    // For service calls, use company_id from body
+    if (isServiceCall && body.company_id) {
+      companyId = body.company_id;
+    }
+
+    const encKey = getEncryptionKey();
+
+    // Handle save_settings before loading telnyx settings (chicken-egg)
+    if (action === "save_settings") {
+      const upsertData: Record<string, unknown> = {
+        messaging_profile_id: payload.messaging_profile_id || null,
+        connection_id: payload.connection_id || null,
+        is_active: payload.is_active ?? true,
+        updated_at: new Date().toISOString(),
+      };
+      if (payload.api_key) {
+        upsertData.api_key_encrypted = await encrypt(payload.api_key, encKey);
+      }
+      if (payload.webhook_signing_secret) {
+        upsertData.webhook_signing_secret_encrypted = await encrypt(payload.webhook_signing_secret, encKey);
+      }
+
+      if (payload.existing_id) {
+        await adminClient.from("telnyx_settings").update(upsertData).eq("id", payload.existing_id);
+      } else {
+        if (!upsertData.api_key_encrypted) {
+          return json({ error: "API Key obbligatoria per la prima configurazione" }, 400);
+        }
+        await adminClient.from("telnyx_settings").insert(upsertData);
+      }
+      return json({ success: true });
+    }
+
+    // Load Telnyx settings for all other actions
     const { data: telnyxSettings } = await adminClient
       .from("telnyx_settings")
       .select("*")
@@ -61,17 +97,8 @@ Deno.serve(async (req) => {
       return json({ error: "Telnyx non configurato. Configurare le credenziali nelle impostazioni piattaforma." }, 500);
     }
 
-    const encKey = getEncryptionKey();
     const apiKey = await decrypt(telnyxSettings.api_key_encrypted, encKey);
     if (!apiKey) return json({ error: "Chiave API Telnyx non valida" }, 500);
-
-    const body = await req.json();
-    const { action, payload } = body;
-
-    // For service calls, use company_id from body
-    if (isServiceCall && body.company_id) {
-      companyId = body.company_id;
-    }
 
     let result: unknown;
 
