@@ -64,6 +64,8 @@ export function CostFormDialog({
 }: CostFormDialogProps) {
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
+  const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
 
   const handleSupplierChange = useCallback((supplierId: string) => {
     if (supplierId === "none") {
