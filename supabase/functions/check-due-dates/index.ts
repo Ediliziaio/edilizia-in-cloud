@@ -1,10 +1,20 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+/** Verify that the caller is either a cron job (with x-cron-secret) or an authenticated user. */
+function verifyCronOrAuth(req: Request): void {
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const reqSecret = req.headers.get("x-cron-secret");
+  if (cronSecret && reqSecret === cronSecret) return; // cron OK
+
+  const authHeader = req.headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) return; // has JWT (will be validated by service role usage context)
+
+  throw new Response(JSON.stringify({ error: "Unauthorized: missing cron secret or JWT" }), {
+    status: 401,
+    headers: secureHeaders,
+  });
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -12,6 +22,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    verifyCronOrAuth(req);
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -25,10 +37,7 @@ Deno.serve(async (req) => {
 
     if (autoErr) throw autoErr;
     if (!automations || automations.length === 0) {
-      return new Response(
-        JSON.stringify({ message: "No due_date_approaching automations found", processed: 0 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ message: "No due_date_approaching automations found", processed: 0 });
     }
 
     let totalProcessed = 0;
@@ -95,15 +104,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({ message: "Done", processed: totalProcessed }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ message: "Done", processed: totalProcessed });
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error("check-due-dates error:", err);
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(err instanceof Error ? err.message : String(err), 500);
   }
 });

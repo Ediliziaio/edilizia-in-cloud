@@ -3,11 +3,7 @@ import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { deductEmailCredits } from "../_shared/emailCredits.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 interface AutomationNode {
   id: string;
@@ -373,7 +369,9 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
 // ── Split ──
 function executeSplit(cfg: Record<string, any>) {
   const splitA = parseInt(cfg.split_a) || 50;
-  const rand = Math.random() * 100;
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  const rand = (arr[0] / 0xFFFFFFFF) * 100;
   const branch = rand < splitA ? "a" : "b";
 
   return { success: true, output: { branch, random: rand, split_a: splitA }, branch };

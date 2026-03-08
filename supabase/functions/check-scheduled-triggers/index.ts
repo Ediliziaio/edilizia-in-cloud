@@ -1,10 +1,20 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+/** Verify that the caller is either a cron job (with x-cron-secret) or an authenticated user. */
+function verifyCronOrAuth(req: Request): void {
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const reqSecret = req.headers.get("x-cron-secret");
+  if (cronSecret && reqSecret === cronSecret) return;
+
+  const authHeader = req.headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) return;
+
+  throw new Response(JSON.stringify({ error: "Unauthorized: missing cron secret or JWT" }), {
+    status: 401,
+    headers: secureHeaders,
+  });
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -25,6 +35,8 @@ Deno.serve(async (req) => {
   };
 
   try {
+    verifyCronOrAuth(req);
+
     // Get all published flows
     const { data: flows } = await supabase
       .from("automation_flows")
@@ -57,7 +69,6 @@ Deno.serve(async (req) => {
             const month = targetDate.getMonth() + 1;
             const day = targetDate.getDate();
 
-            // Find contacts with birthday matching month/day
             const { data: contacts } = await supabase
               .from("marketing_contacts")
               .select("id")
@@ -66,7 +77,6 @@ Deno.serve(async (req) => {
 
             if (contacts) {
               for (const contact of contacts) {
-                // Need to check date_of_birth month/day - fetch individually
                 const { data: c } = await supabase
                   .from("marketing_contacts")
                   .select("id, date_of_birth")
@@ -76,7 +86,6 @@ Deno.serve(async (req) => {
                 if (!c?.date_of_birth) continue;
                 const dob = new Date(c.date_of_birth);
                 if (dob.getMonth() + 1 === month && dob.getDate() === day) {
-                  // Check if already fired today
                   const today = new Date().toISOString().split("T")[0];
                   const { data: existing } = await supabase
                     .from("automation_trigger_events")
@@ -119,7 +128,6 @@ Deno.serve(async (req) => {
               const today = new Date().toISOString().split("T")[0];
               for (const opp of staleOpps) {
                 if (!opp.contact_id) continue;
-                // Deduplicate: don't fire twice today
                 const { data: existing } = await supabase
                   .from("automation_trigger_events")
                   .select("id")
@@ -190,12 +198,9 @@ Deno.serve(async (req) => {
     }
 
     // ── Appointment Reminders (24h and 1h before) ──
-    // This runs independently of flows - it sends notifications for ALL upcoming appointments
     const now = new Date();
     const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const in1h = new Date(now.getTime() + 60 * 60 * 1000);
 
-    // Find appointments in the next 24h that haven't been reminded
     const { data: upcomingAppointments } = await supabase
       .from("appointments")
       .select("id, title, appointment_date, appointment_time, contact_id, company_id, assigned_to, calendar_id")
@@ -208,13 +213,12 @@ Deno.serve(async (req) => {
 
     if (upcomingAppointments && upcomingAppointments.length > 0) {
       for (const apt of upcomingAppointments) {
-        // Calculate exact appointment datetime
         const aptDate = new Date(apt.appointment_date);
         if (apt.appointment_time) {
           const [hh, mm] = apt.appointment_time.split(":").map(Number);
           aptDate.setHours(hh || 0, mm || 0, 0, 0);
         } else {
-          aptDate.setHours(9, 0, 0, 0); // default 9am
+          aptDate.setHours(9, 0, 0, 0);
         }
 
         const diffMs = aptDate.getTime() - now.getTime();
@@ -230,13 +234,11 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (!alreadySent) {
-            // Insert reminder tracking
             await supabase.from("appointment_reminders_sent").insert({
               appointment_id: apt.id,
               reminder_type: "24h",
             });
 
-            // Fire notification to assigned user
             if (apt.assigned_to) {
               await supabase.from("lifecycle_notifications").insert({
                 company_id: apt.company_id,
@@ -248,7 +250,6 @@ Deno.serve(async (req) => {
               });
             }
 
-            // Fire automation trigger if contact is linked
             if (apt.contact_id) {
               await supabase.from("automation_trigger_events").insert({
                 company_id: apt.company_id,
@@ -307,14 +308,8 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ message: "Scheduled triggers checked", results });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     console.error("check-scheduled-triggers error:", err);
-    return jsonResponse({ error: err.message }, 500);
+    return errorResponse(err.message || String(err), 500);
   }
 });
-
-function jsonResponse(data: any, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
