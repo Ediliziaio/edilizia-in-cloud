@@ -133,6 +133,17 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
         </CardContent>
       </Card>
 
+      {/* Stacked BarChart by month */}
+      <StackedExpensesChart
+        expenses={filteredExpenses}
+        commissions={filteredCommissions}
+        supplierPayments={filteredSupplier}
+        companyCosts={filteredCosts}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        activePreset={activePreset}
+      />
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
