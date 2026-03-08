@@ -289,7 +289,9 @@ export default function SettingsCredits() {
           <TabsTrigger value="riepilogo">Riepilogo</TabsTrigger>
           <TabsTrigger value="ricarica">Ricarica Email</TabsTrigger>
           <TabsTrigger value="ricarica-ai">Ricarica AI</TabsTrigger>
-          <TabsTrigger value="storico">Storico Movimenti</TabsTrigger>
+          <TabsTrigger value="ricarica-wa">Ricarica WhatsApp</TabsTrigger>
+          <TabsTrigger value="storico">Storico Email</TabsTrigger>
+          <TabsTrigger value="storico-wa">Storico WhatsApp</TabsTrigger>
         </TabsList>
 
         <TabsContent value="riepilogo" className="space-y-6">
