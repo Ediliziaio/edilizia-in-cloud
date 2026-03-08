@@ -1,41 +1,67 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-## Piano: Sidebar Impostazioni per Super Admin
+## Completato — Blocco A, B, C ✅
 
-Attualmente le impostazioni Super Admin usano un layout a tab orizzontali dentro una singola pagina. Vuoi replicare lo stesso pattern usato nelle impostazioni azienda: quando si naviga a `/admin/impostazioni/*`, la sidebar dell'admin si trasforma mostrando le voci di impostazione con "Torna indietro" in cima.
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-### Modifiche
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
-#### 1. AdminLayout.tsx — Aggiungere sidebar impostazioni
-Stessa logica di `CompanyLayout.tsx` (linea 96, `isSettingsRoute`): quando `location.pathname.startsWith("/admin/impostazioni")`, la sidebar mostra le voci impostazioni al posto della navigazione principale.
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-Voci sidebar impostazioni:
-- **Account**: Profilo
-- **Piattaforma**: Piattaforma, Notifiche
-- **Amministrazione** (solo con `can_manage_admins`): Super Admin, Registro Attivita
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-#### 2. Creare pagine separate per ogni sezione
-Convertire ogni tab in una pagina indipendente:
-- `src/pages/admin/settings/AdminSettingsProfile.tsx` — wrappa `ProfileTab`
-- `src/pages/admin/settings/AdminSettingsPlatform.tsx` — wrappa `PlatformInfoTab`
-- `src/pages/admin/settings/AdminSettingsNotifications.tsx` — wrappa `NotificationsTab`
-- `src/pages/admin/settings/AdminSettingsSuperAdmins.tsx` — wrappa `SuperAdminUsersTab`
-- `src/pages/admin/settings/AdminSettingsAuditLog.tsx` — wrappa `AuditLogTab`
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
-#### 3. App.tsx — Aggiornare routing
-Sostituire la singola route `impostazioni` con route annidate:
-```
-<Route path="impostazioni" element={<Navigate to="/admin/impostazioni/profilo" />} />
-<Route path="impostazioni/profilo" element={<AdminSettingsProfile />} />
-<Route path="impostazioni/piattaforma" element={<AdminSettingsPlatform />} />
-<Route path="impostazioni/notifiche" element={<AdminSettingsNotifications />} />
-<Route path="impostazioni/super-admin" element={<AdminSettingsSuperAdmins />} />
-<Route path="impostazioni/audit" element={<AdminSettingsAuditLog />} />
-```
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-#### 4. File coinvolti
-- `src/components/layouts/AdminLayout.tsx` — aggiungere logica sidebar impostazioni
-- `src/pages/admin/settings/` — 5 nuove pagine wrapper
-- `src/App.tsx` — aggiornare route admin
-- `src/pages/admin/AdminSettings.tsx` — eliminabile (non piu usato)
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
+
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
+
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
+
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
+
+## Da fare (prossimi step)
+
+### Priorità 3: Integrazioni rimanenti
+- Test runner reale con chiamata ElevenLabs (attualmente simulato)
+- Decremento crediti automatico via webhook (già funzionante)
+- Sync bidirezionale KB (upload file)
+
+### Priorità 4: Raffinamenti
+- `/docs/ai-agents-module.md` documentazione completa
+- Branch tab con logica reale
+- Workflow canvas con persistenza nodi
