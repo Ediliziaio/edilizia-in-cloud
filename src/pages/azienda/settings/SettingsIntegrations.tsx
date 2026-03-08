@@ -284,14 +284,14 @@ export default function SettingsIntegrations() {
               if (item.provider === "google_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
               } else {
-                setWizardOpen(true);
+                handleMetaConnect();
               }
             }}
             onManage={() => {
               if (item.provider === "google_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
               } else {
-                setWizardOpen(true);
+                handleMetaConnect();
               }
             }}
           />
