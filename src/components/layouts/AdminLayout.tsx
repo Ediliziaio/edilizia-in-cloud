@@ -132,8 +132,15 @@ function AdminSettingsSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <NavLink to="/admin/impostazioni/notifiche" className={navLinkClass} activeClassName={activeClass}>
+                   <NavLink to="/admin/impostazioni/notifiche" className={navLinkClass} activeClassName={activeClass}>
                     <Bell className="h-4 w-4" /><span>Notifiche</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to="/admin/impostazioni/email" className={navLinkClass} activeClassName={activeClass}>
+                    <Mail className="h-4 w-4" /><span>Email</span>
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -191,6 +191,7 @@ const App = () => (
                 <Route path="impostazioni/notifiche" element={<AdminSettingsNotifications />} />
                 <Route path="impostazioni/super-admin" element={<AdminSettingsSuperAdmins />} />
                 <Route path="impostazioni/audit" element={<AdminSettingsAuditLog />} />
+                <Route path="impostazioni/email" element={<AdminSettingsEmail />} />
                 <Route path="piani" element={<SubscriptionPlans />} />
                 <Route path="referral" element={<ReferralDashboard />} />
                 <Route path="implementazioni" element={<Implementations />} />
