@@ -145,6 +145,15 @@ export default function CampaignSendSettings() {
     }
   };
 
+  const buildSegmentJson = () => {
+    if (recipientMode !== "segment") return null;
+    return {
+      tags: segmentTags.length > 0 ? segmentTags : undefined,
+      source: segmentSource || undefined,
+      contact_type: segmentContactType || undefined,
+    };
+  };
+
   const saveMut = useMutation({
     mutationFn: async () => {
       const payload: Record<string, any> = {
@@ -158,6 +167,7 @@ export default function CampaignSendSettings() {
         auto_tag: autoTag,
         resend_to_unopened: resendToUnopened,
         scheduled_at: sendMode === "scheduled" && scheduledAt ? scheduledAt : null,
+        segment_json: buildSegmentJson(),
       };
       const { error } = await supabase
         .from("email_campaigns")
