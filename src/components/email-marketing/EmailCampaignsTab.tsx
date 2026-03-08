@@ -305,7 +305,7 @@ export function EmailCampaignsTab() {
               </TableHeader>
               <TableBody>
                 {paged.map((c: any) => {
-                  const badge = STATUS_BADGE[c.status] || { label: c.status, variant: "secondary" as const };
+                  const badge = STATUS_BADGE[c.status] || { label: c.status, variant: "secondary" as const, className: "" };
                   return (
                     <TableRow
                       key={c.id}
