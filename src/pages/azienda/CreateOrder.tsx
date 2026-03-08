@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarIcon, Plus, Paperclip, Trash2, AlertTriangle } from "lucide-react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { useOrderDraft } from "@/hooks/useOrderDraft";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
@@ -43,6 +45,7 @@ import {
   createDefaultInstallments,
   installmentsToLegacyColumns,
 } from "@/lib/orderUtils";
+import { orderSchema, orderDefaultValues, type OrderFormValues } from "@/lib/orderSchema";
 
 export default function CreateOrder() {
   const navigate = useNavigate();
@@ -50,57 +53,49 @@ export default function CreateOrder() {
   const queryClient = useQueryClient();
   const { onlyAssigned } = usePermissions();
 
-  const [customerId, setCustomerId] = useState("");
-  const [orderCode, setOrderCode] = useState("");
-  const [description, setDescription] = useState("");
-  const [expectedDate, setExpectedDate] = useState<Date | undefined>();
-  const [internalNotes, setInternalNotes] = useState("");
-  const [statusId, setStatusId] = useState("");
-  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+  // ── react-hook-form ──────────────────────────────────────────
+  const form = useForm<OrderFormValues>({
+    resolver: zodResolver(orderSchema),
+    defaultValues: orderDefaultValues,
+  });
 
-  // Date per il cliente
-  const [warehouseArrivalDate, setWarehouseArrivalDate] = useState<Date | undefined>();
-  const [workStartDate, setWorkStartDate] = useState<Date | undefined>();
-  const [workEndDate, setWorkEndDate] = useState<Date | undefined>();
+  const { control, watch, setValue, getValues, reset, handleSubmit: rhfHandleSubmit, formState: { errors } } = form;
 
-  // Financial state
-  const [paymentType, setPaymentType] = useState<PaymentType>('standard');
-  const [totalAmount, setTotalAmount] = useState("");
-  const [vatRate, setVatRate] = useState("22");
-  const [financingCost, setFinancingCost] = useState("");
-  const [hasBuildingBonus, setHasBuildingBonus] = useState(false);
+  // Watch fields needed for computed values & effects
+  const customerId = watch("customer_id");
+  const paymentType = watch("payment_type") as PaymentType;
+  const totalAmount = watch("total_amount");
+  const vatRate = watch("vat_rate");
+  const financingCost = watch("financing_cost");
+  const hasBuildingBonus = watch("has_building_bonus");
+  const salespersonId = watch("salesperson_id");
+  const salespersonData = watch("salesperson_data");
+  const statusId = watch("status_id");
+  const expectedDate = watch("expected_date");
+  const warehouseArrivalDate = watch("warehouse_arrival_date");
+  const workStartDate = watch("work_start_date");
+  const workEndDate = watch("work_end_date");
+  const orderCode = watch("order_code");
+  const description = watch("description");
+  const internalNotes = watch("internal_notes");
+  const assignedTo = watch("assigned_to");
 
-  // Dynamic installments
+  // ── Non-form state (arrays / UI) ────────────────────────────
   const [installments, setInstallments] = useState<Installment[]>(
     createDefaultInstallments('standard', 2)
   );
   const [numInstallments, setNumInstallments] = useState(2);
-
-  // Order items state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-
-  // Pending files for upload after order creation
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
-
-  // Customer creation dialog
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
-
-  // Salesperson state
-  const [salespersonId, setSalespersonId] = useState("");
-  const [salespersonData, setSalespersonData] = useState<{
-    commission_type: string;
-    commission_value: number;
-  } | null>(null);
-
-  // Assigned to state
-  const [assignedTo, setAssignedTo] = useState("");
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
 
   // Auto-assign for staff with onlyAssigned
   useEffect(() => {
     if (onlyAssigned && user?.id) {
-      setAssignedTo(user.id);
+      setValue("assigned_to", user.id);
     }
-  }, [onlyAssigned, user?.id]);
+  }, [onlyAssigned, user?.id, setValue]);
 
   // Calculate balance
   const total = parseFloat(totalAmount) || 0;
@@ -113,7 +108,7 @@ export default function CreateOrder() {
 
   // Payment type change handler
   const handlePaymentTypeChange = (type: PaymentType) => {
-    setPaymentType(type);
+    setValue("payment_type", type);
     const defaultNum = type === 'financing' ? 3 : 2;
     setNumInstallments(defaultNum);
     setInstallments(createDefaultInstallments(type, defaultNum));
@@ -122,7 +117,6 @@ export default function CreateOrder() {
   // Number of installments change handler
   const handleNumInstallmentsChange = (num: number) => {
     setNumInstallments(num);
-    // Preserve existing amounts where possible
     const newInstallments = createDefaultInstallments(paymentType, num);
     const existingDeposits = installments.filter(i => i.type === 'deposit');
     const existingFinancing = installments.find(i => i.type === 'financing');
@@ -140,32 +134,34 @@ export default function CreateOrder() {
     setInstallments(newInstallments);
   };
 
-  // Draft auto-save
+  // ── Draft auto-save ─────────────────────────────────────────
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id);
 
   // Load draft on mount
   useEffect(() => {
     const draft = loadDraft();
     if (!draft) return;
-    setCustomerId(draft.customerId || "");
-    setOrderCode(draft.orderCode || "");
-    setDescription(draft.description || "");
-    setInternalNotes(draft.internalNotes || "");
-    if (draft.statusId) setStatusId(draft.statusId);
-    setSalespersonId(draft.salespersonId || "");
-    setSalespersonData(draft.salespersonData || null);
-    setExpectedDate(isoToDate(draft.expectedDate));
-    setWarehouseArrivalDate(isoToDate(draft.warehouseArrivalDate));
-    setWorkStartDate(isoToDate(draft.workStartDate));
-    setWorkEndDate(isoToDate(draft.workEndDate));
-    setPaymentType(draft.paymentType || "standard");
-    setTotalAmount(draft.totalAmount || "");
-    setVatRate(draft.vatRate || "22");
-    setFinancingCost(draft.financingCost || "");
-    setHasBuildingBonus(draft.hasBuildingBonus || false);
+    reset({
+      customer_id: draft.customerId || "",
+      order_code: draft.orderCode || "",
+      description: draft.description || "",
+      internal_notes: draft.internalNotes || "",
+      status_id: draft.statusId || "",
+      salesperson_id: draft.salespersonId || "",
+      salesperson_data: draft.salespersonData || null,
+      assigned_to: "",
+      expected_date: isoToDate(draft.expectedDate),
+      warehouse_arrival_date: isoToDate(draft.warehouseArrivalDate),
+      work_start_date: isoToDate(draft.workStartDate),
+      work_end_date: isoToDate(draft.workEndDate),
+      payment_type: draft.paymentType || "standard",
+      total_amount: draft.totalAmount || "",
+      vat_rate: draft.vatRate || "22",
+      financing_cost: draft.financingCost || "",
+      has_building_bonus: draft.hasBuildingBonus || false,
+    });
     if (draft.installments?.length) {
       setInstallments(draft.installments);
-      // Determine numInstallments from array length
       setNumInstallments(draft.installments.length);
     }
     if (draft.orderItems?.length) setOrderItems(draft.orderItems);
@@ -177,15 +173,22 @@ export default function CreateOrder() {
   useEffect(() => {
     if (createdOrderId) return;
     saveDraft({
-      customerId, orderCode, description, internalNotes, statusId,
-      salespersonId, salespersonData,
+      customerId: customerId || "",
+      orderCode: orderCode || "",
+      description: description || "",
+      internalNotes: internalNotes || "",
+      statusId: statusId || "",
+      salespersonId: salespersonId || "",
+      salespersonData: (salespersonData as { commission_type: string; commission_value: number } | null) || null,
       expectedDate: dateToIso(expectedDate),
       warehouseArrivalDate: dateToIso(warehouseArrivalDate),
       workStartDate: dateToIso(workStartDate),
       workEndDate: dateToIso(workEndDate),
-      paymentType, totalAmount, vatRate,
-      financingCost,
-      hasBuildingBonus,
+      paymentType: paymentType,
+      totalAmount: totalAmount || "",
+      vatRate: vatRate || "22",
+      financingCost: financingCost || "",
+      hasBuildingBonus: hasBuildingBonus || false,
       orderItems,
       installments,
     });
@@ -198,16 +201,11 @@ export default function CreateOrder() {
 
   const handleClearDraft = useCallback(() => {
     clearDraft();
-    setCustomerId(""); setOrderCode(""); setDescription(""); setInternalNotes("");
-    setStatusId(""); setSalespersonId(""); setSalespersonData(null);
-    setExpectedDate(undefined); setWarehouseArrivalDate(undefined);
-    setWorkStartDate(undefined); setWorkEndDate(undefined);
-    setPaymentType("standard"); setTotalAmount(""); setVatRate("22");
-    setFinancingCost(""); setHasBuildingBonus(false);
+    reset(orderDefaultValues);
     setInstallments(createDefaultInstallments('standard', 2));
     setNumInstallments(2);
     setOrderItems([]);
-  }, [clearDraft]);
+  }, [clearDraft, reset]);
 
   // Fetch customers for the company
   const { data: customers = [] } = useQuery({
@@ -257,9 +255,9 @@ export default function CreateOrder() {
   // Set default status when statuses are loaded
   useEffect(() => {
     if (statuses.length > 0 && !statusId) {
-      setStatusId(statuses[0].id);
+      setValue("status_id", statuses[0].id);
     }
-  }, [statuses, statusId]);
+  }, [statuses, statusId, setValue]);
 
   const toDateStr = (d: Date | undefined): string | null =>
     d ? d.toISOString().split("T")[0] : null;
@@ -269,8 +267,10 @@ export default function CreateOrder() {
     mutationFn: async () => {
       if (!effectiveCompany?.id) throw new Error("Company not found");
 
-      const vatValue = parseFloat(vatRate) || 22;
-      const fCost = parseFloat(financingCost) || 0;
+      const values = getValues();
+      const totalVal = parseFloat(values.total_amount) || 0;
+      const vatValue = parseFloat(values.vat_rate) || 22;
+      const fCost = parseFloat(values.financing_cost || "") || 0;
 
       // Compute legacy columns from installments for backward compat
       const installmentsForSave = installments.map(i =>
@@ -280,23 +280,23 @@ export default function CreateOrder() {
 
       const orderData = {
         company_id: effectiveCompany.id,
-        customer_id: customerId,
-        order_code: orderCode.trim() || null,
-        description,
-        total_amount: total,
+        customer_id: values.customer_id,
+        order_code: (values.order_code || "").trim() || null,
+        description: values.description,
+        total_amount: totalVal,
         ...legacy,
-        payment_type: paymentType,
+        payment_type: values.payment_type,
         balance_amount: balance,
-        expected_date: toDateStr(expectedDate),
-        internal_notes: internalNotes || null,
-        current_status_id: statusId,
+        expected_date: toDateStr(values.expected_date),
+        internal_notes: values.internal_notes || null,
+        current_status_id: values.status_id,
         vat_rate: vatValue,
-        warehouse_arrival_date: toDateStr(warehouseArrivalDate),
-        work_start_date: toDateStr(workStartDate),
-        work_end_date: toDateStr(workEndDate),
+        warehouse_arrival_date: toDateStr(values.warehouse_arrival_date),
+        work_start_date: toDateStr(values.work_start_date),
+        work_end_date: toDateStr(values.work_end_date),
         financing_cost: fCost,
-        has_building_bonus: hasBuildingBonus,
-        assigned_to: assignedTo || null,
+        has_building_bonus: values.has_building_bonus,
+        assigned_to: values.assigned_to || null,
       };
 
       const itemsPayload = orderItems.map((item, index) => ({
@@ -325,11 +325,11 @@ export default function CreateOrder() {
         deposit_expected_date: item.deposit_expected_date || null,
       }));
 
-      const salespersonPayload = (salespersonId && salespersonData)
+      const salespersonPayload = (values.salesperson_id && values.salesperson_data)
         ? {
-            salesperson_id: salespersonId,
-            commission_type: salespersonData.commission_type,
-            commission_value: salespersonData.commission_value,
+            salesperson_id: values.salesperson_id,
+            commission_type: values.salesperson_data.commission_type,
+            commission_value: values.salesperson_data.commission_value,
           }
         : null;
 
@@ -412,20 +412,9 @@ export default function CreateOrder() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!customerId) {
-      toast.error("Campo obbligatorio", { description: "Seleziona un cliente." });
-      return;
-    }
-
-    if (!description.trim()) {
-      toast.error("Campo obbligatorio", { description: "Inserisci una descrizione del lavoro." });
-      return;
-    }
-
-    if (total <= 0) {
+  const onSubmit = (values: OrderFormValues) => {
+    const totalVal = parseFloat(values.total_amount) || 0;
+    if (totalVal <= 0) {
       toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
       return;
     }
@@ -452,9 +441,47 @@ export default function CreateOrder() {
     createOrderMutation.mutate();
   };
 
-  const handleCustomerCreated = (newCustomerId: string) => {
-    setCustomerId(newCustomerId);
+  const onFormError = () => {
+    // Show first Zod validation error as toast
+    const firstError = Object.values(errors)[0];
+    if (firstError?.message) {
+      toast.error("Campo obbligatorio", { description: String(firstError.message) });
+    }
   };
+
+  const handleCustomerCreated = (newCustomerId: string) => {
+    setValue("customer_id", newCustomerId);
+  };
+
+  // ── Date picker helper ──────────────────────────────────────
+  const DatePickerField = ({ name, label: fieldLabel }: { name: "expected_date" | "warehouse_arrival_date" | "work_start_date" | "work_end_date"; label: string }) => (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <div className="space-y-2">
+          <Label>{fieldLabel}</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !field.value && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {field.value ? format(field.value, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus className="pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
+    />
+  );
 
   return (
     <div className="space-y-6">
@@ -493,7 +520,7 @@ export default function CreateOrder() {
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Main Form */}
           <Card>
@@ -502,33 +529,44 @@ export default function CreateOrder() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Order Code */}
-              <div className="space-y-2">
-                <Label htmlFor="orderCode">Codice Ordine</Label>
-                <Input
-                  id="orderCode"
-                  value={orderCode}
-                  onChange={(e) => setOrderCode(e.target.value)}
-                  placeholder="es. ORD-2026-001"
-                  maxLength={50}
-                />
-              </div>
+              <Controller
+                control={control}
+                name="order_code"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="orderCode">Codice Ordine</Label>
+                    <Input
+                      id="orderCode"
+                      {...field}
+                      placeholder="es. ORD-2026-001"
+                      maxLength={50}
+                    />
+                  </div>
+                )}
+              />
 
               {/* Customer with inline creation */}
               <div className="space-y-2">
                 <Label htmlFor="customer">Cliente *</Label>
                 <div className="flex gap-2">
-                  <Select value={customerId || undefined} onValueChange={setCustomerId}>
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Seleziona un cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map((customer) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.first_name} {customer.last_name} ({customer.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    control={control}
+                    name="customer_id"
+                    render={({ field }) => (
+                      <Select value={field.value || undefined} onValueChange={field.onChange}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Seleziona un cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customers.map((customer) => (
+                            <SelectItem key={customer.id} value={customer.id}>
+                              {customer.first_name} {customer.last_name} ({customer.email})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                   <Button
                     type="button"
                     variant="outline"
@@ -539,57 +577,79 @@ export default function CreateOrder() {
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
+                {errors.customer_id && (
+                  <p className="text-sm text-destructive">{errors.customer_id.message}</p>
+                )}
               </div>
 
               {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="description">Descrizione Lavoro *</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Descrivi il lavoro da eseguire..."
-                  rows={4}
-                  maxLength={1000}
-                />
-              </div>
+              <Controller
+                control={control}
+                name="description"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Descrizione Lavoro *</Label>
+                    <Textarea
+                      id="description"
+                      {...field}
+                      placeholder="Descrivi il lavoro da eseguire..."
+                      rows={4}
+                      maxLength={1000}
+                    />
+                    {errors.description && (
+                      <p className="text-sm text-destructive">{errors.description.message}</p>
+                    )}
+                  </div>
+                )}
+              />
 
               {/* Status */}
-              <div className="space-y-2">
-                <Label>Stato Iniziale</Label>
-                <Select value={statusId || undefined} onValueChange={setStatusId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleziona stato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statuses.map((status) => (
-                      <SelectItem key={status.id} value={status.id}>
-                        {status.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Controller
+                control={control}
+                name="status_id"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <Label>Stato Iniziale</Label>
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleziona stato" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statuses.map((status) => (
+                          <SelectItem key={status.id} value={status.id}>
+                            {status.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
 
               {/* Internal Notes */}
-              <div className="space-y-2">
-                <Label htmlFor="notes">Note Interne</Label>
-                <Textarea
-                  id="notes"
-                  value={internalNotes}
-                  onChange={(e) => setInternalNotes(e.target.value)}
-                  placeholder="Note visibili solo all'azienda..."
-                  rows={3}
-                  maxLength={1000}
-                />
-              </div>
+              <Controller
+                control={control}
+                name="internal_notes"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Note Interne</Label>
+                    <Textarea
+                      id="notes"
+                      {...field}
+                      placeholder="Note visibili solo all'azienda..."
+                      rows={3}
+                      maxLength={1000}
+                    />
+                  </div>
+                )}
+              />
 
               {/* Salesperson Select */}
               <SalespersonSelect
-                value={salespersonId}
+                value={salespersonId || ""}
                 onChange={(id, salesperson) => {
-                  setSalespersonId(id);
-                  setSalespersonData(salesperson ? {
+                  setValue("salesperson_id", id);
+                  setValue("salesperson_data", salesperson ? {
                     commission_type: salesperson.commission_type,
                     commission_value: salesperson.commission_value,
                   } : null);
@@ -597,26 +657,30 @@ export default function CreateOrder() {
               />
 
               {/* Assigned To Select */}
-              <AssignedToSelect value={assignedTo} onChange={setAssignedTo} disabled={onlyAssigned} />
+              <AssignedToSelect
+                value={assignedTo || ""}
+                onChange={(val) => setValue("assigned_to", val)}
+                disabled={onlyAssigned}
+              />
             </CardContent>
           </Card>
 
           <FinancialSummary
-            totalAmount={totalAmount}
-            vatRate={vatRate}
+            totalAmount={totalAmount || ""}
+            vatRate={vatRate || "22"}
             paymentType={paymentType}
             installments={installments}
             onInstallmentsChange={setInstallments}
             numInstallments={numInstallments}
             onNumInstallmentsChange={handleNumInstallmentsChange}
-            onTotalAmountChange={setTotalAmount}
-            onVatRateChange={setVatRate}
+            onTotalAmountChange={(val) => setValue("total_amount", val)}
+            onVatRateChange={(val) => setValue("vat_rate", val)}
             onPaymentTypeChange={handlePaymentTypeChange}
             balance={balance}
             hasBuildingBonus={hasBuildingBonus}
-            onHasBuildingBonusChange={setHasBuildingBonus}
-            financingCost={financingCost}
-            onFinancingCostChange={setFinancingCost}
+            onHasBuildingBonusChange={(val) => setValue("has_building_bonus", val)}
+            financingCost={financingCost || ""}
+            onFinancingCostChange={(val) => setValue("financing_cost", val)}
           />
         </div>
 
@@ -627,93 +691,10 @@ export default function CreateOrder() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {/* Expected Date */}
-              <div className="space-y-2">
-                <Label>Data Prevista</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !expectedDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {expectedDate ? format(expectedDate, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={expectedDate} onSelect={setExpectedDate} initialFocus className="pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {/* Warehouse Arrival Date */}
-              <div className="space-y-2">
-                <Label>Arrivo Merce in Magazzino</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !warehouseArrivalDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {warehouseArrivalDate ? format(warehouseArrivalDate, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={warehouseArrivalDate} onSelect={setWarehouseArrivalDate} initialFocus className="pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {/* Work Start Date */}
-              <div className="space-y-2">
-                <Label>Inizio Lavori</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !workStartDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {workStartDate ? format(workStartDate, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={workStartDate} onSelect={setWorkStartDate} initialFocus className="pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {/* Work End Date */}
-              <div className="space-y-2">
-                <Label>Fine Lavori</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !workEndDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {workEndDate ? format(workEndDate, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={workEndDate} onSelect={setWorkEndDate} initialFocus className="pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
+              <DatePickerField name="expected_date" label="Data Prevista" />
+              <DatePickerField name="warehouse_arrival_date" label="Arrivo Merce in Magazzino" />
+              <DatePickerField name="work_start_date" label="Inizio Lavori" />
+              <DatePickerField name="work_end_date" label="Fine Lavori" />
             </div>
           </CardContent>
         </Card>
