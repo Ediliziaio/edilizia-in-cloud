@@ -272,6 +272,9 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
         </Card>
       )}
 
+      {/* Waterfall Chart */}
+      {weeklyChartData.length > 1 && <WaterfallChart data={weeklyChartData} />}
+
       {/* Net Cash Flow Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <NetCard title="Questo mese" income={stats.thisMonth.income} expenses={stats.thisMonth.expenses} net={stats.thisMonth.net} />

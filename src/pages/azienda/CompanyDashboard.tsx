@@ -319,6 +319,15 @@ export default function CompanyDashboard() {
       </div>
 
       {/* Financial Alerts */}
+      {cashFlow.netCashFlow < 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-destructive/10 border-destructive/30 text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="text-sm font-medium">
+            ⚠️ Cash flow negativo previsto: {formatCurrency(cashFlow.netCashFlow)}.{" "}
+            <Link to="/azienda/previsionale" className="underline">Vai al previsionale →</Link>
+          </span>
+        </div>
+      )}
       {financialAlerts.length > 0 && (
         <div className="space-y-2">
           {financialAlerts.map((alert, index) => (
