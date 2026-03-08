@@ -56,6 +56,7 @@ interface CostsStatsCardsProps {
   onYearChange: (year: number) => void;
   activeStatusTab?: StatusTabFilter;
   onStatusTabChange?: (tab: StatusTabFilter) => void;
+  categoryDistribution?: { name: string; value: number }[];
 }
 
 const currentYear = new Date().getFullYear();
