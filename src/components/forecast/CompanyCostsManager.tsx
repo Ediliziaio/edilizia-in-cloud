@@ -245,6 +245,24 @@ export default function CompanyCostsManager() {
               <CardDescription>Gestione costi con IVA, fornitori e analisi fiscale</CardDescription>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const { data: result, error } = await supabase.functions.invoke("generate-recurring-costs", {
+                      body: { company_id: companyId },
+                    });
+                    if (error) throw error;
+                    toast({ title: `Generati ${result?.created || 0} costi ricorrenti` });
+                  } catch {
+                    toast({ title: "Errore nella generazione", variant: "destructive" });
+                  }
+                }}
+                className="gap-1"
+              >
+                <Repeat className="h-4 w-4" /> Genera ricorrenti
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1">
                 <Upload className="h-4 w-4" /> Importa
               </Button>
