@@ -6860,6 +6860,109 @@ export type Database = {
           },
         ]
       }
+      whatsapp_broadcast_recipients: {
+        Row: {
+          broadcast_id: string
+          contact_id: string
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          meta_message_id: string | null
+          phone: string
+          read_at: string | null
+          sent_at: string | null
+          status: string | null
+        }
+        Insert: {
+          broadcast_id: string
+          contact_id: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          meta_message_id?: string | null
+          phone: string
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          broadcast_id?: string
+          contact_id?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          meta_message_id?: string | null
+          phone?: string
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_broadcast_recipients_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_broadcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_broadcasts: {
+        Row: {
+          company_id: string
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          failed_count: number | null
+          id: string
+          message_text: string | null
+          segment: string
+          segment_config: Json | null
+          sent_count: number | null
+          status: string | null
+          template_name: string | null
+          total_contacts: number | null
+        }
+        Insert: {
+          company_id: string
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          failed_count?: number | null
+          id?: string
+          message_text?: string | null
+          segment?: string
+          segment_config?: Json | null
+          sent_count?: number | null
+          status?: string | null
+          template_name?: string | null
+          total_contacts?: number | null
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          failed_count?: number | null
+          id?: string
+          message_text?: string | null
+          segment?: string
+          segment_config?: Json | null
+          sent_count?: number | null
+          status?: string | null
+          template_name?: string | null
+          total_contacts?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_broadcasts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_logs: {
         Row: {
           activity_type: string | null
