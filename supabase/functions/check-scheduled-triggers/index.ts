@@ -189,6 +189,122 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Appointment Reminders (24h and 1h before) ──
+    // This runs independently of flows - it sends notifications for ALL upcoming appointments
+    const now = new Date();
+    const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const in1h = new Date(now.getTime() + 60 * 60 * 1000);
+
+    // Find appointments in the next 24h that haven't been reminded
+    const { data: upcomingAppointments } = await supabase
+      .from("appointments")
+      .select("id, title, appointment_date, appointment_time, contact_id, company_id, assigned_to, calendar_id")
+      .eq("is_blocked_slot", false)
+      .neq("status", "annullato")
+      .neq("status", "cancelled")
+      .neq("status", "canceled")
+      .gte("appointment_date", now.toISOString().split("T")[0])
+      .lte("appointment_date", in24h.toISOString().split("T")[0]);
+
+    if (upcomingAppointments && upcomingAppointments.length > 0) {
+      for (const apt of upcomingAppointments) {
+        // Calculate exact appointment datetime
+        const aptDate = new Date(apt.appointment_date);
+        if (apt.appointment_time) {
+          const [hh, mm] = apt.appointment_time.split(":").map(Number);
+          aptDate.setHours(hh || 0, mm || 0, 0, 0);
+        } else {
+          aptDate.setHours(9, 0, 0, 0); // default 9am
+        }
+
+        const diffMs = aptDate.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        // 24h reminder: between 23-25 hours away
+        if (diffHours > 23 && diffHours <= 25) {
+          const { data: alreadySent } = await supabase
+            .from("appointment_reminders_sent")
+            .select("id")
+            .eq("appointment_id", apt.id)
+            .eq("reminder_type", "24h")
+            .maybeSingle();
+
+          if (!alreadySent) {
+            // Insert reminder tracking
+            await supabase.from("appointment_reminders_sent").insert({
+              appointment_id: apt.id,
+              reminder_type: "24h",
+            });
+
+            // Fire notification to assigned user
+            if (apt.assigned_to) {
+              await supabase.from("lifecycle_notifications").insert({
+                company_id: apt.company_id,
+                user_id: apt.assigned_to,
+                type: "appointment_reminder",
+                title: "Promemoria appuntamento (24h)",
+                message: `Appuntamento "${apt.title}" domani${apt.appointment_time ? " alle " + apt.appointment_time : ""}.`,
+                metadata: { appointment_id: apt.id, reminder_type: "24h" },
+              });
+            }
+
+            // Fire automation trigger if contact is linked
+            if (apt.contact_id) {
+              await supabase.from("automation_trigger_events").insert({
+                company_id: apt.company_id,
+                trigger_event: "appointment_reminder_24h",
+                entity_id: apt.contact_id,
+                entity_type: "contact",
+                payload: { appointment_id: apt.id, title: apt.title, date: apt.appointment_date, time: apt.appointment_time },
+              });
+            }
+
+            results.appointment_reminder_24h++;
+          }
+        }
+
+        // 1h reminder: between 0.5-1.5 hours away
+        if (diffHours > 0.5 && diffHours <= 1.5) {
+          const { data: alreadySent } = await supabase
+            .from("appointment_reminders_sent")
+            .select("id")
+            .eq("appointment_id", apt.id)
+            .eq("reminder_type", "1h")
+            .maybeSingle();
+
+          if (!alreadySent) {
+            await supabase.from("appointment_reminders_sent").insert({
+              appointment_id: apt.id,
+              reminder_type: "1h",
+            });
+
+            if (apt.assigned_to) {
+              await supabase.from("lifecycle_notifications").insert({
+                company_id: apt.company_id,
+                user_id: apt.assigned_to,
+                type: "appointment_reminder",
+                title: "Promemoria appuntamento (1h)",
+                message: `Appuntamento "${apt.title}" tra 1 ora${apt.appointment_time ? " alle " + apt.appointment_time : ""}.`,
+                metadata: { appointment_id: apt.id, reminder_type: "1h" },
+              });
+            }
+
+            if (apt.contact_id) {
+              await supabase.from("automation_trigger_events").insert({
+                company_id: apt.company_id,
+                trigger_event: "appointment_reminder_1h",
+                entity_id: apt.contact_id,
+                entity_type: "contact",
+                payload: { appointment_id: apt.id, title: apt.title, date: apt.appointment_date, time: apt.appointment_time },
+              });
+            }
+
+            results.appointment_reminder_1h++;
+          }
+        }
+      }
+    }
+
     return jsonResponse({ message: "Scheduled triggers checked", results });
   } catch (err: any) {
     console.error("check-scheduled-triggers error:", err);
