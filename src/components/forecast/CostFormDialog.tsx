@@ -312,6 +312,22 @@ export function CostFormDialog({
                     <Info className="h-3 w-3" /> Seleziona la data fine contratto per generare i costi ricorrenti
                   </p>
                 ) : null}
+
+                {/* Auto-generation toggle */}
+                <div className="flex items-center gap-3 pt-1">
+                  <Switch
+                    checked={formData.recurrence_auto || false}
+                    onCheckedChange={(v) => setFormData({ ...formData, recurrence_auto: v })}
+                  />
+                  <Label className="text-sm cursor-pointer" onClick={() => setFormData({ ...formData, recurrence_auto: !formData.recurrence_auto })}>
+                    Auto-generazione ricorrente
+                  </Label>
+                </div>
+                {formData.recurrence_auto && (
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Repeat className="h-3 w-3" /> I costi futuri verranno generati automaticamente in base alla ricorrenza
+                  </p>
+                )}
               </div>
             )}
 

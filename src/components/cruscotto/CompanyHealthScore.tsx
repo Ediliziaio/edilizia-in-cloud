@@ -127,26 +127,51 @@ export const CompanyHealthScore = memo(function CompanyHealthScore({ kpi, financ
           ))}
         </div>
 
-        {/* Breakdown bars */}
-        <div className="space-y-2">
-          {factors.map((f, i) => (
-            <div key={f.label} className="flex items-center gap-2 text-xs">
-              <span className="w-20 text-muted-foreground truncate">{f.label}</span>
-              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all duration-500",
-                    f.status === "green" && "bg-emerald-500",
-                    f.status === "yellow" && "bg-amber-500",
-                    f.status === "red" && "bg-destructive",
-                  )}
-                  style={{ width: `${f.score}%` }}
-                />
-              </div>
-              <span className="w-8 text-right text-muted-foreground tabular-nums">{WEIGHT_LABELS[i]}</span>
-            </div>
-          ))}
+        {/* Breakdown bars — clickable */}
+        <HealthBreakdownBars factors={factors} />
+      </div>
+    </div>
+  );
+});
+
+const ROUTE_MAP: Record<string, string> = {
+  Margine: "/azienda/previsionale",
+  "Cash Flow": "/azienda/previsionale",
+  Vendite: "/azienda/marketing",
+  "Show Rate": "/azienda/marketing/calendario",
+  Operazioni: "/azienda/ordini",
+};
+
+function HealthBreakdownBars({ factors }: { factors: ScoreFactor[] }) {
+  const navigate = useNavigate();
+  return (
+    <div className="space-y-2">
+      {factors.map((f, i) => (
+        <div
+          key={f.label}
+          className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded-md px-1 py-0.5 transition-colors"
+          onClick={() => {
+            const route = ROUTE_MAP[f.label];
+            if (route) navigate(route);
+          }}
+        >
+          <span className="w-20 text-muted-foreground truncate">{f.label}</span>
+          <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-500",
+                f.status === "green" && "bg-emerald-500",
+                f.status === "yellow" && "bg-amber-500",
+                f.status === "red" && "bg-destructive",
+              )}
+              style={{ width: `${f.score}%` }}
+            />
+          </div>
+          <span className="w-8 text-right text-muted-foreground tabular-nums">{WEIGHT_LABELS[i]}</span>
         </div>
+      ))}
+    </div>
+  );
       </div>
     </div>
   );

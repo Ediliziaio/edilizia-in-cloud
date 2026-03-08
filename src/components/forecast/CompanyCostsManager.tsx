@@ -472,6 +472,9 @@ export default function CompanyCostsManager() {
         onClose={() => { setEditingCost(null); setFormData(defaultFormData); }}
       />
 
+      {/* Budget Section */}
+      <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsSorted} />
+
       <CostsDialogs
         deleteConfirmId={deleteConfirmId}
         onDeleteConfirmChange={setDeleteConfirmId}
