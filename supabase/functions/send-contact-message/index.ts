@@ -182,6 +182,15 @@ Deno.serve(async (req) => {
 
     // ── SEND by channel ──
     if (channel === "email") {
+      // Check billing override for email
+      const emailBilling = await getCompanyBillingConfig(adminClient, contact.company_id, "email");
+      if (!emailBilling.isEnabled) {
+        return new Response(
+          JSON.stringify({ error: "Servizio email disabilitato per questa azienda" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       if (!contact.email) {
         return new Response(
           JSON.stringify({ error: "Il contatto non ha un indirizzo email" }),
