@@ -493,7 +493,19 @@ export default function SettingsCredits() {
           </Card>
 
           {/* AI Auto Top-up */}
-          <AIAutoTopupCard companyId={companyId} />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Zap className="h-4 w-4" /> Auto Top-up AI
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Ricarica automaticamente i crediti AI quando il saldo scende sotto la soglia impostata.
+              </p>
+              <AIAutoTopupSection companyId={companyId} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="storico" className="space-y-4">
