@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Mail, MessageSquare, Smartphone, Phone, ArrowRight, Bot } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -9,7 +10,7 @@ interface ContactActionsTabProps {
   companyId: string;
 }
 
-export function ContactActionsTab({ contact, companyId }: ContactActionsTabProps) {
+export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabProps>(function ContactActionsTab({ contact, companyId }, ref) {
   const navigate = useNavigate();
 
   const handleSendMessage = (channel: string) => {
@@ -72,7 +73,7 @@ export function ContactActionsTab({ contact, companyId }: ContactActionsTabProps
   ];
 
   return (
-    <div className="space-y-2">
+    <div ref={ref} className="space-y-2">
       <p className="text-xs font-semibold">Azioni rapide</p>
       <div className="space-y-1.5">
         {actions.map((action) => (
@@ -101,4 +102,4 @@ export function ContactActionsTab({ contact, companyId }: ContactActionsTabProps
       </div>
     </div>
   );
-}
+});

@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { AlertCircle, Mail, MessageSquare, Phone, Smartphone } from "lucide-react";
@@ -16,11 +17,11 @@ const DND_CHANNELS = [
   { field: "optout_call", label: "Chiamate", icon: Phone, color: "text-orange-600" },
 ] as const;
 
-export function ContactDndTab({ contact, onUpdate }: ContactDndTabProps) {
+export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(function ContactDndTab({ contact, onUpdate }, ref) {
   const anyOptout = DND_CHANNELS.some(ch => contact?.[ch.field]);
 
   return (
-    <div className="space-y-4">
+    <div ref={ref} className="space-y-4">
       <div>
         <Label className="text-xs font-semibold">Do Not Disturb</Label>
         <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -62,4 +63,4 @@ export function ContactDndTab({ contact, onUpdate }: ContactDndTabProps) {
       )}
     </div>
   );
-}
+});
