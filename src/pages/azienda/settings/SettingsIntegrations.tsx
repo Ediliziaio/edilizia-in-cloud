@@ -317,6 +317,16 @@ export default function SettingsIntegrations() {
         </>
       )}
 
+      {metaConfigMissing && (
+        <Alert variant="destructive" className="max-w-xl">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Configurazione Meta mancante</AlertTitle>
+          <AlertDescription>
+            L'integrazione Meta (Facebook & Instagram) non è ancora configurata dall'amministratore della piattaforma. Contattare il supporto per la configurazione delle credenziali (App ID, App Secret).
+          </AlertDescription>
+        </Alert>
+      )}
+
       {mainIntegrations.length === 0 && statusCards.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           Nessuna integrazione trovata per "{search}"

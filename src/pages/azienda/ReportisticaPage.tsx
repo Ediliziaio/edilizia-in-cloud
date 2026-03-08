@@ -1,7 +1,8 @@
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BarChart3 } from "lucide-react";
 import FacebookAdsReport from "@/components/reporting/facebook-ads/FacebookAdsReport";
+import AttributionReport from "@/components/reporting/attribution/AttributionReport";
 
 const TABS = [
   { key: "facebook-ads", label: "Report di Facebook Ads" },
@@ -13,6 +14,8 @@ const TABS = [
   { key: "appointments", label: "Report sugli appuntamenti" },
   { key: "audit", label: "Audit marketing locale" },
 ];
+
+const IMPLEMENTED_TABS = ["facebook-ads", "attribution"];
 
 const ReportisticaPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,7 +41,11 @@ const ReportisticaPage = () => {
           <FacebookAdsReport />
         </TabsContent>
 
-        {TABS.filter((t) => t.key !== "facebook-ads").map((t) => (
+        <TabsContent value="attribution" className="mt-6">
+          <AttributionReport />
+        </TabsContent>
+
+        {TABS.filter((t) => !IMPLEMENTED_TABS.includes(t.key)).map((t) => (
           <TabsContent key={t.key} value={t.key} className="mt-6">
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <BarChart3 className="h-12 w-12 text-muted-foreground/40 mb-4" />

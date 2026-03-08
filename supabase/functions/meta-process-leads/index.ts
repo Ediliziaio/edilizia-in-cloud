@@ -302,6 +302,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         tags,
         status: "new",
         assigned_to: pipelineSettings.owner_user_id || null,
+        source_campaign_id: lead.campaign_name || lead.campaign_id || null,
       })
       .select("id")
       .single();

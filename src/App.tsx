@@ -276,6 +276,7 @@ const App = () => (
                 <Route path="marketing/email/campagna/:id/builder" element={<DragDropEmailBuilder />} />
                 <Route path="marketing/email/campagna/:id/impostazioni" element={<CampaignSendSettings />} />
                 <Route path="marketing/whatsapp" element={<MarketingWhatsApp />} />
+                <Route path="marketing/lead-forms" element={<FacebookFormsPage />} />
                 <Route path="marketing/reportistica" element={<ReportisticaPage />} />
                 
                 <Route path="impostazioni" element={<SettingsLayout />}>
