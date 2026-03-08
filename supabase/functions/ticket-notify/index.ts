@@ -1,9 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -19,7 +20,6 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    // Get ticket info
     const { data: ticket, error: ticketErr } = await admin
       .from("tickets")
       .select("id, subject, customer_id, assigned_to, company_id")
@@ -28,9 +28,7 @@ Deno.serve(async (req) => {
 
     if (ticketErr || !ticket) {
       console.error("Ticket not found:", ticketErr);
-      return new Response(JSON.stringify({ ok: false }), {
-        headers: corsHeaders,
-      });
+      return new Response(JSON.stringify({ ok: false }), { headers: corsHeaders });
     }
 
     let recipientIds: string[] = [];
@@ -38,69 +36,71 @@ Deno.serve(async (req) => {
     let emailBody = "";
 
     if (type === "new_message" && sender_id) {
-      // Determine if sender is customer or staff
       const isCustomer = sender_id === ticket.customer_id;
-
       if (isCustomer) {
-        // Customer sent message → notify assigned staff (or company admin)
-        if (ticket.assigned_to) {
-          recipientIds = [ticket.assigned_to];
-        }
+        if (ticket.assigned_to) recipientIds = [ticket.assigned_to];
       } else {
-        // Staff sent message → notify customer
         recipientIds = [ticket.customer_id];
       }
-
       emailSubject = `Nuova risposta: ${ticket.subject}`;
-      emailBody = `Hai ricevuto una nuova risposta sul ticket "${ticket.subject}". Accedi alla piattaforma per visualizzarla.`;
+      emailBody = `<p>Hai ricevuto una nuova risposta sul ticket "<strong>${ticket.subject}</strong>".</p><p>Accedi alla piattaforma per visualizzarla.</p>`;
     } else if (type === "status_change") {
-      // Notify customer about status change
       recipientIds = [ticket.customer_id];
-
       const statusLabels: Record<string, string> = {
         aperto: "Aperto",
         in_lavorazione: "In Lavorazione",
         risolto: "Risolto",
       };
-
       emailSubject = `Ticket aggiornato: ${ticket.subject}`;
-      emailBody = `Lo stato del tuo ticket "${ticket.subject}" è stato aggiornato da "${statusLabels[old_status] || old_status}" a "${statusLabels[new_status] || new_status}".`;
+      emailBody = `<p>Lo stato del tuo ticket "<strong>${ticket.subject}</strong>" è stato aggiornato da "${statusLabels[old_status] || old_status}" a "${statusLabels[new_status] || new_status}".</p>`;
     }
 
     if (recipientIds.length === 0) {
-      return new Response(JSON.stringify({ ok: true, skipped: true }), {
-        headers: corsHeaders,
-      });
+      return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: corsHeaders });
     }
 
-    // Get recipient emails
     const { data: recipients } = await admin
       .from("profiles")
       .select("id, email, first_name")
       .in("id", recipientIds);
 
     if (!recipients || recipients.length === 0) {
-      return new Response(JSON.stringify({ ok: true, no_recipients: true }), {
-        headers: corsHeaders,
-      });
+      return new Response(JSON.stringify({ ok: true, no_recipients: true }), { headers: corsHeaders });
     }
 
-    // Log notification (we don't have a transactional email service yet,
-    // so we log the intent for future integration)
-    for (const recipient of recipients) {
-      console.log(
-        `[ticket-notify] Would send email to ${recipient.email}: "${emailSubject}" — ${emailBody}`
-      );
+    // Load transactional provider, fallback to marketing
+    let settings = await loadProviderSettings("transactional");
+    if (!settings.apiKey) {
+      settings = await loadProviderSettings("marketing");
     }
 
-    // TODO: Integrate with a transactional email service (e.g. Resend, SendGrid)
-    // when configured. For now, notifications are logged server-side.
+    const sent: string[] = [];
+
+    if (settings.apiKey) {
+      for (const recipient of recipients) {
+        if (!recipient.email) continue;
+        try {
+          await sendViaProvider(settings.provider, settings.apiKey, {
+            from: settings.fromDefault,
+            fromName: settings.fromName,
+            to: [recipient.email],
+            subject: emailSubject,
+            html: `<html><body>${emailBody}</body></html>`,
+          });
+          sent.push(recipient.email);
+        } catch (err) {
+          console.error(`Failed to send to ${recipient.email}:`, err);
+        }
+      }
+    } else {
+      // Fallback: log only
+      for (const recipient of recipients) {
+        console.log(`[ticket-notify] Would send to ${recipient.email}: "${emailSubject}"`);
+      }
+    }
 
     return new Response(
-      JSON.stringify({
-        ok: true,
-        notified: recipients.map((r) => r.email),
-      }),
+      JSON.stringify({ ok: true, notified: sent.length > 0 ? sent : recipients.map((r) => r.email) }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
