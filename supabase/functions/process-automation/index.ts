@@ -1021,15 +1021,18 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
     return { success: false, error: "WhatsApp non configurato o non attivo per questa azienda" };
   }
 
-  // 2. Get contact phone
+  // 2. Get contact phone + DND check
   const { data: contact } = await supabase
     .from("marketing_contacts")
-    .select("phone, first_name, last_name, email")
+    .select("phone, first_name, last_name, email, optout_whatsapp")
     .eq("id", entityId)
     .single();
 
   if (!contact?.phone) {
     return { success: false, error: "Contatto senza numero di telefono" };
+  }
+  if (contact.optout_whatsapp) {
+    return { success: false, error: "Contact has opted out of WhatsApp" };
   }
 
   // 3. Decrypt token
