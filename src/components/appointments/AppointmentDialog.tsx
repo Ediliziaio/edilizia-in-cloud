@@ -211,6 +211,8 @@ export function AppointmentDialog({
         calendar_id: hideMarketingFields ? null : (calendarId && calendarId !== "none" ? calendarId : null),
         contact_id: hideMarketingFields ? null : (contactId && contactId !== "none" ? contactId : null),
         status: status,
+        reminder_minutes: reminderMinutes !== "none" ? parseInt(reminderMinutes) : null,
+        reminder_sent: false,
       };
 
       if (isEditing && appointment?.id) {
