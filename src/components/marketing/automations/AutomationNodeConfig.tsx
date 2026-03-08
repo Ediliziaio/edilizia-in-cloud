@@ -120,7 +120,17 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
       const companyProfileIds = new Set(profiles.map(p => p.id));
       return roles.filter(r => companyProfileIds.has(r.user_id)).map(r => ({ user_id: r.user_id, role: r.role, name: profileMap.get(r.user_id) || r.user_id.slice(0, 8) }));
     },
-    enabled: !!companyId && isAction && ["create_opportunity", "assign_user", "create_task", "send_notification"].includes(actionType),
+    enabled: !!companyId && isAction && ["create_opportunity", "assign_user", "create_task", "send_notification", "call_with_ai_agent"].includes(actionType),
+  });
+
+  const { data: aiAgentsList = [] } = useQuery({
+    queryKey: ["ai_agents_for_automation", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from("ai_agents" as never).select("id, name").eq("company_id", companyId).eq("status", "active").order("name");
+      return (data || []) as { id: string; name: string }[];
+    },
+    enabled: !!companyId && isAction && actionType === "call_with_ai_agent",
   });
 
   const { data: emailTemplates = [] } = useQuery({
