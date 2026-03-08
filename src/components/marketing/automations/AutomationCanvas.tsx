@@ -10,6 +10,7 @@ interface Props {
   nodes: AutomationNode[];
   connections: AutomationConnection[];
   selectedNodeId: string | null;
+  nodeExecutionCounts?: Record<string, number>;
   onSelectNode: (id: string | null) => void;
   onDeleteNode: (id: string) => void;
   onDuplicateNode: (id: string) => void;
