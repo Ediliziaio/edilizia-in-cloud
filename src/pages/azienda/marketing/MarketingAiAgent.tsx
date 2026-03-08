@@ -23,6 +23,7 @@ interface RecentConversation {
 
 export default function MarketingAiAgent() {
   const navigate = useNavigate();
+  const { role } = useAuth();
   const { data: agents, isLoading: agentsLoading } = useAgents();
   const { data: credits, isLoading: creditsLoading } = useAgentCredits();
 
