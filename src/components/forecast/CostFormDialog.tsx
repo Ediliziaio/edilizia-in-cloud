@@ -1,6 +1,9 @@
 import { useMemo, useState, useCallback } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Check, Clock, Calculator, Filter, Info, Repeat,
 } from "lucide-react";
