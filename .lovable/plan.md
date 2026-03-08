@@ -1,67 +1,31 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+## Piano: Scroll orizzontale isolato alla tabella
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+### Problema
+Il componente `Table` in `src/components/ui/table.tsx` ha già un wrapper con `overflow-auto`. Questo, combinato con `overflow-x-auto` sul div esterno in `CostsTable.tsx`, fa sì che lo scroll si propaghi a livello di pagina.
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+### Soluzione
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+**File: `src/components/forecast/CostsTable.tsx`** (riga 292)
+- Cambiare il wrapper da `overflow-x-auto` a `overflow-x-auto max-w-full` e assicurarsi che il contenitore limiti la larghezza
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+Ma il vero fix è nel componente Table stesso: il suo wrapper interno ha `overflow-auto` che crea lo scroll a livello pagina quando la tabella è più larga del viewport.
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+**Approccio corretto:** Sovrascrivere il comportamento del wrapper interno del `Table` passando una className che forzi `overflow-visible` sulla table, e lasciare che sia SOLO il div esterno in `CostsTable.tsx` a gestire lo scroll:
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+**File: `src/components/forecast/CostsTable.tsx`** (riga 292-293)
+- Wrapper esterno: `<div className="rounded-md border overflow-x-auto max-w-full">`
+- Sulla `<Table>`: NON serve cambiare nulla, ma il div interno del Table con `overflow-auto` crea conflitto.
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+**Soluzione più pulita — File: `src/components/forecast/CostsTable.tsx`**
+- Rimuovere il componente `<Table>` e usare direttamente `<table>` dentro il wrapper con scroll, oppure:
+- Wrappare il tutto in un div con `overflow-x-auto` e `max-w-full`, e sovrascrivere il div interno del Table aggiungendo `[&>div]:overflow-visible` sul wrapper esterno per neutralizzare lo scroll del componente Table.
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+**Modifica concreta** (riga 292):
+```tsx
+<div className="rounded-md border overflow-x-auto max-w-full [&>div]:!overflow-visible">
+```
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+Questo usa un selettore Tailwind per forzare `overflow-visible` sul div figlio diretto (il wrapper interno di `<Table>`), mantenendo lo scroll solo sul contenitore esterno.
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
-
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
-
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
-
-## Da fare (prossimi step)
-
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
-
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
