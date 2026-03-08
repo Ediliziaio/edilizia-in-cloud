@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { useMessagingEnabled, useConversations } from "@/hooks/useMessagingData";
+import { useConversations } from "@/hooks/useMessagingData";
 import { ConversationList } from "@/components/messaging/ConversationList";
 import { ChatView } from "@/components/messaging/ChatView";
 import { AiPanel } from "@/components/messaging/AiPanel";
 import { MessagingSettingsTab } from "@/components/messaging/MessagingSettingsTab";
 import { WhatsAppBroadcastTab } from "@/components/marketing/whatsapp/WhatsAppBroadcastTab";
+import { WhatsAppTemplatesTab } from "@/components/marketing/whatsapp/WhatsAppTemplatesTab";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { MessageCircle, Megaphone, Settings } from "lucide-react";
+import { MessageCircle, Megaphone, Settings, FileText } from "lucide-react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 
 export default function MarketingWhatsApp() {
@@ -33,6 +34,10 @@ export default function MarketingWhatsApp() {
           <TabsTrigger value="broadcast" className="gap-2">
             <Megaphone className="h-4 w-4" />
             Broadcast
+          </TabsTrigger>
+          <TabsTrigger value="template" className="gap-2">
+            <FileText className="h-4 w-4" />
+            Template
           </TabsTrigger>
           <TabsTrigger value="impostazioni" className="gap-2">
             <Settings className="h-4 w-4" />
@@ -69,6 +74,10 @@ export default function MarketingWhatsApp() {
 
         <TabsContent value="broadcast">
           <WhatsAppBroadcastTab />
+        </TabsContent>
+
+        <TabsContent value="template">
+          <WhatsAppTemplatesTab />
         </TabsContent>
 
         <TabsContent value="impostazioni">

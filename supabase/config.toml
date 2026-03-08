@@ -113,3 +113,9 @@ verify_jwt = false
 
 [functions.send-whatsapp-reply]
 verify_jwt = false
+
+[functions.whatsapp-broadcast]
+verify_jwt = false
+
+[functions.whatsapp-templates]
+verify_jwt = false
