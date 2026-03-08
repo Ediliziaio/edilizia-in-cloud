@@ -105,6 +105,7 @@ Deno.serve(async (req) => {
               .from("whatsapp_broadcast_recipients")
               .update(broadcastUpdate)
               .eq("meta_message_id", metaMessageId);
+          } // ← close for (const status of statuses)
 
           if (!value?.messages) continue;
 
