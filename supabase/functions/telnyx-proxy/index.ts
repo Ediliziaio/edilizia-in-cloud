@@ -176,6 +176,14 @@ Deno.serve(async (req) => {
       case "send_sms": {
         if (!payload?.to || !payload?.body) throw new Error("to e body richiesti");
 
+        // Check billing override for SMS
+        if (companyId) {
+          const smsBilling = await getCompanyBillingConfig(adminClient, companyId, "sms");
+          if (!smsBilling.isEnabled) {
+            return json({ error: "Servizio SMS disabilitato per questa azienda" }, 403);
+          }
+        }
+
         const from = payload.from || null;
 
         // If no from number, find a company number
