@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 import { deductEmailCredits } from "../_shared/emailCredits.ts";
+import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 
