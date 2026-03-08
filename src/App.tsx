@@ -291,6 +291,7 @@ const App = () => (
                   <Route path="sicurezza" element={<SettingsSecurity />} />
                   <Route path="attivita" element={<SettingsActivityLog />} />
                   <Route path="integrazioni" element={<SettingsIntegrations />} />
+                  <Route path="crediti" element={<SettingsCredits />} />
                 </Route>
               </Route>
 
