@@ -4,10 +4,41 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, MessageSquare, CreditCard, Mail, Phone } from "lucide-react";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import type { Integration, IntegrationStatus, IntegrationHealth } from "@/types/integrations";
+
+function StatusIntegrationCard({ name, description, icon: Icon, iconColor, status, detail }: {
+  name: string; description: string; icon: any; iconColor: string;
+  status: "connected" | "not_configured"; detail?: string;
+}) {
+  return (
+    <Card className="flex flex-col">
+      <CardHeader className="flex-row items-start gap-3 space-y-0">
+        <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center">
+          <Icon className={`h-5 w-5 ${iconColor}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <CardTitle className="text-base">{name}</CardTitle>
+            <Badge variant={status === "connected" ? "default" : "secondary"} className="text-[10px]">
+              {status === "connected" ? "Connesso" : "Non configurato"}
+            </Badge>
+          </div>
+          <CardDescription className="mt-1 line-clamp-2">{description}</CardDescription>
+        </div>
+      </CardHeader>
+      {detail && (
+        <CardContent className="pt-0">
+          <p className="text-xs text-muted-foreground">{detail}</p>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
 
 export default function SettingsIntegrations() {
   const { effectiveCompany, user } = useAuth();
@@ -31,7 +62,6 @@ export default function SettingsIntegrations() {
     enabled: !!companyId,
   });
 
-  // Google Calendar connection status for current user
   const { data: gcalConnection } = useQuery({
     queryKey: ["google-calendar-connection", companyId, userId],
     queryFn: async () => {
@@ -47,9 +77,38 @@ export default function SettingsIntegrations() {
     enabled: !!companyId && !!userId,
   });
 
+  const { data: waConfig } = useQuery({
+    queryKey: ["whatsapp-config-status", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data } = await supabase
+        .from("messaging_whatsapp_config")
+        .select("id, phone_number_id, waba_id, account_status, display_phone_number")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!companyId,
+  });
+
+  const { data: stripeConfig } = useQuery({
+    queryKey: ["stripe-config-status", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("key, value")
+        .in("key", ["stripe_publishable_key", "stripe_mode"]);
+      if (!data || data.length === 0) return null;
+      const map: Record<string, string> = {};
+      data.forEach((r: any) => { map[r.key] = r.value; });
+      return map;
+    },
+    enabled: !!companyId,
+  });
+
   const metaIntegration = integrations.find((i) => i.provider === "meta");
 
-  // Count connected pages and active forms
   const { data: stats } = useQuery({
     queryKey: ["integration-meta-stats", companyId, metaIntegration?.id],
     queryFn: async () => {
@@ -69,15 +128,11 @@ export default function SettingsIntegrations() {
           .eq("integration_id", metaIntegration.id)
           .eq("status", "active"),
       ]);
-      return {
-        pages: pagesRes.count || 0,
-        forms: formsRes.count || 0,
-      };
+      return { pages: pagesRes.count || 0, forms: formsRes.count || 0 };
     },
     enabled: !!companyId && !!metaIntegration?.id,
   });
 
-  // Build a fake Integration-like object for Google Calendar card
   const gcalIntegrationLike: Integration | null = gcalConnection
     ? {
         id: gcalConnection.id,
@@ -94,21 +149,19 @@ export default function SettingsIntegrations() {
       }
     : null;
 
-  const availableIntegrations = useMemo(() => {
+  const mainIntegrations = useMemo(() => {
     const items = [
       {
         provider: "meta" as const,
         name: "Meta (Facebook & Instagram Lead Ads)",
         description: "Sincronizza i lead dai moduli Lead Ads di Facebook e Instagram direttamente nel tuo CRM.",
-        icon: "meta",
         integration: metaIntegration || null,
         stats: metaIntegration ? stats : null,
       },
       {
         provider: "google_calendar" as const,
         name: "Google Calendar",
-        description: "Sincronizza appuntamenti e blocca slot occupati. Gestisci il collegamento da Impostazioni > Calendari > Collegamenti.",
-        icon: "google_calendar",
+        description: "Sincronizza appuntamenti e blocca slot occupati.",
         integration: gcalIntegrationLike,
         stats: null as { pages: number; forms: number } | null,
       },
@@ -119,6 +172,56 @@ export default function SettingsIntegrations() {
       (i) => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q)
     );
   }, [search, metaIntegration, stats, gcalIntegrationLike]);
+
+  const statusCards = useMemo(() => {
+    const cards = [
+      {
+        key: "whatsapp",
+        name: "WhatsApp Business",
+        description: "Invio messaggi e gestione conversazioni WhatsApp.",
+        icon: MessageSquare,
+        iconColor: "text-emerald-600",
+        status: (waConfig?.phone_number_id ? "connected" : "not_configured") as "connected" | "not_configured",
+        detail: waConfig?.display_phone_number
+          ? `Numero: ${waConfig.display_phone_number} · WABA: ${waConfig.waba_id || "N/A"}`
+          : undefined,
+      },
+      {
+        key: "stripe",
+        name: "Stripe",
+        description: "Gestione pagamenti e acquisto crediti.",
+        icon: CreditCard,
+        iconColor: "text-violet-600",
+        status: (stripeConfig?.stripe_publishable_key ? "connected" : "not_configured") as "connected" | "not_configured",
+        detail: stripeConfig?.stripe_mode
+          ? `Modalità: ${stripeConfig.stripe_mode === "live" ? "Produzione" : "Test"}`
+          : undefined,
+      },
+      {
+        key: "email",
+        name: "Email Provider",
+        description: "Invio email transazionali e campagne marketing.",
+        icon: Mail,
+        iconColor: "text-blue-600",
+        status: "not_configured" as const,
+        detail: "Configurazione disponibile in Impostazioni Admin > Email",
+      },
+      {
+        key: "twilio",
+        name: "Twilio (SMS)",
+        description: "Invio SMS per campagne e automazioni.",
+        icon: Phone,
+        iconColor: "text-orange-600",
+        status: "not_configured" as const,
+        detail: "Prossimamente",
+      },
+    ];
+    if (!search.trim()) return cards;
+    const q = search.toLowerCase();
+    return cards.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
+    );
+  }, [search, waConfig, stripeConfig]);
 
   return (
     <div className="space-y-6">
@@ -140,7 +243,7 @@ export default function SettingsIntegrations() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {availableIntegrations.map((item) => (
+        {mainIntegrations.map((item) => (
           <IntegrationCard
             key={item.provider}
             name={item.name}
@@ -166,7 +269,26 @@ export default function SettingsIntegrations() {
         ))}
       </div>
 
-      {availableIntegrations.length === 0 && (
+      {statusCards.length > 0 && (
+        <>
+          <h2 className="text-lg font-semibold pt-2">Stato servizi</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {statusCards.map((card) => (
+              <StatusIntegrationCard
+                key={card.key}
+                name={card.name}
+                description={card.description}
+                icon={card.icon}
+                iconColor={card.iconColor}
+                status={card.status}
+                detail={card.detail}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {mainIntegrations.length === 0 && statusCards.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           Nessuna integrazione trovata per "{search}"
         </div>
