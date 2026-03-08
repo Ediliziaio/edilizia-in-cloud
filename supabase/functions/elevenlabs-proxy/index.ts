@@ -208,6 +208,54 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "link_phone_number": {
+        if (!agent_id) throw new Error("agent_id richiesto (elevenlabs_agent_id)");
+        if (!payload?.phone_number) throw new Error("phone_number richiesto");
+
+        // Get Telnyx settings for API key and connection_id
+        const { data: telnyxSettings } = await adminClient
+          .from("telnyx_settings")
+          .select("api_key_encrypted, connection_id")
+          .eq("is_active", true)
+          .limit(1)
+          .maybeSingle();
+
+        if (!telnyxSettings?.api_key_encrypted) {
+          throw new Error("Telnyx non configurato");
+        }
+
+        const { decrypt: decryptFn, getEncryptionKey: getKey } = await import("../_shared/encryption.ts");
+        const telnyxApiKey = await decryptFn(telnyxSettings.api_key_encrypted, getKey());
+
+        const linkBody: Record<string, unknown> = {
+          phone_number: payload.phone_number,
+          provider: "telnyx",
+          telnyx_api_key: telnyxApiKey,
+        };
+        if (telnyxSettings.connection_id) {
+          linkBody.telnyx_connection_id = telnyxSettings.connection_id;
+        }
+
+        const linkRes = await elFetch("/convai/phone-numbers/create", "POST", apiKey, linkBody);
+        const elPhoneNumberId = linkRes?.phone_number_id || linkRes?.id;
+
+        // Update local DB record
+        if (elPhoneNumberId && payload.local_phone_id) {
+          await adminClient
+            .from("ai_agent_phone_numbers")
+            .update({ elevenlabs_phone_number_id: elPhoneNumberId })
+            .eq("id", payload.local_phone_id);
+        }
+
+        await auditLog(adminClient, companyId, null, userId, "link_phone_number", {
+          phone_number: payload.phone_number,
+          elevenlabs_phone_number_id: elPhoneNumberId,
+        });
+
+        result = { success: true, elevenlabs_phone_number_id: elPhoneNumberId };
+        break;
+      }
+
       default:
         return json({ error: `Azione non supportata: ${action}` }, 400);
     }

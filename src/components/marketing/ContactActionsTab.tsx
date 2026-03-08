@@ -41,7 +41,7 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
     } else if (channel === "email" && contact.email) {
       navigate(`/azienda/marketing/messaggi?contact=${contact.id}&channel=email`);
     } else if (channel === "sms" && contact.phone) {
-      toast.info("SMS: funzionalità in arrivo con integrazione Twilio");
+      navigate(`/azienda/marketing/messaggi?contact=${contact.id}&channel=sms`);
     } else {
       toast.error(`Dati di contatto mancanti per ${channel}`);
     }
@@ -62,7 +62,7 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
     }
     setCallingAI(true);
     try {
-      const { data, error } = await supabase.functions.invoke("ai-outbound-call", {
+      const { data, error } = await supabase.functions.invoke("initiate-outbound-call", {
         body: { agent_id: selectedAgentId, contact_id: contact.id },
       });
       if (error) throw error;
