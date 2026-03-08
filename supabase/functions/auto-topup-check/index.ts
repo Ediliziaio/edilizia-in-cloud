@@ -1,14 +1,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeaders, secureHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Cron/internal auth: require x-cron-secret or valid JWT
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const requestCronSecret = req.headers.get("x-cron-secret");
+  const authHeader = req.headers.get("authorization");
+  if (cronSecret && requestCronSecret !== cronSecret && !authHeader?.startsWith("Bearer ")) {
+    return errorResponse("Unauthorized", 401);
   }
 
   try {
@@ -18,9 +21,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     if (!stripeSecretKey) {
-      return new Response(JSON.stringify({ skipped: true, reason: "No STRIPE_SECRET_KEY" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ skipped: true, reason: "No STRIPE_SECRET_KEY" });
     }
 
     // Accept optional company_id to check a specific company, otherwise check all
@@ -44,9 +45,7 @@ Deno.serve(async (req) => {
 
     const { data: configs, error: configError } = await query;
     if (configError || !configs?.length) {
-      return new Response(JSON.stringify({ processed: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ processed: 0 });
     }
 
     let processed = 0;
@@ -127,14 +126,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ processed }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ processed });
   } catch (err) {
     console.error("auto-topup-check error:", err);
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse((err as Error).message, 500);
   }
 });

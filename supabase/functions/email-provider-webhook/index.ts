@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type",
+  ...baseCorsHeaders,
 };
 
 /**
@@ -103,13 +103,13 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ processed: events.length }), {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: secureHeaders,
     });
   } catch (err: any) {
     console.error("email-provider-webhook error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: secureHeaders,
     });
   }
 });

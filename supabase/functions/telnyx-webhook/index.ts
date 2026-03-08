@@ -1,9 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { corsHeaders as baseCorsHeaders } from "../_shared/headers.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, telnyx-signature-ed25519, telnyx-timestamp",
+  ...baseCorsHeaders,
+  "Access-Control-Allow-Headers": baseCorsHeaders["Access-Control-Allow-Headers"] + ", telnyx-signature-ed25519, telnyx-timestamp",
 };
 
 Deno.serve(async (req) => {
