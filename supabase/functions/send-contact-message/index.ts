@@ -7,56 +7,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-/** Send email via the configured provider */
-async function sendEmail(
-  apiKey: string,
-  provider: string,
-  from: string,
-  to: string,
-  subject: string,
-  html: string
-): Promise<{ ok: boolean; status: number; body: unknown }> {
-  let url: string;
-  let headers: Record<string, string>;
-  let body: string;
-
-  switch (provider) {
-    case "sendgrid": {
-      url = "https://api.sendgrid.com/v3/mail/send";
-      headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
-      body = JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: from.includes("<") ? from.match(/<(.+)>/)?.[1] || from : from },
-        subject,
-        content: [{ type: "text/html", value: html }],
-      });
-      break;
-    }
-    case "sendinblue":
-    case "brevo": {
-      url = "https://api.brevo.com/v3/smtp/email";
-      headers = { "api-key": apiKey, "Content-Type": "application/json" };
-      body = JSON.stringify({
-        sender: { email: from.includes("<") ? from.match(/<(.+)>/)?.[1] || from : from },
-        to: [{ email: to }],
-        subject,
-        htmlContent: html,
-      });
-      break;
-    }
-    case "resend":
-    default: {
-      url = "https://api.resend.com/emails";
-      headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
-      body = JSON.stringify({ from, to: [to], subject, html });
-      break;
-    }
-  }
-
-  const res = await fetch(url, { method: "POST", headers, body });
-  const json = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, body: json };
-}
 
 /** Send WhatsApp message via Cloud API */
 async function sendWhatsApp(
