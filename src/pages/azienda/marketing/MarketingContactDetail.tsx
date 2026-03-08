@@ -1378,6 +1378,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         ))}
       </div>
 
+      {/* Merge dialog */}
+      <ContactMergeDialog
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        sourceContact={contact ? { id: contact.id, first_name: contact.first_name || "", last_name: contact.last_name || "", email: contact.email || undefined, phone: contact.phone || undefined } : null}
+        companyId={companyId!}
+      />
+
       {/* Delete confirmation */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
