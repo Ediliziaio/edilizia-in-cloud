@@ -1,67 +1,47 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+## Verifica Completa Modulo WhatsApp — Risultati
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+Ho analizzato tutti i file implementati nelle 3 fasi precedenti confrontandoli con le specifiche Meta Cloud API v21.0. Ecco lo stato attuale:
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+### Stato Implementazione
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+| # | Punto | Stato | Note |
+|---|-------|-------|------|
+| 1 | ChatView invio reale | **Fatto** | Usa `send-whatsapp-reply` edge function |
+| 2 | Automazioni send_whatsapp | **Fatto** | `executeSendWhatsApp` implementato con decryption |
+| 3 | Broadcast backend | **Fatto** | Edge function + tabelle + UI storico |
+| 4 | Template Meta | **Fatto** | Tab Template con list/create/delete |
+| 5 | Media multimediali | **Fatto** | `sendWhatsApp` supporta image/document/audio |
+| 6 | Delivery receipts | **Bug critico** | Webhook ha errore di sintassi |
+| 7 | DB/Types | **OK** | Migration applicata, config.toml completo |
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+---
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+### BUG CRITICO TROVATO: Webhook malformato
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+**File**: `supabase/functions/whatsapp-webhook/index.ts` linee 78-109
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+Il loop `for (const status of statuses)` (riga 80) **non viene mai chiuso con `}`**. Il codice che processa i messaggi in entrata (righe 109-221) finisce dentro il loop degli status, causando:
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+1. Se arriva un webhook con `statuses` ma senza `messages`, il `continue` a riga 109 salta al prossimo status (corretto per caso)
+2. Se arriva un webhook con `messages` E `statuses`, il processing dei messaggi viene eseguito N volte (una per ogni status), creando **messaggi duplicati**
+3. Se arriva un webhook solo con `messages` (nessuno status), il loop `for (const status of statuses)` non esegue mai, quindi **i messaggi in entrata vengono completamente ignorati**
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+Questo e il punto 3 il bug piu grave: con l'array `statuses` vuoto, il `for` non itera mai, e tutto il codice di processing messaggi e dentro quel loop.
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+**Fix**: Chiudere il `for (const status of statuses)` con `}` prima di riga 109, e ri-indentare il blocco messaggi fuori dal loop statuses.
 
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
+### Conformita Meta API v21.0
 
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+- Endpoint: `https://graph.facebook.com/v21.0/` — Confermato come versione stabile corrente
+- Template payload: formato corretto (`messaging_product`, `type: "template"`, `template.name`, `template.language.code`)
+- HMAC verification: corretto con `sha256=` prefix
+- Webhook verification: corretto (`hub.mode`, `hub.verify_token`, `hub.challenge`)
 
-## Da fare (prossimi step)
+### Piano di Fix
 
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
+Un solo intervento necessario:
 
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
+**`supabase/functions/whatsapp-webhook/index.ts`**: Ristrutturare il POST handler per separare correttamente il loop degli status dal processing dei messaggi. Il closing `}` del `for (const status of statuses)` deve essere posizionato dopo riga 107, prima del check `if (!value?.messages)`.
+
