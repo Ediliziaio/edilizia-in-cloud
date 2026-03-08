@@ -44,8 +44,6 @@ export type GanttZoom = "year" | "quarter" | "month";
 
 export type CalendarViewType = "month" | "week" | "gantt" | "heatmap";
 
-export type CalendarViewType = "month" | "gantt" | "heatmap";
-
 export interface GoogleBusySlot {
   id: string;
   start_at: string;
