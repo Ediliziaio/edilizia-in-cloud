@@ -269,6 +269,9 @@ Deno.serve(async (req) => {
     const durationMin = Math.max(0.0167, durationSeconds / 60);
     const ttsModel = agent.tts_model || "eleven_multilingual_v2";
 
+    // Check billing override for AI
+    const billingConfig = await getCompanyBillingConfig(adminClient, companyId, "ai_agents");
+
     // Get pricing for this LLM+TTS combo
     const { data: pricing } = await adminClient
       .from("platform_pricing")
@@ -278,7 +281,16 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const costRealPerMin = pricing?.cost_real_per_min || 0.0200;
-    const costBilledPerMin = pricing?.cost_billed_per_min || 0.0400;
+    let costBilledPerMin = pricing?.cost_billed_per_min || 0.0400;
+
+    // Apply billing overrides
+    if (billingConfig.isFree) {
+      costBilledPerMin = 0;
+    } else if (billingConfig.pricePerUnitEur != null) {
+      costBilledPerMin = billingConfig.pricePerUnitEur;
+    } else if (billingConfig.markupMultiplier != null) {
+      costBilledPerMin = costRealPerMin * billingConfig.markupMultiplier;
+    }
 
     const costRealTotal = Number((durationMin * costRealPerMin).toFixed(4));
     const costBilledTotal = Number((durationMin * costBilledPerMin).toFixed(4));
