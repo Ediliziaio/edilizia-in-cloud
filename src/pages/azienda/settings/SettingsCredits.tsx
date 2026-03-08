@@ -269,9 +269,10 @@ export default function SettingsCredits() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="riepilogo">Riepilogo</TabsTrigger>
-          <TabsTrigger value="ricarica">Ricarica</TabsTrigger>
+          <TabsTrigger value="ricarica">Ricarica Email</TabsTrigger>
+          <TabsTrigger value="ricarica-ai">Ricarica AI</TabsTrigger>
           <TabsTrigger value="storico">Storico Movimenti</TabsTrigger>
         </TabsList>
 
