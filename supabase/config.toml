@@ -119,3 +119,12 @@ verify_jwt = false
 
 [functions.whatsapp-templates]
 verify_jwt = false
+
+[functions.send-email-campaign]
+verify_jwt = false
+
+[functions.email-tracking]
+verify_jwt = false
+
+[functions.email-provider-webhook]
+verify_jwt = false

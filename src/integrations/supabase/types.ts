@@ -7379,6 +7379,16 @@ export type Database = {
           total_unsubscribed: number
         }[]
       }
+      get_top_companies_by_email: {
+        Args: { p_limit?: number }
+        Returns: {
+          balance: number
+          company_id: string
+          company_name: string
+          total_sent: number
+          total_spent: number
+        }[]
+      }
       get_total_orders_value: {
         Args: never
         Returns: {

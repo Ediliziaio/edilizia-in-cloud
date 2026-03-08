@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,56 +7,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-/** Send email via the configured provider */
-async function sendEmail(
-  apiKey: string,
-  provider: string,
-  from: string,
-  to: string,
-  subject: string,
-  html: string
-): Promise<{ ok: boolean; status: number; body: unknown }> {
-  let url: string;
-  let headers: Record<string, string>;
-  let body: string;
-
-  switch (provider) {
-    case "sendgrid": {
-      url = "https://api.sendgrid.com/v3/mail/send";
-      headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
-      body = JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: from.includes("<") ? from.match(/<(.+)>/)?.[1] || from : from },
-        subject,
-        content: [{ type: "text/html", value: html }],
-      });
-      break;
-    }
-    case "sendinblue":
-    case "brevo": {
-      url = "https://api.brevo.com/v3/smtp/email";
-      headers = { "api-key": apiKey, "Content-Type": "application/json" };
-      body = JSON.stringify({
-        sender: { email: from.includes("<") ? from.match(/<(.+)>/)?.[1] || from : from },
-        to: [{ email: to }],
-        subject,
-        htmlContent: html,
-      });
-      break;
-    }
-    case "resend":
-    default: {
-      url = "https://api.resend.com/emails";
-      headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
-      body = JSON.stringify({ from, to: [to], subject, html });
-      break;
-    }
-  }
-
-  const res = await fetch(url, { method: "POST", headers, body });
-  const json = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, body: json };
-}
 
 /** Send WhatsApp message via Cloud API */
 async function sendWhatsApp(
@@ -222,21 +172,28 @@ Deno.serve(async (req) => {
         );
       }
 
-      const provider = (await getPlatformSetting("email_transactional_provider")) || (await getPlatformSetting("email_marketing_provider")) || "sendgrid";
-      const apiKey = (await getPlatformSetting("email_transactional_api_key")) || (await getPlatformSetting("email_marketing_api_key"));
+      // Use shared provider - prefer transactional stream, fallback to marketing
+      let settings = await loadProviderSettings("transactional");
+      if (!settings.apiKey) {
+        settings = await loadProviderSettings("marketing");
+      }
 
-      if (!apiKey) {
+      if (!settings.apiKey) {
         return new Response(
           JSON.stringify({ error: "API Key del provider email non configurata" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const fromAddress = "noreply@ediliziacloud.it";
       const emailSubject = subject || "Messaggio";
       const html = `<html><body><p>${content.replace(/\n/g, "<br>")}</p></body></html>`;
 
-      const result = await sendEmail(apiKey, provider, fromAddress, contact.email, emailSubject, html);
+      const result = await sendViaProvider(settings.provider, settings.apiKey, {
+        from: settings.fromDefault,
+        to: [contact.email],
+        subject: emailSubject,
+        html,
+      }, { domain: settings.domain });
       if (!result.ok) {
         status = "failed";
         errorDetail = JSON.stringify(result.body);
