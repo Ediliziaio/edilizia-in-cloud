@@ -678,7 +678,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const resp = await fetch(`${supabaseUrl}/functions/v1/ai-outbound-call`, {
+        const resp = await fetch(`${supabaseUrl}/functions/v1/initiate-outbound-call`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
