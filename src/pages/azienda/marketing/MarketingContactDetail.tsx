@@ -12,7 +12,7 @@ import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
   FileText, Activity, StickyNote, CalendarDays, Target, Plus, Send, Search,
   Bell, User, Settings, X, Filter, UserPlus, ArrowRight, RefreshCw, UserCheck,
-  Loader2, Check, AlertCircle, Bot, MessageSquare, Smartphone,
+  Loader2, Check, AlertCircle, Bot, MessageSquare, Smartphone, Merge,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
