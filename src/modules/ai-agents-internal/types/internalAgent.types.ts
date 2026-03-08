@@ -53,6 +53,52 @@ export interface InternalAgentUpdate {
   phone_number_id?: string | null;
 }
 
+// Campaign types
+export type CampaignType = "payment_reminder" | "survey" | "follow_up" | "custom";
+export type CampaignStatus = "draft" | "scheduled" | "running" | "completed" | "paused";
+export type CampaignTargetType = "manual" | "filter";
+
+export interface InternalCampaign {
+  id: string;
+  company_id: string;
+  agent_id: string;
+  name: string;
+  campaign_type: CampaignType;
+  status: CampaignStatus;
+  target_type: CampaignTargetType;
+  contact_ids: string[] | null;
+  filter_config: Record<string, unknown> | null;
+  dynamic_vars: Record<string, unknown> | null;
+  calls_per_minute: number;
+  total_calls: number;
+  calls_answered: number;
+  calls_failed: number;
+  scheduled_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface InternalCampaignInsert {
+  name: string;
+  agent_id: string;
+  campaign_type?: CampaignType;
+  target_type?: CampaignTargetType;
+  contact_ids?: string[];
+  filter_config?: Record<string, unknown>;
+  dynamic_vars?: Record<string, unknown>;
+  calls_per_minute?: number;
+  scheduled_at?: string | null;
+}
+
+export const CAMPAIGN_TYPE_OPTIONS: { value: CampaignType; label: string; description: string }[] = [
+  { value: "payment_reminder", label: "Sollecito Pagamenti", description: "Campagna per solleciti pagamento scaduti" },
+  { value: "survey", label: "Survey Soddisfazione", description: "Raccolta feedback post-lavori" },
+  { value: "follow_up", label: "Follow-up Commerciale", description: "Ricontatto commerciale o post-vendita" },
+  { value: "custom", label: "Personalizzata", description: "Campagna con configurazione custom" },
+];
+
 export const AGENT_TYPE_OPTIONS: { value: InternalAgentType; label: string; description: string }[] = [
   { value: "customer_service", label: "Assistente Clienti", description: "Risponde alle domande dei clienti su ordini, date lavori e pagamenti" },
   { value: "payment_reminder", label: "Sollecito Pagamenti", description: "Contatta i clienti per solleciti pagamento scaduti" },
