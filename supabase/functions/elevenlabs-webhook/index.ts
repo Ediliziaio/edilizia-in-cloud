@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
     const companyId = agent.company_id;
     let contactId: string | null = null;
     let appointmentCreated = false;
+    let newContactCreated = false;
 
     // Process tool calls for CRM integration
     for (const toolCall of tool_calls) {
