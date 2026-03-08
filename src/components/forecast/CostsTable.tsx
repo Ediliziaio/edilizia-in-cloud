@@ -414,7 +414,7 @@ export function CostsTable({
                       </TableCell>
                     )}
                     {isColVisible("supplier") && (
-                    <TableCell className="truncate">
+                    <TableCell className="truncate" title={(cost as any).supplier?.name || cost.supplierName || ''}>
                       {(cost as any).supplier?.name || cost.supplierName || (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
