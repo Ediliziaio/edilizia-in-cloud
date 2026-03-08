@@ -192,6 +192,26 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
 
   return (
     <div className="space-y-6">
+      {/* Cash Flow Alerts */}
+      {stats.nextMonth.net < 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Attenzione: Cash Flow Negativo</AlertTitle>
+          <AlertDescription>
+            Il saldo previsto per il prossimo mese è di {formatCurrency(stats.nextMonth.net)}. Verifica le uscite programmate e valuta azioni correttive.
+          </AlertDescription>
+        </Alert>
+      )}
+      {stats.nextMonth.net >= 0 && stats.nextMonth.net < CASH_FLOW_WARNING_THRESHOLD && (
+        <Alert className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-700 [&>svg]:text-amber-600">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Cash flow vicino allo zero</AlertTitle>
+          <AlertDescription>
+            Il saldo previsto per il prossimo mese è di soli {formatCurrency(stats.nextMonth.net)}. Monitora attentamente le entrate e le uscite.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Cumulative balance hero card */}
       <Card className={cn(
         "border",
