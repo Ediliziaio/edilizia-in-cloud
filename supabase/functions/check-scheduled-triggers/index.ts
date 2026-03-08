@@ -354,6 +354,86 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Cash Flow Alert (daily check for negative next-month forecast) ──
+    const today = new Date();
+    const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+    const todayStr = today.toISOString().split("T")[0];
+
+    // Get all companies
+    const { data: allCompanies } = await supabase.from("companies").select("id").eq("status", "active");
+
+    if (allCompanies) {
+      for (const company of allCompanies) {
+        // Check if already sent today
+        const { data: alreadySent } = await supabase
+          .from("lifecycle_notifications")
+          .select("id")
+          .eq("company_id", company.id)
+          .eq("type", "cash_flow_alert")
+          .gte("created_at", todayStr)
+          .maybeSingle();
+
+        if (alreadySent) continue;
+
+        // Sum expected income (order_installments)
+        const { data: incomeData } = await supabase
+          .from("order_installments")
+          .select("amount, order_id")
+          .eq("is_paid", false)
+          .gte("expected_date", nextMonthStart.toISOString().split("T")[0])
+          .lte("expected_date", nextMonthEnd.toISOString().split("T")[0]);
+
+        // Filter by company via orders
+        let totalIncome = 0;
+        if (incomeData && incomeData.length > 0) {
+          const orderIds = [...new Set(incomeData.map(i => i.order_id))];
+          const { data: companyOrders } = await supabase
+            .from("orders")
+            .select("id")
+            .eq("company_id", company.id)
+            .in("id", orderIds);
+
+          const validOrderIds = new Set((companyOrders || []).map(o => o.id));
+          totalIncome = incomeData.filter(i => validOrderIds.has(i.order_id)).reduce((s, i) => s + (i.amount || 0), 0);
+        }
+
+        // Sum expected costs
+        const { data: costsData } = await supabase
+          .from("company_costs")
+          .select("amount")
+          .eq("company_id", company.id)
+          .eq("is_paid", false)
+          .gte("due_date", nextMonthStart.toISOString().split("T")[0])
+          .lte("due_date", nextMonthEnd.toISOString().split("T")[0]);
+
+        const totalExpenses = (costsData || []).reduce((s, c) => s + (c.amount || 0), 0);
+        const netForecast = totalIncome - totalExpenses;
+
+        if (netForecast < 0) {
+          // Get company admin user
+          const { data: adminProfile } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("company_id", company.id)
+            .limit(1)
+            .maybeSingle();
+
+          if (adminProfile) {
+            await supabase.from("lifecycle_notifications").insert({
+              company_id: company.id,
+              user_id: adminProfile.id,
+              type: "cash_flow_alert",
+              title: "⚠️ Cash flow negativo previsto",
+              message: `Il saldo previsto per il prossimo mese è di €${netForecast.toFixed(2)}. Verifica le uscite programmate.`,
+              metadata: { net_forecast: netForecast, month: nextMonthStart.toISOString().split("T")[0] },
+            });
+            results.cash_flow_alert++;
+          }
+        }
+      }
+    }
+
     return jsonResponse({ message: "Scheduled triggers checked", results });
   } catch (err: any) {
     if (err instanceof Response) return err;
