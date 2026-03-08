@@ -406,5 +406,7 @@ export function useCompanyDashboardData() {
     urgentItems: dashboardData?.urgentItems ?? [],
     financialAlerts: dashboardData?.financialAlerts ?? [],
     weeklyDeadlines: dashboardData?.weeklyDeadlines ?? { receivables: [], companyCosts: [], upcomingWorks: [] },
+    monthlyBalance: dashboardData?.monthlyBalance ?? [],
+    revenueYTD: dashboardData?.revenueYTD ?? [],
   };
 }
