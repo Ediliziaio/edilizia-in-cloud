@@ -70,7 +70,17 @@
 - ✅ **D**: Azione `remove_from_automation` — UI (tipo CRM in builder) + backend (rimuove enrollment + cancella queue)
 - ✅ **E**: Azione `wait_for_event` — UI (tipo logica in builder) + backend (stato waiting, timeout, risoluzione evento)
 
-### Fase 3 — P2 (TODO)
+### Fase 3 — Documento v2 ✅
+
+- ✅ **Lead scoring**: Colonna `score` su `marketing_contacts` + azione `update_contact_score` (add/subtract/set) in builder e backend
+- ✅ **Re-enrollment**: Lettura `enable_reenrollment` da flow config_json.settings + fallback su trigger config
+- ✅ **Contatori per nodo**: Query aggregata su `automation_execution_log` con badge esecuzioni su ogni nodo nel builder (refresh 30s)
+- ✅ **customer_replied**: Collegato al webhook WhatsApp (inserisce evento `customer_replied` in `automation_trigger_events`)
+- ✅ **call_registered**: DB trigger `fire_call_registered_automation` su `call_logs` INSERT
+- ✅ **send_notification**: Implementato con insert reale in `lifecycle_notifications` (supporta assegnato, tutti admin, utente specifico)
+
+### Fase 4 — TODO
 
 - [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
 - [ ] **G**: Enrollment bulk dalla lista contatti CRM
+- [ ] **send_ai_message**: Integrazione con Lovable AI
