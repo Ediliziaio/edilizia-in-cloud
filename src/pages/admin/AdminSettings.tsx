@@ -1,10 +1,11 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, ShieldCheck, Server, Bell, ScrollText } from "lucide-react";
+import { User, ShieldCheck, Server, Bell, ScrollText, Plug } from "lucide-react";
 import ProfileTab from "@/components/admin/settings/ProfileTab";
 import SuperAdminUsersTab from "@/components/admin/settings/SuperAdminUsersTab";
 import PlatformInfoTab from "@/components/admin/settings/PlatformInfoTab";
 import NotificationsTab from "@/components/admin/settings/NotificationsTab";
 import AuditLogTab from "@/components/admin/settings/AuditLogTab";
+import AdminSettingsIntegrations from "@/components/admin/settings/AdminSettingsIntegrations";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 
 export default function AdminSettings() {
