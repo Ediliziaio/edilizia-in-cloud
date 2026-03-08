@@ -74,6 +74,29 @@ Deno.serve(async (req) => {
         for (const change of changes) {
           if (change.field !== "messages") continue;
           const value = change.value;
+
+          // ── Handle delivery status updates ──
+          const statuses = value?.statuses || [];
+          for (const status of statuses) {
+            const metaMessageId = status.id;
+            const newStatus = status.status; // sent, delivered, read, failed
+            const timestamp = new Date(parseInt(status.timestamp) * 1000).toISOString();
+
+            const updateData: Record<string, string> = {
+              delivery_status: newStatus,
+            };
+            if (newStatus === "delivered") updateData.delivered_at = timestamp;
+            if (newStatus === "read") {
+              updateData.delivered_at = updateData.delivered_at || timestamp;
+              updateData.read_at = timestamp;
+            }
+
+            await supabase
+              .from("messaging_messages")
+              .update(updateData)
+              .eq("meta_message_id", metaMessageId);
+          }
+
           if (!value?.messages) continue;
 
           const phoneNumberId = value.metadata?.phone_number_id;

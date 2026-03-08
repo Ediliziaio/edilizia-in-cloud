@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Mic, FileText, Image, Bot } from "lucide-react";
+import { Mic, FileText, Image, Bot, Clock, Check, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -13,14 +13,34 @@ interface MessageBubbleProps {
     transcription: string | null;
     ai_processed: boolean;
     created_at: string;
+    delivery_status?: string | null;
   };
   isSelected: boolean;
   onSelect: (id: string) => void;
 }
 
+function DeliveryStatusIcon({ status }: { status?: string | null }) {
+  if (!status) return null;
+  switch (status) {
+    case "pending":
+      return <Clock className="h-3 w-3 opacity-50" />;
+    case "sent":
+      return <Check className="h-3 w-3 opacity-50" />;
+    case "delivered":
+      return <CheckCheck className="h-3 w-3 opacity-50" />;
+    case "read":
+      return <CheckCheck className="h-3 w-3 text-blue-500" />;
+    case "failed":
+      return <span className="text-[10px] text-destructive">!</span>;
+    default:
+      return <Check className="h-3 w-3 opacity-50" />;
+  }
+}
+
 export function MessageBubble({ message, isSelected, onSelect }: MessageBubbleProps) {
   const isContact = message.sender_type === "contact";
   const isSystem = message.sender_type === "system";
+  const isOperator = message.sender_type === "operator";
 
   if (isSystem) {
     return (
@@ -81,6 +101,7 @@ export function MessageBubble({ message, isSelected, onSelect }: MessageBubblePr
           <span className="text-[10px] opacity-50">
             {format(new Date(message.created_at), "HH:mm", { locale: it })}
           </span>
+          {isOperator && <DeliveryStatusIcon status={message.delivery_status} />}
         </div>
       </div>
     </div>
