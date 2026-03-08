@@ -121,8 +121,9 @@ async function handleTrigger(supabase: any, body: any) {
       if (!evaluateFilters(filters, enrichedPayload)) continue;
     }
 
-    // Check re-enrollment settings
-    const allowReEnrollment = matchingTrigger.config_json?.allow_re_enrollment === true;
+    // Check re-enrollment settings (from flow config or trigger config)
+    const flowSettings = flow.config_json?.settings || {};
+    const allowReEnrollment = flowSettings.enable_reenrollment === true || matchingTrigger.config_json?.allow_re_enrollment === true;
     const { data: existingEnrollment } = await supabase
       .from("automation_enrollments")
       .select("id, status")
