@@ -167,6 +167,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/prenota/:slug" element={<PublicBooking />} />
               
               {/* Role-based Redirect */}
               <Route path="/" element={<RoleBasedRedirect />} />
