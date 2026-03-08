@@ -16,22 +16,40 @@ const fmtNum = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDi
 const fmtCurrency = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
 const fmtPct = (n: number) => new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "%";
 
-const ALL_COLUMNS: { key: string; label: string; format: (r: NormalizedCampaignRow) => string; align?: string }[] = [
-  { key: "campaign_name", label: "Campagna", format: (r) => r.campaign_name || r.adset_name || r.ad_name || "—" },
-  { key: "status", label: "Stato", format: (r) => r.status || "—" },
-  { key: "clicks", label: "Clic", format: (r) => fmtNum(r.clicks), align: "right" },
-  { key: "spend", label: "Costo", format: (r) => fmtCurrency(r.spend), align: "right" },
-  { key: "revenue", label: "Entrate", format: (r) => fmtCurrency(r.revenue), align: "right" },
-  { key: "roi", label: "ROI %", format: (r) => (r.revenue > 0 ? fmtPct(r.roi) : "—"), align: "right" },
-  { key: "cpc", label: "CPC", format: (r) => fmtCurrency(r.cpc), align: "right" },
-  { key: "ctr", label: "CTR", format: (r) => fmtPct(r.ctr), align: "right" },
-  { key: "purchases", label: "Vendite", format: (r) => fmtNum(r.purchases), align: "right" },
-  { key: "cps", label: "CPS", format: (r) => (r.purchases > 0 ? fmtCurrency(r.cps) : "—"), align: "right" },
-  { key: "leads", label: "Lead", format: (r) => fmtNum(r.leads), align: "right" },
-  { key: "cpl", label: "CPL", format: (r) => (r.leads > 0 ? fmtCurrency(r.cpl) : "—"), align: "right" },
-  { key: "impressions", label: "Impressioni", format: (r) => fmtNum(r.impressions), align: "right" },
-  { key: "avg_revenue", label: "Entrate medie", format: (r) => (r.purchases > 0 ? fmtCurrency(r.avg_revenue) : "—"), align: "right" },
-];
+type ColumnDef = { key: string; label: string; format: (r: NormalizedCampaignRow) => string; align?: string };
+
+function getColumnsForLevel(level: string): ColumnDef[] {
+  const base: ColumnDef[] = [];
+
+  if (level === "ad") {
+    base.push({ key: "ad_name", label: "Annuncio", format: (r) => r.ad_name || "—" });
+    base.push({ key: "adset_name", label: "Gruppo inserzioni", format: (r) => r.adset_name || "—" });
+    base.push({ key: "campaign_name", label: "Campagna", format: (r) => r.campaign_name || "—" });
+  } else if (level === "adset") {
+    base.push({ key: "adset_name", label: "Gruppo inserzioni", format: (r) => r.adset_name || "—" });
+    base.push({ key: "campaign_name", label: "Campagna", format: (r) => r.campaign_name || "—" });
+  } else {
+    base.push({ key: "campaign_name", label: "Campagna", format: (r) => r.campaign_name || "—" });
+  }
+
+  base.push(
+    { key: "status", label: "Stato", format: (r) => r.status || "—" },
+    { key: "clicks", label: "Clic", format: (r) => fmtNum(r.clicks), align: "right" },
+    { key: "spend", label: "Costo", format: (r) => fmtCurrency(r.spend), align: "right" },
+    { key: "revenue", label: "Entrate", format: (r) => fmtCurrency(r.revenue), align: "right" },
+    { key: "roi", label: "ROI %", format: (r) => (r.revenue > 0 ? fmtPct(r.roi) : "—"), align: "right" },
+    { key: "cpc", label: "CPC", format: (r) => fmtCurrency(r.cpc), align: "right" },
+    { key: "ctr", label: "CTR", format: (r) => fmtPct(r.ctr), align: "right" },
+    { key: "purchases", label: "Vendite", format: (r) => fmtNum(r.purchases), align: "right" },
+    { key: "cps", label: "CPS", format: (r) => (r.purchases > 0 ? fmtCurrency(r.cps) : "—"), align: "right" },
+    { key: "leads", label: "Lead", format: (r) => fmtNum(r.leads), align: "right" },
+    { key: "cpl", label: "CPL", format: (r) => (r.leads > 0 ? fmtCurrency(r.cpl) : "—"), align: "right" },
+    { key: "impressions", label: "Impressioni", format: (r) => fmtNum(r.impressions), align: "right" },
+    { key: "avg_revenue", label: "Entrate medie", format: (r) => (r.purchases > 0 ? fmtCurrency(r.avg_revenue) : "—"), align: "right" },
+  );
+
+  return base;
+}
 
 const StatusBadge = ({ status }: { status?: string }) => {
   if (!status) return <span className="text-muted-foreground text-xs">—</span>;
