@@ -51,6 +51,25 @@ export default function SettingsCostCategories() {
     enabled: !!companyId,
   });
 
+  // Usage count per category name
+  const { data: usageCounts = {} } = useQuery({
+    queryKey: ["cost-category-usage", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("company_costs")
+        .select("category")
+        .eq("company_id", companyId!)
+        .not("category", "is", null);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data || []).forEach((c: any) => {
+        if (c.category) counts[c.category] = (counts[c.category] || 0) + 1;
+      });
+      return counts;
+    },
+    enabled: !!companyId,
+  });
+
   const addMutation = useMutation({
     mutationFn: async ({ name, color }: { name: string; color: string }) => {
       const { error } = await supabase.from("cost_categories").insert({
