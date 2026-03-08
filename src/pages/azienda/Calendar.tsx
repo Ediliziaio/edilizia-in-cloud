@@ -343,6 +343,10 @@ export default function Calendar() {
             <CalendarIcon className="h-4 w-4" />
             <span className="hidden sm:inline text-xs">Mese</span>
           </ToggleGroupItem>
+          <ToggleGroupItem value="week" aria-label="Vista Settimana" className="gap-1.5 px-2.5">
+            <CalendarDays className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs">Settimana</span>
+          </ToggleGroupItem>
           <ToggleGroupItem value="heatmap" aria-label="Vista Carico" className="gap-1.5 px-2.5">
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline text-xs">Carico</span>
