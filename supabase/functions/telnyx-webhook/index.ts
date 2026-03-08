@@ -121,13 +121,159 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // ── Call events (for logging) ──
-      case "call.initiated":
+      // ── Inbound Call Routing ──
+      case "call.initiated": {
+        const direction = record?.direction;
+        const callControlId = record?.call_control_id;
+        const callLegId = record?.call_leg_id;
+        const toNumber = record?.to;
+        const fromNumber = record?.from;
+
+        console.log(`[telnyx-webhook] call.initiated direction=${direction} callControlId=${callControlId}`);
+
+        // Only handle incoming calls
+        if (direction !== "incoming" || !callControlId) break;
+
+        const cleanTo = String(toNumber).replace(/[^0-9+]/g, "");
+
+        // Lookup agent phone number
+        const { data: phoneRec } = await supabase
+          .from("ai_agent_phone_numbers")
+          .select("id, agent_id, company_id, elevenlabs_phone_number_id, telnyx_connection_id")
+          .or(`phone_number.eq.${cleanTo},phone_number.eq.${cleanTo.replace("+", "")}`)
+          .limit(1)
+          .maybeSingle();
+
+        if (!phoneRec) {
+          console.log(`[telnyx-webhook] No agent phone found for ${cleanTo}, ignoring`);
+          break;
+        }
+
+        // Get agent details
+        const { data: agent } = await supabase
+          .from("ai_agents")
+          .select("elevenlabs_agent_id, name, status")
+          .eq("id", phoneRec.agent_id)
+          .single();
+
+        if (!agent?.elevenlabs_agent_id) {
+          console.log(`[telnyx-webhook] Agent ${phoneRec.agent_id} has no ElevenLabs ID, rejecting`);
+          // Reject the call
+          await telnyxCallControl(callControlId, "reject", {
+            cause: "CALL_REJECTED",
+          });
+          break;
+        }
+
+        // Credit check
+        const { data: credits } = await supabase
+          .from("ai_credits")
+          .select("balance_eur, calls_blocked")
+          .eq("company_id", phoneRec.company_id)
+          .maybeSingle();
+
+        const balance = credits?.balance_eur || 0;
+        if (credits?.calls_blocked || balance < 0.04) {
+          console.log(`[telnyx-webhook] Insufficient credits for company ${phoneRec.company_id}, rejecting`);
+          await telnyxCallControl(callControlId, "reject", {
+            cause: "CALL_REJECTED",
+          });
+          break;
+        }
+
+        // If the number is already registered on ElevenLabs via link_phone_number,
+        // ElevenLabs handles inbound routing automatically via SIP.
+        // We just log the inbound conversation here.
+        // If NOT linked, we answer + SIP transfer manually.
+
+        if (phoneRec.elevenlabs_phone_number_id) {
+          // ElevenLabs handles routing — just log
+          console.log(`[telnyx-webhook] Number linked to ElevenLabs (${phoneRec.elevenlabs_phone_number_id}), EL handles routing`);
+
+          // Try to find contact
+          let contactId: string | null = null;
+          if (fromNumber) {
+            const cleanFrom = String(fromNumber).replace(/[^0-9]/g, "");
+            const { data: contact } = await supabase
+              .from("marketing_contacts")
+              .select("id")
+              .eq("company_id", phoneRec.company_id)
+              .or(`phone.ilike.%${cleanFrom.slice(-9)}%`)
+              .limit(1)
+              .maybeSingle();
+            contactId = contact?.id || null;
+          }
+
+          // Log conversation (ElevenLabs webhook will update with details)
+          await supabase.from("ai_agent_conversations").insert({
+            agent_id: phoneRec.agent_id,
+            company_id: phoneRec.company_id,
+            contact_id: contactId,
+            call_direction: "inbound",
+            status: "ringing",
+            metadata: {
+              telnyx_call_control_id: callControlId,
+              telnyx_call_leg_id: callLegId,
+              from_number: fromNumber,
+              to_number: toNumber,
+            },
+          });
+        } else {
+          // Manual SIP transfer: answer → transfer to ElevenLabs SIP
+          console.log(`[telnyx-webhook] No EL phone link, attempting answer + SIP transfer`);
+
+          // Answer the call
+          await telnyxCallControl(callControlId, "answer", {});
+
+          // Small delay for answer to complete
+          await new Promise((r) => setTimeout(r, 500));
+
+          // Transfer via SIP to ElevenLabs
+          const sipUri = `sip:${agent.elevenlabs_agent_id}@sip.elevenlabs.io`;
+          await telnyxCallControl(callControlId, "transfer", {
+            to: sipUri,
+            sip_headers: [
+              { name: "X-ElevenLabs-Agent-Id", value: agent.elevenlabs_agent_id },
+            ],
+          });
+
+          // Log conversation
+          let contactId: string | null = null;
+          if (fromNumber) {
+            const cleanFrom = String(fromNumber).replace(/[^0-9]/g, "");
+            const { data: contact } = await supabase
+              .from("marketing_contacts")
+              .select("id")
+              .eq("company_id", phoneRec.company_id)
+              .or(`phone.ilike.%${cleanFrom.slice(-9)}%`)
+              .limit(1)
+              .maybeSingle();
+            contactId = contact?.id || null;
+          }
+
+          await supabase.from("ai_agent_conversations").insert({
+            agent_id: phoneRec.agent_id,
+            company_id: phoneRec.company_id,
+            contact_id: contactId,
+            call_direction: "inbound",
+            status: "active",
+            metadata: {
+              telnyx_call_control_id: callControlId,
+              telnyx_call_leg_id: callLegId,
+              from_number: fromNumber,
+              to_number: toNumber,
+              sip_transfer_to: sipUri,
+            },
+          });
+        }
+
+        break;
+      }
+
+      // ── Other Call events (logging) ──
       case "call.answered":
       case "call.hangup": {
         console.log(`[telnyx-webhook] Call event ${eventType}:`, JSON.stringify(record?.call_control_id || ""));
-        // Call events are primarily handled by ElevenLabs webhook
-        // We just log them here for debugging
         break;
       }
 
@@ -143,3 +289,42 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 });
+
+// ── Telnyx Call Control API helper ──
+async function telnyxCallControl(callControlId: string, command: string, params: Record<string, unknown>) {
+  // Get Telnyx API key from telnyx_settings (first available)
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  const { data: settings } = await supabase
+    .from("telnyx_settings")
+    .select("api_key_encrypted")
+    .limit(1)
+    .maybeSingle();
+
+  if (!settings?.api_key_encrypted) {
+    console.error("[telnyx-webhook] No Telnyx API key found in settings");
+    return;
+  }
+
+  // The api_key_encrypted may be plain or encrypted; try to use it directly
+  const apiKey = settings.api_key_encrypted;
+
+  const url = `https://api.telnyx.com/v2/calls/${callControlId}/actions/${command}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(params),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`[telnyx-webhook] Call control ${command} failed: ${res.status} ${body}`);
+  } else {
+    console.log(`[telnyx-webhook] Call control ${command} success`);
+  }
+}
