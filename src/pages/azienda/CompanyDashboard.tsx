@@ -478,7 +478,7 @@ export default function CompanyDashboard() {
         </Card>
 
         {/* Labor Costs Stats */}
-        <LaborCostsStats />
+        <LaborCostsStats dateRange={dateRange} />
       </div>
 
       {/* Aging Receivables */}
