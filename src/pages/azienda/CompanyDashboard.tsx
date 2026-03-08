@@ -437,7 +437,48 @@ export default function CompanyDashboard() {
         <LaborCostsStats />
       </div>
 
-      {/* Bottom Row */}
+      {/* Aging Receivables */}
+      {(agingReceivables.overdue > 0 || agingReceivables.thisWeek > 0 || agingReceivables.thisMonth > 0 || agingReceivables.future > 0) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Aging Crediti</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[60px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  layout="vertical"
+                  data={[{
+                    name: "Crediti",
+                    Scaduto: agingReceivables.overdue,
+                    "Questa settimana": agingReceivables.thisWeek,
+                    "Questo mese": agingReceivables.thisMonth,
+                    Futuro: agingReceivables.future,
+                  }]}
+                  margin={{ top: 0, right: 4, left: 0, bottom: 0 }}
+                >
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" hide />
+                  <RechartsTooltip
+                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                  />
+                  <Bar dataKey="Scaduto" stackId="a" fill="hsl(0 84% 60%)" radius={[4, 0, 0, 4]} />
+                  <Bar dataKey="Questa settimana" stackId="a" fill="hsl(25 95% 53%)" />
+                  <Bar dataKey="Questo mese" stackId="a" fill="hsl(45 93% 47%)" />
+                  <Bar dataKey="Futuro" stackId="a" fill="hsl(142 76% 36%)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-wrap gap-3 mt-2 text-xs">
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(0,84%,60%)]" />Scaduto: {formatCurrency(agingReceivables.overdue)}</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(25,95%,53%)]" />Questa sett.: {formatCurrency(agingReceivables.thisWeek)}</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(45,93%,47%)]" />Questo mese: {formatCurrency(agingReceivables.thisMonth)}</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(142,76%,36%)]" />Futuro: {formatCurrency(agingReceivables.future)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <WarehouseAlerts urgentItems={urgentItems} />
 
