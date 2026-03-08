@@ -47,7 +47,6 @@ Deno.serve(async (req) => {
         if (metadataType === "email_credits") {
           const amountEur = parseFloat(session.metadata?.amount_eur || "0");
           if (amountEur > 0) {
-            // Credit the balance via RPC
             await supabase.rpc("add_email_credits_with_log", {
               p_company_id: companyId,
               p_amount: amountEur,
@@ -56,7 +55,6 @@ Deno.serve(async (req) => {
               p_metadata: { stripe_session_id: session.id, payment_intent: session.payment_intent },
             });
 
-            // Save payment method for future auto-topup
             if (session.payment_intent) {
               try {
                 const piRes = await fetch(
@@ -65,18 +63,11 @@ Deno.serve(async (req) => {
                 );
                 const pi = await piRes.json();
                 const pmId = pi.payment_method;
-
                 if (pmId) {
-                  // Upsert auto-topup config with the payment method
                   await supabase
                     .from("company_auto_topup")
                     .upsert(
-                      {
-                        company_id: companyId,
-                        wallet_type: "email",
-                        stripe_payment_method_id: pmId,
-                        payment_method: "stripe",
-                      },
+                      { company_id: companyId, wallet_type: "email", stripe_payment_method_id: pmId, payment_method: "stripe" },
                       { onConflict: "company_id,wallet_type" }
                     );
                 }
@@ -85,6 +76,50 @@ Deno.serve(async (req) => {
               }
             }
           }
+          break;
+        }
+
+        // ─── AI SUBSCRIPTION ───
+        if (metadataType === "ai_subscription") {
+          const stripeSubscriptionId = session.subscription;
+          const priceEur = parseFloat(session.metadata?.price_eur || "49");
+
+          // Create or update ai_subscriptions record
+          await supabase.from("ai_subscriptions").upsert(
+            {
+              company_id: companyId,
+              status: "active",
+              stripe_subscription_id: stripeSubscriptionId,
+              price_eur: priceEur,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "company_id" }
+          );
+
+          // Welcome bonus: add credits
+          const { data: bonusSetting } = await supabase
+            .from("platform_settings")
+            .select("value")
+            .eq("key", "ai_welcome_bonus_eur")
+            .maybeSingle();
+          const bonusEur = parseFloat(bonusSetting?.value || "5");
+          if (bonusEur > 0) {
+            await supabase.rpc("deduct_ai_credits" as never, {
+              p_company_id: companyId,
+              p_cost: -bonusEur, // negative = add credits
+            });
+
+            await supabase.from("ai_credit_topups").insert({
+              company_id: companyId,
+              amount_eur: bonusEur,
+              type: "bonus",
+              status: "completed",
+              notes: "Bonus benvenuto AI",
+              processed_at: new Date().toISOString(),
+            });
+          }
+
+          console.log(`[STRIPE] AI subscription activated for company ${companyId}`);
           break;
         }
 

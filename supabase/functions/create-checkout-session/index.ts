@@ -70,6 +70,103 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
+    // ─── AI SUBSCRIPTION ───
+    if (type === "ai_subscription") {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .single();
+
+      if (!profile || profile.company_id !== company_id) {
+        const { data: roleData } = await supabaseAdmin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("role", "super_admin")
+          .maybeSingle();
+        if (!roleData) {
+          return new Response(JSON.stringify({ error: "Non autorizzato" }), {
+            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      const { data: company } = await supabaseAdmin
+        .from("companies")
+        .select("id, name, email, stripe_customer_id")
+        .eq("id", company_id)
+        .single();
+
+      if (!company) {
+        return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Get AI subscription price from platform_settings
+      const { data: priceSetting } = await supabaseAdmin
+        .from("platform_settings")
+        .select("value")
+        .eq("key", "ai_subscription_price_eur")
+        .maybeSingle();
+      const priceEur = parseFloat(priceSetting?.value || "49");
+
+      let stripeCustomerId = company.stripe_customer_id;
+      if (!stripeCustomerId) {
+        const customerRes = await fetch("https://api.stripe.com/v1/customers", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${stripeSecretKey}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({ name: company.name, email: company.email, "metadata[company_id]": company.id }),
+        });
+        const customer = await customerRes.json();
+        if (customer.error) {
+          return new Response(JSON.stringify({ error: customer.error.message }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        stripeCustomerId = customer.id;
+        await supabaseAdmin.from("companies").update({ stripe_customer_id: stripeCustomerId }).eq("id", company_id);
+      }
+
+      const appUrl = supabaseUrl.replace(".supabase.co", ".lovable.app");
+
+      const sessionRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          customer: stripeCustomerId!,
+          mode: "subscription",
+          "line_items[0][price_data][currency]": "eur",
+          "line_items[0][price_data][unit_amount]": String(Math.round(priceEur * 100)),
+          "line_items[0][price_data][recurring][interval]": "month",
+          "line_items[0][price_data][product_data][name]": "Agenti AI - Abbonamento Mensile",
+          "line_items[0][quantity]": "1",
+          success_url: `${appUrl}/azienda/marketing/agente-ai?payment=success`,
+          cancel_url: `${appUrl}/azienda/marketing/agente-ai?payment=cancelled`,
+          "metadata[company_id]": company_id,
+          "metadata[type]": "ai_subscription",
+          "metadata[price_eur]": String(priceEur),
+        }),
+      });
+      const session = await sessionRes.json();
+      if (session.error) {
+        return new Response(JSON.stringify({ error: session.error.message }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(
+        JSON.stringify({ url: session.url, session_id: session.id }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ─── EMAIL CREDITS (one-time payment) ───
     if (type === "email_credits") {
       const amountEur = body.amount_eur;
