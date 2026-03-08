@@ -182,8 +182,8 @@ export default function SettingsIntegrations() {
         icon: MessageSquare,
         iconColor: "text-emerald-600",
         status: (waConfig?.phone_number_id ? "connected" : "not_configured") as "connected" | "not_configured",
-        detail: waConfig?.display_phone_number
-          ? `Numero: ${waConfig.display_phone_number} · WABA: ${waConfig.waba_id || "N/A"}`
+        detail: waConfig?.phone_number
+          ? `Numero: ${waConfig.phone_number} · WABA: ${waConfig.waba_id || "N/A"}`
           : undefined,
       },
       {
