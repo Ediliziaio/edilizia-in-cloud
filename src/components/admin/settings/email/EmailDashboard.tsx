@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, Mail, TrendingUp, Users, MousePointerClick, AlertTriangle, Calendar } from "lucide-react";
+import { BarChart3, Mail, TrendingUp, Users, MousePointerClick, AlertTriangle, Calendar, DollarSign, Percent } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
@@ -93,6 +93,19 @@ export function EmailDashboard() {
     },
   });
 
+  // Fetch provider cost from platform_settings
+  const { data: providerCost } = useQuery({
+    queryKey: ["email-provider-cost"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("value")
+        .eq("key", "credits_email_provider_cost")
+        .maybeSingle();
+      return parseFloat(data?.value || "0.001");
+    },
+  });
+
   if (statsLoading) return <Skeleton className="h-[400px]" />;
 
   const s = stats ?? {
@@ -105,6 +118,13 @@ export function EmailDashboard() {
   const clickRate = s.total_opened > 0 ? ((s.total_clicked / s.total_opened) * 100).toFixed(1) : "0";
   const bounceRate = s.total_sent > 0 ? ((s.total_bounced / s.total_sent) * 100).toFixed(1) : "0";
 
+  // Financial KPIs
+  const costPerEmail = providerCost ?? 0.001;
+  const totalProviderCost = s.total_sent * costPerEmail;
+  const totalRevenue = s.total_credits_used; // credits_used = revenue from clients
+  const margin = totalRevenue - totalProviderCost;
+  const marginPercent = totalRevenue > 0 ? ((margin / totalRevenue) * 100).toFixed(1) : "0";
+
   const kpis = [
     { label: "Email Inviate", value: s.total_sent.toLocaleString(), icon: Mail, color: "text-blue-600" },
     { label: "Consegnate", value: s.total_delivered.toLocaleString(), icon: Mail, color: "text-green-600" },
@@ -112,8 +132,13 @@ export function EmailDashboard() {
     { label: "Tasso Click", value: `${clickRate}%`, icon: MousePointerClick, color: "text-purple-600" },
     { label: "Bounce Rate", value: `${bounceRate}%`, icon: AlertTriangle, color: "text-red-600" },
     { label: "Aziende Attive", value: s.active_companies.toLocaleString(), icon: Users, color: "text-primary" },
-    { label: "Crediti Usati", value: formatEur(s.total_credits_used), icon: BarChart3, color: "text-primary" },
-    { label: "Revenue Totale", value: formatEur(s.total_revenue), icon: TrendingUp, color: "text-green-700" },
+  ];
+
+  const financialKpis = [
+    { label: "Ricavi Lordi", value: formatEur(totalRevenue), icon: DollarSign, color: "text-green-600", description: "Crediti spesi dai clienti" },
+    { label: "Costo Provider", value: formatEur(totalProviderCost), icon: BarChart3, color: "text-red-600", description: `€${costPerEmail}/email × ${s.total_sent.toLocaleString()}` },
+    { label: "Margine Netto", value: formatEur(margin), icon: TrendingUp, color: margin >= 0 ? "text-green-700" : "text-red-600", description: `${marginPercent}% del ricavo` },
+    { label: "Margine %", value: `${marginPercent}%`, icon: Percent, color: margin >= 0 ? "text-green-700" : "text-red-600", description: "Ricavi - Costi Provider" },
   ];
 
   return (
@@ -136,7 +161,7 @@ export function EmailDashboard() {
       </div>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {kpis.map((kpi) => (
           <Card key={kpi.label}>
             <CardContent className="pt-4 pb-3">
@@ -148,6 +173,25 @@ export function EmailDashboard() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Financial KPIs */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground mb-3">📊 KPI Finanziari</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {financialKpis.map((kpi) => (
+            <Card key={kpi.label} className="border-dashed">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
+                  <span className="text-xs text-muted-foreground">{kpi.label}</span>
+                </div>
+                <p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">{kpi.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {/* Top 10 Companies */}
