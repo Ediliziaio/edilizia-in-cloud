@@ -478,11 +478,14 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       return { success: true, output: { action: "send_notification", placeholder: true } };
     }
 
+    case "send_whatsapp": {
+      return await executeSendWhatsApp(supabase, cfg, entityId, companyId);
+    }
+
     case "send_email":
-    case "send_whatsapp":
     case "send_sms":
     case "send_ai_message": {
-      // Placeholder — these need external integrations (SendGrid, WhatsApp API, etc.)
+      // Placeholder — these need external integrations
       console.log(`[${actionType}] entity=${entityId} config=`, JSON.stringify(cfg));
       return { success: true, output: { action: actionType, placeholder: true, message: "Integration pending" } };
     }
