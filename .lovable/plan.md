@@ -127,8 +127,8 @@
 - ✅ **Google Calendar push**: Edge function `google-calendar-webhook` con register_watch, renew_watches, e ricezione push + colonne webhook su `google_calendar_connections`
 - ✅ **Opt-out UI**: Toggle SMS/Call/WhatsApp/Email nel dettaglio contatto + badge disiscritto (già implementato in Fase 1)
 
-### Fase 3 — P2 (TODO)
+### Fase 3 — P2 ✅
 
-- [ ] **WhatsApp/Stripe in SettingsIntegrations**: Card status per integrazioni attive
-- [ ] **Merge contatti duplicati**: UI + backend merge
-- [ ] **Tab Azioni nel dettaglio contatto**: Azioni rapide (invia email, SMS, WhatsApp, aggiungi ad automation)
+- ✅ **WhatsApp/Stripe in SettingsIntegrations**: Card status per WhatsApp, Stripe, Email Provider, Twilio con stato connessione e dettagli
+- ✅ **Merge contatti duplicati**: Dialog di merge con ricerca, selezione master, spostamento opportunità/note/attività/appuntamenti/messaggi
+- ✅ **Tab Azioni nel dettaglio contatto**: Azioni rapide (invia WhatsApp, Email, SMS, Chiama, Aggiungi ad automazione) con check opt-out
