@@ -335,7 +335,15 @@ export function CostsTable({
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="truncate">{cost.category || "—"}</TableCell>
+                    <TableCell className="truncate">
+                      {cost.category ? (
+                        <Badge variant="outline" className={cn("text-[10px] px-1.5", getCategoryColor(cost.category))}>
+                          {cost.category}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Tooltip>
                         <TooltipTrigger asChild>
