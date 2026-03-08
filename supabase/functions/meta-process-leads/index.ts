@@ -140,7 +140,7 @@ serve(async (req) => {
   }
 });
 
-async function processLeadEvent(adminClient: any, event: any) {
+async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string } | null> {
   const { company_id, integration_id, payload } = event;
   const leadgenId = payload.leadgen_id;
   const formId = payload.form_id;
