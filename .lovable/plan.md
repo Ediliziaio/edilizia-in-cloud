@@ -1,67 +1,56 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+## Piano: Sezione "Categorie Costi" in Impostazioni > Gestione Ordini
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+### Obiettivo
+Creare una tabella `cost_categories` nel database per gestire le categorie costi in modo centralizzato. Aggiungere una pagina dedicata in Impostazioni sotto "Gestione ordini" per CRUD delle categorie. Aggiornare `useCompanyCostsData` e `CostFormDialog` per leggere da questa tabella invece di aggregare dinamicamente.
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+### 1. Database: nuova tabella `cost_categories`
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+```sql
+CREATE TABLE public.cost_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  color TEXT DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(company_id, name)
+);
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+ALTER TABLE public.cost_categories ENABLE ROW LEVEL SECURITY;
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+CREATE POLICY "Users can manage own company cost categories"
+ON public.cost_categories FOR ALL TO authenticated
+USING (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()))
+WITH CHECK (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
+```
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+### 2. Nuova pagina: `src/pages/azienda/settings/SettingsCostCategories.tsx`
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+Pagina semplice con:
+- Lista delle categorie esistenti (dalla tabella `cost_categories`)
+- Form inline per aggiungere nuova categoria (nome + colore opzionale)
+- Bottoni modifica/elimina per ogni riga
+- Al primo accesso, se la tabella è vuota, mostrare bottone "Importa categorie esistenti" che prende le categorie già usate nei costi e le inserisce nella tabella
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+### 3. Routing e navigazione
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+**`src/App.tsx`**: Aggiungere lazy import e route `categorie-costi` dentro il blocco `impostazioni`.
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+**`src/components/layouts/CompanyLayout.tsx`**: Aggiungere link "Categorie costi" con icona `FolderOpen` nel gruppo "Gestione ordini", sotto "Fornitori".
 
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
+### 4. Integrazione con il sistema costi
 
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+**`src/hooks/useCompanyCostsData.ts`**: 
+- Aggiungere query per `cost_categories` dalla tabella
+- `dynamicCategories` diventa: categorie dalla tabella DB + eventuali categorie presenti nei costi ma non ancora in tabella (retrocompatibilità)
 
-## Da fare (prossimi step)
+**`src/components/forecast/CostFormDialog.tsx`**: 
+- Quando l'utente crea una nuova categoria "on the fly", inserirla anche nella tabella `cost_categories`
 
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
+### Dettagli tecnici
 
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
+- 4 file modificati: `App.tsx`, `CompanyLayout.tsx`, `useCompanyCostsData.ts`, `CostFormDialog.tsx`
+- 1 file nuovo: `SettingsCostCategories.tsx`
+- 1 migrazione DB
+
