@@ -25,6 +25,9 @@ export default function AdminSettings() {
             <TabsTrigger value="admins" className="gap-2"><ShieldCheck className="h-4 w-4" /> Super Admin</TabsTrigger>
           )}
           <TabsTrigger value="piattaforma" className="gap-2"><Server className="h-4 w-4" /> Piattaforma</TabsTrigger>
+          {permissions.can_manage_admins && (
+            <TabsTrigger value="integrazioni" className="gap-2"><Plug className="h-4 w-4" /> Integrazioni</TabsTrigger>
+          )}
           <TabsTrigger value="notifiche" className="gap-2"><Bell className="h-4 w-4" /> Notifiche</TabsTrigger>
           {permissions.can_manage_admins && (
             <TabsTrigger value="audit" className="gap-2"><ScrollText className="h-4 w-4" /> Registro Attività</TabsTrigger>
