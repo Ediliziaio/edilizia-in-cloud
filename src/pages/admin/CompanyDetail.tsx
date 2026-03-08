@@ -115,6 +115,7 @@ export default function CompanyDetail() {
           <TabsTrigger value="team"><Users className="h-4 w-4 mr-1.5" />Team</TabsTrigger>
           <TabsTrigger value="saas">SaaS</TabsTrigger>
           <TabsTrigger value="abbonamento">Abbonamento</TabsTrigger>
+          <TabsTrigger value="billing">Billing & Servizi</TabsTrigger>
           <TabsTrigger value="attivita">Attività</TabsTrigger>
           <TabsTrigger value="note">Note</TabsTrigger>
         </TabsList>
