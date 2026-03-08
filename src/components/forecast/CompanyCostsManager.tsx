@@ -60,7 +60,7 @@ export default function CompanyCostsManager() {
 
   // Filters
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const statusFilter: StatusFilter = "all";
   const [searchQuery, setSearchQuery] = useState("");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
