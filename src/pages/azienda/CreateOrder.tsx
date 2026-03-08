@@ -179,7 +179,7 @@ export default function CreateOrder() {
       internalNotes: internalNotes || "",
       statusId: statusId || "",
       salespersonId: salespersonId || "",
-      salespersonData: salespersonData || null,
+      salespersonData: (salespersonData as { commission_type: string; commission_value: number } | null) || null,
       expectedDate: dateToIso(expectedDate),
       warehouseArrivalDate: dateToIso(warehouseArrivalDate),
       workStartDate: dateToIso(workStartDate),
