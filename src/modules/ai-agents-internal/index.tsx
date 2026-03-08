@@ -6,6 +6,7 @@ import { InternalAgentSidebar } from "./components/InternalAgentSidebar";
 const InternalAgentsListPage = lazy(() => import("./pages/InternalAgentsListPage"));
 const InternalAgentEditorPage = lazy(() => import("./pages/InternalAgentEditorPage"));
 const InternalCallLogsPage = lazy(() => import("./pages/InternalCallLogsPage"));
+const InternalCampaignsPage = lazy(() => import("./pages/InternalCampaignsPage"));
 
 const Fallback = () => (
   <div className="flex items-center justify-center h-full min-h-[200px]">
