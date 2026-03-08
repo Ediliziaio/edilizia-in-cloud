@@ -60,7 +60,8 @@ const StatusBadge = ({ status }: { status?: string }) => {
 };
 
 const CampaignTable = ({ report }: Props) => {
-  const columns = ALL_COLUMNS.filter((c) => report.visibleColumns.includes(c.key));
+  const allColumns = getColumnsForLevel(report.level);
+  const columns = allColumns.filter((c) => report.visibleColumns.includes(c.key));
 
   const SortIcon = ({ col }: { col: string }) => {
     if (report.sortColumn !== col) return <ArrowUpDown className="h-3 w-3 opacity-30" />;
