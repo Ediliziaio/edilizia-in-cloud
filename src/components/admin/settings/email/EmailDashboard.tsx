@@ -79,27 +79,13 @@ export function EmailDashboard() {
   const { data: topCompanies, isLoading: topLoading } = useQuery({
     queryKey: ["email-top-companies"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("email_credits" as never)
-        .select("company_id, balance_eur, total_spent_eur")
-        .order("total_spent_eur" as never, { ascending: false })
-        .limit(10);
+      const { data, error } = await supabase.rpc("get_top_companies_by_email" as never, { p_limit: 10 } as never);
       if (error) throw error;
-      const rows = data as unknown as { company_id: string; balance_eur: number; total_spent_eur: number }[];
-
-      if (!rows?.length) return [];
-      const companyIds = rows.map((r) => r.company_id);
-      const { data: companies } = await supabase
-        .from("companies")
-        .select("id, name")
-        .in("id", companyIds);
-
-      const nameMap = new Map((companies ?? []).map((c) => [c.id, c.name]));
-      return rows.map((r) => ({
+      return ((data as unknown as TopCompany[]) ?? []).map((r) => ({
         company_id: r.company_id,
-        company_name: nameMap.get(r.company_id) || "—",
-        total_spent: r.total_spent_eur ?? 0,
-        balance: r.balance_eur ?? 0,
+        company_name: r.company_name || "—",
+        total_spent: r.total_spent ?? 0,
+        balance: r.balance ?? 0,
       }));
     },
   });
