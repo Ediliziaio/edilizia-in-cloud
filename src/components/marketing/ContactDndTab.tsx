@@ -63,4 +63,4 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
       )}
     </div>
   );
-}
+});

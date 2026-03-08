@@ -102,4 +102,4 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
       </div>
     </div>
   );
-}
+});
