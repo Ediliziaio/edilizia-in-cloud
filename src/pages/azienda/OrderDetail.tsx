@@ -317,46 +317,38 @@ export default function OrderDetail() {
     onError: () => { toast.error("Errore nell'eliminazione dell'ordine."); },
   });
 
-  // Payment toggle mutation - handles both installments table and legacy columns
+  // Payment toggle mutation — unified: always writes to order_installments.
+  // For legacy orders without DB installments, auto-migrates them on first toggle.
   const updatePaymentMutation = useMutation({
     mutationFn: async ({ installment, paid }: { installment: Installment; paid: boolean }) => {
       const today = new Date().toISOString().split("T")[0];
 
       if (installment.id) {
-        // Update installment row - trigger syncs to legacy
+        // Installment already in DB — update directly (trigger syncs legacy cols)
         const { error } = await supabase
           .from("order_installments" as any)
-          .update({
-            is_paid: paid,
-            paid_date: paid ? today : null,
-          })
+          .update({ is_paid: paid, paid_date: paid ? today : null })
           .eq("id", installment.id);
         if (error) throw error;
       } else {
-        // Legacy: update orders table directly
-        const fieldMap: Record<string, { paidField: string; dateField: string }> = {};
-        // Build map based on installment type and position
-        if (installment.type === 'deposit') {
-          const depositIndex = displayInstallments.filter(i => i.type === 'deposit').findIndex(i => i.position === installment.position);
-          if (depositIndex === 0) {
-            fieldMap.key = { paidField: 'deposit_paid', dateField: 'deposit_paid_date' } as any;
-          } else if (depositIndex === 1) {
-            fieldMap.key = { paidField: 'deposit_2_paid', dateField: 'deposit_2_paid_date' } as any;
-          }
-        } else if (installment.type === 'balance') {
-          fieldMap.key = { paidField: 'balance_paid', dateField: 'balance_paid_date' } as any;
-        } else if (installment.type === 'financing') {
-          fieldMap.key = { paidField: 'financing_paid', dateField: 'financing_paid_date' } as any;
-        }
-        
-        const mapping = fieldMap.key as { paidField: string; dateField: string } | undefined;
-        if (mapping) {
-          const { error } = await supabase
-            .from("orders")
-            .update({ [mapping.paidField]: paid, [mapping.dateField]: paid ? today : null })
-            .eq("id", id!);
-          if (error) throw error;
-        }
+        // @deprecated Legacy path: order has no installments in DB yet.
+        // Auto-migrate all legacy installments to order_installments table,
+        // then update the target one.
+        const legacyInstallments = buildInstallmentsFromLegacy(order!);
+        const rows = legacyInstallments.map((inst) => ({
+          order_id: id!,
+          position: inst.position,
+          label: inst.label,
+          type: inst.type,
+          amount: inst.amount,
+          is_paid: inst.position === installment.position && inst.type === installment.type ? paid : inst.is_paid,
+          paid_date: inst.position === installment.position && inst.type === installment.type
+            ? (paid ? today : null)
+            : (inst.paid_date || null),
+          expected_date: inst.expected_date || null,
+        }));
+        const { error } = await (supabase as any).from("order_installments").insert(rows);
+        if (error) throw error;
       }
     },
     onSuccess: (_, { paid, installment }) => {
