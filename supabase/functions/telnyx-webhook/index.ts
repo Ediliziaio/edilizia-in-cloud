@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // ── Inbound Call Routing ──
+      // ── Inbound Call Routing (Smart Routing) ──
       case "call.initiated": {
         const direction = record?.direction;
         const callControlId = record?.call_control_id;
@@ -136,10 +136,10 @@ Deno.serve(async (req) => {
 
         const cleanTo = String(toNumber).replace(/[^0-9+]/g, "");
 
-        // Lookup agent phone number
+        // Lookup agent phone number (includes routing_mode and internal_agent_id)
         const { data: phoneRec } = await supabase
           .from("ai_agent_phone_numbers")
-          .select("id, agent_id, company_id, elevenlabs_phone_number_id, telnyx_connection_id")
+          .select("id, agent_id, internal_agent_id, company_id, elevenlabs_phone_number_id, telnyx_connection_id, routing_mode")
           .or(`phone_number.eq.${cleanTo},phone_number.eq.${cleanTo.replace("+", "")}`)
           .limit(1)
           .maybeSingle();
@@ -149,23 +149,19 @@ Deno.serve(async (req) => {
           break;
         }
 
-        // Get agent details
-        const { data: agent } = await supabase
-          .from("ai_agents")
-          .select("elevenlabs_agent_id, name, status")
-          .eq("id", phoneRec.agent_id)
-          .single();
+        // ── Smart Routing: resolve the correct agent ──
+        const routingMode = phoneRec.routing_mode || "marketing";
+        const resolved = await resolveAgent(supabase, phoneRec, routingMode);
 
-        if (!agent?.elevenlabs_agent_id) {
-          console.log(`[telnyx-webhook] Agent ${phoneRec.agent_id} has no ElevenLabs ID, rejecting`);
-          // Reject the call
-          await telnyxCallControl(callControlId, "reject", {
-            cause: "CALL_REJECTED",
-          });
+        if (!resolved) {
+          console.log(`[telnyx-webhook] No agent resolved for routing_mode=${routingMode}, rejecting`);
+          await telnyxCallControl(callControlId, "reject", { cause: "CALL_REJECTED" });
           break;
         }
 
-        // Credit check
+        console.log(`[telnyx-webhook] Resolved agent: type=${resolved.type}, elAgentId=${resolved.elevenlabsAgentId}`);
+
+        // Credit check (shared wallet)
         const { data: credits } = await supabase
           .from("ai_credits")
           .select("balance_eur, calls_blocked")
@@ -175,96 +171,94 @@ Deno.serve(async (req) => {
         const balance = credits?.balance_eur || 0;
         if (credits?.calls_blocked || balance < 0.04) {
           console.log(`[telnyx-webhook] Insufficient credits for company ${phoneRec.company_id}, rejecting`);
-          await telnyxCallControl(callControlId, "reject", {
-            cause: "CALL_REJECTED",
-          });
+          await telnyxCallControl(callControlId, "reject", { cause: "CALL_REJECTED" });
           break;
         }
 
-        // If the number is already registered on ElevenLabs via link_phone_number,
-        // ElevenLabs handles inbound routing automatically via SIP.
-        // We just log the inbound conversation here.
-        // If NOT linked, we answer + SIP transfer manually.
+        // ── Contact Lookup ──
+        let contactId: string | null = null;
+        if (fromNumber) {
+          const cleanFrom = String(fromNumber).replace(/[^0-9]/g, "");
+          const { data: contact } = await supabase
+            .from("marketing_contacts")
+            .select("id")
+            .eq("company_id", phoneRec.company_id)
+            .or(`phone.ilike.%${cleanFrom.slice(-9)}%`)
+            .limit(1)
+            .maybeSingle();
+          contactId = contact?.id || null;
+        }
+
+        const callMeta = {
+          telnyx_call_control_id: callControlId,
+          telnyx_call_leg_id: callLegId,
+          from_number: fromNumber,
+          to_number: toNumber,
+          routing_mode: routingMode,
+          agent_type: resolved.type,
+        };
 
         if (phoneRec.elevenlabs_phone_number_id) {
-          // ElevenLabs handles routing — just log
-          console.log(`[telnyx-webhook] Number linked to ElevenLabs (${phoneRec.elevenlabs_phone_number_id}), EL handles routing`);
+          // ElevenLabs handles routing via SIP — just log
+          console.log(`[telnyx-webhook] Number linked to ElevenLabs, EL handles routing`);
 
-          // Try to find contact
-          let contactId: string | null = null;
-          if (fromNumber) {
-            const cleanFrom = String(fromNumber).replace(/[^0-9]/g, "");
-            const { data: contact } = await supabase
-              .from("marketing_contacts")
-              .select("id")
-              .eq("company_id", phoneRec.company_id)
-              .or(`phone.ilike.%${cleanFrom.slice(-9)}%`)
-              .limit(1)
-              .maybeSingle();
-            contactId = contact?.id || null;
+          if (resolved.type === "internal") {
+            await supabase.from("internal_call_logs").insert({
+              agent_id: resolved.agentId,
+              company_id: phoneRec.company_id,
+              contact_id: contactId,
+              call_direction: "inbound",
+              status: "ringing",
+              caller_phone: fromNumber || null,
+              metadata: callMeta,
+            });
+          } else {
+            await supabase.from("ai_agent_conversations").insert({
+              agent_id: resolved.agentId,
+              company_id: phoneRec.company_id,
+              contact_id: contactId,
+              call_direction: "inbound",
+              status: "ringing",
+              metadata: callMeta,
+            });
           }
-
-          // Log conversation (ElevenLabs webhook will update with details)
-          await supabase.from("ai_agent_conversations").insert({
-            agent_id: phoneRec.agent_id,
-            company_id: phoneRec.company_id,
-            contact_id: contactId,
-            call_direction: "inbound",
-            status: "ringing",
-            metadata: {
-              telnyx_call_control_id: callControlId,
-              telnyx_call_leg_id: callLegId,
-              from_number: fromNumber,
-              to_number: toNumber,
-            },
-          });
         } else {
           // Manual SIP transfer: answer → transfer to ElevenLabs SIP
           console.log(`[telnyx-webhook] No EL phone link, attempting answer + SIP transfer`);
 
-          // Answer the call
           await telnyxCallControl(callControlId, "answer", {});
-
-          // Small delay for answer to complete
           await new Promise((r) => setTimeout(r, 500));
 
-          // Transfer via SIP to ElevenLabs
-          const sipUri = `sip:${agent.elevenlabs_agent_id}@sip.elevenlabs.io`;
+          const sipUri = `sip:${resolved.elevenlabsAgentId}@sip.elevenlabs.io`;
           await telnyxCallControl(callControlId, "transfer", {
             to: sipUri,
             sip_headers: [
-              { name: "X-ElevenLabs-Agent-Id", value: agent.elevenlabs_agent_id },
+              { name: "X-ElevenLabs-Agent-Id", value: resolved.elevenlabsAgentId },
             ],
           });
 
-          // Log conversation
-          let contactId: string | null = null;
-          if (fromNumber) {
-            const cleanFrom = String(fromNumber).replace(/[^0-9]/g, "");
-            const { data: contact } = await supabase
-              .from("marketing_contacts")
-              .select("id")
-              .eq("company_id", phoneRec.company_id)
-              .or(`phone.ilike.%${cleanFrom.slice(-9)}%`)
-              .limit(1)
-              .maybeSingle();
-            contactId = contact?.id || null;
-          }
+          const activeMeta = { ...callMeta, sip_transfer_to: sipUri };
 
-          await supabase.from("ai_agent_conversations").insert({
-            agent_id: phoneRec.agent_id,
-            company_id: phoneRec.company_id,
-            contact_id: contactId,
-            call_direction: "inbound",
-            status: "active",
-            metadata: {
-              telnyx_call_control_id: callControlId,
-              telnyx_call_leg_id: callLegId,
-              from_number: fromNumber,
-              to_number: toNumber,
-              sip_transfer_to: sipUri,
-            },
-          });
+          if (resolved.type === "internal") {
+            await supabase.from("internal_call_logs").insert({
+              agent_id: resolved.agentId,
+              company_id: phoneRec.company_id,
+              contact_id: contactId,
+              call_direction: "inbound",
+              status: "active",
+              caller_phone: fromNumber || null,
+              metadata: activeMeta,
+            });
+          } else {
+            await supabase.from("ai_agent_conversations").insert({
+              agent_id: resolved.agentId,
+              company_id: phoneRec.company_id,
+              contact_id: contactId,
+              call_direction: "inbound",
+              status: "active",
+              metadata: activeMeta,
+            });
+          }
         }
 
         break;
@@ -327,4 +321,56 @@ async function telnyxCallControl(callControlId: string, command: string, params:
   } else {
     console.log(`[telnyx-webhook] Call control ${command} success`);
   }
+}
+
+// ── Smart Routing: resolve agent by routing_mode ──
+interface ResolvedAgent {
+  type: "marketing" | "internal";
+  agentId: string;
+  elevenlabsAgentId: string;
+  companyId: string;
+}
+
+async function resolveAgent(
+  supabase: ReturnType<typeof createClient>,
+  phoneRec: { agent_id: string; internal_agent_id: string | null; company_id: string; routing_mode: string },
+  routingMode: string
+): Promise<ResolvedAgent | null> {
+  if (routingMode === "internal" && phoneRec.internal_agent_id) {
+    // Lookup internal agent
+    const { data: internalAgent } = await supabase
+      .from("internal_ai_agents")
+      .select("id, elevenlabs_agent_id, status")
+      .eq("id", phoneRec.internal_agent_id)
+      .single();
+
+    if (internalAgent?.elevenlabs_agent_id && internalAgent.status !== "archived") {
+      return {
+        type: "internal",
+        agentId: internalAgent.id,
+        elevenlabsAgentId: internalAgent.elevenlabs_agent_id,
+        companyId: phoneRec.company_id,
+      };
+    }
+
+    console.warn(`[telnyx-webhook] Internal agent ${phoneRec.internal_agent_id} not ready, falling back to marketing`);
+  }
+
+  // Default: marketing agent
+  const { data: agent } = await supabase
+    .from("ai_agents")
+    .select("id, elevenlabs_agent_id, status")
+    .eq("id", phoneRec.agent_id)
+    .single();
+
+  if (!agent?.elevenlabs_agent_id) {
+    return null;
+  }
+
+  return {
+    type: "marketing",
+    agentId: agent.id,
+    elevenlabsAgentId: agent.elevenlabs_agent_id,
+    companyId: phoneRec.company_id,
+  };
 }
