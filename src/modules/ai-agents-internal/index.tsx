@@ -5,6 +5,7 @@ import { InternalAgentSidebar } from "./components/InternalAgentSidebar";
 
 const InternalAgentsListPage = lazy(() => import("./pages/InternalAgentsListPage"));
 const InternalAgentEditorPage = lazy(() => import("./pages/InternalAgentEditorPage"));
+const InternalCallLogsPage = lazy(() => import("./pages/InternalCallLogsPage"));
 
 const Fallback = () => (
   <div className="flex items-center justify-center h-full min-h-[200px]">
@@ -22,6 +23,7 @@ export default function InternalAIAgentsModule() {
       <Suspense fallback={<Fallback />}>
         <Routes>
           <Route index element={<InternalAgentsListPage />} />
+          <Route path="chiamate" element={<InternalCallLogsPage />} />
           <Route path=":id" element={<InternalAgentEditorPage />} />
         </Routes>
       </Suspense>
