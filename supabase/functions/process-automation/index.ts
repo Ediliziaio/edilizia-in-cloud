@@ -373,7 +373,9 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
 // ── Split ──
 function executeSplit(cfg: Record<string, any>) {
   const splitA = parseInt(cfg.split_a) || 50;
-  const rand = Math.random() * 100;
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  const rand = (arr[0] / 0xFFFFFFFF) * 100;
   const branch = rand < splitA ? "a" : "b";
 
   return { success: true, output: { branch, random: rand, split_a: splitA }, branch };
