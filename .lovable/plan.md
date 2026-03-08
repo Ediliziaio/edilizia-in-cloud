@@ -1,67 +1,79 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+# Sprint 2 — Grafici Chiave: Piano di Implementazione
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+Sprint 1 è completamente implementato. Ora si procede con i 5 grafici ad alto impatto.
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+---
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+## 1. BarChart Entrate vs Uscite — Bilancio Mese (Dashboard)
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+**File:** `src/hooks/useCompanyDashboardData.ts`
+- Aggiungere query per gli ultimi 6 mesi di dati aggregati: per ogni mese calcolare entrate (pagamenti attesi non pagati con expected_date in quel mese) e uscite (company_costs non pagati con due_date in quel mese)
+- Restituire array `monthlyBalance: { month: string; entrate: number; uscite: number }[]` nel return
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+**File:** `src/pages/azienda/CompanyDashboard.tsx`
+- Nel widget "Bilancio Mese" (righe 343-395), sostituire le due Progress bars con un `BarChart` grouped di recharts (già installato)
+- 2 barre per mese: verde per entrate, rosso per uscite
+- Mantenere la card "Saldo Netto" e "Prossimo mese" sotto il grafico
+- Altezza grafico: ~200px con `ResponsiveContainer`
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+---
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+## 2. AreaChart Cash Flow Cumulativo — Previsione di Cassa
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+**File:** `src/components/forecast/CashForecastTab.tsx`
+- Sotto la hero card "Saldo Cumulativo", aggiungere un `AreaChart` recharts
+- Calcolare running balance giornaliero/settimanale dalle `transactions` già calcolate nel componente: raggruppare per settimana, calcolare saldo cumulativo progressivo
+- Area verde sopra lo zero, rossa sotto — usare `ReferenceLine y={0}` e gradiente
+- Le zone con saldo negativo evidenziate con sfondo rosso chiaro tramite `ReferenceArea`
+- ~250px altezza
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+---
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+## 3. PieChart Spese per Categoria — Sezione Costi
 
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
+**File:** `src/components/forecast/CostsStatsCards.tsx`
+- Aggiungere un `PieChart`/Donut recharts accanto al grafico mensile esistente
+- Dati: aggregare i costi filtrati per `category`, mostrando le top 6 categorie + "Altro"
+- Usare palette colori coerente
 
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+**File:** `src/hooks/useCompanyCostsData.ts`
+- Aggiungere nel return un campo `categoryDistribution: { name: string; value: number }[]` calcolato aggregando `allCostsSorted` per categoria
 
-## Da fare (prossimi step)
+---
 
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
+## 4. Breakdown Visivo Health Score
 
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
+**File:** `src/components/cruscotto/CompanyHealthScore.tsx`
+- Sotto i badge testuali esistenti, aggiungere 5 barre orizzontali (una per dimensione: Margine, Cash Flow, Vendite, Show Rate, Operazioni)
+- Ogni barra mostra: label a sinistra, barra colorata proporzionale al `score` (0-100), peso percentuale a destra
+- Colori: verde/giallo/rosso in base allo `status` già calcolato in `calcFactors`
+- Usare semplici `div` con `width` percentuale (no recharts necessario, più leggero)
+
+---
+
+## 5. Sparkline Fatturato YTD — Dashboard
+
+**File:** `src/hooks/useCompanyDashboardData.ts`
+- Aggiungere query per fatturato mensile YTD (da inizio anno ad oggi): per ogni mese, sommare `total_amount` degli ordini creati in quel mese
+- Restituire `revenueYTD: { month: string; revenue: number }[]`
+
+**File:** `src/pages/azienda/CompanyDashboard.tsx`
+- Sopra il CEO Strip, aggiungere una Card con un `AreaChart` sparkline (senza assi, solo la linea e l'area)
+- Mostra il trend del fatturato da Gennaio ad oggi con etichetta "Fatturato YTD" e valore totale
+- Altezza compatta: ~80px
+
+---
+
+## Riepilogo file coinvolti
+
+| File | Modifica |
+|------|----------|
+| `src/hooks/useCompanyDashboardData.ts` | Aggiungere `monthlyBalance[]` e `revenueYTD[]` |
+| `src/pages/azienda/CompanyDashboard.tsx` | BarChart Bilancio Mese + Sparkline YTD |
+| `src/components/forecast/CashForecastTab.tsx` | AreaChart cash flow cumulativo |
+| `src/components/forecast/CostsStatsCards.tsx` | PieChart categorie |
+| `src/hooks/useCompanyCostsData.ts` | Aggiungere `categoryDistribution[]` |
+| `src/components/cruscotto/CompanyHealthScore.tsx` | Barre breakdown score |
+
