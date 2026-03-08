@@ -20,12 +20,14 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
-const STATUS_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+const STATUS_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
   draft: { label: "Bozza", variant: "secondary" },
   scheduled: { label: "Pianificata", variant: "outline" },
-  sending: { label: "In invio", variant: "default" },
-  sent: { label: "Inviata", variant: "default" },
-  paused: { label: "In pausa", variant: "destructive" },
+  sending: { label: "In invio", variant: "default", className: "bg-amber-500 hover:bg-amber-600 text-white border-0 animate-pulse" },
+  sent: { label: "Inviata", variant: "default", className: "bg-green-600 hover:bg-green-700 text-white border-0" },
+  failed: { label: "Fallita", variant: "destructive" },
+  paused: { label: "In pausa", variant: "outline", className: "border-amber-400 text-amber-600" },
+  completed: { label: "Completata", variant: "default", className: "bg-green-600 hover:bg-green-700 text-white border-0" },
 };
 
 const CATEGORIES = [
