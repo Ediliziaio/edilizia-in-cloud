@@ -26,6 +26,21 @@ const ReportHeader = ({ report }: Props) => {
         <h2 className="text-xl font-semibold tracking-tight">Report di Facebook Ads</h2>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Date Presets */}
+          <div className="flex items-center gap-1">
+            {DATE_PRESETS.map((preset) => (
+              <Button
+                key={preset.label}
+                variant={activePreset === preset.label ? "default" : "ghost"}
+                size="sm"
+                className="text-xs h-7 px-2"
+                onClick={() => report.setDateRange(preset.getRange())}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </div>
+
           {/* Date Range */}
           <Popover>
             <PopoverTrigger asChild>

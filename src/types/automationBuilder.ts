@@ -364,6 +364,14 @@ export const SYSTEM_TRIGGER_FIELDS: TriggerFieldDef[] = [
   { key: "survey_id", label: "Survey ID", type: "text", group: "Sistema" },
 ];
 
+export const SOCIAL_MEDIA_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "form_id", label: "Form ID", type: "text", group: "Facebook" },
+  { key: "campaign_name", label: "Nome campagna", type: "text", group: "Facebook" },
+  { key: "is_new_contact", label: "Nuovo contatto", type: "boolean", group: "Facebook" },
+  { key: "source", label: "Fonte", type: "text", group: "Facebook" },
+  { key: "tags", label: "Tag", type: "tags", group: "Contatto" },
+];
+
 export function getFieldsForCategory(category: string): TriggerFieldDef[] {
   switch (category) {
     case "contact": return CONTACT_TRIGGER_FIELDS;
@@ -371,6 +379,7 @@ export function getFieldsForCategory(category: string): TriggerFieldDef[] {
     case "appointment": return APPOINTMENT_TRIGGER_FIELDS;
     case "communication": return COMMUNICATION_TRIGGER_FIELDS;
     case "system": return SYSTEM_TRIGGER_FIELDS;
+    case "social_media": return SOCIAL_MEDIA_TRIGGER_FIELDS;
     default: return CONTACT_TRIGGER_FIELDS;
   }
 }

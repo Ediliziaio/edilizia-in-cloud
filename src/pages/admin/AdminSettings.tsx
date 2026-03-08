@@ -39,6 +39,9 @@ export default function AdminSettings() {
           <TabsContent value="admins"><SuperAdminUsersTab /></TabsContent>
         )}
         <TabsContent value="piattaforma"><PlatformInfoTab /></TabsContent>
+        {permissions.can_manage_admins && (
+          <TabsContent value="integrazioni"><AdminSettingsIntegrations /></TabsContent>
+        )}
         <TabsContent value="notifiche"><NotificationsTab /></TabsContent>
         {permissions.can_manage_admins && (
           <TabsContent value="audit"><AuditLogTab /></TabsContent>

@@ -350,6 +350,12 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       dedupe: existingContact ? "updated" : "created",
     },
   });
+
+  return {
+    contactId,
+    isNew: !existingContact,
+    campaignName: lead.campaign_name || undefined,
+  };
 }
 
 function normalizePhone(phone: string): string {
