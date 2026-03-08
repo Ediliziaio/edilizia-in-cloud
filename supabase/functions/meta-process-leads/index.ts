@@ -36,10 +36,7 @@ Deno.serve(async (req) => {
       .limit(BATCH_SIZE);
 
     if (!events || events.length === 0) {
-      return new Response(JSON.stringify({ processed: 0 }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ processed: 0 });
     }
 
     // Lock events
