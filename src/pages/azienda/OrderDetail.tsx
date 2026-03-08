@@ -718,6 +718,24 @@ export default function OrderDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Duplicate Order Dialog */}
+      <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplica ordine</DialogTitle>
+            <DialogDescription>
+              Duplicare l'ordine {order.order_code ? `#${order.order_code}` : ''}? Il nuovo ordine verrà creato come bozza senza pagamenti incassati.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>Annulla</Button>
+            <Button onClick={() => duplicateOrderMutation.mutate()} disabled={duplicateOrderMutation.isPending}>
+              {duplicateOrderMutation.isPending ? "Duplicazione..." : "Duplica"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
