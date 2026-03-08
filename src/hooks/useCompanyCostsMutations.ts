@@ -18,6 +18,7 @@ export interface CostFormData {
   vat_rate: string;
   is_gross: boolean;
   end_date: string;
+  recurrence_auto: boolean;
 }
 
 export const defaultFormData: CostFormData = {
@@ -33,6 +34,7 @@ export const defaultFormData: CostFormData = {
   vat_rate: "22",
   is_gross: false,
   end_date: "",
+  recurrence_auto: false,
 };
 
 export function calculatePeriodsFromDates(dueDate: string, endDate: string, recurrence: string): number {
@@ -115,6 +117,8 @@ export function useCompanyCostsMutations({
         order_id: data.order_id && data.order_id !== "none" ? data.order_id : null,
         supplier_id: data.supplier_id && data.supplier_id !== "none" ? data.supplier_id : null,
         vat_rate: vatRate,
+        recurrence_auto: data.recurrence !== "once" ? (data.recurrence_auto || false) : false,
+        recurrence_end_date: data.recurrence !== "once" && data.end_date ? data.end_date : null,
       };
 
       if (editingCostId) {

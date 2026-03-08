@@ -1676,6 +1676,8 @@ export type Database = {
           order_id: string | null
           paid_date: string | null
           recurrence: string
+          recurrence_auto: boolean
+          recurrence_end_date: string | null
           supplier_id: string | null
           treasury_category_id: string | null
           updated_at: string
@@ -1695,6 +1697,8 @@ export type Database = {
           order_id?: string | null
           paid_date?: string | null
           recurrence?: string
+          recurrence_auto?: boolean
+          recurrence_end_date?: string | null
           supplier_id?: string | null
           treasury_category_id?: string | null
           updated_at?: string
@@ -1714,6 +1718,8 @@ export type Database = {
           order_id?: string | null
           paid_date?: string | null
           recurrence?: string
+          recurrence_auto?: boolean
+          recurrence_end_date?: string | null
           supplier_id?: string | null
           treasury_category_id?: string | null
           updated_at?: string
@@ -1918,6 +1924,41 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_budgets: {
+        Row: {
+          budget_amount: number
+          category: string
+          company_id: string
+          created_at: string
+          id: string
+          month: string
+        }
+        Insert: {
+          budget_amount?: number
+          category: string
+          company_id: string
+          created_at?: string
+          id?: string
+          month: string
+        }
+        Update: {
+          budget_amount?: number
+          category?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          month?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_budgets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]

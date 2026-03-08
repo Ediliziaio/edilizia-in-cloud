@@ -105,7 +105,7 @@ export default function CompanyDashboard() {
     isLoading, isError,
     stats, prevStats, recentOrders, cashFlow, ceoStrip,
     urgentItems, financialAlerts, weeklyDeadlines,
-    monthlyBalance, revenueYTD,
+    monthlyBalance, revenueYTD, agingReceivables,
   } = useCompanyDashboardData();
 
   const totalYTDRevenue = useMemo(() => revenueYTD.reduce((s, r) => s + r.revenue, 0), [revenueYTD]);
@@ -119,6 +119,7 @@ export default function CompanyDashboard() {
       color: "text-blue-600",
       bgColor: "bg-blue-100",
       description: "Gestiti dalla tua azienda",
+      link: "/azienda/ordini",
     },
     {
       title: "Clienti",
@@ -128,6 +129,7 @@ export default function CompanyDashboard() {
       color: "text-purple-600",
       bgColor: "bg-purple-100",
       description: "Registrati in piattaforma",
+      link: "/azienda/clienti",
     },
     {
       title: "Ticket Aperti",
@@ -137,6 +139,7 @@ export default function CompanyDashboard() {
       color: stats.openTickets > 0 ? "text-orange-600" : "text-green-600",
       bgColor: stats.openTickets > 0 ? "bg-orange-100" : "bg-green-100",
       description: stats.openTickets > 0 ? "In attesa di risposta" : "Tutto risolto!",
+      link: "/azienda/ticket",
     },
     {
       title: "Da Incassare",
@@ -146,6 +149,7 @@ export default function CompanyDashboard() {
       color: "text-emerald-600",
       bgColor: "bg-emerald-100",
       description: `Da ${stats.pendingOrdersCount} ordini`,
+      link: "/azienda/previsionale",
     },
   ];
 
@@ -292,25 +296,27 @@ export default function CompanyDashboard() {
       {/* Stats Grid with delta % */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title} className="relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline gap-2">
-                <div className="text-2xl font-bold">{stat.value}</div>
-                {stat.prevValue !== null && typeof stat.value === "number" && (
-                  <DeltaIndicator current={stat.value} previous={stat.prevValue} />
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
-            </CardContent>
-          </Card>
+          <Link key={stat.title} to={stat.link}>
+            <Card className="relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2">
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  {stat.prevValue !== null && typeof stat.value === "number" && (
+                    <DeltaIndicator current={stat.value} previous={stat.prevValue} />
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
@@ -431,7 +437,48 @@ export default function CompanyDashboard() {
         <LaborCostsStats />
       </div>
 
-      {/* Bottom Row */}
+      {/* Aging Receivables */}
+      {(agingReceivables.overdue > 0 || agingReceivables.thisWeek > 0 || agingReceivables.thisMonth > 0 || agingReceivables.future > 0) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Aging Crediti</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[60px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  layout="vertical"
+                  data={[{
+                    name: "Crediti",
+                    Scaduto: agingReceivables.overdue,
+                    "Questa settimana": agingReceivables.thisWeek,
+                    "Questo mese": agingReceivables.thisMonth,
+                    Futuro: agingReceivables.future,
+                  }]}
+                  margin={{ top: 0, right: 4, left: 0, bottom: 0 }}
+                >
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" hide />
+                  <RechartsTooltip
+                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                  />
+                  <Bar dataKey="Scaduto" stackId="a" fill="hsl(0 84% 60%)" radius={[4, 0, 0, 4]} />
+                  <Bar dataKey="Questa settimana" stackId="a" fill="hsl(25 95% 53%)" />
+                  <Bar dataKey="Questo mese" stackId="a" fill="hsl(45 93% 47%)" />
+                  <Bar dataKey="Futuro" stackId="a" fill="hsl(142 76% 36%)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-wrap gap-3 mt-2 text-xs">
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(0,84%,60%)]" />Scaduto: {formatCurrency(agingReceivables.overdue)}</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(25,95%,53%)]" />Questa sett.: {formatCurrency(agingReceivables.thisWeek)}</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(45,93%,47%)]" />Questo mese: {formatCurrency(agingReceivables.thisMonth)}</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-[hsl(142,76%,36%)]" />Futuro: {formatCurrency(agingReceivables.future)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <WarehouseAlerts urgentItems={urgentItems} />
 

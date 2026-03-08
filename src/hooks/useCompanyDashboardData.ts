@@ -377,6 +377,24 @@ export function useCompanyDashboardData() {
         revenueYTD.push({ month: format(ms, "MMM", { locale: it }), revenue });
       }
 
+      // Aging Receivables
+      const agingReceivables = { overdue: 0, thisWeek: 0, thisMonth: 0, future: 0 };
+      pendingRevenueRes.data?.forEach((order: any) => {
+        const classifyPayment = (paid: boolean, amount: number, date: string | null) => {
+          if (paid || !amount || amount <= 0) return;
+          const amt = Number(amount) || 0;
+          if (!date) { agingReceivables.future += amt; return; }
+          if (date < todayStr) { agingReceivables.overdue += amt; return; }
+          if (date <= sevenDaysStr) { agingReceivables.thisWeek += amt; return; }
+          if (date <= thisMonthEndStr) { agingReceivables.thisMonth += amt; return; }
+          agingReceivables.future += amt;
+        };
+        classifyPayment(order.deposit_paid, order.deposit_amount, order.deposit_expected_date);
+        classifyPayment(order.deposit_2_paid, order.deposit_2_amount, order.deposit_2_expected_date);
+        classifyPayment(order.balance_paid, order.balance_amount, order.balance_expected_date);
+        classifyPayment(order.financing_paid, order.financing_amount, order.financing_expected_date);
+      });
+
       return {
         stats: { totalOrders, totalCustomers, openTickets, pendingRevenue, pendingOrdersCount } as DashboardStats,
         prevStats: { totalOrders: prevOrdersCount, totalCustomers: prevCustomersCount } as PrevStats,
@@ -392,6 +410,7 @@ export function useCompanyDashboardData() {
         weeklyDeadlines: { receivables: weeklyReceivables, companyCosts: weeklySupplierPayments, upcomingWorks: weeklyUpcomingWorks } as WeeklyDeadlinesData,
         monthlyBalance,
         revenueYTD,
+        agingReceivables,
       };
     },
     enabled: !!companyId,
@@ -415,5 +434,6 @@ export function useCompanyDashboardData() {
     weeklyDeadlines: dashboardData?.weeklyDeadlines ?? { receivables: [], companyCosts: [], upcomingWorks: [] },
     monthlyBalance: dashboardData?.monthlyBalance ?? [],
     revenueYTD: dashboardData?.revenueYTD ?? [],
+    agingReceivables: dashboardData?.agingReceivables ?? { overdue: 0, thisWeek: 0, thisMonth: 0, future: 0 },
   };
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { format, addMonths } from "date-fns";
 import { it } from "date-fns/locale";
-import { Building2, Plus, Search, Download, Upload, CalendarIcon, AlertTriangle } from "lucide-react";
+import { Building2, Plus, Search, Download, Upload, CalendarIcon, AlertTriangle, Repeat } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
+import { supabase } from "@/integrations/supabase/client";
 
 import { useCompanyCostsData, type PeriodFilter, type StatusFilter, type StatusTabFilter, type UnifiedCost } from "@/hooks/useCompanyCostsData";
 import { useCompanyCostsMutations, type CostFormData, defaultFormData } from "@/hooks/useCompanyCostsMutations";
@@ -27,6 +28,7 @@ import { CostsStatsCards } from "./CostsStatsCards";
 import { CostsTable } from "./CostsTable";
 import { CostFormDialog } from "./CostFormDialog";
 import { CostsDialogs } from "./CostsDialogs";
+import { CostBudgetManager } from "./CostBudgetManager";
 
 const COST_IMPORT_FIELDS: ImportField[] = [
   { key: "name", label: "Nome", required: true },
@@ -127,6 +129,7 @@ export default function CompanyCostsManager() {
       vat_rate: String(cost.vat_rate ?? 22),
       is_gross: false,
       end_date: "",
+      recurrence_auto: false,
     });
     setDialogOpen(true);
   };
@@ -147,6 +150,7 @@ export default function CompanyCostsManager() {
       vat_rate: String(cost.vat_rate ?? 22),
       is_gross: false,
       end_date: "",
+      recurrence_auto: false,
     });
     setDialogOpen(true);
   };
@@ -243,6 +247,24 @@ export default function CompanyCostsManager() {
               <CardDescription>Gestione costi con IVA, fornitori e analisi fiscale</CardDescription>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const { data: result, error } = await supabase.functions.invoke("generate-recurring-costs", {
+                      body: { company_id: companyId },
+                    });
+                    if (error) throw error;
+                    toast({ title: `Generati ${result?.created || 0} costi ricorrenti` });
+                  } catch {
+                    toast({ title: "Errore nella generazione", variant: "destructive" });
+                  }
+                }}
+                className="gap-1"
+              >
+                <Repeat className="h-4 w-4" /> Genera ricorrenti
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1">
                 <Upload className="h-4 w-4" /> Importa
               </Button>
@@ -451,6 +473,9 @@ export default function CompanyCostsManager() {
         isSaving={mutations.saveMutation.isPending}
         onClose={() => { setEditingCost(null); setFormData(defaultFormData); }}
       />
+
+      {/* Budget Section */}
+      <CostBudgetManager dynamicCategories={data.dynamicCategories} allCostsSorted={data.allCostsSorted} />
 
       <CostsDialogs
         deleteConfirmId={deleteConfirmId}
