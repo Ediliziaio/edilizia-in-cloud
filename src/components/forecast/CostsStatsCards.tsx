@@ -58,6 +58,8 @@ interface CostsStatsCardsProps {
   activeStatusTab?: StatusTabFilter;
   onStatusTabChange?: (tab: StatusTabFilter) => void;
   categoryDistribution?: { name: string; value: number }[];
+  availableYears?: number[];
+  fixedCostsTrend?: { month: string; pctFixed: number }[];
 }
 
 const currentYear = new Date().getFullYear();
