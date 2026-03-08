@@ -17,10 +17,12 @@ import { DashboardTrendChart } from "@/components/marketing/dashboard/DashboardT
 import { exportToCSV } from "@/lib/csvExport";
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
+import { useMetaLeadNotifications } from "@/hooks/useMetaLeadNotifications";
 
 export default function MarketingDashboard() {
   const { data, isLoading, error, refetch, filters, updateFilters, permissions } = useMarketingDashboard();
   const { effectiveCompany } = useAuth();
+  useMetaLeadNotifications();
 
   if (!effectiveCompany?.id) {
     return (
