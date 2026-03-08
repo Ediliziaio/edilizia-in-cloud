@@ -443,6 +443,56 @@ export default function PlatformSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Subscription Config */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Abbonamento AI</CardTitle>
+          <CardDescription>
+            Configura prezzo canone mensile, trial e bonus benvenuto per il modulo Agenti AI.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Canone mensile (€)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={subscriptionPrice}
+                onChange={(e) => setSubscriptionPrice(e.target.value)}
+                placeholder="49"
+              />
+              <p className="text-[11px] text-muted-foreground">Prezzo addebitato mensilmente per accedere al modulo AI.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Giorni di prova</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={trialDays}
+                onChange={(e) => setTrialDays(e.target.value)}
+                placeholder="14"
+              />
+              <p className="text-[11px] text-muted-foreground">Durata del periodo trial gratuito.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Bonus benvenuto (€)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={welcomeBonus}
+                onChange={(e) => setWelcomeBonus(e.target.value)}
+                placeholder="5"
+              />
+              <p className="text-[11px] text-muted-foreground">Crediti AI regalati al primo pagamento.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={isSaving}>
           {isSaving ? "Salvataggio..." : "Salva configurazione"}

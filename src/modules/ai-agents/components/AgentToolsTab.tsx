@@ -132,6 +132,7 @@ export function AgentToolsTab({ agentId }: AgentToolsTabProps) {
     { id: "create_appointment", label: "Crea appuntamento", description: "Crea evento nel calendario", icon: CalendarPlus },
     { id: "search_products", label: "Cerca prodotti", description: "Cerca nel catalogo prodotti", icon: Package },
     { id: "get_availability", label: "Controlla disponibilità", description: "Verifica slot disponibili nel calendario", icon: Search },
+    { id: "assign_to_user", label: "Assegna a utente", description: "Assegna il contatto a un membro del team", icon: Users },
   ];
 
   if (isLoading) {
