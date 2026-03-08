@@ -295,6 +295,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       notes: oppNotes || null,
       tags: oppTags,
       contact_id: finalContactId,
+      probability,
+      expected_close_date: expectedCloseDate || null,
+      loss_reason: lossReason || null,
+      loss_notes: lossNotes || null,
     }, {
       onSuccess: async () => {
         // Bidirectional tag sync: added tags → contact, removed tags → contact
