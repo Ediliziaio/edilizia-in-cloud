@@ -392,7 +392,7 @@ export function CostsTable({
                         <span className="block w-4" />
                       )}
                     </TableCell>
-                    <TableCell className="font-medium truncate">{cost.name}</TableCell>
+                    <TableCell className="font-medium truncate" title={cost.name}>{cost.name}</TableCell>
                     {isColVisible("origin") && (
                     <TableCell>
                       {cost.isFromOrder ? (
@@ -414,14 +414,14 @@ export function CostsTable({
                       </TableCell>
                     )}
                     {isColVisible("supplier") && (
-                    <TableCell className="truncate">
+                    <TableCell className="truncate" title={(cost as any).supplier?.name || cost.supplierName || ''}>
                       {(cost as any).supplier?.name || cost.supplierName || (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
                     )}
                     {isColVisible("category") && (
-                    <TableCell className="truncate">
+                    <TableCell className="truncate" title={cost.category || ''}>
                       {cost.category ? (
                         <Badge variant="outline" className={cn("text-[10px] px-1.5", getCategoryColor(cost.category))}>
                           {cost.category}
