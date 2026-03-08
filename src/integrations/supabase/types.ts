@@ -1661,6 +1661,56 @@ export type Database = {
           },
         ]
       }
+      company_auto_topup: {
+        Row: {
+          company_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          last_topup_at: string | null
+          payment_method: string | null
+          stripe_payment_method_id: string | null
+          threshold_eur: number
+          topup_amount_eur: number
+          updated_at: string
+          wallet_type: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_topup_at?: string | null
+          payment_method?: string | null
+          stripe_payment_method_id?: string | null
+          threshold_eur?: number
+          topup_amount_eur?: number
+          updated_at?: string
+          wallet_type?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_topup_at?: string | null
+          payment_method?: string | null
+          stripe_payment_method_id?: string | null
+          threshold_eur?: number
+          topup_amount_eur?: number
+          updated_at?: string
+          wallet_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_auto_topup_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_costs: {
         Row: {
           amount: number
@@ -2070,8 +2120,11 @@ export type Database = {
           ab_test_enabled: boolean
           auto_tag: boolean
           company_id: string
+          completed_at: string | null
           created_at: string
           created_by: string
+          credits_used: number
+          failed_count: number
           folder_id: string | null
           html_content: string
           id: string
@@ -2081,10 +2134,12 @@ export type Database = {
           recipient_filter: Json | null
           resend_to_unopened: boolean
           scheduled_at: string | null
+          segment_json: Json | null
           send_mode: string
           sender_email: string | null
           sender_name: string | null
           sent_at: string | null
+          sent_count: number
           status: string
           subject: string
           template_id: string | null
@@ -2099,8 +2154,11 @@ export type Database = {
           ab_test_enabled?: boolean
           auto_tag?: boolean
           company_id: string
+          completed_at?: string | null
           created_at?: string
           created_by: string
+          credits_used?: number
+          failed_count?: number
           folder_id?: string | null
           html_content?: string
           id?: string
@@ -2110,10 +2168,12 @@ export type Database = {
           recipient_filter?: Json | null
           resend_to_unopened?: boolean
           scheduled_at?: string | null
+          segment_json?: Json | null
           send_mode?: string
           sender_email?: string | null
           sender_name?: string | null
           sent_at?: string | null
+          sent_count?: number
           status?: string
           subject?: string
           template_id?: string | null
@@ -2128,8 +2188,11 @@ export type Database = {
           ab_test_enabled?: boolean
           auto_tag?: boolean
           company_id?: string
+          completed_at?: string | null
           created_at?: string
           created_by?: string
+          credits_used?: number
+          failed_count?: number
           folder_id?: string | null
           html_content?: string
           id?: string
@@ -2139,10 +2202,12 @@ export type Database = {
           recipient_filter?: Json | null
           resend_to_unopened?: boolean
           scheduled_at?: string | null
+          segment_json?: Json | null
           send_mode?: string
           sender_email?: string | null
           sender_name?: string | null
           sent_at?: string | null
+          sent_count?: number
           status?: string
           subject?: string
           template_id?: string | null
@@ -2229,6 +2294,60 @@ export type Database = {
           },
         ]
       }
+      email_credits_log: {
+        Row: {
+          amount_eur: number
+          balance_after: number
+          balance_before: number
+          campaign_id: string | null
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json | null
+          type: string
+        }
+        Insert: {
+          amount_eur?: number
+          balance_after?: number
+          balance_before?: number
+          campaign_id?: string | null
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          type?: string
+        }
+        Update: {
+          amount_eur?: number
+          balance_after?: number
+          balance_before?: number
+          campaign_id?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_credits_log_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_credits_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_folders: {
         Row: {
           company_id: string
@@ -2274,33 +2393,51 @@ export type Database = {
       email_logs: {
         Row: {
           campaign_id: string
+          clicked_at: string | null
           company_id: string
           contact_id: string
+          error_message: string | null
           event_timestamp: string
           id: string
           metadata: Json | null
+          opened_at: string | null
+          provider: string | null
+          provider_message_id: string | null
           sendgrid_message_id: string | null
           status: string
+          stream: string | null
         }
         Insert: {
           campaign_id: string
+          clicked_at?: string | null
           company_id: string
           contact_id: string
+          error_message?: string | null
           event_timestamp?: string
           id?: string
           metadata?: Json | null
+          opened_at?: string | null
+          provider?: string | null
+          provider_message_id?: string | null
           sendgrid_message_id?: string | null
           status?: string
+          stream?: string | null
         }
         Update: {
           campaign_id?: string
+          clicked_at?: string | null
           company_id?: string
           contact_id?: string
+          error_message?: string | null
           event_timestamp?: string
           id?: string
           metadata?: Json | null
+          opened_at?: string | null
+          provider?: string | null
+          provider_message_id?: string | null
           sendgrid_message_id?: string | null
           status?: string
+          stream?: string | null
         }
         Relationships: [
           {
@@ -3745,6 +3882,8 @@ export type Database = {
           province: string | null
           source: string | null
           tags: string[]
+          unsubscribed: boolean
+          unsubscribed_at: string | null
           updated_at: string
           website: string | null
         }
@@ -3775,6 +3914,8 @@ export type Database = {
           province?: string | null
           source?: string | null
           tags?: string[]
+          unsubscribed?: boolean
+          unsubscribed_at?: string | null
           updated_at?: string
           website?: string | null
         }
@@ -3805,6 +3946,8 @@ export type Database = {
           province?: string | null
           source?: string | null
           tags?: string[]
+          unsubscribed?: boolean
+          unsubscribed_at?: string | null
           updated_at?: string
           website?: string | null
         }
@@ -7050,6 +7193,16 @@ export type Database = {
       }
     }
     Functions: {
+      add_email_credits_with_log: {
+        Args: {
+          p_amount: number
+          p_company_id: string
+          p_description?: string
+          p_metadata?: Json
+          p_type?: string
+        }
+        Returns: Json
+      }
       auto_expire_trials: { Args: never; Returns: number }
       check_staff_visibility: {
         Args: { _assigned_to: string; _user_id: string }
@@ -7072,6 +7225,16 @@ export type Database = {
       }
       deduct_email_credits: {
         Args: { p_company_id: string; p_cost: number }
+        Returns: Json
+      }
+      deduct_email_credits_with_log: {
+        Args: {
+          p_campaign_id?: string
+          p_company_id: string
+          p_cost: number
+          p_description?: string
+          p_metadata?: Json
+        }
         Returns: Json
       }
       execute_automation: {
@@ -7199,6 +7362,21 @@ export type Database = {
         Returns: {
           company_count: number
           subscription_plan_id: string
+        }[]
+      }
+      get_platform_email_stats: {
+        Args: { p_date_from?: string; p_date_to?: string }
+        Returns: {
+          active_companies: number
+          total_bounced: number
+          total_clicked: number
+          total_credits_used: number
+          total_delivered: number
+          total_opened: number
+          total_revenue: number
+          total_sent: number
+          total_spam: number
+          total_unsubscribed: number
         }[]
       }
       get_total_orders_value: {
