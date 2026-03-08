@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
