@@ -117,6 +117,8 @@ export function useCompanyCostsMutations({
         order_id: data.order_id && data.order_id !== "none" ? data.order_id : null,
         supplier_id: data.supplier_id && data.supplier_id !== "none" ? data.supplier_id : null,
         vat_rate: vatRate,
+        recurrence_auto: data.recurrence !== "once" ? (data.recurrence_auto || false) : false,
+        recurrence_end_date: data.recurrence !== "once" && data.end_date ? data.end_date : null,
       };
 
       if (editingCostId) {
