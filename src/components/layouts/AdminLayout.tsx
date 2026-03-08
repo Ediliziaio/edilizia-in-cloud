@@ -24,7 +24,8 @@ import {
   Bell,
   ShieldCheck,
   ScrollText,
-  Mail
+  Mail,
+  Bot
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -141,6 +142,13 @@ function AdminSettingsSidebar() {
                 <SidebarMenuButton asChild>
                   <NavLink to="/admin/impostazioni/email" className={navLinkClass} activeClassName={activeClass}>
                     <Mail className="h-4 w-4" /><span>Email</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to="/admin/impostazioni/agenti-ai" className={navLinkClass} activeClassName={activeClass}>
+                    <Bot className="h-4 w-4" /><span>Agenti AI</span>
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

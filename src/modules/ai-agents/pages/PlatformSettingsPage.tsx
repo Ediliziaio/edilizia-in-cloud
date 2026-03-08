@@ -41,13 +41,17 @@ export default function PlatformSettingsPage() {
   const queryClient = useQueryClient();
 
   // Load existing API key from platform_settings
+  const [subscriptionPrice, setSubscriptionPrice] = useState("49");
+  const [trialDays, setTrialDays] = useState("14");
+  const [welcomeBonus, setWelcomeBonus] = useState("5");
+
   const { data: savedSettings } = useQuery({
     queryKey: ["platform-settings-elevenlabs"],
     queryFn: async () => {
       const { data } = await supabase
         .from("platform_settings" as never)
         .select("key, value")
-        .in("key" as never, ["elevenlabs_api_key", "default_llm_model", "domain_whitelist"] as never);
+        .in("key" as never, ["elevenlabs_api_key", "default_llm_model", "domain_whitelist", "ai_subscription_price_eur", "ai_subscription_trial_days", "ai_welcome_bonus_eur"] as never);
       return (data as unknown as { key: string; value: string }[]) ?? [];
     },
   });
@@ -57,9 +61,15 @@ export default function PlatformSettingsPage() {
       const keyVal = savedSettings.find(s => s.key === "elevenlabs_api_key")?.value;
       const llmVal = savedSettings.find(s => s.key === "default_llm_model")?.value;
       const domainVal = savedSettings.find(s => s.key === "domain_whitelist")?.value;
+      const priceVal = savedSettings.find(s => s.key === "ai_subscription_price_eur")?.value;
+      const trialVal = savedSettings.find(s => s.key === "ai_subscription_trial_days")?.value;
+      const bonusVal = savedSettings.find(s => s.key === "ai_welcome_bonus_eur")?.value;
       if (keyVal) setApiKey(keyVal);
       if (llmVal) setDefaultLlm(llmVal);
       if (domainVal) setDomainWhitelist(domainVal);
+      if (priceVal) setSubscriptionPrice(priceVal);
+      if (trialVal) setTrialDays(trialVal);
+      if (bonusVal) setWelcomeBonus(bonusVal);
     }
   }, [savedSettings]);
 
@@ -108,6 +118,9 @@ export default function PlatformSettingsPage() {
         { key: "elevenlabs_api_key", value: apiKey.trim() },
         { key: "default_llm_model", value: defaultLlm },
         { key: "domain_whitelist", value: domainWhitelist.trim() },
+        { key: "ai_subscription_price_eur", value: subscriptionPrice },
+        { key: "ai_subscription_trial_days", value: trialDays },
+        { key: "ai_welcome_bonus_eur", value: welcomeBonus },
       ];
 
       for (const setting of settings) {
@@ -430,6 +443,56 @@ export default function PlatformSettingsPage() {
             placeholder={"esempio.it\nwww.miosito.com"}
             rows={4}
           />
+        </CardContent>
+      </Card>
+
+      {/* Subscription Config */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Abbonamento AI</CardTitle>
+          <CardDescription>
+            Configura prezzo canone mensile, trial e bonus benvenuto per il modulo Agenti AI.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Canone mensile (€)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={subscriptionPrice}
+                onChange={(e) => setSubscriptionPrice(e.target.value)}
+                placeholder="49"
+              />
+              <p className="text-[11px] text-muted-foreground">Prezzo addebitato mensilmente per accedere al modulo AI.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Giorni di prova</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={trialDays}
+                onChange={(e) => setTrialDays(e.target.value)}
+                placeholder="14"
+              />
+              <p className="text-[11px] text-muted-foreground">Durata del periodo trial gratuito.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Bonus benvenuto (€)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={welcomeBonus}
+                onChange={(e) => setWelcomeBonus(e.target.value)}
+                placeholder="5"
+              />
+              <p className="text-[11px] text-muted-foreground">Crediti AI regalati al primo pagamento.</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

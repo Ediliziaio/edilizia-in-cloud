@@ -88,6 +88,23 @@ Deno.serve(async (req) => {
     let appointmentCreated = false;
     let newContactCreated = false;
 
+    // ============ DND CHECK FOR INBOUND CALLS (FIX 8) ============
+    const callDirection = metadata?.call_direction || "inbound";
+    if (callDirection === "inbound" && metadata?.caller_phone) {
+      const { data: callerContact } = await adminClient
+        .from("marketing_contacts")
+        .select("id, optout_call")
+        .eq("company_id", companyId)
+        .eq("phone", metadata.caller_phone)
+        .maybeSingle();
+      if (callerContact?.optout_call) {
+        console.warn(`[WEBHOOK] Inbound call from DND contact ${callerContact.id} (phone: ${metadata.caller_phone})`);
+      }
+      if (callerContact) {
+        contactId = callerContact.id;
+      }
+    }
+
     // Process tool calls for CRM integration
     for (const toolCall of tool_calls) {
       const { tool_name, parameters } = toolCall;
@@ -165,6 +182,24 @@ Deno.serve(async (req) => {
               .update({ contact_type: parameters.status })
               .eq("id", parameters.contact_id)
               .eq("company_id", companyId);
+          }
+          break;
+        }
+
+        case "assign_to_user": {
+          const targetContactId = parameters?.contact_id || contactId;
+          const targetUserId = parameters?.user_id;
+          if (targetContactId && targetUserId) {
+            const { error: assignErr } = await adminClient
+              .from("marketing_contacts")
+              .update({ assigned_to: targetUserId })
+              .eq("id", targetContactId)
+              .eq("company_id", companyId);
+            if (assignErr) {
+              console.error("[WEBHOOK] assign_to_user error:", assignErr);
+            } else {
+              console.log(`[WEBHOOK] Contact ${targetContactId} assigned to user ${targetUserId}`);
+            }
           }
           break;
         }
