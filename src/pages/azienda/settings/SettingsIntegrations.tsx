@@ -83,7 +83,7 @@ export default function SettingsIntegrations() {
       if (!companyId) return null;
       const { data } = await supabase
         .from("messaging_whatsapp_config")
-        .select("id, phone_number_id, waba_id, account_status, display_phone_number")
+        .select("id, phone_number_id, waba_id, account_status, phone_number")
         .eq("company_id", companyId)
         .maybeSingle();
       return data;
