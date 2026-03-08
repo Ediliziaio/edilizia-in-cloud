@@ -532,6 +532,11 @@ export function validateActionConfig(actionType: string, config: Record<string, 
         errors.push({ field: "await_event", message: "Seleziona un evento da attendere" });
       }
       break;
+    case "call_with_ai_agent":
+      if (!config.ai_agent_id) {
+        errors.push({ field: "ai_agent_id", message: "Seleziona un agente AI" });
+      }
+      break;
     case "update_contact_score":
       if (config.score_value === undefined || config.score_value === "" || config.score_value === null) {
         errors.push({ field: "score_value", message: "Valore punteggio obbligatorio" });

@@ -32,9 +32,9 @@ export function AISubscriptionGate({ children }: AISubscriptionGateProps) {
     return (
       <>
         {isTrial && trialDaysLeft <= 7 && (
-          <div className="mx-4 mb-3 p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 flex items-center gap-2 text-sm">
-            <Clock className="h-4 w-4 text-amber-600" />
-            <span className="text-amber-800 dark:text-amber-300">
+          <div className="mx-4 mb-3 p-3 rounded-lg border border-border bg-muted/50 flex items-center gap-2 text-sm">
+            <Clock className="h-4 w-4 text-primary" />
+            <span className="text-foreground">
               Trial scade tra {trialDaysLeft} giorn{trialDaysLeft === 1 ? "o" : "i"}.
             </span>
             <Button
