@@ -916,6 +916,8 @@ export type Database = {
           lng: number | null
           order_id: string | null
           place_id: string | null
+          reminder_minutes: number | null
+          reminder_sent: boolean | null
           status: string
           title: string
           updated_at: string
@@ -947,6 +949,8 @@ export type Database = {
           lng?: number | null
           order_id?: string | null
           place_id?: string | null
+          reminder_minutes?: number | null
+          reminder_sent?: boolean | null
           status?: string
           title: string
           updated_at?: string
@@ -978,6 +982,8 @@ export type Database = {
           lng?: number | null
           order_id?: string | null
           place_id?: string | null
+          reminder_minutes?: number | null
+          reminder_sent?: boolean | null
           status?: string
           title?: string
           updated_at?: string
