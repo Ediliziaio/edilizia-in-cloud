@@ -1,134 +1,106 @@
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+# Piano: Integrazione Telnyx — Telefonia Completa
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
-
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
-
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
-
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
-
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
-
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
-
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
-
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
-
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
-
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
-
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+Analisi del documento caricato e verifica rispetto al codice attuale.
 
 ---
 
-## Analisi CRM vs GHL — Piano Implementazione
+## Stato attuale — Gap confermati
 
-### Fase 1 — P0 (Critici) ✅
-
-- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` aggiunte a `marketing_contacts`. Toggle SMS/Chiamate nel tab impostazioni contatto. Check DND in `send-contact-message` (email/whatsapp/sms) e `process-automation` (send_email con unsubscribed+optout_email, send_whatsapp con optout_whatsapp). Badge unsubscribed visibile.
-- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` (unique). Pagina `/prenota/:slug` pubblica con calendario, slot disponibili, form prenotazione. RLS per anon (read calendari/availability/appointments, insert appointments).
-- ✅ **Tab Email AdminSettings**: Già esistente (`AdminSettingsEmail.tsx`)
-- ✅ **Crediti Stripe**: Già esistente (`SettingsCredits.tsx`)
-
-### Fase 2 — P1 (TODO)
-
-- [ ] **Probabilità + Close Date + Motivo perdita opportunità**: Migration + UI in OpportunityDetailDialog
-- [ ] **Conferma + Promemoria appuntamenti**: Email conferma + promemoria in check-scheduled-triggers
-- [ ] **Google Calendar push notifications**: Edge function google-calendar-webhook + registra watch
-- [ ] **SMS/Email opt-out visibile in UI**: Già implementato nel tab settings contatto (toggle + badge unsubscribed)
-
-### Fase 3 — P2 (TODO)
-
-- [ ] **WhatsApp/Stripe in SettingsIntegrations**: Card stato per ogni integrazione
-- [ ] **Merge contatti duplicati**: UI + backend merge
-- [ ] **Tab Azioni nel dettaglio contatto**: Azioni rapide (email, SMS, WhatsApp)
+| Gap | Dettaglio |
+|-----|-----------|
+| **Nessun codice Telnyx** | Zero riferimenti a "telnyx" nel codebase |
+| **SMS stub** | `send-contact-message`: case `sms` → `status = "pending"`, nessun invio |
+| **SMS automazioni** | `process-automation`: nessun case `send_sms` trovato |
+| **PhoneNumberManager** | UI presente, pulsante "Acquista" mostra solo toast placeholder |
+| **ai-outbound-call** | Esiste ma usa endpoint Twilio (`/convai/twilio/outbound-call`), non Telnyx |
+| **elevenlabs-proxy** | Nessun case `link_phone_number` |
+| **PlatformSettingsPage** | Nessuna sezione credenziali Telnyx |
+| **Tabelle DB** | `telnyx_settings` e `sms_logs` non esistono, `ai_agent_phone_numbers` manca colonne Telnyx |
 
 ---
 
-## Fix Automazioni Marketing
+## Implementazione in 3 fasi
 
-### Fase 1 — P0 (Critici) ✅
+### Fase A — P0: Database + Edge Functions core
 
-- ✅ **A1**: `email-tracking` → inserisce `email_opened` / `email_clicked` in `automation_trigger_events`
-- ✅ **A2**: `whatsapp-webhook` → inserisce `whatsapp_received` in `automation_trigger_events` (con lookup contatto marketing)
-- ✅ **A3**: `fire_marketing_automation` già gestisce `opportunity_won`/`opportunity_lost` correttamente — nessun fix necessario
-- ✅ **B**: `process-automation` → `handleTrigger` arricchisce payload con dati contatto da `marketing_contacts` prima di `evaluateFilters`
-- ✅ **C**: Nuova Edge Function `check-scheduled-triggers` per trigger temporali (birthday, custom_date, opportunity_stale) + pg_cron alle 02:00
+**FIX 1 — Migration SQL**
+- Creare tabella `telnyx_settings` (api_key_encrypted, messaging_profile_id, connection_id, webhook_signing_secret_encrypted, is_active) con RLS super_admin only (usando `has_role`)
+- Aggiungere colonne a `ai_agent_phone_numbers`: `telnyx_phone_id`, `elevenlabs_phone_number_id`, `monthly_cost_eur`, `capabilities` (jsonb), `telnyx_connection_id`, `is_inbound_enabled`, `is_outbound_enabled`
+- Creare tabella `sms_logs` (company_id, contact_id, direction, from_number, to_number, body, status, telnyx_message_id, cost_eur, automation_id) con RLS tenant isolation
 
-### Fase 2 — P1 ✅
+**FIX 2 — Edge Function `telnyx-proxy/index.ts`** (nuova)
+- Azioni: `list_available_numbers`, `buy_number`, `list_numbers`, `release_number`, `send_sms`, `get_sms_status`
+- Auth utente + caricamento API key da `telnyx_settings` + decrypt via `_shared/encryption.ts`
+- Ogni azione chiama `api.telnyx.com/v2/*` e persiste risultati in DB
 
-- ✅ **D**: Azione `remove_from_automation` — UI (tipo CRM in builder) + backend (rimuove enrollment + cancella queue)
-- ✅ **E**: Azione `wait_for_event` — UI (tipo logica in builder) + backend (stato waiting, timeout, risoluzione evento)
+**FIX 3 — Edge Function `telnyx-webhook/index.ts`** (nuova)
+- `verify_jwt = false` in config.toml
+- Verifica firma HMAC `telnyx-signature-v1`
+- Gestisce: `message.finalized` (aggiorna sms_logs), `message.received` (salva SMS inbound), `call.initiated` / `call.hangup` (log chiamate)
 
-### Fase 3 — Documento v2 ✅
+**FIX 4 — Edge Function `initiate-outbound-call/index.ts`** (nuova, sostituisce `ai-outbound-call`)
+- Stessa logica di auth, DND check, credit check e subscription check
+- Usa `elevenlabs_phone_number_id` da `ai_agent_phone_numbers` (non Twilio)
+- Chiama ElevenLabs `POST /convai/agents/{id}/outbound-call` con `agent_phone_number_id` Telnyx
+- Salva conversazione con `direction: 'outbound'`
 
-- ✅ **Lead scoring**: Colonna `score` su `marketing_contacts` + azione `update_contact_score` (add/subtract/set) in builder e backend
-- ✅ **Re-enrollment**: Lettura `enable_reenrollment` da flow config_json.settings + fallback su trigger config
-- ✅ **Contatori per nodo**: Query aggregata su `automation_execution_log` con badge esecuzioni su ogni nodo nel builder (refresh 30s)
-- ✅ **customer_replied**: Collegato al webhook WhatsApp (inserisce evento `customer_replied` in `automation_trigger_events`)
-- ✅ **call_registered**: DB trigger `fire_call_registered_automation` su `call_logs` INSERT
-- ✅ **send_notification**: Implementato con insert reale in `lifecycle_notifications` (supporta assegnato, tutti admin, utente specifico)
+**FIX 5 — Fix `send-contact-message/index.ts`**
+- Sostituire case `sms` stub (`status = "pending"`) con chiamata a `telnyx-proxy` action `send_sms`
 
-### Fase 4 — TODO
+**FIX 6 — Fix `process-automation/index.ts`**
+- Aggiungere case `send_sms` che invoca `telnyx-proxy` con action `send_sms` (attualmente non esiste)
 
-- [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
-- [ ] **G**: Enrollment bulk dalla lista contatti CRM
-- [ ] **send_ai_message**: Integrazione con Lovable AI
+### Fase B — P1: UI + ElevenLabs link
+
+**FIX 7 — `PlatformSettingsPage.tsx`: Sezione Telnyx**
+- Nuova card "Telefonia (Telnyx)" con campi: API Key (password), Messaging Profile ID, Connection ID, Webhook Signing Key (password), toggle is_active
+- Pulsante "Testa connessione" → chiama `telnyx-proxy` action `list_numbers`
+- Salvataggio in `telnyx_settings` con encrypt via edge function
+
+**FIX 8 — `PhoneNumberManager.tsx`: UI completa**
+- Riscrittura: tabella con colonne Numero, Label, Agente, Costo/mese, Stato, Azioni
+- Modale "Acquista numero": ricerca per prefisso italiano via `telnyx-proxy` → `list_available_numbers`, selezione, conferma acquisto
+- Azioni riga: collega a ElevenLabs (`elevenlabs-proxy` link_phone_number), scollega agente, rimuovi numero
+
+**FIX 9 — Outbound call UI update**
+- Aggiornare `ContactActionsTab.tsx` per usare `initiate-outbound-call` al posto di `ai-outbound-call`
+- Aggiungere selezione numero Telnyx se l'agente ne ha multipli
+
+**FIX 10 — `elevenlabs-proxy/index.ts`: case `link_phone_number`**
+- Chiama ElevenLabs `POST /convai/phone-numbers/create` con provider=telnyx, telnyx_api_key, telnyx_connection_id
+- Aggiorna `ai_agent_phone_numbers.elevenlabs_phone_number_id`
+
+### Fase C — Secrets
+
+Prima di procedere con le edge functions, servono i seguenti secret:
+- `TELNYX_WEBHOOK_SIGNING_KEY` — per verifica firma webhook
+- Le credenziali API Telnyx vengono salvate cifrate in DB (non come secret), stessa architettura di WhatsApp
 
 ---
 
-## Analisi CRM vs GHL
+## File da creare/modificare
 
-### Fase 1 — P0 ✅
+| File | Fix |
+|------|-----|
+| Migration SQL | 1 |
+| `supabase/functions/telnyx-proxy/index.ts` (nuovo) | 2 |
+| `supabase/functions/telnyx-webhook/index.ts` (nuovo) | 3 |
+| `supabase/functions/initiate-outbound-call/index.ts` (nuovo) | 4 |
+| `supabase/functions/send-contact-message/index.ts` | 5 |
+| `supabase/functions/process-automation/index.ts` | 6 |
+| `src/modules/ai-agents/pages/PlatformSettingsPage.tsx` | 7 |
+| `src/modules/ai-agents/components/PhoneNumberManager.tsx` | 8 |
+| `src/components/marketing/ContactActionsTab.tsx` | 9 |
+| `supabase/functions/elevenlabs-proxy/index.ts` | 10 |
+| `supabase/config.toml` | 2, 3, 4 |
 
-- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` su `marketing_contacts` + UI toggle nel tab Impostazioni contatto + check DND in `process-automation` e `send-contact-message` + badge unsubscribed
-- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` + pagina pubblica `/prenota/:slug` + RLS anonima + creazione appuntamento + trigger `appointment_booked`
-- ✅ **Tab Email AdminSettings**: Già funzionante
-- ✅ **Crediti Stripe**: Già implementato
+---
 
-### Fase 2 — P1 ✅
+## Ordine di implementazione
 
-- ✅ **Probabilità + Close Date + Loss Reason**: Colonne `probability`, `expected_close_date`, `loss_reason`, `loss_notes` su `marketing_opportunities` + tabella `opportunity_loss_reasons` + UI slider/date/dialog perdita in `OpportunityDetailDialog`
-- ✅ **Promemoria appuntamenti**: Logica 24h/1h in `check-scheduled-triggers` + tabella `appointment_reminders_sent` + notifiche interne + trigger automazione
-- ✅ **Google Calendar push**: Edge function `google-calendar-webhook` con register_watch, renew_watches, e ricezione push + colonne webhook su `google_calendar_connections`
-- ✅ **Opt-out UI**: Toggle SMS/Call/WhatsApp/Email nel dettaglio contatto + badge disiscritto (già implementato in Fase 1)
+Prima **Fase A** (DB + 5 edge functions), poi **Fase B** (UI). La Fase C (secret) viene richiesta prima di deployare le edge functions. Stimo 2-3 sessioni di lavoro.
 
-### Fase 3 — P2 ✅
+Procedo con la Fase A?
 
-- ✅ **WhatsApp/Stripe in SettingsIntegrations**: Card status per WhatsApp, Stripe, Email Provider, Twilio con stato connessione e dettagli
-- ✅ **Merge contatti duplicati**: Dialog di merge con ricerca, selezione master, spostamento opportunità/note/attività/appuntamenti/messaggi
-- ✅ **Tab Azioni nel dettaglio contatto**: Azioni rapide (invia WhatsApp, Email, SMS, Chiama, Aggiungi ad automazione) con check opt-out
