@@ -237,6 +237,33 @@ Deno.serve(async (req) => {
       console.error("Error saving conversation:", convErr);
     }
 
+    // ============ UPDATE BRANCH STATS (FIX 10 A/B) ============
+    if (branchId && !convErr) {
+      // Increment counters
+      const { data: currentBranch } = await adminClient
+        .from("ai_agent_branches")
+        .select("conversations_count, appointments_count, avg_duration_seconds")
+        .eq("id", branchId)
+        .maybeSingle();
+
+      if (currentBranch) {
+        const newConvCount = (currentBranch.conversations_count || 0) + 1;
+        const newAptCount = (currentBranch.appointments_count || 0) + (appointmentCreated ? 1 : 0);
+        const oldTotal = (currentBranch.avg_duration_seconds || 0) * (currentBranch.conversations_count || 0);
+        const newAvg = (oldTotal + durationSeconds) / newConvCount;
+
+        await adminClient
+          .from("ai_agent_branches")
+          .update({
+            conversations_count: newConvCount,
+            appointments_count: newAptCount,
+            avg_duration_seconds: Number(newAvg.toFixed(2)),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", branchId);
+      }
+    }
+
     // ============ CREDIT SYSTEM (ATOMIC) ============
     const durationMin = Math.max(0.0167, durationSeconds / 60);
     const ttsModel = agent.tts_model || "eleven_multilingual_v2";
