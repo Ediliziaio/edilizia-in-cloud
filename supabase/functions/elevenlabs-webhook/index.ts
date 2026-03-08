@@ -151,6 +151,7 @@ Deno.serve(async (req) => {
 
               if (newContact) {
                 contactId = newContact.id;
+                newContactCreated = true;
               }
             }
           }
