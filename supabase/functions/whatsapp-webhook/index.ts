@@ -219,6 +219,25 @@ Deno.serve(async (req) => {
             if (msgErr) {
               console.error("Error inserting message:", msgErr);
             }
+
+            // Fire automation trigger: whatsapp_received
+            // Lookup marketing contact by phone
+            const { data: mktContact } = await supabase
+              .from("marketing_contacts")
+              .select("id")
+              .eq("company_id", companyId)
+              .or(`phone.eq.${senderPhone},phone.eq.+${senderPhone}`)
+              .maybeSingle();
+
+            if (mktContact) {
+              await supabase.from("automation_trigger_events").insert({
+                company_id: companyId,
+                trigger_event: "whatsapp_received",
+                entity_id: mktContact.id,
+                entity_type: "contact",
+                payload: { from: senderPhone, message: content, conversation_id: conversationId },
+              });
+            }
           }
         }
       }

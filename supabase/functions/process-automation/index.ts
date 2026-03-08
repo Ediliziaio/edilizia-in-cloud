@@ -102,10 +102,23 @@ async function handleTrigger(supabase: any, body: any) {
 
     if (!matchingTrigger) continue;
 
+    // Enrich payload with contact data for filter evaluation
+    let enrichedPayload = payload || {};
+    if (entity_id && (entity_type === "contact" || !entity_type)) {
+      const { data: contactData } = await supabase
+        .from("marketing_contacts")
+        .select("*")
+        .eq("id", entity_id)
+        .maybeSingle();
+      if (contactData) {
+        enrichedPayload = { ...contactData, ...enrichedPayload };
+      }
+    }
+
     // Check if trigger filters match (basic evaluation)
     const filters = matchingTrigger.config_json?.filters;
     if (filters && filters.conditions?.length > 0) {
-      if (!evaluateFilters(filters, payload || {})) continue;
+      if (!evaluateFilters(filters, enrichedPayload)) continue;
     }
 
     // Check re-enrollment settings
