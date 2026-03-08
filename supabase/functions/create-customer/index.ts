@@ -1,34 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { generateSecurePassword } from "../_shared/securePassword.ts";
+import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-function generateSecurePassword(length = 12): string {
-  const lowercase = "abcdefghijklmnopqrstuvwxyz";
-  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const numbers = "0123456789";
-  const special = "!@#$%^&*";
-  const allChars = lowercase + uppercase + numbers + special;
-
-  let password = "";
-  password += lowercase[Math.floor(Math.random() * lowercase.length)];
-  password += uppercase[Math.floor(Math.random() * uppercase.length)];
-  password += numbers[Math.floor(Math.random() * numbers.length)];
-  password += special[Math.floor(Math.random() * special.length)];
-
-  for (let i = password.length; i < length; i++) {
-    password += allChars[Math.floor(Math.random() * allChars.length)];
-  }
-
-  return password
-    .split("")
-    .sort(() => Math.random() - 0.5)
-    .join("");
-}
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -36,29 +12,50 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    // --- Authentication & Authorization ---
+    const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
+    const callerRole = await requireRole(supabaseAdmin, userId, ["super_admin", "company_admin"], corsHeaders);
 
     const { first_name, last_name, email, phone, address, company_id, fiscal_code, site_address, notes } = await req.json();
 
+    // --- Input Validation ---
     if (!first_name || !last_name || !email || !company_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse("Missing required fields");
     }
 
+    const trimmedFirstName = String(first_name).trim().slice(0, 100);
+    const trimmedLastName = String(last_name).trim().slice(0, 100);
+    const trimmedEmail = String(email).trim().toLowerCase().slice(0, 255);
+
+    if (!trimmedFirstName || !trimmedLastName) {
+      return errorResponse("Nome e cognome non possono essere vuoti");
+    }
+
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
+      return errorResponse("Indirizzo email non valido");
+    }
+
+    // --- Company Scope Check ---
+    if (callerRole === "company_admin") {
+      const { data: callerProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .single();
+
+      if (callerProfile?.company_id !== company_id) {
+        return errorResponse("Non autorizzato a creare utenti per questa azienda", 403);
+      }
+    }
+
+    // --- Secure Password Generation ---
     const password = generateSecurePassword(12);
 
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: email.toLowerCase(),
+      email: trimmedEmail,
       password,
       email_confirm: true,
-      user_metadata: { first_name, last_name },
+      user_metadata: { first_name: trimmedFirstName, last_name: trimmedLastName },
     });
 
     if (authError) {
@@ -67,19 +64,16 @@ Deno.serve(async (req) => {
       const errorMessage = isEmailExists
         ? "Esiste già un utente con questo indirizzo email. Usa un'email diversa."
         : authError.message;
-      return new Response(
-        JSON.stringify({ error: errorMessage }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(errorMessage);
     }
 
-    const userId = authUser.user.id;
+    const newUserId = authUser.user.id;
 
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
-      id: userId,
-      first_name,
-      last_name,
-      email: email.toLowerCase(),
+      id: newUserId,
+      first_name: trimmedFirstName,
+      last_name: trimmedLastName,
+      email: trimmedEmail,
       phone: phone || null,
       address: address || null,
       company_id,
@@ -89,25 +83,19 @@ Deno.serve(async (req) => {
     });
 
     if (profileError) {
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      return new Response(
-        JSON.stringify({ error: "Failed to create profile" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      return errorResponse("Failed to create profile", 500);
     }
 
     const { error: roleError } = await supabaseAdmin.from("user_roles").insert({
-      user_id: userId,
+      user_id: newUserId,
       role: "customer",
     });
 
     if (roleError) {
-      await supabaseAdmin.from("profiles").delete().eq("id", userId);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      return new Response(
-        JSON.stringify({ error: "Failed to assign role" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      await supabaseAdmin.from("profiles").delete().eq("id", newUserId);
+      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      return errorResponse("Failed to assign role", 500);
     }
 
     // Send welcome email via transactional provider
@@ -125,14 +113,14 @@ Deno.serve(async (req) => {
         await sendViaProvider(settings.provider, settings.apiKey, {
           from: settings.fromDefault,
           fromName: settings.fromName,
-          to: [email.toLowerCase()],
+          to: [trimmedEmail],
           subject: `Benvenuto su ${company?.name || "la piattaforma"}`,
           html: `<html><body>
-            <p>Ciao ${first_name},</p>
+            <p>Ciao ${trimmedFirstName},</p>
             <p>Il tuo account è stato creato su <strong>${company?.name || "la piattaforma"}</strong>.</p>
             <p>Ecco le tue credenziali di accesso:</p>
             <ul>
-              <li><strong>Email:</strong> ${email.toLowerCase()}</li>
+              <li><strong>Email:</strong> ${trimmedEmail}</li>
               <li><strong>Password:</strong> ${password}</li>
             </ul>
             <p>Ti consigliamo di cambiare la password al primo accesso.</p>
@@ -143,19 +131,16 @@ Deno.serve(async (req) => {
       console.error("Failed to send welcome email:", emailErr);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        customer: { id: userId, first_name, last_name, email: email.toLowerCase(), phone, address },
-        password,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({
+      success: true,
+      customer: { id: newUserId, first_name: trimmedFirstName, last_name: trimmedLastName, email: trimmedEmail, phone, address },
+      password,
+    });
   } catch (error) {
+    // requireAuth/requireRole throw Response objects
+    if (error instanceof Response) return error;
+
     console.error("Unexpected error:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse("Internal server error", 500);
   }
 });

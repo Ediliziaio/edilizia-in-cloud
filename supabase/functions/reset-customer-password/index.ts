@@ -1,35 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-function generateSecurePassword(): string {
-  const length = 12;
-  const lowercase = "abcdefghijklmnopqrstuvwxyz";
-  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const numbers = "0123456789";
-  const special = "!@#$%&*";
-  const allChars = lowercase + uppercase + numbers + special;
-
-  let password = "";
-  password += lowercase[Math.floor(Math.random() * lowercase.length)];
-  password += uppercase[Math.floor(Math.random() * uppercase.length)];
-  password += numbers[Math.floor(Math.random() * numbers.length)];
-  password += special[Math.floor(Math.random() * special.length)];
-
-  for (let i = password.length; i < length; i++) {
-    password += allChars[Math.floor(Math.random() * allChars.length)];
-  }
-
-  return password
-    .split("")
-    .sort(() => Math.random() - 0.5)
-    .join("");
-}
+import { generateSecurePassword } from "../_shared/securePassword.ts";
+import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -98,7 +70,8 @@ Deno.serve(async (req) => {
       throw new Error("Permission denied: Cannot reset another admin's password");
     }
 
-    const finalPassword = newPassword || generateSecurePassword();
+    // Use secure password generator instead of Math.random()
+    const finalPassword = newPassword || generateSecurePassword(12);
 
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
       targetUserId,
@@ -131,25 +104,24 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Password reset successfully",
-        newPassword: finalPassword,
-        temporaryPassword: finalPassword,
-        customer: {
-          id: targetProfile.id,
-          email: targetProfile.email,
-          firstName: targetProfile.first_name,
-          lastName: targetProfile.last_name,
-        },
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-    );
+    return jsonResponse({
+      success: true,
+      message: "Password reset successfully",
+      newPassword: finalPassword,
+      temporaryPassword: finalPassword,
+      customer: {
+        id: targetProfile.id,
+        email: targetProfile.email,
+        firstName: targetProfile.first_name,
+        lastName: targetProfile.last_name,
+      },
+    });
   } catch (error) {
+    if (error instanceof Response) return error;
+
     return new Response(
       JSON.stringify({ success: false, error: (error as Error).message }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      { headers: secureHeaders, status: 400 }
     );
   }
 });
