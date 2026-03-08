@@ -50,19 +50,30 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
     scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const [isSending, setIsSending] = useState(false);
+
   const handleSendReply = async () => {
-    if (!replyText.trim() || !conversationId) return;
-    const { error } = await supabase.from("messaging_messages").insert({
-      conversation_id: conversationId,
-      sender_type: "operator",
-      sender_name: "Operatore",
-      message_type: "text",
-      content: replyText.trim(),
-    });
-    if (error) {
-      toast.error("Errore invio", { description: error.message });
-    } else {
-      setReplyText("");
+    if (!replyText.trim() || !conversationId || isSending) return;
+    setIsSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-whatsapp-reply", {
+        body: {
+          conversation_id: conversationId,
+          content: replyText.trim(),
+        },
+      });
+
+      if (error || data?.error) {
+        toast.error("Errore invio messaggio", {
+          description: error?.message || data?.error,
+        });
+      } else {
+        setReplyText("");
+      }
+    } catch (err: any) {
+      toast.error("Errore invio", { description: err.message });
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -165,8 +176,8 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendReply()}
           className="bg-muted/50"
         />
-        <Button size="icon" onClick={handleSendReply} disabled={!replyText.trim()}>
-          <Send className="h-4 w-4" />
+        <Button size="icon" onClick={handleSendReply} disabled={!replyText.trim() || isSending}>
+          {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
     </div>

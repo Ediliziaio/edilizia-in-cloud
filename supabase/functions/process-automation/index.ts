@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -477,11 +478,14 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       return { success: true, output: { action: "send_notification", placeholder: true } };
     }
 
+    case "send_whatsapp": {
+      return await executeSendWhatsApp(supabase, cfg, entityId, companyId);
+    }
+
     case "send_email":
-    case "send_whatsapp":
     case "send_sms":
     case "send_ai_message": {
-      // Placeholder — these need external integrations (SendGrid, WhatsApp API, etc.)
+      // Placeholder — these need external integrations
       console.log(`[${actionType}] entity=${entityId} config=`, JSON.stringify(cfg));
       return { success: true, output: { action: actionType, placeholder: true, message: "Integration pending" } };
     }
@@ -617,6 +621,126 @@ async function processTriggerEvents(supabase: any) {
       .update({ processed: true })
       .eq("id", evt.id);
   }
+}
+
+// ────────────────────────────────────────────────────
+// SEND WHATSAPP (real Meta API integration)
+// ────────────────────────────────────────────────────
+async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
+  // 1. Get WhatsApp config for the company
+  const { data: waConfig } = await supabase
+    .from("messaging_whatsapp_config")
+    .select("phone_number_id, access_token_encrypted")
+    .eq("company_id", companyId)
+    .eq("is_connected", true)
+    .maybeSingle();
+
+  if (!waConfig?.phone_number_id || !waConfig?.access_token_encrypted) {
+    return { success: false, error: "WhatsApp non configurato o non attivo per questa azienda" };
+  }
+
+  // 2. Get contact phone
+  const { data: contact } = await supabase
+    .from("marketing_contacts")
+    .select("phone, first_name, last_name, email")
+    .eq("id", entityId)
+    .single();
+
+  if (!contact?.phone) {
+    return { success: false, error: "Contatto senza numero di telefono" };
+  }
+
+  // 3. Decrypt token
+  const encKey = getEncryptionKey();
+  const accessToken = await decrypt(waConfig.access_token_encrypted, encKey);
+
+  const cleanPhone = contact.phone.replace(/[^0-9]/g, "");
+
+  // 4. Build message payload
+  let messagePayload: Record<string, unknown>;
+
+  if (cfg.whatsapp_template) {
+    // Template message (Meta-approved)
+    const components: any[] = [];
+    if (cfg.whatsapp_text) {
+      const resolvedText = resolveVariables(cfg.whatsapp_text, contact);
+      components.push({
+        type: "body",
+        parameters: [{ type: "text", text: resolvedText }],
+      });
+    }
+    messagePayload = {
+      messaging_product: "whatsapp",
+      to: cleanPhone,
+      type: "template",
+      template: {
+        name: cfg.whatsapp_template,
+        language: { code: cfg.whatsapp_language || "it" },
+        components: components.length > 0 ? components : undefined,
+      },
+    };
+  } else {
+    // Free-text message (only for open 24h conversations)
+    const resolvedText = resolveVariables(cfg.whatsapp_text || "", contact);
+    if (!resolvedText) {
+      return { success: false, error: "Nessun testo configurato per il messaggio WhatsApp" };
+    }
+    messagePayload = {
+      messaging_product: "whatsapp",
+      to: cleanPhone,
+      type: "text",
+      text: { body: resolvedText },
+    };
+  }
+
+  // 5. Call Meta API
+  const res = await fetch(
+    `https://graph.facebook.com/v21.0/${waConfig.phone_number_id}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(messagePayload),
+    }
+  );
+
+  const result = await res.json();
+
+  if (!res.ok) {
+    console.error("[send_whatsapp] Meta API error:", result);
+    return { success: false, error: result.error?.message || "Errore Meta API" };
+  }
+
+  // 6. Log in contact_messages
+  await supabase.from("contact_messages").insert({
+    contact_id: entityId,
+    company_id: companyId,
+    channel: "whatsapp",
+    content: cfg.whatsapp_text || cfg.whatsapp_template || "",
+    status: "sent",
+  });
+
+  // 7. Log activity
+  await supabase.from("marketing_contact_activities").insert({
+    contact_id: entityId,
+    company_id: companyId,
+    activity_type: "message_sent",
+    description: `Messaggio WhatsApp automatico inviato`,
+    metadata: { channel: "whatsapp", status: "sent", meta_message_id: result.messages?.[0]?.id },
+  });
+
+  return { success: true, output: { whatsapp_message_id: result.messages?.[0]?.id } };
+}
+
+function resolveVariables(text: string, contact: any): string {
+  return text
+    .replace(/\{\{contact\.name\}\}/g, `${contact.first_name || ""} ${contact.last_name || ""}`.trim())
+    .replace(/\{\{contact\.first_name\}\}/g, contact.first_name || "")
+    .replace(/\{\{contact\.last_name\}\}/g, contact.last_name || "")
+    .replace(/\{\{contact\.email\}\}/g, contact.email || "")
+    .replace(/\{\{contact\.phone\}\}/g, contact.phone || "");
 }
 
 // ────────────────────────────────────────────────────
