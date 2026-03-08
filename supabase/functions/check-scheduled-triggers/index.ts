@@ -197,8 +197,54 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Appointment Reminders (24h and 1h before) ──
+    // ── Custom Reminder Minutes (from appointments.reminder_minutes) ──
     const now = new Date();
+    const { data: reminderApts } = await supabase
+      .from("appointments")
+      .select("id, title, appointment_date, appointment_time, assigned_to, company_id, contact_id, reminder_minutes")
+      .eq("is_blocked_slot", false)
+      .eq("reminder_sent", false)
+      .neq("status", "annullato")
+      .neq("status", "cancelled")
+      .not("reminder_minutes", "is", null);
+
+    if (reminderApts && reminderApts.length > 0) {
+      for (const apt of reminderApts) {
+        const aptDate = new Date(apt.appointment_date);
+        if (apt.appointment_time) {
+          const [hh, mm] = apt.appointment_time.split(":").map(Number);
+          aptDate.setHours(hh || 0, mm || 0, 0, 0);
+        } else {
+          aptDate.setHours(9, 0, 0, 0);
+        }
+
+        const triggerAt = new Date(aptDate.getTime() - (apt.reminder_minutes || 0) * 60 * 1000);
+        if (now >= triggerAt && now < aptDate) {
+          // Mark as sent
+          await supabase
+            .from("appointments")
+            .update({ reminder_sent: true })
+            .eq("id", apt.id);
+
+          // Send notification
+          if (apt.assigned_to) {
+            const label = apt.reminder_minutes === 1440 ? "24h" : apt.reminder_minutes === 60 ? "1h" : `${apt.reminder_minutes}min`;
+            await supabase.from("lifecycle_notifications").insert({
+              company_id: apt.company_id,
+              user_id: apt.assigned_to,
+              type: "appointment_reminder",
+              title: `Promemoria appuntamento (${label})`,
+              message: `Appuntamento "${apt.title}" il ${apt.appointment_date}${apt.appointment_time ? " alle " + apt.appointment_time : ""}.`,
+              metadata: { appointment_id: apt.id, reminder_type: label },
+            });
+          }
+
+          results.appointment_reminder_custom = (results.appointment_reminder_custom || 0) + 1;
+        }
+      }
+    }
+
+    // ── Appointment Reminders (24h and 1h before) ──
     const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     const { data: upcomingAppointments } = await supabase
