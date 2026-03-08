@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { calculateMarginPercent, formatEur } from "../lib/creditCalculator";
-import { EmailProviderSettings } from "../components/EmailProviderSettings";
+
 
 interface PricingRow {
   id: string;
