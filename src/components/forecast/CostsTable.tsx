@@ -393,6 +393,7 @@ export function CostsTable({
                       )}
                     </TableCell>
                     <TableCell className="font-medium truncate">{cost.name}</TableCell>
+                    {isColVisible("origin") && (
                     <TableCell>
                       {cost.isFromOrder ? (
                         <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 gap-1 text-[10px] px-1.5">
@@ -404,18 +405,22 @@ export function CostsTable({
                         </Badge>
                       )}
                     </TableCell>
-                    {type === "all" && (
+                    )}
+                    {type === "all" && isColVisible("costType") && (
                       <TableCell>
                         <Badge variant="outline" className={cost.cost_type === "fixed" ? "border-red-400 text-red-600" : "border-amber-400 text-amber-600"}>
                           {cost.cost_type === "fixed" ? "Fisso" : "Variabile"}
                         </Badge>
                       </TableCell>
                     )}
+                    {isColVisible("supplier") && (
                     <TableCell className="truncate">
                       {(cost as any).supplier?.name || cost.supplierName || (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
+                    )}
+                    {isColVisible("category") && (
                     <TableCell className="truncate">
                       {cost.category ? (
                         <Badge variant="outline" className={cn("text-[10px] px-1.5", getCategoryColor(cost.category))}>
@@ -425,6 +430,8 @@ export function CostsTable({
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
+                    )}
+                    {isColVisible("amount") && (
                     <TableCell className="text-right">
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -442,6 +449,8 @@ export function CostsTable({
                         )}
                       </Tooltip>
                     </TableCell>
+                    )}
+                    {isColVisible("vatRate") && (
                     <TableCell>
                       {vatRate > 0 ? (
                         <Badge variant="outline" className="text-xs border-violet-300 text-violet-600 dark:text-violet-400">
@@ -451,20 +460,27 @@ export function CostsTable({
                         <span className="text-muted-foreground text-xs">Esente</span>
                       )}
                     </TableCell>
+                    )}
+                    {isColVisible("gross") && (
                     <TableCell className="text-right tabular-nums font-medium">
                       {formatCurrency(grossAmount)}
                     </TableCell>
+                    )}
+                    {isColVisible("recurrence") && (
                     <TableCell>
                       <Badge variant="outline" className="text-[10px] px-1.5">
                         <Repeat className="h-3 w-3 mr-1" />
                         {RECURRENCE_LABELS[cost.recurrence] || cost.recurrence}
                       </Badge>
                     </TableCell>
+                    )}
+                    {isColVisible("dueDate") && (
                     <TableCell>
                       {cost.due_date ? format(new Date(cost.due_date), "dd/MM/yyyy", { locale: it }) : "—"}
                     </TableCell>
-                    <TableCell>{getStatusBadge(cost)}</TableCell>
-                    <TableCell>{getDelayCell(cost)}</TableCell>
+                    )}
+                    {isColVisible("status") && <TableCell>{getStatusBadge(cost)}</TableCell>}
+                    {isColVisible("delay") && <TableCell>{getDelayCell(cost)}</TableCell>}
                     {hasOrderCol && (
                       <TableCell>
                         {cost.order ? (
