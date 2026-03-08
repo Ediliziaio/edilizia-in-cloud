@@ -57,7 +57,8 @@ serve(async (req) => {
       "google_maps_api_key",
       "meta_app_id",
       "meta_app_secret",
-      "resend_api_key",
+      "email_marketing_api_key",
+      "email_transactional_api_key",
       "elevenlabs_api_key",
       "whatsapp_verify_token",
     ];
