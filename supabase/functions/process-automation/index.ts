@@ -482,7 +482,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       return await executeSendWhatsApp(supabase, cfg, entityId, companyId);
     }
 
-    case "send_email":
+    case "send_email": {
+      return await executeSendEmail(supabase, cfg, entityId, companyId);
+    }
+
     case "send_sms":
     case "send_ai_message": {
       // Placeholder — these need external integrations

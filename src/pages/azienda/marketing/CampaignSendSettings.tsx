@@ -485,6 +485,26 @@ export default function CampaignSendSettings() {
 
           {/* Sidebar */}
           <div className="w-full lg:w-80 space-y-4 shrink-0">
+            {/* Credits balance */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  💳 Saldo Crediti Email
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">€{(creditsData?.balance_eur ?? 0).toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">
+                  Stima invio: ~{recipientCount} crediti necessari
+                </p>
+                {recipientCount > (creditsData?.balance_eur ?? 0) && (
+                  <p className="text-xs text-destructive mt-1 font-medium">
+                    ⚠️ Crediti insufficienti per l'invio completo
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Recipient count */}
             <Card>
               <CardHeader className="pb-3">
@@ -494,7 +514,7 @@ export default function CampaignSendSettings() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">{recipientCount.toLocaleString("it-IT")}</p>
-                <p className="text-xs text-muted-foreground">contatti nel CRM</p>
+                <p className="text-xs text-muted-foreground">contatti iscritti con email</p>
               </CardContent>
             </Card>
 
