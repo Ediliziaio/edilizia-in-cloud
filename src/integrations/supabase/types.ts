@@ -403,12 +403,14 @@ export type Database = {
           elevenlabs_phone_id: string | null
           elevenlabs_phone_number_id: string | null
           id: string
+          internal_agent_id: string | null
           is_inbound_enabled: boolean | null
           is_outbound_enabled: boolean | null
           label: string | null
           monthly_cost_eur: number | null
           phone_number: string
           provider: string
+          routing_mode: string
           telnyx_connection_id: string | null
           telnyx_phone_id: string | null
         }
@@ -420,12 +422,14 @@ export type Database = {
           elevenlabs_phone_id?: string | null
           elevenlabs_phone_number_id?: string | null
           id?: string
+          internal_agent_id?: string | null
           is_inbound_enabled?: boolean | null
           is_outbound_enabled?: boolean | null
           label?: string | null
           monthly_cost_eur?: number | null
           phone_number: string
           provider?: string
+          routing_mode?: string
           telnyx_connection_id?: string | null
           telnyx_phone_id?: string | null
         }
@@ -437,12 +441,14 @@ export type Database = {
           elevenlabs_phone_id?: string | null
           elevenlabs_phone_number_id?: string | null
           id?: string
+          internal_agent_id?: string | null
           is_inbound_enabled?: boolean | null
           is_outbound_enabled?: boolean | null
           label?: string | null
           monthly_cost_eur?: number | null
           phone_number?: string
           provider?: string
+          routing_mode?: string
           telnyx_connection_id?: string | null
           telnyx_phone_id?: string | null
         }
@@ -459,6 +465,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_phone_numbers_internal_agent_id_fkey"
+            columns: ["internal_agent_id"]
+            isOneToOne: false
+            referencedRelation: "internal_ai_agents"
             referencedColumns: ["id"]
           },
         ]
@@ -3668,6 +3681,323 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_agent_actions: {
+        Row: {
+          action_type: string
+          call_id: string
+          company_id: string
+          entity_id: string | null
+          entity_type: string
+          error_message: string | null
+          executed_at: string
+          id: string
+          input_params: Json | null
+          result: Json | null
+          status: string
+          tool_name: string
+        }
+        Insert: {
+          action_type: string
+          call_id: string
+          company_id: string
+          entity_id?: string | null
+          entity_type: string
+          error_message?: string | null
+          executed_at?: string
+          id?: string
+          input_params?: Json | null
+          result?: Json | null
+          status?: string
+          tool_name: string
+        }
+        Update: {
+          action_type?: string
+          call_id?: string
+          company_id?: string
+          entity_id?: string | null
+          entity_type?: string
+          error_message?: string | null
+          executed_at?: string
+          id?: string
+          input_params?: Json | null
+          result?: Json | null
+          status?: string
+          tool_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_agent_actions_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "internal_call_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_agent_actions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_ai_agents: {
+        Row: {
+          agent_type: string
+          company_id: string
+          created_at: string
+          created_by: string
+          elevenlabs_agent_id: string | null
+          enabled_tools: string[]
+          error_message: string | null
+          first_message: string
+          id: string
+          is_interruptible: boolean
+          language: string
+          llm_model: string
+          max_duration: number | null
+          name: string
+          phone_number_id: string | null
+          silence_timeout: number | null
+          status: string
+          system_prompt: string
+          tools_config: Json
+          updated_at: string
+          voice_id: string
+        }
+        Insert: {
+          agent_type?: string
+          company_id: string
+          created_at?: string
+          created_by: string
+          elevenlabs_agent_id?: string | null
+          enabled_tools?: string[]
+          error_message?: string | null
+          first_message?: string
+          id?: string
+          is_interruptible?: boolean
+          language?: string
+          llm_model?: string
+          max_duration?: number | null
+          name: string
+          phone_number_id?: string | null
+          silence_timeout?: number | null
+          status?: string
+          system_prompt?: string
+          tools_config?: Json
+          updated_at?: string
+          voice_id?: string
+        }
+        Update: {
+          agent_type?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          elevenlabs_agent_id?: string | null
+          enabled_tools?: string[]
+          error_message?: string | null
+          first_message?: string
+          id?: string
+          is_interruptible?: boolean
+          language?: string
+          llm_model?: string
+          max_duration?: number | null
+          name?: string
+          phone_number_id?: string | null
+          silence_timeout?: number | null
+          status?: string
+          system_prompt?: string
+          tools_config?: Json
+          updated_at?: string
+          voice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_ai_agents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_ai_agents_phone_number_id_fkey"
+            columns: ["phone_number_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_phone_numbers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_call_logs: {
+        Row: {
+          agent_id: string
+          call_direction: string
+          caller_phone: string | null
+          campaign_id: string | null
+          company_id: string
+          contact_id: string | null
+          contact_name: string | null
+          duration_seconds: number
+          elevenlabs_conversation_id: string | null
+          id: string
+          messages_count: number
+          metadata: Json | null
+          outcome: string | null
+          started_at: string
+          status: string
+          summary: string | null
+          transcript: Json | null
+        }
+        Insert: {
+          agent_id: string
+          call_direction?: string
+          caller_phone?: string | null
+          campaign_id?: string | null
+          company_id: string
+          contact_id?: string | null
+          contact_name?: string | null
+          duration_seconds?: number
+          elevenlabs_conversation_id?: string | null
+          id?: string
+          messages_count?: number
+          metadata?: Json | null
+          outcome?: string | null
+          started_at?: string
+          status?: string
+          summary?: string | null
+          transcript?: Json | null
+        }
+        Update: {
+          agent_id?: string
+          call_direction?: string
+          caller_phone?: string | null
+          campaign_id?: string | null
+          company_id?: string
+          contact_id?: string | null
+          contact_name?: string | null
+          duration_seconds?: number
+          elevenlabs_conversation_id?: string | null
+          id?: string
+          messages_count?: number
+          metadata?: Json | null
+          outcome?: string | null
+          started_at?: string
+          status?: string
+          summary?: string | null
+          transcript?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_call_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "internal_ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_call_logs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "internal_outbound_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_call_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_call_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_outbound_campaigns: {
+        Row: {
+          agent_id: string
+          calls_answered: number
+          calls_failed: number
+          calls_per_minute: number
+          campaign_type: string
+          company_id: string
+          completed_at: string | null
+          contact_ids: string[] | null
+          created_at: string
+          created_by: string
+          dynamic_vars: Json | null
+          filter_config: Json | null
+          id: string
+          name: string
+          scheduled_at: string | null
+          started_at: string | null
+          status: string
+          target_type: string
+          total_calls: number
+        }
+        Insert: {
+          agent_id: string
+          calls_answered?: number
+          calls_failed?: number
+          calls_per_minute?: number
+          campaign_type?: string
+          company_id: string
+          completed_at?: string | null
+          contact_ids?: string[] | null
+          created_at?: string
+          created_by: string
+          dynamic_vars?: Json | null
+          filter_config?: Json | null
+          id?: string
+          name: string
+          scheduled_at?: string | null
+          started_at?: string | null
+          status?: string
+          target_type?: string
+          total_calls?: number
+        }
+        Update: {
+          agent_id?: string
+          calls_answered?: number
+          calls_failed?: number
+          calls_per_minute?: number
+          campaign_type?: string
+          company_id?: string
+          completed_at?: string | null
+          contact_ids?: string[] | null
+          created_at?: string
+          created_by?: string
+          dynamic_vars?: Json | null
+          filter_config?: Json | null
+          id?: string
+          name?: string
+          scheduled_at?: string | null
+          started_at?: string | null
+          status?: string
+          target_type?: string
+          total_calls?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_outbound_campaigns_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "internal_ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_outbound_campaigns_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"

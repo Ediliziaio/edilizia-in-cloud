@@ -143,3 +143,6 @@ verify_jwt = false
 
 [functions.duplicate-order]
 verify_jwt = false
+
+[functions.internal-agent-tools]
+verify_jwt = false
