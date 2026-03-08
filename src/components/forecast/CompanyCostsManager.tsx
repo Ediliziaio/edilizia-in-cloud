@@ -309,6 +309,8 @@ export default function CompanyCostsManager() {
             activeStatusTab={statusTabFilter}
             onStatusTabChange={setStatusTabFilter}
             categoryDistribution={data.categoryDistribution}
+            availableYears={data.availableYears}
+            fixedCostsTrend={data.fixedCostsTrend}
           />
 
           {/* Filters */}

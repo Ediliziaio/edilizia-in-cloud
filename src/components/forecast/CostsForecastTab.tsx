@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/table-pagination";
-import { format, startOfMonth, endOfMonth, addMonths, isWithinInterval, startOfDay, startOfYear } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, isWithinInterval, startOfDay, startOfYear, eachMonthOfInterval } from "date-fns";
 import { it } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+} from "recharts";
 import type { ExpectedExpense, ExpectedCommission, ExpectedSupplierPayment, CompanyCostEntry } from "@/lib/forecastTypes";
 
 interface CostsForecastTabProps {
@@ -128,6 +132,17 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
           </div>
         </CardContent>
       </Card>
+
+      {/* Stacked BarChart by month */}
+      <StackedExpensesChart
+        expenses={filteredExpenses}
+        commissions={filteredCommissions}
+        supplierPayments={filteredSupplier}
+        companyCosts={filteredCosts}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        activePreset={activePreset}
+      />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -294,6 +309,67 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
         </p>
       )}
     </div>
+  );
+}
+
+function StackedExpensesChart({ expenses, commissions, supplierPayments, companyCosts, dateFrom, dateTo, activePreset }: {
+  expenses: ExpectedExpense[];
+  commissions: ExpectedCommission[];
+  supplierPayments: ExpectedSupplierPayment[];
+  companyCosts: CompanyCostEntry[];
+  dateFrom: Date | undefined;
+  dateTo: Date | undefined;
+  activePreset: string;
+}) {
+  const chartData = useMemo(() => {
+    const now = new Date();
+    const from = dateFrom || startOfMonth(now);
+    const to = dateTo || endOfMonth(now);
+    const monthsInRange = eachMonthOfInterval({ start: startOfMonth(from), end: startOfMonth(to) });
+
+    return monthsInRange.map((m) => {
+      const mStart = startOfMonth(m);
+      const mEnd = endOfMonth(m);
+      const inMonth = (d: Date | null) => d && d >= mStart && d <= mEnd;
+
+      return {
+        month: format(m, "MMM yy", { locale: it }),
+        Squadre: expenses.filter((e) => inMonth(e.expectedDate)).reduce((s, e) => s + e.amount, 0),
+        Provvigioni: commissions.filter((c) => inMonth(c.expectedDate)).reduce((s, c) => s + c.amount, 0),
+        Fornitori: supplierPayments.filter((p) => inMonth(p.expectedDate)).reduce((s, p) => s + p.amount, 0),
+        "Costi Az.": companyCosts.filter((c) => inMonth(c.expectedDate)).reduce((s, c) => s + c.amount, 0),
+      };
+    });
+  }, [expenses, commissions, supplierPayments, companyCosts, dateFrom, dateTo]);
+
+  if (chartData.length === 0 || chartData.every((d) => d.Squadre + d.Provvigioni + d.Fornitori + d["Costi Az."] === 0)) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Uscite per Categoria</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-[220px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+              <RechartsTooltip
+                formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="Squadre" stackId="a" fill="hsl(270 67% 58%)" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Provvigioni" stackId="a" fill="hsl(45 93% 47%)" />
+              <Bar dataKey="Fornitori" stackId="a" fill="hsl(0 84% 60%)" />
+              <Bar dataKey="Costi Az." stackId="a" fill="hsl(217 91% 60%)" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

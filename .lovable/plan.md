@@ -1,74 +1,67 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-# Sprint 5 — Completamento Finale: Piano di Implementazione
+## Completato — Blocco A, B, C ✅
 
-Tutti i 4 sprint principali sono completati. Restano gli item di media/bassa priorità dal documento non ancora implementati.
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
----
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
-## 1. BarChart stacked uscite per categoria nel CostsForecastTab
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-**File:** `src/components/forecast/CostsForecastTab.tsx`
-- Aggiungere un `BarChart` stacked sotto la hero card con 4 serie (Squadre, Provvigioni, Fornitori, Costi Az.) raggruppate per mese nel periodo filtrato.
-- Calcolare i dati aggregandoli mensilmente dai 4 array filtrati già disponibili.
-- Altezza ~220px, colori coerenti con le etichette nella hero card.
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
----
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
-## 2. Filtro periodo su LaborCosts e SupplierPayments
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-**File:** `src/components/dashboard/LaborCostsStats.tsx`
-- Accettare prop `dateRange?: { from: Date; to: Date }` e usarla per filtrare le query Supabase per mese (attualmente hardcoded a mese corrente).
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-**File:** `src/components/dashboard/SupplierPaymentsSummary.tsx`
-- Accettare prop `dateRange?: { from: Date; to: Date }` e usarla per filtrare i dati per periodo.
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-**File:** `src/pages/azienda/CompanyDashboard.tsx`
-- Passare il `dateRange` dai filtri globali ai due componenti sopra.
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
----
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
 
-## 3. Bottone "Refresh dati" con timestamp ultimo aggiornamento
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
 
-**File:** `src/pages/azienda/CompanyDashboard.tsx`
-- Aggiungere un bottone "Aggiorna" nell'header accanto ai filtri con `RefreshCw` icon.
-- Mostrare `Ultimo aggiornamento: HH:mm` basato su `dataUpdatedAt` di react-query.
-- Il click invalida le query principali del dashboard.
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
 
----
+## Da fare (prossimi step)
 
-## 4. LineChart tendenza costi fissi % nel tempo
+### Priorità 3: Integrazioni rimanenti
+- Test runner reale con chiamata ElevenLabs (attualmente simulato)
+- Decremento crediti automatico via webhook (già funzionante)
+- Sync bidirezionale KB (upload file)
 
-**File:** `src/components/forecast/CostsStatsCards.tsx`
-- Aggiungere un `LineChart` che mostra la percentuale di costi fissi sul totale per mese (ultimi 12 mesi).
-- Dati calcolati dai costi esistenti, raggruppando per mese e calcolando `fissi / (fissi + variabili) * 100`.
-
----
-
-## 5. Espansione selezione anno nella sezione Costi
-
-**File:** `src/components/forecast/CostsStatsCards.tsx`
-- Sostituire lo switch anno (anno corrente / anno-1) con un `Select` dropdown che mostra tutti gli anni dal primo costo registrato ad oggi.
-- Modificare `useCompanyCostsData` per determinare dinamicamente il primo anno disponibile.
-
----
-
-## 6. Linea cumulativa nel grafico Tesoreria
-
-**File:** `src/components/forecast/TreasuryTab.tsx`
-- Nel `ComposedChart` esistente, aggiungere una `Line` per il saldo netto cumulativo (somma running delle categorie mese per mese).
-- Colore distinto (es. nero/grigio scuro) con strokeWidth 2 e label "Saldo Cumulativo".
-
----
-
-## Riepilogo file
-
-| File | Modifica |
-|------|----------|
-| `src/components/forecast/CostsForecastTab.tsx` | BarChart stacked uscite per categoria |
-| `src/components/dashboard/LaborCostsStats.tsx` | Prop dateRange per filtro periodo |
-| `src/components/dashboard/SupplierPaymentsSummary.tsx` | Prop dateRange per filtro periodo |
-| `src/pages/azienda/CompanyDashboard.tsx` | Passaggio dateRange + bottone Refresh |
-| `src/components/forecast/CostsStatsCards.tsx` | LineChart fissi % + dropdown anno espanso |
-| `src/components/forecast/TreasuryTab.tsx` | Linea cumulativa nel grafico |
-
+### Priorità 4: Raffinamenti
+- `/docs/ai-agents-module.md` documentazione completa
+- Branch tab con logica reale
+- Workflow canvas con persistenza nodi

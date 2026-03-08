@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AlertCircle, Check, Clock, Calculator, TrendingUp, CalendarDays, ArrowUpDown, Eye, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  Cell, PieChart, Pie,
+  Cell, PieChart, Pie, LineChart, Line,
 } from "recharts";
 import type { StatusTabFilter } from "@/hooks/useCompanyCostsData";
 
@@ -57,6 +58,8 @@ interface CostsStatsCardsProps {
   activeStatusTab?: StatusTabFilter;
   onStatusTabChange?: (tab: StatusTabFilter) => void;
   categoryDistribution?: { name: string; value: number }[];
+  availableYears?: number[];
+  fixedCostsTrend?: { month: string; pctFixed: number }[];
 }
 
 const currentYear = new Date().getFullYear();
@@ -66,7 +69,7 @@ const PIE_COLORS = [
   "hsl(45 93% 47%)", "hsl(270 67% 58%)", "hsl(200 70% 50%)", "hsl(var(--muted-foreground))",
 ];
 
-export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [] }: CostsStatsCardsProps) {
+export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [] }: CostsStatsCardsProps) {
   const [chartView, setChartView] = useState<"current" | "comparison">("current");
 
   const handleCardClick = (tab: StatusTabFilter) => {
@@ -84,22 +87,35 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
             <CalendarDays className="h-5 w-5 text-primary" />
             <h3 className="text-lg font-semibold">Situazione {selectedYear}</h3>
           </div>
-          <div className="flex gap-1">
-            <Button
-              variant={selectedYear === currentYear ? "default" : "outline"}
-              size="sm"
-              onClick={() => onYearChange(currentYear)}
-            >
-              {currentYear}
-            </Button>
-            <Button
-              variant={selectedYear === currentYear - 1 ? "default" : "outline"}
-              size="sm"
-              onClick={() => onYearChange(currentYear - 1)}
-            >
-              {currentYear - 1}
-            </Button>
-          </div>
+          {availableYears.length > 2 ? (
+            <Select value={String(selectedYear)} onValueChange={(v) => onYearChange(Number(v))}>
+              <SelectTrigger className="w-[100px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex gap-1">
+              <Button
+                variant={selectedYear === currentYear ? "default" : "outline"}
+                size="sm"
+                onClick={() => onYearChange(currentYear)}
+              >
+                {currentYear}
+              </Button>
+              <Button
+                variant={selectedYear === currentYear - 1 ? "default" : "outline"}
+                size="sm"
+                onClick={() => onYearChange(currentYear - 1)}
+              >
+                {currentYear - 1}
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -390,6 +406,32 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
                     contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
                   />
                 </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Fixed Costs % Trend */}
+      {fixedCostsTrend.length > 1 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Tendenza Costi Fissi %</CardTitle>
+            <CardDescription>Percentuale costi fissi sul totale (ultimi 12 mesi)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={fixedCostsTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                  <RechartsTooltip
+                    formatter={(value: number) => [`${value.toFixed(1)}%`, "Costi Fissi"]}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                  />
+                  <Line type="monotone" dataKey="pctFixed" name="% Fissi" stroke="hsl(0 84% 60%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(0 84% 60%)" }} />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </CardContent>

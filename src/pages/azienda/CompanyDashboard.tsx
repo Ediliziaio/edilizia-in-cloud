@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle, ChevronDown } from "lucide-react";
+import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle, ChevronDown, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { useQueryClient } from "@tanstack/react-query";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
 import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
@@ -100,6 +101,7 @@ function DeltaIndicator({ current, previous }: { current: number; previous: numb
 }
 
 export default function CompanyDashboard() {
+  const queryClient = useQueryClient();
   const {
     companyId, filters, updateFilters,
     isLoading, isError,
@@ -107,6 +109,21 @@ export default function CompanyDashboard() {
     urgentItems, financialAlerts, weeklyDeadlines,
     monthlyBalance, revenueYTD, agingReceivables,
   } = useCompanyDashboardData();
+
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries();
+    setLastRefresh(new Date());
+    setTimeout(() => setIsRefreshing(false), 600);
+  };
+
+  const dateRange = useMemo(() => ({
+    from: filters.dateFrom,
+    to: filters.dateTo,
+  }), [filters.dateFrom, filters.dateTo]);
 
   const totalYTDRevenue = useMemo(() => revenueYTD.reduce((s, r) => s + r.revenue, 0), [revenueYTD]);
 
@@ -218,7 +235,22 @@ export default function CompanyDashboard() {
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground">Benvenuto nel pannello di controllo</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 mr-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="gap-1.5"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+              Aggiorna
+            </Button>
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+              {lastRefresh.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          </div>
           <Button variant="outline" asChild>
             <Link to="/azienda/clienti/nuovo">
               <Plus className="h-4 w-4 mr-2" />
@@ -446,7 +478,7 @@ export default function CompanyDashboard() {
         </Card>
 
         {/* Labor Costs Stats */}
-        <LaborCostsStats />
+        <LaborCostsStats dateRange={dateRange} />
       </div>
 
       {/* Aging Receivables */}
@@ -494,7 +526,7 @@ export default function CompanyDashboard() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <WarehouseAlerts urgentItems={urgentItems} />
 
-        <SupplierPaymentsSummary />
+        <SupplierPaymentsSummary dateRange={dateRange} />
 
         <WeeklyDeadlines
           receivables={weeklyDeadlines.receivables}
