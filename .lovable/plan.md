@@ -1,33 +1,67 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-## Piano: Tabella Costi — Colonne più larghe + Scroll orizzontale
+## Completato — Blocco A, B, C ✅
 
-### Problema
-La tabella usa `table-fixed` con larghezze percentuali strette (3%-13%), rendendo il contenuto troppo compresso. Non c'è scroll orizzontale dedicato alla tabella.
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-### Modifiche — File: `src/components/forecast/CostsTable.tsx`
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
-**1. Rimuovere `table-fixed` e usare larghezze minime fisse (px)**
-- Riga 293: rimuovere `className="table-fixed"` dalla `<Table>`
-- Sostituire tutte le `w-[X%]` sulle `TableHead` con `min-w-[Xpx]` più generose:
-  - Checkbox: `w-[44px]`
-  - Nome: `min-w-[180px]`
-  - Origine: `min-w-[100px]`
-  - Tipo: `min-w-[90px]`
-  - Fornitore: `min-w-[130px]`
-  - Categoria: `min-w-[110px]`
-  - Imponibile: `min-w-[110px]`
-  - IVA: `min-w-[70px]`
-  - Totale Lordo: `min-w-[120px]`
-  - Ricorrenza: `min-w-[110px]`
-  - Scadenza: `min-w-[110px]`
-  - Stato: `min-w-[130px]`
-  - Ritardo: `min-w-[80px]`
-  - Ordine: `min-w-[100px]`
-  - Azioni: `min-w-[120px]`
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-**2. Scroll orizzontale solo sulla tabella**
-- Il wrapper `<div className="rounded-md border overflow-hidden">` (riga 292) diventa `overflow-x-auto` per abilitare lo scroll orizzontale quando le colonne superano la larghezza del contenitore.
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-Queste due modifiche insieme fanno sì che la tabella abbia colonne leggibili con dimensioni minime garantite, e quando non c'è spazio sufficiente appare una scrollbar orizzontale solo sulla tabella.
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
+
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
+
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
+
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
+
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
+
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
+
+## Da fare (prossimi step)
+
+### Priorità 3: Integrazioni rimanenti
+- Test runner reale con chiamata ElevenLabs (attualmente simulato)
+- Decremento crediti automatico via webhook (già funzionante)
+- Sync bidirezionale KB (upload file)
+
+### Priorità 4: Raffinamenti
+- `/docs/ai-agents-module.md` documentazione completa
+- Branch tab con logica reale
+- Workflow canvas con persistenza nodi
