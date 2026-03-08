@@ -63,6 +63,15 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Check WhatsApp billing
+    const waBilling = await getCompanyBillingConfig(adminClient, company_id, "whatsapp");
+    if (!waBilling.isEnabled) {
+      return new Response(
+        JSON.stringify({ error: "Servizio WhatsApp disabilitato per questa azienda" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get WhatsApp config
     const { data: waConfig } = await adminClient
       .from("messaging_whatsapp_config")
