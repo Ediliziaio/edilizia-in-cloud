@@ -105,6 +105,11 @@ export const AutomationNodeComponent = memo(function AutomationNodeComponent({
             </span>
           </div>
           <p className="text-sm font-medium mt-1 truncate">{node.label || getNodeSummary(node)}</p>
+          {executionCount !== undefined && executionCount > 0 && (
+            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
+              {executionCount} esecuz.
+            </span>
+          )}
         </div>
 
         {/* Hover actions */}
