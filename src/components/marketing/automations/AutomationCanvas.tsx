@@ -159,6 +159,7 @@ export function AutomationCanvas({
                 key={node.id}
                 node={displayNode}
                 isSelected={selectedNodeId === node.id}
+                executionCount={nodeExecutionCounts?.[node.id]}
                 onSelect={onSelectNode}
                 onDelete={onDeleteNode}
                 onDuplicate={onDuplicateNode}
