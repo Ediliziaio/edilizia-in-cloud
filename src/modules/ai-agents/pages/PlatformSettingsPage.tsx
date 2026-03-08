@@ -9,12 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe, DollarSign, AlertTriangle } from "lucide-react";
+import { Shield, Eye, EyeOff, CheckCircle2, XCircle, Globe, DollarSign, AlertTriangle, Phone } from "lucide-react";
 import { LLMSelector } from "../components/LLMSelector";
 import { toast } from "sonner";
 import { callElevenLabsProxy } from "../hooks/useElevenLabsProxy";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { calculateMarginPercent, formatEur } from "../lib/creditCalculator";
 
