@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface RecentConversation {
   id: string;
@@ -22,6 +23,7 @@ interface RecentConversation {
 
 export default function MarketingAiAgent() {
   const navigate = useNavigate();
+  const { role } = useAuth();
   const { data: agents, isLoading: agentsLoading } = useAgents();
   const { data: credits, isLoading: creditsLoading } = useAgentCredits();
 
@@ -236,10 +238,17 @@ export default function MarketingAiAgent() {
             <span>Crediti & Utilizzo</span>
             <ArrowRight className="h-4 w-4" />
           </Button>
-          <Button variant="outline" className="justify-between h-auto py-3" onClick={() => navigate("/azienda/marketing/agente-ai/impostazioni")}>
-            <span>Impostazioni piattaforma</span>
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          {role === "super_admin" ? (
+            <Button variant="outline" className="justify-between h-auto py-3" onClick={() => navigate("/azienda/marketing/agente-ai/impostazioni")}>
+              <span>Impostazioni piattaforma</span>
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button variant="outline" className="justify-between h-auto py-3" onClick={() => navigate("/azienda/marketing/agente-ai/il-mio-piano")}>
+              <span>Il mio piano</span>
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          )}
           <Button variant="outline" className="justify-between h-auto py-3" onClick={() => navigate("/azienda/marketing/agente-ai/numeri-telefono")}>
             <span>Numeri di telefono</span>
             <ArrowRight className="h-4 w-4" />
