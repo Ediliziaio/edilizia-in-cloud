@@ -101,6 +101,7 @@ function DeltaIndicator({ current, previous }: { current: number; previous: numb
 }
 
 export default function CompanyDashboard() {
+  const queryClient = useQueryClient();
   const {
     companyId, filters, updateFilters,
     isLoading, isError,
@@ -108,6 +109,21 @@ export default function CompanyDashboard() {
     urgentItems, financialAlerts, weeklyDeadlines,
     monthlyBalance, revenueYTD, agingReceivables,
   } = useCompanyDashboardData();
+
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries();
+    setLastRefresh(new Date());
+    setTimeout(() => setIsRefreshing(false), 600);
+  };
+
+  const dateRange = useMemo(() => ({
+    from: filters.dateFrom,
+    to: filters.dateTo,
+  }), [filters.dateFrom, filters.dateTo]);
 
   const totalYTDRevenue = useMemo(() => revenueYTD.reduce((s, r) => s + r.revenue, 0), [revenueYTD]);
 
