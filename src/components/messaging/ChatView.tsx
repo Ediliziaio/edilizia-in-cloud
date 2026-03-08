@@ -176,8 +176,8 @@ export function ChatView({ conversationId, selectedMessageId, onSelectMessage, c
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendReply()}
           className="bg-muted/50"
         />
-        <Button size="icon" onClick={handleSendReply} disabled={!replyText.trim()}>
-          <Send className="h-4 w-4" />
+        <Button size="icon" onClick={handleSendReply} disabled={!replyText.trim() || isSending}>
+          {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
     </div>
