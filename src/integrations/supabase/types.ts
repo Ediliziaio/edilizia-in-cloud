@@ -359,33 +359,54 @@ export type Database = {
       ai_agent_phone_numbers: {
         Row: {
           agent_id: string
+          capabilities: Json | null
           company_id: string
           created_at: string
           elevenlabs_phone_id: string | null
+          elevenlabs_phone_number_id: string | null
           id: string
+          is_inbound_enabled: boolean | null
+          is_outbound_enabled: boolean | null
           label: string | null
+          monthly_cost_eur: number | null
           phone_number: string
           provider: string
+          telnyx_connection_id: string | null
+          telnyx_phone_id: string | null
         }
         Insert: {
           agent_id: string
+          capabilities?: Json | null
           company_id: string
           created_at?: string
           elevenlabs_phone_id?: string | null
+          elevenlabs_phone_number_id?: string | null
           id?: string
+          is_inbound_enabled?: boolean | null
+          is_outbound_enabled?: boolean | null
           label?: string | null
+          monthly_cost_eur?: number | null
           phone_number: string
           provider?: string
+          telnyx_connection_id?: string | null
+          telnyx_phone_id?: string | null
         }
         Update: {
           agent_id?: string
+          capabilities?: Json | null
           company_id?: string
           created_at?: string
           elevenlabs_phone_id?: string | null
+          elevenlabs_phone_number_id?: string | null
           id?: string
+          is_inbound_enabled?: boolean | null
+          is_outbound_enabled?: boolean | null
           label?: string | null
+          monthly_cost_eur?: number | null
           phone_number?: string
           provider?: string
+          telnyx_connection_id?: string | null
+          telnyx_phone_id?: string | null
         }
         Relationships: [
           {
@@ -6272,6 +6293,72 @@ export type Database = {
           },
         ]
       }
+      sms_logs: {
+        Row: {
+          automation_id: string | null
+          body: string | null
+          company_id: string
+          contact_id: string | null
+          cost_eur: number | null
+          created_at: string
+          direction: string
+          error_detail: string | null
+          from_number: string | null
+          id: string
+          status: string
+          telnyx_message_id: string | null
+          to_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          automation_id?: string | null
+          body?: string | null
+          company_id: string
+          contact_id?: string | null
+          cost_eur?: number | null
+          created_at?: string
+          direction?: string
+          error_detail?: string | null
+          from_number?: string | null
+          id?: string
+          status?: string
+          telnyx_message_id?: string | null
+          to_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          automation_id?: string | null
+          body?: string | null
+          company_id?: string
+          contact_id?: string | null
+          cost_eur?: number | null
+          created_at?: string
+          direction?: string
+          error_detail?: string | null
+          from_number?: string | null
+          id?: string
+          status?: string
+          telnyx_message_id?: string | null
+          to_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_permissions: {
         Row: {
           can_edit_customers: boolean | null
@@ -6858,6 +6945,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      telnyx_settings: {
+        Row: {
+          api_key_encrypted: string
+          connection_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          messaging_profile_id: string | null
+          updated_at: string
+          webhook_signing_secret_encrypted: string | null
+        }
+        Insert: {
+          api_key_encrypted: string
+          connection_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          messaging_profile_id?: string | null
+          updated_at?: string
+          webhook_signing_secret_encrypted?: string | null
+        }
+        Update: {
+          api_key_encrypted?: string
+          connection_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          messaging_profile_id?: string | null
+          updated_at?: string
+          webhook_signing_secret_encrypted?: string | null
+        }
+        Relationships: []
       }
       ticket_messages: {
         Row: {

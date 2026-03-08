@@ -131,3 +131,12 @@ verify_jwt = false
 
 [functions.check-scheduled-triggers]
 verify_jwt = false
+
+[functions.telnyx-proxy]
+verify_jwt = false
+
+[functions.telnyx-webhook]
+verify_jwt = false
+
+[functions.initiate-outbound-call]
+verify_jwt = false

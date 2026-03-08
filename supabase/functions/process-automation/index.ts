@@ -560,11 +560,53 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       return await executeSendEmail(supabase, cfg, entityId, companyId);
     }
 
-    case "send_sms":
+    case "send_sms": {
+      // Get contact phone
+      const { data: smsContact } = await supabase
+        .from("marketing_contacts")
+        .select("phone")
+        .eq("id", entityId)
+        .eq("company_id", companyId)
+        .maybeSingle();
+
+      if (!smsContact?.phone) {
+        return { success: false, error: "Contatto senza numero di telefono" };
+      }
+
+      const smsBody = cfg.sms_body || cfg.message || "Messaggio automatico";
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+      try {
+        const smsRes = await fetch(`${supabaseUrl}/functions/v1/telnyx-proxy`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({
+            action: "send_sms",
+            company_id: companyId,
+            payload: {
+              to: smsContact.phone,
+              body: smsBody,
+              contact_id: entityId,
+            },
+          }),
+        });
+        const smsResult = await smsRes.json();
+        if (!smsRes.ok || smsResult?.error) {
+          return { success: false, error: smsResult?.error || `HTTP ${smsRes.status}` };
+        }
+        return { success: true, output: { action: "send_sms", message_id: smsResult?.message_id } };
+      } catch (e: any) {
+        return { success: false, error: e.message };
+      }
+    }
+
     case "send_ai_message": {
-      // Placeholder — these need external integrations
-      console.log(`[${actionType}] entity=${entityId} config=`, JSON.stringify(cfg));
-      return { success: true, output: { action: actionType, placeholder: true, message: "Integration pending" } };
+      console.log(`[send_ai_message] entity=${entityId} config=`, JSON.stringify(cfg));
+      return { success: true, output: { action: "send_ai_message", placeholder: true, message: "Integration pending" } };
     }
 
     case "remove_from_automation": {
@@ -636,7 +678,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const resp = await fetch(`${supabaseUrl}/functions/v1/ai-outbound-call`, {
+        const resp = await fetch(`${supabaseUrl}/functions/v1/initiate-outbound-call`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
