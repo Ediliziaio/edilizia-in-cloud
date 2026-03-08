@@ -1,67 +1,87 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+# Sprint 3 — Feature Nuove: Piano di Implementazione
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+Sprint 1 (Quick Wins) e Sprint 2 (Grafici Chiave) sono completati. Si procede con le 5 feature nuove ad alto valore del documento.
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+---
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+## 1. Budget mensile per categoria costi con grafico previsto vs effettivo
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+**File:** Migration SQL — nuova tabella `cost_budgets`
+- Colonne: `id`, `company_id`, `category`, `month` (date), `budget_amount`, `created_at`
+- RLS: accesso limitato a `company_id` dell'utente autenticato
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+**File:** `src/components/forecast/CostBudgetManager.tsx` (nuovo)
+- UI per impostare budget mensile per categoria (form con Select categoria + Input importo + mese)
+- Tabella riepilogativa budget impostati
+- Grafico BarChart "Budget vs Effettivo" per categoria nel mese selezionato (barre affiancate: grigio=budget, colorato=effettivo, rosso se sfora)
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+**File:** `src/components/forecast/CompanyCostsManager.tsx`
+- Aggiungere tab o sezione "Budget" che renderizza `CostBudgetManager`
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+---
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+## 2. Auto-generazione costi ricorrenti
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+**File:** Migration SQL — aggiungere colonne `recurrence_auto` (boolean) e `recurrence_end_date` (date) su `company_costs` (se non esistenti)
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+**File:** `supabase/functions/generate-recurring-costs/index.ts` (nuova Edge Function)
+- Invocabile via cron o manualmente
+- Logica: trova costi con `recurrence != 'none'` e `recurrence_auto = true`, controlla se l'istanza del mese corrente esiste, se no la crea con data scadenza calcolata
+- Rispetta `recurrence_end_date`
 
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
+**File:** `src/components/forecast/CompanyCostsManager.tsx`
+- Aggiungere bottone "Genera ricorrenti" che invoca la Edge Function
+- Toggle nel `CostFormDialog` per abilitare auto-generazione su un costo ricorrente
 
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+---
 
-## Da fare (prossimi step)
+## 3. DSO (Days Sales Outstanding) nel tab Incassato
 
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
+**File:** `src/components/forecast/CollectedTab.tsx`
+- Aggiungere card KPI "DSO" sopra la tabella: calcolo = media dei giorni tra data creazione ordine e data pagamento per tutti i pagamenti incassati nel periodo
+- Seconda KPI: "DSO mese precedente" per confronto con delta
+- Terza KPI: "Velocita' di incasso" (trend: migliorando/peggiorando)
+- BarChart dell'incassato mensile YTD (recharts) sotto le KPI
 
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
+---
+
+## 4. Drill-down navigation da metriche principali
+
+**File:** `src/pages/azienda/CompanyDashboard.tsx`
+- Rendere cliccabili le 4 stat cards (Ordini → `/azienda/ordini`, Clienti → `/azienda/clienti`, Ticket → `/azienda/ticket`, Da Incassare → `/azienda/previsionale`)
+- Rendere cliccabile il "Saldo Netto" del Bilancio Mese → `/azienda/previsionale`
+- CEO Strip KPIs già cliccabili (fatto in Sprint 1 nel Cruscotto), applicare stesso pattern qui
+
+**File:** `src/components/cruscotto/CompanyHealthScore.tsx`
+- Rendere le 5 barre del breakdown cliccabili: Margine → `/azienda/previsionale`, Cash Flow → `/azienda/previsionale`, Vendite → `/azienda/marketing`, Show Rate → `/azienda/marketing/calendario`, Operazioni → `/azienda/ordini`
+
+---
+
+## 5. Aging Receivables chart
+
+**File:** `src/pages/azienda/CompanyDashboard.tsx`
+- Nuovo widget "Aging Crediti" sotto il widget Da Incassare
+- BarChart stacked orizzontale con 4 fasce: Scaduto (rosso), Questa settimana (arancione), Questo mese (giallo), Futuro (verde)
+- Dati derivati dai pagamenti pending già calcolati in `useCompanyDashboardData`
+
+**File:** `src/hooks/useCompanyDashboardData.ts`
+- Aggiungere calcolo `agingReceivables: { overdue: number; thisWeek: number; thisMonth: number; future: number }` basato su `expected_date` dei pagamenti non incassati
+
+---
+
+## Riepilogo file
+
+| File | Modifica |
+|------|----------|
+| Migration SQL | Tabella `cost_budgets` + colonne ricorrenza |
+| `src/components/forecast/CostBudgetManager.tsx` | Nuovo: gestione budget per categoria |
+| `src/components/forecast/CompanyCostsManager.tsx` | Sezione Budget + bottone genera ricorrenti |
+| `supabase/functions/generate-recurring-costs/index.ts` | Nuovo: Edge Function auto-generazione |
+| `src/components/forecast/CollectedTab.tsx` | KPI DSO + BarChart incassato |
+| `src/pages/azienda/CompanyDashboard.tsx` | Stat cards cliccabili + Aging Receivables |
+| `src/hooks/useCompanyDashboardData.ts` | Aging receivables data |
+| `src/components/cruscotto/CompanyHealthScore.tsx` | Barre breakdown cliccabili |
+| `src/components/forecast/CostFormDialog.tsx` | Toggle auto-generazione ricorrenti |
+
