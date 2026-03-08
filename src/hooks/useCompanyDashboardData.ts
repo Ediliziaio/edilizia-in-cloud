@@ -163,12 +163,16 @@ export function useCompanyDashboardData() {
       const prevFromStr = prevRange.from.toISOString();
       const prevToStr = prevRange.to.toISOString();
 
+      const ytdFromStr = startOfYear(now).toISOString();
+      const ytdToStr = endOfDay(now).toISOString();
+
       const [
         ordersRes, customersRes, ticketsRes, ordersDataRes, pendingRevenueRes,
         urgentItemsRes, costsRes,
         prevOrdersRes, prevCustomersRes, prevTicketsRes,
         ordersThisMonthRes, ordersPrevMonthRes,
         supplierCostsDueRes, upcomingWorksRes,
+        ordersYTDRes,
       ] = await Promise.all([
         (() => {
           let q: any = supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", companyId!)
@@ -216,6 +220,9 @@ export function useCompanyDashboardData() {
         supabase.from("orders")
           .select("order_code, work_start_date, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
           .eq("company_id", companyId!).gte("work_start_date", todayStr).lte("work_start_date", sevenDaysStr).order("work_start_date"),
+        supabase.from("orders")
+          .select("id, total_amount, created_at")
+          .eq("company_id", companyId!).gte("created_at", ytdFromStr).lte("created_at", ytdToStr),
       ]);
 
       // Stats
