@@ -508,6 +508,44 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       return { success: true, output: { action: actionType, placeholder: true, message: "Integration pending" } };
     }
 
+    case "remove_from_automation": {
+      const targetFlowId = cfg.target_flow_id;
+      if (!targetFlowId) return { success: false, error: "No target_flow_id configured" };
+      // Remove active enrollments for this entity in the target flow
+      const { data: removed, error: removeErr } = await supabase
+        .from("automation_enrollments")
+        .update({ status: "removed", updated_at: new Date().toISOString() })
+        .eq("flow_id", targetFlowId)
+        .eq("entity_id", entityId)
+        .eq("status", "active")
+        .select("id");
+      if (removeErr) return { success: false, error: removeErr.message };
+      // Also cancel any pending queue items for these enrollments
+      if (removed && removed.length > 0) {
+        for (const enrollment of removed) {
+          await supabase
+            .from("automation_queue")
+            .update({ status: "cancelled", updated_at: new Date().toISOString() })
+            .eq("enrollment_id", enrollment.id)
+            .eq("status", "pending");
+        }
+      }
+      return { success: true, output: { action: "remove_from_automation", target_flow_id: targetFlowId, removed_count: removed?.length || 0 } };
+    }
+
+    case "wait_for_event": {
+      // This action puts the enrollment in a "waiting" state
+      // The actual waiting is handled by setting a delayed queue item
+      // When the awaited event fires, processTriggerEvents will check for waiting enrollments
+      return {
+        success: true,
+        output: { action: "wait_for_event", waiting: true, await_event: cfg.await_event, timeout_days: cfg.timeout_days || 7 },
+        isWaiting: true,
+        awaitEvent: cfg.await_event,
+        timeoutDays: parseInt(cfg.timeout_days) || 7,
+      };
+    }
+
     case "webhook_out": {
       const url = cfg.webhook_url;
       if (!url) return { success: false, error: "No webhook_url configured" };

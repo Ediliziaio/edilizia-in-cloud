@@ -409,6 +409,8 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   external_api: "Chiama un'API esterna con metodo e payload personalizzati.",
   sync_google: "Sincronizza appuntamenti ed eventi con Google Calendar tramite la connessione attiva.",
   sync_meta_lead: "Sincronizza contatti con Meta Lead Ads. L'import dei lead è automatico via webhook; questa azione permette il re-sync manuale.",
+  remove_from_automation: "Rimuove il contatto da un altro workflow attivo, terminando la sua iscrizione.",
+  wait_for_event: "Mette in pausa il flusso fino a quando si verifica un evento specifico o scade il timeout configurato.",
 };
 
 // ── Action validation ──
