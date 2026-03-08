@@ -604,6 +604,36 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
     if (nextConns.length === 0) nextConns = connections;
   }
 
+  // Handle wait_for_event: create a "waiting" queue item with timeout
+  if (result.isWaiting) {
+    const timeoutMs = (result.timeoutDays || 7) * 86400000;
+    const timeoutAt = new Date(Date.now() + timeoutMs).toISOString();
+
+    // Update enrollment status to "waiting"
+    await supabase
+      .from("automation_enrollments")
+      .update({ status: "waiting", updated_at: new Date().toISOString() })
+      .eq("id", queueItem.enrollment_id);
+
+    // Create a timeout queue item that will fire on the "timeout" branch
+    for (const conn of nextConns) {
+      if (conn.label === "timeout") {
+        await supabase.from("automation_queue").insert({
+          enrollment_id: queueItem.enrollment_id,
+          flow_id: queueItem.flow_id,
+          company_id: queueItem.company_id,
+          current_node_id: conn.to_node_id,
+          entity_id: queueItem.entity_id,
+          entity_type: queueItem.entity_type,
+          status: "waiting",
+          execute_at: timeoutAt,
+          context_json: { ...queueItem.context_json, branch: "timeout", await_event: result.awaitEvent, waiting_for: result.awaitEvent },
+        });
+      }
+    }
+    return;
+  }
+
   for (const conn of nextConns) {
     const executeAt = result.isDelay
       ? new Date(Date.now() + (result.delayMs || 0)).toISOString()
