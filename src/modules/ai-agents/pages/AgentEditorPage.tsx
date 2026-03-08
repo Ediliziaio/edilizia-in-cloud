@@ -151,6 +151,9 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
   const [silenceTimeout, setSilenceTimeout] = useState(
     String((agentAny.silence_timeout as number) ?? 30)
   );
+  const [sendConfirmation, setSendConfirmation] = useState(
+    (agentAny.send_confirmation_after_booking as boolean) ?? true
+  );
 
   const handleSave = () => {
     onSave({
@@ -159,6 +162,7 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
       error_message: errorMessage,
       auto_end_on_silence: autoEndOnSilence,
       silence_timeout: parseInt(silenceTimeout) || 30,
+      send_confirmation_after_booking: sendConfirmation,
     } as AIAgentUpdate);
     toast.success("Configurazione avanzata salvata");
   };
