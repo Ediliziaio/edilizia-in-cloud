@@ -155,25 +155,40 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     if (txWithDate.length === 0) return [];
 
     // Group by week
-    const weekMap = new Map<string, { weekLabel: string; net: number }>();
+    const weekMap = new Map<string, { weekLabel: string; income: number; expenses: number }>();
     txWithDate.forEach(t => {
       const ws = startOfWeek(t.date, { weekStartsOn: 1 });
       const key = ws.toISOString();
       if (!weekMap.has(key)) {
-        weekMap.set(key, { weekLabel: format(ws, "dd MMM", { locale: it }), net: 0 });
+        weekMap.set(key, { weekLabel: format(ws, "dd MMM", { locale: it }), income: 0, expenses: 0 });
       }
       const entry = weekMap.get(key)!;
-      entry.net += t.direction === "in" ? t.amount : -t.amount;
+      if (t.direction === "in") {
+        entry.income += t.amount;
+      } else {
+        entry.expenses += t.amount;
+      }
     });
 
     // Build cumulative
     const sorted = Array.from(weekMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
     let running = 0;
     return sorted.map(([, v]) => {
-      running += v.net;
-      return { week: v.weekLabel, saldo: Math.round(running) };
+      const net = v.income - v.expenses;
+      running += net;
+      return {
+        week: v.weekLabel,
+        saldo: Math.round(running),
+        income: Math.round(v.income),
+        expenses: Math.round(v.expenses),
+        net: Math.round(net),
+        cumulative: Math.round(running),
+      };
     });
   }, [transactions]);
+
+  // Cash flow alert threshold
+  const CASH_FLOW_WARNING_THRESHOLD = 5000;
 
   return (
     <div className="space-y-6">
