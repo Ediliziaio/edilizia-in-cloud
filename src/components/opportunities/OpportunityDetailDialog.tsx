@@ -617,7 +617,18 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Stato</Label>
-                          <Select value={status} onValueChange={setStatus}>
+                          <Select value={status} onValueChange={(newStatus) => {
+                            if (newStatus === "lost" && status !== "lost") {
+                              setPendingLostStatus(true);
+                              setShowLossDialog(true);
+                            } else {
+                              setStatus(newStatus);
+                              if (newStatus !== "lost") {
+                                setLossReason("");
+                                setLossNotes("");
+                              }
+                            }
+                          }}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {STATUS_OPTIONS.map((s) => (
@@ -631,6 +642,71 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" className="h-8 text-sm" />
                         </div>
                       </div>
+
+                      {/* Probability + Expected Close Date */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Probabilità di chiusura ({probability}%)</Label>
+                          <Slider
+                            value={[probability]}
+                            onValueChange={([v]) => setProbability(v)}
+                            min={0}
+                            max={100}
+                            step={5}
+                            className="py-2"
+                          />
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>0%</span>
+                            <span className="font-medium">Pesato: {((parseFloat(value) || 0) * probability / 100).toLocaleString("it-IT", { maximumFractionDigits: 0 })} €</span>
+                            <span>100%</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Data chiusura prevista</Label>
+                          <Input
+                            type="date"
+                            value={expectedCloseDate}
+                            onChange={(e) => setExpectedCloseDate(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Loss reason (shown only when status is lost) */}
+                      {status === "lost" && (
+                        <div className="space-y-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+                          <div className="flex items-center gap-2 text-destructive">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            <Label className="text-xs font-semibold">Motivo della perdita</Label>
+                          </div>
+                          <Select value={lossReason || "none"} onValueChange={(v) => setLossReason(v === "none" ? "" : v)}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleziona motivo..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— Nessuno —</SelectItem>
+                              <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
+                              <SelectItem value="concorrenza">Scelto concorrente</SelectItem>
+                              <SelectItem value="tempistica">Tempistica non adatta</SelectItem>
+                              <SelectItem value="non_risponde">Non risponde</SelectItem>
+                              <SelectItem value="non_interessato">Non più interessato</SelectItem>
+                              <SelectItem value="budget">Budget insufficiente</SelectItem>
+                              <SelectItem value="altro">Altro</SelectItem>
+                              {lossReasons.map((r: any) => (
+                                <SelectItem key={r.id} value={r.label}>{r.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Note sulla perdita</Label>
+                            <Textarea
+                              value={lossNotes}
+                              onChange={(e) => setLossNotes(e.target.value)}
+                              placeholder="Dettagli opzionali..."
+                              rows={2}
+                              className="text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
