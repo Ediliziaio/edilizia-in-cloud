@@ -98,6 +98,7 @@ const MarketingCalendar = lazy(() => import("@/pages/azienda/marketing/Marketing
 const MarketingAutomations = lazy(() => import("@/pages/azienda/marketing/MarketingAutomations"));
 const MarketingAutomationBuilder = lazy(() => import("@/pages/azienda/marketing/MarketingAutomationBuilder"));
 const AIAgentsModule = lazy(() => import("@/modules/ai-agents"));
+const InternalAIAgentsModule = lazy(() => import("@/modules/ai-agents-internal"));
 const MarketingContactDetail = lazy(() => import("@/pages/azienda/marketing/MarketingContactDetail"));
 const MarketingTasks = lazy(() => import("@/pages/azienda/marketing/MarketingTasks"));
 const EmailMarketing = lazy(() => import("@/pages/azienda/marketing/EmailMarketing"));
