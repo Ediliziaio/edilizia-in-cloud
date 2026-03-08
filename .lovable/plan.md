@@ -74,9 +74,13 @@
 - ✅ `_shared/emailProvider.ts` — `sendViaProvider()` (SendGrid, Brevo, Resend, Elastic Email, Mailgun) + `loadProviderSettings()`
 - ✅ `_shared/emailCredits.ts` — `deductEmailCredits()`, `addEmailCredits()`, `getEmailBalance()`, `checkAutoTopup()`
 
-### Fase 2 — Super Admin Email Settings Tab (da fare)
-- `EmailSettingsTab.tsx` con config dual-provider, prezzi, dashboard KPI
-- Route `/admin/impostazioni/email`
+### Fase 2 ✅ — Super Admin Email Settings Tab
+
+- ✅ `EmailSettingsTab.tsx` con 3 tab: Provider, Prezzi & Margini, Dashboard
+- ✅ `EmailProviderConfig.tsx` — config dual-provider (marketing + transazionale), 5 provider, test email inline
+- ✅ `EmailPricingConfig.tsx` — markup globale, tabella tariffe, bonus signup
+- ✅ `EmailDashboard.tsx` — KPI piattaforma (8 metriche) + top 10 aziende per spesa
+- ✅ Route `/admin/impostazioni/email` con sidebar entry
 
 ### Fase 3 — Send Email Campaign + Tracking (da fare)
 - `send-email-campaign` edge function (bulk + tracking + crediti)
