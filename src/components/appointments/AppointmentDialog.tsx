@@ -83,6 +83,7 @@ export function AppointmentDialog({
   const [calendarId, setCalendarId] = useState("");
   const [contactId, setContactId] = useState("");
   const [status, setStatus] = useState("confermato");
+  const [reminderMinutes, setReminderMinutes] = useState<string>("none");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
