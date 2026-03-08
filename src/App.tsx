@@ -184,7 +184,12 @@ const App = () => (
                 <Route path="aziende/nuova" element={<CreateCompany />} />
                 <Route path="aziende/:id" element={<CompanyDetail />} />
                 <Route path="ticket" element={<GlobalTickets />} />
-                <Route path="impostazioni" element={<AdminSettings />} />
+                <Route path="impostazioni" element={<Navigate to="/admin/impostazioni/profilo" replace />} />
+                <Route path="impostazioni/profilo" element={<AdminSettingsProfile />} />
+                <Route path="impostazioni/piattaforma" element={<AdminSettingsPlatform />} />
+                <Route path="impostazioni/notifiche" element={<AdminSettingsNotifications />} />
+                <Route path="impostazioni/super-admin" element={<AdminSettingsSuperAdmins />} />
+                <Route path="impostazioni/audit" element={<AdminSettingsAuditLog />} />
                 <Route path="piani" element={<SubscriptionPlans />} />
                 <Route path="referral" element={<ReferralDashboard />} />
                 <Route path="implementazioni" element={<Implementations />} />
