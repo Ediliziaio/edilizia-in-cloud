@@ -47,6 +47,7 @@ import { ContactAIConversations } from "@/modules/ai-agents/components/ContactAI
 import { ContactDndTab } from "@/components/marketing/ContactDndTab";
 import { ContactActionsTab } from "@/components/marketing/ContactActionsTab";
 import { ContactMergeDialog } from "@/components/marketing/ContactMergeDialog";
+import { ContactSmsLog } from "@/components/marketing/ContactSmsLog";
 
 // ── Contact Appointments Panel ──
 function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars, users }: {
@@ -274,7 +275,7 @@ function getDateLabel(dateStr: string) {
 }
 
 // ── RIGHT SIDEBAR TABS ──
-type RightTab = "activities" | "notes" | "appointments" | "opportunities" | "documents" | "ai_conversations" | "settings";
+type RightTab = "activities" | "notes" | "appointments" | "opportunities" | "documents" | "ai_conversations" | "sms_log" | "settings";
 const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
   { key: "documents", icon: FileText, label: "Documenti" },
   { key: "activities", icon: Activity, label: "Attività" },
@@ -282,6 +283,7 @@ const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
   { key: "appointments", icon: CalendarDays, label: "Calendario" },
   { key: "opportunities", icon: Target, label: "Opportunità" },
   { key: "ai_conversations", icon: Bot, label: "Conversazioni AI" },
+  { key: "sms_log", icon: Smartphone, label: "Log SMS" },
   { key: "settings", icon: Settings, label: "Impostazioni" },
 ];
 
@@ -1195,6 +1197,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* AI Conversations panel */}
               {rightTab === "ai_conversations" && id && (
                 <ContactAIConversations contactId={id} />
+              )}
+
+              {/* SMS Log panel */}
+              {rightTab === "sms_log" && id && companyId && (
+                <ContactSmsLog contactId={id} companyId={companyId} />
               )}
 
               {/* Activities panel - LinkedTasks */}
