@@ -14,6 +14,7 @@ import { SalespersonDialog } from "@/components/salespeople/SalespersonDialog";
 import { EmployeeDialog } from "@/components/employees/EmployeeDialog";
 import { CompanyDetailHeader } from "@/components/admin/company/CompanyDetailHeader";
 import { CompanyDetailsTab } from "@/components/admin/company/CompanyDetailsTab";
+import { CompanyBillingTab } from "@/components/admin/company/CompanyBillingTab";
 import { CompanyTeamTab } from "@/components/admin/company/CompanyTeamTab";
 import { CompanySaaSTab } from "@/components/admin/company/CompanySaaSTab";
 import { CompanySubscriptionTab } from "@/components/admin/company/CompanySubscriptionTab";
