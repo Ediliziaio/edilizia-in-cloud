@@ -4,11 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, CreditCard, Mail, Phone } from "lucide-react";
+import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle } from "lucide-react";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
 import type { Integration, IntegrationStatus, IntegrationHealth } from "@/types/integrations";
 
 function StatusIntegrationCard({ name, description, icon: Icon, iconColor, status, detail }: {
