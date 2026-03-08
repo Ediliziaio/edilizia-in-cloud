@@ -225,6 +225,15 @@ Deno.serve(async (req) => {
         errorDetail = JSON.stringify(result.body);
       }
     } else if (channel === "whatsapp") {
+      // Check billing override for whatsapp
+      const waBilling = await getCompanyBillingConfig(adminClient, contact.company_id, "whatsapp");
+      if (!waBilling.isEnabled) {
+        return new Response(
+          JSON.stringify({ error: "Servizio WhatsApp disabilitato per questa azienda" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       if (!contact.phone) {
         return new Response(
           JSON.stringify({ error: "Il contatto non ha un numero di telefono" }),
