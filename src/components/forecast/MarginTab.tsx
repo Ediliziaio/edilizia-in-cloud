@@ -366,6 +366,63 @@ export function MarginTab() {
         </Card>
       </div>
 
+      {/* === SECTION 4b: ScatterPlot === */}
+      {orders.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            Mappa Ricavi vs Margine
+          </h2>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis
+                      type="number"
+                      dataKey="x"
+                      name="Fatturato"
+                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                      tickFormatter={(v: number) => `€${(v / 1000).toFixed(0)}k`}
+                      label={{ value: "Fatturato", position: "insideBottom", offset: -5, fontSize: 11 }}
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey="y"
+                      name="Margine %"
+                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                      tickFormatter={(v: number) => `${v}%`}
+                      label={{ value: "Margine %", angle: -90, position: "insideLeft", fontSize: 11 }}
+                    />
+                    <RechartsTooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div className="rounded-lg border bg-background p-2 shadow-md text-xs">
+                            <p className="font-semibold">{d.label}</p>
+                            <p>Fatturato: {formatCurrency(d.x)}</p>
+                            <p>Margine: {d.y.toFixed(1)}%</p>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Scatter
+                      data={scatterData}
+                      shape={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        return <circle cx={cx} cy={cy} r={6} fill={payload.fill} fillOpacity={0.8} stroke={payload.fill} strokeWidth={1} />;
+                      }}
+                    />
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* === SECTION 5: CFO Alerts === */}
       {alerts.length > 0 && (
         <div>
