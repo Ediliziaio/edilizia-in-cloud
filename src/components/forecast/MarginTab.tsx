@@ -17,6 +17,10 @@ import { formatCurrency } from "@/lib/formatters";
 import { useMarginData, type OrderMargin } from "@/hooks/useMarginData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import {
+  ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, ResponsiveContainer,
+} from "recharts";
 
 function getMarginStatus(percent: number, threshold: number) {
   if (percent < 10) return { label: "Critico", color: "bg-red-500", textColor: "text-red-600", icon: "🔴" };
