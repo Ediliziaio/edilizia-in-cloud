@@ -284,6 +284,11 @@ export default function SettingsCostCategories() {
                         <span className="font-medium">{cat.name}</span>
                       )}
                     </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={usageCounts[cat.name] ? "secondary" : "outline"}>
+                        {usageCounts[cat.name] || 0}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right">
                       {editingId === cat.id ? (
                         <div className="flex justify-end gap-1">
