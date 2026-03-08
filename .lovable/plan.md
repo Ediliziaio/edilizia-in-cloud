@@ -1,67 +1,25 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+## Piano: Sincronizzazione bidirezionale Categorie Costi
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+### Problema attuale
+1. Le categorie create "on the fly" nei costi vengono salvate nella tabella `cost_categories`, ma quelle già presenti nei costi prima della creazione della tabella non compaiono nella pagina Impostazioni
+2. Il bottone "Importa" appare solo quando ci sono 0 categorie — dovrebbe essere sempre visibile
+3. Manca la sincronizzazione completa: le categorie usate nei costi dovrebbero comparire automaticamente qui
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+### Modifiche
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+#### 1. `src/pages/azienda/settings/SettingsCostCategories.tsx`
+- **Bottone "Importa"**: renderlo sempre visibile (non solo quando `categories.length === 0`), così l'utente può importare nuove categorie dai costi in qualsiasi momento
+- Aggiungere un **conteggio di utilizzo** per ogni categoria: mostrare quanti costi usano quella categoria (query su `company_costs` raggruppata per `category`)
+- Proteggere l'eliminazione: se una categoria è usata da costi esistenti, avvisare l'utente
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+#### 2. `src/components/forecast/CostFormDialog.tsx`
+- Già funzionante con l'upsert nella tabella `cost_categories` — nessuna modifica necessaria
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+#### 3. `src/hooks/useCompanyCostsData.ts`
+- Già funzionante con la query `cost-categories` + fallback dinamico — nessuna modifica necessaria
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+### Riepilogo
+Unico file da modificare: `SettingsCostCategories.tsx`. Il bottone importa diventa sempre visibile e il conteggio utilizzo offre visibilità sulla sincronizzazione.
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
-
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
-
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
-
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
-
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
-
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
-
-## Da fare (prossimi step)
-
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
-
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
