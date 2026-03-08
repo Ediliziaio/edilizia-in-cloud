@@ -161,10 +161,19 @@ export function CostFormDialog({
                           {categorySearch.trim() ? (
                             <button
                               className="w-full text-left px-4 py-2 text-sm hover:bg-accent cursor-pointer"
-                              onClick={() => {
-                                setFormData({ ...formData, category: categorySearch.trim() });
+                             onClick={async () => {
+                                const catName = categorySearch.trim();
+                                setFormData({ ...formData, category: catName });
                                 setCategorySearch("");
                                 setCategoryPopoverOpen(false);
+                                // Save to cost_categories table
+                                if (effectiveCompany?.id) {
+                                  await supabase.from("cost_categories").upsert(
+                                    { company_id: effectiveCompany.id, name: catName },
+                                    { onConflict: "company_id,name" }
+                                  );
+                                  queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
+                                }
                               }}
                             >
                               <Plus className="h-3 w-3 inline mr-1" /> Crea "{categorySearch.trim()}"
