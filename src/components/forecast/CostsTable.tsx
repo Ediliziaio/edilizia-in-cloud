@@ -259,20 +259,55 @@ export function CostsTable({
     return <span className="text-muted-foreground text-xs">—</span>;
   };
 
-  // Count columns for footer colSpan
-  const baseColCount = type === "all" ? 6 : 5;
-  const hasOrderCol = type === "variable" || type === "all";
+  // Count visible columns for footer colSpan
+  const hasOrderCol = (type === "variable" || type === "all") && isColVisible("order");
+  const footerLeadingCols = 2 + // checkbox + name (always visible)
+    (isColVisible("origin") ? 1 : 0) +
+    (type === "all" && isColVisible("costType") ? 1 : 0) +
+    (isColVisible("supplier") ? 1 : 0) +
+    (isColVisible("category") ? 1 : 0);
+  
+  const footerTrailingCols = 
+    (isColVisible("recurrence") ? 1 : 0) +
+    (isColVisible("dueDate") ? 1 : 0) +
+    (isColVisible("status") ? 1 : 0) +
+    (isColVisible("delay") ? 1 : 0);
 
   return (
     <div className="space-y-4">
-      {type !== "all" && (
-        <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-2">
+        {type !== "all" && (
           <Button size="sm" onClick={() => onOpenCreate(type === "variable" ? "variable" : "fixed")} className="gap-1">
             <Plus className="h-4 w-4" />
             Aggiungi {type === "fixed" ? "Costo Fisso" : "Costo Variabile"}
           </Button>
-        </div>
-      )}
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" className="gap-1">
+              <Settings2 className="h-4 w-4" />
+              Colonne
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>Colonne visibili</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {CONFIGURABLE_COLUMNS
+              .filter(col => col.key !== "costType" || type === "all")
+              .filter(col => col.key !== "order" || type === "variable" || type === "all")
+              .map(col => (
+                <DropdownMenuCheckboxItem
+                  key={col.key}
+                  checked={isColVisible(col.key)}
+                  onCheckedChange={() => toggleColumn(col.key)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {col.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       {someSelected && (
         <div className="flex items-center gap-2 flex-wrap p-3 rounded-lg bg-muted border">
