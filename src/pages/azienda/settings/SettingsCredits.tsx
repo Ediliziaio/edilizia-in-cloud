@@ -258,10 +258,10 @@ export default function SettingsCredits() {
       type: "whatsapp",
       label: "WhatsApp",
       icon: <MessageSquare className="h-5 w-5" />,
-      balance: 0,
-      spent: 0,
-      recharged: 0,
-      blocked: false,
+      balance: waCredits?.balance_eur ?? 0,
+      spent: waCredits?.total_spent_eur ?? 0,
+      recharged: waCredits?.total_recharged_eur ?? 0,
+      blocked: waCredits?.sends_blocked ?? false,
     },
   ];
 
