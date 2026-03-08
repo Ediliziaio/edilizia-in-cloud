@@ -8,7 +8,7 @@ import {
   Plus, Check, Pencil, Trash2, Receipt, Repeat,
   Package, ExternalLink, Undo2, CheckSquare,
   MoreHorizontal, X, Copy, AlertCircle, AlertTriangle,
-  Clock, CircleDot,
+  Clock, CircleDot, Settings2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
