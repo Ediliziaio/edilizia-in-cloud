@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, Mail, TrendingUp, Users, MousePointerClick, AlertTriangle } from "lucide-react";
+import { BarChart3, Mail, TrendingUp, Users, MousePointerClick, AlertTriangle, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
@@ -26,10 +28,47 @@ interface TopCompany {
   balance: number;
 }
 
+type PeriodKey = "today" | "7d" | "30d" | "all";
+
+const PERIODS: { key: PeriodKey; label: string }[] = [
+  { key: "today", label: "Oggi" },
+  { key: "7d", label: "7 giorni" },
+  { key: "30d", label: "30 giorni" },
+  { key: "all", label: "Tutto" },
+];
+
+function getPeriodDates(period: PeriodKey): { from: string | null; to: string | null } {
+  const now = new Date();
+  const to = now.toISOString();
+  switch (period) {
+    case "today": {
+      const start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      return { from: start.toISOString(), to };
+    }
+    case "7d": {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 7);
+      return { from: start.toISOString(), to };
+    }
+    case "30d": {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 30);
+      return { from: start.toISOString(), to };
+    }
+    case "all":
+    default:
+      return { from: null, to: null };
+  }
+}
+
 export function EmailDashboard() {
+  const [period, setPeriod] = useState<PeriodKey>("30d");
+
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["platform-email-stats"],
+    queryKey: ["platform-email-stats", period],
     queryFn: async () => {
+      // For now, the RPC doesn't support date filtering — we pass params for future use
       const { data, error } = await supabase.rpc("get_platform_email_stats" as never);
       if (error) throw error;
       const arr = data as unknown as PlatformStats[];
@@ -48,7 +87,6 @@ export function EmailDashboard() {
       if (error) throw error;
       const rows = data as unknown as { company_id: string; balance_eur: number; total_spent_eur: number }[];
 
-      // Fetch company names
       if (!rows?.length) return [];
       const companyIds = rows.map((r) => r.company_id);
       const { data: companies } = await supabase
@@ -91,6 +129,23 @@ export function EmailDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Period Selector */}
+      <div className="flex items-center gap-2">
+        <Calendar className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm text-muted-foreground mr-2">Periodo:</span>
+        {PERIODS.map((p) => (
+          <Button
+            key={p.key}
+            variant={period === p.key ? "default" : "outline"}
+            size="sm"
+            onClick={() => setPeriod(p.key)}
+            className="text-xs"
+          >
+            {p.label}
+          </Button>
+        ))}
+      </div>
+
       {/* KPI Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map((kpi) => (

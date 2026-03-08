@@ -36,22 +36,22 @@ export function EmailProviderSettings() {
   const [globalMarkup, setGlobalMarkup] = useState("3.0");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load settings
+  // Load settings — uses new naming convention
   const { data: settings } = useQuery({
-    queryKey: ["platform-settings-email"],
+    queryKey: ["platform-settings-email-marketing"],
     queryFn: async () => {
       const { data } = await supabase
         .from("platform_settings" as never)
         .select("key, value")
-        .in("key" as never, ["email_provider", "email_provider_api_key"] as never);
+        .in("key" as never, ["email_marketing_provider", "email_marketing_api_key"] as never);
       return (data as unknown as { key: string; value: string }[]) ?? [];
     },
   });
 
   useEffect(() => {
     if (settings) {
-      const p = settings.find((s) => s.key === "email_provider")?.value;
-      const k = settings.find((s) => s.key === "email_provider_api_key")?.value;
+      const p = settings.find((s) => s.key === "email_marketing_provider")?.value;
+      const k = settings.find((s) => s.key === "email_marketing_api_key")?.value;
       if (p) setProvider(p);
       if (k) setEmailApiKey(k);
     }
@@ -81,8 +81,8 @@ export function EmailProviderSettings() {
     setIsSaving(true);
     try {
       const pairs = [
-        { key: "email_provider", value: provider },
-        { key: "email_provider_api_key", value: emailApiKey.trim() },
+        { key: "email_marketing_provider", value: provider },
+        { key: "email_marketing_api_key", value: emailApiKey.trim() },
       ];
       for (const pair of pairs) {
         if (!pair.value) continue;
@@ -94,7 +94,7 @@ export function EmailProviderSettings() {
           );
         if (error) throw error;
       }
-      queryClient.invalidateQueries({ queryKey: ["platform-settings-email"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-settings-email-marketing"] });
       toast.success("Configurazione email salvata");
     } catch {
       toast.error("Errore nel salvataggio");
@@ -191,6 +191,7 @@ export function EmailProviderSettings() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="elastic_email">Elastic Email</SelectItem>
                   <SelectItem value="sendgrid">SendGrid</SelectItem>
                   <SelectItem value="brevo">Brevo (Sendinblue)</SelectItem>
                   <SelectItem value="resend">Resend</SelectItem>
