@@ -134,6 +134,7 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
       { id: "remove_tag", label: "Rimuovi tag", icon: "TagIcon", category: "crm" },
       { id: "assign_user", label: "Assegna utente", icon: "UserCheck", category: "crm" },
       { id: "create_task", label: "Crea attività", icon: "ListTodo", category: "crm" },
+      { id: "update_contact_score", label: "Aggiorna punteggio", icon: "TrendingUp", category: "crm", description: "Modifica il lead score del contatto (+/- o valore assoluto)" },
       { id: "remove_from_automation", label: "Rimuovi da automazione", icon: "UserMinus", category: "crm", description: "Rimuove il contatto da un altro workflow attivo" },
     ],
   },
