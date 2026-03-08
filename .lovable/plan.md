@@ -114,10 +114,29 @@
 
 ---
 
+## Completato — Fix Alta e Media Priorità ✅
+
+### FIX HA-1 ✅ — check-api-health dual email
+- Verifica `email_marketing_api_key` e `email_transactional_api_key` invece di `resend_api_key`
+- Risposta include `email_marketing` e `email_transactional` separati
+
+### FIX HA-2 ✅ — Badge stato campagna
+- `EmailCampaignsTab.tsx`: badge sending (amber pulse), sent/completed (green), failed (destructive), draft, scheduled, paused
+
+### FIX HA-3 ✅ — Segmentazione UI CampaignSendSettings
+- Filtri per tag, sorgente e tipo contatto nel pannello destinatari
+- Radio "Invia a tutti" vs "Filtra per segmento"
+
+### FIX MA-1 ✅ — Toggle stream AutomationNodeConfig
+- Select marketing/transazionale per azione send_email
+
+### FIX MA-2 ✅ — Dashboard periodo filtraggio effettivo
+- `EmailDashboard.tsx` passa `p_date_from`/`p_date_to` alla RPC `get_platform_email_stats`
+
+---
+
 ## TODO Rimanenti (opzionali/futuri)
 
 - [ ] Auto top-up con Stripe (SetupIntent + pagamento automatico)
 - [ ] Pagina acquisto pacchetti crediti con Stripe Checkout
-- [ ] `AutomationNodeConfig.tsx`: toggle stream marketing/transazionale nell'UI
-- [ ] `check-api-health`: verifica email_marketing + email_transactional
-- [ ] `ApiHealthBanner` dual email in EmailMarketing.tsx
+- [ ] `check-due-dates`: già indirizzato via `execute_automation` → `process-automation` (nessuna migrazione necessaria)
