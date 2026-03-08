@@ -1,67 +1,86 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+## Piano: WhatsApp Marketing — Fix bug critici e funzionalità incomplete
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+Questo piano e molto ampio (7 punti). Propongo di suddividerlo in **3 fasi** per mantenere stabilita tra una modifica e l'altra.
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+---
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+### FASE 1 — Bug critici (da implementare subito)
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+#### 1. ChatView: invio reale messaggi WhatsApp
+**Problema**: `handleSendReply` salva solo nel DB, non invia via Meta API.
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+**Soluzione**: La conversazione non ha `contact_id` — ha `phone_number` e `linked_entity_id`. Serve un approccio ibrido:
+- Se `conversation.linked_entity_id` esiste (contatto CRM collegato), usare `send-contact-message` con quel `contact_id`
+- Altrimenti, inviare direttamente via Meta API recuperando le credenziali WhatsApp dalla `messaging_whatsapp_config` tramite una **nuova edge function** `send-whatsapp-reply` che accetta `conversation_id` + `content` e:
+  1. Recupera la conversazione per ottenere `phone_number` e `company_id`
+  2. Recupera `phone_number_id` e `access_token_encrypted` dalla config WhatsApp
+  3. Decripta il token, invia via Meta API
+  4. Salva il messaggio in `messaging_messages`
+  5. Restituisce il `meta_message_id`
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+**File modificati**:
+- `src/components/messaging/ChatView.tsx` — sostituire insert diretto con `supabase.functions.invoke("send-whatsapp-reply")`
+- `supabase/functions/send-whatsapp-reply/index.ts` — nuova edge function
+- `supabase/config.toml` — aggiungere entry per la nuova funzione
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+#### 2. Automazioni send_whatsapp: implementazione reale
+**Problema**: Il case `send_whatsapp` in `process-automation` e uno stub con placeholder.
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+**Soluzione**: Implementare il case reale nel file `process-automation/index.ts`:
+- Recuperare `messaging_whatsapp_config` per company (usando `is_connected = true`)
+- Decriptare `access_token_encrypted`
+- Recuperare telefono del contatto da `marketing_contacts`
+- Se `cfg.whatsapp_template` → inviare template; altrimenti → testo libero
+- Salvare in `contact_messages`
+- Separare `send_whatsapp` dagli altri case stub (`send_sms`, `send_ai_message`)
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+**File modificato**: `supabase/functions/process-automation/index.ts`
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+---
 
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
+### FASE 2 — Delivery receipts e media
 
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+#### 3. Delivery receipts nel webhook
+**Migrazione DB**: Aggiungere colonne a `messaging_messages`:
+- `delivery_status TEXT DEFAULT 'sent'`
+- `meta_message_id TEXT`
+- `delivered_at TIMESTAMPTZ`
+- `read_at TIMESTAMPTZ`
 
-## Da fare (prossimi step)
+**File modificato**: `supabase/functions/whatsapp-webhook/index.ts` — gestire `value.statuses`
 
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
+**File modificato**: `src/components/messaging/MessageBubble.tsx` — aggiungere icone stato (spunte singole/doppie/blu)
 
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
+#### 4. Invio messaggi multimediali
+**File modificato**: `supabase/functions/send-contact-message/index.ts` — estendere `sendWhatsApp` per supportare `contentType` (image, document, audio) con `mediaUrl`
+
+---
+
+### FASE 3 — Broadcast e Template (funzionalita nuove)
+
+#### 5. Broadcast WhatsApp
+**Migrazione DB**: Creare tabelle `whatsapp_broadcasts` e `whatsapp_broadcast_recipients` con RLS
+
+**Nuova edge function**: `supabase/functions/whatsapp-broadcast/index.ts`
+
+**File modificato**: `src/components/marketing/whatsapp/WhatsAppBroadcastTab.tsx` — collegare al backend + storico
+
+#### 6. Gestione Template Meta
+**Nuova edge function**: `supabase/functions/whatsapp-templates/index.ts` — proxy verso Meta API per list/create/delete template
+
+**Nuova tab**: Componente `WhatsAppTemplatesTab.tsx` + aggiunta in `MarketingWhatsApp.tsx`
+
+---
+
+### Note tecniche importanti
+
+- La tabella `messaging_whatsapp_config` usa `access_token_encrypted` (non `access_token`) e `is_connected` (non `is_active`). La edge function `send-contact-message` fa `.eq("is_active", true)` che probabilmente non funziona — va corretto in `.eq("is_connected", true)`.
+- La tabella `messaging_conversations` NON ha `contact_id` — ha `phone_number` e opzionalmente `linked_entity_id`/`linked_entity_type`.
+- Il punto 7 (types.ts) si risolve automaticamente: le tabelle esistono gia nel DB (sono gia nei types), le nuove tabelle verranno aggiunte dalle migrazioni.
+
+### Proposta di esecuzione
+
+Data la complessita, suggerisco di procedere con la **Fase 1** (i 2 bug critici) per prima. Confermi di procedere con tutte e 3 le fasi, oppure preferisci iniziare dalla Fase 1?
+
