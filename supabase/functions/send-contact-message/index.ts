@@ -172,21 +172,28 @@ Deno.serve(async (req) => {
         );
       }
 
-      const provider = (await getPlatformSetting("email_transactional_provider")) || (await getPlatformSetting("email_marketing_provider")) || "sendgrid";
-      const apiKey = (await getPlatformSetting("email_transactional_api_key")) || (await getPlatformSetting("email_marketing_api_key"));
+      // Use shared provider - prefer transactional stream, fallback to marketing
+      let settings = await loadProviderSettings("transactional");
+      if (!settings.apiKey) {
+        settings = await loadProviderSettings("marketing");
+      }
 
-      if (!apiKey) {
+      if (!settings.apiKey) {
         return new Response(
           JSON.stringify({ error: "API Key del provider email non configurata" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const fromAddress = "noreply@ediliziacloud.it";
       const emailSubject = subject || "Messaggio";
       const html = `<html><body><p>${content.replace(/\n/g, "<br>")}</p></body></html>`;
 
-      const result = await sendEmail(apiKey, provider, fromAddress, contact.email, emailSubject, html);
+      const result = await sendViaProvider(settings.provider, settings.apiKey, {
+        from: settings.fromDefault,
+        to: [contact.email],
+        subject: emailSubject,
+        html,
+      }, { domain: settings.domain });
       if (!result.ok) {
         status = "failed";
         errorDetail = JSON.stringify(result.body);
