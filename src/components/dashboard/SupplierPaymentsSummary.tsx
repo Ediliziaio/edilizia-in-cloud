@@ -20,12 +20,16 @@ interface SupplierSummary {
   paymentMethod: string | null;
 }
 
-export function SupplierPaymentsSummary() {
+interface SupplierPaymentsSummaryProps {
+  dateRange?: { from: Date; to: Date };
+}
+
+export function SupplierPaymentsSummary({ dateRange }: SupplierPaymentsSummaryProps) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   const { data: supplierSummaries = [], isLoading, isError } = useQuery({
-    queryKey: ["supplier-payments-summary", companyId],
+    queryKey: ["supplier-payments-summary", companyId, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async () => {
       const [itemsRes, suppliersRes] = await Promise.all([
         supabase

@@ -17,17 +17,20 @@ interface LaborStats {
   ordersWithLabor: number;
 }
 
-export function LaborCostsStats() {
+interface LaborCostsStatsProps {
+  dateRange?: { from: Date; to: Date };
+}
+
+export function LaborCostsStats({ dateRange }: LaborCostsStatsProps) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   const { data: stats, isLoading, isError } = useQuery({
-    queryKey: ["labor-stats", companyId],
+    queryKey: ["labor-stats", companyId, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async () => {
-      // Parallel queries for better performance
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+      // Use dateRange if provided, otherwise default to current month
+      const monthStart = dateRange ? dateRange.from.toISOString() : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const monthEnd = dateRange ? dateRange.to.toISOString() : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString();
 
       const [employeesRes, teamsRes, ordersWithLaborRes] = await Promise.all([
         // Count active employees
