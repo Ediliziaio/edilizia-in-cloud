@@ -73,6 +73,21 @@ interface CostsTableProps {
   bulkMarkUnpaidPending: boolean;
 }
 
+const CONFIGURABLE_COLUMNS = [
+  { key: "origin", label: "Origine" },
+  { key: "costType", label: "Tipo" },
+  { key: "supplier", label: "Fornitore" },
+  { key: "category", label: "Categoria" },
+  { key: "amount", label: "Imponibile" },
+  { key: "vatRate", label: "IVA" },
+  { key: "gross", label: "Totale Lordo" },
+  { key: "recurrence", label: "Ricorrenza" },
+  { key: "dueDate", label: "Scadenza" },
+  { key: "status", label: "Stato" },
+  { key: "delay", label: "Ritardo" },
+  { key: "order", label: "Ordine" },
+] as const;
+
 export function CostsTable({
   items,
   type,
@@ -97,6 +112,18 @@ export function CostsTable({
   bulkMarkUnpaidPending,
 }: CostsTableProps) {
   const nowRef = useMemo(() => new Date(), []);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(CONFIGURABLE_COLUMNS.map(c => c.key)));
+
+  const toggleColumn = (key: string) => {
+    setVisibleColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const isColVisible = (key: string) => visibleColumns.has(key);
   const soonRef = useMemo(() => addDays(new Date(), 7), []);
 
   const costAccessors = useMemo(() => ({
