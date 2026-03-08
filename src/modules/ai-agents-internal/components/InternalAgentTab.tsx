@@ -94,7 +94,7 @@ export function InternalAgentTab({ agent, onSave, isSaving }: InternalAgentTabPr
           />
           {systemPrompt.includes("{{") && (
             <div className="text-xs text-muted-foreground flex flex-wrap gap-1 items-center">
-              Variabili: {highlightVars(systemPrompt).filter((p) => typeof p !== "string" && p.props?.children?.startsWith("{{")}
+              Variabili dinamiche rilevate nel prompt
             </div>
           )}
         </div>
