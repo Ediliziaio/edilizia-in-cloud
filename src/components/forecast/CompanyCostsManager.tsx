@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { format, addMonths } from "date-fns";
 import { it } from "date-fns/locale";
-import { Building2, Plus, Search, Download, Upload, CalendarIcon, AlertTriangle } from "lucide-react";
+import { Building2, Plus, Search, Download, Upload, CalendarIcon, AlertTriangle, Repeat } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
+import { supabase } from "@/integrations/supabase/client";
 
 import { useCompanyCostsData, type PeriodFilter, type StatusFilter, type StatusTabFilter, type UnifiedCost } from "@/hooks/useCompanyCostsData";
 import { useCompanyCostsMutations, type CostFormData, defaultFormData } from "@/hooks/useCompanyCostsMutations";
@@ -27,6 +28,7 @@ import { CostsStatsCards } from "./CostsStatsCards";
 import { CostsTable } from "./CostsTable";
 import { CostFormDialog } from "./CostFormDialog";
 import { CostsDialogs } from "./CostsDialogs";
+import { CostBudgetManager } from "./CostBudgetManager";
 
 const COST_IMPORT_FIELDS: ImportField[] = [
   { key: "name", label: "Nome", required: true },
