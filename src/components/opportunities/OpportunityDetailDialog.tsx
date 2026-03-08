@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,9 +23,10 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
-  Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
+  Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder, AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -93,6 +94,27 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [oppNotes, setOppNotes] = useState("");
   const [oppTags, setOppTags] = useState<string[]>([]);
   const [oppCustomValues, setOppCustomValues] = useState<Record<string, string>>({});
+  const [probability, setProbability] = useState(50);
+  const [expectedCloseDate, setExpectedCloseDate] = useState("");
+  const [lossReason, setLossReason] = useState("");
+  const [lossNotes, setLossNotes] = useState("");
+  const [showLossDialog, setShowLossDialog] = useState(false);
+  const [pendingLostStatus, setPendingLostStatus] = useState(false);
+
+  // Loss reasons for the company
+  const { data: lossReasons = [] } = useQuery({
+    queryKey: ["opportunity_loss_reasons", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("opportunity_loss_reasons")
+        .select("*")
+        .eq("company_id", companyId!)
+        .order("position");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!companyId,
+  });
 
   // Change contact state
   const [changingContact, setChangingContact] = useState(false);
@@ -144,6 +166,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       setCompanyName(opportunity.company_name || "");
       setOppNotes(opportunity.notes || "");
       setOppTags(opportunity.tags || []);
+      setProbability(opportunity.probability ?? 50);
+      setExpectedCloseDate(opportunity.expected_close_date || "");
+      setLossReason(opportunity.loss_reason || "");
+      setLossNotes(opportunity.loss_notes || "");
       setTab((initialTab as Tab) || "details");
       setNewNote("");
       setChangingContact(false);
@@ -269,6 +295,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       notes: oppNotes || null,
       tags: oppTags,
       contact_id: finalContactId,
+      probability,
+      expected_close_date: expectedCloseDate || null,
+      loss_reason: lossReason || null,
+      loss_notes: lossNotes || null,
     }, {
       onSuccess: async () => {
         // Bidirectional tag sync: added tags → contact, removed tags → contact
@@ -587,7 +617,18 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Stato</Label>
-                          <Select value={status} onValueChange={setStatus}>
+                          <Select value={status} onValueChange={(newStatus) => {
+                            if (newStatus === "lost" && status !== "lost") {
+                              setPendingLostStatus(true);
+                              setShowLossDialog(true);
+                            } else {
+                              setStatus(newStatus);
+                              if (newStatus !== "lost") {
+                                setLossReason("");
+                                setLossNotes("");
+                              }
+                            }
+                          }}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {STATUS_OPTIONS.map((s) => (
@@ -601,6 +642,71 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" className="h-8 text-sm" />
                         </div>
                       </div>
+
+                      {/* Probability + Expected Close Date */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Probabilità di chiusura ({probability}%)</Label>
+                          <Slider
+                            value={[probability]}
+                            onValueChange={([v]) => setProbability(v)}
+                            min={0}
+                            max={100}
+                            step={5}
+                            className="py-2"
+                          />
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>0%</span>
+                            <span className="font-medium">Pesato: {((parseFloat(value) || 0) * probability / 100).toLocaleString("it-IT", { maximumFractionDigits: 0 })} €</span>
+                            <span>100%</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Data chiusura prevista</Label>
+                          <Input
+                            type="date"
+                            value={expectedCloseDate}
+                            onChange={(e) => setExpectedCloseDate(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Loss reason (shown only when status is lost) */}
+                      {status === "lost" && (
+                        <div className="space-y-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+                          <div className="flex items-center gap-2 text-destructive">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            <Label className="text-xs font-semibold">Motivo della perdita</Label>
+                          </div>
+                          <Select value={lossReason || "none"} onValueChange={(v) => setLossReason(v === "none" ? "" : v)}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleziona motivo..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— Nessuno —</SelectItem>
+                              <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
+                              <SelectItem value="concorrenza">Scelto concorrente</SelectItem>
+                              <SelectItem value="tempistica">Tempistica non adatta</SelectItem>
+                              <SelectItem value="non_risponde">Non risponde</SelectItem>
+                              <SelectItem value="non_interessato">Non più interessato</SelectItem>
+                              <SelectItem value="budget">Budget insufficiente</SelectItem>
+                              <SelectItem value="altro">Altro</SelectItem>
+                              {lossReasons.map((r: any) => (
+                                <SelectItem key={r.id} value={r.label}>{r.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Note sulla perdita</Label>
+                            <Textarea
+                              value={lossNotes}
+                              onChange={(e) => setLossNotes(e.target.value)}
+                              placeholder="Dettagli opzionali..."
+                              rows={2}
+                              className="text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
@@ -775,6 +881,64 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           <AlertDialogCancel>Annulla</AlertDialogCancel>
           <AlertDialogAction onClick={confirmDeleteAction} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
             Elimina
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* Loss reason dialog */}
+    <AlertDialog open={showLossDialog} onOpenChange={(open) => {
+      if (!open) {
+        setPendingLostStatus(false);
+      }
+      setShowLossDialog(open);
+    }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            Motivo della perdita
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Seleziona il motivo per cui questa opportunità è stata persa.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-3 py-2">
+          <Select value={lossReason || "none"} onValueChange={(v) => setLossReason(v === "none" ? "" : v)}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleziona motivo..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Nessuno —</SelectItem>
+              <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
+              <SelectItem value="concorrenza">Scelto concorrente</SelectItem>
+              <SelectItem value="tempistica">Tempistica non adatta</SelectItem>
+              <SelectItem value="non_risponde">Non risponde</SelectItem>
+              <SelectItem value="non_interessato">Non più interessato</SelectItem>
+              <SelectItem value="budget">Budget insufficiente</SelectItem>
+              <SelectItem value="altro">Altro</SelectItem>
+              {lossReasons.map((r: any) => (
+                <SelectItem key={r.id} value={r.label}>{r.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Textarea
+            value={lossNotes}
+            onChange={(e) => setLossNotes(e.target.value)}
+            placeholder="Note opzionali..."
+            rows={2}
+            className="text-sm"
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setPendingLostStatus(false)}>Annulla</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => {
+              setStatus("lost");
+              setPendingLostStatus(false);
+              setShowLossDialog(false);
+            }}
+          >
+            Conferma Perdita
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -108,3 +108,27 @@
 - [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
 - [ ] **G**: Enrollment bulk dalla lista contatti CRM
 - [ ] **send_ai_message**: Integrazione con Lovable AI
+
+---
+
+## Analisi CRM vs GHL
+
+### Fase 1 — P0 ✅
+
+- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` su `marketing_contacts` + UI toggle nel tab Impostazioni contatto + check DND in `process-automation` e `send-contact-message` + badge unsubscribed
+- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` + pagina pubblica `/prenota/:slug` + RLS anonima + creazione appuntamento + trigger `appointment_booked`
+- ✅ **Tab Email AdminSettings**: Già funzionante
+- ✅ **Crediti Stripe**: Già implementato
+
+### Fase 2 — P1 ✅
+
+- ✅ **Probabilità + Close Date + Loss Reason**: Colonne `probability`, `expected_close_date`, `loss_reason`, `loss_notes` su `marketing_opportunities` + tabella `opportunity_loss_reasons` + UI slider/date/dialog perdita in `OpportunityDetailDialog`
+- ✅ **Promemoria appuntamenti**: Logica 24h/1h in `check-scheduled-triggers` + tabella `appointment_reminders_sent` + notifiche interne + trigger automazione
+- ✅ **Google Calendar push**: Edge function `google-calendar-webhook` con register_watch, renew_watches, e ricezione push + colonne webhook su `google_calendar_connections`
+- ✅ **Opt-out UI**: Toggle SMS/Call/WhatsApp/Email nel dettaglio contatto + badge disiscritto (già implementato in Fase 1)
+
+### Fase 3 — P2 (TODO)
+
+- [ ] **WhatsApp/Stripe in SettingsIntegrations**: Card status per integrazioni attive
+- [ ] **Merge contatti duplicati**: UI + backend merge
+- [ ] **Tab Azioni nel dettaglio contatto**: Azioni rapide (invia email, SMS, WhatsApp, aggiungi ad automation)

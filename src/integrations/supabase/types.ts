@@ -671,6 +671,35 @@ export type Database = {
           },
         ]
       }
+      appointment_reminders_sent: {
+        Row: {
+          appointment_id: string
+          id: string
+          reminder_type: string
+          sent_at: string | null
+        }
+        Insert: {
+          appointment_id: string
+          id?: string
+          reminder_type: string
+          sent_at?: string | null
+        }
+        Update: {
+          appointment_id?: string
+          id?: string
+          reminder_type?: string
+          sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_reminders_sent_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           address_city: string | null
@@ -2827,6 +2856,9 @@ export type Database = {
           token_expires_at: string | null
           updated_at: string
           user_id: string
+          webhook_channel_id: string | null
+          webhook_expiry_at: string | null
+          webhook_resource_id: string | null
         }
         Insert: {
           access_token_encrypted?: string | null
@@ -2842,6 +2874,9 @@ export type Database = {
           token_expires_at?: string | null
           updated_at?: string
           user_id: string
+          webhook_channel_id?: string | null
+          webhook_expiry_at?: string | null
+          webhook_resource_id?: string | null
         }
         Update: {
           access_token_encrypted?: string | null
@@ -2857,6 +2892,9 @@ export type Database = {
           token_expires_at?: string | null
           updated_at?: string
           user_id?: string
+          webhook_channel_id?: string | null
+          webhook_expiry_at?: string | null
+          webhook_resource_id?: string | null
         }
         Relationships: [
           {
@@ -4079,11 +4117,15 @@ export type Database = {
           company_name: string | null
           contact_id: string
           created_at: string
+          expected_close_date: string | null
           follower_id: string | null
           id: string
+          loss_notes: string | null
+          loss_reason: string | null
           name: string
           notes: string | null
           pipeline_id: string
+          probability: number | null
           source: string | null
           stage_id: string
           status: string
@@ -4098,11 +4140,15 @@ export type Database = {
           company_name?: string | null
           contact_id: string
           created_at?: string
+          expected_close_date?: string | null
           follower_id?: string | null
           id?: string
+          loss_notes?: string | null
+          loss_reason?: string | null
           name: string
           notes?: string | null
           pipeline_id: string
+          probability?: number | null
           source?: string | null
           stage_id: string
           status?: string
@@ -4117,11 +4163,15 @@ export type Database = {
           company_name?: string | null
           contact_id?: string
           created_at?: string
+          expected_close_date?: string | null
           follower_id?: string | null
           id?: string
+          loss_notes?: string | null
+          loss_reason?: string | null
           name?: string
           notes?: string | null
           pipeline_id?: string
+          probability?: number | null
           source?: string | null
           stage_id?: string
           status?: string
@@ -4898,6 +4948,38 @@ export type Database = {
             columns: ["page_asset_id"]
             isOneToOne: false
             referencedRelation: "meta_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      opportunity_loss_reasons: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          id: string
+          label: string
+          position: number | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          id?: string
+          label: string
+          position?: number | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          label?: string
+          position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_loss_reasons_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
