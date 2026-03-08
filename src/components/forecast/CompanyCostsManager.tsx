@@ -150,6 +150,7 @@ export default function CompanyCostsManager() {
       vat_rate: String(cost.vat_rate ?? 22),
       is_gross: false,
       end_date: "",
+      recurrence_auto: false,
     });
     setDialogOpen(true);
   };
