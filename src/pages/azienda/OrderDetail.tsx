@@ -168,6 +168,7 @@ export default function OrderDetail() {
 
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [editedNotes, setEditedNotes] = useState("");
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [statusChangeDialog, setStatusChangeDialog] = useState<{
     open: boolean; targetStatusId: string | null; targetStatusName: string;
   }>({ open: false, targetStatusId: null, targetStatusName: "" });
