@@ -118,6 +118,9 @@ export default function PlatformSettingsPage() {
         { key: "elevenlabs_api_key", value: apiKey.trim() },
         { key: "default_llm_model", value: defaultLlm },
         { key: "domain_whitelist", value: domainWhitelist.trim() },
+        { key: "ai_subscription_price_eur", value: subscriptionPrice },
+        { key: "ai_subscription_trial_days", value: trialDays },
+        { key: "ai_welcome_bonus_eur", value: welcomeBonus },
       ];
 
       for (const setting of settings) {

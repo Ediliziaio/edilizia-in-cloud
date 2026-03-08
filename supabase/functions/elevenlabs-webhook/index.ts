@@ -185,6 +185,24 @@ Deno.serve(async (req) => {
           }
           break;
         }
+
+        case "assign_to_user": {
+          const targetContactId = parameters?.contact_id || contactId;
+          const targetUserId = parameters?.user_id;
+          if (targetContactId && targetUserId) {
+            const { error: assignErr } = await adminClient
+              .from("marketing_contacts")
+              .update({ assigned_to: targetUserId })
+              .eq("id", targetContactId)
+              .eq("company_id", companyId);
+            if (assignErr) {
+              console.error("[WEBHOOK] assign_to_user error:", assignErr);
+            } else {
+              console.log(`[WEBHOOK] Contact ${targetContactId} assigned to user ${targetUserId}`);
+            }
+          }
+          break;
+        }
       }
     }
 
