@@ -7835,6 +7835,15 @@ export type Database = {
         }
         Returns: Json
       }
+      get_dashboard_kpis: {
+        Args: {
+          p_company_id: string
+          p_date_from: string
+          p_date_to: string
+          p_status_id?: string
+        }
+        Returns: Json
+      }
       get_email_stats_by_campaign: {
         Args: {
           p_campaign_id?: string
