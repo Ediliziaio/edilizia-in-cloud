@@ -54,14 +54,40 @@
 - Banner chiamate bloccate
 - Azioni rapide con navigazione
 
-## Da fare (prossimi step)
+---
 
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
+## Email Dual-Provider + Sistema Crediti Universale
 
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
+### Fase 1 ✅ — Shared Libraries + DB Migrations
+
+**Database (migration applicata):**
+- ✅ Tabella `email_credits_log` (storico movimenti con RLS)
+- ✅ Tabella `company_auto_topup` (config auto-ricarica multi-wallet con RLS)
+- ✅ Colonne `sent_count`, `failed_count`, `completed_at`, `segment_json`, `credits_used` su `email_campaigns`
+- ✅ Colonne `unsubscribed`, `unsubscribed_at` su `marketing_contacts`
+- ✅ Colonne `provider_message_id`, `provider`, `stream`, `opened_at`, `clicked_at`, `error_message` su `email_logs`
+- ✅ RPC `get_platform_email_stats` (dashboard super admin)
+- ✅ RPC `deduct_email_credits_with_log` (detrazione atomica + log)
+- ✅ RPC `add_email_credits_with_log` (ricarica atomica + log)
+
+**Edge Functions shared:**
+- ✅ `_shared/emailProvider.ts` — `sendViaProvider()` (SendGrid, Brevo, Resend, Elastic Email, Mailgun) + `loadProviderSettings()`
+- ✅ `_shared/emailCredits.ts` — `deductEmailCredits()`, `addEmailCredits()`, `getEmailBalance()`, `checkAutoTopup()`
+
+### Fase 2 — Super Admin Email Settings Tab (da fare)
+- `EmailSettingsTab.tsx` con config dual-provider, prezzi, dashboard KPI
+- Route `/admin/impostazioni/email`
+
+### Fase 3 — Send Email Campaign + Tracking (da fare)
+- `send-email-campaign` edge function (bulk + tracking + crediti)
+- `email-tracking` edge function (open pixel, click redirect, unsubscribe)
+- `email-provider-webhook` edge function (callback normalizzati)
+
+### Fase 4 — Credits Page Azienda + Auto Top-up (da fare)
+- Pagina crediti unificata (email + WhatsApp + AI)
+- Auto top-up con Stripe
+- Storico movimenti
+
+### Fase 5 — Automazioni + Email Transazionali (da fare)
+- Case `send_email` nel motore automazioni
+- Dual-stream nelle email di sistema
