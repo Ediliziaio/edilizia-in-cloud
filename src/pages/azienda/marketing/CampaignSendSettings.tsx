@@ -82,11 +82,11 @@ export default function CampaignSendSettings() {
     queryKey: ["recipient-count", company?.id],
     enabled: !!company?.id,
     queryFn: async () => {
-      const { count } = await supabase
+      const { count } = await (supabase
         .from("marketing_contacts")
-        .select("id", { count: "exact", head: true })
+        .select("id", { count: "exact", head: true }) as any)
         .eq("company_id", company!.id)
-        .eq("email_unsubscribed" as any, false)
+        .eq("email_unsubscribed", false)
         .not("email", "is", null);
       return count || 0;
     },
@@ -97,9 +97,9 @@ export default function CampaignSendSettings() {
     queryKey: ["email-credits-balance", company?.id],
     enabled: !!company?.id,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase
         .from("email_credits" as any)
-        .select("balance_eur, total_spent_eur")
+        .select("balance_eur, total_spent_eur") as any)
         .eq("company_id", company!.id)
         .maybeSingle();
       return data as { balance_eur: number; total_spent_eur: number } | null;
