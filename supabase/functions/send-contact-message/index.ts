@@ -214,9 +214,9 @@ Deno.serve(async (req) => {
       // Get WhatsApp config for the company
       const { data: waConfig } = await adminClient
         .from("messaging_whatsapp_config")
-        .select("phone_number_id, access_token")
+        .select("phone_number_id, access_token_encrypted")
         .eq("company_id", contact.company_id)
-        .eq("is_active", true)
+        .eq("is_connected", true)
         .limit(1)
         .single();
 
