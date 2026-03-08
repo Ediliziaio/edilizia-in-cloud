@@ -146,3 +146,6 @@ verify_jwt = false
 
 [functions.internal-agent-tools]
 verify_jwt = false
+
+[functions.internal-agent-webhook]
+verify_jwt = false
