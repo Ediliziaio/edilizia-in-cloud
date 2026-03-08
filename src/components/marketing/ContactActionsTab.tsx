@@ -73,7 +73,7 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
   ];
 
   return (
-    <div className="space-y-2">
+    <div ref={ref} className="space-y-2">
       <p className="text-xs font-semibold">Azioni rapide</p>
       <div className="space-y-1.5">
         {actions.map((action) => (
