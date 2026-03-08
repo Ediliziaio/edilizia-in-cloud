@@ -411,6 +411,32 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
           </CardContent>
         </Card>
       )}
+
+      {/* Fixed Costs % Trend */}
+      {fixedCostsTrend.length > 1 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Tendenza Costi Fissi %</CardTitle>
+            <CardDescription>Percentuale costi fissi sul totale (ultimi 12 mesi)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={fixedCostsTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                  <RechartsTooltip
+                    formatter={(value: number) => [`${value.toFixed(1)}%`, "Costi Fissi"]}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                  />
+                  <Line type="monotone" dataKey="pctFixed" name="% Fissi" stroke="hsl(0 84% 60%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(0 84% 60%)" }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }
