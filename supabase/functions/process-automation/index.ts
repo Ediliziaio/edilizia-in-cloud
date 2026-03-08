@@ -628,6 +628,76 @@ async function processTriggerEvents(supabase: any) {
 }
 
 // ────────────────────────────────────────────────────
+// SEND EMAIL (real provider integration)
+// ────────────────────────────────────────────────────
+async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
+  try {
+    // Get contact info
+    const { data: contact } = await supabase
+      .from("marketing_contacts")
+      .select("id, email, first_name, last_name, email_unsubscribed")
+      .eq("id", entityId)
+      .single();
+
+    if (!contact?.email) {
+      return { success: false, error: "Contact has no email address" };
+    }
+    if (contact.email_unsubscribed) {
+      return { success: false, error: "Contact is unsubscribed" };
+    }
+
+    // Determine stream (default: marketing)
+    const stream = cfg.stream || "marketing";
+    const settings = await loadProviderSettings(stream);
+
+    if (!settings.apiKey) {
+      return { success: false, error: `No API key configured for ${stream} email provider` };
+    }
+
+    // Build email content
+    let html = cfg.email_body || cfg.html || "<p>No content</p>";
+    const subject = cfg.email_subject || cfg.subject || "Messaggio";
+
+    // Personalization
+    html = html
+      .replace(/\{\{first_name\}\}/g, contact.first_name || "")
+      .replace(/\{\{last_name\}\}/g, contact.last_name || "")
+      .replace(/\{\{email\}\}/g, contact.email || "");
+
+    const fromAddress = cfg.from_email
+      ? cfg.from_name ? `${cfg.from_name} <${cfg.from_email}>` : cfg.from_email
+      : settings.fromDefault;
+
+    const result = await sendViaProvider(settings.provider, settings.apiKey, {
+      from: fromAddress,
+      to: [contact.email],
+      subject,
+      html,
+    }, { domain: settings.domain });
+
+    // Log the send
+    await supabase.from("email_logs").insert({
+      contact_id: contact.id,
+      company_id: companyId,
+      status: result.ok ? "delivered" : "failed",
+      provider: settings.provider,
+      provider_message_id: result.providerMessageId || null,
+      stream,
+      event_timestamp: new Date().toISOString(),
+      error_message: result.ok ? null : JSON.stringify(result.body),
+    });
+
+    return {
+      success: result.ok,
+      output: { action: "send_email", provider: settings.provider, status: result.status },
+      error: result.ok ? undefined : `Provider returned ${result.status}`,
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ────────────────────────────────────────────────────
 // SEND WHATSAPP (real Meta API integration)
 // ────────────────────────────────────────────────────
 async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
