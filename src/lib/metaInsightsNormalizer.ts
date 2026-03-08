@@ -42,6 +42,9 @@ export interface KPISummary {
   cost_per_conversion: number;
   cpl: number;
   reach: number;
+  revenue: number;
+  roas: number;
+  frequency: number;
 }
 
 export interface DailyPoint {
