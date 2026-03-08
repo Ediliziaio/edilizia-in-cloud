@@ -77,7 +77,7 @@ async function handleTrigger(supabase: any, body: any) {
   // Find published flows for this company that have a trigger node matching this event
   const { data: flows, error: flowErr } = await supabase
     .from("automation_flows")
-    .select("id, version")
+    .select("id, version, config_json")
     .eq("company_id", company_id)
     .eq("status", "published");
 
