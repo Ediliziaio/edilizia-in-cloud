@@ -1,67 +1,65 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+# Sprint 4 — Consolidamento UX: Piano di Implementazione
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+Sprint 1, 2 e 3 sono completati. Si procede con lo Sprint 4 finale del documento di analisi.
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+---
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+## 1. Ridurre duplicazione metriche tra Dashboard e Cruscotto
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+**File:** `src/pages/azienda/CompanyDashboard.tsx`
+- Rimuovere la stat card "Da Incassare" dalla griglia delle 4 stat cards (è già nel CEO Strip e nel Cruscotto). Sostituirla con una card "Prossimi Lavori" che mostra il conteggio dei lavori in settimana (dato già disponibile in `weeklyDeadlines.upcomingWorks`).
+- Aggiungere un link "Vai al Cruscotto →" sotto il CEO Strip per guidare l'utente alla vista executive.
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+**File:** `src/components/cruscotto/ExecutiveOverview.tsx`
+- Ridurre le KPI Finanziarie visibili in home da 11 a 8: rimuovere "Proiezione Mese", "Costo Medio Ordine" e "Burn Rate" dalla vista default. Aggiungerle in una sezione espandibile "Mostra tutte" con un `Collapsible`.
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+---
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+## 2. Rinominare HRPerformance e spostare PipelineForecast
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+**File:** `src/components/cruscotto/HRPerformance.tsx`
+- Rinominare il titolo "HR & Performance Team" → "Performance Venditori".
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+**File:** `src/pages/azienda/CruscottoAziendale.tsx`
+- Spostare `PipelineForecast` dal tab "Finanza" al tab "Vendite" (logicamente appartiene lì come indicato nel documento).
+- Tab Finanza: solo `FinanzaCashFlow` (full width).
+- Tab Vendite: `SalesControl` + `PipelineForecast` + `HRPerformance` in grid.
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+---
 
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
+## 3. Colonna Categoria visibile nella CostsTable
 
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+**File:** `src/components/forecast/CostsTable.tsx`
+- Aggiungere colonna "Categoria" nella tabella costi, dopo la colonna "Fornitore", con `Badge` colorato per tipo categoria. Usa palette fissa (5-6 colori mappati alle categorie più comuni).
 
-## Da fare (prossimi step)
+---
 
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
+## 4. ScatterPlot Ricavi vs Margine nel MarginTab
 
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
+**File:** `src/components/forecast/MarginTab.tsx`
+- Aggiungere sotto la tabella ordini un `ScatterChart` (recharts, già installato) che mostra ogni ordine come punto: asse X = ricavo totale, asse Y = margine %. Colore punto basato sullo status margine (rosso/giallo/verde). Tooltip con descrizione ordine. Altezza ~250px.
+
+---
+
+## 5. Tesoreria: color-coding e saldo finale
+
+**File:** `src/components/forecast/TreasuryTab.tsx`
+- Aggiungere color-coding nelle celle dei valori mensili: verde per valori positivi, rosso per negativi, grigio per zero.
+- Aggiungere una card "Saldo Finale Periodo" evidenziata sopra il grafico, che mostra la somma netta di tutte le categorie nell'ultimo mese visibile, con colore condizionale verde/rosso.
+
+---
+
+## Riepilogo file
+
+| File | Modifica |
+|------|----------|
+| `src/pages/azienda/CompanyDashboard.tsx` | Rimuovere duplicazione "Da Incassare", aggiungere link Cruscotto |
+| `src/components/cruscotto/ExecutiveOverview.tsx` | KPI collassabili (8 visibili + 3 espandibili) |
+| `src/components/cruscotto/HRPerformance.tsx` | Rinominare in "Performance Venditori" |
+| `src/pages/azienda/CruscottoAziendale.tsx` | Spostare PipelineForecast nel tab Vendite |
+| `src/components/forecast/CostsTable.tsx` | Colonna Categoria con badge colorato |
+| `src/components/forecast/MarginTab.tsx` | ScatterPlot ricavi vs margine |
+| `src/components/forecast/TreasuryTab.tsx` | Color-coding + Saldo Finale |
+
