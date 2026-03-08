@@ -34,6 +34,7 @@ Deno.serve(async (req) => {
     appointment_reminder_1h: 0,
     appointment_reminder_custom: 0,
     cash_flow_alert: 0,
+    recurring_costs: 0,
   };
 
   try {
@@ -430,6 +431,72 @@ Deno.serve(async (req) => {
             });
             results.cash_flow_alert++;
           }
+        }
+      }
+    }
+
+    // ── Auto-generate recurring costs for all active companies ──
+    if (allCompanies) {
+      for (const company of allCompanies) {
+        try {
+          const { data: recurringCosts } = await supabase
+            .from("company_costs")
+            .select("*")
+            .eq("company_id", company.id)
+            .eq("recurrence_auto", true)
+            .neq("recurrence", "once");
+
+          if (!recurringCosts || recurringCosts.length === 0) continue;
+
+          const rcNow = new Date();
+          const toInsert: any[] = [];
+
+          for (const cost of recurringCosts) {
+            if (cost.recurrence_end_date && new Date(cost.recurrence_end_date) < rcNow) continue;
+
+            const baseDate = new Date(cost.due_date);
+            const maxLookahead = 3;
+            let nextDate = new Date(baseDate);
+
+            while (nextDate <= new Date(rcNow.getFullYear(), rcNow.getMonth() + maxLookahead, 0)) {
+              if (cost.recurrence === "monthly") {
+                nextDate = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, nextDate.getDate());
+              } else if (cost.recurrence === "quarterly") {
+                nextDate = new Date(nextDate.getFullYear(), nextDate.getMonth() + 3, nextDate.getDate());
+              } else if (cost.recurrence === "yearly") {
+                nextDate = new Date(nextDate.getFullYear() + 1, nextDate.getMonth(), nextDate.getDate());
+              } else {
+                break;
+              }
+
+              if (cost.recurrence_end_date && nextDate > new Date(cost.recurrence_end_date)) break;
+              if (nextDate < new Date(rcNow.getFullYear(), rcNow.getMonth(), 1)) continue;
+
+              toInsert.push({
+                company_id: company.id,
+                name: cost.name,
+                cost_type: cost.cost_type,
+                amount: cost.amount,
+                category: cost.category,
+                recurrence: cost.recurrence,
+                due_date: nextDate.toISOString().split("T")[0],
+                notes: cost.notes,
+                supplier_id: cost.supplier_id,
+                vat_rate: cost.vat_rate,
+                recurrence_auto: false,
+              });
+            }
+          }
+
+          if (toInsert.length > 0) {
+            const { data: inserted } = await supabase
+              .from("company_costs")
+              .upsert(toInsert, { onConflict: "company_id,name,due_date", ignoreDuplicates: true })
+              .select("id");
+            results.recurring_costs += inserted?.length ?? 0;
+          }
+        } catch (rcErr) {
+          console.error(`Recurring costs error for company ${company.id}:`, rcErr);
         }
       }
     }
