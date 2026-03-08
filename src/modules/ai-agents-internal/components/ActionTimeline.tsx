@@ -61,7 +61,7 @@ export function ActionTimeline({ actions }: Props) {
             <div
               className={`absolute -left-6 top-1 h-[22px] w-[22px] rounded-full border-2 flex items-center justify-center ${
                 isSuccess
-                  ? "bg-emerald-50 border-emerald-500 dark:bg-emerald-950"
+                  ? "bg-accent border-primary"
                   : isError
                   ? "bg-destructive/10 border-destructive"
                   : "bg-muted border-muted-foreground/40"
