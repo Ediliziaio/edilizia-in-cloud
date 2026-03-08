@@ -394,6 +394,9 @@ export const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   scheduler: "Si attiva ad intervalli programmati.",
   form_submitted: "Si attiva quando un modulo viene inviato.",
   survey_submitted: "Si attiva quando un sondaggio viene completato.",
+  ai_conversation_ended: "Si attiva quando una conversazione con un agente AI termina.",
+  ai_appointment_booked: "Si attiva quando un agente AI prenota un appuntamento.",
+  ai_contact_created: "Si attiva quando un agente AI crea un nuovo contatto.",
 };
 
 // ── Action descriptions ──
