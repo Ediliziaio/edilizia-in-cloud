@@ -93,15 +93,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({ checked: (integrations || []).length, updated: results }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ checked: (integrations || []).length, updated: results });
   } catch (error: any) {
     console.error("meta-health-check error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error.message, 500);
   }
 });

@@ -1,12 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeaders } from "../_shared/headers.ts";
 
 async function verifyHmac(body: string, signature: string, appSecret: string): Promise<boolean> {
   const key = await crypto.subtle.importKey(

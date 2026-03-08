@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const url = new URL(req.url);
 
   // GET - Meta webhook verification handshake

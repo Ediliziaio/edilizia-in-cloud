@@ -119,16 +119,10 @@ Deno.serve(async (req) => {
         .eq("id", integId);
     }
 
-    return new Response(JSON.stringify({ processed, failed, total: events.length }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ processed, failed, total: events.length });
   } catch (error) {
     console.error("meta-process-leads error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse(error.message, 500);
   }
 });
 

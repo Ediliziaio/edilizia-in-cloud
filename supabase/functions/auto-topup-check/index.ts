@@ -126,14 +126,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ processed }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ processed });
   } catch (err) {
     console.error("auto-topup-check error:", err);
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse((err as Error).message, 500);
   }
 });

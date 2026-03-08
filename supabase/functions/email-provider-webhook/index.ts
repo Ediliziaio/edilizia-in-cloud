@@ -103,13 +103,13 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ processed: events.length }), {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: secureHeaders,
     });
   } catch (err: any) {
     console.error("email-provider-webhook error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: secureHeaders,
     });
   }
 });
