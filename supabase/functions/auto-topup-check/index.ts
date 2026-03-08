@@ -21,9 +21,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     if (!stripeSecretKey) {
-      return new Response(JSON.stringify({ skipped: true, reason: "No STRIPE_SECRET_KEY" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ skipped: true, reason: "No STRIPE_SECRET_KEY" });
     }
 
     // Accept optional company_id to check a specific company, otherwise check all
