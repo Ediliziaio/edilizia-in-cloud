@@ -61,7 +61,12 @@ interface CostsStatsCardsProps {
 
 const currentYear = new Date().getFullYear();
 
-export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange }: CostsStatsCardsProps) {
+const PIE_COLORS = [
+  "hsl(217 91% 60%)", "hsl(142 76% 36%)", "hsl(0 84% 60%)",
+  "hsl(45 93% 47%)", "hsl(270 67% 58%)", "hsl(200 70% 50%)", "hsl(var(--muted-foreground))",
+];
+
+export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [] }: CostsStatsCardsProps) {
   const [chartView, setChartView] = useState<"current" | "comparison">("current");
 
   const handleCardClick = (tab: StatusTabFilter) => {
