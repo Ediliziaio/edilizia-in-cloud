@@ -8,10 +8,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Search, Merge, Loader2, AlertTriangle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 interface ContactMergeDialogProps {
   open: boolean;
@@ -23,7 +22,7 @@ interface ContactMergeDialogProps {
 export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyId }: ContactMergeDialogProps) {
   const [search, setSearch] = useState("");
   const [targetId, setTargetId] = useState<string | null>(null);
-  const [masterId, setMasterId] = useState<string>("source");
+  const [masterId, setMasterId] = useState<"source" | "target">("source");
   const queryClient = useQueryClient();
 
   const { data: candidates = [], isLoading } = useQuery({
@@ -74,12 +73,6 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
         .update({ contact_id: keepId })
         .eq("contact_id", removeId);
 
-      // Move documents
-      await supabase
-        .from("marketing_contact_documents")
-        .update({ contact_id: keepId })
-        .eq("contact_id", removeId);
-
       // Move messages
       await supabase
         .from("contact_messages")
@@ -118,12 +111,11 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
             <Merge className="h-4 w-4" /> Unisci contatti
           </DialogTitle>
           <DialogDescription>
-            Unisci un contatto duplicato in quello principale. Opportunità, note, attività e documenti verranno spostati.
+            Unisci un contatto duplicato in quello principale. Opportunità, note, attività e messaggi verranno spostati.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Source contact */}
           <div className="rounded-md border p-2.5">
             <Label className="text-[10px] text-muted-foreground">Contatto corrente</Label>
             <p className="text-sm font-medium">
@@ -134,7 +126,6 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
             </p>
           </div>
 
-          {/* Search target */}
           <div className="space-y-2">
             <Label className="text-xs">Cerca il contatto da unire</Label>
             <div className="relative">
@@ -148,16 +139,17 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
             </div>
 
             {isLoading && <p className="text-[10px] text-muted-foreground">Ricerca...</p>}
-            
+
             {candidates.length > 0 && (
               <ScrollArea className="max-h-40">
                 <div className="space-y-1">
                   {candidates.map((c: any) => (
                     <button
                       key={c.id}
-                      className={`w-full text-left rounded-md border p-2 text-xs transition-colors ${
+                      className={cn(
+                        "w-full text-left rounded-md border p-2 text-xs transition-colors",
                         targetId === c.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                      }`}
+                      )}
                       onClick={() => setTargetId(c.id)}
                     >
                       <span className="font-medium">{c.first_name} {c.last_name}</span>
@@ -171,24 +163,29 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
             )}
           </div>
 
-          {/* Master selection */}
           {targetId && selectedTarget && (
             <div className="space-y-2">
               <Label className="text-xs">Quale contatto mantenere?</Label>
-              <RadioGroup value={masterId} onValueChange={setMasterId} className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="source" id="keep-source" />
-                  <label htmlFor="keep-source" className="text-[11px]">
-                    {sourceContact?.first_name} {sourceContact?.last_name} (corrente)
-                  </label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="target" id="keep-target" />
-                  <label htmlFor="keep-target" className="text-[11px]">
-                    {selectedTarget.first_name} {selectedTarget.last_name}
-                  </label>
-                </div>
-              </RadioGroup>
+              <div className="space-y-1.5">
+                <button
+                  className={cn(
+                    "w-full text-left rounded-md border p-2 text-[11px] transition-colors",
+                    masterId === "source" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                  )}
+                  onClick={() => setMasterId("source")}
+                >
+                  {sourceContact?.first_name} {sourceContact?.last_name} (corrente)
+                </button>
+                <button
+                  className={cn(
+                    "w-full text-left rounded-md border p-2 text-[11px] transition-colors",
+                    masterId === "target" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                  )}
+                  onClick={() => setMasterId("target")}
+                >
+                  {selectedTarget.first_name} {selectedTarget.last_name}
+                </button>
+              </div>
             </div>
           )}
 
