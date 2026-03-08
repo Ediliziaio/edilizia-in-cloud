@@ -16,9 +16,26 @@ interface Props {
   report: ReturnType<typeof useMetaAdsReport>;
 }
 
+const DATE_PRESETS = [
+  { label: "Oggi", getRange: () => ({ from: startOfDay(new Date()), to: new Date() }) },
+  { label: "Ieri", getRange: () => ({ from: startOfDay(subDays(new Date(), 1)), to: startOfDay(new Date()) }) },
+  { label: "7gg", getRange: () => ({ from: subDays(new Date(), 7), to: new Date() }) },
+  { label: "30gg", getRange: () => ({ from: subDays(new Date(), 30), to: new Date() }) },
+  { label: "Questo mese", getRange: () => ({ from: startOfMonth(new Date()), to: new Date() }) },
+  { label: "Mese scorso", getRange: () => ({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) }) },
+];
+
 const ReportHeader = ({ report }: Props) => {
   const [showColumns, setShowColumns] = useState(false);
   const [showExport, setShowExport] = useState(false);
+
+  const activePreset = useMemo(() => {
+    return DATE_PRESETS.find((p) => {
+      const r = p.getRange();
+      return format(r.from, "yyyy-MM-dd") === format(report.dateRange.from, "yyyy-MM-dd")
+        && format(r.to, "yyyy-MM-dd") === format(report.dateRange.to, "yyyy-MM-dd");
+    })?.label || null;
+  }, [report.dateRange]);
 
   return (
     <>
