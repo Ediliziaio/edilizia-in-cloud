@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -106,7 +107,27 @@ Deno.serve(async (req) => {
         .select("value")
         .eq("key", "ai_subscription_price_eur")
         .maybeSingle();
-      const priceEur = parseFloat(priceSetting?.value || "49");
+      let priceEur = parseFloat(priceSetting?.value || "49");
+
+      // Check billing override for monthly fee
+      const billingConfig = await getCompanyBillingConfig(supabaseAdmin, company_id, "ai_agents");
+      if (billingConfig.isFree) {
+        // Service is free — activate subscription directly without Stripe
+        await supabaseAdmin.from("ai_subscriptions").upsert({
+          company_id,
+          status: "active",
+          price_eur: 0,
+          current_period_end: new Date(Date.now() + 365 * 86400000).toISOString(),
+        }, { onConflict: "company_id" });
+
+        return new Response(
+          JSON.stringify({ success: true, free: true, message: "Servizio AI attivato gratuitamente" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (billingConfig.monthlyFeeEur != null) {
+        priceEur = billingConfig.monthlyFeeEur;
+      }
 
       let stripeCustomerId = company.stripe_customer_id;
       if (!stripeCustomerId) {

@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
-
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -92,6 +92,15 @@ Deno.serve(async (req) => {
       );
     }
 
+    // 3b. Check WhatsApp billing
+    const waBilling = await getCompanyBillingConfig(adminClient, conv.company_id, "whatsapp");
+    if (!waBilling.isEnabled) {
+      return new Response(
+        JSON.stringify({ error: "Servizio WhatsApp disabilitato per questa azienda" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // 4. Decrypt access token
     const encKey = getEncryptionKey();
     const accessToken = await decrypt(waConfig.access_token_encrypted, encKey);
@@ -165,6 +174,42 @@ Deno.serve(async (req) => {
       .from("messaging_conversations")
       .update({ last_message_at: new Date().toISOString() })
       .eq("id", conversation_id);
+
+    // 8. Deduct WhatsApp credit (if not free)
+    if (!waBilling.isFree) {
+      const pricePerMsg = waBilling.pricePerUnitEur ?? 0.0006;
+      // Get current balance
+      const { data: waCredits } = await adminClient
+        .from("whatsapp_credits")
+        .select("balance_eur")
+        .eq("company_id", conv.company_id)
+        .maybeSingle();
+
+      const balanceBefore = waCredits?.balance_eur ?? 0;
+      const balanceAfter = Number((balanceBefore - pricePerMsg).toFixed(4));
+
+      if (waCredits) {
+        await adminClient
+          .from("whatsapp_credits")
+          .update({ balance_eur: balanceAfter, total_spent_eur: Number(((waCredits as any).total_spent_eur ?? 0) + pricePerMsg).toFixed(4), updated_at: new Date().toISOString() })
+          .eq("company_id", conv.company_id);
+      } else {
+        await adminClient.from("whatsapp_credits").insert({
+          company_id: conv.company_id,
+          balance_eur: -pricePerMsg,
+          total_spent_eur: pricePerMsg,
+        });
+      }
+
+      await adminClient.from("whatsapp_credits_log").insert({
+        company_id: conv.company_id,
+        type: "deduction",
+        amount_eur: -pricePerMsg,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        description: "Messaggio WhatsApp inviato",
+      });
+    }
 
     return new Response(
       JSON.stringify({

@@ -99,6 +99,22 @@ export default function SettingsCredits() {
     enabled: !!companyId,
   });
 
+  // Fetch WhatsApp credits
+  const { data: waCredits, isLoading: waLoading } = useQuery({
+    queryKey: ["wa-credits-settings", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data, error } = await supabase
+        .from("whatsapp_credits" as never)
+        .select("*")
+        .eq("company_id" as never, companyId as never)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { balance_eur: number; total_spent_eur: number; total_recharged_eur: number; sends_blocked: boolean } | null;
+    },
+    enabled: !!companyId,
+  });
+
   // Fetch email credits log
   const { data: emailLog, isLoading: logLoading } = useQuery({
     queryKey: ["email-credits-log", companyId],
@@ -204,7 +220,7 @@ export default function SettingsCredits() {
     }
   };
 
-  const isLoading = emailLoading || aiLoading;
+  const isLoading = emailLoading || aiLoading || waLoading;
 
   if (isLoading) {
     return (
@@ -242,10 +258,10 @@ export default function SettingsCredits() {
       type: "whatsapp",
       label: "WhatsApp",
       icon: <MessageSquare className="h-5 w-5" />,
-      balance: 0,
-      spent: 0,
-      recharged: 0,
-      blocked: false,
+      balance: waCredits?.balance_eur ?? 0,
+      spent: waCredits?.total_spent_eur ?? 0,
+      recharged: waCredits?.total_recharged_eur ?? 0,
+      blocked: waCredits?.sends_blocked ?? false,
     },
   ];
 

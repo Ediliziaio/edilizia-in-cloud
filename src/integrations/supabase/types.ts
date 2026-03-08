@@ -7452,6 +7452,50 @@ export type Database = {
           },
         ]
       }
+      whatsapp_credits_log: {
+        Row: {
+          amount_eur: number
+          balance_after: number
+          balance_before: number
+          broadcast_id: string | null
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          type: string
+        }
+        Insert: {
+          amount_eur: number
+          balance_after?: number
+          balance_before?: number
+          broadcast_id?: string | null
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          type?: string
+        }
+        Update: {
+          amount_eur?: number
+          balance_after?: number
+          balance_before?: number
+          broadcast_id?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_credits_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_logs: {
         Row: {
           activity_type: string | null
@@ -7546,6 +7590,16 @@ export type Database = {
           p_description?: string
           p_metadata?: Json
           p_type?: string
+        }
+        Returns: Json
+      }
+      adjust_credits_atomic: {
+        Args: {
+          p_adjusted_by: string
+          p_amount: number
+          p_company_id: string
+          p_reason: string
+          p_service: string
         }
         Returns: Json
       }

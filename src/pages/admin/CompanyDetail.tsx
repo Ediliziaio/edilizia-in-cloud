@@ -14,6 +14,7 @@ import { SalespersonDialog } from "@/components/salespeople/SalespersonDialog";
 import { EmployeeDialog } from "@/components/employees/EmployeeDialog";
 import { CompanyDetailHeader } from "@/components/admin/company/CompanyDetailHeader";
 import { CompanyDetailsTab } from "@/components/admin/company/CompanyDetailsTab";
+import { CompanyBillingTab } from "@/components/admin/company/CompanyBillingTab";
 import { CompanyTeamTab } from "@/components/admin/company/CompanyTeamTab";
 import { CompanySaaSTab } from "@/components/admin/company/CompanySaaSTab";
 import { CompanySubscriptionTab } from "@/components/admin/company/CompanySubscriptionTab";
@@ -114,6 +115,7 @@ export default function CompanyDetail() {
           <TabsTrigger value="team"><Users className="h-4 w-4 mr-1.5" />Team</TabsTrigger>
           <TabsTrigger value="saas">SaaS</TabsTrigger>
           <TabsTrigger value="abbonamento">Abbonamento</TabsTrigger>
+          <TabsTrigger value="billing">Billing & Servizi</TabsTrigger>
           <TabsTrigger value="attivita">Attività</TabsTrigger>
           <TabsTrigger value="note">Note</TabsTrigger>
         </TabsList>
@@ -179,6 +181,10 @@ export default function CompanyDetail() {
 
         <TabsContent value="attivita">
           <CompanyActivityTab companyId={h.company.id} />
+        </TabsContent>
+
+        <TabsContent value="billing">
+          <CompanyBillingTab companyId={h.company.id} />
         </TabsContent>
 
         <TabsContent value="note">
