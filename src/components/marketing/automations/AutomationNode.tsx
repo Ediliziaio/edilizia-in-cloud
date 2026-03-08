@@ -73,7 +73,7 @@ interface Props {
 }
 
 export const AutomationNodeComponent = memo(function AutomationNodeComponent({
-  node, isSelected, onSelect, onDelete, onDuplicate, onAddAfter, onDragStart,
+  node, isSelected, executionCount, onSelect, onDelete, onDuplicate, onAddAfter, onDragStart,
 }: Props) {
   const Icon = getNodeIcon(node);
   const colorClass = NODE_TYPE_COLORS[node.node_type] || "border-border bg-card";
