@@ -593,18 +593,20 @@ export function CostsTable({
             {items.length > 0 && (
               <TableFooter>
               <TableRow className="bg-muted/50 font-semibold">
-                  <TableCell colSpan={baseColCount}>
+                  <TableCell colSpan={footerLeadingCols}>
                     Totale ({items.length})
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalNet)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-xs text-violet-600 dark:text-violet-400">{formatCurrency(footerTotals.totalVat)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalGross)}</TableCell>
-                  <TableCell colSpan={3}>
-                    <div className="flex flex-col gap-0.5 text-xs">
-                      <span className="text-red-600">Da pagare: {formatCurrency(footerTotals.unpaidGross)}</span>
-                      <span className="text-green-600">Pagato: {formatCurrency(footerTotals.paidGross)}</span>
-                    </div>
-                  </TableCell>
+                  {isColVisible("amount") && <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalNet)}</TableCell>}
+                  {isColVisible("vatRate") && <TableCell className="text-right tabular-nums text-xs text-violet-600 dark:text-violet-400">{formatCurrency(footerTotals.totalVat)}</TableCell>}
+                  {isColVisible("gross") && <TableCell className="text-right tabular-nums">{formatCurrency(footerTotals.totalGross)}</TableCell>}
+                  {footerTrailingCols > 0 && (
+                    <TableCell colSpan={footerTrailingCols}>
+                      <div className="flex flex-col gap-0.5 text-xs">
+                        <span className="text-red-600">Da pagare: {formatCurrency(footerTotals.unpaidGross)}</span>
+                        <span className="text-green-600">Pagato: {formatCurrency(footerTotals.paidGross)}</span>
+                      </div>
+                    </TableCell>
+                  )}
                   <TableCell colSpan={hasOrderCol ? 2 : 1} />
                 </TableRow>
               </TableFooter>
