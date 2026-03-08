@@ -277,7 +277,7 @@ export default function CompanyCostsManager() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 overflow-hidden">
           {/* Alert Banner — Overdue payments */}
           {data.stats.overdueCount > 0 && (
             <Alert className="border-orange-300 bg-orange-50 dark:bg-orange-900/10 dark:border-orange-700">
