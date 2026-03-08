@@ -502,8 +502,8 @@ export default function SettingsCredits() {
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Ricarica automaticamente i crediti AI quando il saldo scende sotto la soglia impostata.
+                La configurazione segue le stesse impostazioni dell'auto top-up email nella sezione "Ricarica Email".
               </p>
-              <AIAutoTopupSection companyId={companyId} />
             </CardContent>
           </Card>
         </TabsContent>
