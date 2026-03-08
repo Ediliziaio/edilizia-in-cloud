@@ -47,6 +47,44 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_credit_adjustments: {
+        Row: {
+          amount_eur: number
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          reason: string
+          service: string
+        }
+        Insert: {
+          amount_eur: number
+          company_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          reason: string
+          service: string
+        }
+        Update: {
+          amount_eur?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          reason?: string
+          service?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_credit_adjustments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_notification_prefs: {
         Row: {
           created_at: string
@@ -1883,6 +1921,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "company_auto_topup_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_billing_overrides: {
+        Row: {
+          company_id: string
+          custom_notes: string | null
+          id: string
+          is_enabled: boolean
+          is_free: boolean
+          markup_multiplier: number | null
+          monthly_fee_eur: number | null
+          price_per_unit_eur: number | null
+          service: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          custom_notes?: string | null
+          id?: string
+          is_enabled?: boolean
+          is_free?: boolean
+          markup_multiplier?: number | null
+          monthly_fee_eur?: number | null
+          price_per_unit_eur?: number | null
+          service: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          custom_notes?: string | null
+          id?: string
+          is_enabled?: boolean
+          is_free?: boolean
+          markup_multiplier?: number | null
+          monthly_fee_eur?: number | null
+          price_per_unit_eur?: number | null
+          service?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_billing_overrides_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -7447,6 +7535,59 @@ export type Database = {
             foreignKeyName: "whatsapp_broadcasts_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_credits: {
+        Row: {
+          alert_email_sent_at: string | null
+          alert_threshold_eur: number | null
+          auto_recharge_amount: number | null
+          auto_recharge_enabled: boolean
+          auto_recharge_threshold: number | null
+          balance_eur: number
+          company_id: string
+          id: string
+          sends_blocked: boolean
+          total_recharged_eur: number
+          total_spent_eur: number
+          updated_at: string
+        }
+        Insert: {
+          alert_email_sent_at?: string | null
+          alert_threshold_eur?: number | null
+          auto_recharge_amount?: number | null
+          auto_recharge_enabled?: boolean
+          auto_recharge_threshold?: number | null
+          balance_eur?: number
+          company_id: string
+          id?: string
+          sends_blocked?: boolean
+          total_recharged_eur?: number
+          total_spent_eur?: number
+          updated_at?: string
+        }
+        Update: {
+          alert_email_sent_at?: string | null
+          alert_threshold_eur?: number | null
+          auto_recharge_amount?: number | null
+          auto_recharge_enabled?: boolean
+          auto_recharge_threshold?: number | null
+          balance_eur?: number
+          company_id?: string
+          id?: string
+          sends_blocked?: boolean
+          total_recharged_eur?: number
+          total_spent_eur?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_credits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
