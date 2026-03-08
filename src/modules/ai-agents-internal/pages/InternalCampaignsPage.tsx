@@ -59,7 +59,7 @@ export default function InternalCampaignsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Tasso Risposta</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="h-5 w-5 text-orange-500" />{responseRate}%</div></CardContent>
+          <CardContent><div className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="h-5 w-5 text-primary/50" />{responseRate}%</div></CardContent>
         </Card>
       </div>
 

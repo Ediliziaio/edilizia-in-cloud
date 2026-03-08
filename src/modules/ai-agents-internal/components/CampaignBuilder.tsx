@@ -211,16 +211,16 @@ export function CampaignBuilder({ open, onClose }: Props) {
         {/* Step 2: Schedule */}
         {step === 2 && (
           <div className="space-y-4">
-            <RadioGroup value={scheduleMode} onValueChange={(v) => setScheduleMode(v as "immediate" | "scheduled")} className="flex gap-4">
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="immediate" id="s-now" />
-                <Label htmlFor="s-now">Invio immediato</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="scheduled" id="s-later" />
-                <Label htmlFor="s-later">Programmata</Label>
-              </div>
-            </RadioGroup>
+            <div className="flex gap-4">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input type="radio" name="scheduleMode" checked={scheduleMode === "immediate"} onChange={() => setScheduleMode("immediate")} className="accent-primary" />
+                <span className="text-sm">Invio immediato</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input type="radio" name="scheduleMode" checked={scheduleMode === "scheduled"} onChange={() => setScheduleMode("scheduled")} className="accent-primary" />
+                <span className="text-sm">Programmata</span>
+              </label>
+            </div>
 
             {scheduleMode === "scheduled" && (
               <div className="space-y-2">
