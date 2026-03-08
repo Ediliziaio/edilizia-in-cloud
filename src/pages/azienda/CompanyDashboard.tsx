@@ -526,7 +526,7 @@ export default function CompanyDashboard() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <WarehouseAlerts urgentItems={urgentItems} />
 
-        <SupplierPaymentsSummary />
+        <SupplierPaymentsSummary dateRange={dateRange} />
 
         <WeeklyDeadlines
           receivables={weeklyDeadlines.receivables}
