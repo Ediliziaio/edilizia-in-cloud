@@ -289,27 +289,27 @@ export function CostsTable({
         </div>
       ) : (
         <>
-        <div className="rounded-md border overflow-x-auto max-w-full [&>div]:!overflow-visible">
-          <Table>
+        <div className="rounded-md border overflow-hidden">
+          <Table className="table-fixed">
               <TableHeader>
               <TableRow>
-                <TableHead className="w-[44px]">
+                <TableHead className="w-[3%]">
                   <Checkbox checked={allSelected} onCheckedChange={() => onToggleSelectAll(allSelectableIds)} aria-label="Seleziona tutti" />
                 </TableHead>
-                <SortableTableHead column="name" label="Nome" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[180px]" />
-                <SortableTableHead column="origin" label="Origine" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[100px]" />
-                {type === "all" && <SortableTableHead column="costType" label="Tipo" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[90px]" />}
-                <SortableTableHead column="supplier" label="Fornitore" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[130px]" />
-                <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[110px]" />
-                <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right min-w-[110px]" />
-                <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[70px]" />
-                <SortableTableHead column="gross" label="Totale Lordo" sortConfig={costSort} onSort={toggleCostSort} className="text-right min-w-[120px]" />
-                <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[110px]" />
-                <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[110px]" />
-                <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[130px]" />
-                <SortableTableHead column="delay" label="Ritardo" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[80px]" />
-                {hasOrderCol && <SortableTableHead column="order" label="Ordine" sortConfig={costSort} onSort={toggleCostSort} className="min-w-[100px]" />}
-                <TableHead className="text-right min-w-[120px]">Azioni</TableHead>
+                <SortableTableHead column="name" label="Nome" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />
+                <SortableTableHead column="origin" label="Origine" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />
+                {type === "all" && <SortableTableHead column="costType" label="Tipo" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
+                <SortableTableHead column="supplier" label="Fornitore" sortConfig={costSort} onSort={toggleCostSort} className="w-[9%]" />
+                <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />
+                <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />
+                <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />
+                <SortableTableHead column="gross" label="Totale Lordo" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />
+                <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />
+                <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[8%]" />
+                <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} className="w-[8%]" />
+                <SortableTableHead column="delay" label="Ritardo" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />
+                {hasOrderCol && <SortableTableHead column="order" label="Ordine" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
+                <TableHead className="text-right w-[6%]">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
