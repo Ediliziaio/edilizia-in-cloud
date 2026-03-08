@@ -21,60 +21,31 @@ interface ScoreFactor {
 function calcFactors(kpi: KpiData | undefined, finance: FinanceData, operations: OperationsData): ScoreFactor[] {
   const factors: ScoreFactor[] = [];
 
-  // 1. Margin (25%)
   const margin = finance.marginThisMonth;
   const marginScore = margin >= 30 ? 100 : margin >= 15 ? 60 : margin >= 0 ? 30 : 0;
-  factors.push({
-    label: "Margine",
-    score: marginScore,
-    status: marginScore >= 70 ? "green" : marginScore >= 40 ? "yellow" : "red",
-    summary: margin >= 30 ? "OK" : margin >= 15 ? "Attenzione" : "Critico",
-  });
+  factors.push({ label: "Margine", score: marginScore, status: marginScore >= 70 ? "green" : marginScore >= 40 ? "yellow" : "red", summary: margin >= 30 ? "OK" : margin >= 15 ? "Attenzione" : "Critico" });
 
-  // 2. Cash flow (25%)
   const cf = finance.cashFlowNet;
   const cfScore = cf > 5000 ? 100 : cf >= 0 ? 70 : cf > -5000 ? 30 : 0;
-  factors.push({
-    label: "Cash Flow",
-    score: cfScore,
-    status: cfScore >= 70 ? "green" : cfScore >= 40 ? "yellow" : "red",
-    summary: cf > 0 ? "Positivo" : cf === 0 ? "Neutro" : "Negativo",
-  });
+  factors.push({ label: "Cash Flow", score: cfScore, status: cfScore >= 70 ? "green" : cfScore >= 40 ? "yellow" : "red", summary: cf > 0 ? "Positivo" : cf === 0 ? "Neutro" : "Negativo" });
 
-  // 3. Close rate (20%)
   const closeRate = kpi?.close_rate ?? 0;
   const crScore = closeRate >= 30 ? 100 : closeRate >= 15 ? 60 : closeRate > 0 ? 30 : 0;
-  factors.push({
-    label: "Vendite",
-    score: crScore,
-    status: crScore >= 70 ? "green" : crScore >= 40 ? "yellow" : "red",
-    summary: closeRate >= 30 ? "Forti" : closeRate >= 15 ? "Nella media" : "Deboli",
-  });
+  factors.push({ label: "Vendite", score: crScore, status: crScore >= 70 ? "green" : crScore >= 40 ? "yellow" : "red", summary: closeRate >= 30 ? "Forti" : closeRate >= 15 ? "Nella media" : "Deboli" });
 
-  // 4. Show rate (15%)
   const showRate = kpi?.show_rate ?? 0;
   const srScore = showRate >= 70 ? 100 : showRate >= 50 ? 60 : showRate > 0 ? 20 : 0;
-  factors.push({
-    label: "Show Rate",
-    score: srScore,
-    status: srScore >= 70 ? "green" : srScore >= 40 ? "yellow" : "red",
-    summary: showRate >= 70 ? "Alto" : showRate >= 50 ? "Medio" : "Basso",
-  });
+  factors.push({ label: "Show Rate", score: srScore, status: srScore >= 70 ? "green" : srScore >= 40 ? "yellow" : "red", summary: showRate >= 70 ? "Alto" : showRate >= 50 ? "Medio" : "Basso" });
 
-  // 5. Operations (15%)
   const late = operations.lateOrders + operations.overduePayments;
   const opsScore = late === 0 ? 100 : late <= 2 ? 60 : late <= 5 ? 30 : 0;
-  factors.push({
-    label: "Operazioni",
-    score: opsScore,
-    status: opsScore >= 70 ? "green" : opsScore >= 40 ? "yellow" : "red",
-    summary: late === 0 ? "In ordine" : late <= 3 ? "Da monitorare" : "Critiche",
-  });
+  factors.push({ label: "Operazioni", score: opsScore, status: opsScore >= 70 ? "green" : opsScore >= 40 ? "yellow" : "red", summary: late === 0 ? "In ordine" : late <= 3 ? "Da monitorare" : "Critiche" });
 
   return factors;
 }
 
 const WEIGHTS = [0.25, 0.25, 0.20, 0.15, 0.15];
+const WEIGHT_LABELS = ["25%", "25%", "20%", "15%", "15%"];
 
 export const CompanyHealthScore = memo(function CompanyHealthScore({ kpi, finance, operations, isLoading }: Props) {
   const factors = useMemo(() => calcFactors(kpi, finance, operations), [kpi, finance, operations]);
@@ -98,9 +69,9 @@ export const CompanyHealthScore = memo(function CompanyHealthScore({ kpi, financ
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-center gap-6 p-6 rounded-xl border bg-card">
+    <div className="flex flex-col sm:flex-row items-start gap-6 p-6 rounded-xl border bg-card">
       {/* Score circle */}
-      <div className="relative shrink-0">
+      <div className="relative shrink-0 self-center sm:self-start">
         <svg width="96" height="96" viewBox="0 0 96 96" className="transform -rotate-90">
           <circle cx="48" cy="48" r="40" fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
           <circle
@@ -130,10 +101,10 @@ export const CompanyHealthScore = memo(function CompanyHealthScore({ kpi, financ
         </div>
       </div>
 
-      {/* Factors summary */}
-      <div className="flex-1 min-w-0">
+      {/* Factors summary + bars */}
+      <div className="flex-1 min-w-0 w-full">
         <h3 className="text-sm font-semibold text-foreground mb-1">Salute Aziendale</h3>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 mb-4">
           {factors.map(f => (
             <span
               key={f.label}
@@ -152,6 +123,27 @@ export const CompanyHealthScore = memo(function CompanyHealthScore({ kpi, financ
               )} />
               {f.label}: {f.summary}
             </span>
+          ))}
+        </div>
+
+        {/* Breakdown bars */}
+        <div className="space-y-2">
+          {factors.map((f, i) => (
+            <div key={f.label} className="flex items-center gap-2 text-xs">
+              <span className="w-20 text-muted-foreground truncate">{f.label}</span>
+              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    f.status === "green" && "bg-emerald-500",
+                    f.status === "yellow" && "bg-amber-500",
+                    f.status === "red" && "bg-destructive",
+                  )}
+                  style={{ width: `${f.score}%` }}
+                />
+              </div>
+              <span className="w-8 text-right text-muted-foreground tabular-nums">{WEIGHT_LABELS[i]}</span>
+            </div>
           ))}
         </div>
       </div>
