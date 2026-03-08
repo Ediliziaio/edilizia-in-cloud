@@ -14,11 +14,11 @@ interface AISubscriptionGateProps {
 
 export function AISubscriptionGate({ children }: AISubscriptionGateProps) {
   const { isActive, isTrial, trialDaysLeft, isLoading, subscription } = useAISubscription();
-  const { effectiveCompany, userRole } = useAuth();
+  const { effectiveCompany, role } = useAuth();
   const [loadingCheckout, setLoadingCheckout] = useState(false);
 
   // Super admins always have access
-  if (userRole === "super_admin") return <>{children}</>;
+  if (role === "super_admin") return <>{children}</>;
 
   if (isLoading) {
     return (
