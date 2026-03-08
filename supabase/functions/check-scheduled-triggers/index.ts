@@ -20,6 +20,8 @@ Deno.serve(async (req) => {
     birthday: 0,
     custom_date: 0,
     opportunity_stale: 0,
+    appointment_reminder_24h: 0,
+    appointment_reminder_1h: 0,
   };
 
   try {
