@@ -957,11 +957,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               </TabsContent>
 
               <TabsContent value="dnd" className="mt-2">
-                <p className="text-xs text-muted-foreground text-center py-6">DND - Prossimamente</p>
+                <ContactDndTab
+                  contact={contact}
+                  onUpdate={(field, value) => updateField.mutate({ field, value })}
+                />
               </TabsContent>
 
               <TabsContent value="actions" className="mt-2">
-                <p className="text-xs text-muted-foreground text-center py-6">Azioni - Prossimamente</p>
+                <ContactActionsTab contact={contact} companyId={companyId!} />
               </TabsContent>
             </Tabs>
           </div>
