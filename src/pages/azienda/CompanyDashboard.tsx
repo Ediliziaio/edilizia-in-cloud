@@ -119,6 +119,7 @@ export default function CompanyDashboard() {
       color: "text-blue-600",
       bgColor: "bg-blue-100",
       description: "Gestiti dalla tua azienda",
+      link: "/azienda/ordini",
     },
     {
       title: "Clienti",
@@ -128,6 +129,7 @@ export default function CompanyDashboard() {
       color: "text-purple-600",
       bgColor: "bg-purple-100",
       description: "Registrati in piattaforma",
+      link: "/azienda/clienti",
     },
     {
       title: "Ticket Aperti",
@@ -137,6 +139,7 @@ export default function CompanyDashboard() {
       color: stats.openTickets > 0 ? "text-orange-600" : "text-green-600",
       bgColor: stats.openTickets > 0 ? "bg-orange-100" : "bg-green-100",
       description: stats.openTickets > 0 ? "In attesa di risposta" : "Tutto risolto!",
+      link: "/azienda/ticket",
     },
     {
       title: "Da Incassare",
@@ -146,6 +149,7 @@ export default function CompanyDashboard() {
       color: "text-emerald-600",
       bgColor: "bg-emerald-100",
       description: `Da ${stats.pendingOrdersCount} ordini`,
+      link: "/azienda/previsionale",
     },
   ];
 
