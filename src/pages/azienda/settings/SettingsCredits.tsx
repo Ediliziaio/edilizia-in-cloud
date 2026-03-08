@@ -28,9 +28,8 @@ interface WalletData {
 
 interface CreditLogEntry {
   id: string;
-  wallet_type: string;
-  movement_type: string;
-  amount: number;
+  type: string;
+  amount_eur: number;
   balance_before: number;
   balance_after: number;
   description: string | null;
