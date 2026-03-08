@@ -7722,6 +7722,24 @@ export type Database = {
           },
         ]
       }
+      order_payment_summary: {
+        Row: {
+          installment_count: number | null
+          order_id: string | null
+          total_collected: number | null
+          total_invoiced: number | null
+          total_pending: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_installments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       add_email_credits_with_log: {
