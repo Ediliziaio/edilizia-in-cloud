@@ -48,7 +48,34 @@ export default function SettingsIntegrations() {
   const userId = user?.id;
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [metaConfigMissing, setMetaConfigMissing] = useState(false);
   const navigate = useNavigate();
+
+  // Check if global Meta credentials are configured
+  const checkMetaCredentials = async (): Promise<boolean> => {
+    try {
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("key, value")
+        .in("key", ["meta_app_id", "meta_app_secret"]);
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => { map[r.key] = r.value; });
+      if (!map.meta_app_id || !map.meta_app_secret) {
+        setMetaConfigMissing(true);
+        toast.error("L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma.");
+        return false;
+      }
+      setMetaConfigMissing(false);
+      return true;
+    } catch {
+      return true; // fail open – let wizard handle errors
+    }
+  };
+
+  const handleMetaConnect = async () => {
+    const ok = await checkMetaCredentials();
+    if (ok) setWizardOpen(true);
+  };
 
   const { data: integrations = [], refetch } = useQuery({
     queryKey: ["integrations", companyId],
