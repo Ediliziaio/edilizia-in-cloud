@@ -95,7 +95,16 @@ Deno.serve(async (req) => {
               .from("messaging_messages")
               .update(updateData)
               .eq("meta_message_id", metaMessageId);
-          }
+
+            // Also update broadcast recipients if applicable
+            const broadcastUpdate: Record<string, string> = { status: newStatus };
+            if (newStatus === "delivered") broadcastUpdate.delivered_at = timestamp;
+            if (newStatus === "read") broadcastUpdate.read_at = timestamp;
+
+            await supabase
+              .from("whatsapp_broadcast_recipients")
+              .update(broadcastUpdate)
+              .eq("meta_message_id", metaMessageId);
 
           if (!value?.messages) continue;
 
