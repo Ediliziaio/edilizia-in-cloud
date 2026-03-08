@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,7 +17,13 @@ import {
   ChevronsUpDown,
   RefreshCw,
   LifeBuoy,
-  Megaphone
+  Megaphone,
+  ArrowLeft,
+  User,
+  Server,
+  Bell,
+  ShieldCheck,
+  ScrollText
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -68,7 +74,112 @@ function getAvatarColor(name: string) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-function AdminSidebar() {
+function AdminSettingsSidebar() {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+  const { permissions } = useSuperAdminPermissions();
+
+  const navLinkClass = "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
+  const activeClass = "bg-muted text-foreground font-medium";
+
+  return (
+    <Sidebar className="border-r">
+      <div className="flex h-14 items-center border-b px-4">
+        <Link to="/admin" className="flex items-center">
+          <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
+        </Link>
+      </div>
+      <SidebarContent>
+        <div className="px-3 pt-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start gap-2 mb-2 text-muted-foreground hover:text-foreground w-full"
+            onClick={() => navigate("/admin")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Torna indietro
+          </Button>
+          <h2 className="text-lg font-semibold px-3 mb-4">Impostazioni</h2>
+        </div>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Account</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to="/admin/impostazioni/profilo" className={navLinkClass} activeClassName={activeClass}>
+                    <User className="h-4 w-4" /><span>Profilo</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Piattaforma</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to="/admin/impostazioni/piattaforma" className={navLinkClass} activeClassName={activeClass}>
+                    <Server className="h-4 w-4" /><span>Piattaforma</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to="/admin/impostazioni/notifiche" className={navLinkClass} activeClassName={activeClass}>
+                    <Bell className="h-4 w-4" /><span>Notifiche</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {permissions.can_manage_admins && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Amministrazione</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink to="/admin/impostazioni/super-admin" className={navLinkClass} activeClassName={activeClass}>
+                      <ShieldCheck className="h-4 w-4" /><span>Super Admin</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink to="/admin/impostazioni/audit" className={navLinkClass} activeClassName={activeClass}>
+                      <ScrollText className="h-4 w-4" /><span>Registro Attività</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        <div className="mt-auto p-4">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+            onClick={() => signOut()}
+          >
+            <LogOut className="h-4 w-4" />
+            Esci
+          </Button>
+        </div>
+      </SidebarContent>
+    </Sidebar>
+  );
+}
+
+function AdminMainSidebar() {
   const { signOut, impersonateCompany } = useAuth();
   const { permissions } = useSuperAdminPermissions();
   const navigate = useNavigate();
@@ -76,7 +187,6 @@ function AdminSidebar() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
 
-  // Debounce search input
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const handleSearchChange = (value: string) => {
     setCompanySearch(value);
@@ -251,10 +361,13 @@ function AdminSidebar() {
 }
 
 export function AdminLayout() {
+  const location = useLocation();
+  const isSettingsRoute = location.pathname.startsWith("/admin/impostazioni");
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <AdminSidebar />
+        {isSettingsRoute ? <AdminSettingsSidebar /> : <AdminMainSidebar />}
         <div className="flex-1 flex flex-col">
           <header className="h-14 border-b flex items-center px-4 gap-4 bg-background">
             <SidebarTrigger />
