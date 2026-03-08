@@ -11,7 +11,7 @@ export const orderSchema = z.object({
   salesperson_data: z.object({
     commission_type: z.string(),
     commission_value: z.number(),
-  }).nullable().default(null),
+  }).nullable().optional().default(null),
   assigned_to: z.string().optional().default(""),
   // Dates
   expected_date: z.date().optional(),
