@@ -114,7 +114,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ whatsapp, googlemaps, meta, email, elevenlabs }),
+      JSON.stringify({ whatsapp, googlemaps, meta, email, email_marketing, email_transactional, elevenlabs }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

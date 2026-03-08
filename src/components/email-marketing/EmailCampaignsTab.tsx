@@ -327,7 +327,7 @@ export function EmailCampaignsTab() {
                           : "—"}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        <Badge variant={badge.variant} className={badge.className}>{badge.label}</Badge>
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>

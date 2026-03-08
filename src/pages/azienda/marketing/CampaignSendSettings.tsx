@@ -421,9 +421,8 @@ export default function CampaignSendSettings() {
               <Label className="text-base font-medium">Destinatari</Label>
               <div className="space-y-2">
                 {[
-                  { value: "list", label: "Invia all'elenco" },
-                  { value: "contacts", label: "Scegli contatti" },
-                  { value: "segment", label: "Segmenti predefiniti" },
+                  { value: "list", label: "Invia a tutti i contatti iscritti" },
+                  { value: "segment", label: "Filtra per segmento" },
                 ].map((opt) => (
                   <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -438,9 +437,48 @@ export default function CampaignSendSettings() {
                   </label>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">
-                La selezione dettagliata dei destinatari sarà disponibile dopo l'integrazione con il servizio email.
-              </p>
+
+              {recipientMode === "segment" && (
+                <div className="space-y-3 p-3 rounded-md border bg-muted/30">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Filtra per tag</Label>
+                    <Input
+                      placeholder="Inserisci tag separati da virgola..."
+                      value={segmentTags.join(", ")}
+                      onChange={(e) => setSegmentTags(e.target.value.split(",").map(t => t.trim()).filter(Boolean))}
+                    />
+                    <p className="text-[10px] text-muted-foreground">Solo contatti che hanno almeno uno di questi tag</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Filtra per sorgente</Label>
+                    <Select value={segmentSource} onValueChange={setSegmentSource}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Qualsiasi sorgente" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Qualsiasi</SelectItem>
+                        <SelectItem value="meta">Meta</SelectItem>
+                        <SelectItem value="google">Google</SelectItem>
+                        <SelectItem value="website">Sito web</SelectItem>
+                        <SelectItem value="manual">Manuale</SelectItem>
+                        <SelectItem value="import">Importato</SelectItem>
+                        <SelectItem value="referral">Referral</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Filtra per tipo contatto</Label>
+                    <Select value={segmentContactType} onValueChange={setSegmentContactType}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Qualsiasi tipo" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Qualsiasi</SelectItem>
+                        <SelectItem value="lead">Lead</SelectItem>
+                        <SelectItem value="prospect">Prospect</SelectItem>
+                        <SelectItem value="customer">Cliente</SelectItem>
+                        <SelectItem value="lost">Perso</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </div>
 
             <Separator />
