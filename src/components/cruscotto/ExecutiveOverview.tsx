@@ -1,9 +1,11 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { TrendingUp, TrendingDown, Minus, Euro, Percent, Users, CalendarCheck, Trophy, Target, Zap, CreditCard, Landmark, Package, ArrowDownCircle, ArrowUpCircle, Flame } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, TrendingDown, Minus, Euro, Percent, Users, CalendarCheck, Trophy, Target, Zap, CreditCard, Landmark, Package, ArrowDownCircle, ArrowUpCircle, Flame, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KpiData } from "@/hooks/useMarketingDashboard";
 import type { FinanceData, OperationsData } from "@/hooks/useCruscottoData";
