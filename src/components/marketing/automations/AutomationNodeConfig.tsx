@@ -133,6 +133,16 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
     enabled: !!companyId && isAction && actionType === "send_email",
   });
 
+  const { data: automationFlows = [] } = useQuery({
+    queryKey: ["automation_flows_for_actions", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from("automation_flows").select("id, name").eq("company_id", companyId).eq("status", "published").order("name");
+      return data || [];
+    },
+    enabled: !!companyId && isAction && ["remove_from_automation", "wait_for_event"].includes(actionType),
+  });
+
   // ── Trigger config ──
   const triggerCategory = node.config_json?.trigger_category || "contact";
   const triggerEvent = node.config_json?.trigger_event || "";
@@ -704,6 +714,46 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
           {/* ── END AUTOMATION ── */}
           {actionType === "end_automation" && (
             <p className="text-xs text-muted-foreground">Questo nodo termina l'automazione per il contatto corrente. Non è necessaria alcuna configurazione aggiuntiva.</p>
+          )}
+
+          {/* ── REMOVE FROM AUTOMATION ── */}
+          {actionType === "remove_from_automation" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Workflow da cui rimuovere</Label>
+                <Select value={node.config_json?.target_flow_id || ""} onValueChange={(v) => updateConfig("target_flow_id", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue placeholder="Seleziona workflow..." /></SelectTrigger>
+                  <SelectContent>
+                    {automationFlows.map(f => (
+                      <SelectItem key={f.id} value={f.id} className="text-xs">{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">Il contatto verrà rimosso dal workflow selezionato se è attualmente iscritto.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── WAIT FOR EVENT ── */}
+          {actionType === "wait_for_event" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Evento atteso</Label>
+                <Select value={node.config_json?.await_event || ""} onValueChange={(v) => updateConfig("await_event", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue placeholder="Seleziona evento..." /></SelectTrigger>
+                  <SelectContent>
+                    {TRIGGER_CATEGORIES.flatMap(cat => cat.items).map(item => (
+                      <SelectItem key={item.id} value={item.id} className="text-xs">{item.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Timeout (giorni)</Label>
+                <Input type="number" min={1} value={node.config_json?.timeout_days || 7} onChange={(e) => updateConfig("timeout_days", parseInt(e.target.value) || 7)} className="mt-1 h-9 text-xs" />
+                <p className="text-[10px] text-muted-foreground mt-1">Se l'evento non si verifica entro questo periodo, il contatto proseguirà sul ramo "timeout".</p>
+              </div>
+            </div>
           )}
 
           {/* ── SYNC GOOGLE ── */}

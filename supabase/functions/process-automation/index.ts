@@ -102,10 +102,23 @@ async function handleTrigger(supabase: any, body: any) {
 
     if (!matchingTrigger) continue;
 
+    // Enrich payload with contact data for filter evaluation
+    let enrichedPayload = payload || {};
+    if (entity_id && (entity_type === "contact" || !entity_type)) {
+      const { data: contactData } = await supabase
+        .from("marketing_contacts")
+        .select("*")
+        .eq("id", entity_id)
+        .maybeSingle();
+      if (contactData) {
+        enrichedPayload = { ...contactData, ...enrichedPayload };
+      }
+    }
+
     // Check if trigger filters match (basic evaluation)
     const filters = matchingTrigger.config_json?.filters;
     if (filters && filters.conditions?.length > 0) {
-      if (!evaluateFilters(filters, payload || {})) continue;
+      if (!evaluateFilters(filters, enrichedPayload)) continue;
     }
 
     // Check re-enrollment settings
@@ -495,6 +508,44 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       return { success: true, output: { action: actionType, placeholder: true, message: "Integration pending" } };
     }
 
+    case "remove_from_automation": {
+      const targetFlowId = cfg.target_flow_id;
+      if (!targetFlowId) return { success: false, error: "No target_flow_id configured" };
+      // Remove active enrollments for this entity in the target flow
+      const { data: removed, error: removeErr } = await supabase
+        .from("automation_enrollments")
+        .update({ status: "removed", updated_at: new Date().toISOString() })
+        .eq("flow_id", targetFlowId)
+        .eq("entity_id", entityId)
+        .eq("status", "active")
+        .select("id");
+      if (removeErr) return { success: false, error: removeErr.message };
+      // Also cancel any pending queue items for these enrollments
+      if (removed && removed.length > 0) {
+        for (const enrollment of removed) {
+          await supabase
+            .from("automation_queue")
+            .update({ status: "cancelled", updated_at: new Date().toISOString() })
+            .eq("enrollment_id", enrollment.id)
+            .eq("status", "pending");
+        }
+      }
+      return { success: true, output: { action: "remove_from_automation", target_flow_id: targetFlowId, removed_count: removed?.length || 0 } };
+    }
+
+    case "wait_for_event": {
+      // This action puts the enrollment in a "waiting" state
+      // The actual waiting is handled by setting a delayed queue item
+      // When the awaited event fires, processTriggerEvents will check for waiting enrollments
+      return {
+        success: true,
+        output: { action: "wait_for_event", waiting: true, await_event: cfg.await_event, timeout_days: cfg.timeout_days || 7 },
+        isWaiting: true,
+        awaitEvent: cfg.await_event,
+        timeoutDays: parseInt(cfg.timeout_days) || 7,
+      };
+    }
+
     case "webhook_out": {
       const url = cfg.webhook_url;
       if (!url) return { success: false, error: "No webhook_url configured" };
@@ -551,6 +602,36 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
     nextConns = connections.filter((c: AutomationConnection) => c.label === result.branch);
     // If no labeled connections found, fall back to all connections
     if (nextConns.length === 0) nextConns = connections;
+  }
+
+  // Handle wait_for_event: create a "waiting" queue item with timeout
+  if (result.isWaiting) {
+    const timeoutMs = (result.timeoutDays || 7) * 86400000;
+    const timeoutAt = new Date(Date.now() + timeoutMs).toISOString();
+
+    // Update enrollment status to "waiting"
+    await supabase
+      .from("automation_enrollments")
+      .update({ status: "waiting", updated_at: new Date().toISOString() })
+      .eq("id", queueItem.enrollment_id);
+
+    // Create a timeout queue item that will fire on the "timeout" branch
+    for (const conn of nextConns) {
+      if (conn.label === "timeout") {
+        await supabase.from("automation_queue").insert({
+          enrollment_id: queueItem.enrollment_id,
+          flow_id: queueItem.flow_id,
+          company_id: queueItem.company_id,
+          current_node_id: conn.to_node_id,
+          entity_id: queueItem.entity_id,
+          entity_type: queueItem.entity_type,
+          status: "waiting",
+          execute_at: timeoutAt,
+          context_json: { ...queueItem.context_json, branch: "timeout", await_event: result.awaitEvent, waiting_for: result.awaitEvent, wait_node_id: node.id },
+        });
+      }
+    }
+    return;
   }
 
   for (const conn of nextConns) {
@@ -610,6 +691,9 @@ async function processTriggerEvents(supabase: any) {
 
   for (const evt of events) {
     try {
+      // Check if any enrollments are waiting for this event
+      await resolveWaitingEnrollments(supabase, evt);
+
       await handleTrigger(supabase, {
         trigger_event: evt.trigger_event,
         company_id: evt.company_id,
@@ -625,6 +709,116 @@ async function processTriggerEvents(supabase: any) {
       .from("automation_trigger_events")
       .update({ processed: true })
       .eq("id", evt.id);
+  }
+
+  // Process waiting queue items that have timed out
+  await processWaitingTimeouts(supabase);
+}
+
+// ────────────────────────────────────────────────────
+// RESOLVE WAITING ENROLLMENTS (wait_for_event)
+// ────────────────────────────────────────────────────
+async function resolveWaitingEnrollments(supabase: any, evt: any) {
+  // Find waiting queue items for this entity and event
+  const { data: waitingItems } = await supabase
+    .from("automation_queue")
+    .select("*")
+    .eq("entity_id", evt.entity_id)
+    .eq("status", "waiting")
+    .limit(50);
+
+  if (!waitingItems || waitingItems.length === 0) return;
+
+  for (const item of waitingItems) {
+    const awaitEvent = item.context_json?.waiting_for || item.context_json?.await_event;
+    if (awaitEvent !== evt.trigger_event) continue;
+
+    // Event matched! Get the connections from the wait_for_event node's "event" branch
+    const { data: connections } = await supabase
+      .from("automation_connections")
+      .select("*")
+      .eq("flow_id", item.flow_id);
+
+    // Find the node that produced this waiting item - look for connections with label "event" or default
+    // Cancel the timeout queue item
+    await supabase
+      .from("automation_queue")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("enrollment_id", item.enrollment_id)
+      .eq("status", "waiting");
+
+    // Reactivate enrollment
+    await supabase
+      .from("automation_enrollments")
+      .update({ status: "active", updated_at: new Date().toISOString() })
+      .eq("id", item.enrollment_id);
+
+    // Find the "event" branch connections
+    if (connections) {
+      // Get the action node that created this wait - we need the parent node
+      const parentNodeId = item.context_json?.wait_node_id;
+      if (parentNodeId) {
+        const eventConns = connections.filter((c: any) => c.from_node_id === parentNodeId && c.label === "event");
+        for (const conn of eventConns) {
+          await supabase.from("automation_queue").insert({
+            enrollment_id: item.enrollment_id,
+            flow_id: item.flow_id,
+            company_id: item.company_id,
+            current_node_id: conn.to_node_id,
+            entity_id: item.entity_id,
+            entity_type: item.entity_type,
+            status: "pending",
+            execute_at: new Date().toISOString(),
+            context_json: { ...item.context_json, branch: "event", resolved_event: evt.trigger_event },
+          });
+        }
+      }
+    }
+  }
+}
+
+// ────────────────────────────────────────────────────
+// PROCESS WAITING TIMEOUTS
+// ────────────────────────────────────────────────────
+async function processWaitingTimeouts(supabase: any) {
+  const now = new Date().toISOString();
+
+  // Find waiting items whose execute_at has passed (timeout)
+  const { data: timedOut } = await supabase
+    .from("automation_queue")
+    .select("*")
+    .eq("status", "waiting")
+    .lte("execute_at", now)
+    .limit(50);
+
+  if (!timedOut || timedOut.length === 0) return;
+
+  for (const item of timedOut) {
+    // Mark as completed (timeout fired)
+    await supabase
+      .from("automation_queue")
+      .update({ status: "completed", updated_at: now })
+      .eq("id", item.id);
+
+    // Reactivate enrollment
+    await supabase
+      .from("automation_enrollments")
+      .update({ status: "active", updated_at: now })
+      .eq("id", item.enrollment_id);
+
+    // The timeout branch node is already set as current_node_id, so execute it
+    // Re-insert as pending for immediate processing
+    await supabase.from("automation_queue").insert({
+      enrollment_id: item.enrollment_id,
+      flow_id: item.flow_id,
+      company_id: item.company_id,
+      current_node_id: item.current_node_id,
+      entity_id: item.entity_id,
+      entity_type: item.entity_type,
+      status: "pending",
+      execute_at: now,
+      context_json: { ...item.context_json, timeout_fired: true },
+    });
   }
 }
 

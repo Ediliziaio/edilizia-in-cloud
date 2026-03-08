@@ -1,97 +1,76 @@
+# Verifica Modulo AI Agents — Stato aggiornato
 
+## Completato — Blocco A, B, C ✅
 
-# Piano Implementazione — Fix Automazioni Marketing
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-Documento analizzato. Procedo con i fix in ordine di priorità come indicato (P0 prima, poi P1, poi P2).
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
----
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-## Fase 1 — Fix P0 (Critici)
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-### A1: email_opened / email_clicked → handleTrigger
-**File:** `supabase/functions/email-tracking/index.ts`
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
-Dopo l'update su `email_logs` nei case `open` e `click`, inserire una riga in `automation_trigger_events` con:
-- `open` → trigger_event `email_opened`, payload `{ campaign_id, contact_id, company_id }`
-- `click` → trigger_event `email_clicked`, payload `{ campaign_id, contact_id, company_id, link_url }`
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-Serve fare una query per ottenere il `company_id` dall'email_log se non disponibile (attualmente arriva come param `co`).
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-### A2: whatsapp_received → handleTrigger
-**File:** `supabase/functions/whatsapp-webhook/index.ts`
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-Dopo l'insert del messaggio in arrivo (riga ~208-221), inserire in `automation_trigger_events`:
-- trigger_event: `whatsapp_received`
-- entity_id: ID del contatto marketing (lookup per telefono su `marketing_contacts`)
-- payload: `{ from: senderPhone, message: content, conversation_id }`
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
-### A3: opportunity_won / opportunity_lost dalla UI Pipeline
-**File:** `src/hooks/useOpportunitiesData.ts` — `useUpdateOpportunityStage`
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
 
-Il DB trigger `fire_marketing_automation` già spara `opportunity_won`/`opportunity_lost` quando `status` cambia su `marketing_opportunities`. Attualmente la mutation `useUpdateOpportunityStage` passa `auto_status` che setta `status = 'won'` o `'lost'` nel DB → il trigger dovrebbe già scattare.
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
 
-Verifico che il trigger `fire_marketing_automation` catturi correttamente il cambio status `won`/`lost`. Se confermato funzionante, nessun fix necessario. Se non scatta, aggiungo insert diretto in `automation_trigger_events` nella mutation `onSuccess`.
-
-### B: Fix filtri trigger con dati contatto
-**File:** `supabase/functions/process-automation/index.ts` — funzione `handleTrigger`
-
-Attualmente `evaluateFilters(filters, payload)` valuta solo il payload dell'evento. Fix: prima di `evaluateFilters`, fare query su `marketing_contacts` per `entity_id` e fare merge `{ ...contactData, ...payload }` come dato per i filtri.
-
-### C: check-scheduled-triggers + pg_cron
-**Nuovo file:** `supabase/functions/check-scheduled-triggers/index.ts`
-
-Edge function che:
-1. Trova tutti i flussi pubblicati con trigger temporali (`birthday_reminder`, `custom_date`, `opportunity_stale`, `scheduler`)
-2. Per `birthday_reminder`: query contatti con data di nascita = oggi, spara trigger
-3. Per `custom_date`: query campi data contatto che matchano la condizione configurata
-4. Per `opportunity_stale`: query opportunità open senza attività da X giorni
-5. Per ogni match, inserisce in `automation_trigger_events`
-
-**Migration SQL:** Creare pg_cron job che invoca la funzione ogni notte alle 02:00.
-
----
-
-## Fase 2 — Fix P1
-
-### D: Azione remove_from_automation
-- **UI:** Aggiungere in `ACTION_CATEGORIES` (file `src/types/automationBuilder.ts`) la voce `remove_from_automation` nella categoria CRM
-- **Config UI:** In `AutomationNodeConfig.tsx` aggiungere il pannello config con dropdown per selezionare il flusso target
-- **Backend:** In `process-automation/index.ts`, case `remove_from_automation`: update `automation_enrollments` set `status = 'removed'` per l'entity nel flusso target
-
-### E: Azione wait_for_event
-- **UI:** Aggiungere `wait_for_event` nelle azioni logica con config: evento atteso, timeout in giorni, ramo timeout
-- **Backend:** Nel case `wait_for_event`, creare un log entry con status `waiting` e `wait_until`. In `check-scheduled-triggers`, controllare i log in stato `waiting` scaduti e farli proseguire sul ramo timeout
-- **Nel handleTrigger:** Quando arriva un evento, controllare se c'è un enrollment in stato `waiting` per quell'evento e farlo proseguire
-
-### F: send_sms con Twilio
-- Richiede credenziali Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`) — da richiedere all'utente
-- Implementare il case `send_sms` in `process-automation/index.ts` con chiamata API Twilio
-- Skippato se l'utente non ha Twilio configurato
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
 
 ---
 
-## Fase 3 — Fix P2
+## Fix Automazioni Marketing
 
-### G: Enrollment bulk dalla lista contatti
-- Aggiungere checkbox alla lista contatti CRM
-- Toolbar batch con azione "Aggiungi a Workflow"
-- Dialog per selezionare il workflow target
-- Backend: inserimento batch in `automation_trigger_events` o chiamata diretta a handleTrigger per ogni contatto
+### Fase 1 — P0 (Critici) ✅
 
----
+- ✅ **A1**: `email-tracking` → inserisce `email_opened` / `email_clicked` in `automation_trigger_events`
+- ✅ **A2**: `whatsapp-webhook` → inserisce `whatsapp_received` in `automation_trigger_events` (con lookup contatto marketing)
+- ✅ **A3**: `fire_marketing_automation` già gestisce `opportunity_won`/`opportunity_lost` correttamente — nessun fix necessario
+- ✅ **B**: `process-automation` → `handleTrigger` arricchisce payload con dati contatto da `marketing_contacts` prima di `evaluateFilters`
+- ✅ **C**: Nuova Edge Function `check-scheduled-triggers` per trigger temporali (birthday, custom_date, opportunity_stale) + pg_cron alle 02:00
 
-## Riepilogo file modificati
+### Fase 2 — P1 ✅
 
-| File | Fix |
-|------|-----|
-| `supabase/functions/email-tracking/index.ts` | A1 |
-| `supabase/functions/whatsapp-webhook/index.ts` | A2 |
-| `supabase/functions/process-automation/index.ts` | B, D, E, F |
-| `supabase/functions/check-scheduled-triggers/index.ts` (nuovo) | C, E |
-| `src/types/automationBuilder.ts` | D, E |
-| `src/components/marketing/automations/AutomationNodeConfig.tsx` | D, E |
-| `src/hooks/useOpportunitiesData.ts` | A3 (se necessario) |
-| Migration SQL | C (pg_cron) |
+- ✅ **D**: Azione `remove_from_automation` — UI (tipo CRM in builder) + backend (rimuove enrollment + cancella queue)
+- ✅ **E**: Azione `wait_for_event` — UI (tipo logica in builder) + backend (stato waiting, timeout, risoluzione evento)
 
-Data la complessità, implementerò per blocchi: prima tutti i P0 (A1, A2, A3, B, C), poi P1 (D, E), infine P2 (G). SMS (F) richiede conferma credenziali Twilio.
+### Fase 3 — P2 (TODO)
 
+- [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
+- [ ] **G**: Enrollment bulk dalla lista contatti CRM

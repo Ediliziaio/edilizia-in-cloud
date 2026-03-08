@@ -134,6 +134,7 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
       { id: "remove_tag", label: "Rimuovi tag", icon: "TagIcon", category: "crm" },
       { id: "assign_user", label: "Assegna utente", icon: "UserCheck", category: "crm" },
       { id: "create_task", label: "Crea attività", icon: "ListTodo", category: "crm" },
+      { id: "remove_from_automation", label: "Rimuovi da automazione", icon: "UserMinus", category: "crm", description: "Rimuove il contatto da un altro workflow attivo" },
     ],
   },
   {
@@ -147,6 +148,7 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
       { id: "goal", label: "Obiettivo (Goal)", icon: "Target", category: "logic", description: "Punto di arrivo dell'automazione" },
       { id: "jump_to_step", label: "Salta a step", icon: "CornerDownRight", category: "logic", description: "Salta ad un altro nodo del flusso" },
       { id: "end_automation", label: "Termina automazione", icon: "StopCircle", category: "logic" },
+      { id: "wait_for_event", label: "Attendi evento", icon: "Hourglass", category: "logic", description: "Metti in pausa il flusso fino a quando si verifica un evento o scade il timeout" },
     ],
   },
   {
@@ -407,6 +409,8 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   external_api: "Chiama un'API esterna con metodo e payload personalizzati.",
   sync_google: "Sincronizza appuntamenti ed eventi con Google Calendar tramite la connessione attiva.",
   sync_meta_lead: "Sincronizza contatti con Meta Lead Ads. L'import dei lead è automatico via webhook; questa azione permette il re-sync manuale.",
+  remove_from_automation: "Rimuove il contatto da un altro workflow attivo, terminando la sua iscrizione.",
+  wait_for_event: "Mette in pausa il flusso fino a quando si verifica un evento specifico o scade il timeout configurato.",
 };
 
 // ── Action validation ──
@@ -499,6 +503,16 @@ export function validateActionConfig(actionType: string, config: Record<string, 
     case "jump_to_step":
       if (!config.target_node_id) {
         errors.push({ field: "target_node_id", message: "Seleziona un nodo destinazione" });
+      }
+      break;
+    case "remove_from_automation":
+      if (!config.target_flow_id) {
+        errors.push({ field: "target_flow_id", message: "Seleziona un workflow" });
+      }
+      break;
+    case "wait_for_event":
+      if (!config.await_event) {
+        errors.push({ field: "await_event", message: "Seleziona un evento da attendere" });
       }
       break;
   }

@@ -128,3 +128,6 @@ verify_jwt = false
 
 [functions.email-provider-webhook]
 verify_jwt = false
+
+[functions.check-scheduled-triggers]
+verify_jwt = false
