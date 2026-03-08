@@ -267,6 +267,7 @@ export default function CompanyDashboard() {
 
       {/* CEO KPI Strip */}
       <DashboardCeoStrip
+
         revenueThisMonth={ceoStrip.revenueThisMonth}
         revenuePrevMonth={ceoStrip.revenuePrevMonth}
         marginThisMonth={ceoStrip.marginThisMonth}
