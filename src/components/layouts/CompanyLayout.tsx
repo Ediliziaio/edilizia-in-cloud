@@ -6,6 +6,7 @@ import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { 
   HeadphonesIcon,
   Settings,
+  FolderOpen,
   LogOut,
   AlertTriangle,
   ArrowLeft,
