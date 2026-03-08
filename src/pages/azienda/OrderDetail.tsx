@@ -318,6 +318,27 @@ export default function OrderDetail() {
     onError: () => { toast.error("Errore nell'eliminazione dell'ordine."); },
   });
 
+  // Duplicate order mutation
+  const duplicateOrderMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("duplicate-order", {
+        body: { source_order_id: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { id: string; order_code: string };
+    },
+    onSuccess: (data) => {
+      setDuplicateDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast.success(`Ordine duplicato con codice ${data.order_code}`);
+      navigate(`/azienda/ordini/${data.id}`);
+    },
+    onError: () => {
+      toast.error("Errore nella duplicazione dell'ordine.");
+    },
+  });
+
   // Payment toggle mutation — unified: always writes to order_installments.
   // For legacy orders without DB installments, auto-migrates them on first toggle.
   const updatePaymentMutation = useMutation({
