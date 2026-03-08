@@ -55,6 +55,55 @@
 
 ---
 
+## AI Agents Gestione Interna — Implementazione
+
+### Fase 1 — Database + Edge Function Tools ✅
+
+- ✅ **Migration SQL**: 4 tabelle create (`internal_ai_agents`, `internal_call_logs`, `internal_agent_actions`, `internal_outbound_campaigns`)
+- ✅ **ALTER ai_agent_phone_numbers**: Colonne `routing_mode` (default 'marketing') e `internal_agent_id` aggiunte
+- ✅ **RLS policies**: Isolamento company_id + super_admin su tutte e 4 le tabelle
+- ✅ **Edge function `internal-agent-tools`**: 11 tool CRM implementati:
+  - `identify_caller` — Lookup per telefono in marketing_contacts
+  - `get_client_info` — Profilo completo con note e attività recenti
+  - `get_order_status` — Stato ordine con dettagli pagamento
+  - `get_orders_list` — Lista ordini del cliente
+  - `get_appointment_info` — Prossimi appuntamenti
+  - `create_note` — Crea nota su contatto
+  - `create_activity` — Crea attività/task
+  - `update_order_date` — Aggiorna expected_date ordine
+  - `send_sms_confirmation` — SMS via Telnyx
+  - `create_support_ticket` — Segnalazione/reclamo
+  - `schedule_callback` — Programma richiamo come appuntamento
+
+### Fase 2 — Modulo UI Lista + Editor (TODO)
+
+- [ ] Creare `src/modules/ai-agents-internal/` con routing
+- [ ] `InternalAgentsListPage` — grid card agenti + wizard creazione
+- [ ] `InternalAgentEditorPage` — 8 tab
+- [ ] Componenti: `InternalAgentCard`, `ToolConfigCard`, `InternalToolsTab`
+- [ ] Riutilizzo `VoiceSelector`, `LLMSelector` dal modulo marketing
+
+### Fase 3 — Call Logs + Action Timeline (TODO)
+
+- [ ] `InternalCallLogsPage` con drawer dettaglio
+- [ ] `ActionTimeline` — timeline azioni CRM
+- [ ] Export CSV
+
+### Fase 4 — Webhook + Smart Routing (TODO)
+
+- [ ] Edge function `internal-agent-webhook`
+- [ ] Estendere `telnyx-webhook` con Smart Routing
+- [ ] Tabella `call_routing_log`
+
+### Fase 5 — Campagne Outbound (TODO)
+
+- [ ] `InternalCampaignsPage` con dashboard
+- [ ] `CampaignBuilder` — wizard 4 step
+- [ ] Edge function `internal-outbound-call`
+- [ ] Edge function `internal-campaign-manager`
+
+---
+
 ## Analisi CRM vs GHL — Piano Implementazione
 
 ### Fase 1 — P0 (Critici) ✅
