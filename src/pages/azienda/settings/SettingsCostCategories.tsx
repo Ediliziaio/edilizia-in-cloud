@@ -328,7 +328,11 @@ export default function SettingsCostCategories() {
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina categoria</AlertDialogTitle>
             <AlertDialogDescription>
-              La categoria verrà rimossa dalla lista. I costi che la utilizzano manterranno il valore attuale ma la categoria non sarà più selezionabile.
+              {deleteId && usageCounts[categories.find(c => c.id === deleteId)?.name || ""] ? (
+                <>Attenzione: questa categoria è utilizzata da <strong>{usageCounts[categories.find(c => c.id === deleteId)?.name || ""]}</strong> costi. Eliminandola, i costi manterranno il valore attuale ma la categoria non sarà più selezionabile.</>
+              ) : (
+                "La categoria verrà rimossa dalla lista."
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
