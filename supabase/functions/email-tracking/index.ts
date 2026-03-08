@@ -33,6 +33,15 @@ Deno.serve(async (req) => {
           .eq("contact_id", contactId)
           .is("opened_at", null);
 
+        // Fire automation trigger event
+        await adminClient.from("automation_trigger_events").insert({
+          company_id: companyId,
+          trigger_event: "email_opened",
+          entity_id: contactId,
+          entity_type: "contact",
+          payload: { campaign_id: campaignId, contact_id: contactId, company_id: companyId },
+        });
+
         return new Response(PIXEL_GIF, {
           status: 200,
           headers: {
