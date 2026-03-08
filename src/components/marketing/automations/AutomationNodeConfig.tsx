@@ -133,6 +133,16 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
     enabled: !!companyId && isAction && actionType === "send_email",
   });
 
+  const { data: automationFlows = [] } = useQuery({
+    queryKey: ["automation_flows_for_actions", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from("automation_flows").select("id, name").eq("company_id", companyId).eq("status", "published").order("name");
+      return data || [];
+    },
+    enabled: !!companyId && isAction && ["remove_from_automation", "wait_for_event"].includes(actionType),
+  });
+
   // ── Trigger config ──
   const triggerCategory = node.config_json?.trigger_category || "contact";
   const triggerEvent = node.config_json?.trigger_event || "";
