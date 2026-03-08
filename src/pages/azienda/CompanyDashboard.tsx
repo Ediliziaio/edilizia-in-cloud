@@ -296,25 +296,27 @@ export default function CompanyDashboard() {
       {/* Stats Grid with delta % */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title} className="relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline gap-2">
-                <div className="text-2xl font-bold">{stat.value}</div>
-                {stat.prevValue !== null && typeof stat.value === "number" && (
-                  <DeltaIndicator current={stat.value} previous={stat.prevValue} />
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
-            </CardContent>
-          </Card>
+          <Link key={stat.title} to={stat.link}>
+            <Card className="relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2">
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  {stat.prevValue !== null && typeof stat.value === "number" && (
+                    <DeltaIndicator current={stat.value} previous={stat.prevValue} />
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
