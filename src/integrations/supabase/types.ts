@@ -3880,6 +3880,7 @@ export type Database = {
           preferred_channel: string | null
           preferred_language: string | null
           province: string | null
+          score: number
           source: string | null
           tags: string[]
           unsubscribed: boolean
@@ -3912,6 +3913,7 @@ export type Database = {
           preferred_channel?: string | null
           preferred_language?: string | null
           province?: string | null
+          score?: number
           source?: string | null
           tags?: string[]
           unsubscribed?: boolean
@@ -3944,6 +3946,7 @@ export type Database = {
           preferred_channel?: string | null
           preferred_language?: string | null
           province?: string | null
+          score?: number
           source?: string | null
           tags?: string[]
           unsubscribed?: boolean
