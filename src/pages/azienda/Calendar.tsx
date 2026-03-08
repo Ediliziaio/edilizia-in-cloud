@@ -535,6 +535,16 @@ export default function Calendar() {
               syncedAppointmentIds={syncedAppointmentIds}
               hiddenEventTypes={hiddenEventTypes}
             />
+          ) : view === "week" ? (
+            <CalendarWeekView
+              orders={scheduledOrders}
+              appointments={filteredAppointments}
+              busySlots={showGoogleBusy ? busySlots : []}
+              currentDate={currentDate}
+              onDateChange={setCurrentDate}
+              syncedAppointmentIds={syncedAppointmentIds}
+              hiddenEventTypes={hiddenEventTypes}
+            />
           ) : view === "heatmap" ? (
             <CalendarHeatmapView
               orders={scheduledOrders}

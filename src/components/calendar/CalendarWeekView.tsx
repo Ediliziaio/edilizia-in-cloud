@@ -360,7 +360,7 @@ export function CalendarWeekView({
           order={editingOrder}
           open={!!editingOrder}
           onOpenChange={(open) => !open && setEditingOrder(null)}
-          onSaved={() => {
+          onSave={() => {
             queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
             setEditingOrder(null);
           }}

@@ -31,6 +31,7 @@ export interface AppointmentData {
   calendar_id?: string | null;
   contact_id?: string | null;
   status?: string;
+  reminder_minutes?: number | null;
 }
 
 interface AppointmentDialogProps {
