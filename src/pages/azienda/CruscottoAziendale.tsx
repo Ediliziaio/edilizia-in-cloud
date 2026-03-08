@@ -110,10 +110,7 @@ export default function CruscottoAziendale() {
         </TabsList>
 
         <TabsContent value="finanza">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <FinanzaCashFlow finance={finance} isLoading={isLoading} />
-            <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
-          </div>
+          <FinanzaCashFlow finance={finance} isLoading={isLoading} />
         </TabsContent>
 
         <TabsContent value="marketing">
@@ -123,6 +120,9 @@ export default function CruscottoAziendale() {
         <TabsContent value="vendite">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <SalesControl sales={marketing?.sales_performance} kpi={marketing?.kpi} isLoading={isLoading} />
+            <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
+          </div>
+          <div className="mt-6">
             <HRPerformance sales={marketing?.sales_performance} isLoading={isLoading} />
           </div>
         </TabsContent>

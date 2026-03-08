@@ -144,6 +144,15 @@ export function MarginTab() {
 
   const { sortConfig: marginSort, toggleSort: toggleMarginSort, sortedItems: sortedOrders } = useTableSort(orders, marginAccessors);
 
+  const scatterData = useMemo(() =>
+    orders.map(o => {
+      const status = getMarginStatus(o.marginPercent, threshold);
+      const fill = o.marginPercent < 10 ? "hsl(0 84% 60%)" : o.marginPercent < threshold ? "hsl(45 93% 47%)" : "hsl(142 76% 36%)";
+      return { x: o.totalAmount, y: o.marginPercent, label: o.orderCode || o.customerName, fill };
+    }),
+    [orders, threshold]
+  );
+
   if (isLoading) {
     return (
       <div className="space-y-6">

@@ -274,16 +274,39 @@ function KpiCard({ def, kpi, kpiPrev, finance, operations, isLoading }: { def: K
   );
 }
 
+const HIDDEN_FINANCIAL_LABELS = new Set(["Proiezione Mese", "Costo Medio Ordine", "Burn Rate"]);
+const VISIBLE_FINANCIAL = FINANCIAL_KPIS.filter(d => !HIDDEN_FINANCIAL_LABELS.has(d.label));
+const EXTRA_FINANCIAL = FINANCIAL_KPIS.filter(d => HIDDEN_FINANCIAL_LABELS.has(d.label));
+
 export const ExecutiveOverview = memo(function ExecutiveOverview({ kpi, kpiPrev, finance, operations, isLoading }: Props) {
+  const [showAll, setShowAll] = useState(false);
+
   return (
     <div className="space-y-4">
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">KPI Finanziari</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {FINANCIAL_KPIS.map(def => (
+          {VISIBLE_FINANCIAL.map(def => (
             <KpiCard key={def.label} def={def} kpi={kpi} kpiPrev={kpiPrev} finance={finance} operations={operations} isLoading={isLoading} />
           ))}
         </div>
+        {EXTRA_FINANCIAL.length > 0 && (
+          <Collapsible open={showAll} onOpenChange={setShowAll} className="mt-2">
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground">
+                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAll && "rotate-180")} />
+                {showAll ? "Nascondi dettagli" : "Mostra tutte le KPI"}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {EXTRA_FINANCIAL.map(def => (
+                  <KpiCard key={def.label} def={def} kpi={kpi} kpiPrev={kpiPrev} finance={finance} operations={operations} isLoading={isLoading} />
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </div>
 
       <div>

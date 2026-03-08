@@ -277,6 +277,15 @@ export default function CompanyDashboard() {
         ordersPrevMonth={ceoStrip.ordersPrevMonth}
       />
 
+      {/* Link to Cruscotto */}
+      <div className="flex justify-end">
+        <Button variant="link" asChild className="text-sm gap-1">
+          <Link to="/azienda/cruscotto">
+            Vai al Cruscotto Aziendale →
+          </Link>
+        </Button>
+      </div>
+
       {/* Financial Alerts */}
       {financialAlerts.length > 0 && (
         <div className="space-y-2">

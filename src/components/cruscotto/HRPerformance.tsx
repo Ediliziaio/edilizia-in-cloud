@@ -20,7 +20,7 @@ export const HRPerformance = memo(function HRPerformance({ sales, isLoading }: P
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">HR & Performance Team</h3>
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Performance Venditori</h3>
 
       <Card>
         <CardHeader className="pb-2">

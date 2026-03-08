@@ -708,7 +708,6 @@ export function TreasuryTab({
                     </td>
                     {monthKeys.map((k) => {
                       const actual = node.monthlyAmounts[k] || 0;
-                      // For forecast: show forecast amount for income/expense top-level nodes
                       const hasForecast = showForecast && (node.id === "entrate" || node.id === "uscite");
                       const forecastVal = hasForecast
                         ? node.id === "entrate"
@@ -716,8 +715,14 @@ export function TreasuryTab({
                           : forecastData.forecastExpensesMonthly[k] || 0
                         : 0;
 
+                      const cellColor = actual > 0
+                        ? (node.isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")
+                        : actual < 0
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-muted-foreground";
+
                       return (
-                        <td key={k} className={cn("text-right p-3 tabular-nums", getAmountColor(actual, node.isIncome))}>
+                        <td key={k} className={cn("text-right p-3 tabular-nums", cellColor)}>
                           <div>
                             {actual !== 0 ? formatCurrency(actual) : "—"}
                             {hasForecast && forecastVal > 0 && (
