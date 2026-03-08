@@ -406,6 +406,8 @@ export const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   ai_conversation_ended: "Si attiva quando una conversazione con un agente AI termina.",
   ai_appointment_booked: "Si attiva quando un agente AI prenota un appuntamento.",
   ai_contact_created: "Si attiva quando un agente AI crea un nuovo contatto.",
+  facebook_lead_received: "Si attiva quando arriva un nuovo lead da Facebook Lead Ads. Include dati campagna, form e contatto.",
+  facebook_lead_updated: "Si attiva quando un lead Facebook esistente viene aggiornato con nuovi dati.",
 };
 
 // ── Action descriptions ──
