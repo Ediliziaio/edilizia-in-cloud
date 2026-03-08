@@ -326,6 +326,9 @@ export default function Calendar() {
     return orders.filter(order => !order.expected_date && !order.work_start_date).length;
   }, [orders]);
 
+  // Conflict detection
+  const { conflicts, conflictCount } = useConflictDetection(scheduledOrders, filteredAppointments);
+
   return (
     <div className="space-y-4">
       {/* Header compatto: titolo + toggle viste + azioni */}
