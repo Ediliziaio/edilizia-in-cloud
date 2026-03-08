@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/formatters";
-import { TrendingUp, TrendingDown, Minus, DollarSign, Percent, Wallet, ClipboardCheck } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Euro, Percent, Wallet, ClipboardCheck } from "lucide-react";
 
 interface CeoKpi {
   label: string;
