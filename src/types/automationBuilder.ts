@@ -148,6 +148,7 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
       { id: "goal", label: "Obiettivo (Goal)", icon: "Target", category: "logic", description: "Punto di arrivo dell'automazione" },
       { id: "jump_to_step", label: "Salta a step", icon: "CornerDownRight", category: "logic", description: "Salta ad un altro nodo del flusso" },
       { id: "end_automation", label: "Termina automazione", icon: "StopCircle", category: "logic" },
+      { id: "wait_for_event", label: "Attendi evento", icon: "Hourglass", category: "logic", description: "Metti in pausa il flusso fino a quando si verifica un evento o scade il timeout" },
     ],
   },
   {
