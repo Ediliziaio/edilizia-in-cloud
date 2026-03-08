@@ -370,7 +370,7 @@ export function useCompanyDashboardData() {
         const msStr = ms.toISOString();
         const meStr = me.toISOString();
         let revenue = 0;
-        (ordersThisMonthRes.data || []).forEach((o: any) => {
+        (ordersYTDRes.data || []).forEach((o: any) => {
           const createdAt = o.created_at || "";
           if (createdAt >= msStr && createdAt <= meStr) revenue += Number(o.total_amount) || 0;
         });
