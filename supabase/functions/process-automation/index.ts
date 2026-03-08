@@ -627,7 +627,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
           entity_type: queueItem.entity_type,
           status: "waiting",
           execute_at: timeoutAt,
-          context_json: { ...queueItem.context_json, branch: "timeout", await_event: result.awaitEvent, waiting_for: result.awaitEvent },
+          context_json: { ...queueItem.context_json, branch: "timeout", await_event: result.awaitEvent, waiting_for: result.awaitEvent, wait_node_id: node.id },
         });
       }
     }
