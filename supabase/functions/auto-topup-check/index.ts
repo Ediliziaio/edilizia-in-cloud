@@ -1,14 +1,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeaders, secureHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Cron/internal auth: require x-cron-secret or valid JWT
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const requestCronSecret = req.headers.get("x-cron-secret");
+  const authHeader = req.headers.get("authorization");
+  if (cronSecret && requestCronSecret !== cronSecret && !authHeader?.startsWith("Bearer ")) {
+    return errorResponse("Unauthorized", 401);
   }
 
   try {
