@@ -134,6 +134,7 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
       { id: "remove_tag", label: "Rimuovi tag", icon: "TagIcon", category: "crm" },
       { id: "assign_user", label: "Assegna utente", icon: "UserCheck", category: "crm" },
       { id: "create_task", label: "Crea attività", icon: "ListTodo", category: "crm" },
+      { id: "update_contact_score", label: "Aggiorna punteggio", icon: "TrendingUp", category: "crm", description: "Modifica il lead score del contatto (+/- o valore assoluto)" },
       { id: "remove_from_automation", label: "Rimuovi da automazione", icon: "UserMinus", category: "crm", description: "Rimuove il contatto da un altro workflow attivo" },
     ],
   },
@@ -411,6 +412,7 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   sync_meta_lead: "Sincronizza contatti con Meta Lead Ads. L'import dei lead è automatico via webhook; questa azione permette il re-sync manuale.",
   remove_from_automation: "Rimuove il contatto da un altro workflow attivo, terminando la sua iscrizione.",
   wait_for_event: "Mette in pausa il flusso fino a quando si verifica un evento specifico o scade il timeout configurato.",
+  update_contact_score: "Modifica il lead score del contatto. Puoi aggiungere, sottrarre o impostare un valore assoluto.",
 };
 
 // ── Action validation ──
@@ -513,6 +515,11 @@ export function validateActionConfig(actionType: string, config: Record<string, 
     case "wait_for_event":
       if (!config.await_event) {
         errors.push({ field: "await_event", message: "Seleziona un evento da attendere" });
+      }
+      break;
+    case "update_contact_score":
+      if (config.score_value === undefined || config.score_value === "" || config.score_value === null) {
+        errors.push({ field: "score_value", message: "Valore punteggio obbligatorio" });
       }
       break;
   }

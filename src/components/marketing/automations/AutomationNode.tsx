@@ -5,6 +5,7 @@ import {
   Zap, Mail, Clock, GitBranch, Target, Trash2, Copy, Plus, Bell, Tag,
   ArrowRightLeft, ListTodo, UserCheck, ExternalLink, StopCircle, MessageCircle,
   FileEdit, PlusCircle, Smartphone, Bot, Percent, CornerDownRight, Globe, RefreshCw,
+  TrendingUp, UserMinus, Hourglass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,9 +14,11 @@ const ACTION_ICONS: Record<string, typeof Zap> = {
   send_notification: Bell, send_ai_message: Bot,
   create_opportunity: PlusCircle, move_opportunity: ArrowRightLeft, update_field: FileEdit,
   add_tag: Tag, remove_tag: Tag, assign_user: UserCheck, create_task: ListTodo,
+  update_contact_score: TrendingUp, remove_from_automation: UserMinus,
   delay: Clock, if_else: GitBranch, end_automation: StopCircle,
   split_percentage: Percent, goal: Target, jump_to_step: CornerDownRight,
   webhook_out: ExternalLink, external_api: Globe, sync_google: RefreshCw, sync_meta_lead: RefreshCw,
+  wait_for_event: Hourglass,
 };
 
 function getNodeIcon(node: NodeType) {
@@ -61,6 +64,7 @@ export function getNodeBranches(nodeType: string): { key: string; label: string;
 interface Props {
   node: NodeType;
   isSelected: boolean;
+  executionCount?: number;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
@@ -69,7 +73,7 @@ interface Props {
 }
 
 export const AutomationNodeComponent = memo(function AutomationNodeComponent({
-  node, isSelected, onSelect, onDelete, onDuplicate, onAddAfter, onDragStart,
+  node, isSelected, executionCount, onSelect, onDelete, onDuplicate, onAddAfter, onDragStart,
 }: Props) {
   const Icon = getNodeIcon(node);
   const colorClass = NODE_TYPE_COLORS[node.node_type] || "border-border bg-card";
@@ -101,6 +105,11 @@ export const AutomationNodeComponent = memo(function AutomationNodeComponent({
             </span>
           </div>
           <p className="text-sm font-medium mt-1 truncate">{node.label || getNodeSummary(node)}</p>
+          {executionCount !== undefined && executionCount > 0 && (
+            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
+              {executionCount} esecuz.
+            </span>
+          )}
         </div>
 
         {/* Hover actions */}

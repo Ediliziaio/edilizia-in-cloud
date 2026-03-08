@@ -10,6 +10,7 @@ interface Props {
   nodes: AutomationNode[];
   connections: AutomationConnection[];
   selectedNodeId: string | null;
+  nodeExecutionCounts?: Record<string, number>;
   onSelectNode: (id: string | null) => void;
   onDeleteNode: (id: string) => void;
   onDuplicateNode: (id: string) => void;
@@ -20,7 +21,7 @@ interface Props {
 }
 
 export function AutomationCanvas({
-  nodes, connections, selectedNodeId,
+  nodes, connections, selectedNodeId, nodeExecutionCounts,
   onSelectNode, onDeleteNode, onDuplicateNode, onAddAfterNode, onUpdateNode,
   onOpenTriggerPicker, onOpenActionPicker,
 }: Props) {
@@ -158,6 +159,7 @@ export function AutomationCanvas({
                 key={node.id}
                 node={displayNode}
                 isSelected={selectedNodeId === node.id}
+                executionCount={nodeExecutionCounts?.[node.id]}
                 onSelect={onSelectNode}
                 onDelete={onDeleteNode}
                 onDuplicate={onDuplicateNode}

@@ -21,7 +21,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
 type RightPanel = "none" | "trigger" | "action" | "config";
@@ -50,6 +50,27 @@ export function AutomationBuilder() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const creationAttemptedRef = useRef(false);
+
+  // Fetch node execution counts
+  const { data: nodeExecutionCounts = {} } = useQuery({
+    queryKey: ["node-execution-counts", flowId],
+    queryFn: async () => {
+      if (!flowId) return {};
+      const { data, error } = await supabase
+        .from("automation_execution_log")
+        .select("node_id")
+        .eq("flow_id", flowId)
+        .eq("status", "success");
+      if (error || !data) return {};
+      const counts: Record<string, number> = {};
+      for (const row of data) {
+        if (row.node_id) counts[row.node_id] = (counts[row.node_id] || 0) + 1;
+      }
+      return counts;
+    },
+    enabled: !!flowId && flowId !== "nuova",
+    refetchInterval: 30000, // refresh every 30s
+  });
 
   const deleteFlowMutation = useMutation({
     mutationFn: async () => {
@@ -464,6 +485,7 @@ export function AutomationBuilder() {
               nodes={nodes}
               connections={connections}
               selectedNodeId={selectedNodeId}
+              nodeExecutionCounts={nodeExecutionCounts}
               onSelectNode={handleSelectNode}
               onDeleteNode={removeNode}
               onDuplicateNode={handleDuplicate}
