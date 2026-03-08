@@ -51,6 +51,25 @@ export default function SettingsCostCategories() {
     enabled: !!companyId,
   });
 
+  // Usage count per category name
+  const { data: usageCounts = {} } = useQuery({
+    queryKey: ["cost-category-usage", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("company_costs")
+        .select("category")
+        .eq("company_id", companyId!)
+        .not("category", "is", null);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data || []).forEach((c: any) => {
+        if (c.category) counts[c.category] = (counts[c.category] || 0) + 1;
+      });
+      return counts;
+    },
+    enabled: !!companyId,
+  });
+
   const addMutation = useMutation({
     mutationFn: async ({ name, color }: { name: string; color: string }) => {
       const { error } = await supabase.from("cost_categories").insert({
@@ -178,17 +197,15 @@ export default function SettingsCostCategories() {
                 {categories.length} {categories.length === 1 ? "categoria" : "categorie"} configurate
               </CardDescription>
             </div>
-            {categories.length === 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => importMutation.mutate()}
-                disabled={importMutation.isPending}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                {importMutation.isPending ? "Importo..." : "Importa categorie esistenti"}
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => importMutation.mutate()}
+              disabled={importMutation.isPending}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {importMutation.isPending ? "Importo..." : "Importa dai costi"}
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -230,6 +247,7 @@ export default function SettingsCostCategories() {
                 <TableRow>
                   <TableHead>Colore</TableHead>
                   <TableHead>Nome</TableHead>
+                  <TableHead className="text-center">Utilizzi</TableHead>
                   <TableHead className="w-[120px] text-right">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
@@ -265,6 +283,11 @@ export default function SettingsCostCategories() {
                       ) : (
                         <span className="font-medium">{cat.name}</span>
                       )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={usageCounts[cat.name] ? "secondary" : "outline"}>
+                        {usageCounts[cat.name] || 0}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       {editingId === cat.id ? (
@@ -305,7 +328,11 @@ export default function SettingsCostCategories() {
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina categoria</AlertDialogTitle>
             <AlertDialogDescription>
-              La categoria verrà rimossa dalla lista. I costi che la utilizzano manterranno il valore attuale ma la categoria non sarà più selezionabile.
+              {deleteId && usageCounts[categories.find(c => c.id === deleteId)?.name || ""] ? (
+                <>Attenzione: questa categoria è utilizzata da <strong>{usageCounts[categories.find(c => c.id === deleteId)?.name || ""]}</strong> costi. Eliminandola, i costi manterranno il valore attuale ma la categoria non sarà più selezionabile.</>
+              ) : (
+                "La categoria verrà rimossa dalla lista."
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
