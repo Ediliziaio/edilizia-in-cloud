@@ -12,7 +12,7 @@ import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
   FileText, Activity, StickyNote, CalendarDays, Target, Plus, Send, Search,
   Bell, User, Settings, X, Filter, UserPlus, ArrowRight, RefreshCw, UserCheck,
-  Loader2, Check, AlertCircle, Bot, MessageSquare, Smartphone,
+  Loader2, Check, AlertCircle, Bot, MessageSquare, Smartphone, Merge,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -44,6 +44,9 @@ import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
 import { ContactAIConversations } from "@/modules/ai-agents/components/ContactAIConversations";
+import { ContactDndTab } from "@/components/marketing/ContactDndTab";
+import { ContactActionsTab } from "@/components/marketing/ContactActionsTab";
+import { ContactMergeDialog } from "@/components/marketing/ContactMergeDialog";
 
 // ── Contact Appointments Panel ──
 function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars, users }: {
@@ -332,6 +335,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
 
   const [rightTab, setRightTab] = useState<RightTab | null>("notes");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState("");
@@ -756,6 +760,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 </AvatarFallback>
               </Avatar>
               <h2 className="font-semibold text-base flex-1 truncate">{fullName}</h2>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setMergeOpen(true)} title="Unisci contatti">
+                <Merge className="h-3.5 w-3.5" />
+              </Button>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => setDeleteOpen(true)}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -957,11 +964,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               </TabsContent>
 
               <TabsContent value="dnd" className="mt-2">
-                <p className="text-xs text-muted-foreground text-center py-6">DND - Prossimamente</p>
+                <ContactDndTab
+                  contact={contact}
+                  onUpdate={(field, value) => updateField.mutate({ field, value })}
+                />
               </TabsContent>
 
               <TabsContent value="actions" className="mt-2">
-                <p className="text-xs text-muted-foreground text-center py-6">Azioni - Prossimamente</p>
+                <ContactActionsTab contact={contact} companyId={companyId!} />
               </TabsContent>
             </Tabs>
           </div>
@@ -1367,6 +1377,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           </Tooltip>
         ))}
       </div>
+
+      {/* Merge dialog */}
+      <ContactMergeDialog
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        sourceContact={contact ? { id: contact.id, first_name: contact.first_name || "", last_name: contact.last_name || "", email: contact.email || undefined, phone: contact.phone || undefined } : null}
+        companyId={companyId!}
+      />
 
       {/* Delete confirmation */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
