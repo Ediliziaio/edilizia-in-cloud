@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { KpiData } from "@/hooks/useMarketingDashboard";
 import type { FinanceData, OperationsData } from "@/hooks/useCruscottoData";
