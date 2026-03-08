@@ -15,10 +15,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
+import { WaterfallChart } from "@/components/forecast/WaterfallChart";
 import type { ForecastStats, ExpectedPayment, ExpectedExpense, ExpectedCommission, ExpectedSupplierPayment, CompanyCostEntry } from "@/lib/forecastTypes";
 
 interface CashForecastTabProps {
@@ -152,28 +155,63 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     if (txWithDate.length === 0) return [];
 
     // Group by week
-    const weekMap = new Map<string, { weekLabel: string; net: number }>();
+    const weekMap = new Map<string, { weekLabel: string; income: number; expenses: number }>();
     txWithDate.forEach(t => {
       const ws = startOfWeek(t.date, { weekStartsOn: 1 });
       const key = ws.toISOString();
       if (!weekMap.has(key)) {
-        weekMap.set(key, { weekLabel: format(ws, "dd MMM", { locale: it }), net: 0 });
+        weekMap.set(key, { weekLabel: format(ws, "dd MMM", { locale: it }), income: 0, expenses: 0 });
       }
       const entry = weekMap.get(key)!;
-      entry.net += t.direction === "in" ? t.amount : -t.amount;
+      if (t.direction === "in") {
+        entry.income += t.amount;
+      } else {
+        entry.expenses += t.amount;
+      }
     });
 
     // Build cumulative
     const sorted = Array.from(weekMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
     let running = 0;
     return sorted.map(([, v]) => {
-      running += v.net;
-      return { week: v.weekLabel, saldo: Math.round(running) };
+      const net = v.income - v.expenses;
+      running += net;
+      return {
+        week: v.weekLabel,
+        saldo: Math.round(running),
+        income: Math.round(v.income),
+        expenses: Math.round(v.expenses),
+        net: Math.round(net),
+        cumulative: Math.round(running),
+      };
     });
   }, [transactions]);
 
+  // Cash flow alert threshold
+  const CASH_FLOW_WARNING_THRESHOLD = 5000;
+
   return (
     <div className="space-y-6">
+      {/* Cash Flow Alerts */}
+      {stats.nextMonth.net < 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Attenzione: Cash Flow Negativo</AlertTitle>
+          <AlertDescription>
+            Il saldo previsto per il prossimo mese è di {formatCurrency(stats.nextMonth.net)}. Verifica le uscite programmate e valuta azioni correttive.
+          </AlertDescription>
+        </Alert>
+      )}
+      {stats.nextMonth.net >= 0 && stats.nextMonth.net < CASH_FLOW_WARNING_THRESHOLD && (
+        <Alert className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-700 [&>svg]:text-amber-600">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Cash flow vicino allo zero</AlertTitle>
+          <AlertDescription>
+            Il saldo previsto per il prossimo mese è di soli {formatCurrency(stats.nextMonth.net)}. Monitora attentamente le entrate e le uscite.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Cumulative balance hero card */}
       <Card className={cn(
         "border",
@@ -233,6 +271,9 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
           </CardContent>
         </Card>
       )}
+
+      {/* Waterfall Chart */}
+      {weeklyChartData.length > 1 && <WaterfallChart data={weeklyChartData} />}
 
       {/* Net Cash Flow Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

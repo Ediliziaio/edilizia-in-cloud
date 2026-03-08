@@ -1,0 +1,1 @@
+ALTER TABLE public.company_costs ADD CONSTRAINT company_costs_unique_name_date UNIQUE (company_id, name, due_date);
