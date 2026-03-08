@@ -110,6 +110,7 @@ export function AppointmentDialog({
       setCalendarId("");
       setContactId("");
       setStatus("confermato");
+      setReminderMinutes("none");
     }
   }, [appointment, open, defaultOrderId, onlyAssigned, user?.id, defaultDate, defaultTime]);
 
