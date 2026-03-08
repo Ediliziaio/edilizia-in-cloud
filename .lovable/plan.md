@@ -1,134 +1,73 @@
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+# Prompt 1 — Performance Critica: Dashboard RPC + Magazzino Server-side
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+## Panoramica
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
-
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
-
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
-
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
-
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
-
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
-
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
-
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
-
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
-
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+Due interventi principali per ridurre drasticamente i tempi di caricamento:
+- **Dashboard**: 15 query parallele → 1 singola RPC
+- **Magazzino**: 2000 item client-side → server-side filtering + memoizzazione supplier
 
 ---
 
-## Analisi CRM vs GHL — Piano Implementazione
+## FIX 1A — Dashboard: RPC Aggregata
 
-### Fase 1 — P0 (Critici) ✅
+### Database Migration
+Creare una funzione PostgreSQL `get_dashboard_kpis` che aggrega tutti i KPI in una singola chiamata, accettando `p_company_id`, `p_date_from`, `p_date_to`, `p_status_id` (opzionale). Restituisce un JSONB con:
+- `total_orders`, `total_customers`, `open_tickets`, `pending_revenue`, `pending_orders_count`
+- `recent_orders` (ultimi 5)
+- `cash_flow` (this_month_income, unpaid_costs, next_month)
+- `ceo_strip` (revenue/margin this/prev month)
+- `urgent_items` (articoli con scadenza ≤7gg)
+- `weekly_deadlines` (receivables, costs, works entro 7gg)
+- `financial_alerts`
+- `monthly_balance` (ultimi 6 mesi entrate/uscite)
+- `revenue_ytd` (per mese)
+- `aging_receivables` (overdue/thisWeek/thisMonth/future)
+- Statistiche periodo precedente per delta
 
-- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` aggiunte a `marketing_contacts`. Toggle SMS/Chiamate nel tab impostazioni contatto. Check DND in `send-contact-message` (email/whatsapp/sms) e `process-automation` (send_email con unsubscribed+optout_email, send_whatsapp con optout_whatsapp). Badge unsubscribed visibile.
-- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` (unique). Pagina `/prenota/:slug` pubblica con calendario, slot disponibili, form prenotazione. RLS per anon (read calendari/availability/appointments, insert appointments).
-- ✅ **Tab Email AdminSettings**: Già esistente (`AdminSettingsEmail.tsx`)
-- ✅ **Crediti Stripe**: Già esistente (`SettingsCredits.tsx`)
-
-### Fase 2 — P1 (TODO)
-
-- [ ] **Probabilità + Close Date + Motivo perdita opportunità**: Migration + UI in OpportunityDetailDialog
-- [ ] **Conferma + Promemoria appuntamenti**: Email conferma + promemoria in check-scheduled-triggers
-- [ ] **Google Calendar push notifications**: Edge function google-calendar-webhook + registra watch
-- [ ] **SMS/Email opt-out visibile in UI**: Già implementato nel tab settings contatto (toggle + badge unsubscribed)
-
-### Fase 3 — P2 (TODO)
-
-- [ ] **WhatsApp/Stripe in SettingsIntegrations**: Card stato per ogni integrazione
-- [ ] **Merge contatti duplicati**: UI + backend merge
-- [ ] **Tab Azioni nel dettaglio contatto**: Azioni rapide (email, SMS, WhatsApp)
-
----
-
-## Fix Automazioni Marketing
-
-### Fase 1 — P0 (Critici) ✅
-
-- ✅ **A1**: `email-tracking` → inserisce `email_opened` / `email_clicked` in `automation_trigger_events`
-- ✅ **A2**: `whatsapp-webhook` → inserisce `whatsapp_received` in `automation_trigger_events` (con lookup contatto marketing)
-- ✅ **A3**: `fire_marketing_automation` già gestisce `opportunity_won`/`opportunity_lost` correttamente — nessun fix necessario
-- ✅ **B**: `process-automation` → `handleTrigger` arricchisce payload con dati contatto da `marketing_contacts` prima di `evaluateFilters`
-- ✅ **C**: Nuova Edge Function `check-scheduled-triggers` per trigger temporali (birthday, custom_date, opportunity_stale) + pg_cron alle 02:00
-
-### Fase 2 — P1 ✅
-
-- ✅ **D**: Azione `remove_from_automation` — UI (tipo CRM in builder) + backend (rimuove enrollment + cancella queue)
-- ✅ **E**: Azione `wait_for_event` — UI (tipo logica in builder) + backend (stato waiting, timeout, risoluzione evento)
-
-### Fase 3 — Documento v2 ✅
-
-- ✅ **Lead scoring**: Colonna `score` su `marketing_contacts` + azione `update_contact_score` (add/subtract/set) in builder e backend
-- ✅ **Re-enrollment**: Lettura `enable_reenrollment` da flow config_json.settings + fallback su trigger config
-- ✅ **Contatori per nodo**: Query aggregata su `automation_execution_log` con badge esecuzioni su ogni nodo nel builder (refresh 30s)
-- ✅ **customer_replied**: Collegato al webhook WhatsApp (inserisce evento `customer_replied` in `automation_trigger_events`)
-- ✅ **call_registered**: DB trigger `fire_call_registered_automation` su `call_logs` INSERT
-- ✅ **send_notification**: Implementato con insert reale in `lifecycle_notifications` (supporta assegnato, tutti admin, utente specifico)
-
-### Fase 4 — TODO
-
-- [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
-- [ ] **G**: Enrollment bulk dalla lista contatti CRM
-- [ ] **send_ai_message**: Integrazione con Lovable AI
+### Frontend (`useCompanyDashboardData.ts`)
+- Sostituire le 15 query `Promise.all` con una singola `supabase.rpc('get_dashboard_kpis', {...})`
+- Aumentare `staleTime` da 2 min a 10 min
+- Mappare il risultato JSONB ai tipi esistenti (`DashboardStats`, `CeoStrip`, `CashFlow`, ecc.)
+- Rimuovere tutta la logica di aggregazione client-side (loop su pending revenue, monthly balance, revenue YTD, aging)
 
 ---
 
-## Analisi CRM vs GHL
+## FIX 1B — Magazzino: Server-side Filtering
 
-### Fase 1 — P0 ✅
+### Frontend (`useWarehouseData.ts`)
+1. **Passare filtri alla query Supabase** invece di `.limit(2000)` + filtro client-side:
+   - `status` → `.eq('status', filter)`
+   - `search` → `.ilike('name', '%search%')`
+   - `supplier_id` → `.eq('supplier_id', filter)`
+   - `order_id` → `.eq('order_id', filter)`
+   - Quick filters (urgent, overdue, thisWeek) → date filters nella query
+   - Aggiungere `.range(page * PAGE_SIZE, (page+1) * PAGE_SIZE - 1)` con `PAGE_SIZE = 50`
 
-- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` su `marketing_contacts` + UI toggle nel tab Impostazioni contatto + check DND in `process-automation` e `send-contact-message` + badge unsubscribed
-- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` + pagina pubblica `/prenota/:slug` + RLS anonima + creazione appuntamento + trigger `appointment_booked`
-- ✅ **Tab Email AdminSettings**: Già funzionante
-- ✅ **Crediti Stripe**: Già implementato
+2. **Memoizzare supplier Map**:
+   ```typescript
+   const supplierMap = useMemo(() => 
+     new Map(suppliers.map(s => [s.id, s.name])), [suppliers]
+   );
+   // getSupplierName: supplierMap.get(id) invece di suppliers.find()
+   ```
 
-### Fase 2 — P1 ✅
+3. **Conteggi badge** (active, urgent, overdue): fare 3 query `COUNT` separate leggere con `{ count: 'exact', head: true }` e filtri appropriati, così i badge non dipendono dal caricamento di 2000 record
 
-- ✅ **Probabilità + Close Date + Loss Reason**: Colonne `probability`, `expected_close_date`, `loss_reason`, `loss_notes` su `marketing_opportunities` + tabella `opportunity_loss_reasons` + UI slider/date/dialog perdita in `OpportunityDetailDialog`
-- ✅ **Promemoria appuntamenti**: Logica 24h/1h in `check-scheduled-triggers` + tabella `appointment_reminders_sent` + notifiche interne + trigger automazione
-- ✅ **Google Calendar push**: Edge function `google-calendar-webhook` con register_watch, renew_watches, e ricezione push + colonne webhook su `google_calendar_connections`
-- ✅ **Opt-out UI**: Toggle SMS/Call/WhatsApp/Email nel dettaglio contatto + badge disiscritto (già implementato in Fase 1)
+4. Aggiungere `queryKey` che include tutti i filtri per re-fetch automatico al cambio filtro
 
-### Fase 3 — P2 ✅
+### Non incluso (P2)
+- Virtualizzazione con `@tanstack/react-virtual` — richiede modifiche ai componenti di rendering delle liste, da fare in un secondo step
+- `staleTime` dashboard già presente a 5 min nel warehouse
 
-- ✅ **WhatsApp/Stripe in SettingsIntegrations**: Card status per WhatsApp, Stripe, Email Provider, Twilio con stato connessione e dettagli
-- ✅ **Merge contatti duplicati**: Dialog di merge con ricerca, selezione master, spostamento opportunità/note/attività/appuntamenti/messaggi
-- ✅ **Tab Azioni nel dettaglio contatto**: Azioni rapide (invia WhatsApp, Email, SMS, Chiama, Aggiungi ad automazione) con check opt-out
+---
+
+## File da modificare
+
+| File | Modifica |
+|------|----------|
+| **Migration SQL** | Creare `get_dashboard_kpis()` |
+| `src/hooks/useCompanyDashboardData.ts` | Sostituire 15 query con 1 RPC, staleTime 10min |
+| `src/hooks/useWarehouseData.ts` | Server-side filtering, paginazione, supplier Map |
+
