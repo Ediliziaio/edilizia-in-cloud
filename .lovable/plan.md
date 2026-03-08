@@ -1,76 +1,68 @@
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+# Analisi Documento v2 — Stato e Piano Implementazione
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+Il documento è sostanzialmente identico al primo (`analisi_automazioni_fix.docx`). Confrontando con il codice attuale, **Fase 1 (P0) e Fase 2 parziale (P1) sono già implementate**:
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+## Già completato
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+| Fix | Descrizione | Stato |
+|-----|-------------|-------|
+| A1 | email_opened/clicked → automation_trigger_events | ✅ Fatto |
+| A2 | whatsapp_received → automation_trigger_events | ✅ Fatto |
+| A3 | opportunity_won/lost (DB trigger `fire_marketing_automation`) | ✅ Funzionante |
+| B | Enrichment payload con dati contatto in handleTrigger | ✅ Fatto |
+| C | check-scheduled-triggers + pg_cron | ✅ Fatto |
+| D | remove_from_automation (UI + backend) | ✅ Fatto |
+| E | wait_for_event (UI + backend + timeout) | ✅ Fatto |
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+## Da implementare
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+### 1. **F — send_sms con Twilio** (P1)
+Attualmente stub (`console.log`). Richiede `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, e un numero mittente.
+- Aggiungere i secrets Twilio
+- Implementare il case `send_sms` in `process-automation/index.ts` con chiamata REST API Twilio
+- Aggiungere config UI per SMS (numero mittente) in Platform Settings
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+### 2. **G — Enrollment bulk dalla lista contatti CRM** (P2)
+- Aggiungere checkbox di selezione nella lista contatti marketing
+- Toolbar batch con azione "Aggiungi a Workflow"
+- Dialog per selezionare il workflow target
+- Inserimento batch in `automation_trigger_events`
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+### 3. **Lead scoring (update_contact_score)** (da §3.7)
+- Migration: colonna `score` (integer, default 0) su `marketing_contacts`
+- Nuova azione `update_contact_score` in `automationBuilder.ts` e `process-automation`
+- Config UI: campo punteggio (+/- o set assoluto)
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+### 4. **Trigger orfani ancora non collegati**
+- `customer_replied` — collegare al webhook WhatsApp (messaggio in arrivo = reply)
+- `call_registered` — collegare a `call_logs` insert trigger
+- `form_submitted` / `survey_submitted` — richiedono un modulo form/survey (non ancora esistente nel progetto)
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+### 5. **Stub azioni**
+- `send_notification` — implementare come notifica interna (insert in una tabella notifications o toast via realtime)
+- `send_ai_message` — integrare con Lovable AI per generare e inviare messaggio
 
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
+### 6. **Re-enrollment (§3.8)**
+- Il check attuale blocca re-iscrizione se `status = 'active'`. Aggiungere opzione `allow_re_enrollment` nel flow settings e controllare anche `completed` status.
 
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+### 7. **Contatori per nodo real-time (§3.9)**
+- Query aggregata su `automation_execution_log` per contare esecuzioni per nodo
+- Mostrare badge con conteggio su ogni nodo nel builder
 
 ---
 
-## Fix Automazioni Marketing
+## Ordine di implementazione proposto
 
-### Fase 1 — P0 (Critici) ✅
+1. **Lead scoring** (migration + azione + UI) — impatto alto, nessuna dipendenza esterna
+2. **Re-enrollment** — fix logico piccolo
+3. **Contatori per nodo** — UI improvement
+4. **customer_replied + call_registered** — collegare trigger esistenti
+5. **send_notification** — notifica interna reale
+6. **send_sms con Twilio** — richiede secrets dall'utente
+7. **Enrollment bulk** — feature UI complessa
+8. **send_ai_message** — integrazione AI
 
-- ✅ **A1**: `email-tracking` → inserisce `email_opened` / `email_clicked` in `automation_trigger_events`
-- ✅ **A2**: `whatsapp-webhook` → inserisce `whatsapp_received` in `automation_trigger_events` (con lookup contatto marketing)
-- ✅ **A3**: `fire_marketing_automation` già gestisce `opportunity_won`/`opportunity_lost` correttamente — nessun fix necessario
-- ✅ **B**: `process-automation` → `handleTrigger` arricchisce payload con dati contatto da `marketing_contacts` prima di `evaluateFilters`
-- ✅ **C**: Nuova Edge Function `check-scheduled-triggers` per trigger temporali (birthday, custom_date, opportunity_stale) + pg_cron alle 02:00
+Posso procedere con i punti 1-5 immediatamente. Per il punto 6 (Twilio) serviranno le credenziali. I punti 7-8 sono P2.
 
-### Fase 2 — P1 ✅
-
-- ✅ **D**: Azione `remove_from_automation` — UI (tipo CRM in builder) + backend (rimuove enrollment + cancella queue)
-- ✅ **E**: Azione `wait_for_event` — UI (tipo logica in builder) + backend (stato waiting, timeout, risoluzione evento)
-
-### Fase 3 — P2 (TODO)
-
-- [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
-- [ ] **G**: Enrollment bulk dalla lista contatti CRM
