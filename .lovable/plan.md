@@ -1,142 +1,64 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+## Analisi Documento vs Codice — Gap Rimanenti
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+Il documento elenca 7 fix (+ 3 sotto-fix). Ecco lo stato reale dopo le sessioni precedenti:
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+### Gia Implementati
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+| # | Fix | Stato |
+|---|-----|-------|
+| 1 | Tab Email in AdminSettings | ✅ Implementato come pagina dedicata `/admin/impostazioni/email` con sidebar link — approccio migliore |
+| 6 | stripe_customer_id su companies | ✅ Colonna esiste gia (migration `20260213`) |
+| 7 | send-email-campaign batching | ✅ Implementato con batch di 5 + Promise.all |
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+### Da Implementare
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+| # | Fix | Descrizione |
+|---|-----|-------------|
+| 2 | SettingsCredits — Acquisto pacchetti Stripe | Aggiungere sezione pacchetti email (4 card) con Stripe Checkout |
+| 3 | SettingsCredits — Auto top-up toggle | Card con Switch, soglia, importo, salvataggio su `company_auto_topup` |
+| 4 | process-automation: crediti + tracking | Nel case `send_email`, detrarre crediti per stream marketing e iniettare tracking pixel |
+| 5 | EmailDashboard: costo/margine superadmin | 3 KPI finanziarie (Ricavi Lordi, Costo Provider, Margine Netto) |
+| 3b | Edge function auto-topup-check | Nuova edge function che verifica soglia e addebita via Stripe off-session |
+| 6b | Stripe webhook salva payment_method | Nel `checkout.session.completed`, salvare PM su `company_auto_topup` |
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+### Prerequisito Critico
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
-
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
-
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
-
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
-
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
-
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+**STRIPE_SECRET_KEY non e configurata nei secrets del progetto.** Le funzionalità Stripe (acquisto pacchetti, auto top-up) non funzioneranno finché l'utente non la configura. Chiederemo all'utente di inserirla prima di procedere, oppure implementiamo il codice e l'utente la configurerà dopo.
 
 ---
 
-## Email Dual-Provider + Sistema Crediti Universale
+### Piano di Implementazione
 
-### Fase 1 ✅ — Shared Libraries + DB Migrations
+#### 1. SettingsCredits.tsx — Pacchetti + Auto Top-up UI
+- Sotto il tab "Riepilogo", aggiungere:
+  - **Sezione Pacchetti**: griglia 4 card (€10, €25, €50, €100) con prezzo per email calcolato da `platform_settings` chiave `credits_email_price_per_email`
+  - Pulsante "Acquista" che chiama `create-checkout-session` (adattata per accettare `type: 'email_credits'`)
+  - Gestione query param `?payment=success` per toast di conferma
+  - **Sezione Auto Top-up**: Card con Switch, input soglia/importo, salvataggio su `company_auto_topup`
+  - Query per leggere configurazione esistente da `company_auto_topup`
 
-**Database (migration applicata):**
-- ✅ Tabella `email_credits_log` (storico movimenti con RLS)
-- ✅ Tabella `company_auto_topup` (config auto-ricarica multi-wallet con RLS)
-- ✅ Colonne `sent_count`, `failed_count`, `completed_at`, `segment_json`, `credits_used` su `email_campaigns`
-- ✅ Colonne `unsubscribed`, `unsubscribed_at` su `marketing_contacts`
-- ✅ Colonne `provider_message_id`, `provider`, `stream`, `opened_at`, `clicked_at`, `error_message` su `email_logs`
-- ✅ RPC `get_platform_email_stats` (dashboard super admin)
-- ✅ RPC `deduct_email_credits_with_log` (detrazione atomica + log)
-- ✅ RPC `add_email_credits_with_log` (ricarica atomica + log)
-- ✅ RPC `get_email_stats_summary`, `get_email_stats_by_campaign`, `get_email_stats_by_date`
-- ✅ RPC `get_top_companies_by_email`
+#### 2. create-checkout-session — Supporto email_credits
+- Aggiungere branch per `type === 'email_credits'`: crea sessione Stripe in mode `payment` (non subscription) con amount passato
 
-**Edge Functions shared:**
-- ✅ `_shared/emailProvider.ts` — `sendViaProvider()` (SendGrid, Brevo, Resend, Elastic Email, Mailgun) + `loadProviderSettings()` + attachments + tracking disabilitato
-- ✅ `_shared/emailCredits.ts` — `deductEmailCredits()`, `addEmailCredits()`, `getEmailBalance()`, `checkAutoTopup()`
+#### 3. stripe-webhook — Gestione email_credits + salvataggio PM
+- Nel case `checkout.session.completed`, se `metadata.type === 'email_credits'`:
+  - Accreditare crediti via RPC `add_email_credits_with_log`
+  - Salvare `payment_method` su `company_auto_topup` per abilitare auto-topup futuro
 
-### Fase 2 ✅ — Super Admin Email Settings Tab
+#### 4. auto-topup-check — Nuova Edge Function
+- File: `supabase/functions/auto-topup-check/index.ts`
+- Legge config da `company_auto_topup`, verifica soglia, debounce 5 min, esegue PaymentIntent off-session via Stripe API, accredita via `add_email_credits_with_log`
 
-- ✅ `EmailSettingsTab.tsx` con 3 tab: Provider, Prezzi & Margini, Dashboard
-- ✅ `EmailProviderConfig.tsx` — config dual-provider, 5 provider, test email, campi from_name/domain, badge stato, webhook URL
-- ✅ `EmailPricingConfig.tsx` — markup globale, tabella tariffe, bonus signup
-- ✅ `EmailDashboard.tsx` — KPI piattaforma + top 10 aziende + selettore periodo
-- ✅ Route `/admin/impostazioni/email` con sidebar entry
+#### 5. process-automation send_email — Crediti + Tracking
+- Nel case `send_email` (riga 650+):
+  - Se `stream === 'marketing'`: detrarre 1 credito via `deductEmailCredits()`
+  - Iniettare tracking pixel e link unsubscribe nell'HTML prima dell'invio
+  - Dopo l'invio: fire-and-forget `auto-topup-check`
 
-### Fase 3 ✅ — Send Email Campaign + Tracking
+#### 6. EmailDashboard — KPI Costo/Margine
+- Leggere `credits_email_provider_cost` da `platform_settings`
+- Calcolare: Costo Provider = total_sent × costPerEmail, Margine = Ricavi - Costo
+- Aggiungere 3 card finanziarie nella riga KPI (Ricavi, Costo Provider, Margine %)
 
-- ✅ `send-email-campaign` edge function (bulk + tracking pixel + crediti + personalizzazione)
-- ✅ `email-tracking` edge function (open pixel, click redirect, unsubscribe)
-- ✅ `email-provider-webhook` edge function (callback normalizzati da 5 provider)
-- ✅ `CampaignSendSettings.tsx` invoca `send-email-campaign` + widget saldo + stima crediti
-
-### Fase 4 ✅ — Credits Page Azienda
-
-- ✅ `SettingsCredits.tsx` — pagina crediti unificata (email + AI + WhatsApp)
-- ✅ Riepilogo saldi con wallet cards, usage bar, totale
-- ✅ Storico movimenti da `email_credits_log`
-- ✅ Route `/azienda/impostazioni/crediti` + sidebar entry "Crediti & Saldo"
-
-### Fase 5 ✅ — Email Transazionali (Stream Transazionale)
-
-- ✅ `ticket-notify` — usa `sendViaProvider()` con fallback transazionale→marketing
-- ✅ `reset-customer-password` — invia email con password temporanea
-- ✅ `create-customer` — invia email di benvenuto con credenziali
-- ✅ `create-employee-user` — invia email di benvenuto con credenziali
-- ✅ `create-salesperson-user` — invia email di benvenuto con credenziali
-- ✅ `send-contact-message` — già migrato a `sendViaProvider()`
-- ✅ `process-automation` case `send_email` — già implementato con dual-stream
-
-### Fase 6 ✅ — Automazioni: send_email dual-stream
-
-- ✅ `process-automation`: case `send_email` con `sendViaProvider()`, personalizzazione template, logging su `email_logs`
-
----
-
-## Completato — Fix Alta e Media Priorità ✅
-
-### FIX HA-1 ✅ — check-api-health dual email
-- Verifica `email_marketing_api_key` e `email_transactional_api_key` invece di `resend_api_key`
-- Risposta include `email_marketing` e `email_transactional` separati
-
-### FIX HA-2 ✅ — Badge stato campagna
-- `EmailCampaignsTab.tsx`: badge sending (amber pulse), sent/completed (green), failed (destructive), draft, scheduled, paused
-
-### FIX HA-3 ✅ — Segmentazione UI CampaignSendSettings
-- Filtri per tag, sorgente e tipo contatto nel pannello destinatari
-- Radio "Invia a tutti" vs "Filtra per segmento"
-
-### FIX MA-1 ✅ — Toggle stream AutomationNodeConfig
-- Select marketing/transazionale per azione send_email
-
-### FIX MA-2 ✅ — Dashboard periodo filtraggio effettivo
-- `EmailDashboard.tsx` passa `p_date_from`/`p_date_to` alla RPC `get_platform_email_stats`
-
----
-
-## TODO Rimanenti (opzionali/futuri)
-
-- [ ] Auto top-up con Stripe (SetupIntent + pagamento automatico)
-- [ ] Pagina acquisto pacchetti crediti con Stripe Checkout
-- [ ] `check-due-dates`: già indirizzato via `execute_automation` → `process-automation` (nessuna migrazione necessaria)
