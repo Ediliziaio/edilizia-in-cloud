@@ -839,7 +839,7 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
                 <p className="text-[10px] text-muted-foreground mt-1">L'agente AI chiamerà il contatto al suo numero di telefono. Richiede crediti AI e un numero configurato.</p>
               </div>
             </div>
-          )
+          )}
         </div>
 
         {/* Footer */}
