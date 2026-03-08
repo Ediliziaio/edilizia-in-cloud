@@ -4429,9 +4429,13 @@ export type Database = {
           content: string | null
           conversation_id: string
           created_at: string
+          delivered_at: string | null
+          delivery_status: string | null
           id: string
           media_url: string | null
           message_type: string
+          meta_message_id: string | null
+          read_at: string | null
           sender_name: string | null
           sender_type: string
           transcription: string | null
@@ -4441,9 +4445,13 @@ export type Database = {
           content?: string | null
           conversation_id: string
           created_at?: string
+          delivered_at?: string | null
+          delivery_status?: string | null
           id?: string
           media_url?: string | null
           message_type?: string
+          meta_message_id?: string | null
+          read_at?: string | null
           sender_name?: string | null
           sender_type?: string
           transcription?: string | null
@@ -4453,9 +4461,13 @@ export type Database = {
           content?: string | null
           conversation_id?: string
           created_at?: string
+          delivered_at?: string | null
+          delivery_status?: string | null
           id?: string
           media_url?: string | null
           message_type?: string
+          meta_message_id?: string | null
+          read_at?: string | null
           sender_name?: string | null
           sender_type?: string
           transcription?: string | null

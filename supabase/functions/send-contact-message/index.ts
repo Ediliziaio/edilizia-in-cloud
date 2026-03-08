@@ -63,23 +63,61 @@ async function sendWhatsApp(
   phoneNumberId: string,
   accessToken: string,
   toPhone: string,
-  text: string
+  text: string,
+  contentType: string = "text",
+  mediaUrl: string | null = null
 ): Promise<{ ok: boolean; status: number; body: unknown }> {
   // Normalize phone number
   const cleanPhone = toPhone.replace(/[^0-9]/g, "");
   const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+
+  let bodyPayload: Record<string, unknown>;
+
+  switch (contentType) {
+    case "image":
+      bodyPayload = {
+        messaging_product: "whatsapp",
+        to: cleanPhone,
+        type: "image",
+        image: mediaUrl
+          ? { link: mediaUrl, caption: text || undefined }
+          : { id: text },
+      };
+      break;
+    case "document":
+      bodyPayload = {
+        messaging_product: "whatsapp",
+        to: cleanPhone,
+        type: "document",
+        document: mediaUrl
+          ? { link: mediaUrl, caption: text || undefined, filename: "documento.pdf" }
+          : { id: text },
+      };
+      break;
+    case "audio":
+      bodyPayload = {
+        messaging_product: "whatsapp",
+        to: cleanPhone,
+        type: "audio",
+        audio: mediaUrl ? { link: mediaUrl } : { id: text },
+      };
+      break;
+    default:
+      bodyPayload = {
+        messaging_product: "whatsapp",
+        to: cleanPhone,
+        type: "text",
+        text: { body: text },
+      };
+  }
+
   const res = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: cleanPhone,
-      type: "text",
-      text: { body: text },
-    }),
+    body: JSON.stringify(bodyPayload),
   });
   const json = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, body: json };
