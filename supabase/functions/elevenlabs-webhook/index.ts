@@ -206,27 +206,62 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Resolve branch_id from metadata
+    const branchId: string | null = metadata?.branch_id || null;
+
     // Save conversation
+    const convInsert: Record<string, unknown> = {
+      agent_id: agent.id,
+      company_id: companyId,
+      elevenlabs_conversation_id: conversationId,
+      contact_id: contactId,
+      appointment_created: appointmentCreated,
+      duration_seconds: durationSeconds,
+      messages_count: messagesCount,
+      status,
+      summary: summaryText,
+      transcript: transcript.length > 0 ? transcript : null,
+      metadata: Object.keys(metadata).length > 0 ? metadata : {},
+    };
+    if (branchId) {
+      convInsert.branch_id = branchId;
+    }
+
     const { data: convRecord, error: convErr } = await adminClient
       .from("ai_agent_conversations")
-      .insert({
-        agent_id: agent.id,
-        company_id: companyId,
-        elevenlabs_conversation_id: conversationId,
-        contact_id: contactId,
-        appointment_created: appointmentCreated,
-        duration_seconds: durationSeconds,
-        messages_count: messagesCount,
-        status,
-        summary: summaryText,
-        transcript: transcript.length > 0 ? transcript : null,
-        metadata: Object.keys(metadata).length > 0 ? metadata : {},
-      })
+      .insert(convInsert)
       .select("id")
       .single();
 
     if (convErr) {
       console.error("Error saving conversation:", convErr);
+    }
+
+    // ============ UPDATE BRANCH STATS (FIX 10 A/B) ============
+    if (branchId && !convErr) {
+      // Increment counters
+      const { data: currentBranch } = await adminClient
+        .from("ai_agent_branches")
+        .select("conversations_count, appointments_count, avg_duration_seconds")
+        .eq("id", branchId)
+        .maybeSingle();
+
+      if (currentBranch) {
+        const newConvCount = (currentBranch.conversations_count || 0) + 1;
+        const newAptCount = (currentBranch.appointments_count || 0) + (appointmentCreated ? 1 : 0);
+        const oldTotal = (currentBranch.avg_duration_seconds || 0) * (currentBranch.conversations_count || 0);
+        const newAvg = (oldTotal + durationSeconds) / newConvCount;
+
+        await adminClient
+          .from("ai_agent_branches")
+          .update({
+            conversations_count: newConvCount,
+            appointments_count: newAptCount,
+            avg_duration_seconds: Number(newAvg.toFixed(2)),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", branchId);
+      }
     }
 
     // ============ CREDIT SYSTEM (ATOMIC) ============

@@ -115,10 +115,80 @@ export type Database = {
           },
         ]
       }
+      ai_agent_branches: {
+        Row: {
+          agent_id: string
+          appointments_count: number
+          avg_duration_seconds: number
+          company_id: string
+          conversations_count: number
+          created_at: string
+          first_message: string | null
+          id: string
+          is_main: boolean
+          llm_model: string | null
+          name: string
+          system_prompt: string | null
+          traffic_percent: number
+          updated_at: string
+          voice_id: string | null
+        }
+        Insert: {
+          agent_id: string
+          appointments_count?: number
+          avg_duration_seconds?: number
+          company_id: string
+          conversations_count?: number
+          created_at?: string
+          first_message?: string | null
+          id?: string
+          is_main?: boolean
+          llm_model?: string | null
+          name?: string
+          system_prompt?: string | null
+          traffic_percent?: number
+          updated_at?: string
+          voice_id?: string | null
+        }
+        Update: {
+          agent_id?: string
+          appointments_count?: number
+          avg_duration_seconds?: number
+          company_id?: string
+          conversations_count?: number
+          created_at?: string
+          first_message?: string | null
+          id?: string
+          is_main?: boolean
+          llm_model?: string | null
+          name?: string
+          system_prompt?: string | null
+          traffic_percent?: number
+          updated_at?: string
+          voice_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_branches_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_branches_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_conversations: {
         Row: {
           agent_id: string
           appointment_created: boolean
+          branch_id: string | null
           call_direction: string
           company_id: string
           contact_id: string | null
@@ -135,6 +205,7 @@ export type Database = {
         Insert: {
           agent_id: string
           appointment_created?: boolean
+          branch_id?: string | null
           call_direction?: string
           company_id: string
           contact_id?: string | null
@@ -151,6 +222,7 @@ export type Database = {
         Update: {
           agent_id?: string
           appointment_created?: boolean
+          branch_id?: string | null
           call_direction?: string
           company_id?: string
           contact_id?: string | null
@@ -170,6 +242,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_conversations_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_branches"
             referencedColumns: ["id"]
           },
           {

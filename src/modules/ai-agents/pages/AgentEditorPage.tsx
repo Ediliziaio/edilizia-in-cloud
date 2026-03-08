@@ -379,7 +379,7 @@ export default function AgentEditorPage() {
           <WorkflowCanvas />
         </TabsContent>
         <TabsContent value="branch" className="mt-4">
-          <AgentBranchTab />
+          <AgentBranchTab agentId={agent.id} companyId={agent.company_id} />
         </TabsContent>
         <TabsContent value="kb" className="mt-4">
           <AgentKBTab agentId={agent.id} companyId={agent.company_id} />
