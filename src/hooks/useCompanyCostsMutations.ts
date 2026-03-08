@@ -18,6 +18,7 @@ export interface CostFormData {
   vat_rate: string;
   is_gross: boolean;
   end_date: string;
+  recurrence_auto: boolean;
 }
 
 export const defaultFormData: CostFormData = {
@@ -33,6 +34,7 @@ export const defaultFormData: CostFormData = {
   vat_rate: "22",
   is_gross: false,
   end_date: "",
+  recurrence_auto: false,
 };
 
 export function calculatePeriodsFromDates(dueDate: string, endDate: string, recurrence: string): number {
