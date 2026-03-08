@@ -42,6 +42,7 @@ const AdminSettingsNotifications = lazy(() => import("@/pages/admin/settings/Adm
 const AdminSettingsSuperAdmins = lazy(() => import("@/pages/admin/settings/AdminSettingsSuperAdmins"));
 const AdminSettingsAuditLog = lazy(() => import("@/pages/admin/settings/AdminSettingsAuditLog"));
 const AdminSettingsEmail = lazy(() => import("@/pages/admin/settings/AdminSettingsEmail"));
+const AdminSettingsAI = lazy(() => import("@/pages/admin/settings/AdminSettingsAI"));
 const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
 const Implementations = lazy(() => import("@/pages/admin/Implementations"));
