@@ -44,6 +44,9 @@ import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
 import { ContactAIConversations } from "@/modules/ai-agents/components/ContactAIConversations";
+import { ContactDndTab } from "@/components/marketing/ContactDndTab";
+import { ContactActionsTab } from "@/components/marketing/ContactActionsTab";
+import { ContactMergeDialog } from "@/components/marketing/ContactMergeDialog";
 
 // ── Contact Appointments Panel ──
 function ContactAppointmentsPanel({ contactId, companyId, contactName, calendars, users }: {
