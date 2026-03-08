@@ -534,6 +534,9 @@ export default function OrderDetail() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setDuplicateDialogOpen(true)}>
+            <Copy className="h-4 w-4 mr-2" />Duplica
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link to={`/azienda/ordini/${id}/modifica`}><Pencil className="h-4 w-4 mr-2" />Modifica</Link>
           </Button>
