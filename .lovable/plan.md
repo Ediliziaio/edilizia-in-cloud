@@ -1,67 +1,33 @@
 
-# Verifica Modulo AI Agents — Stato aggiornato
 
-## Completato — Blocco A, B, C ✅
+# FIX 12: AgentToolsTab — Migliorare persistenza toggle
 
-### FIX 2 ✅ — API Key ElevenLabs su DB
-- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
-- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
-- Banner rosso se API key non configurata
+## Stato attuale
 
-### FIX 3 ✅ — handleArchive in AgentsListPage
-- Implementato con `useUpdateAgent` → status='archived'
-- AlertDialog conferma archiviazione
-- Toggle "Mostra archiviati" con conteggio
+La persistenza **esiste già**: il componente legge `tools_config` da `ai_agents` al mount e chiama `saveConfig` ad ogni toggle. Anche la colonna `tools_config jsonb` esiste già in DB. Nessuna migration necessaria.
 
-### FIX 4 ✅ — Tab Strumenti con persistenza DB
-- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
-- Dialog "Aggiungi strumento personalizzato" con salvataggio
-- Rimozione strumenti personalizzati
+## Problemi da risolvere
 
-### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
-- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
-- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
+1. **Nessun debounce** — ogni toggle genera una chiamata DB immediata
+2. **Nessun indicatore di salvataggio** — l'utente non sa se il salvataggio è andato a buon fine
+3. **Strumenti EdiliziaInCloud non toggleabili** — sono statici senza Switch, non persistiti
+4. **Nessun feedback di successo** — solo toast di errore, mai conferma visiva
 
-### FIX 6 ✅ — Tab Test con DB
-- Tabella `ai_agent_tests` con RLS + indice
-- CRUD completo: crea, esegui (simulato), elimina
-- Risultati persistiti in DB
+## Piano di modifica
 
-### FIX 7 ✅ — Auto-ricarica crediti
-- Switch abilitato con form soglia/importo
-- Salvataggio su `ai_credits` con upsert
+### File: `src/modules/ai-agents/components/AgentToolsTab.tsx`
 
-### FIX 8 ✅ — Sync KB con ElevenLabs
-- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
-- ProxyAction type aggiornato
+**Debounce 500ms**: aggiungere `useRef` per timer debounce. I toggle system/edilizia usano `debouncedSave`, mentre add/remove custom tool salvano immediatamente.
 
-### FIX 9 ✅ — Conversazioni AI nel CRM
-- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
-- Tab "Conversazioni AI" con icona Bot
+**Stato `ediliziaEnabled`**: nuovo state `Record<string, boolean>` per i tool nativi EdiliziaInCloud (default tutti `true`). Persistito in `tools_config.edilizia_tools`.
 
-### FIX 10 ✅ — Banner errore API key
-- Card destructive in PlatformSettingsPage quando API key non salvata
+**Indicatore salvataggio**: stato `saveStatus` (`idle` | `saving` | `saved`). Mostra spinner `Loader2` durante il save, checkmark `Check` per 2 secondi dopo il successo. Posizionato nell'header accanto al bottone "Aggiungi strumento".
 
-### FIX 11 ✅ — Webhook HMAC verification
-- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
-- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
+**Switch sugli strumenti EdiliziaInCloud**: aggiungere `<Switch>` accanto al badge "Nativo" per ogni tool EdiliziaInCloud, collegato a `toggleEdiliziaTool`.
 
-### FIX 12 ✅ — Documentazione
-- `docs/SETUP.md` con architettura, tabelle, configurazione
+**Load config aggiornato**: leggere anche `edilizia_tools` dal config salvato e fare merge con i default.
 
-### Feature ✅ — MarketingAiAgent dashboard
-- Riepilogo agenti, saldo, KB
-- Banner chiamate bloccate
-- Azioni rapide con navigazione
+**Cleanup timer**: `useEffect` con cleanup per debounce e saved timer su unmount.
 
-## Da fare (prossimi step)
+Nessun altro file da modificare.
 
-### Priorità 3: Integrazioni rimanenti
-- Test runner reale con chiamata ElevenLabs (attualmente simulato)
-- Decremento crediti automatico via webhook (già funzionante)
-- Sync bidirezionale KB (upload file)
-
-### Priorità 4: Raffinamenti
-- `/docs/ai-agents-module.md` documentazione completa
-- Branch tab con logica reale
-- Workflow canvas con persistenza nodi
