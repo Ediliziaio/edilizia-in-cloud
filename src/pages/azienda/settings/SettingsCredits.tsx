@@ -220,7 +220,7 @@ export default function SettingsCredits() {
     }
   };
 
-  const isLoading = emailLoading || aiLoading;
+  const isLoading = emailLoading || aiLoading || waLoading;
 
   if (isLoading) {
     return (
