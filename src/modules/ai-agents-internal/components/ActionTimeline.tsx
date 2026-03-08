@@ -68,7 +68,7 @@ export function ActionTimeline({ actions }: Props) {
               }`}
             >
               {isSuccess ? (
-                <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                <CheckCircle2 className="h-3 w-3 text-primary" />
               ) : isError ? (
                 <XCircle className="h-3 w-3 text-destructive" />
               ) : (

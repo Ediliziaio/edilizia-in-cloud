@@ -170,9 +170,9 @@ export default function InternalCallLogsPage() {
                   <TableCell className="text-sm">{log.agent?.name ?? "—"}</TableCell>
                   <TableCell>
                     {log.call_direction === "inbound" ? (
-                      <Phone className="h-4 w-4 text-emerald-600" />
+                      <Phone className="h-4 w-4 text-primary" />
                     ) : (
-                      <PhoneOutgoing className="h-4 w-4 text-blue-600" />
+                      <PhoneOutgoing className="h-4 w-4 text-secondary-foreground" />
                     )}
                   </TableCell>
                   <TableCell>
