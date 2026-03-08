@@ -62,7 +62,7 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
     }
     setCallingAI(true);
     try {
-      const { data, error } = await supabase.functions.invoke("ai-outbound-call", {
+      const { data, error } = await supabase.functions.invoke("initiate-outbound-call", {
         body: { agent_id: selectedAgentId, contact_id: contact.id },
       });
       if (error) throw error;

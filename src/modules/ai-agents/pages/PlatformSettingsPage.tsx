@@ -447,6 +447,9 @@ export default function PlatformSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Telnyx Telephony Section */}
+      <TelnyxSettingsCard />
+
       {/* Subscription Config */}
       <Card>
         <CardHeader>
