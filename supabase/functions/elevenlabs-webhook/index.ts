@@ -206,22 +206,30 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Resolve branch_id from metadata
+    const branchId: string | null = metadata?.branch_id || null;
+
     // Save conversation
+    const convInsert: Record<string, unknown> = {
+      agent_id: agent.id,
+      company_id: companyId,
+      elevenlabs_conversation_id: conversationId,
+      contact_id: contactId,
+      appointment_created: appointmentCreated,
+      duration_seconds: durationSeconds,
+      messages_count: messagesCount,
+      status,
+      summary: summaryText,
+      transcript: transcript.length > 0 ? transcript : null,
+      metadata: Object.keys(metadata).length > 0 ? metadata : {},
+    };
+    if (branchId) {
+      convInsert.branch_id = branchId;
+    }
+
     const { data: convRecord, error: convErr } = await adminClient
       .from("ai_agent_conversations")
-      .insert({
-        agent_id: agent.id,
-        company_id: companyId,
-        elevenlabs_conversation_id: conversationId,
-        contact_id: contactId,
-        appointment_created: appointmentCreated,
-        duration_seconds: durationSeconds,
-        messages_count: messagesCount,
-        status,
-        summary: summaryText,
-        transcript: transcript.length > 0 ? transcript : null,
-        metadata: Object.keys(metadata).length > 0 ? metadata : {},
-      })
+      .insert(convInsert)
       .select("id")
       .single();
 
