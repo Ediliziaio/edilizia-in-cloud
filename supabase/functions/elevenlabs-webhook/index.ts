@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     // Look up internal agent
     const { data: agent } = await adminClient
       .from("ai_agents")
-      .select("id, company_id, llm_model, tts_model")
+      .select("id, company_id, llm_model, tts_model, send_confirmation_after_booking")
       .eq("elevenlabs_agent_id", elevenlabsAgentId)
       .single();
 
