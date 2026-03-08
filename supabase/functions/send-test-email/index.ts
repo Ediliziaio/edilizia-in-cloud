@@ -1,71 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-/** Send email via the configured provider */
-async function sendViaProvider(
-  provider: string,
-  apiKey: string,
-  from: string,
-  to: string[],
-  subject: string,
-  html: string
-): Promise<{ ok: boolean; status: number; body: unknown }> {
-  let url: string;
-  let headers: Record<string, string>;
-  let body: string;
-
-  switch (provider) {
-    case "sendgrid": {
-      url = "https://api.sendgrid.com/v3/mail/send";
-      headers = {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      };
-      body = JSON.stringify({
-        personalizations: [{ to: to.map((e) => ({ email: e })) }],
-        from: { email: from.includes("<") ? from.match(/<(.+)>/)?.[1] || from : from },
-        subject,
-        content: [{ type: "text/html", value: html }],
-      });
-      break;
-    }
-    case "sendinblue":
-    case "brevo": {
-      url = "https://api.brevo.com/v3/smtp/email";
-      headers = {
-        "api-key": apiKey,
-        "Content-Type": "application/json",
-      };
-      body = JSON.stringify({
-        sender: { email: from.includes("<") ? from.match(/<(.+)>/)?.[1] || from : from },
-        to: to.map((e) => ({ email: e })),
-        subject,
-        htmlContent: html,
-      });
-      break;
-    }
-    case "resend":
-    default: {
-      url = "https://api.resend.com/emails";
-      headers = {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      };
-      body = JSON.stringify({ from, to, subject, html });
-      break;
-    }
-  }
-
-  const res = await fetch(url, { method: "POST", headers, body });
-  const json = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, body: json };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -87,20 +28,53 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } =
-      await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { to, campaignId, companyId } = await req.json();
-    if (!to || !campaignId) {
+    const body = await req.json();
+    const { to, testMode, stream, subject, html, campaignId, companyId } = body;
+
+    if (!to) {
       return new Response(
-        JSON.stringify({ error: "Parametri mancanti: to, campaignId" }),
+        JSON.stringify({ error: "Parametro mancante: to" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // === TEST MODE: direct send from Super Admin panel ===
+    if (testMode) {
+      const providerStream = stream || "marketing";
+      const settings = await loadProviderSettings(providerStream);
+
+      if (!settings.apiKey) {
+        return new Response(
+          JSON.stringify({ error: `API Key non configurata per stream "${providerStream}". Vai in Impostazioni → Email Provider.` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const result = await sendViaProvider(settings.provider, settings.apiKey, {
+        from: settings.fromDefault,
+        to: [to],
+        subject: subject || `[TEST] Email di verifica`,
+        html: html || `<html><body><p>Test email</p></body></html>`,
+      });
+
+      return new Response(JSON.stringify(result.body), {
+        status: result.ok ? 200 : result.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // === CAMPAIGN MODE: existing flow ===
+    if (!campaignId) {
+      return new Response(
+        JSON.stringify({ error: "Parametri mancanti: campaignId" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -110,7 +84,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch campaign
     const { data: campaign, error: campError } = await adminClient
       .from("email_campaigns")
       .select("subject, html_content, sender_email, sender_name")
@@ -124,15 +97,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Read provider config from platform_settings
-    const provider = (await getPlatformSetting("email_provider")) || "sendgrid";
-    const apiKey = await getPlatformSetting("email_provider_api_key");
+    const settings = await loadProviderSettings("marketing");
 
-    if (!apiKey) {
+    if (!settings.apiKey) {
       return new Response(
-        JSON.stringify({
-          error: "API Key del provider email non configurata. Vai in Impostazioni Piattaforma → Email Provider.",
-        }),
+        JSON.stringify({ error: "API Key del provider email non configurata." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -141,28 +110,24 @@ Deno.serve(async (req) => {
       ? campaign.sender_name
         ? `${campaign.sender_name} <${campaign.sender_email}>`
         : campaign.sender_email
-      : "noreply@ediliziacloud.it";
+      : settings.fromDefault;
 
-    const htmlBody =
-      campaign.html_content ||
-      `<html><body><p>Nessun contenuto HTML disponibile per questa campagna.</p></body></html>`;
+    const htmlBody = campaign.html_content ||
+      `<html><body><p>Nessun contenuto HTML disponibile.</p></body></html>`;
 
-    const result = await sendViaProvider(
-      provider,
-      apiKey,
-      fromAddress,
-      [to],
-      `[TEST] ${campaign.subject || "Senza oggetto"}`,
-      htmlBody
-    );
+    const result = await sendViaProvider(settings.provider, settings.apiKey, {
+      from: fromAddress,
+      to: [to],
+      subject: `[TEST] ${campaign.subject || "Senza oggetto"}`,
+      html: htmlBody,
+    });
 
-    // Deduct email credits if companyId provided
+    // Deduct credits if companyId provided
     if (companyId) {
-      // Get active pricing
       const { data: pricing } = await adminClient
         .from("email_pricing")
         .select("cost_billed_per_email")
-        .eq("provider", provider)
+        .eq("provider", settings.provider)
         .eq("is_active", true)
         .limit(1)
         .single();
