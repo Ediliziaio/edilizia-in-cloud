@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -25,6 +26,7 @@ interface KpiDef {
   format: (v: number) => string;
   thresholds?: { green: number; yellow: number };
   invertColor?: boolean;
+  link?: string;
 }
 
 const FINANCIAL_KPIS: KpiDef[] = [
@@ -35,6 +37,7 @@ const FINANCIAL_KPIS: KpiDef[] = [
     getValue: (_, f) => f.revenueThisMonth,
     getPrevValue: (_, f) => f.revenuePrevMonth,
     format: fmtCur,
+    link: "/azienda/ordini",
   },
   {
     label: "Proiezione Mese",
@@ -56,6 +59,7 @@ const FINANCIAL_KPIS: KpiDef[] = [
     getValue: (_, _f, ops) => ops.activeOrders,
     getPrevValue: () => 0,
     format: fmt,
+    link: "/azienda/ordini",
   },
   {
     label: "Costo Medio Ordine",
@@ -73,6 +77,7 @@ const FINANCIAL_KPIS: KpiDef[] = [
     getPrevValue: (_, f) => f.marginPrevMonth,
     format: v => `${v.toFixed(1)}%`,
     thresholds: { green: 30, yellow: 15 },
+    link: "/azienda/previsionale",
   },
   {
     label: "Entrate Mese",
@@ -81,6 +86,7 @@ const FINANCIAL_KPIS: KpiDef[] = [
     getValue: (_, f) => f.thisMonthIncome,
     getPrevValue: () => 0,
     format: fmtCur,
+    link: "/azienda/previsionale",
   },
   {
     label: "Uscite Mese",
@@ -90,6 +96,7 @@ const FINANCIAL_KPIS: KpiDef[] = [
     getPrevValue: () => 0,
     format: fmtCur,
     invertColor: true,
+    link: "/azienda/previsionale",
   },
   {
     label: "Cash Flow",
@@ -98,6 +105,7 @@ const FINANCIAL_KPIS: KpiDef[] = [
     getValue: (_, f) => f.cashFlowNet,
     getPrevValue: () => 0,
     format: fmtCur,
+    link: "/azienda/previsionale",
   },
   {
     label: "Burn Rate",
@@ -118,6 +126,7 @@ const FINANCIAL_KPIS: KpiDef[] = [
     getValue: (_, f) => f.pendingRevenue,
     getPrevValue: () => 0,
     format: fmtCur,
+    link: "/azienda/previsionale",
   },
   {
     label: "Debiti Fornitori",
@@ -127,6 +136,7 @@ const FINANCIAL_KPIS: KpiDef[] = [
     getPrevValue: () => 0,
     format: fmtCur,
     invertColor: true,
+    link: "/azienda/costi",
   },
 ];
 
@@ -138,6 +148,7 @@ const COMMERCIAL_KPIS: KpiDef[] = [
     getValue: (k) => k?.leads_new ?? 0,
     getPrevValue: (kp) => kp?.leads_new ?? 0,
     format: fmt,
+    link: "/azienda/marketing",
   },
   {
     label: "Appuntamenti",
@@ -146,6 +157,7 @@ const COMMERCIAL_KPIS: KpiDef[] = [
     getValue: (k) => k?.appointments_set ?? 0,
     getPrevValue: (kp) => kp?.appointments_set ?? 0,
     format: fmt,
+    link: "/azienda/marketing/calendario",
   },
   {
     label: "Show Rate",
@@ -163,6 +175,7 @@ const COMMERCIAL_KPIS: KpiDef[] = [
     getValue: (k) => k?.contracts_won ?? 0,
     getPrevValue: (kp) => kp?.contracts_won ?? 0,
     format: fmt,
+    link: "/azienda/ordini",
   },
   {
     label: "Tasso Chiusura",
@@ -192,6 +205,8 @@ const COMMERCIAL_KPIS: KpiDef[] = [
 ];
 
 function KpiCard({ def, kpi, kpiPrev, finance, operations, isLoading }: { def: KpiDef; kpi: KpiData | undefined; kpiPrev: KpiData | undefined; finance: FinanceData; operations: OperationsData; isLoading: boolean }) {
+  const navigate = useNavigate();
+
   if (isLoading) {
     return (
       <Card className="p-4">
@@ -219,12 +234,16 @@ function KpiCard({ def, kpi, kpiPrev, finance, operations, isLoading }: { def: K
   }
 
   const Icon = def.icon;
+  const isClickable = !!def.link;
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Card className="p-4 hover:shadow-md transition-shadow cursor-default">
+          <Card
+            className={cn("p-4 hover:shadow-md transition-shadow", isClickable && "cursor-pointer hover:ring-1 hover:ring-primary/30")}
+            onClick={isClickable ? () => navigate(def.link!) : undefined}
+          >
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-muted-foreground font-medium truncate">{def.label}</span>
               <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
