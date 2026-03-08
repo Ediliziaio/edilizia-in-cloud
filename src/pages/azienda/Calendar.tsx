@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
+import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 
 import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
