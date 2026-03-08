@@ -1,10 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
 interface OrderStatusTemplate {
   name: string;
@@ -22,6 +18,8 @@ type CompanySector =
   | "pittura"
   | "ristrutturazioni"
   | "altro";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function getOrderStatusTemplate(sector: CompanySector): OrderStatusTemplate[] {
   const serramentiInfissiTemplate: OrderStatusTemplate[] = [
@@ -90,15 +88,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    // --- Authentication & Authorization: only super_admin can create companies ---
+    const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
+    await requireRole(supabaseAdmin, userId, ["super_admin"], corsHeaders);
 
     const {
       companyName,
@@ -126,17 +118,29 @@ Deno.serve(async (req) => {
       operationalPostalCode,
     } = await req.json();
 
-    // Validate required fields
+    // --- Input Validation ---
     if (!companyName || !companyEmail || !adminEmail || !adminPassword || !sector) {
-      throw new Error("Missing required fields");
+      return errorResponse("Missing required fields");
+    }
+
+    const trimmedCompanyName = String(companyName).trim().slice(0, 200);
+    const trimmedCompanyEmail = String(companyEmail).trim().toLowerCase().slice(0, 255);
+    const trimmedAdminEmail = String(adminEmail).trim().toLowerCase().slice(0, 255);
+
+    if (!EMAIL_REGEX.test(trimmedCompanyEmail) || !EMAIL_REGEX.test(trimmedAdminEmail)) {
+      return errorResponse("Indirizzo email non valido");
+    }
+
+    if (String(adminPassword).length < 8) {
+      return errorResponse("La password deve avere almeno 8 caratteri");
     }
 
     // Create company
     const { data: companyData, error: companyError } = await supabaseAdmin
       .from("companies")
       .insert({
-        name: companyName,
-        email: companyEmail,
+        name: trimmedCompanyName,
+        email: trimmedCompanyEmail,
         sector: sector as CompanySector,
         logo_url: logoUrl || null,
         business_name: businessName || null,
@@ -159,7 +163,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (companyError) {
-      throw new Error(`Company error: ${companyError.message}`);
+      return errorResponse(`Company error: ${companyError.message}`);
     }
 
     const companyId = companyData.id;
@@ -167,51 +171,48 @@ Deno.serve(async (req) => {
     // Create admin user in auth.users
     const { data: authData, error: authError } =
       await supabaseAdmin.auth.admin.createUser({
-        email: adminEmail,
+        email: trimmedAdminEmail,
         password: adminPassword,
         email_confirm: true,
       });
 
     if (authError) {
-      // Rollback company creation
       await supabaseAdmin.from("companies").delete().eq("id", companyId);
-      throw new Error(`Auth error: ${authError.message}`);
+      return errorResponse(`Auth error: ${authError.message}`);
     }
 
-    const userId = authData.user.id;
+    const newUserId = authData.user.id;
 
     // Create profile
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .insert({
-        id: userId,
-        email: adminEmail,
+        id: newUserId,
+        email: trimmedAdminEmail,
         first_name: adminFirstName || "Admin",
-        last_name: adminLastName || companyName,
+        last_name: adminLastName || trimmedCompanyName,
         company_id: companyId,
       });
 
     if (profileError) {
-      // Rollback
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      await supabaseAdmin.auth.admin.deleteUser(newUserId);
       await supabaseAdmin.from("companies").delete().eq("id", companyId);
-      throw new Error(`Profile error: ${profileError.message}`);
+      return errorResponse(`Profile error: ${profileError.message}`);
     }
 
     // Assign company_admin role
     const { error: roleError } = await supabaseAdmin
       .from("user_roles")
       .insert({
-        user_id: userId,
+        user_id: newUserId,
         role: "company_admin",
       });
 
     if (roleError) {
-      // Rollback
-      await supabaseAdmin.from("profiles").delete().eq("id", userId);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      await supabaseAdmin.from("profiles").delete().eq("id", newUserId);
+      await supabaseAdmin.auth.admin.deleteUser(newUserId);
       await supabaseAdmin.from("companies").delete().eq("id", companyId);
-      throw new Error(`Role error: ${roleError.message}`);
+      return errorResponse(`Role error: ${roleError.message}`);
     }
 
     // Create order statuses from template
@@ -231,31 +232,17 @@ Deno.serve(async (req) => {
 
     if (statusError) {
       console.error("Status error:", statusError);
-      // Non-critical, don't rollback
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Company created successfully",
-        company: companyData,
-        adminUserId: userId,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
-    );
+    return jsonResponse({
+      success: true,
+      message: "Company created successfully",
+      company: companyData,
+      adminUserId: newUserId,
+    });
   } catch (error) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: (error as Error).message,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      }
-    );
+    if (error instanceof Response) return error;
+
+    return errorResponse((error as Error).message);
   }
 });

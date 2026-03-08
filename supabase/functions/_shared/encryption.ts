@@ -1,5 +1,6 @@
 // Shared encryption utilities — AES-GCM (enterprise-grade)
-// Backward-compatible: decrypts both legacy XOR+base64 and new AES-GCM formats
+// Legacy XOR fallback has been REMOVED for security.
+// All tokens must use AES-GCM format (prefixed with "aes:").
 
 const AES_PREFIX = "aes:";
 
@@ -34,42 +35,27 @@ export async function encrypt(text: string, key: string): Promise<string> {
   return AES_PREFIX + btoa(String.fromCharCode(...combined));
 }
 
-/** Decrypt text. Handles both AES-GCM ("aes:...") and legacy XOR+base64 formats. */
+/** Decrypt text. Only supports AES-GCM format ("aes:..."). Legacy XOR is no longer supported. */
 export async function decrypt(encoded: string, key: string): Promise<string> {
-  if (encoded.startsWith(AES_PREFIX)) {
-    // AES-GCM format
-    const aesKey = await deriveAesKey(key);
-    const combined = Uint8Array.from(
-      atob(encoded.slice(AES_PREFIX.length)),
-      (c) => c.charCodeAt(0)
+  if (!encoded.startsWith(AES_PREFIX)) {
+    console.error(
+      "[SECURITY] Attempted to decrypt a non-AES token. Legacy XOR fallback has been removed. " +
+      "This token must be re-encrypted using AES-GCM."
     );
-    const iv = combined.slice(0, 12);
-    const ciphertext = combined.slice(12);
-    const plaintext = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv },
-      aesKey,
-      ciphertext
-    );
-    return new TextDecoder().decode(plaintext);
+    throw new Error("Unsupported encryption format. Token must be re-encrypted with AES-GCM.");
   }
 
-  // Legacy XOR+base64 fallback (backward compatibility)
-  const encrypted = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
-  const keyBytes = new TextEncoder().encode(key);
-  const decrypted = new Uint8Array(encrypted.length);
-  for (let i = 0; i < encrypted.length; i++) {
-    decrypted[i] = encrypted[i] ^ keyBytes[i % keyBytes.length];
-  }
-  return new TextDecoder().decode(decrypted);
-}
-
-// Synchronous legacy encrypt for backward compat (XOR) — NOT recommended for new code
-export function encryptSync(text: string, key: string): string {
-  const textBytes = new TextEncoder().encode(text);
-  const keyBytes = new TextEncoder().encode(key);
-  const encrypted = new Uint8Array(textBytes.length);
-  for (let i = 0; i < textBytes.length; i++) {
-    encrypted[i] = textBytes[i] ^ keyBytes[i % keyBytes.length];
-  }
-  return btoa(String.fromCharCode(...encrypted));
+  const aesKey = await deriveAesKey(key);
+  const combined = Uint8Array.from(
+    atob(encoded.slice(AES_PREFIX.length)),
+    (c) => c.charCodeAt(0)
+  );
+  const iv = combined.slice(0, 12);
+  const ciphertext = combined.slice(12);
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    aesKey,
+    ciphertext
+  );
+  return new TextDecoder().decode(plaintext);
 }
