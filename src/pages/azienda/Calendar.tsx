@@ -8,6 +8,7 @@ import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 
 import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
+import { useConflictDetection } from "@/hooks/useConflictDetection";
 import { CalendarLayerPanel } from "@/components/calendar/CalendarLayerPanel";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
