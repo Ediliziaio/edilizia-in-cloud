@@ -171,5 +171,6 @@ function HealthBreakdownBars({ factors }: { factors: ScoreFactor[] }) {
         </div>
       ))}
     </div>
+  );
 }
 
