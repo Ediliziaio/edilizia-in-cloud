@@ -34,6 +34,7 @@ Deno.serve(async (req) => {
     appointment_reminder_1h: 0,
     appointment_reminder_custom: 0,
     cash_flow_alert: 0,
+    recurring_costs: 0,
   };
 
   try {
