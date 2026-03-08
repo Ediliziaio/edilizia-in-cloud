@@ -421,7 +421,7 @@ export function CostsTable({
                     </TableCell>
                     )}
                     {isColVisible("category") && (
-                    <TableCell className="truncate">
+                    <TableCell className="truncate" title={cost.category || ''}>
                       {cost.category ? (
                         <Badge variant="outline" className={cn("text-[10px] px-1.5", getCategoryColor(cost.category))}>
                           {cost.category}
