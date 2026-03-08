@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, Check, Clock, Calculator, Truck, TrendingUp, CalendarDays, ArrowUpDown, Eye, BarChart3 } from "lucide-react";
+import { AlertCircle, Check, Clock, Calculator, TrendingUp, CalendarDays, ArrowUpDown, Eye, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -7,7 +7,7 @@ import { formatCurrency } from "@/lib/formatters";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  Cell,
+  Cell, PieChart, Pie,
 } from "recharts";
 import type { StatusTabFilter } from "@/hooks/useCompanyCostsData";
 
