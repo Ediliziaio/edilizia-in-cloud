@@ -112,6 +112,13 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
       disabled: false,
       onClick: () => navigate(`/azienda/marketing/automazioni`),
     },
+    {
+      label: "Chiama con AI",
+      icon: Bot,
+      color: "text-primary",
+      disabled: !contact.phone || contact.optout_call || aiAgents.length === 0,
+      onClick: () => setShowAICallDialog(true),
+    },
   ];
 
   return (
