@@ -488,9 +488,66 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "send_notification": {
-      // Log as placeholder — real push/email notification would need additional integration
-      console.log(`[Notification] entity=${entityId} message=${cfg.notification_message}`);
-      return { success: true, output: { action: "send_notification", placeholder: true } };
+      // Insert real notification into lifecycle_notifications
+      const title = cfg.notification_title || "Notifica automazione";
+      const message = cfg.notification_message || "";
+      const recipient = cfg.notification_recipient || "assigned";
+
+      // Determine which company users should receive the notification
+      let targetUserIds: string[] = [];
+      if (recipient === "assigned") {
+        const { data: contact } = await supabase
+          .from("marketing_contacts")
+          .select("assigned_to")
+          .eq("id", entityId)
+          .maybeSingle();
+        if (contact?.assigned_to) targetUserIds = [contact.assigned_to];
+      } else if (recipient === "all_admins") {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("company_id", companyId);
+        if (profiles) {
+          const { data: adminRoles } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("role", "company_admin")
+            .in("user_id", profiles.map((p: any) => p.id));
+          if (adminRoles) targetUserIds = adminRoles.map((r: any) => r.user_id);
+        }
+      } else {
+        // Specific user ID
+        targetUserIds = [recipient];
+      }
+
+      // Insert notification
+      const { error: notifErr } = await supabase.from("lifecycle_notifications").insert({
+        company_id: companyId,
+        notification_type: "automation",
+        title,
+        message,
+        metadata: { entity_id: entityId, automation: true, recipient_type: cfg.notification_recipient },
+      });
+      if (notifErr) return { success: false, error: notifErr.message };
+      return { success: true, output: { action: "send_notification", title, recipients: targetUserIds.length } };
+    }
+
+    case "update_contact_score": {
+      const mode = cfg.score_mode || "add";
+      const value = parseInt(cfg.score_value) || 0;
+      if (mode === "set") {
+        await supabase.from("marketing_contacts").update({ score: value }).eq("id", entityId);
+      } else if (mode === "subtract") {
+        const { data: c } = await supabase.from("marketing_contacts").select("score").eq("id", entityId).single();
+        const newScore = Math.max(0, (c?.score || 0) - value);
+        await supabase.from("marketing_contacts").update({ score: newScore }).eq("id", entityId);
+      } else {
+        // add
+        const { data: c } = await supabase.from("marketing_contacts").select("score").eq("id", entityId).single();
+        const newScore = (c?.score || 0) + value;
+        await supabase.from("marketing_contacts").update({ score: newScore }).eq("id", entityId);
+      }
+      return { success: true, output: { action: "update_contact_score", mode, value } };
     }
 
     case "send_whatsapp": {
