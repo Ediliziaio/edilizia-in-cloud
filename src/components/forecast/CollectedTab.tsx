@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/table-pagination";
-import { format, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, startOfDay, isBefore, startOfYear } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, isWithinInterval, startOfDay, isBefore, startOfYear, differenceInCalendarDays } from "date-fns";
 import { it } from "date-fns/locale";
-import { Search, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon } from "lucide-react";
+import { Search, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon, TrendingUp, TrendingDown, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { useTableSort } from "@/hooks/useTableSort";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // used for customMonths selector
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -20,6 +20,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import type { ExpectedPayment } from "@/lib/forecastTypes";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, ResponsiveContainer,
+} from "recharts";
 
 interface CollectedPayment {
   orderId: string;
