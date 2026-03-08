@@ -889,15 +889,15 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     // Get contact info
     const { data: contact } = await supabase
       .from("marketing_contacts")
-      .select("id, email, first_name, last_name, email_unsubscribed")
+      .select("id, email, first_name, last_name, unsubscribed, optout_email")
       .eq("id", entityId)
       .single();
 
     if (!contact?.email) {
       return { success: false, error: "Contact has no email address" };
     }
-    if (contact.email_unsubscribed) {
-      return { success: false, error: "Contact is unsubscribed" };
+    if (contact.unsubscribed || contact.optout_email) {
+      return { success: false, error: "Contact has opted out of email" };
     }
 
     // Determine stream (default: marketing)
@@ -1021,15 +1021,18 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
     return { success: false, error: "WhatsApp non configurato o non attivo per questa azienda" };
   }
 
-  // 2. Get contact phone
+  // 2. Get contact phone + DND check
   const { data: contact } = await supabase
     .from("marketing_contacts")
-    .select("phone, first_name, last_name, email")
+    .select("phone, first_name, last_name, email, optout_whatsapp")
     .eq("id", entityId)
     .single();
 
   if (!contact?.phone) {
     return { success: false, error: "Contatto senza numero di telefono" };
+  }
+  if (contact.optout_whatsapp) {
+    return { success: false, error: "Contact has opted out of WhatsApp" };
   }
 
   // 3. Decrypt token

@@ -105,6 +105,7 @@ const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/Campai
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
 const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
+const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 
 // Customer
 const CustomerOrders = lazy(() => import("@/pages/cliente/CustomerOrders"));
@@ -166,6 +167,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/prenota/:slug" element={<PublicBooking />} />
               
               {/* Role-based Redirect */}
               <Route path="/" element={<RoleBasedRedirect />} />

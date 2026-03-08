@@ -1,109 +1,110 @@
+# Verifica Modulo AI Agents — Stato aggiornato
 
+## Completato — Blocco A, B, C ✅
 
-# Analisi CRM vs GHL — Piano Implementazione
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-Il documento analizza 15 gap tra il CRM attuale e GoHighLevel. Ecco lo stato e il piano, organizzato per priorità.
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
----
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-## Già completato (da implementazioni precedenti)
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-| # | Feature | Stato |
-|---|---------|-------|
-| 5 | Trigger orfani collegati a eventi reali | ✅ Fatto (email_opened, whatsapp_received, customer_replied, call_registered) |
-| 6 | Filtri trigger con dati contatto | ✅ Fatto (enrichment payload in handleTrigger) |
-| 14 | Lead scoring | ✅ Fatto (colonna `score` su marketing_contacts + azione update_contact_score) |
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
----
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-## Da implementare — 12 fix rimanenti
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-### Fase 1 — P0 (Critici)
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-**1. DND (Do Not Disturb) completo**
-- Migration: tabella `contact_dnd` (contact_id, channel, enabled, source, note) con UNIQUE(contact_id, channel)
-- UI: sostituire placeholder "Prossimamente" nel tab DND di `MarketingContactDetail.tsx` con toggle per Email/SMS/WhatsApp/Chiamate
-- Backend: aggiungere check DND in `send-contact-message`, `process-automation` (send_email, send_whatsapp, send_sms), `send-email-campaign`, whatsapp-broadcast
-- Auto-attivazione: email-tracking unsubscribe → DND email; WhatsApp "STOP" → DND whatsapp
-- Badge nella lista contatti quando almeno un canale è in DND
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
-**2. Link prenotazione pubblica**
-- Migration: colonna `booking_slug` (unique) su `marketing_calendars`
-- Nuova pagina pubblica `/prenota/:slug` (no login richiesto, route pubblica)
-- Mostra calendario, selettore data, slot disponibili (usa `marketing_calendar_availability` già esistente)
-- Esclude appuntamenti esistenti, blocked slots, busy Google Calendar
-- Form prenotazione (nome, email, telefono, note)
-- Dopo booking: crea appointment, spara trigger `appointment_booked`
-- RLS: policy SELECT pubblica su `marketing_calendars` filtrata per slug + `marketing_calendar_availability`
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
 
-**3. Tab Email in AdminSettings** (rapido)
-- Verifico se esiste già — il documento dice mancante ma potrebbe essere stato aggiunto
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
 
-**4. Acquisto crediti Stripe in SettingsCredits**
-- Già implementato con Stripe nella sessione precedente — verifico stato attuale
-
-### Fase 2 — P1
-
-**7. Probabilità + Close Date + Motivo perdita opportunità**
-- Migration: colonne `probability` (integer 0-100, default 50), `expected_close_date` (date), `loss_reason` (text), `loss_notes` (text) su `marketing_opportunities`
-- Migration: tabella `opportunity_loss_reasons` (id, company_id, label, position)
-- UI in `OpportunityDetailDialog`: slider probabilità, date picker close date
-- Dialog motivo perdita quando status → "lost"
-- Dashboard: pipeline pesato = SUM(value × probability / 100)
-
-**8. Conferma + Promemoria appuntamenti**
-- Email conferma al contatto alla creazione appuntamento (via edge function esistente o nuova)
-- Promemoria in `check-scheduled-triggers`: controlla appuntamenti prossime 24h/1h, invia notifica
-
-**9. Google Calendar push notifications**
-- Nuova edge function `google-calendar-webhook` per ricevere push da Google
-- Migration: colonne `webhook_channel_id`, `webhook_expiry_at` su `google_calendar_connections`
-- Registra watch dopo OAuth in `google-calendar-auth`
-- Cron rinnovamento watch ogni 6 giorni
-
-**10. SMS opt-out toggle**
-- Aggiungere `optout_sms` su `marketing_contacts` (o gestito via `contact_dnd` channel='sms')
-- Toggle nella UI settings contatto
-
-**11. Email unsubscribed visibile in UI**
-- Mostrare stato `email_unsubscribed` nel dettaglio contatto (il DB già lo traccia)
-- Toggle manuale per attivare/disattivare
-
-### Fase 3 — P2
-
-**12. WhatsApp e Stripe in SettingsIntegrations**
-- Card WhatsApp: legge `whatsapp_configs`, mostra numero/WABA ID/stato
-- Card Stripe: legge `platform_settings`, mostra ambiente test/live
-- Card Email Provider e Card Twilio (placeholder)
-
-**13. Merge contatti duplicati**
-- UI per selezionare 2 contatti e unirli
-- Backend: merge opportunità, note, attività, documenti verso il contatto "master"
-
-**15. Tab Azioni nel dettaglio contatto**
-- Sostituire placeholder con azioni rapide: invia email, SMS, WhatsApp, aggiungi ad automation
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
 
 ---
 
-## Riepilogo file principali
+## Analisi CRM vs GHL — Piano Implementazione
 
-| File | Fix |
-|------|-----|
-| Migration SQL | 1, 2, 7, 9 |
-| `MarketingContactDetail.tsx` | 1, 10, 11, 15 |
-| Nuovo componente `ContactDndTab.tsx` | 1 |
-| Nuova pagina `/prenota/:slug` | 2 |
-| `OpportunityDetailDialog.tsx` | 7 |
-| `process-automation/index.ts` | 1 (check DND) |
-| `send-contact-message/index.ts` | 1 |
-| `send-email-campaign/index.ts` | 1 |
-| `check-scheduled-triggers/index.ts` | 8 |
-| Nuovo `google-calendar-webhook/index.ts` | 9 |
-| `SettingsIntegrations.tsx` | 12 |
+### Fase 1 — P0 (Critici) ✅
+
+- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` aggiunte a `marketing_contacts`. Toggle SMS/Chiamate nel tab impostazioni contatto. Check DND in `send-contact-message` (email/whatsapp/sms) e `process-automation` (send_email con unsubscribed+optout_email, send_whatsapp con optout_whatsapp). Badge unsubscribed visibile.
+- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` (unique). Pagina `/prenota/:slug` pubblica con calendario, slot disponibili, form prenotazione. RLS per anon (read calendari/availability/appointments, insert appointments).
+- ✅ **Tab Email AdminSettings**: Già esistente (`AdminSettingsEmail.tsx`)
+- ✅ **Crediti Stripe**: Già esistente (`SettingsCredits.tsx`)
+
+### Fase 2 — P1 (TODO)
+
+- [ ] **Probabilità + Close Date + Motivo perdita opportunità**: Migration + UI in OpportunityDetailDialog
+- [ ] **Conferma + Promemoria appuntamenti**: Email conferma + promemoria in check-scheduled-triggers
+- [ ] **Google Calendar push notifications**: Edge function google-calendar-webhook + registra watch
+- [ ] **SMS/Email opt-out visibile in UI**: Già implementato nel tab settings contatto (toggle + badge unsubscribed)
+
+### Fase 3 — P2 (TODO)
+
+- [ ] **WhatsApp/Stripe in SettingsIntegrations**: Card stato per ogni integrazione
+- [ ] **Merge contatti duplicati**: UI + backend merge
+- [ ] **Tab Azioni nel dettaglio contatto**: Azioni rapide (email, SMS, WhatsApp)
 
 ---
 
-## Ordine proposto
+## Fix Automazioni Marketing
 
-Implemento per blocchi: prima **Fase 1** (DND + Link prenotazione + verifiche), poi **Fase 2** (opportunità + appuntamenti + Google push), infine **Fase 3** (UX polish). Totale stimato: ~8-10 sessioni di lavoro.
+### Fase 1 — P0 (Critici) ✅
 
+- ✅ **A1**: `email-tracking` → inserisce `email_opened` / `email_clicked` in `automation_trigger_events`
+- ✅ **A2**: `whatsapp-webhook` → inserisce `whatsapp_received` in `automation_trigger_events` (con lookup contatto marketing)
+- ✅ **A3**: `fire_marketing_automation` già gestisce `opportunity_won`/`opportunity_lost` correttamente — nessun fix necessario
+- ✅ **B**: `process-automation` → `handleTrigger` arricchisce payload con dati contatto da `marketing_contacts` prima di `evaluateFilters`
+- ✅ **C**: Nuova Edge Function `check-scheduled-triggers` per trigger temporali (birthday, custom_date, opportunity_stale) + pg_cron alle 02:00
+
+### Fase 2 — P1 ✅
+
+- ✅ **D**: Azione `remove_from_automation` — UI (tipo CRM in builder) + backend (rimuove enrollment + cancella queue)
+- ✅ **E**: Azione `wait_for_event` — UI (tipo logica in builder) + backend (stato waiting, timeout, risoluzione evento)
+
+### Fase 3 — Documento v2 ✅
+
+- ✅ **Lead scoring**: Colonna `score` su `marketing_contacts` + azione `update_contact_score` (add/subtract/set) in builder e backend
+- ✅ **Re-enrollment**: Lettura `enable_reenrollment` da flow config_json.settings + fallback su trigger config
+- ✅ **Contatori per nodo**: Query aggregata su `automation_execution_log` con badge esecuzioni su ogni nodo nel builder (refresh 30s)
+- ✅ **customer_replied**: Collegato al webhook WhatsApp (inserisce evento `customer_replied` in `automation_trigger_events`)
+- ✅ **call_registered**: DB trigger `fire_call_registered_automation` su `call_logs` INSERT
+- ✅ **send_notification**: Implementato con insert reale in `lifecycle_notifications` (supporta assegnato, tutti admin, utente specifico)
+
+### Fase 4 — TODO
+
+- [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
+- [ ] **G**: Enrollment bulk dalla lista contatti CRM
+- [ ] **send_ai_message**: Integrazione con Lovable AI

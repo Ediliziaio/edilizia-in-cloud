@@ -3558,6 +3558,7 @@ export type Database = {
           base_lat: number | null
           base_lng: number | null
           base_place_id: string | null
+          booking_slug: string | null
           calendar_type: string
           company_id: string
           created_at: string
@@ -3582,6 +3583,7 @@ export type Database = {
           base_lat?: number | null
           base_lng?: number | null
           base_place_id?: string | null
+          booking_slug?: string | null
           calendar_type?: string
           company_id: string
           created_at?: string
@@ -3606,6 +3608,7 @@ export type Database = {
           base_lat?: number | null
           base_lng?: number | null
           base_place_id?: string | null
+          booking_slug?: string | null
           calendar_type?: string
           company_id?: string
           created_at?: string
@@ -3873,7 +3876,9 @@ export type Database = {
           last_activity_at: string | null
           last_name: string | null
           notes: string | null
+          optout_call: boolean | null
           optout_email: boolean | null
+          optout_sms: boolean | null
           optout_whatsapp: boolean | null
           phone: string | null
           postal_code: string | null
@@ -3906,7 +3911,9 @@ export type Database = {
           last_activity_at?: string | null
           last_name?: string | null
           notes?: string | null
+          optout_call?: boolean | null
           optout_email?: boolean | null
+          optout_sms?: boolean | null
           optout_whatsapp?: boolean | null
           phone?: string | null
           postal_code?: string | null
@@ -3939,7 +3946,9 @@ export type Database = {
           last_activity_at?: string | null
           last_name?: string | null
           notes?: string | null
+          optout_call?: boolean | null
           optout_email?: boolean | null
+          optout_sms?: boolean | null
           optout_whatsapp?: boolean | null
           phone?: string | null
           postal_code?: string | null

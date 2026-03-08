@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
     // Fetch contact + verify company ownership
     const { data: contact, error: contactError } = await adminClient
       .from("marketing_contacts")
-      .select("id, company_id, email, phone, first_name, last_name")
+      .select("id, company_id, email, phone, first_name, last_name, optout_email, optout_whatsapp, optout_sms, unsubscribed")
       .eq("id", contact_id)
       .single();
 
@@ -142,6 +142,26 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "Contatto non trovato" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // DND check
+    if (channel === "email" && (contact.optout_email || contact.unsubscribed)) {
+      return new Response(
+        JSON.stringify({ error: "Il contatto ha disattivato le comunicazioni email" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (channel === "whatsapp" && contact.optout_whatsapp) {
+      return new Response(
+        JSON.stringify({ error: "Il contatto ha disattivato le comunicazioni WhatsApp" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (channel === "sms" && contact.optout_sms) {
+      return new Response(
+        JSON.stringify({ error: "Il contatto ha disattivato le comunicazioni SMS" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

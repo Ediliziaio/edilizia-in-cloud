@@ -1314,6 +1314,32 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         onCheckedChange={(checked) => updateField.mutate({ field: "optout_email", value: checked })}
                       />
                     </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Smartphone className="h-3.5 w-3.5 text-blue-600" />
+                        <span className="text-[11px]">SMS</span>
+                      </div>
+                      <Switch
+                        checked={(contact as any).optout_sms || false}
+                        onCheckedChange={(checked) => updateField.mutate({ field: "optout_sms", value: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 text-orange-600" />
+                        <span className="text-[11px]">Chiamate</span>
+                      </div>
+                      <Switch
+                        checked={(contact as any).optout_call || false}
+                        onCheckedChange={(checked) => updateField.mutate({ field: "optout_call", value: checked })}
+                      />
+                    </div>
+                    {(contact as any).unsubscribed && (
+                      <div className="text-[10px] text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-3 w-3" />
+                        Disiscritto il {(contact as any).unsubscribed_at ? format(new Date((contact as any).unsubscribed_at), "dd/MM/yyyy", { locale: it }) : "data sconosciuta"}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
