@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type",
+  ...baseCorsHeaders,
 };
 
 /**
