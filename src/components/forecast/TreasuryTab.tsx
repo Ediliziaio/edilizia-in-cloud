@@ -440,6 +440,19 @@ export function TreasuryTab({
   };
 
   // Chart data with optional forecast overlay
+  // Cumulative net balance line
+  const cumulativeData = useMemo(() => {
+    let cumSum = 0;
+    const cumMap: Record<string, number> = {};
+    monthKeys.forEach((k) => {
+      const income = treeData.entrateNode.monthlyAmounts[k] || 0;
+      const expenses = treeData.usciteNode.monthlyAmounts[k] || 0;
+      cumSum += income - expenses;
+      cumMap[k] = cumSum;
+    });
+    return cumMap;
+  }, [monthKeys, treeData]);
+
   const chartData = useMemo(
     () =>
       monthKeys.map((k, i) => ({
@@ -452,8 +465,9 @@ export function TreasuryTab({
         forecastIncome: forecastData.forecastIncomeMonthly[k] || 0,
         forecastExpenses: forecastData.forecastExpensesMonthly[k] || 0,
         forecastTreasury: forecastData.forecastNetMonthly[k] || 0,
+        cumulativeNet: cumulativeData[k] || 0,
       })),
-    [monthKeys, months, treeData, forecastData]
+    [monthKeys, months, treeData, forecastData, cumulativeData]
   );
 
   const lastMonthTreasury = monthKeys.length > 0 ? treeData.netMonthly[monthKeys[monthKeys.length - 1]] || 0 : 0;
