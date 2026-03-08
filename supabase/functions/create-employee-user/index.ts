@@ -1,10 +1,10 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface CreateEmployeeUserRequest {
@@ -15,7 +15,7 @@ interface CreateEmployeeUserRequest {
   permissions?: Record<string, boolean>;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -59,7 +59,6 @@ serve(async (req) => {
     if (empError || !employee) throw new Error("Dipendente non trovato");
     if (employee.user_id) throw new Error("Il dipendente ha già un account utente");
 
-    // Use provided password or generate one
     const finalPassword = password && password.trim().length > 0
       ? password.trim()
       : crypto.randomUUID().substring(0, 12);
@@ -69,92 +68,62 @@ serve(async (req) => {
       email,
       password: finalPassword,
       email_confirm: true,
-      user_metadata: {
-        first_name: employee.first_name,
-        last_name: employee.last_name,
-      },
+      user_metadata: { first_name: employee.first_name, last_name: employee.last_name },
     });
 
     if (createError || !newUser.user) {
       throw new Error(createError?.message || "Errore nella creazione utente");
     }
 
-    // Create profile
-    const { error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .insert({
-        id: newUser.user.id,
-        email,
-        first_name: employee.first_name,
-        last_name: employee.last_name,
-        company_id: employee.company_id,
-        phone: phone || employee.phone,
-      });
+    const { error: profileError } = await supabaseAdmin.from("profiles").insert({
+      id: newUser.user.id,
+      email,
+      first_name: employee.first_name,
+      last_name: employee.last_name,
+      company_id: employee.company_id,
+      phone: phone || employee.phone,
+    });
 
     if (profileError) {
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       throw new Error("Errore nella creazione profilo");
     }
 
-    // Assign employee role
     const { error: roleError } = await supabaseAdmin
       .from("user_roles")
       .insert({ user_id: newUser.user.id, role: "employee" });
-
     if (roleError) {
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       throw new Error("Errore nell'assegnazione ruolo");
     }
 
-    // Also assign company_staff role so user appears in Users section
     const { error: staffRoleError } = await supabaseAdmin
       .from("user_roles")
       .insert({ user_id: newUser.user.id, role: "company_staff" });
-
     if (staffRoleError) {
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       throw new Error("Errore nell'assegnazione ruolo staff");
     }
 
-    // Create staff_permissions record
     const permissionsRecord: Record<string, any> = {
       user_id: newUser.user.id,
-      can_view_dashboard: false,
-      can_view_orders: false,
-      can_edit_orders: false,
-      can_view_warehouse: false,
-      can_edit_warehouse: false,
-      can_view_calendar: false,
-      can_view_customers: false,
-      can_edit_customers: false,
-      can_view_employees: false,
-      can_view_tickets: false,
-      can_edit_tickets: false,
-      can_view_forecast: false,
-      can_view_settings: false,
-      can_view_marketing: false,
-      can_edit_marketing: false,
+      can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
+      can_view_warehouse: false, can_edit_warehouse: false, can_view_calendar: false,
+      can_view_customers: false, can_edit_customers: false, can_view_employees: false,
+      can_view_tickets: false, can_edit_tickets: false, can_view_forecast: false,
+      can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
       only_assigned: false,
     };
 
     if (permissions) {
       for (const [key, value] of Object.entries(permissions)) {
-        if (key in permissionsRecord) {
-          permissionsRecord[key] = value;
-        }
+        if (key in permissionsRecord) permissionsRecord[key] = value;
       }
     }
 
-    const { error: permError } = await supabaseAdmin
-      .from("staff_permissions")
-      .insert(permissionsRecord);
+    const { error: permError } = await supabaseAdmin.from("staff_permissions").insert(permissionsRecord);
+    if (permError) console.error("Error creating staff_permissions:", permError);
 
-    if (permError) {
-      console.error("Error creating staff_permissions:", permError);
-      // Non-fatal: don't rollback for this
-    }
-
-    // Link employee to user
     const { error: linkError } = await supabaseAdmin
       .from("employees")
       .update({ user_id: newUser.user.id })
@@ -165,6 +134,34 @@ serve(async (req) => {
       throw new Error("Errore nel collegamento dipendente");
     }
 
+    // Send welcome email via transactional provider
+    try {
+      let settings = await loadProviderSettings("transactional");
+      if (!settings.apiKey) settings = await loadProviderSettings("marketing");
+
+      if (settings.apiKey) {
+        const companyName = (employee as any).company?.name || "la piattaforma";
+        await sendViaProvider(settings.provider, settings.apiKey, {
+          from: settings.fromDefault,
+          fromName: settings.fromName,
+          to: [email],
+          subject: `Il tuo account su ${companyName}`,
+          html: `<html><body>
+            <p>Ciao ${employee.first_name},</p>
+            <p>È stato creato un account per te su <strong>${companyName}</strong>.</p>
+            <p>Ecco le tue credenziali di accesso:</p>
+            <ul>
+              <li><strong>Email:</strong> ${email}</li>
+              ${isManualPassword ? "" : `<li><strong>Password temporanea:</strong> ${finalPassword}</li>`}
+            </ul>
+            ${isManualPassword ? "<p>La password è stata impostata dall'amministratore.</p>" : "<p>Ti consigliamo di cambiare la password al primo accesso.</p>"}
+          </body></html>`,
+        });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send welcome email:", emailErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -173,10 +170,7 @@ serve(async (req) => {
         is_manual_password: isManualPassword,
         message: `Account creato per ${employee.first_name} ${employee.last_name}`,
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
     console.error("Error:", error);
@@ -185,10 +179,7 @@ serve(async (req) => {
         success: false,
         error: error instanceof Error ? error.message : "Errore sconosciuto",
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
 });

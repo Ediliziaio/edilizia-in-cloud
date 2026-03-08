@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,30 +41,16 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Get authorization header
     const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      throw new Error("Missing authorization header");
-    }
+    if (!authHeader) throw new Error("Missing authorization header");
 
-    // Verify the caller is authenticated
     const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user: caller },
-      error: authError,
-    } = await supabaseAdmin.auth.getUser(token);
+    const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !caller) throw new Error("Unauthorized");
 
-    if (authError || !caller) {
-      throw new Error("Unauthorized");
-    }
-
-    // Check if caller is super_admin or company_admin (defensive: handle multiple roles)
     const { data: callerRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
@@ -71,81 +58,77 @@ Deno.serve(async (req) => {
 
     const callerRoleNames = (callerRoles || []).map((r: any) => r.role);
     const callerIsAdmin = callerRoleNames.includes("super_admin") || callerRoleNames.includes("company_admin");
+    if (!callerIsAdmin) throw new Error("Permission denied: Only admins can reset passwords");
 
-    if (!callerIsAdmin) {
-      throw new Error("Permission denied: Only admins can reset passwords");
-    }
+    const callerRole = callerRoleNames.includes("super_admin") ? { role: "super_admin" } : { role: "company_admin" };
 
-    const callerRole = callerRoleNames.includes("super_admin")
-      ? { role: "super_admin" }
-      : { role: "company_admin" };
-
-    // Accept both customer_id (legacy) and userId (new)
     const body = await req.json();
     const targetUserId = body.customer_id || body.userId;
     const newPassword = body.new_password;
+    if (!targetUserId) throw new Error("Missing customer_id or userId");
 
-    if (!targetUserId) {
-      throw new Error("Missing customer_id or userId");
-    }
-
-    // Get target user profile
     const { data: targetProfile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("id, company_id, email, first_name, last_name")
       .eq("id", targetUserId)
       .single();
 
-    if (profileError || !targetProfile) {
-      throw new Error("User not found");
-    }
+    if (profileError || !targetProfile) throw new Error("User not found");
 
-    // Verify caller has access to this user (company_admin can only reset within their company)
     if (callerRole.role === "company_admin") {
       const { data: callerProfile } = await supabaseAdmin
         .from("profiles")
         .select("company_id")
         .eq("id", caller.id)
         .single();
-
       if (callerProfile?.company_id !== targetProfile.company_id) {
         throw new Error("Permission denied: Cannot reset password for users in other companies");
       }
     }
 
-    // Verify target is a resettable role (defensive: handle multiple roles)
     const { data: targetRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", targetUserId);
 
     const targetRoleNames = (targetRoles || []).map((r: any) => r.role);
-
-    if (targetRoleNames.length === 0) {
-      throw new Error("Target user has no role");
-    }
-
-    // Prevent resetting super_admin passwords
-    if (targetRoleNames.includes("super_admin")) {
-      throw new Error("Cannot reset super admin password");
-    }
-
-    // company_admin can only reset customer and staff passwords, not other admins
+    if (targetRoleNames.length === 0) throw new Error("Target user has no role");
+    if (targetRoleNames.includes("super_admin")) throw new Error("Cannot reset super admin password");
     if (callerRole.role === "company_admin" && targetRoleNames.includes("company_admin") && targetUserId !== caller.id) {
       throw new Error("Permission denied: Cannot reset another admin's password");
     }
 
-    // Generate new password
     const finalPassword = newPassword || generateSecurePassword();
 
-    // Update password
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
       targetUserId,
       { password: finalPassword }
     );
+    if (updateError) throw new Error(`Failed to update password: ${updateError.message}`);
 
-    if (updateError) {
-      throw new Error(`Failed to update password: ${updateError.message}`);
+    // Send password reset email via transactional provider
+    if (targetProfile.email) {
+      try {
+        let settings = await loadProviderSettings("transactional");
+        if (!settings.apiKey) settings = await loadProviderSettings("marketing");
+
+        if (settings.apiKey) {
+          await sendViaProvider(settings.provider, settings.apiKey, {
+            from: settings.fromDefault,
+            fromName: settings.fromName,
+            to: [targetProfile.email],
+            subject: "Password reimpostata",
+            html: `<html><body>
+              <p>Ciao ${targetProfile.first_name || ""},</p>
+              <p>La tua password è stata reimpostata dall'amministratore.</p>
+              <p>La tua nuova password temporanea è: <strong>${finalPassword}</strong></p>
+              <p>Ti consigliamo di cambiarla al primo accesso.</p>
+            </body></html>`,
+          });
+        }
+      } catch (emailErr) {
+        console.error("Failed to send password reset email:", emailErr);
+      }
     }
 
     return new Response(
@@ -161,21 +144,12 @@ Deno.serve(async (req) => {
           lastName: targetProfile.last_name,
         },
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: (error as Error).message,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      }
+      JSON.stringify({ success: false, error: (error as Error).message }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
 });
