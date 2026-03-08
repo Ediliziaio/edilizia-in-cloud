@@ -520,6 +520,40 @@ export function TreasuryTab({
 
   return (
     <div className="space-y-4">
+      {/* Saldo Finale Periodo */}
+      {monthKeys.length > 0 && (() => {
+        const lastKey = monthKeys[monthKeys.length - 1];
+        const finalBalance = treeData.netMonthly[lastKey] || 0;
+        return (
+          <Card className={cn(
+            "border-2",
+            finalBalance >= 0
+              ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-700 dark:bg-emerald-950/20"
+              : "border-destructive/50 bg-destructive/5"
+          )}>
+            <CardContent className="py-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Saldo Finale Periodo</p>
+                <p className={cn(
+                  "text-2xl font-bold tabular-nums",
+                  finalBalance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                )}>
+                  {formatCurrency(finalBalance)}
+                </p>
+              </div>
+              <div className={cn(
+                "h-10 w-10 rounded-full flex items-center justify-center",
+                finalBalance >= 0 ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-destructive/10"
+              )}>
+                {finalBalance >= 0
+                  ? <ChevronRight className="h-5 w-5 text-emerald-600 rotate-[-90deg]" />
+                  : <ChevronRight className="h-5 w-5 text-destructive rotate-90" />}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Period selector + Forecast toggle */}
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm font-medium">Periodo:</span>
@@ -674,7 +708,6 @@ export function TreasuryTab({
                     </td>
                     {monthKeys.map((k) => {
                       const actual = node.monthlyAmounts[k] || 0;
-                      // For forecast: show forecast amount for income/expense top-level nodes
                       const hasForecast = showForecast && (node.id === "entrate" || node.id === "uscite");
                       const forecastVal = hasForecast
                         ? node.id === "entrate"
@@ -682,8 +715,14 @@ export function TreasuryTab({
                           : forecastData.forecastExpensesMonthly[k] || 0
                         : 0;
 
+                      const cellColor = actual > 0
+                        ? (node.isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")
+                        : actual < 0
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-muted-foreground";
+
                       return (
-                        <td key={k} className={cn("text-right p-3 tabular-nums", getAmountColor(actual, node.isIncome))}>
+                        <td key={k} className={cn("text-right p-3 tabular-nums", cellColor)}>
                           <div>
                             {actual !== 0 ? formatCurrency(actual) : "—"}
                             {hasForecast && forecastVal > 0 && (

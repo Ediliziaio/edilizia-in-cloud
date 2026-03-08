@@ -25,10 +25,28 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS } from "@/lib/forecastTypes";
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
+
+const CATEGORY_COLORS: Record<string, string> = {
+  finanziaria: "border-indigo-400 text-indigo-600 dark:text-indigo-400",
+  bancarie: "border-indigo-400 text-indigo-600 dark:text-indigo-400",
+  fiscale: "border-rose-400 text-rose-600 dark:text-rose-400",
+  tasse: "border-rose-400 text-rose-600 dark:text-rose-400",
+  iva: "border-rose-400 text-rose-600 dark:text-rose-400",
+  investimenti: "border-cyan-400 text-cyan-600 dark:text-cyan-400",
+  equity: "border-purple-400 text-purple-600 dark:text-purple-400",
+  marketing: "border-amber-400 text-amber-600 dark:text-amber-400",
+  personale: "border-teal-400 text-teal-600 dark:text-teal-400",
+};
+
+function getCategoryColor(category: string): string {
+  const key = category.toLowerCase();
+  return CATEGORY_COLORS[key] || "border-muted-foreground/40 text-muted-foreground";
+}
 
 interface CostsTableProps {
   items: UnifiedCost[];
@@ -335,7 +353,15 @@ export function CostsTable({
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="truncate">{cost.category || "—"}</TableCell>
+                    <TableCell className="truncate">
+                      {cost.category ? (
+                        <Badge variant="outline" className={cn("text-[10px] px-1.5", getCategoryColor(cost.category))}>
+                          {cost.category}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Tooltip>
                         <TooltipTrigger asChild>
