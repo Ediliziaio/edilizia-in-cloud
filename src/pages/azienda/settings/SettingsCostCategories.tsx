@@ -197,17 +197,15 @@ export default function SettingsCostCategories() {
                 {categories.length} {categories.length === 1 ? "categoria" : "categorie"} configurate
               </CardDescription>
             </div>
-            {categories.length === 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => importMutation.mutate()}
-                disabled={importMutation.isPending}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                {importMutation.isPending ? "Importo..." : "Importa categorie esistenti"}
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => importMutation.mutate()}
+              disabled={importMutation.isPending}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {importMutation.isPending ? "Importo..." : "Importa dai costi"}
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
