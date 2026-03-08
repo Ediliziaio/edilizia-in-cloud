@@ -41,13 +41,17 @@ export default function PlatformSettingsPage() {
   const queryClient = useQueryClient();
 
   // Load existing API key from platform_settings
+  const [subscriptionPrice, setSubscriptionPrice] = useState("49");
+  const [trialDays, setTrialDays] = useState("14");
+  const [welcomeBonus, setWelcomeBonus] = useState("5");
+
   const { data: savedSettings } = useQuery({
     queryKey: ["platform-settings-elevenlabs"],
     queryFn: async () => {
       const { data } = await supabase
         .from("platform_settings" as never)
         .select("key, value")
-        .in("key" as never, ["elevenlabs_api_key", "default_llm_model", "domain_whitelist"] as never);
+        .in("key" as never, ["elevenlabs_api_key", "default_llm_model", "domain_whitelist", "ai_subscription_price_eur", "ai_subscription_trial_days", "ai_welcome_bonus_eur"] as never);
       return (data as unknown as { key: string; value: string }[]) ?? [];
     },
   });
