@@ -251,6 +251,25 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Settings2 className="h-4 w-4" /> Post-chiamata
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Conferma appuntamento automatica</Label>
+              <p className="text-xs text-muted-foreground">
+                Invia automaticamente un messaggio di conferma al contatto quando l'agente prenota un appuntamento
+              </p>
+            </div>
+            <Switch checked={sendConfirmation} onCheckedChange={setSendConfirmation} />
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-end">
         <Button onClick={handleSave}>Salva configurazione</Button>
       </div>

@@ -822,6 +822,24 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
               </div>
             </div>
           )}
+
+          {/* ── CALL WITH AI AGENT ── */}
+          {actionType === "call_with_ai_agent" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Agente AI</Label>
+                <Select value={node.config_json?.ai_agent_id || ""} onValueChange={(v) => updateConfig("ai_agent_id", v)}>
+                  <SelectTrigger className={cn("mt-1 h-9 text-xs", hasFieldError("ai_agent_id") && "border-destructive")}><SelectValue placeholder="Seleziona agente..." /></SelectTrigger>
+                  <SelectContent>
+                    {aiAgentsList.map((a: any) => (
+                      <SelectItem key={a.id} value={a.id} className="text-xs">{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">L'agente AI chiamerà il contatto al suo numero di telefono. Richiede crediti AI e un numero configurato.</p>
+              </div>
+            </div>
+          )
         </div>
 
         {/* Footer */}
