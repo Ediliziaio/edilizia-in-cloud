@@ -759,6 +759,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 </AvatarFallback>
               </Avatar>
               <h2 className="font-semibold text-base flex-1 truncate">{fullName}</h2>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setMergeOpen(true)} title="Unisci contatti">
+                <Merge className="h-3.5 w-3.5" />
+              </Button>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => setDeleteOpen(true)}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
