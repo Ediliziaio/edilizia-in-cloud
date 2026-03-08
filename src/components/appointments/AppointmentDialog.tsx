@@ -374,6 +374,19 @@ export function AppointmentDialog({
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label>Promemoria</Label>
+            <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
+              <SelectTrigger><SelectValue placeholder="Nessun promemoria" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nessuno</SelectItem>
+                <SelectItem value="60">1 ora prima</SelectItem>
+                <SelectItem value="120">2 ore prima</SelectItem>
+                <SelectItem value="1440">24 ore prima</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {!hideMarketingFields && (
             <div className="space-y-2">
               <Label>Contatto CRM</Label>
