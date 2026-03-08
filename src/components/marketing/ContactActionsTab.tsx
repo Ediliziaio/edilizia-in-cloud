@@ -16,9 +16,26 @@ interface ContactActionsTabProps {
 
 export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabProps>(function ContactActionsTab({ contact, companyId }, ref) {
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
+  const [showAICallDialog, setShowAICallDialog] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState("");
+  const [callingAI, setCallingAI] = useState(false);
+
+  const { data: aiAgents = [] } = useQuery({
+    queryKey: ["ai-agents-for-call", companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("ai_agents" as never)
+        .select("id, name, status")
+        .eq("company_id", companyId)
+        .eq("status", "active")
+        .order("name");
+      return (data || []) as { id: string; name: string; status: string }[];
+    },
+    enabled: !!companyId,
+  });
 
   const handleSendMessage = (channel: string) => {
-    // Navigate to messaging with pre-filled contact
     if (channel === "whatsapp" && contact.phone) {
       navigate(`/azienda/marketing/messaggi?contact=${contact.id}&channel=whatsapp`);
     } else if (channel === "email" && contact.email) {
@@ -35,6 +52,27 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
       window.open(`tel:${contact.phone}`, "_self");
     } else {
       toast.error("Numero di telefono mancante");
+    }
+  };
+
+  const handleAICall = async () => {
+    if (!selectedAgentId) {
+      toast.error("Seleziona un agente AI");
+      return;
+    }
+    setCallingAI(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-outbound-call", {
+        body: { agent_id: selectedAgentId, contact_id: contact.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(data?.message || "Chiamata AI avviata");
+      setShowAICallDialog(false);
+    } catch (err: any) {
+      toast.error(err.message || "Errore nella chiamata AI");
+    } finally {
+      setCallingAI(false);
     }
   };
 
