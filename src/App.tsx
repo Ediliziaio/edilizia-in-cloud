@@ -62,6 +62,7 @@ const SettingsTags = lazy(() => import("@/pages/azienda/settings/SettingsTags"))
 const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/SettingsCustomFields"));
 const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/SettingsMarketingCalendars"));
 const SettingsIntegrations = lazy(() => import("@/pages/azienda/settings/SettingsIntegrations"));
+const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
 const OrdersList = lazy(() => import("@/pages/azienda/OrdersList"));
 const CreateOrder = lazy(() => import("@/pages/azienda/CreateOrder"));
 const OrderDetail = lazy(() => import("@/pages/azienda/OrderDetail"));
