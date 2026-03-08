@@ -5,6 +5,7 @@ import {
   Zap, Mail, Clock, GitBranch, Target, Trash2, Copy, Plus, Bell, Tag,
   ArrowRightLeft, ListTodo, UserCheck, ExternalLink, StopCircle, MessageCircle,
   FileEdit, PlusCircle, Smartphone, Bot, Percent, CornerDownRight, Globe, RefreshCw,
+  TrendingUp, UserMinus, Hourglass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,9 +14,11 @@ const ACTION_ICONS: Record<string, typeof Zap> = {
   send_notification: Bell, send_ai_message: Bot,
   create_opportunity: PlusCircle, move_opportunity: ArrowRightLeft, update_field: FileEdit,
   add_tag: Tag, remove_tag: Tag, assign_user: UserCheck, create_task: ListTodo,
+  update_contact_score: TrendingUp, remove_from_automation: UserMinus,
   delay: Clock, if_else: GitBranch, end_automation: StopCircle,
   split_percentage: Percent, goal: Target, jump_to_step: CornerDownRight,
   webhook_out: ExternalLink, external_api: Globe, sync_google: RefreshCw, sync_meta_lead: RefreshCw,
+  wait_for_event: Hourglass,
 };
 
 function getNodeIcon(node: NodeType) {
