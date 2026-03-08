@@ -77,7 +77,6 @@ export function TelnyxSettingsCard() {
 
     setIsSaving(true);
     try {
-      // Encrypt via edge function
       const { data, error } = await supabase.functions.invoke("telnyx-proxy", {
         body: {
           action: "save_settings",
@@ -92,41 +91,8 @@ export function TelnyxSettingsCard() {
         },
       });
 
-      // Fallback: save directly if telnyx-proxy doesn't support save_settings yet
-      if (data?.error?.includes("non supportata")) {
-        // Direct upsert — API key will be stored as-is (should be encrypted by proxy)
-        const upsertData: Record<string, unknown> = {
-          messaging_profile_id: messagingProfileId.trim() || null,
-          connection_id: connectionId.trim() || null,
-          is_active: isActive,
-          updated_at: new Date().toISOString(),
-        };
-
-        if (apiKey !== "••••••••••••" && apiKey.trim()) {
-          upsertData.api_key_encrypted = apiKey.trim(); // Will be properly encrypted via proxy later
-        }
-        if (webhookKey !== "••••••••••••" && webhookKey.trim()) {
-          upsertData.webhook_signing_secret_encrypted = webhookKey.trim();
-        }
-
-        if (settings?.id) {
-          await supabase
-            .from("telnyx_settings" as never)
-            .update(upsertData as never)
-            .eq("id" as never, settings.id as never);
-        } else {
-          if (!upsertData.api_key_encrypted) {
-            toast.error("API Key obbligatoria per la prima configurazione");
-            setIsSaving(false);
-            return;
-          }
-          await supabase
-            .from("telnyx_settings" as never)
-            .insert(upsertData as never);
-        }
-      } else if (error) {
-        throw error;
-      }
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       queryClient.invalidateQueries({ queryKey: ["telnyx-settings"] });
       toast.success("Configurazione Telnyx salvata");
