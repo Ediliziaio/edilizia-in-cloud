@@ -623,6 +623,44 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     return [...top6, { name: "Altro", value: otherValue }];
   }, [allCostsSorted]);
 
+  // Available years from costs data
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<number>();
+    (costs || []).forEach((c: any) => {
+      const y = new Date(c.due_date).getFullYear();
+      if (!isNaN(y)) yearsSet.add(y);
+    });
+    const now = new Date().getFullYear();
+    yearsSet.add(now);
+    yearsSet.add(now - 1);
+    return Array.from(yearsSet).sort((a, b) => b - a);
+  }, [costs]);
+
+  // Fixed costs % trend (last 12 months)
+  const fixedCostsTrend = useMemo(() => {
+    const now = new Date();
+    const monthsArr: { key: string; label: string }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = subMonths(now, i);
+      monthsArr.push({
+        key: format(startOfMonth(d), "yyyy-MM"),
+        label: format(d, "MMM yy", { locale: it }),
+      });
+    }
+    return monthsArr.map(({ key, label }) => {
+      let fixed = 0;
+      let variable = 0;
+      (allCostsSorted || []).forEach((c: any) => {
+        const cKey = format(new Date(c.due_date), "yyyy-MM");
+        if (cKey !== key) return;
+        if (c.cost_type === "fixed") fixed += Number(c.amount);
+        else variable += Number(c.amount);
+      });
+      const total = fixed + variable;
+      return { month: label, pctFixed: total > 0 ? Math.round((fixed / total) * 100) : 0 };
+    });
+  }, [allCostsSorted]);
+
   return {
     costs,
     suppliers,
@@ -642,6 +680,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     stats,
     yearlyStats,
     categoryDistribution,
+    availableYears,
+    fixedCostsTrend,
     isLoading,
     exportCostsCSV,
   };
