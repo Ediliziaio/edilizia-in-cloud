@@ -333,8 +333,14 @@ export default function Calendar() {
     <div className="space-y-4">
       {/* Header compatto: titolo + toggle viste + azioni */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold text-foreground">Calendario Lavori</h1>
+          {conflictCount > 0 && (
+            <Badge variant="destructive" className="gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              {conflictCount} conflitti
+            </Badge>
+          )}
         </div>
 
         <ToggleGroup
