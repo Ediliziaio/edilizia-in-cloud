@@ -87,22 +87,35 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
             <CalendarDays className="h-5 w-5 text-primary" />
             <h3 className="text-lg font-semibold">Situazione {selectedYear}</h3>
           </div>
-          <div className="flex gap-1">
-            <Button
-              variant={selectedYear === currentYear ? "default" : "outline"}
-              size="sm"
-              onClick={() => onYearChange(currentYear)}
-            >
-              {currentYear}
-            </Button>
-            <Button
-              variant={selectedYear === currentYear - 1 ? "default" : "outline"}
-              size="sm"
-              onClick={() => onYearChange(currentYear - 1)}
-            >
-              {currentYear - 1}
-            </Button>
-          </div>
+          {availableYears.length > 2 ? (
+            <Select value={String(selectedYear)} onValueChange={(v) => onYearChange(Number(v))}>
+              <SelectTrigger className="w-[100px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex gap-1">
+              <Button
+                variant={selectedYear === currentYear ? "default" : "outline"}
+                size="sm"
+                onClick={() => onYearChange(currentYear)}
+              >
+                {currentYear}
+              </Button>
+              <Button
+                variant={selectedYear === currentYear - 1 ? "default" : "outline"}
+                size="sm"
+                onClick={() => onYearChange(currentYear - 1)}
+              >
+                {currentYear - 1}
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

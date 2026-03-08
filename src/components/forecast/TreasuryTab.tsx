@@ -651,6 +651,16 @@ export function TreasuryTab({
                 strokeWidth={2.5}
                 dot={{ r: 4, fill: "hsl(217, 91%, 60%)" }}
               />
+              {/* Cumulative net balance line */}
+              <Line
+                type="monotone"
+                dataKey="cumulativeNet"
+                name="Saldo Cumulativo"
+                stroke="hsl(var(--foreground))"
+                strokeWidth={2}
+                strokeOpacity={0.6}
+                dot={{ r: 3, fill: "hsl(var(--foreground))", fillOpacity: 0.6 }}
+              />
               {/* Forecast treasury line (dashed) */}
               {showForecast && (
                 <Line
