@@ -25,6 +25,7 @@ export default function InternalAIAgentsModule() {
         <Routes>
           <Route index element={<InternalAgentsListPage />} />
           <Route path="chiamate" element={<InternalCallLogsPage />} />
+          <Route path="campagne" element={<InternalCampaignsPage />} />
           <Route path=":id" element={<InternalAgentEditorPage />} />
         </Routes>
       </Suspense>
