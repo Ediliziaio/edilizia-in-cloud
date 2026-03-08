@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle, ChevronDown } from "lucide-react";
@@ -15,6 +14,11 @@ import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
 import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
 import { CompanyDashboardFilters } from "@/components/dashboard/CompanyDashboardFilters";
 import { useCompanyDashboardData } from "@/hooks/useCompanyDashboardData";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+  AreaChart, Area,
+} from "recharts";
 
 function WarehouseAlerts({ urgentItems }: { urgentItems: any[] }) {
   const [open, setOpen] = useState(urgentItems.length > 0);
@@ -101,7 +105,10 @@ export default function CompanyDashboard() {
     isLoading, isError,
     stats, prevStats, recentOrders, cashFlow, ceoStrip,
     urgentItems, financialAlerts, weeklyDeadlines,
+    monthlyBalance, revenueYTD,
   } = useCompanyDashboardData();
+
+  const totalYTDRevenue = useMemo(() => revenueYTD.reduce((s, r) => s + r.revenue, 0), [revenueYTD]);
 
   const statCards = [
     {
@@ -197,10 +204,6 @@ export default function CompanyDashboard() {
     );
   }
 
-  const maxCashFlow = Math.max(cashFlow.thisMonthIncome, cashFlow.thisMonthOutflow, 1);
-  const incomePercent = (cashFlow.thisMonthIncome / maxCashFlow) * 100;
-  const outflowPercent = (cashFlow.thisMonthOutflow / maxCashFlow) * 100;
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -227,6 +230,34 @@ export default function CompanyDashboard() {
 
       {/* Filters */}
       <CompanyDashboardFilters filters={filters} onUpdate={updateFilters} />
+
+      {/* YTD Revenue Sparkline */}
+      {revenueYTD.length > 0 && (
+        <Card className="border-primary/20">
+          <CardContent className="pt-4 pb-2">
+            <div className="flex items-center justify-between mb-1">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Fatturato YTD</p>
+                <p className="text-xl font-bold text-foreground tabular-nums">{formatCurrency(totalYTDRevenue)}</p>
+              </div>
+              <TrendingUp className="h-5 w-5 text-primary opacity-60" />
+            </div>
+            <div className="h-[80px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={revenueYTD} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="ytdGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#ytdGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* CEO KPI Strip */}
       <DashboardCeoStrip
@@ -340,7 +371,7 @@ export default function CompanyDashboard() {
           </CardContent>
         </Card>
 
-        {/* Bilancio Mese */}
+        {/* Bilancio Mese — BarChart */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -349,7 +380,7 @@ export default function CompanyDashboard() {
                   <TrendingUp className="h-5 w-5 text-primary" />
                   Bilancio Mese
                 </CardTitle>
-                <CardDescription>Entrate vs uscite previste</CardDescription>
+                <CardDescription>Entrate vs uscite (ultimi 6 mesi)</CardDescription>
               </div>
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/azienda/previsionale">Dettaglio</Link>
@@ -357,19 +388,21 @@ export default function CompanyDashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Entrate attese</span>
-                <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(cashFlow.thisMonthIncome)}</span>
-              </div>
-              <Progress value={incomePercent} className="h-2 [&>div]:bg-emerald-500" />
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Uscite attese</span>
-                <span className="font-medium text-destructive">{formatCurrency(cashFlow.thisMonthOutflow)}</span>
-              </div>
-              <Progress value={outflowPercent} className="h-2 [&>div]:bg-destructive" />
+            <div className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyBalance} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+                  <RechartsTooltip
+                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                  />
+                  <Legend />
+                  <Bar dataKey="entrate" name="Entrate" fill="hsl(142 76% 36%)" radius={[3, 3, 0, 0]} barSize={14} />
+                  <Bar dataKey="uscite" name="Uscite" fill="hsl(0 84% 60%)" radius={[3, 3, 0, 0]} barSize={14} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
             <div className={`flex items-center justify-between p-4 rounded-lg border ${
               cashFlow.netCashFlow >= 0

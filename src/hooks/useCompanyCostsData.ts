@@ -607,6 +607,22 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     URL.revokeObjectURL(url);
   };
 
+  // Category distribution for PieChart
+  const categoryDistribution = useMemo(() => {
+    const catMap = new Map<string, number>();
+    allCostsSorted.forEach((c: any) => {
+      const cat = c.category || "Altro";
+      catMap.set(cat, (catMap.get(cat) || 0) + Number(c.amount));
+    });
+    const sorted = Array.from(catMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+    if (sorted.length <= 7) return sorted;
+    const top6 = sorted.slice(0, 6);
+    const otherValue = sorted.slice(6).reduce((s, c) => s + c.value, 0);
+    return [...top6, { name: "Altro", value: otherValue }];
+  }, [allCostsSorted]);
+
   return {
     costs,
     suppliers,
@@ -625,6 +641,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     vatStats,
     stats,
     yearlyStats,
+    categoryDistribution,
     isLoading,
     exportCostsCSV,
   };

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, Check, Clock, Calculator, Truck, TrendingUp, CalendarDays, ArrowUpDown, Eye, BarChart3 } from "lucide-react";
+import { AlertCircle, Check, Clock, Calculator, TrendingUp, CalendarDays, ArrowUpDown, Eye, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -7,7 +7,7 @@ import { formatCurrency } from "@/lib/formatters";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  Cell,
+  Cell, PieChart, Pie,
 } from "recharts";
 import type { StatusTabFilter } from "@/hooks/useCompanyCostsData";
 
@@ -56,11 +56,17 @@ interface CostsStatsCardsProps {
   onYearChange: (year: number) => void;
   activeStatusTab?: StatusTabFilter;
   onStatusTabChange?: (tab: StatusTabFilter) => void;
+  categoryDistribution?: { name: string; value: number }[];
 }
 
 const currentYear = new Date().getFullYear();
 
-export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange }: CostsStatsCardsProps) {
+const PIE_COLORS = [
+  "hsl(217 91% 60%)", "hsl(142 76% 36%)", "hsl(0 84% 60%)",
+  "hsl(45 93% 47%)", "hsl(270 67% 58%)", "hsl(200 70% 50%)", "hsl(var(--muted-foreground))",
+];
+
+export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLabel = "Periodo", yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [] }: CostsStatsCardsProps) {
   const [chartView, setChartView] = useState<"current" | "comparison">("current");
 
   const handleCardClick = (tab: StatusTabFilter) => {
@@ -351,6 +357,44 @@ export function CostsStatsCards({ stats, vatStats, monthlyDistribution, periodLa
           </div>
         </CardContent>
       </Card>
+
+      {/* Category Distribution PieChart */}
+      {categoryDistribution.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Spese per Categoria</CardTitle>
+            <CardDescription>Distribuzione delle uscite per tipologia</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[280px] flex items-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={90}
+                    paddingAngle={2}
+                    dataKey="value"
+                    nameKey="name"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={{ strokeWidth: 1 }}
+                  >
+                    {categoryDistribution.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip
+                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }
