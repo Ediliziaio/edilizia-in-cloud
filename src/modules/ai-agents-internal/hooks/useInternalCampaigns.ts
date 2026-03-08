@@ -1,57 +1,68 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useCompanyId } from "@/hooks/useCompanyId";
 import { toast } from "sonner";
 import type { InternalCampaign, InternalCampaignInsert, CampaignStatus } from "../types/internalAgent.types";
 
+async function getCompanyId(): Promise<{ companyId: string; userId: string }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Non autenticato");
+  const { data: profile } = await supabase
+    .from("profiles" as never)
+    .select("company_id")
+    .eq("id", user.id)
+    .single();
+  const companyId = (profile as any)?.company_id;
+  if (!companyId) throw new Error("Nessuna azienda associata");
+  return { companyId, userId: user.id };
+}
+
 export function useInternalCampaigns() {
-  const { companyId } = useCompanyId();
   const qc = useQueryClient();
-  const key = ["internal-campaigns", companyId];
+  const key = ["internal-campaigns"];
 
   const campaignsQuery = useQuery({
     queryKey: key,
-    enabled: !!companyId,
     queryFn: async () => {
+      const { companyId } = await getCompanyId();
       const { data, error } = await supabase
-        .from("internal_outbound_campaigns")
+        .from("internal_outbound_campaigns" as never)
         .select("*")
-        .eq("company_id", companyId!)
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as unknown as InternalCampaign[];
+      return (data ?? []) as unknown as InternalCampaign[];
     },
   });
 
   const statsQuery = useQuery({
     queryKey: [...key, "stats"],
-    enabled: !!companyId,
     queryFn: async () => {
+      const { companyId } = await getCompanyId();
       const { data, error } = await supabase
-        .from("internal_outbound_campaigns")
+        .from("internal_outbound_campaigns" as never)
         .select("status, total_calls, calls_answered, calls_failed")
-        .eq("company_id", companyId!);
+        .eq("company_id", companyId);
       if (error) throw error;
-      const rows = data || [];
+      const rows = (data || []) as any[];
       return {
         active: rows.filter((r) => r.status === "running" || r.status === "scheduled").length,
         completed: rows.filter((r) => r.status === "completed").length,
-        totalCalls: rows.reduce((s, r) => s + (r.total_calls || 0), 0),
-        totalAnswered: rows.reduce((s, r) => s + (r.calls_answered || 0), 0),
+        totalCalls: rows.reduce((s: number, r: any) => s + (r.total_calls || 0), 0),
+        totalAnswered: rows.reduce((s: number, r: any) => s + (r.calls_answered || 0), 0),
       };
     },
   });
 
   const createCampaign = useMutation({
     mutationFn: async (input: InternalCampaignInsert) => {
-      const { data: profile } = await supabase.from("profiles").select("id").limit(1).single();
+      const { companyId, userId } = await getCompanyId();
       const { data, error } = await supabase
-        .from("internal_outbound_campaigns")
+        .from("internal_outbound_campaigns" as never)
         .insert({
           ...input,
-          company_id: companyId!,
-          created_by: profile!.id,
-        } as any)
+          company_id: companyId,
+          created_by: userId,
+        } as never)
         .select()
         .single();
       if (error) throw error;
@@ -69,16 +80,15 @@ export function useInternalCampaigns() {
       const updates: Record<string, unknown> = { status };
       if (status === "running") updates.started_at = new Date().toISOString();
       if (status === "completed") updates.completed_at = new Date().toISOString();
-
       const { error } = await supabase
-        .from("internal_outbound_campaigns")
-        .update(updates as any)
+        .from("internal_outbound_campaigns" as never)
+        .update(updates as never)
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: key });
-      toast.success("Stato campagna aggiornato");
+      toast.success("Stato aggiornato");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -86,7 +96,7 @@ export function useInternalCampaigns() {
   const deleteCampaign = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("internal_outbound_campaigns")
+        .from("internal_outbound_campaigns" as never)
         .delete()
         .eq("id", id);
       if (error) throw error;
@@ -100,13 +110,10 @@ export function useInternalCampaigns() {
 
   const startCampaign = useMutation({
     mutationFn: async (campaignId: string) => {
-      // Update status first
       await supabase
-        .from("internal_outbound_campaigns")
-        .update({ status: "running", started_at: new Date().toISOString() } as any)
+        .from("internal_outbound_campaigns" as never)
+        .update({ status: "running", started_at: new Date().toISOString() } as never)
         .eq("id", campaignId);
-
-      // Invoke the campaign manager edge function
       const { error } = await supabase.functions.invoke("internal-campaign-manager", {
         body: { campaign_id: campaignId },
       });
