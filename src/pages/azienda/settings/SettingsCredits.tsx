@@ -247,23 +247,23 @@ export default function SettingsCredits() {
                           <TableCell>
                             <Badge
                               variant={
-                                log.movement_type === "deduction" ? "destructive" :
-                                log.movement_type === "topup" ? "default" :
+                                log.type === "deduction" ? "destructive" :
+                                log.type === "topup" ? "default" :
                                 "secondary"
                               }
                               className="text-[10px]"
                             >
-                              {log.movement_type === "deduction" ? "Detrazione" :
-                               log.movement_type === "topup" ? "Ricarica" :
-                               log.movement_type === "bonus" ? "Bonus" :
-                               log.movement_type === "refund" ? "Rimborso" :
-                               log.movement_type}
+                              {log.type === "deduction" ? "Detrazione" :
+                               log.type === "topup" ? "Ricarica" :
+                               log.type === "bonus" ? "Bonus" :
+                               log.type === "refund" ? "Rimborso" :
+                               log.type}
                             </Badge>
                           </TableCell>
                           <TableCell className={`font-mono font-semibold ${
-                            log.movement_type === "deduction" ? "text-destructive" : "text-emerald-600"
+                            log.type === "deduction" ? "text-destructive" : "text-emerald-600"
                           }`}>
-                            {log.movement_type === "deduction" ? "-" : "+"}{formatEur(Math.abs(log.amount))}
+                            {log.type === "deduction" ? "-" : "+"}{formatEur(Math.abs(log.amount_eur))}
                           </TableCell>
                           <TableCell className="font-mono text-muted-foreground text-xs">
                             {formatEur(log.balance_before)}
