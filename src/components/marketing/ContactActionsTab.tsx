@@ -1,9 +1,13 @@
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Mail, MessageSquare, Smartphone, Phone, ArrowRight, Bot } from "lucide-react";
+import { Mail, MessageSquare, Smartphone, Phone, ArrowRight, Bot, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ContactActionsTabProps {
   contact: any;
