@@ -45,9 +45,7 @@ Deno.serve(async (req) => {
 
     const { data: configs, error: configError } = await query;
     if (configError || !configs?.length) {
-      return new Response(JSON.stringify({ processed: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ processed: 0 });
     }
 
     let processed = 0;
