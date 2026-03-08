@@ -392,7 +392,7 @@ export function CostsTable({
                         <span className="block w-4" />
                       )}
                     </TableCell>
-                    <TableCell className="font-medium truncate">{cost.name}</TableCell>
+                    <TableCell className="font-medium truncate" title={cost.name}>{cost.name}</TableCell>
                     {isColVisible("origin") && (
                     <TableCell>
                       {cost.isFromOrder ? (
