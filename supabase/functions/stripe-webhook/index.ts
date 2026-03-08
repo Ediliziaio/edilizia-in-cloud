@@ -28,7 +28,6 @@ Deno.serve(async (req) => {
     // Verify webhook signature if secret is configured
     if (stripeWebhookSecret && signature) {
       // For production, use Stripe's signature verification
-      // For now, we proceed with basic validation
     }
 
     const event = JSON.parse(body);
@@ -40,11 +39,59 @@ Deno.serve(async (req) => {
       case "checkout.session.completed": {
         const session = event.data.object;
         const companyId = session.metadata?.company_id;
+        const metadataType = session.metadata?.type;
+
+        if (!companyId) break;
+
+        // ─── EMAIL CREDITS PURCHASE ───
+        if (metadataType === "email_credits") {
+          const amountEur = parseFloat(session.metadata?.amount_eur || "0");
+          if (amountEur > 0) {
+            // Credit the balance via RPC
+            await supabase.rpc("add_email_credits_with_log", {
+              p_company_id: companyId,
+              p_amount: amountEur,
+              p_type: "topup",
+              p_description: `Acquisto Stripe - €${amountEur}`,
+              p_metadata: { stripe_session_id: session.id, payment_intent: session.payment_intent },
+            });
+
+            // Save payment method for future auto-topup
+            if (session.payment_intent) {
+              try {
+                const piRes = await fetch(
+                  `https://api.stripe.com/v1/payment_intents/${session.payment_intent}`,
+                  { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+                );
+                const pi = await piRes.json();
+                const pmId = pi.payment_method;
+
+                if (pmId) {
+                  // Upsert auto-topup config with the payment method
+                  await supabase
+                    .from("company_auto_topup")
+                    .upsert(
+                      {
+                        company_id: companyId,
+                        wallet_type: "email",
+                        stripe_payment_method_id: pmId,
+                        payment_method: "stripe",
+                      },
+                      { onConflict: "company_id,wallet_type" }
+                    );
+                }
+              } catch (e) {
+                console.error("Failed to save payment method:", e);
+              }
+            }
+          }
+          break;
+        }
+
+        // ─── SUBSCRIPTION PURCHASE (existing flow) ───
         const planId = session.metadata?.plan_id;
         const stripeCustomerId = session.customer;
         const stripeSubscriptionId = session.subscription;
-
-        if (!companyId) break;
 
         // Update company
         await supabase
@@ -58,12 +105,9 @@ Deno.serve(async (req) => {
 
         // Create/update subscription record
         if (planId && stripeSubscriptionId) {
-          // Get subscription details from Stripe
           const subRes = await fetch(
             `https://api.stripe.com/v1/subscriptions/${stripeSubscriptionId}`,
-            {
-              headers: { Authorization: `Bearer ${stripeSecretKey}` },
-            }
+            { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
           );
           const sub = await subRes.json();
 
@@ -84,14 +128,12 @@ Deno.serve(async (req) => {
             { onConflict: "company_id" }
           );
 
-          // Update company plan
           await supabase
             .from("companies")
             .update({ subscription_plan_id: planId })
             .eq("id", companyId);
         }
 
-        // Log event
         await supabase.from("subscription_logs").insert({
           company_id: companyId,
           event_type: "payment_completed",
@@ -109,7 +151,6 @@ Deno.serve(async (req) => {
 
         if (!stripeSubscriptionId) break;
 
-        // Find company by stripe_customer_id
         const { data: company } = await supabase
           .from("companies")
           .select("id")
@@ -118,16 +159,12 @@ Deno.serve(async (req) => {
 
         if (!company) break;
 
-        // Get subscription details
         const subRes = await fetch(
           `https://api.stripe.com/v1/subscriptions/${stripeSubscriptionId}`,
-          {
-            headers: { Authorization: `Bearer ${stripeSecretKey}` },
-          }
+          { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
         );
         const sub = await subRes.json();
 
-        // Update subscription period
         await supabase
           .from("company_subscriptions")
           .update({

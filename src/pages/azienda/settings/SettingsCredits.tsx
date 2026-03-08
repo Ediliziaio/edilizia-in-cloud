@@ -1,9 +1,13 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -13,8 +17,10 @@ import { CreditUsageBar } from "@/modules/ai-agents/components/CreditUsageBar";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Mail, Bot, MessageSquare, Wallet, ArrowUpRight, ArrowDownRight, Clock } from "lucide-react";
+import { Mail, Bot, MessageSquare, Wallet, ArrowUpRight, ArrowDownRight, Clock, CreditCard, Zap, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
+import { useSearchParams } from "react-router-dom";
 
 interface WalletData {
   type: "email" | "ai" | "whatsapp";
@@ -37,10 +43,29 @@ interface CreditLogEntry {
   created_at: string;
 }
 
+const PACKAGES = [
+  { amount: 10, label: "€10", emails: "~" },
+  { amount: 25, label: "€25", emails: "~" },
+  { amount: 50, label: "€50", emails: "~" },
+  { amount: 100, label: "€100", emails: "~" },
+];
+
 export default function SettingsCredits() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [activeTab, setActiveTab] = useState("riepilogo");
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+
+  // Toast on payment success/cancel
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    if (payment === "success") {
+      toast.success("Pagamento completato! I crediti verranno accreditati a breve.");
+    } else if (payment === "cancelled") {
+      toast.info("Pagamento annullato.");
+    }
+  }, [searchParams]);
 
   // Fetch email credits
   const { data: emailCredits, isLoading: emailLoading } = useQuery({
@@ -91,6 +116,94 @@ export default function SettingsCredits() {
     enabled: !!companyId,
   });
 
+  // Fetch price per email from platform_settings
+  const { data: pricePerEmail } = useQuery({
+    queryKey: ["email-price-per-email"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("value")
+        .eq("key", "credits_email_price_per_email")
+        .maybeSingle();
+      return parseFloat(data?.value || "0.003");
+    },
+  });
+
+  // Fetch auto-topup config
+  const { data: autoTopup } = useQuery({
+    queryKey: ["auto-topup-config", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data, error } = await supabase
+        .from("company_auto_topup")
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("wallet_type", "email")
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!companyId,
+  });
+
+  // Auto topup state
+  const [topupEnabled, setTopupEnabled] = useState(false);
+  const [topupThreshold, setTopupThreshold] = useState("5");
+  const [topupAmount, setTopupAmount] = useState("25");
+
+  useEffect(() => {
+    if (autoTopup) {
+      setTopupEnabled(autoTopup.enabled);
+      setTopupThreshold(String(autoTopup.threshold_eur));
+      setTopupAmount(String(autoTopup.topup_amount_eur));
+    }
+  }, [autoTopup]);
+
+  // Save auto topup
+  const saveTopupMutation = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("No company");
+      const payload = {
+        company_id: companyId,
+        wallet_type: "email",
+        enabled: topupEnabled,
+        threshold_eur: parseFloat(topupThreshold) || 5,
+        topup_amount_eur: parseFloat(topupAmount) || 25,
+      };
+      const { error } = await supabase
+        .from("company_auto_topup")
+        .upsert(payload, { onConflict: "company_id,wallet_type" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Configurazione auto top-up salvata");
+      queryClient.invalidateQueries({ queryKey: ["auto-topup-config", companyId] });
+    },
+    onError: (e) => toast.error("Errore: " + e.message),
+  });
+
+  // Purchase credits
+  const [purchaseLoading, setPurchaseLoading] = useState<number | null>(null);
+  const handlePurchase = async (amount: number) => {
+    if (!companyId) return;
+    setPurchaseLoading(amount);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+        body: { company_id: companyId, type: "email_credits", amount_eur: amount },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error(data?.error || "Errore nella creazione della sessione di pagamento");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Errore");
+    } finally {
+      setPurchaseLoading(null);
+    }
+  };
+
   const isLoading = emailLoading || aiLoading;
 
   if (isLoading) {
@@ -138,6 +251,7 @@ export default function SettingsCredits() {
 
   const totalBalance = wallets.reduce((s, w) => s + w.balance, 0);
   const hasBlocked = wallets.some((w) => w.blocked);
+  const emailsPerEur = pricePerEmail ? Math.floor(1 / pricePerEmail) : 0;
 
   return (
     <div className="space-y-6">
@@ -149,7 +263,7 @@ export default function SettingsCredits() {
       {hasBlocked && (
         <Alert variant="destructive">
           <AlertDescription>
-            ⚠️ Uno o più servizi sono bloccati per saldo insufficiente. Contatta l'amministratore per ricaricare.
+            ⚠️ Uno o più servizi sono bloccati per saldo insufficiente. Ricarica i crediti per ripristinare il servizio.
           </AlertDescription>
         </Alert>
       )}
@@ -157,6 +271,7 @@ export default function SettingsCredits() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="riepilogo">Riepilogo</TabsTrigger>
+          <TabsTrigger value="ricarica">Ricarica</TabsTrigger>
           <TabsTrigger value="storico">Storico Movimenti</TabsTrigger>
         </TabsList>
 
@@ -211,6 +326,113 @@ export default function SettingsCredits() {
               </Card>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="ricarica" className="space-y-6">
+          {/* Credit Packages */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <CreditCard className="h-4 w-4" /> Acquista Crediti Email
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Ogni euro corrisponde a circa {emailsPerEur.toLocaleString()} email.
+                Seleziona un pacchetto per procedere al pagamento.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {PACKAGES.map((pkg) => {
+                  const estimatedEmails = pricePerEmail ? Math.floor(pkg.amount / pricePerEmail) : 0;
+                  return (
+                    <Card key={pkg.amount} className="text-center hover:border-primary transition-colors">
+                      <CardContent className="pt-6 pb-4 space-y-3">
+                        <p className="text-3xl font-extrabold text-primary">{pkg.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          ~{estimatedEmails.toLocaleString()} email
+                        </p>
+                        <Button
+                          onClick={() => handlePurchase(pkg.amount)}
+                          disabled={purchaseLoading !== null}
+                          className="w-full"
+                          size="sm"
+                        >
+                          {purchaseLoading === pkg.amount ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            "Acquista"
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Auto Top-up */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Zap className="h-4 w-4" /> Auto Top-up
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Ricarica automaticamente i crediti email quando il saldo scende sotto la soglia impostata.
+              </p>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={topupEnabled}
+                  onCheckedChange={setTopupEnabled}
+                />
+                <Label className="text-sm">
+                  {topupEnabled ? "Abilitato" : "Disabilitato"}
+                </Label>
+              </div>
+              {topupEnabled && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm">Soglia (€)</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={topupThreshold}
+                      onChange={(e) => setTopupThreshold(e.target.value)}
+                      placeholder="5"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Quando il saldo scende sotto questa soglia, verrà effettuata una ricarica automatica.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Importo ricarica (€)</Label>
+                    <Input
+                      type="number"
+                      min="5"
+                      step="5"
+                      value={topupAmount}
+                      onChange={(e) => setTopupAmount(e.target.value)}
+                      placeholder="25"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Importo che verrà addebitato sul metodo di pagamento salvato.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <Button
+                onClick={() => saveTopupMutation.mutate()}
+                disabled={saveTopupMutation.isPending}
+                size="sm"
+              >
+                {saveTopupMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Salva Configurazione
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="storico" className="space-y-4">
