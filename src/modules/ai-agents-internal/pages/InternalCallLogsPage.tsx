@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useInternalCallLogs } from "../hooks/useInternalCallLogs";
 import { CallDetailDrawer } from "../components/CallDetailDrawer";
-import { useCompanyId } from "@/hooks/useCompanyId";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Download, Search, Phone, PhoneOutgoing } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+
+function useCompanyId() {
+  const { data } = useQuery({
+    queryKey: ["my-company-id"],
+    queryFn: async () => {
+      const { data: profile } = await supabase.from("profiles" as never).select("company_id").single();
+      return (profile as any)?.company_id as string | undefined;
+    },
+  });
+  return data;
+}
 
 export default function InternalCallLogsPage() {
   const companyId = useCompanyId();
