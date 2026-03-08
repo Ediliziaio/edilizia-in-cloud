@@ -18,7 +18,7 @@ export function AgentSidebar() {
 
   const links = [
     ...baseLinks,
-    ...(isSuperAdmin
+    ...(canAccessPlatformSettings
       ? [{ to: "/azienda/marketing/agente-ai/impostazioni", label: "Impostazioni", icon: Settings }]
       : [{ to: "/azienda/marketing/agente-ai/il-mio-piano", label: "Il mio piano", icon: FileText }]),
   ];
