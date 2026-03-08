@@ -41,6 +41,7 @@ const AdminSettingsPlatform = lazy(() => import("@/pages/admin/settings/AdminSet
 const AdminSettingsNotifications = lazy(() => import("@/pages/admin/settings/AdminSettingsNotifications"));
 const AdminSettingsSuperAdmins = lazy(() => import("@/pages/admin/settings/AdminSettingsSuperAdmins"));
 const AdminSettingsAuditLog = lazy(() => import("@/pages/admin/settings/AdminSettingsAuditLog"));
+const AdminSettingsEmail = lazy(() => import("@/pages/admin/settings/AdminSettingsEmail"));
 const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
 const Implementations = lazy(() => import("@/pages/admin/Implementations"));
@@ -190,6 +191,7 @@ const App = () => (
                 <Route path="impostazioni/notifiche" element={<AdminSettingsNotifications />} />
                 <Route path="impostazioni/super-admin" element={<AdminSettingsSuperAdmins />} />
                 <Route path="impostazioni/audit" element={<AdminSettingsAuditLog />} />
+                <Route path="impostazioni/email" element={<AdminSettingsEmail />} />
                 <Route path="piani" element={<SubscriptionPlans />} />
                 <Route path="referral" element={<ReferralDashboard />} />
                 <Route path="implementazioni" element={<Implementations />} />
