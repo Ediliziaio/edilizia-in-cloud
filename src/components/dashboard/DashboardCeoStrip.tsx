@@ -64,7 +64,7 @@ const DashboardCeoStrip = React.memo(function DashboardCeoStrip({
       label: "Fatturato Mese",
       value: formatCurrency(revenueThisMonth),
       delta: calcDelta(revenueThisMonth, revenuePrevMonth),
-      icon: DollarSign,
+      icon: Euro,
     },
     {
       label: "Margine Lordo",

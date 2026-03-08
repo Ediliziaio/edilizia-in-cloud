@@ -367,7 +367,7 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
       {monthlyCollectionsYTD.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Incassato Mensile — YTD</CardTitle>
+            <CardTitle className="text-base">Incassato Mensile — Anno Corrente</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[200px]">
