@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ClipboardList, Users, HeadphonesIcon, Plus, Euro, Package, TrendingUp, TrendingDown, AlertTriangle, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
@@ -12,6 +15,69 @@ import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
 import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
 import { CompanyDashboardFilters } from "@/components/dashboard/CompanyDashboardFilters";
 import { useCompanyDashboardData } from "@/hooks/useCompanyDashboardData";
+
+function WarehouseAlerts({ urgentItems }: { urgentItems: any[] }) {
+  const [open, setOpen] = useState(urgentItems.length > 0);
+
+  return (
+    <Card>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CardHeader className="pb-3">
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between cursor-pointer">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  {urgentItems.length > 0 && <AlertTriangle className="h-5 w-5 text-destructive" />}
+                  <Package className="h-5 w-5 text-primary" />
+                  Alert Magazzino
+                  {urgentItems.length > 0 ? (
+                    <Badge variant="destructive" className="ml-1">{urgentItems.length}</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="ml-1">0</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>Articoli con posa imminente</CardDescription>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                  <Link to="/azienda/magazzino">Vai al magazzino</Link>
+                </Button>
+                <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+              </div>
+            </div>
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="pt-0">
+            {urgentItems.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Nessun articolo urgente</p>
+                <p className="text-xs mt-1">Tutti gli articoli sono pronti per le prossime installazioni</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {urgentItems.map((item: any) => (
+                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <div className="space-y-1">
+                      <p className="font-medium text-sm">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.orderCode ? `#${item.orderCode} - ` : ""}{item.customerName}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-destructive border-destructive/30">
+                      {item.daysLeft === 0 ? "Oggi" : item.daysLeft === 1 ? "Domani" : `${item.daysLeft} giorni`}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+}
 
 function DeltaIndicator({ current, previous }: { current: number; previous: number }) {
   if (previous === 0 && current === 0) return null;
@@ -334,48 +400,7 @@ export default function CompanyDashboard() {
 
       {/* Bottom Row */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  {urgentItems.length > 0 && <AlertTriangle className="h-5 w-5 text-destructive" />}
-                  <Package className="h-5 w-5 text-primary" />
-                  Alert Magazzino
-                </CardTitle>
-                <CardDescription>Articoli con posa imminente</CardDescription>
-              </div>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/azienda/magazzino">Vai al magazzino</Link>
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {urgentItems.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Nessun articolo urgente</p>
-                <p className="text-xs mt-1">Tutti gli articoli sono pronti per le prossime installazioni</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {urgentItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                    <div className="space-y-1">
-                      <p className="font-medium text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.orderCode ? `#${item.orderCode} - ` : ""}{item.customerName}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="text-destructive border-destructive/30">
-                      {item.daysLeft === 0 ? "Oggi" : item.daysLeft === 1 ? "Domani" : `${item.daysLeft} giorni`}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <WarehouseAlerts urgentItems={urgentItems} />
 
         <SupplierPaymentsSummary />
 

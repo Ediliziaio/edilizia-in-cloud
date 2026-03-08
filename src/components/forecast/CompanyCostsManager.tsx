@@ -60,7 +60,7 @@ export default function CompanyCostsManager() {
 
   // Filters
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const statusFilter: StatusFilter = "all";
   const [searchQuery, setSearchQuery] = useState("");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -345,15 +345,6 @@ export default function CompanyCostsManager() {
                 </Popover>
               </div>
             )}
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Stato" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
-                <SelectItem value="unpaid">Da pagare</SelectItem>
-                <SelectItem value="paid">Pagati</SelectItem>
-                <SelectItem value="overdue">Scaduti</SelectItem>
-              </SelectContent>
-            </Select>
             <Select value={supplierFilter} onValueChange={setSupplierFilter}>
               <SelectTrigger className="w-[160px]"><SelectValue placeholder="Fornitore" /></SelectTrigger>
               <SelectContent>

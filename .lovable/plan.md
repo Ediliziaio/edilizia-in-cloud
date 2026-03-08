@@ -1,72 +1,67 @@
 
+# Verifica Modulo AI Agents — Stato aggiornato
 
-# Sprint 1 — Quick Wins: Piano di Implementazione
+## Completato — Blocco A, B, C ✅
 
-5 miglioramenti ad alto impatto e bassa complessita.
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
----
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
-## 1. Totale aggregato periodo nel tab Previsionale Costi
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-**File:** `src/components/forecast/CostsForecastTab.tsx`
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-Aggiungere una card "hero" evidenziata sopra le 3 summary cards esistenti (riga 110) che mostra il **Totale Uscite Periodo** sommando tutte e 4 le sezioni (Squadre + Provvigioni + Fornitori + Costi Az.) nel periodo filtrato. La card usa sfondo `bg-red-50/border-red-200` con testo grande per rispondere alla domanda principale dell'utente. Calcolo: somma di `filteredExpenses + filteredCommissions + filteredSupplier + filteredCosts`.
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
----
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-## 2. Eliminare dropdown "Stato" ridondante nella sezione Costi
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-**File:** `src/components/forecast/CompanyCostsManager.tsx`
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-Rimuovere il `Select` con value `statusFilter` (righe 348-356) che mostra "Tutti / Da pagare / Pagati / Scaduti". Questa funzione e' gia coperta dai Status Tab Buttons (righe 387-409) che sono piu visibili e interattivi. Rimuovere anche lo state `statusFilter` e il relativo prop passato al data hook, verificando che il filtro di stato operi solo tramite `statusTabFilter`.
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
-**File:** `src/hooks/useCompanyCostsData.ts` — verificare che `statusFilter` possa essere rimosso senza rompere la logica. Se il hook lo usa internamente, mantenere un default `"all"` hardcoded.
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
 
----
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
 
-## 3. KPI card del Cruscotto cliccabili verso le sezioni di dettaglio
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
 
-**File:** `src/components/cruscotto/ExecutiveOverview.tsx`
+## Da fare (prossimi step)
 
-Aggiungere un campo opzionale `link?: string` alla interfaccia `KpiDef`. Mappare le KPI a percorsi:
-- Fatturato Periodo → `/azienda/ordini`
-- Margine Lordo % → `/azienda/previsionale` (tab marginalita)
-- Entrate/Uscite Mese → `/azienda/previsionale` (tab cassa)
-- Cash Flow → `/azienda/previsionale`
-- Da Incassare → `/azienda/previsionale` (tab incassato)
-- Debiti Fornitori → `/azienda/costi`
-- Lead Nuovi → `/azienda/marketing`
-- Appuntamenti → `/azienda/marketing/calendario`
-- Contratti Vinti → `/azienda/ordini`
+### Priorità 3: Integrazioni rimanenti
+- Test runner reale con chiamata ElevenLabs (attualmente simulato)
+- Decremento crediti automatico via webhook (già funzionante)
+- Sync bidirezionale KB (upload file)
 
-Nel componente `KpiCard`, wrappare la `Card` con `useNavigate` e `onClick` se `link` e' definito. Aggiungere `cursor-pointer` condizionale.
-
----
-
-## 4. Saldo cumulativo nella Previsione di Cassa
-
-**File:** `src/components/forecast/CashForecastTab.tsx`
-
-Aggiungere sopra le 3 summary cards (riga 144) una card evidenziata "Saldo Cumulativo Periodo" che mostra il running total di tutte le transazioni nel periodo selezionato (`income - expenses` cumulativo). Usa calcolo da `stats.total.net` per il totale, con colore verde/rosso condizionale. Indicazione testuale "Alla fine del periodo il saldo previsto sara'..."
-
----
-
-## 5. Collassare automaticamente widget Alert Magazzino quando vuoto
-
-**File:** `src/pages/azienda/CompanyDashboard.tsx`
-
-Wrappare il widget "Alert Magazzino" (righe 337-378) in un `Collapsible` che parte chiuso quando `urgentItems.length === 0`. Mostrare solo l'header con un contatore "(0)" e un toggle per espandere. Quando ci sono articoli urgenti, il collapsible parte aperto con badge rosso sul contatore.
-
----
-
-## Riepilogo file coinvolti
-
-| File | Modifica |
-|------|----------|
-| `src/components/forecast/CostsForecastTab.tsx` | Card "Totale Uscite Periodo" |
-| `src/components/forecast/CompanyCostsManager.tsx` | Rimuovere dropdown Stato |
-| `src/hooks/useCompanyCostsData.ts` | Verificare/semplificare statusFilter |
-| `src/components/cruscotto/ExecutiveOverview.tsx` | KPI cliccabili con navigazione |
-| `src/components/forecast/CashForecastTab.tsx` | Card saldo cumulativo |
-| `src/pages/azienda/CompanyDashboard.tsx` | Alert Magazzino collassabile |
-
+### Priorità 4: Raffinamenti
+- `/docs/ai-agents-module.md` documentazione completa
+- Branch tab con logica reale
+- Workflow canvas con persistenza nodi

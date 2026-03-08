@@ -104,8 +104,31 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
   const filteredSupplier = unpaidSupplier.filter(p => inDateRange(p.expectedDate));
   const filteredCosts = expectedCompanyCosts.filter(c => inDateRange(c.expectedDate));
 
+  const periodTotal = useMemo(() =>
+    filteredExpenses.reduce((s, e) => s + e.amount, 0) +
+    filteredCommissions.reduce((s, c) => s + c.amount, 0) +
+    filteredSupplier.reduce((s, p) => s + p.amount, 0) +
+    filteredCosts.reduce((s, c) => s + c.amount, 0),
+  [filteredExpenses, filteredCommissions, filteredSupplier, filteredCosts]);
+
   return (
     <div className="space-y-6">
+      {/* Hero aggregate card */}
+      <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20">
+        <CardContent className="pt-6 pb-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Totale Uscite Periodo</p>
+            <p className="text-3xl font-bold text-red-600 dark:text-red-400 tabular-nums">{formatCurrency(periodTotal)}</p>
+          </div>
+          <div className="text-xs text-muted-foreground text-right space-y-0.5">
+            <p>Squadre: {formatCurrency(filteredExpenses.reduce((s, e) => s + e.amount, 0))}</p>
+            <p>Provvigioni: {formatCurrency(filteredCommissions.reduce((s, c) => s + c.amount, 0))}</p>
+            <p>Fornitori: {formatCurrency(filteredSupplier.reduce((s, p) => s + p.amount, 0))}</p>
+            <p>Costi Az.: {formatCurrency(filteredCosts.reduce((s, c) => s + c.amount, 0))}</p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>

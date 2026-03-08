@@ -138,8 +138,30 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
 
   const { paginatedItems: paginatedTx, currentPage, totalPages, pageSize, totalItems, setPage, setPageSize } = usePagination(sortedTransactions);
 
+  const cumulativeNet = useMemo(() => {
+    return transactions.reduce((sum, t) => sum + (t.direction === "in" ? t.amount : -t.amount), 0);
+  }, [transactions]);
+
   return (
     <div className="space-y-6">
+      {/* Cumulative balance hero card */}
+      <Card className={cn(
+        "border",
+        cumulativeNet >= 0
+          ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20"
+          : "border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20"
+      )}>
+        <CardContent className="pt-6 pb-4">
+          <p className="text-sm font-medium text-muted-foreground">Saldo Cumulativo Periodo</p>
+          <p className={cn("text-3xl font-bold tabular-nums", cumulativeNet >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+            {formatCurrency(cumulativeNet)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Alla fine del periodo il saldo previsto sarà {cumulativeNet >= 0 ? "positivo" : "negativo"}
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Net Cash Flow Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <NetCard title="Questo mese" income={stats.thisMonth.income} expenses={stats.thisMonth.expenses} net={stats.thisMonth.net} />
