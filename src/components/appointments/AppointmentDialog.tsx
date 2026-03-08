@@ -31,6 +31,7 @@ export interface AppointmentData {
   calendar_id?: string | null;
   contact_id?: string | null;
   status?: string;
+  reminder_minutes?: number | null;
 }
 
 interface AppointmentDialogProps {
@@ -82,6 +83,7 @@ export function AppointmentDialog({
   const [calendarId, setCalendarId] = useState("");
   const [contactId, setContactId] = useState("");
   const [status, setStatus] = useState("confermato");
+  const [reminderMinutes, setReminderMinutes] = useState<string>("none");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -96,6 +98,7 @@ export function AppointmentDialog({
       setCalendarId(appointment.calendar_id || "");
       setContactId(appointment.contact_id || "");
       setStatus(appointment.status || "confermato");
+      setReminderMinutes(appointment.reminder_minutes != null ? String(appointment.reminder_minutes) : "none");
     } else {
       setTitle("");
       setDescription("");
@@ -107,6 +110,7 @@ export function AppointmentDialog({
       setCalendarId("");
       setContactId("");
       setStatus("confermato");
+      setReminderMinutes("none");
     }
   }, [appointment, open, defaultOrderId, onlyAssigned, user?.id, defaultDate, defaultTime]);
 
@@ -207,6 +211,8 @@ export function AppointmentDialog({
         calendar_id: hideMarketingFields ? null : (calendarId && calendarId !== "none" ? calendarId : null),
         contact_id: hideMarketingFields ? null : (contactId && contactId !== "none" ? contactId : null),
         status: status,
+        reminder_minutes: reminderMinutes !== "none" ? parseInt(reminderMinutes) : null,
+        reminder_sent: false,
       };
 
       if (isEditing && appointment?.id) {
@@ -366,6 +372,19 @@ export function AppointmentDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Promemoria</Label>
+            <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
+              <SelectTrigger><SelectValue placeholder="Nessun promemoria" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nessuno</SelectItem>
+                <SelectItem value="60">1 ora prima</SelectItem>
+                <SelectItem value="120">2 ore prima</SelectItem>
+                <SelectItem value="1440">24 ore prima</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {!hideMarketingFields && (

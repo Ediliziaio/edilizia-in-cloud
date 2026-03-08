@@ -42,7 +42,7 @@ export interface CustomerFilter {
 
 export type GanttZoom = "year" | "quarter" | "month";
 
-export type CalendarViewType = "month" | "gantt" | "heatmap";
+export type CalendarViewType = "month" | "week" | "gantt" | "heatmap";
 
 export interface GoogleBusySlot {
   id: string;

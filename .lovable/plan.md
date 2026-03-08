@@ -1,76 +1,134 @@
+# Verifica Modulo AI Agents — Stato aggiornato
 
+## Completato — Blocco A, B, C ✅
 
-# Prompt 3 — Calendario: Vista Settimanale + Drag & Drop + Conflict Detection + Reminder
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-Il documento chiede 4 fix per il calendario. Ecco il piano.
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
----
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-## FIX 3A — Vista Settimanale
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-### Nuovo componente: `src/components/calendar/CalendarWeekView.tsx`
-- 7 colonne (Lun-Dom), righe orarie dalle 06:00 alle 20:00 (slot da 30 min)
-- Mostra ordini (posa, lavoro, merce) come blocchi giornalieri nella fascia superiore (all-day)
-- Mostra appuntamenti con orario come blocchi posizionati nella griglia oraria
-- Mostra Google busy slots
-- Navigazione settimana avanti/indietro
-- Riceve stesse props della MonthView (orders, appointments, busySlots, hiddenEventTypes, etc.)
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
-### Modifiche a `Calendar.tsx`
-- Aggiungere `"week"` al type `CalendarViewType` in `src/types/calendar.ts`
-- Aggiungere toggle "Settimana" nel ToggleGroup (icona `CalendarDays`)
-- Renderizzare `CalendarWeekView` quando `view === "week"`
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
----
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-## FIX 3B — Drag & Drop eventi (nella vista settimanale)
-- Nella WeekView, gli appuntamenti e gli ordini con date sono draggabili tra i giorni della settimana
-- Al drop: modale di conferma "Spostare [evento] da [giorno1] a [giorno2]?"
-- Al conferma: aggiorna `appointment_date` (per appuntamenti) o `expected_date`/`work_start_date`/`work_end_date` (per ordini) via Supabase
-- Uso di `@dnd-kit/core` (già installato nel progetto)
-- Invalidazione query dopo salvataggio
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
----
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
-## FIX 3C — Conflict Detection risorse
-### Nuovo hook: `src/hooks/useConflictDetection.ts`
-- Riceve ordini e appuntamenti
-- Raggruppa per `employee_id + data` → trova giorni con 2+ eventi assegnati allo stesso dipendente
-- Restituisce una `Map<string, CalendarEvent[]>` con i conflitti
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
 
-### UI
-- Badge rosso "X conflitti" visibile nell'header del calendario quando ci sono conflitti
-- Nella vista settimanale/mensile: celle con conflitto hanno bordo rosso e tooltip con dettagli
-- Popover cliccabile con lista dei conflitti e link ai rispettivi ordini/appuntamenti
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
 
----
-
-## FIX 3D — Reminder automatici pre-evento
-
-### Database Migration
-- Aggiungere colonna `reminder_minutes integer DEFAULT NULL` alla tabella `appointments`
-- Aggiungere colonna `reminder_sent boolean DEFAULT false`
-- Creare tabella `appointment_reminders_sent` se non esiste già (da verificare — il plan.md dice che esiste già dalla Fase 2 P1)
-
-### UI — AppointmentDialog
-- Aggiungere dropdown "Promemoria" con opzioni: Nessuno, 1h prima, 2h prima, 24h prima
-- Salvare il valore in `reminder_minutes` (60, 120, 1440, null)
-
-### Backend
-- La edge function `check-scheduled-triggers` (già esistente) includerà logica per controllare appuntamenti con `reminder_minutes IS NOT NULL AND reminder_sent = false` e `appointment_date + appointment_time - reminder_minutes <= NOW()`
-- Inserisce notifica interna via `lifecycle_notifications`
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
 
 ---
 
-## File da creare/modificare
+## Analisi CRM vs GHL — Piano Implementazione
 
-| File | Azione |
-|------|--------|
-| `src/types/calendar.ts` | Aggiungere `"week"` a CalendarViewType |
-| `src/components/calendar/CalendarWeekView.tsx` | Nuovo componente vista settimanale con DnD |
-| `src/hooks/useConflictDetection.ts` | Nuovo hook conflict detection |
-| `src/pages/azienda/Calendar.tsx` | Toggle settimana, badge conflitti, render WeekView |
-| `src/components/appointments/AppointmentDialog.tsx` | Dropdown reminder |
-| Migration SQL | Colonne `reminder_minutes`, `reminder_sent` su appointments |
-| `supabase/functions/check-scheduled-triggers/index.ts` | Aggiungere logica reminder appuntamenti |
+### Fase 1 — P0 (Critici) ✅
 
+- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` aggiunte a `marketing_contacts`. Toggle SMS/Chiamate nel tab impostazioni contatto. Check DND in `send-contact-message` (email/whatsapp/sms) e `process-automation` (send_email con unsubscribed+optout_email, send_whatsapp con optout_whatsapp). Badge unsubscribed visibile.
+- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` (unique). Pagina `/prenota/:slug` pubblica con calendario, slot disponibili, form prenotazione. RLS per anon (read calendari/availability/appointments, insert appointments).
+- ✅ **Tab Email AdminSettings**: Già esistente (`AdminSettingsEmail.tsx`)
+- ✅ **Crediti Stripe**: Già esistente (`SettingsCredits.tsx`)
+
+### Fase 2 — P1 (TODO)
+
+- [ ] **Probabilità + Close Date + Motivo perdita opportunità**: Migration + UI in OpportunityDetailDialog
+- [ ] **Conferma + Promemoria appuntamenti**: Email conferma + promemoria in check-scheduled-triggers
+- [ ] **Google Calendar push notifications**: Edge function google-calendar-webhook + registra watch
+- [ ] **SMS/Email opt-out visibile in UI**: Già implementato nel tab settings contatto (toggle + badge unsubscribed)
+
+### Fase 3 — P2 (TODO)
+
+- [ ] **WhatsApp/Stripe in SettingsIntegrations**: Card stato per ogni integrazione
+- [ ] **Merge contatti duplicati**: UI + backend merge
+- [ ] **Tab Azioni nel dettaglio contatto**: Azioni rapide (email, SMS, WhatsApp)
+
+---
+
+## Fix Automazioni Marketing
+
+### Fase 1 — P0 (Critici) ✅
+
+- ✅ **A1**: `email-tracking` → inserisce `email_opened` / `email_clicked` in `automation_trigger_events`
+- ✅ **A2**: `whatsapp-webhook` → inserisce `whatsapp_received` in `automation_trigger_events` (con lookup contatto marketing)
+- ✅ **A3**: `fire_marketing_automation` già gestisce `opportunity_won`/`opportunity_lost` correttamente — nessun fix necessario
+- ✅ **B**: `process-automation` → `handleTrigger` arricchisce payload con dati contatto da `marketing_contacts` prima di `evaluateFilters`
+- ✅ **C**: Nuova Edge Function `check-scheduled-triggers` per trigger temporali (birthday, custom_date, opportunity_stale) + pg_cron alle 02:00
+
+### Fase 2 — P1 ✅
+
+- ✅ **D**: Azione `remove_from_automation` — UI (tipo CRM in builder) + backend (rimuove enrollment + cancella queue)
+- ✅ **E**: Azione `wait_for_event` — UI (tipo logica in builder) + backend (stato waiting, timeout, risoluzione evento)
+
+### Fase 3 — Documento v2 ✅
+
+- ✅ **Lead scoring**: Colonna `score` su `marketing_contacts` + azione `update_contact_score` (add/subtract/set) in builder e backend
+- ✅ **Re-enrollment**: Lettura `enable_reenrollment` da flow config_json.settings + fallback su trigger config
+- ✅ **Contatori per nodo**: Query aggregata su `automation_execution_log` con badge esecuzioni su ogni nodo nel builder (refresh 30s)
+- ✅ **customer_replied**: Collegato al webhook WhatsApp (inserisce evento `customer_replied` in `automation_trigger_events`)
+- ✅ **call_registered**: DB trigger `fire_call_registered_automation` su `call_logs` INSERT
+- ✅ **send_notification**: Implementato con insert reale in `lifecycle_notifications` (supporta assegnato, tutti admin, utente specifico)
+
+### Fase 4 — TODO
+
+- [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
+- [ ] **G**: Enrollment bulk dalla lista contatti CRM
+- [ ] **send_ai_message**: Integrazione con Lovable AI
+
+---
+
+## Analisi CRM vs GHL
+
+### Fase 1 — P0 ✅
+
+- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` su `marketing_contacts` + UI toggle nel tab Impostazioni contatto + check DND in `process-automation` e `send-contact-message` + badge unsubscribed
+- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` + pagina pubblica `/prenota/:slug` + RLS anonima + creazione appuntamento + trigger `appointment_booked`
+- ✅ **Tab Email AdminSettings**: Già funzionante
+- ✅ **Crediti Stripe**: Già implementato
+
+### Fase 2 — P1 ✅
+
+- ✅ **Probabilità + Close Date + Loss Reason**: Colonne `probability`, `expected_close_date`, `loss_reason`, `loss_notes` su `marketing_opportunities` + tabella `opportunity_loss_reasons` + UI slider/date/dialog perdita in `OpportunityDetailDialog`
+- ✅ **Promemoria appuntamenti**: Logica 24h/1h in `check-scheduled-triggers` + tabella `appointment_reminders_sent` + notifiche interne + trigger automazione
+- ✅ **Google Calendar push**: Edge function `google-calendar-webhook` con register_watch, renew_watches, e ricezione push + colonne webhook su `google_calendar_connections`
+- ✅ **Opt-out UI**: Toggle SMS/Call/WhatsApp/Email nel dettaglio contatto + badge disiscritto (già implementato in Fase 1)
+
+### Fase 3 — P2 ✅
+
+- ✅ **WhatsApp/Stripe in SettingsIntegrations**: Card status per WhatsApp, Stripe, Email Provider, Twilio con stato connessione e dettagli
+- ✅ **Merge contatti duplicati**: Dialog di merge con ricerca, selezione master, spostamento opportunità/note/attività/appuntamenti/messaggi
+- ✅ **Tab Azioni nel dettaglio contatto**: Azioni rapide (invia WhatsApp, Email, SMS, Chiama, Aggiungi ad automazione) con check opt-out

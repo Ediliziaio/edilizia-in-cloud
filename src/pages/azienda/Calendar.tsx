@@ -4,9 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
+import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 
 import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
+import { useConflictDetection } from "@/hooks/useConflictDetection";
 import { CalendarLayerPanel } from "@/components/calendar/CalendarLayerPanel";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -324,12 +326,21 @@ export default function Calendar() {
     return orders.filter(order => !order.expected_date && !order.work_start_date).length;
   }, [orders]);
 
+  // Conflict detection
+  const { conflicts, conflictCount } = useConflictDetection(scheduledOrders, filteredAppointments);
+
   return (
     <div className="space-y-4">
       {/* Header compatto: titolo + toggle viste + azioni */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold text-foreground">Calendario Lavori</h1>
+          {conflictCount > 0 && (
+            <Badge variant="destructive" className="gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              {conflictCount} conflitti
+            </Badge>
+          )}
         </div>
 
         <ToggleGroup
@@ -341,6 +352,10 @@ export default function Calendar() {
           <ToggleGroupItem value="month" aria-label="Vista Mese" className="gap-1.5 px-2.5">
             <CalendarIcon className="h-4 w-4" />
             <span className="hidden sm:inline text-xs">Mese</span>
+          </ToggleGroupItem>
+          <ToggleGroupItem value="week" aria-label="Vista Settimana" className="gap-1.5 px-2.5">
+            <CalendarDays className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs">Settimana</span>
           </ToggleGroupItem>
           <ToggleGroupItem value="heatmap" aria-label="Vista Carico" className="gap-1.5 px-2.5">
             <BarChart3 className="h-4 w-4" />
@@ -522,6 +537,16 @@ export default function Calendar() {
             </div>
           ) : view === "month" ? (
             <CalendarMonthView
+              orders={scheduledOrders}
+              appointments={filteredAppointments}
+              busySlots={showGoogleBusy ? busySlots : []}
+              currentDate={currentDate}
+              onDateChange={setCurrentDate}
+              syncedAppointmentIds={syncedAppointmentIds}
+              hiddenEventTypes={hiddenEventTypes}
+            />
+          ) : view === "week" ? (
+            <CalendarWeekView
               orders={scheduledOrders}
               appointments={filteredAppointments}
               busySlots={showGoogleBusy ? busySlots : []}
