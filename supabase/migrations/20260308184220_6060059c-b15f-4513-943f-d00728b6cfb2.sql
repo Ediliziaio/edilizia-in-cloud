@@ -1,0 +1,1 @@
+ALTER VIEW public.order_payment_summary SET (security_invoker = on);
