@@ -149,12 +149,15 @@ Deno.serve(async (req) => {
     }
 
     // 6. Save message in messaging_messages
+    const metaMessageId = metaResult.messages?.[0]?.id || null;
     const { error: msgErr } = await adminClient.from("messaging_messages").insert({
       conversation_id,
       sender_type: "operator",
       sender_name: "Operatore",
       message_type: "text",
       content: content.trim(),
+      meta_message_id: metaMessageId,
+      delivery_status: "sent",
     });
 
     if (msgErr) {
