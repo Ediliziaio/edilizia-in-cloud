@@ -222,8 +222,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      const provider = (await getPlatformSetting("email_provider")) || "sendgrid";
-      const apiKey = await getPlatformSetting("email_provider_api_key");
+      const provider = (await getPlatformSetting("email_transactional_provider")) || (await getPlatformSetting("email_marketing_provider")) || "sendgrid";
+      const apiKey = (await getPlatformSetting("email_transactional_api_key")) || (await getPlatformSetting("email_marketing_api_key"));
 
       if (!apiKey) {
         return new Response(
