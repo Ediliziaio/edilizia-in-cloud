@@ -167,6 +167,7 @@ export default function CampaignSendSettings() {
       if (!senderEmail) throw new Error("Email del mittente obbligatoria");
       if (!subject) throw new Error("Oggetto obbligatorio");
 
+      // Save settings first
       const payload: Record<string, any> = {
         sender_name: senderName || null,
         sender_email: senderEmail,
@@ -177,20 +178,27 @@ export default function CampaignSendSettings() {
         utm_tracking: utmTracking,
         auto_tag: autoTag,
         resend_to_unopened: resendToUnopened,
-        status: sendMode === "scheduled" ? "scheduled" : "sending",
         scheduled_at: sendMode === "scheduled" && scheduledAt ? scheduledAt : null,
-        sent_at: sendMode === "immediate" ? new Date().toISOString() : null,
       };
-      const { error } = await supabase
+      const { error: saveError } = await supabase
         .from("email_campaigns")
         .update(payload)
         .eq("id", id!);
-      if (error) throw error;
+      if (saveError) throw saveError;
       await uploadFiles();
+
+      // Invoke the send-email-campaign edge function
+      const { data, error } = await supabase.functions.invoke("send-email-campaign", {
+        body: { campaignId: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
     },
-    onSuccess: () => {
-      toast.success(sendMode === "scheduled" ? "Campagna programmata!" : "Campagna in invio!");
+    onSuccess: (data: any) => {
+      toast.success(`Campagna inviata! ${data?.sent || 0} email inviate, ${data?.failed || 0} fallite.`);
       qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: ["email-credits-balance"] });
       navigate("/azienda/marketing/email");
     },
     onError: (e: any) => toast.error(e.message),
