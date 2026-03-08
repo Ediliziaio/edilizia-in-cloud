@@ -61,9 +61,15 @@ export default function PlatformSettingsPage() {
       const keyVal = savedSettings.find(s => s.key === "elevenlabs_api_key")?.value;
       const llmVal = savedSettings.find(s => s.key === "default_llm_model")?.value;
       const domainVal = savedSettings.find(s => s.key === "domain_whitelist")?.value;
+      const priceVal = savedSettings.find(s => s.key === "ai_subscription_price_eur")?.value;
+      const trialVal = savedSettings.find(s => s.key === "ai_subscription_trial_days")?.value;
+      const bonusVal = savedSettings.find(s => s.key === "ai_welcome_bonus_eur")?.value;
       if (keyVal) setApiKey(keyVal);
       if (llmVal) setDefaultLlm(llmVal);
       if (domainVal) setDomainWhitelist(domainVal);
+      if (priceVal) setSubscriptionPrice(priceVal);
+      if (trialVal) setTrialDays(trialVal);
+      if (bonusVal) setWelcomeBonus(bonusVal);
     }
   }, [savedSettings]);
 
