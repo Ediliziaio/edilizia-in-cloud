@@ -54,6 +54,9 @@ export default function CampaignSendSettings() {
   const [customReplyTo, setCustomReplyTo] = useState(false);
   const [replyToEmail, setReplyToEmail] = useState("");
   const [recipientMode, setRecipientMode] = useState("list");
+  const [segmentTags, setSegmentTags] = useState<string[]>([]);
+  const [segmentSource, setSegmentSource] = useState("");
+  const [segmentContactType, setSegmentContactType] = useState("");
   const [additionalOpen, setAdditionalOpen] = useState(false);
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
 
