@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
+import { decrypt, encrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
