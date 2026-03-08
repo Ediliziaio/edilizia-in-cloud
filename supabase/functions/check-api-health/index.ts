@@ -79,7 +79,9 @@ serve(async (req) => {
       (settingsMap["meta_app_id"] || Deno.env.get("META_APP_ID")) &&
       (settingsMap["meta_app_secret"] || Deno.env.get("META_APP_SECRET"))
     );
-    const email = !!(settingsMap["resend_api_key"] || Deno.env.get("RESEND_API_KEY"));
+    const email_marketing = !!(settingsMap["email_marketing_api_key"] || Deno.env.get("EMAIL_MARKETING_API_KEY"));
+    const email_transactional = !!(settingsMap["email_transactional_api_key"] || Deno.env.get("EMAIL_TRANSACTIONAL_API_KEY"));
+    const email = email_marketing || email_transactional;
     const elevenlabs = !!(settingsMap["elevenlabs_api_key"] || Deno.env.get("ELEVENLABS_API_KEY"));
     const whatsapp_platform = !!(settingsMap["whatsapp_verify_token"] || Deno.env.get("WHATSAPP_VERIFY_TOKEN"));
 
