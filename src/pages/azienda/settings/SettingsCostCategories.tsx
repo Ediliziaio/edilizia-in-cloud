@@ -247,6 +247,7 @@ export default function SettingsCostCategories() {
                 <TableRow>
                   <TableHead>Colore</TableHead>
                   <TableHead>Nome</TableHead>
+                  <TableHead className="text-center">Utilizzi</TableHead>
                   <TableHead className="w-[120px] text-right">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
