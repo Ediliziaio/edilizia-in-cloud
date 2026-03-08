@@ -21,7 +21,7 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
   const anyOptout = DND_CHANNELS.some(ch => contact?.[ch.field]);
 
   return (
-    <div className="space-y-4">
+    <div ref={ref} className="space-y-4">
       <div>
         <Label className="text-xs font-semibold">Do Not Disturb</Label>
         <p className="text-[10px] text-muted-foreground mt-0.5">
