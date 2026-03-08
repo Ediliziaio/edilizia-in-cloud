@@ -94,6 +94,27 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [oppNotes, setOppNotes] = useState("");
   const [oppTags, setOppTags] = useState<string[]>([]);
   const [oppCustomValues, setOppCustomValues] = useState<Record<string, string>>({});
+  const [probability, setProbability] = useState(50);
+  const [expectedCloseDate, setExpectedCloseDate] = useState("");
+  const [lossReason, setLossReason] = useState("");
+  const [lossNotes, setLossNotes] = useState("");
+  const [showLossDialog, setShowLossDialog] = useState(false);
+  const [pendingLostStatus, setPendingLostStatus] = useState(false);
+
+  // Loss reasons for the company
+  const { data: lossReasons = [] } = useQuery({
+    queryKey: ["opportunity_loss_reasons", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("opportunity_loss_reasons")
+        .select("*")
+        .eq("company_id", companyId!)
+        .order("position");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!companyId,
+  });
 
   // Change contact state
   const [changingContact, setChangingContact] = useState(false);
