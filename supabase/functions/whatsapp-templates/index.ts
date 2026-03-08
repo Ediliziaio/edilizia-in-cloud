@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: secureHeaders,
       });
     }
 
@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     if (claimsError || !claimsData?.claims) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: secureHeaders,
       });
     }
     const userId = claimsData.claims.sub;
@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     if (!company_id) {
       return new Response(
         JSON.stringify({ error: "company_id richiesto" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: secureHeaders }
       );
     }
 
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     if (!isSuperAdmin && profile?.company_id !== company_id) {
       return new Response(
         JSON.stringify({ error: "Non autorizzato" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: secureHeaders }
       );
     }
 
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     if (!waConfig?.waba_id || !waConfig?.access_token_encrypted) {
       return new Response(
         JSON.stringify({ error: "WhatsApp Business Account non configurato" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: secureHeaders }
       );
     }
 
@@ -93,13 +93,13 @@ Deno.serve(async (req) => {
       if (!res.ok) {
         return new Response(
           JSON.stringify({ error: data.error?.message || "Errore Meta API" }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 502, headers: secureHeaders }
         );
       }
 
       return new Response(JSON.stringify({ templates: data.data || [] }), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: secureHeaders,
       });
     }
 
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       if (!template?.name || !template?.category || !template?.components) {
         return new Response(
           JSON.stringify({ error: "Dati template incompleti" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: secureHeaders }
         );
       }
 
@@ -135,13 +135,13 @@ Deno.serve(async (req) => {
       if (!res.ok) {
         return new Response(
           JSON.stringify({ error: data.error?.message || "Errore creazione template" }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 502, headers: secureHeaders }
         );
       }
 
       return new Response(JSON.stringify({ success: true, template: data }), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: secureHeaders,
       });
     }
 
@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
       if (!template_name) {
         return new Response(
           JSON.stringify({ error: "template_name richiesto" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: secureHeaders }
         );
       }
 
@@ -168,25 +168,25 @@ Deno.serve(async (req) => {
       if (!res.ok) {
         return new Response(
           JSON.stringify({ error: data.error?.message || "Errore eliminazione template" }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 502, headers: secureHeaders }
         );
       }
 
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: secureHeaders,
       });
     }
 
     return new Response(
       JSON.stringify({ error: "Azione non valida. Usa: list, create, delete" }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 400, headers: secureHeaders }
     );
   } catch (err: any) {
     console.error("[whatsapp-templates] Error:", err);
     return new Response(
       JSON.stringify({ error: err.message || "Errore interno" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: secureHeaders }
     );
   }
 });
