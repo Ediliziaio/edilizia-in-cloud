@@ -322,3 +322,55 @@ async function telnyxCallControl(callControlId: string, command: string, params:
     console.log(`[telnyx-webhook] Call control ${command} success`);
   }
 }
+
+// ── Smart Routing: resolve agent by routing_mode ──
+interface ResolvedAgent {
+  type: "marketing" | "internal";
+  agentId: string;
+  elevenlabsAgentId: string;
+  companyId: string;
+}
+
+async function resolveAgent(
+  supabase: ReturnType<typeof createClient>,
+  phoneRec: { agent_id: string; internal_agent_id: string | null; company_id: string; routing_mode: string },
+  routingMode: string
+): Promise<ResolvedAgent | null> {
+  if (routingMode === "internal" && phoneRec.internal_agent_id) {
+    // Lookup internal agent
+    const { data: internalAgent } = await supabase
+      .from("internal_ai_agents")
+      .select("id, elevenlabs_agent_id, status")
+      .eq("id", phoneRec.internal_agent_id)
+      .single();
+
+    if (internalAgent?.elevenlabs_agent_id && internalAgent.status !== "archived") {
+      return {
+        type: "internal",
+        agentId: internalAgent.id,
+        elevenlabsAgentId: internalAgent.elevenlabs_agent_id,
+        companyId: phoneRec.company_id,
+      };
+    }
+
+    console.warn(`[telnyx-webhook] Internal agent ${phoneRec.internal_agent_id} not ready, falling back to marketing`);
+  }
+
+  // Default: marketing agent
+  const { data: agent } = await supabase
+    .from("ai_agents")
+    .select("id, elevenlabs_agent_id, status")
+    .eq("id", phoneRec.agent_id)
+    .single();
+
+  if (!agent?.elevenlabs_agent_id) {
+    return null;
+  }
+
+  return {
+    type: "marketing",
+    agentId: agent.id,
+    elevenlabsAgentId: agent.elevenlabs_agent_id,
+    companyId: phoneRec.company_id,
+  };
+}
