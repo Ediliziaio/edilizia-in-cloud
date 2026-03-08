@@ -21,8 +21,8 @@ const Fallback = () => (
 );
 
 function SuperAdminGuard({ children }: { children: React.ReactNode }) {
-  const { role } = useAuth();
-  if (role !== "super_admin") {
+  const { role, isImpersonating } = useAuth();
+  if (role !== "super_admin" || isImpersonating) {
     return <Navigate to="/azienda/marketing/agente-ai" replace />;
   }
   return <>{children}</>;

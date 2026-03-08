@@ -13,12 +13,12 @@ const baseLinks = [
 
 export function AgentSidebar() {
   const location = useLocation();
-  const { role } = useAuth();
-  const isSuperAdmin = role === "super_admin";
+  const { role, isImpersonating } = useAuth();
+  const canAccessPlatformSettings = role === "super_admin" && !isImpersonating;
 
   const links = [
     ...baseLinks,
-    ...(isSuperAdmin
+    ...(canAccessPlatformSettings
       ? [{ to: "/azienda/marketing/agente-ai/impostazioni", label: "Impostazioni", icon: Settings }]
       : [{ to: "/azienda/marketing/agente-ai/il-mio-piano", label: "Il mio piano", icon: FileText }]),
   ];
