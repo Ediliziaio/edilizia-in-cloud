@@ -1198,6 +1198,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <ContactAIConversations contactId={id} />
               )}
 
+              {/* SMS Log panel */}
+              {rightTab === "sms_log" && id && companyId && (
+                <ContactSmsLog contactId={id} companyId={companyId} />
+              )}
+
               {/* Activities panel - LinkedTasks */}
               {rightTab === "activities" && id && companyId && (
                 <LinkedTasks
