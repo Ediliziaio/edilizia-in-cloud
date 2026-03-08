@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     // Look up internal agent
     const { data: agent } = await adminClient
       .from("ai_agents")
-      .select("id, company_id, llm_model, tts_model")
+      .select("id, company_id, llm_model, tts_model, send_confirmation_after_booking")
       .eq("elevenlabs_agent_id", elevenlabsAgentId)
       .single();
 
@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
     const companyId = agent.company_id;
     let contactId: string | null = null;
     let appointmentCreated = false;
+    let newContactCreated = false;
 
     // Process tool calls for CRM integration
     for (const toolCall of tool_calls) {
@@ -150,6 +151,7 @@ Deno.serve(async (req) => {
 
               if (newContact) {
                 contactId = newContact.id;
+                newContactCreated = true;
               }
             }
           }
@@ -347,6 +349,79 @@ Deno.serve(async (req) => {
         balance_after: balanceAfter,
       },
     });
+
+    // ============ AUTOMATION TRIGGER EVENTS (FIX 3b) ============
+    const triggerPayload = {
+      duration_seconds: durationSeconds,
+      appointment_created: appointmentCreated,
+      call_direction: metadata?.call_direction || "inbound",
+      agent_name: agent.id,
+      contact_id: contactId,
+      conversation_id: conversationId,
+    };
+
+    // Always fire ai_conversation_ended
+    await adminClient.from("automation_trigger_events").insert({
+      company_id: companyId,
+      trigger_event: "ai_conversation_ended",
+      entity_id: contactId || agent.id,
+      entity_type: "contact",
+      payload: triggerPayload,
+    });
+
+    // Fire ai_appointment_booked if applicable
+    if (appointmentCreated) {
+      await adminClient.from("automation_trigger_events").insert({
+        company_id: companyId,
+        trigger_event: "ai_appointment_booked",
+        entity_id: contactId || agent.id,
+        entity_type: "contact",
+        payload: triggerPayload,
+      });
+    }
+
+    // Fire ai_contact_created if new contact was created
+    if (newContactCreated && contactId) {
+      await adminClient.from("automation_trigger_events").insert({
+        company_id: companyId,
+        trigger_event: "ai_contact_created",
+        entity_id: contactId,
+        entity_type: "contact",
+        payload: triggerPayload,
+      });
+    }
+
+    // ============ POST-CALL CONFIRMATION (FIX 4) ============
+    if (appointmentCreated && (agent as any).send_confirmation_after_booking && contactId) {
+      try {
+        const { data: contact } = await adminClient
+          .from("marketing_contacts")
+          .select("phone, email, first_name")
+          .eq("id", contactId)
+          .single();
+
+        if (contact?.phone || contact?.email) {
+          const channel = contact.phone ? "whatsapp" : "email";
+          const confirmMsg = `Ciao ${contact.first_name || ""}, confermiamo il tuo appuntamento prenotato con il nostro assistente. Ti aspettiamo!`;
+
+          await fetch(`${supabaseUrl}/functions/v1/send-contact-message`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${serviceRoleKey}`,
+            },
+            body: JSON.stringify({
+              company_id: companyId,
+              contact_id: contactId,
+              channel,
+              content: confirmMsg,
+            }),
+          });
+        }
+      } catch (confirmErr) {
+        console.error("[WEBHOOK] Post-call confirmation error:", confirmErr);
+      }
+    }
 
     return json({
       success: true,

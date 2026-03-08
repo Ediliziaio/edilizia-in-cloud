@@ -630,6 +630,28 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     case "sync_meta_lead":
       return await executeSyncMetaLead(supabase, cfg, entityId, companyId);
 
+    case "call_with_ai_agent": {
+      const aiAgentId = cfg.ai_agent_id;
+      if (!aiAgentId) return { success: false, error: "No ai_agent_id configured" };
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const resp = await fetch(`${supabaseUrl}/functions/v1/ai-outbound-call`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({ agent_id: aiAgentId, contact_id: entityId }),
+        });
+        const result = await resp.json();
+        if (!resp.ok) return { success: false, error: result?.error || `HTTP ${resp.status}` };
+        return { success: true, output: { action: "call_with_ai_agent", agent_id: aiAgentId, ...result } };
+      } catch (e: any) {
+        return { success: false, error: e.message };
+      }
+    }
+
     default:
       return { success: true, output: { action: actionType, skipped: true, reason: "Not implemented yet" } };
   }

@@ -26,6 +26,7 @@ export interface AIAgent {
   error_message?: string;
   auto_end_on_silence?: boolean;
   silence_timeout?: number;
+  send_confirmation_after_booking?: boolean;
   // Tools config
   tools_config?: Record<string, unknown>;
 }
@@ -65,6 +66,7 @@ export interface AIAgentUpdate {
   error_message?: string;
   auto_end_on_silence?: boolean;
   silence_timeout?: number;
+  send_confirmation_after_booking?: boolean;
   // Tools
   tools_config?: Record<string, unknown>;
 }

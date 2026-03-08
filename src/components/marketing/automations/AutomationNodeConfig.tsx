@@ -120,7 +120,17 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
       const companyProfileIds = new Set(profiles.map(p => p.id));
       return roles.filter(r => companyProfileIds.has(r.user_id)).map(r => ({ user_id: r.user_id, role: r.role, name: profileMap.get(r.user_id) || r.user_id.slice(0, 8) }));
     },
-    enabled: !!companyId && isAction && ["create_opportunity", "assign_user", "create_task", "send_notification"].includes(actionType),
+    enabled: !!companyId && isAction && ["create_opportunity", "assign_user", "create_task", "send_notification", "call_with_ai_agent"].includes(actionType),
+  });
+
+  const { data: aiAgentsList = [] } = useQuery({
+    queryKey: ["ai_agents_for_automation", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from("ai_agents" as never).select("id, name").eq("company_id", companyId).eq("status", "active").order("name");
+      return (data || []) as { id: string; name: string }[];
+    },
+    enabled: !!companyId && isAction && actionType === "call_with_ai_agent",
   });
 
   const { data: emailTemplates = [] } = useQuery({
@@ -809,6 +819,24 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
                   </SelectContent>
                 </Select>
                 <p className="text-[10px] text-muted-foreground mt-1">L'import dei lead da Meta è automatico via webhook. Questa azione forza un re-sync o registra l'attività.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── CALL WITH AI AGENT ── */}
+          {actionType === "call_with_ai_agent" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Agente AI</Label>
+                <Select value={node.config_json?.ai_agent_id || ""} onValueChange={(v) => updateConfig("ai_agent_id", v)}>
+                  <SelectTrigger className={cn("mt-1 h-9 text-xs", hasFieldError("ai_agent_id") && "border-destructive")}><SelectValue placeholder="Seleziona agente..." /></SelectTrigger>
+                  <SelectContent>
+                    {aiAgentsList.map((a: any) => (
+                      <SelectItem key={a.id} value={a.id} className="text-xs">{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">L'agente AI chiamerà il contatto al suo numero di telefono. Richiede crediti AI e un numero configurato.</p>
               </div>
             </div>
           )}

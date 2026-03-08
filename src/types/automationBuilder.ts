@@ -36,7 +36,7 @@ export interface AutomationConnection {
   created_at: string;
 }
 
-export type TriggerCategory = "contact" | "opportunity" | "appointment" | "communication" | "system";
+export type TriggerCategory = "contact" | "opportunity" | "appointment" | "communication" | "system" | "ai_agent";
 export type ActionCategory = "communication" | "crm" | "logic" | "integration";
 
 export interface PickerItem {
@@ -107,6 +107,16 @@ export const TRIGGER_CATEGORIES: { key: TriggerCategory; label: string; icon: st
       { id: "survey_submitted", label: "Sondaggio inviato", icon: "ClipboardCheck", category: "system" },
     ],
   },
+  {
+    key: "ai_agent",
+    label: "Agente AI",
+    icon: "Bot",
+    items: [
+      { id: "ai_conversation_ended", label: "Conversazione AI terminata", icon: "Bot", category: "ai_agent" },
+      { id: "ai_appointment_booked", label: "Appuntamento prenotato da AI", icon: "CalendarPlus", category: "ai_agent" },
+      { id: "ai_contact_created", label: "Contatto creato da AI", icon: "UserPlus", category: "ai_agent" },
+    ],
+  },
 ];
 
 export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: string; items: PickerItem[] }[] = [
@@ -161,6 +171,7 @@ export const ACTION_CATEGORIES: { key: ActionCategory; label: string; icon: stri
       { id: "external_api", label: "API esterna", icon: "Globe", category: "integration", description: "Chiama un'API esterna" },
       { id: "sync_google", label: "Sync Google Calendar", icon: "RefreshCw", category: "integration", description: "Sincronizza appuntamenti con Google Calendar" },
       { id: "sync_meta_lead", label: "Sync Meta Lead", icon: "RefreshCw", category: "integration", description: "Re-sincronizza lead da Meta Lead Ads" },
+      { id: "call_with_ai_agent", label: "Chiama con AI", icon: "Bot", category: "integration", description: "Avvia una chiamata outbound tramite un agente AI" },
     ],
   },
 ];
@@ -383,6 +394,9 @@ export const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   scheduler: "Si attiva ad intervalli programmati.",
   form_submitted: "Si attiva quando un modulo viene inviato.",
   survey_submitted: "Si attiva quando un sondaggio viene completato.",
+  ai_conversation_ended: "Si attiva quando una conversazione con un agente AI termina.",
+  ai_appointment_booked: "Si attiva quando un agente AI prenota un appuntamento.",
+  ai_contact_created: "Si attiva quando un agente AI crea un nuovo contatto.",
 };
 
 // ── Action descriptions ──
@@ -410,6 +424,7 @@ export const ACTION_DESCRIPTIONS: Record<string, string> = {
   external_api: "Chiama un'API esterna con metodo e payload personalizzati.",
   sync_google: "Sincronizza appuntamenti ed eventi con Google Calendar tramite la connessione attiva.",
   sync_meta_lead: "Sincronizza contatti con Meta Lead Ads. L'import dei lead è automatico via webhook; questa azione permette il re-sync manuale.",
+  call_with_ai_agent: "Avvia una chiamata outbound verso il contatto tramite un agente AI selezionato. Richiede crediti AI e un numero di telefono configurato.",
   remove_from_automation: "Rimuove il contatto da un altro workflow attivo, terminando la sua iscrizione.",
   wait_for_event: "Mette in pausa il flusso fino a quando si verifica un evento specifico o scade il timeout configurato.",
   update_contact_score: "Modifica il lead score del contatto. Puoi aggiungere, sottrarre o impostare un valore assoluto.",
@@ -515,6 +530,11 @@ export function validateActionConfig(actionType: string, config: Record<string, 
     case "wait_for_event":
       if (!config.await_event) {
         errors.push({ field: "await_event", message: "Seleziona un evento da attendere" });
+      }
+      break;
+    case "call_with_ai_agent":
+      if (!config.ai_agent_id) {
+        errors.push({ field: "ai_agent_id", message: "Seleziona un agente AI" });
       }
       break;
     case "update_contact_score":

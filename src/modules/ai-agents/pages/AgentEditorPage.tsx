@@ -151,6 +151,9 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
   const [silenceTimeout, setSilenceTimeout] = useState(
     String((agentAny.silence_timeout as number) ?? 30)
   );
+  const [sendConfirmation, setSendConfirmation] = useState(
+    (agentAny.send_confirmation_after_booking as boolean) ?? true
+  );
 
   const handleSave = () => {
     onSave({
@@ -159,6 +162,7 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
       error_message: errorMessage,
       auto_end_on_silence: autoEndOnSilence,
       silence_timeout: parseInt(silenceTimeout) || 30,
+      send_confirmation_after_booking: sendConfirmation,
     } as AIAgentUpdate);
     toast.success("Configurazione avanzata salvata");
   };
@@ -243,6 +247,25 @@ function AdvancedTab({ agent, onSave }: AdvancedTabProps) {
               rows={3}
             />
             <p className="text-xs text-muted-foreground">Messaggio che l'agente pronuncia in caso di errore</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Settings2 className="h-4 w-4" /> Post-chiamata
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Conferma appuntamento automatica</Label>
+              <p className="text-xs text-muted-foreground">
+                Invia automaticamente un messaggio di conferma al contatto quando l'agente prenota un appuntamento
+              </p>
+            </div>
+            <Switch checked={sendConfirmation} onCheckedChange={setSendConfirmation} />
           </div>
         </CardContent>
       </Card>

@@ -3,10 +3,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TRIGGER_CATEGORIES, type PickerItem } from "@/types/automationBuilder";
-import { Search, ChevronRight, ChevronDown, Zap, User, Target, CalendarDays, MessageSquare, Settings, X } from "lucide-react";
+import { Search, ChevronRight, ChevronDown, Zap, User, Target, CalendarDays, MessageSquare, Settings, X, Bot } from "lucide-react";
 
 const CATEGORY_ICONS: Record<string, typeof Zap> = {
-  User, Target, CalendarDays, MessageSquare, Settings,
+  User, Target, CalendarDays, MessageSquare, Settings, Bot,
 };
 
 interface Props {

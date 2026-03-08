@@ -1,135 +1,134 @@
+# Verifica Modulo AI Agents — Stato aggiornato
 
+## Completato — Blocco A, B, C ✅
 
-# Piano Implementazione — Modulo Agenti AI (Gap Analysis)
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-Il documento identifica 10 fix prioritari. Ecco lo stato attuale e il piano di implementazione organizzato in 3 fasi.
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
----
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-## Già presente nel codebase
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-| # | Feature | Stato |
-|---|---------|-------|
-| - | ElevenLabs Conversational AI + Proxy + Webhook | ✅ Completo |
-| - | Multi-LLM 6 modelli | ✅ Completo |
-| - | Sistema crediti atomico con markup | ✅ Completo |
-| - | Knowledge Base per-agente e globale | ✅ Completo |
-| - | Strumenti CRM (5 attivi) | ✅ Completo |
-| - | Editor agente 10 tab | ✅ Completo |
-| - | PlatformSettingsPage (API key, pricing, markup) | ✅ Esiste ma non collegata ad AdminSettings |
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
----
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-## Fase 1 — P0 (Critico)
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-### FIX 1: Abbonamento mensile per sbloccare il modulo AI
-- **Migration SQL**: Creare tabella `ai_subscriptions` (company_id unique, status: trial/active/cancelled/paused, stripe_subscription_id, trial_ends_at, current_period_end, price_eur). Aggiungere in `platform_settings`: `ai_subscription_price_eur`, `ai_subscription_trial_days`, `ai_welcome_bonus_eur`.
-- **Frontend Gate**: Creare componente `AISubscriptionGate.tsx` che wrappa il modulo AI in `index.tsx`. Se subscription non attiva → mostra pagina "Sblocca Agenti AI" con prezzo, trial info e pulsante Stripe.
-- **Hook**: `useAISubscription()` per verificare stato abbonamento.
-- **Stripe Integration**: Aggiungere case `ai_subscription` in `create-checkout-session` (mode: subscription). Gestire `customer.subscription.*` events in `stripe-webhook` per aggiornare `ai_subscriptions`. Al primo pagamento → bonus benvenuto in `ai_credits`.
-- **SuperAdmin config**: Nella tab AI di AdminSettings (FIX 7), campi per prezzo canone, giorni trial, bonus benvenuto.
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-### FIX 2: Chiamate outbound — Edge Function `ai-outbound-call`
-- **Nuova Edge Function** `ai-outbound-call/index.ts`:
-  - Riceve: `agent_id`, `contact_id`, `phone_number`, `company_id`
-  - Verifica: crediti sufficienti, DND call non attivo (`optout_call`), subscription attiva
-  - Chiama ElevenLabs API per iniziare outbound call via Twilio
-  - Salva record in `ai_agent_conversations` con `call_direction: 'outbound'`
-- **Migration**: Aggiungere colonna `call_direction` (text, default 'inbound') su `ai_agent_conversations`.
-- **UI**: Pulsante "Chiama con AI" in `ContactActionsTab.tsx` — dialog per selezionare agente, conferma, invoca edge function.
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
-### FIX 3: Integrazione Automazioni ↔ Agente AI (bidirezionale)
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
 
-**3a — Automazioni → Agente AI (nodo "Chiama con AI")**:
-- In `src/types/automationBuilder.ts`: aggiungere azione `call_with_ai_agent` nella categoria "integration" di `ACTION_CATEGORIES`.
-- In `ACTION_DESCRIPTIONS`: descrizione per `call_with_ai_agent`.
-- In `validateActionConfig`: validazione per `ai_agent_id` obbligatorio.
-- In `AutomationNodeConfig.tsx`: UI di configurazione con selector agente.
-- In `process-automation/index.ts` → `executeAction`: case `call_with_ai_agent` che invoca `ai-outbound-call` edge function.
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
 
-**3b — Webhook → Trigger automazione**:
-- In `elevenlabs-webhook/index.ts`, DOPO il salvataggio conversazione e crediti, inserire in `automation_trigger_events`:
-  - `ai_conversation_ended` (sempre)
-  - `ai_appointment_booked` (se `appointmentCreated`)
-  - `ai_contact_created` (se nuovo contatto creato)
-- Payload: `duration_seconds`, `appointment_created`, `call_direction`, `agent_name`, `contact_id`.
-
-**3c — Trigger AI nel TriggerPicker**:
-- In `TRIGGER_CATEGORIES`: nuova categoria `ai_agent` con label "Agente AI" e 3 trigger: `ai_conversation_ended`, `ai_appointment_booked`, `ai_contact_created`.
-- In `TRIGGER_DESCRIPTIONS`: descrizioni per i 3 trigger.
-- Aggiungere `"ai_agent"` al type `TriggerCategory`.
-- In `TriggerPickerDialog.tsx`: aggiungere icona `Bot` per categoria `ai_agent`.
-
-### FIX 4: Post-call conferma automatica
-- **Migration**: colonna `send_confirmation_after_booking` (boolean, default true) su `ai_agents`.
-- **Webhook**: in `elevenlabs-webhook`, se `appointmentCreated && agent.send_confirmation_after_booking`, inviare conferma via `send-contact-message` (WhatsApp se phone disponibile, altrimenti email).
-- **UI**: Toggle nel tab Avanzato dell'editor agente.
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
 
 ---
 
-## Fase 2 — P1
+## Analisi CRM vs GHL — Piano Implementazione
 
-### FIX 5: Strumento `assign_to_user`
-- In `elevenlabs-webhook`: gestire tool call `assign_to_user` → aggiorna `marketing_contacts.assigned_to`.
-- In `AgentToolsTab.tsx`: aggiungere `assign_to_user` nella lista "EdiliziaInCloud Tools" con dropdown utenti del team.
-- In `elevenlabs-proxy`: passare la config del tool `assign_to_user` quando si crea/aggiorna agente su ElevenLabs.
+### Fase 1 — P0 (Critici) ✅
 
-### FIX 6: Sezione AI in SettingsCredits
-- In `SettingsCredits.tsx`: aggiungere tab "Agente AI" con:
-  - Saldo corrente AI (`ai_credits.balance_eur`)
-  - Stato abbonamento (da `ai_subscriptions`)
-  - Pacchetti minuti: €10/€25/€50/€100 (calcolati su modello più economico)
-  - Toggle auto-ricarica con `company_auto_topup` wallet_type='ai'
+- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` aggiunte a `marketing_contacts`. Toggle SMS/Chiamate nel tab impostazioni contatto. Check DND in `send-contact-message` (email/whatsapp/sms) e `process-automation` (send_email con unsubscribed+optout_email, send_whatsapp con optout_whatsapp). Badge unsubscribed visibile.
+- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` (unique). Pagina `/prenota/:slug` pubblica con calendario, slot disponibili, form prenotazione. RLS per anon (read calendari/availability/appointments, insert appointments).
+- ✅ **Tab Email AdminSettings**: Già esistente (`AdminSettingsEmail.tsx`)
+- ✅ **Crediti Stripe**: Già esistente (`SettingsCredits.tsx`)
 
-### FIX 7: Tab "Agenti AI" in AdminSettings
-- Creare `AdminSettingsAI.tsx` che importa `PlatformSettingsPage` dal modulo.
-- In `AdminLayout.tsx` → `AdminSettingsSidebar`: aggiungere link con icona `Bot`.
-- In `App.tsx`: route `impostazioni/agenti-ai` → `AdminSettingsAI`.
-- Estendere `PlatformSettingsPage` con sezione abbonamento (prezzo, trial, bonus).
+### Fase 2 — P1 (TODO)
 
-### FIX 8: DND check su chiamate AI
-- In `ai-outbound-call`: prima di chiamare, verificare `optout_call` su `marketing_contacts`. Se true → rifiuta con errore "Contatto in DND per chiamate".
-- In `elevenlabs-webhook`: loggare se la chiamata inbound era verso un contatto con DND attivo.
+- [ ] **Probabilità + Close Date + Motivo perdita opportunità**: Migration + UI in OpportunityDetailDialog
+- [ ] **Conferma + Promemoria appuntamenti**: Email conferma + promemoria in check-scheduled-triggers
+- [ ] **Google Calendar push notifications**: Edge function google-calendar-webhook + registra watch
+- [ ] **SMS/Email opt-out visibile in UI**: Già implementato nel tab settings contatto (toggle + badge unsubscribed)
+
+### Fase 3 — P2 (TODO)
+
+- [ ] **WhatsApp/Stripe in SettingsIntegrations**: Card stato per ogni integrazione
+- [ ] **Merge contatti duplicati**: UI + backend merge
+- [ ] **Tab Azioni nel dettaglio contatto**: Azioni rapide (email, SMS, WhatsApp)
 
 ---
 
-## Fase 3 — P2
+## Fix Automazioni Marketing
 
-### FIX 9: Attivazione numeri Twilio
-- Infrastruttura pronta (`ai_agent_phone_numbers`). Da completare in sessione dedicata con configurazione Twilio reale.
+### Fase 1 — P0 (Critici) ✅
 
-### FIX 10: A/B Testing agenti
-- Tab Branch già presente come guscio UI. Da completare in sessione dedicata.
+- ✅ **A1**: `email-tracking` → inserisce `email_opened` / `email_clicked` in `automation_trigger_events`
+- ✅ **A2**: `whatsapp-webhook` → inserisce `whatsapp_received` in `automation_trigger_events` (con lookup contatto marketing)
+- ✅ **A3**: `fire_marketing_automation` già gestisce `opportunity_won`/`opportunity_lost` correttamente — nessun fix necessario
+- ✅ **B**: `process-automation` → `handleTrigger` arricchisce payload con dati contatto da `marketing_contacts` prima di `evaluateFilters`
+- ✅ **C**: Nuova Edge Function `check-scheduled-triggers` per trigger temporali (birthday, custom_date, opportunity_stale) + pg_cron alle 02:00
 
----
+### Fase 2 — P1 ✅
 
-## Riepilogo file principali
+- ✅ **D**: Azione `remove_from_automation` — UI (tipo CRM in builder) + backend (rimuove enrollment + cancella queue)
+- ✅ **E**: Azione `wait_for_event` — UI (tipo logica in builder) + backend (stato waiting, timeout, risoluzione evento)
 
-| File | Fix |
-|------|-----|
-| Nuova migration SQL | 1, 2, 4 |
-| Nuovo `ai-outbound-call/index.ts` | 2, 8 |
-| Nuovo `AISubscriptionGate.tsx` | 1 |
-| Nuovo `AdminSettingsAI.tsx` | 7 |
-| `elevenlabs-webhook/index.ts` | 3b, 4, 5 |
-| `process-automation/index.ts` | 3a |
-| `src/types/automationBuilder.ts` | 3a, 3c |
-| `TriggerPickerDialog.tsx` | 3c |
-| `ContactActionsTab.tsx` | 2 |
-| `AgentToolsTab.tsx` | 5 |
-| `AgentEditorPage.tsx` | 4 |
-| `SettingsCredits.tsx` | 6 |
-| `AdminLayout.tsx` | 7 |
-| `App.tsx` | 7 |
-| `create-checkout-session/index.ts` | 1 |
-| `stripe-webhook/index.ts` | 1 |
-| `src/modules/ai-agents/index.tsx` | 1 |
+### Fase 3 — Documento v2 ✅
+
+- ✅ **Lead scoring**: Colonna `score` su `marketing_contacts` + azione `update_contact_score` (add/subtract/set) in builder e backend
+- ✅ **Re-enrollment**: Lettura `enable_reenrollment` da flow config_json.settings + fallback su trigger config
+- ✅ **Contatori per nodo**: Query aggregata su `automation_execution_log` con badge esecuzioni su ogni nodo nel builder (refresh 30s)
+- ✅ **customer_replied**: Collegato al webhook WhatsApp (inserisce evento `customer_replied` in `automation_trigger_events`)
+- ✅ **call_registered**: DB trigger `fire_call_registered_automation` su `call_logs` INSERT
+- ✅ **send_notification**: Implementato con insert reale in `lifecycle_notifications` (supporta assegnato, tutti admin, utente specifico)
+
+### Fase 4 — TODO
+
+- [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
+- [ ] **G**: Enrollment bulk dalla lista contatti CRM
+- [ ] **send_ai_message**: Integrazione con Lovable AI
 
 ---
 
-## Ordine di implementazione
+## Analisi CRM vs GHL
 
-Prima **Fase 1** (abbonamento + outbound call + automazioni + post-call conferma), poi **Fase 2** (assign_to_user + crediti AI in settings + tab admin + DND), infine **Fase 3** (Twilio attivo + A/B test). Totale stimato: ~6-8 sessioni di lavoro.
+### Fase 1 — P0 ✅
 
-Inizio con la Fase 1?
+- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` su `marketing_contacts` + UI toggle nel tab Impostazioni contatto + check DND in `process-automation` e `send-contact-message` + badge unsubscribed
+- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` + pagina pubblica `/prenota/:slug` + RLS anonima + creazione appuntamento + trigger `appointment_booked`
+- ✅ **Tab Email AdminSettings**: Già funzionante
+- ✅ **Crediti Stripe**: Già implementato
 
+### Fase 2 — P1 ✅
+
+- ✅ **Probabilità + Close Date + Loss Reason**: Colonne `probability`, `expected_close_date`, `loss_reason`, `loss_notes` su `marketing_opportunities` + tabella `opportunity_loss_reasons` + UI slider/date/dialog perdita in `OpportunityDetailDialog`
+- ✅ **Promemoria appuntamenti**: Logica 24h/1h in `check-scheduled-triggers` + tabella `appointment_reminders_sent` + notifiche interne + trigger automazione
+- ✅ **Google Calendar push**: Edge function `google-calendar-webhook` con register_watch, renew_watches, e ricezione push + colonne webhook su `google_calendar_connections`
+- ✅ **Opt-out UI**: Toggle SMS/Call/WhatsApp/Email nel dettaglio contatto + badge disiscritto (già implementato in Fase 1)
+
+### Fase 3 — P2 ✅
+
+- ✅ **WhatsApp/Stripe in SettingsIntegrations**: Card status per WhatsApp, Stripe, Email Provider, Twilio con stato connessione e dettagli
+- ✅ **Merge contatti duplicati**: Dialog di merge con ricerca, selezione master, spostamento opportunità/note/attività/appuntamenti/messaggi
+- ✅ **Tab Azioni nel dettaglio contatto**: Azioni rapide (invia WhatsApp, Email, SMS, Chiama, Aggiungi ad automazione) con check opt-out

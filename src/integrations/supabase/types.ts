@@ -119,6 +119,7 @@ export type Database = {
         Row: {
           agent_id: string
           appointment_created: boolean
+          call_direction: string
           company_id: string
           contact_id: string | null
           duration_seconds: number
@@ -134,6 +135,7 @@ export type Database = {
         Insert: {
           agent_id: string
           appointment_created?: boolean
+          call_direction?: string
           company_id: string
           contact_id?: string | null
           duration_seconds?: number
@@ -149,6 +151,7 @@ export type Database = {
         Update: {
           agent_id?: string
           appointment_created?: boolean
+          call_direction?: string
           company_id?: string
           contact_id?: string | null
           duration_seconds?: number
@@ -399,6 +402,7 @@ export type Database = {
           rate_limit_enabled: boolean | null
           rate_limit_per_minute: number | null
           require_auth: boolean | null
+          send_confirmation_after_booking: boolean
           silence_timeout: number | null
           status: string
           system_prompt: string
@@ -426,6 +430,7 @@ export type Database = {
           rate_limit_enabled?: boolean | null
           rate_limit_per_minute?: number | null
           require_auth?: boolean | null
+          send_confirmation_after_booking?: boolean
           silence_timeout?: number | null
           status?: string
           system_prompt?: string
@@ -453,6 +458,7 @@ export type Database = {
           rate_limit_enabled?: boolean | null
           rate_limit_per_minute?: number | null
           require_auth?: boolean | null
+          send_confirmation_after_booking?: boolean
           silence_timeout?: number | null
           status?: string
           system_prompt?: string
@@ -664,6 +670,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_credits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_subscriptions: {
+        Row: {
+          company_id: string
+          created_at: string
+          current_period_end: string | null
+          id: string
+          price_eur: number | null
+          status: string
+          stripe_subscription_id: string | null
+          trial_ends_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          price_eur?: number | null
+          status?: string
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          price_eur?: number | null
+          status?: string
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_subscriptions_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: true
             referencedRelation: "companies"
