@@ -485,6 +485,7 @@ export function AutomationBuilder() {
               nodes={nodes}
               connections={connections}
               selectedNodeId={selectedNodeId}
+              nodeExecutionCounts={nodeExecutionCounts}
               onSelectNode={handleSelectNode}
               onDeleteNode={removeNode}
               onDuplicateNode={handleDuplicate}
