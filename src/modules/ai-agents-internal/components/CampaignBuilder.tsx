@@ -161,16 +161,16 @@ export function CampaignBuilder({ open, onClose }: Props) {
         {/* Step 1: Target */}
         {step === 1 && (
           <div className="space-y-4">
-            <RadioGroup value={targetType} onValueChange={(v) => setTargetType(v as CampaignTargetType)} className="flex gap-4">
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="manual" id="t-manual" />
-                <Label htmlFor="t-manual">Selezione manuale</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="filter" id="t-filter" />
-                <Label htmlFor="t-filter">Filtro dinamico</Label>
-              </div>
-            </RadioGroup>
+            <div className="flex gap-4">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input type="radio" name="targetType" checked={targetType === "manual"} onChange={() => setTargetType("manual")} className="accent-primary" />
+                <span className="text-sm">Selezione manuale</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input type="radio" name="targetType" checked={targetType === "filter"} onChange={() => setTargetType("filter")} className="accent-primary" />
+                <span className="text-sm">Filtro dinamico</span>
+              </label>
+            </div>
 
             {targetType === "manual" ? (
               <div className="space-y-2">
