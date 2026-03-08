@@ -183,6 +183,10 @@ export default function CompanyDetail() {
           <CompanyActivityTab companyId={h.company.id} />
         </TabsContent>
 
+        <TabsContent value="billing">
+          <CompanyBillingTab companyId={h.company.id} />
+        </TabsContent>
+
         <TabsContent value="note">
           <CompanyNotes companyId={h.company.id} />
         </TabsContent>
