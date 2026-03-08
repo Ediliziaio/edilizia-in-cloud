@@ -526,6 +526,62 @@ export default function SettingsCredits() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="ricarica-wa" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" /> Acquista Crediti WhatsApp
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="text-sm text-muted-foreground">
+                  Saldo attuale: <span className="font-bold text-foreground">{formatEur(waCredits?.balance_eur ?? 0)}</span>
+                </div>
+                {waCredits?.sends_blocked && (
+                  <Badge variant="destructive" className="text-[10px]">Invii bloccati</Badge>
+                )}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[10, 25, 50, 100].map((amount) => (
+                  <Card key={amount} className="text-center hover:border-primary transition-colors">
+                    <CardContent className="pt-6 pb-4 space-y-3">
+                      <p className="text-3xl font-extrabold text-primary">€{amount}</p>
+                      <p className="text-xs text-muted-foreground">Crediti WhatsApp</p>
+                      <Button
+                        onClick={async () => {
+                          setPurchaseLoading(amount + 2000);
+                          try {
+                            const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+                              body: { company_id: companyId, type: "whatsapp_credits", amount_eur: amount },
+                            });
+                            if (error) throw error;
+                            if (data?.url) window.location.href = data.url;
+                            else toast.error(data?.error || "Errore");
+                          } catch (e: any) {
+                            toast.error(e.message || "Errore");
+                          } finally {
+                            setPurchaseLoading(null);
+                          }
+                        }}
+                        disabled={purchaseLoading !== null}
+                        className="w-full"
+                        size="sm"
+                      >
+                        {purchaseLoading === amount + 2000 ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Acquista"
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="storico" className="space-y-4">
           <Card>
             <CardHeader>
@@ -596,7 +652,108 @@ export default function SettingsCredits() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="storico-wa" className="space-y-4">
+          <WhatsAppCreditsLog companyId={companyId} />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function WhatsAppCreditsLog({ companyId }: { companyId: string | undefined }) {
+  const { data: waLog, isLoading } = useQuery({
+    queryKey: ["wa-credits-log", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("whatsapp_credits_log" as never)
+        .select("*")
+        .eq("company_id" as never, companyId as never)
+        .order("created_at" as never, { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{
+        id: string;
+        type: string;
+        amount_eur: number;
+        balance_before: number;
+        balance_after: number;
+        description: string | null;
+        created_at: string;
+      }>;
+    },
+    enabled: !!companyId,
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Clock className="h-4 w-4" /> Storico Movimenti WhatsApp
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <Skeleton className="h-48" />
+        ) : !waLog || waLog.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Nessun movimento WhatsApp registrato.</p>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Importo</TableHead>
+                  <TableHead>Saldo Prima</TableHead>
+                  <TableHead>Saldo Dopo</TableHead>
+                  <TableHead>Descrizione</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {waLog.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="font-mono text-xs">
+                      {format(new Date(log.created_at), "dd/MM/yy HH:mm", { locale: it })}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          log.type === "deduction" ? "destructive" :
+                          log.type === "topup" ? "default" :
+                          "secondary"
+                        }
+                        className="text-[10px]"
+                      >
+                        {log.type === "deduction" ? "Detrazione" :
+                         log.type === "topup" ? "Ricarica" :
+                         log.type === "bonus" ? "Bonus" :
+                         log.type === "refund" ? "Rimborso" :
+                         log.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className={`font-mono font-semibold ${
+                      log.type === "deduction" ? "text-destructive" : "text-emerald-600"
+                    }`}>
+                      {log.type === "deduction" ? "-" : "+"}{formatEur(Math.abs(log.amount_eur))}
+                    </TableCell>
+                    <TableCell className="font-mono text-muted-foreground text-xs">
+                      {formatEur(log.balance_before)}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {formatEur(log.balance_after)}
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate">
+                      {log.description || "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
