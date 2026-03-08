@@ -99,6 +99,22 @@ export default function SettingsCredits() {
     enabled: !!companyId,
   });
 
+  // Fetch WhatsApp credits
+  const { data: waCredits, isLoading: waLoading } = useQuery({
+    queryKey: ["wa-credits-settings", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data, error } = await supabase
+        .from("whatsapp_credits" as never)
+        .select("*")
+        .eq("company_id" as never, companyId as never)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { balance_eur: number; total_spent_eur: number; total_recharged_eur: number; sends_blocked: boolean } | null;
+    },
+    enabled: !!companyId,
+  });
+
   // Fetch email credits log
   const { data: emailLog, isLoading: logLoading } = useQuery({
     queryKey: ["email-credits-log", companyId],
