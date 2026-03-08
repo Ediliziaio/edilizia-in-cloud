@@ -83,11 +83,14 @@
 - [ ] Componenti: `InternalAgentCard`, `ToolConfigCard`, `InternalToolsTab`
 - [ ] Riutilizzo `VoiceSelector`, `LLMSelector` dal modulo marketing
 
-### Fase 3 — Call Logs + Action Timeline (TODO)
+### Fase 3 — Call Logs + Action Timeline ✅
 
-- [ ] `InternalCallLogsPage` con drawer dettaglio
-- [ ] `ActionTimeline` — timeline azioni CRM
-- [ ] Export CSV
+- ✅ `InternalCallLogsPage` con tabella filtrata, drawer dettaglio, trascrizione bubble chat
+- ✅ `ActionTimeline` — timeline verticale azioni CRM con icone e stati
+- ✅ `CallDetailDrawer` — drawer con riepilogo, tab azioni/trascrizione
+- ✅ Export CSV con BOM UTF-8
+- ✅ Hook `useInternalCallLogs` + `useInternalCallActions`
+- ✅ Route `/azienda/agente-interno/chiamate` nel modulo
 
 ### Fase 4 — Webhook + Smart Routing (TODO)
 
