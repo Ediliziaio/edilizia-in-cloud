@@ -335,6 +335,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
 
   const [rightTab, setRightTab] = useState<RightTab | null>("notes");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState("");
