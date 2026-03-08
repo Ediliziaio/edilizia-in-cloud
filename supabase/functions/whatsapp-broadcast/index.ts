@@ -253,6 +253,48 @@ Deno.serve(async (req) => {
       })
       .eq("id", broadcast.id);
 
+    // Deduct WhatsApp credits for sent messages
+    if (!waBilling.isFree && sentCount > 0) {
+      const pricePerMsg = waBilling.pricePerUnitEur ?? 0.0006;
+      const totalCost = Number((sentCount * pricePerMsg).toFixed(4));
+
+      const { data: waCredits } = await adminClient
+        .from("whatsapp_credits")
+        .select("balance_eur, total_spent_eur")
+        .eq("company_id", company_id)
+        .maybeSingle();
+
+      const balanceBefore = waCredits?.balance_eur ?? 0;
+      const balanceAfter = Number((balanceBefore - totalCost).toFixed(4));
+
+      if (waCredits) {
+        await adminClient
+          .from("whatsapp_credits")
+          .update({
+            balance_eur: balanceAfter,
+            total_spent_eur: Number(((waCredits.total_spent_eur ?? 0) + totalCost).toFixed(4)),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("company_id", company_id);
+      } else {
+        await adminClient.from("whatsapp_credits").insert({
+          company_id,
+          balance_eur: -totalCost,
+          total_spent_eur: totalCost,
+        });
+      }
+
+      await adminClient.from("whatsapp_credits_log").insert({
+        company_id,
+        type: "deduction",
+        amount_eur: -totalCost,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        description: `Broadcast: ${sentCount} messaggi inviati`,
+        broadcast_id: broadcast.id,
+      });
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
