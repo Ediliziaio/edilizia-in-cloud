@@ -51,11 +51,11 @@ export default function InternalCampaignsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Completate</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-green-500" />{stats?.completed ?? 0}</div></CardContent>
+          <CardContent><div className="text-2xl font-bold flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-primary/70" />{stats?.completed ?? 0}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Chiamate Totali</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold flex items-center gap-2"><Phone className="h-5 w-5 text-blue-500" />{stats?.totalCalls ?? 0}</div></CardContent>
+          <CardContent><div className="text-2xl font-bold flex items-center gap-2"><Phone className="h-5 w-5 text-primary/60" />{stats?.totalCalls ?? 0}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Tasso Risposta</CardTitle></CardHeader>
