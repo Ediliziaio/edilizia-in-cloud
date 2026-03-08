@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
     if (!stripeSecretKey) {
       return new Response(JSON.stringify({ error: "Stripe non configurato" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: secureHeaders,
       });
     }
 
