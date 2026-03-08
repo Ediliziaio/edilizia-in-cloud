@@ -51,6 +51,27 @@ export function AutomationBuilder() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const creationAttemptedRef = useRef(false);
 
+  // Fetch node execution counts
+  const { data: nodeExecutionCounts = {} } = useQuery({
+    queryKey: ["node-execution-counts", flowId],
+    queryFn: async () => {
+      if (!flowId) return {};
+      const { data, error } = await supabase
+        .from("automation_execution_log")
+        .select("node_id")
+        .eq("flow_id", flowId)
+        .eq("status", "success");
+      if (error || !data) return {};
+      const counts: Record<string, number> = {};
+      for (const row of data) {
+        if (row.node_id) counts[row.node_id] = (counts[row.node_id] || 0) + 1;
+      }
+      return counts;
+    },
+    enabled: !!flowId && flowId !== "nuova",
+    refetchInterval: 30000, // refresh every 30s
+  });
+
   const deleteFlowMutation = useMutation({
     mutationFn: async () => {
       if (!flowId) throw new Error("No flow ID");
