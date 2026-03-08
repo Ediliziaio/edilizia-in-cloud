@@ -171,8 +171,5 @@ function HealthBreakdownBars({ factors }: { factors: ScoreFactor[] }) {
         </div>
       ))}
     </div>
-  );
-      </div>
-    </div>
-  );
-});
+}
+
