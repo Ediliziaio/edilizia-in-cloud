@@ -1,0 +1,1 @@
+ALTER TABLE public.marketing_contacts ADD COLUMN IF NOT EXISTS source_campaign_id TEXT DEFAULT NULL;

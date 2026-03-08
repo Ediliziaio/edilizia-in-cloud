@@ -106,6 +106,7 @@ const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/Campai
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
 const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
+const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 
 // Customer
@@ -275,6 +276,7 @@ const App = () => (
                 <Route path="marketing/email/campagna/:id/builder" element={<DragDropEmailBuilder />} />
                 <Route path="marketing/email/campagna/:id/impostazioni" element={<CampaignSendSettings />} />
                 <Route path="marketing/whatsapp" element={<MarketingWhatsApp />} />
+                <Route path="marketing/lead-forms" element={<FacebookFormsPage />} />
                 <Route path="marketing/reportistica" element={<ReportisticaPage />} />
                 
                 <Route path="impostazioni" element={<SettingsLayout />}>

@@ -4075,6 +4075,7 @@ export type Database = {
           province: string | null
           score: number
           source: string | null
+          source_campaign_id: string | null
           tags: string[]
           unsubscribed: boolean
           unsubscribed_at: string | null
@@ -4110,6 +4111,7 @@ export type Database = {
           province?: string | null
           score?: number
           source?: string | null
+          source_campaign_id?: string | null
           tags?: string[]
           unsubscribed?: boolean
           unsubscribed_at?: string | null
@@ -4145,6 +4147,7 @@ export type Database = {
           province?: string | null
           score?: number
           source?: string | null
+          source_campaign_id?: string | null
           tags?: string[]
           unsubscribed?: boolean
           unsubscribed_at?: string | null

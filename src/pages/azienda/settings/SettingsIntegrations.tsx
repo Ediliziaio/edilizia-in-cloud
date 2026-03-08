@@ -4,11 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, CreditCard, Mail, Phone } from "lucide-react";
+import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle } from "lucide-react";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
 import type { Integration, IntegrationStatus, IntegrationHealth } from "@/types/integrations";
 
 function StatusIntegrationCard({ name, description, icon: Icon, iconColor, status, detail }: {
@@ -46,7 +48,34 @@ export default function SettingsIntegrations() {
   const userId = user?.id;
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [metaConfigMissing, setMetaConfigMissing] = useState(false);
   const navigate = useNavigate();
+
+  // Check if global Meta credentials are configured
+  const checkMetaCredentials = async (): Promise<boolean> => {
+    try {
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("key, value")
+        .in("key", ["meta_app_id", "meta_app_secret"]);
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => { map[r.key] = r.value; });
+      if (!map.meta_app_id || !map.meta_app_secret) {
+        setMetaConfigMissing(true);
+        toast.error("L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma.");
+        return false;
+      }
+      setMetaConfigMissing(false);
+      return true;
+    } catch {
+      return true; // fail open – let wizard handle errors
+    }
+  };
+
+  const handleMetaConnect = async () => {
+    const ok = await checkMetaCredentials();
+    if (ok) setWizardOpen(true);
+  };
 
   const { data: integrations = [], refetch } = useQuery({
     queryKey: ["integrations", companyId],
@@ -255,14 +284,14 @@ export default function SettingsIntegrations() {
               if (item.provider === "google_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
               } else {
-                setWizardOpen(true);
+                handleMetaConnect();
               }
             }}
             onManage={() => {
               if (item.provider === "google_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
               } else {
-                setWizardOpen(true);
+                handleMetaConnect();
               }
             }}
           />
@@ -286,6 +315,16 @@ export default function SettingsIntegrations() {
             ))}
           </div>
         </>
+      )}
+
+      {metaConfigMissing && (
+        <Alert variant="destructive" className="max-w-xl">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Configurazione Meta mancante</AlertTitle>
+          <AlertDescription>
+            L'integrazione Meta (Facebook & Instagram) non è ancora configurata dall'amministratore della piattaforma. Contattare il supporto per la configurazione delle credenziali (App ID, App Secret).
+          </AlertDescription>
+        </Alert>
       )}
 
       {mainIntegrations.length === 0 && statusCards.length === 0 && (
