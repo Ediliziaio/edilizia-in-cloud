@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { calculateMarginPercent, formatEur } from "../lib/creditCalculator";
-import { EmailProviderSettings } from "../components/EmailProviderSettings";
+
 
 interface PricingRow {
   id: string;
@@ -401,8 +401,7 @@ export default function PlatformSettingsPage() {
       </Card>
 
 
-      {/* Email Provider & Pricing */}
-      <EmailProviderSettings />
+      {/* Email Provider & Pricing — configurazione spostata in Admin Settings → Email */}
 
       {/* Default config */}
       <Card>

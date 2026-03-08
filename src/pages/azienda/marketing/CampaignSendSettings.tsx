@@ -83,15 +83,23 @@ export default function CampaignSendSettings() {
   });
 
   const { data: recipientCount = 0 } = useQuery({
-    queryKey: ["recipient-count", company?.id],
+    queryKey: ["recipient-count", company?.id, recipientMode, segmentTags, segmentSource, segmentContactType],
     enabled: !!company?.id,
     queryFn: async () => {
-      const { count } = await (supabase
+      let query = (supabase
         .from("marketing_contacts")
         .select("id", { count: "exact", head: true }) as any)
         .eq("company_id", company!.id)
         .eq("email_unsubscribed", false)
         .not("email", "is", null);
+
+      if (recipientMode === "segment") {
+        if (segmentTags.length > 0) query = query.overlaps("tags", segmentTags);
+        if (segmentSource) query = query.eq("source", segmentSource);
+        if (segmentContactType) query = query.eq("contact_type", segmentContactType);
+      }
+
+      const { count } = await query;
       return count || 0;
     },
   });
@@ -137,6 +145,15 @@ export default function CampaignSendSettings() {
     }
   };
 
+  const buildSegmentJson = () => {
+    if (recipientMode !== "segment") return null;
+    return {
+      tags: segmentTags.length > 0 ? segmentTags : undefined,
+      source: segmentSource || undefined,
+      contact_type: segmentContactType || undefined,
+    };
+  };
+
   const saveMut = useMutation({
     mutationFn: async () => {
       const payload: Record<string, any> = {
@@ -150,6 +167,7 @@ export default function CampaignSendSettings() {
         auto_tag: autoTag,
         resend_to_unopened: resendToUnopened,
         scheduled_at: sendMode === "scheduled" && scheduledAt ? scheduledAt : null,
+        segment_json: buildSegmentJson(),
       };
       const { error } = await supabase
         .from("email_campaigns")
@@ -183,6 +201,7 @@ export default function CampaignSendSettings() {
         auto_tag: autoTag,
         resend_to_unopened: resendToUnopened,
         scheduled_at: sendMode === "scheduled" && scheduledAt ? scheduledAt : null,
+        segment_json: buildSegmentJson(),
       };
       const { error: saveError } = await supabase
         .from("email_campaigns")

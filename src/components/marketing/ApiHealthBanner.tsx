@@ -9,7 +9,9 @@ const SERVICE_LABELS: Record<keyof ApiServices, string> = {
   whatsapp: "WhatsApp Business",
   googlemaps: "Google Maps",
   meta: "Meta Ads / Lead Ads",
-  email: "Email (Resend)",
+  email: "Email Provider",
+  email_marketing: "Email Marketing",
+  email_transactional: "Email Transazionale",
   elevenlabs: "ElevenLabs (Agente AI Vocale)",
 };
 
