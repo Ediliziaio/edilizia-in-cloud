@@ -60,7 +60,7 @@ serve(async (req) => {
 
     for (const event of events) {
       try {
-        await processLeadEvent(adminClient, event);
+        const result = await processLeadEvent(adminClient, event);
         
         await adminClient
           .from("integration_webhook_events")
@@ -71,6 +71,28 @@ serve(async (req) => {
             locked_at: null,
           })
           .eq("id", event.id);
+
+        // Fire automation trigger (non-blocking)
+        if (result?.contactId) {
+          const triggerEvent = result.isNew ? "facebook_lead_received" : "facebook_lead_updated";
+          adminClient
+            .from("automation_trigger_events")
+            .insert({
+              company_id: event.company_id,
+              trigger_event: triggerEvent,
+              entity_id: result.contactId,
+              entity_type: "contact",
+              payload: {
+                form_id: event.payload?.form_id || null,
+                page_id: event.payload?.page_id || null,
+                leadgen_id: event.payload?.leadgen_id || null,
+                campaign_name: result.campaignName || null,
+                is_new_contact: result.isNew,
+              },
+            })
+            .then(() => console.log(`Automation trigger fired: ${triggerEvent} for contact ${result.contactId}`))
+            .catch((err: any) => console.warn("Failed to fire automation trigger:", err));
+        }
 
         processed++;
         if (event.integration_id) {
@@ -118,7 +140,7 @@ serve(async (req) => {
   }
 });
 
-async function processLeadEvent(adminClient: any, event: any) {
+async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string } | null> {
   const { company_id, integration_id, payload } = event;
   const leadgenId = payload.leadgen_id;
   const formId = payload.form_id;
@@ -328,6 +350,12 @@ async function processLeadEvent(adminClient: any, event: any) {
       dedupe: existingContact ? "updated" : "created",
     },
   });
+
+  return {
+    contactId,
+    isNew: !existingContact,
+    campaignName: lead.campaign_name || undefined,
+  };
 }
 
 function normalizePhone(phone: string): string {

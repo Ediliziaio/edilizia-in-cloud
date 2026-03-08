@@ -42,6 +42,9 @@ export interface KPISummary {
   cost_per_conversion: number;
   cpl: number;
   reach: number;
+  revenue: number;
+  roas: number;
+  frequency: number;
 }
 
 export interface DailyPoint {
@@ -156,8 +159,9 @@ export function computeKPIs(rows: NormalizedCampaignRow[]): KPISummary {
       spend: acc.spend + r.spend,
       reach: acc.reach + r.reach,
       leads: acc.leads + r.leads,
+      revenue: acc.revenue + r.revenue,
     }),
-    { impressions: 0, clicks: 0, conversions: 0, spend: 0, reach: 0, leads: 0 }
+    { impressions: 0, clicks: 0, conversions: 0, spend: 0, reach: 0, leads: 0, revenue: 0 }
   );
 
   return {
@@ -165,6 +169,8 @@ export function computeKPIs(rows: NormalizedCampaignRow[]): KPISummary {
     cpc: safeDivide(totals.spend, totals.clicks),
     cost_per_conversion: safeDivide(totals.spend, totals.conversions),
     cpl: safeDivide(totals.spend, totals.leads),
+    roas: safeDivide(totals.revenue, totals.spend),
+    frequency: safeDivide(totals.impressions, totals.reach),
   };
 }
 

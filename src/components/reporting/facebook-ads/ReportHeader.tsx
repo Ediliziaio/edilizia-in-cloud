@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { CalendarIcon, Download, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import ColumnsDrawer from "./ColumnsDrawer";
 import ExportDialog from "./ExportDialog";
 import LevelToggle from "./LevelToggle";
@@ -16,9 +16,26 @@ interface Props {
   report: ReturnType<typeof useMetaAdsReport>;
 }
 
+const DATE_PRESETS = [
+  { label: "Oggi", getRange: () => ({ from: startOfDay(new Date()), to: new Date() }) },
+  { label: "Ieri", getRange: () => ({ from: startOfDay(subDays(new Date(), 1)), to: startOfDay(new Date()) }) },
+  { label: "7gg", getRange: () => ({ from: subDays(new Date(), 7), to: new Date() }) },
+  { label: "30gg", getRange: () => ({ from: subDays(new Date(), 30), to: new Date() }) },
+  { label: "Questo mese", getRange: () => ({ from: startOfMonth(new Date()), to: new Date() }) },
+  { label: "Mese scorso", getRange: () => ({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) }) },
+];
+
 const ReportHeader = ({ report }: Props) => {
   const [showColumns, setShowColumns] = useState(false);
   const [showExport, setShowExport] = useState(false);
+
+  const activePreset = useMemo(() => {
+    return DATE_PRESETS.find((p) => {
+      const r = p.getRange();
+      return format(r.from, "yyyy-MM-dd") === format(report.dateRange.from, "yyyy-MM-dd")
+        && format(r.to, "yyyy-MM-dd") === format(report.dateRange.to, "yyyy-MM-dd");
+    })?.label || null;
+  }, [report.dateRange]);
 
   return (
     <>
@@ -26,6 +43,21 @@ const ReportHeader = ({ report }: Props) => {
         <h2 className="text-xl font-semibold tracking-tight">Report di Facebook Ads</h2>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Date Presets */}
+          <div className="flex items-center gap-1">
+            {DATE_PRESETS.map((preset) => (
+              <Button
+                key={preset.label}
+                variant={activePreset === preset.label ? "default" : "ghost"}
+                size="sm"
+                className="text-xs h-7 px-2"
+                onClick={() => report.setDateRange(preset.getRange())}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </div>
+
           {/* Date Range */}
           <Popover>
             <PopoverTrigger asChild>

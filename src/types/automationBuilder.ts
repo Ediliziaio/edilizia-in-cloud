@@ -36,7 +36,7 @@ export interface AutomationConnection {
   created_at: string;
 }
 
-export type TriggerCategory = "contact" | "opportunity" | "appointment" | "communication" | "system" | "ai_agent";
+export type TriggerCategory = "contact" | "opportunity" | "appointment" | "communication" | "system" | "ai_agent" | "social_media";
 export type ActionCategory = "communication" | "crm" | "logic" | "integration";
 
 export interface PickerItem {
@@ -115,6 +115,15 @@ export const TRIGGER_CATEGORIES: { key: TriggerCategory; label: string; icon: st
       { id: "ai_conversation_ended", label: "Conversazione AI terminata", icon: "Bot", category: "ai_agent" },
       { id: "ai_appointment_booked", label: "Appuntamento prenotato da AI", icon: "CalendarPlus", category: "ai_agent" },
       { id: "ai_contact_created", label: "Contatto creato da AI", icon: "UserPlus", category: "ai_agent" },
+    ],
+  },
+  {
+    key: "social_media",
+    label: "Social Media",
+    icon: "Share2",
+    items: [
+      { id: "facebook_lead_received", label: "Nuovo lead da Facebook", icon: "Share2", category: "social_media", description: "Si attiva quando arriva un nuovo lead da Facebook Lead Ads" },
+      { id: "facebook_lead_updated", label: "Lead Facebook aggiornato", icon: "Share2", category: "social_media", description: "Si attiva quando un lead Facebook esistente viene aggiornato" },
     ],
   },
 ];
@@ -355,6 +364,14 @@ export const SYSTEM_TRIGGER_FIELDS: TriggerFieldDef[] = [
   { key: "survey_id", label: "Survey ID", type: "text", group: "Sistema" },
 ];
 
+export const SOCIAL_MEDIA_TRIGGER_FIELDS: TriggerFieldDef[] = [
+  { key: "form_id", label: "Form ID", type: "text", group: "Facebook" },
+  { key: "campaign_name", label: "Nome campagna", type: "text", group: "Facebook" },
+  { key: "is_new_contact", label: "Nuovo contatto", type: "boolean", group: "Facebook" },
+  { key: "source", label: "Fonte", type: "text", group: "Facebook" },
+  { key: "tags", label: "Tag", type: "tags", group: "Contatto" },
+];
+
 export function getFieldsForCategory(category: string): TriggerFieldDef[] {
   switch (category) {
     case "contact": return CONTACT_TRIGGER_FIELDS;
@@ -362,6 +379,7 @@ export function getFieldsForCategory(category: string): TriggerFieldDef[] {
     case "appointment": return APPOINTMENT_TRIGGER_FIELDS;
     case "communication": return COMMUNICATION_TRIGGER_FIELDS;
     case "system": return SYSTEM_TRIGGER_FIELDS;
+    case "social_media": return SOCIAL_MEDIA_TRIGGER_FIELDS;
     default: return CONTACT_TRIGGER_FIELDS;
   }
 }
@@ -397,6 +415,8 @@ export const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   ai_conversation_ended: "Si attiva quando una conversazione con un agente AI termina.",
   ai_appointment_booked: "Si attiva quando un agente AI prenota un appuntamento.",
   ai_contact_created: "Si attiva quando un agente AI crea un nuovo contatto.",
+  facebook_lead_received: "Si attiva quando arriva un nuovo lead da Facebook Lead Ads. Include dati campagna, form e contatto.",
+  facebook_lead_updated: "Si attiva quando un lead Facebook esistente viene aggiornato con nuovi dati.",
 };
 
 // ── Action descriptions ──
