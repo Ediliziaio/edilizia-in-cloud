@@ -885,6 +885,64 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    {/* Loss reason dialog */}
+    <AlertDialog open={showLossDialog} onOpenChange={(open) => {
+      if (!open) {
+        setPendingLostStatus(false);
+      }
+      setShowLossDialog(open);
+    }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            Motivo della perdita
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Seleziona il motivo per cui questa opportunità è stata persa.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-3 py-2">
+          <Select value={lossReason || "none"} onValueChange={(v) => setLossReason(v === "none" ? "" : v)}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleziona motivo..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Nessuno —</SelectItem>
+              <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
+              <SelectItem value="concorrenza">Scelto concorrente</SelectItem>
+              <SelectItem value="tempistica">Tempistica non adatta</SelectItem>
+              <SelectItem value="non_risponde">Non risponde</SelectItem>
+              <SelectItem value="non_interessato">Non più interessato</SelectItem>
+              <SelectItem value="budget">Budget insufficiente</SelectItem>
+              <SelectItem value="altro">Altro</SelectItem>
+              {lossReasons.map((r: any) => (
+                <SelectItem key={r.id} value={r.label}>{r.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Textarea
+            value={lossNotes}
+            onChange={(e) => setLossNotes(e.target.value)}
+            placeholder="Note opzionali..."
+            rows={2}
+            className="text-sm"
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setPendingLostStatus(false)}>Annulla</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => {
+              setStatus("lost");
+              setPendingLostStatus(false);
+              setShowLossDialog(false);
+            }}
+          >
+            Conferma Perdita
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }
