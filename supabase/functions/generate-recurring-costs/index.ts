@@ -47,8 +47,8 @@ Deno.serve(async (req) => {
 
     if (fetchError) throw fetchError;
 
-    let createdCount = 0;
     const now = new Date();
+    const toInsert: any[] = [];
 
     for (const cost of (recurringCosts || [])) {
       // Check end date
@@ -58,13 +58,11 @@ Deno.serve(async (req) => {
 
       const baseDate = new Date(cost.due_date);
       const recurrence = cost.recurrence;
+      const maxLookahead = 3;
 
-      // Calculate next dates going forward from baseDate
       let nextDate = new Date(baseDate);
-      const maxLookahead = 3; // Generate up to 3 months ahead
 
       while (nextDate <= new Date(now.getFullYear(), now.getMonth() + maxLookahead, 0)) {
-        // Advance by recurrence interval
         if (recurrence === "monthly") {
           nextDate = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, nextDate.getDate());
         } else if (recurrence === "quarterly") {
@@ -75,27 +73,12 @@ Deno.serve(async (req) => {
           break;
         }
 
-        // Don't go past end date
         if (cost.recurrence_end_date && nextDate > new Date(cost.recurrence_end_date)) break;
-
-        // Don't generate in the past (before current month)
         if (nextDate < new Date(now.getFullYear(), now.getMonth(), 1)) continue;
 
         const dueDateStr = nextDate.toISOString().split("T")[0];
 
-        // Check if this instance already exists (by name + due_date)
-        const { data: existing } = await supabase
-          .from("company_costs")
-          .select("id")
-          .eq("company_id", companyId)
-          .eq("name", cost.name)
-          .eq("due_date", dueDateStr)
-          .limit(1);
-
-        if (existing && existing.length > 0) continue;
-
-        // Create new instance
-        const { error: insertError } = await supabase.from("company_costs").insert({
+        toInsert.push({
           company_id: companyId,
           name: cost.name,
           cost_type: cost.cost_type,
@@ -106,11 +89,22 @@ Deno.serve(async (req) => {
           notes: cost.notes,
           supplier_id: cost.supplier_id,
           vat_rate: cost.vat_rate,
-          recurrence_auto: false, // Generated instances are not auto-generators
+          recurrence_auto: false,
         });
-
-        if (!insertError) createdCount++;
       }
+    }
+
+    let createdCount = 0;
+
+    if (toInsert.length > 0) {
+      // Bulk upsert — ignoreDuplicates skips rows that conflict on (company_id, name, due_date)
+      const { data: inserted, error: insertError } = await supabase
+        .from("company_costs")
+        .upsert(toInsert, { onConflict: "company_id,name,due_date", ignoreDuplicates: true })
+        .select("id");
+
+      if (insertError) throw insertError;
+      createdCount = inserted?.length ?? 0;
     }
 
     return new Response(JSON.stringify({ success: true, created: createdCount }), {
