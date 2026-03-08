@@ -83,15 +83,23 @@ export default function CampaignSendSettings() {
   });
 
   const { data: recipientCount = 0 } = useQuery({
-    queryKey: ["recipient-count", company?.id],
+    queryKey: ["recipient-count", company?.id, recipientMode, segmentTags, segmentSource, segmentContactType],
     enabled: !!company?.id,
     queryFn: async () => {
-      const { count } = await (supabase
+      let query = (supabase
         .from("marketing_contacts")
         .select("id", { count: "exact", head: true }) as any)
         .eq("company_id", company!.id)
         .eq("email_unsubscribed", false)
         .not("email", "is", null);
+
+      if (recipientMode === "segment") {
+        if (segmentTags.length > 0) query = query.overlaps("tags", segmentTags);
+        if (segmentSource) query = query.eq("source", segmentSource);
+        if (segmentContactType) query = query.eq("contact_type", segmentContactType);
+      }
+
+      const { count } = await query;
       return count || 0;
     },
   });
