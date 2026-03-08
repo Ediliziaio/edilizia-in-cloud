@@ -98,6 +98,7 @@ export function AppointmentDialog({
       setCalendarId(appointment.calendar_id || "");
       setContactId(appointment.contact_id || "");
       setStatus(appointment.status || "confermato");
+      setReminderMinutes(appointment.reminder_minutes != null ? String(appointment.reminder_minutes) : "none");
     } else {
       setTitle("");
       setDescription("");
