@@ -665,9 +665,47 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       .replace(/\{\{last_name\}\}/g, contact.last_name || "")
       .replace(/\{\{email\}\}/g, contact.email || "");
 
+    // Inject tracking pixel and unsubscribe link for marketing emails
+    if (stream === "marketing") {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const trackingPixel = `<img src="${supabaseUrl}/functions/v1/track-email?type=open&contact=${contact.id}&company=${companyId}" width="1" height="1" style="display:none" alt="" />`;
+      const unsubLink = `${supabaseUrl}/functions/v1/track-email?type=unsubscribe&contact=${contact.id}&company=${companyId}`;
+
+      // Inject pixel before </body> or at end
+      if (html.includes("</body>")) {
+        html = html.replace("</body>", `${trackingPixel}</body>`);
+      } else {
+        html += trackingPixel;
+      }
+
+      // Inject unsubscribe link if placeholder exists
+      html = html.replace(/\{\{unsubscribe_url\}\}/g, unsubLink);
+    }
+
     const fromAddress = cfg.from_email
       ? cfg.from_name ? `${cfg.from_name} <${cfg.from_email}>` : cfg.from_email
       : settings.fromDefault;
+
+    // Deduct 1 credit for marketing emails (1 credit = cost per email from platform_settings)
+    if (stream === "marketing") {
+      try {
+        // Get price per email from platform_settings
+        const { data: priceSetting } = await supabase
+          .from("platform_settings")
+          .select("value")
+          .eq("key", "credits_email_price_per_email")
+          .maybeSingle();
+        const costPerEmail = parseFloat(priceSetting?.value || "0.003");
+
+        await deductEmailCredits(companyId, costPerEmail, {
+          description: `Automazione email: ${subject}`,
+          metadata: { contact_id: contact.id, stream, automation: true },
+        });
+      } catch (creditErr: any) {
+        console.warn(`Credit deduction failed for company ${companyId}:`, creditErr.message);
+        // Continue sending — don't block automation on credit failure
+      }
+    }
 
     const result = await sendViaProvider(settings.provider, settings.apiKey, {
       from: fromAddress,
@@ -687,6 +725,22 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       event_timestamp: new Date().toISOString(),
       error_message: result.ok ? null : JSON.stringify(result.body),
     });
+
+    // Fire-and-forget auto-topup check after marketing send
+    if (stream === "marketing") {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+        fetch(`${supabaseUrl}/functions/v1/auto-topup-check`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({ company_id: companyId }),
+        }).catch(() => {});
+      } catch {}
+    }
 
     return {
       success: result.ok,
