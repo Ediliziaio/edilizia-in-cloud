@@ -337,48 +337,7 @@ export default function CompanyDashboard() {
 
       {/* Bottom Row */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  {urgentItems.length > 0 && <AlertTriangle className="h-5 w-5 text-destructive" />}
-                  <Package className="h-5 w-5 text-primary" />
-                  Alert Magazzino
-                </CardTitle>
-                <CardDescription>Articoli con posa imminente</CardDescription>
-              </div>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/azienda/magazzino">Vai al magazzino</Link>
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {urgentItems.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Nessun articolo urgente</p>
-                <p className="text-xs mt-1">Tutti gli articoli sono pronti per le prossime installazioni</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {urgentItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                    <div className="space-y-1">
-                      <p className="font-medium text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.orderCode ? `#${item.orderCode} - ` : ""}{item.customerName}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="text-destructive border-destructive/30">
-                      {item.daysLeft === 0 ? "Oggi" : item.daysLeft === 1 ? "Domani" : `${item.daysLeft} giorni`}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <WarehouseAlerts urgentItems={urgentItems} />
 
         <SupplierPaymentsSummary />
 
