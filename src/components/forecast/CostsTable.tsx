@@ -289,7 +289,7 @@ export function CostsTable({
         </div>
       ) : (
         <>
-        <div className="rounded-md border overflow-x-auto">
+        <div className="rounded-md border overflow-x-auto max-w-full [&>div]:!overflow-visible">
           <Table>
               <TableHeader>
               <TableRow>
