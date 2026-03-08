@@ -105,7 +105,7 @@ export default function CompanyDashboard() {
     isLoading, isError,
     stats, prevStats, recentOrders, cashFlow, ceoStrip,
     urgentItems, financialAlerts, weeklyDeadlines,
-    monthlyBalance, revenueYTD,
+    monthlyBalance, revenueYTD, agingReceivables,
   } = useCompanyDashboardData();
 
   const totalYTDRevenue = useMemo(() => revenueYTD.reduce((s, r) => s + r.revenue, 0), [revenueYTD]);
