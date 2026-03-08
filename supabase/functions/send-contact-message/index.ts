@@ -253,8 +253,42 @@ Deno.serve(async (req) => {
         errorDetail = JSON.stringify(result.body);
       }
     } else if (channel === "sms") {
-      // SMS placeholder — no provider configured
-      status = "pending";
+      if (!contact.phone) {
+        return new Response(
+          JSON.stringify({ error: "Il contatto non ha un numero di telefono" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Send SMS via Telnyx proxy
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      try {
+        const smsRes = await fetch(`${supabaseUrl}/functions/v1/telnyx-proxy`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({
+            action: "send_sms",
+            company_id: contact.company_id,
+            payload: {
+              to: contact.phone,
+              body: content,
+              contact_id: contact_id,
+            },
+          }),
+        });
+        const smsResult = await smsRes.json();
+        if (!smsRes.ok || smsResult?.error) {
+          status = "failed";
+          errorDetail = smsResult?.error || `HTTP ${smsRes.status}`;
+        }
+      } catch (smsErr: any) {
+        status = "failed";
+        errorDetail = smsErr.message || "Errore invio SMS";
+      }
     }
 
     // Insert message record
