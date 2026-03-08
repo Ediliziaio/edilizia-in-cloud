@@ -1,4 +1,3 @@
-
 # Verifica Modulo AI Agents — Stato aggiornato
 
 ## Completato — Blocco A, B, C ✅
@@ -56,87 +55,22 @@
 
 ---
 
-## Email Dual-Provider + Sistema Crediti Universale
+## Fix Automazioni Marketing
 
-### Fase 1 ✅ — Shared Libraries + DB Migrations
+### Fase 1 — P0 (Critici) ✅
 
-**Database (migration applicata):**
-- ✅ Tabella `email_credits_log` (storico movimenti con RLS)
-- ✅ Tabella `company_auto_topup` (config auto-ricarica multi-wallet con RLS)
-- ✅ Colonne `sent_count`, `failed_count`, `completed_at`, `segment_json`, `credits_used` su `email_campaigns`
-- ✅ Colonne `unsubscribed`, `unsubscribed_at` su `marketing_contacts`
-- ✅ Colonne `provider_message_id`, `provider`, `stream`, `opened_at`, `clicked_at`, `error_message` su `email_logs`
-- ✅ RPC `get_platform_email_stats` (dashboard super admin)
-- ✅ RPC `deduct_email_credits_with_log` (detrazione atomica + log)
-- ✅ RPC `add_email_credits_with_log` (ricarica atomica + log)
-- ✅ RPC `get_email_stats_summary`, `get_email_stats_by_campaign`, `get_email_stats_by_date`
-- ✅ RPC `get_top_companies_by_email`
+- ✅ **A1**: `email-tracking` → inserisce `email_opened` / `email_clicked` in `automation_trigger_events`
+- ✅ **A2**: `whatsapp-webhook` → inserisce `whatsapp_received` in `automation_trigger_events` (con lookup contatto marketing)
+- ✅ **A3**: `fire_marketing_automation` già gestisce `opportunity_won`/`opportunity_lost` correttamente — nessun fix necessario
+- ✅ **B**: `process-automation` → `handleTrigger` arricchisce payload con dati contatto da `marketing_contacts` prima di `evaluateFilters`
+- ✅ **C**: Nuova Edge Function `check-scheduled-triggers` per trigger temporali (birthday, custom_date, opportunity_stale) + pg_cron alle 02:00
 
-**Edge Functions shared:**
-- ✅ `_shared/emailProvider.ts` — `sendViaProvider()` (SendGrid, Brevo, Resend, Elastic Email, Mailgun) + `loadProviderSettings()` + attachments + tracking disabilitato
-- ✅ `_shared/emailCredits.ts` — `deductEmailCredits()`, `addEmailCredits()`, `getEmailBalance()`, `checkAutoTopup()`
+### Fase 2 — P1 ✅
 
-### Fase 2 ✅ — Super Admin Email Settings Tab
+- ✅ **D**: Azione `remove_from_automation` — UI (tipo CRM in builder) + backend (rimuove enrollment + cancella queue)
+- ✅ **E**: Azione `wait_for_event` — UI (tipo logica in builder) + backend (stato waiting, timeout, risoluzione evento)
 
-- ✅ `EmailSettingsTab.tsx` con 3 tab: Provider, Prezzi & Margini, Dashboard
-- ✅ `EmailProviderConfig.tsx` — config dual-provider, 5 provider, test email, campi from_name/domain, badge stato, webhook URL
-- ✅ `EmailPricingConfig.tsx` — markup globale, tabella tariffe, bonus signup
-- ✅ `EmailDashboard.tsx` — KPI piattaforma + top 10 aziende + selettore periodo
-- ✅ Route `/admin/impostazioni/email` con sidebar entry
+### Fase 3 — P2 (TODO)
 
-### Fase 3 ✅ — Send Email Campaign + Tracking
-
-- ✅ `send-email-campaign` edge function (bulk + tracking pixel + crediti + personalizzazione)
-- ✅ `email-tracking` edge function (open pixel, click redirect, unsubscribe)
-- ✅ `email-provider-webhook` edge function (callback normalizzati da 5 provider)
-- ✅ `CampaignSendSettings.tsx` invoca `send-email-campaign` + widget saldo + stima crediti
-
-### Fase 4 ✅ — Credits Page Azienda
-
-- ✅ `SettingsCredits.tsx` — pagina crediti unificata (email + AI + WhatsApp)
-- ✅ Riepilogo saldi con wallet cards, usage bar, totale
-- ✅ Storico movimenti da `email_credits_log`
-- ✅ Route `/azienda/impostazioni/crediti` + sidebar entry "Crediti & Saldo"
-
-### Fase 5 ✅ — Email Transazionali (Stream Transazionale)
-
-- ✅ `ticket-notify` — usa `sendViaProvider()` con fallback transazionale→marketing
-- ✅ `reset-customer-password` — invia email con password temporanea
-- ✅ `create-customer` — invia email di benvenuto con credenziali
-- ✅ `create-employee-user` — invia email di benvenuto con credenziali
-- ✅ `create-salesperson-user` — invia email di benvenuto con credenziali
-- ✅ `send-contact-message` — già migrato a `sendViaProvider()`
-- ✅ `process-automation` case `send_email` — già implementato con dual-stream
-
-### Fase 6 ✅ — Automazioni: send_email dual-stream
-
-- ✅ `process-automation`: case `send_email` con `sendViaProvider()`, personalizzazione template, logging su `email_logs`
-
----
-
-## Completato — Fix Alta e Media Priorità ✅
-
-### FIX HA-1 ✅ — check-api-health dual email
-- Verifica `email_marketing_api_key` e `email_transactional_api_key` invece di `resend_api_key`
-- Risposta include `email_marketing` e `email_transactional` separati
-
-### FIX HA-2 ✅ — Badge stato campagna
-- `EmailCampaignsTab.tsx`: badge sending (amber pulse), sent/completed (green), failed (destructive), draft, scheduled, paused
-
-### FIX HA-3 ✅ — Segmentazione UI CampaignSendSettings
-- Filtri per tag, sorgente e tipo contatto nel pannello destinatari
-- Radio "Invia a tutti" vs "Filtra per segmento"
-
-### FIX MA-1 ✅ — Toggle stream AutomationNodeConfig
-- Select marketing/transazionale per azione send_email
-
-### FIX MA-2 ✅ — Dashboard periodo filtraggio effettivo
-- `EmailDashboard.tsx` passa `p_date_from`/`p_date_to` alla RPC `get_platform_email_stats`
-
----
-
-## TODO Rimanenti (opzionali/futuri)
-
-- [ ] Auto top-up con Stripe (SetupIntent + pagamento automatico)
-- [ ] Pagina acquisto pacchetti crediti con Stripe Checkout
-- [ ] `check-due-dates`: già indirizzato via `execute_automation` → `process-automation` (nessuna migrazione necessaria)
+- [ ] **F**: `send_sms` con Twilio (richiede credenziali utente)
+- [ ] **G**: Enrollment bulk dalla lista contatti CRM
