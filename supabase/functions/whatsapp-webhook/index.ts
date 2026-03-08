@@ -230,12 +230,21 @@ Deno.serve(async (req) => {
               .maybeSingle();
 
             if (mktContact) {
+              // Fire whatsapp_received trigger
               await supabase.from("automation_trigger_events").insert({
                 company_id: companyId,
                 trigger_event: "whatsapp_received",
                 entity_id: mktContact.id,
                 entity_type: "contact",
                 payload: { from: senderPhone, message: content, conversation_id: conversationId },
+              });
+              // Fire customer_replied trigger (same event, different trigger name for automation matching)
+              await supabase.from("automation_trigger_events").insert({
+                company_id: companyId,
+                trigger_event: "customer_replied",
+                entity_id: mktContact.id,
+                entity_type: "contact",
+                payload: { from: senderPhone, message: content, conversation_id: conversationId, channel: "whatsapp" },
               });
             }
           }

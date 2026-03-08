@@ -122,15 +122,16 @@ async function handleTrigger(supabase: any, body: any) {
     }
 
     // Check re-enrollment settings
+    const allowReEnrollment = matchingTrigger.config_json?.allow_re_enrollment === true;
     const { data: existingEnrollment } = await supabase
       .from("automation_enrollments")
-      .select("id")
+      .select("id, status")
       .eq("flow_id", flow.id)
       .eq("entity_id", entity_id)
-      .eq("status", "active")
+      .in("status", allowReEnrollment ? ["active"] : ["active", "completed"])
       .maybeSingle();
 
-    if (existingEnrollment) continue; // Already enrolled
+    if (existingEnrollment) continue; // Already enrolled or completed (no re-enrollment)
 
     // Create enrollment
     const { data: enrollment, error: enrollErr } = await supabase

@@ -716,7 +716,30 @@ export function AutomationNodeConfig({ node, onUpdate, onClose, onSaveImmediate,
             <p className="text-xs text-muted-foreground">Questo nodo termina l'automazione per il contatto corrente. Non è necessaria alcuna configurazione aggiuntiva.</p>
           )}
 
-          {/* ── REMOVE FROM AUTOMATION ── */}
+          {/* ── UPDATE CONTACT SCORE ── */}
+          {actionType === "update_contact_score" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Modalità</Label>
+                <Select value={node.config_json?.score_mode || "add"} onValueChange={(v) => updateConfig("score_mode", v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="add" className="text-xs">Aggiungi (+)</SelectItem>
+                    <SelectItem value="subtract" className="text-xs">Sottrai (-)</SelectItem>
+                    <SelectItem value="set" className="text-xs">Imposta valore</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Valore</Label>
+                <Input type="number" value={node.config_json?.score_value ?? ""} onChange={(e) => updateConfig("score_value", parseInt(e.target.value) || 0)} placeholder="Es: 10" className={cn("mt-1 h-9 text-xs", hasFieldError("score_value") && "border-destructive")} />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {node.config_json?.score_mode === "set" ? "Il punteggio verrà impostato a questo valore." : node.config_json?.score_mode === "subtract" ? "Questo valore verrà sottratto dal punteggio attuale." : "Questo valore verrà aggiunto al punteggio attuale."}
+                </p>
+              </div>
+            </div>
+          )}
+
           {actionType === "remove_from_automation" && (
             <div className="space-y-3">
               <div>
