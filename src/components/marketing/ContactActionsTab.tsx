@@ -149,6 +149,38 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
           </Button>
         ))}
       </div>
+
+      <Dialog open={showAICallDialog} onOpenChange={setShowAICallDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-primary" />
+              Chiama con Agente AI
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Seleziona un agente AI per chiamare{" "}
+              <strong>{contact.first_name} {contact.last_name}</strong> ({contact.phone}).
+            </p>
+            <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+              <SelectTrigger><SelectValue placeholder="Seleziona agente..." /></SelectTrigger>
+              <SelectContent>
+                {aiAgents.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAICallDialog(false)}>Annulla</Button>
+            <Button onClick={handleAICall} disabled={callingAI || !selectedAgentId}>
+              {callingAI && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Avvia chiamata
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });
