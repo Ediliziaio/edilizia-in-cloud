@@ -82,12 +82,27 @@ export default function CampaignSendSettings() {
     queryKey: ["recipient-count", company?.id],
     enabled: !!company?.id,
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { count } = await (supabase
         .from("marketing_contacts")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", company!.id);
-      if (error) throw error;
+        .select("id", { count: "exact", head: true }) as any)
+        .eq("company_id", company!.id)
+        .eq("email_unsubscribed", false)
+        .not("email", "is", null);
       return count || 0;
+    },
+  });
+
+  // Email credits balance
+  const { data: creditsData } = useQuery({
+    queryKey: ["email-credits-balance", company?.id],
+    enabled: !!company?.id,
+    queryFn: async () => {
+      const { data } = await (supabase
+        .from("email_credits" as any)
+        .select("balance_eur, total_spent_eur") as any)
+        .eq("company_id", company!.id)
+        .maybeSingle();
+      return data as { balance_eur: number; total_spent_eur: number } | null;
     },
   });
 
@@ -152,6 +167,7 @@ export default function CampaignSendSettings() {
       if (!senderEmail) throw new Error("Email del mittente obbligatoria");
       if (!subject) throw new Error("Oggetto obbligatorio");
 
+      // Save settings first
       const payload: Record<string, any> = {
         sender_name: senderName || null,
         sender_email: senderEmail,
@@ -162,20 +178,27 @@ export default function CampaignSendSettings() {
         utm_tracking: utmTracking,
         auto_tag: autoTag,
         resend_to_unopened: resendToUnopened,
-        status: sendMode === "scheduled" ? "scheduled" : "sending",
         scheduled_at: sendMode === "scheduled" && scheduledAt ? scheduledAt : null,
-        sent_at: sendMode === "immediate" ? new Date().toISOString() : null,
       };
-      const { error } = await supabase
+      const { error: saveError } = await supabase
         .from("email_campaigns")
         .update(payload)
         .eq("id", id!);
-      if (error) throw error;
+      if (saveError) throw saveError;
       await uploadFiles();
+
+      // Invoke the send-email-campaign edge function
+      const { data, error } = await supabase.functions.invoke("send-email-campaign", {
+        body: { campaignId: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
     },
-    onSuccess: () => {
-      toast.success(sendMode === "scheduled" ? "Campagna programmata!" : "Campagna in invio!");
+    onSuccess: (data: any) => {
+      toast.success(`Campagna inviata! ${data?.sent || 0} email inviate, ${data?.failed || 0} fallite.`);
       qc.invalidateQueries({ queryKey: ["email-campaigns"] });
+      qc.invalidateQueries({ queryKey: ["email-credits-balance"] });
       navigate("/azienda/marketing/email");
     },
     onError: (e: any) => toast.error(e.message),
@@ -462,6 +485,26 @@ export default function CampaignSendSettings() {
 
           {/* Sidebar */}
           <div className="w-full lg:w-80 space-y-4 shrink-0">
+            {/* Credits balance */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  💳 Saldo Crediti Email
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">€{(creditsData?.balance_eur ?? 0).toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">
+                  Stima invio: ~{recipientCount} crediti necessari
+                </p>
+                {recipientCount > (creditsData?.balance_eur ?? 0) && (
+                  <p className="text-xs text-destructive mt-1 font-medium">
+                    ⚠️ Crediti insufficienti per l'invio completo
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Recipient count */}
             <Card>
               <CardHeader className="pb-3">
@@ -471,7 +514,7 @@ export default function CampaignSendSettings() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">{recipientCount.toLocaleString("it-IT")}</p>
-                <p className="text-xs text-muted-foreground">contatti nel CRM</p>
+                <p className="text-xs text-muted-foreground">contatti iscritti con email</p>
               </CardContent>
             </Card>
 
