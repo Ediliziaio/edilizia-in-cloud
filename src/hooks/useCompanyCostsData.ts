@@ -375,9 +375,25 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     return filtered;
   }, [allOrderDerivedCosts, getPeriodRange, searchQuery, statusFilter, categoryFilter, originFilter]);
 
-  // Dynamic categories from costs + suppliers
+  // Query cost categories from dedicated table
+  const { data: dbCategories = [] } = useQuery({
+    queryKey: ["cost-categories", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("cost_categories")
+        .select("name")
+        .eq("company_id", companyId!)
+        .order("name");
+      if (error) throw error;
+      return (data || []).map((c: any) => c.name as string);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Dynamic categories: DB categories + legacy categories from costs (backward compat)
   const dynamicCategories = useMemo(() => {
-    const cats = new Set<string>();
+    const cats = new Set<string>(dbCategories);
     costs.forEach((c: any) => { if (c.category) cats.add(c.category); });
     suppliers.forEach((s: any) => { if (s.product_category) cats.add(s.product_category); });
     allOrderDerivedCosts.forEach((c) => { if (c.category) cats.add(c.category); });
@@ -385,7 +401,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       ["Affitto", "Utenze", "Assicurazioni", "Leasing", "Trasporti", "Consulenze", "Marketing", "Software", "Tasse", "Materiali", "Altro"].forEach(c => cats.add(c));
     }
     return Array.from(cats).sort();
-  }, [costs, suppliers, allOrderDerivedCosts]);
+  }, [dbCategories, costs, suppliers, allOrderDerivedCosts]);
 
   // Monthly distribution — 12 months (6 past + 6 future)
   const monthlyDistribution = useMemo(() => {

@@ -1,6 +1,9 @@
 import { useMemo, useState, useCallback } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Check, Clock, Calculator, Filter, Info, Repeat,
 } from "lucide-react";
@@ -61,6 +64,8 @@ export function CostFormDialog({
 }: CostFormDialogProps) {
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
+  const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
 
   const handleSupplierChange = useCallback((supplierId: string) => {
     if (supplierId === "none") {
@@ -156,10 +161,19 @@ export function CostFormDialog({
                           {categorySearch.trim() ? (
                             <button
                               className="w-full text-left px-4 py-2 text-sm hover:bg-accent cursor-pointer"
-                              onClick={() => {
-                                setFormData({ ...formData, category: categorySearch.trim() });
+                             onClick={async () => {
+                                const catName = categorySearch.trim();
+                                setFormData({ ...formData, category: catName });
                                 setCategorySearch("");
                                 setCategoryPopoverOpen(false);
+                                // Save to cost_categories table
+                                if (effectiveCompany?.id) {
+                                  await supabase.from("cost_categories").upsert(
+                                    { company_id: effectiveCompany.id, name: catName },
+                                    { onConflict: "company_id,name" }
+                                  );
+                                  queryClient.invalidateQueries({ queryKey: ["cost-categories"] });
+                                }
                               }}
                             >
                               <Plus className="h-3 w-3 inline mr-1" /> Crea "{categorySearch.trim()}"
