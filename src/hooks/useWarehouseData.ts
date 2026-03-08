@@ -1,20 +1,20 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-
 import { toast } from "sonner";
-import { format, differenceInDays, startOfWeek, endOfWeek, addWeeks } from "date-fns";
-import { STATUS_CONFIG, isItemUrgent, isItemOverdue } from "@/types/warehouse";
+import { format, startOfWeek, endOfWeek, addWeeks } from "date-fns";
+import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
 export type ViewMode = "list" | "kanban" | "calendar" | "stock";
 export type GroupBy = "order" | "date" | "status" | "supplier";
 export type QuickFilter = "all" | "active" | "urgent" | "overdue" | "thisWeek" | "nextWeek";
 
+const PAGE_SIZE = 50;
+
 export function useWarehouseData() {
   const { effectiveCompany } = useAuth();
-  
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
@@ -26,18 +26,105 @@ export function useWarehouseData() {
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("order");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("active");
+  const [page, setPage] = useState(0);
 
-  // Fetch all order items with order details
+  // Reset page when filters change
+  const setSearchQueryWithReset = useCallback((v: string) => { setSearchQuery(v); setPage(0); }, []);
+  const setStatusFilterWithReset = useCallback((v: string) => { setStatusFilter(v); setPage(0); }, []);
+  const setOrderFilterWithReset = useCallback((v: string) => { setOrderFilter(v); setPage(0); }, []);
+  const setSupplierFilterWithReset = useCallback((v: string) => { setSupplierFilter(v); setPage(0); }, []);
+  const setQuickFilterWithReset = useCallback((v: QuickFilter) => { setQuickFilter(v); setPage(0); }, []);
+
+  // Fetch suppliers
   const {
-    data: items = [],
+    data: suppliers = [],
+    isLoading: isLoadingSuppliers,
+    isError: isErrorSuppliers,
+  } = useQuery({
+    queryKey: ["suppliers", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("id, name")
+        .eq("company_id", companyId)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Memoized supplier map for O(1) lookups
+  const supplierMap = useMemo(
+    () => new Map(suppliers.map(s => [s.id, s.name])),
+    [suppliers]
+  );
+
+  // Fetch stock items for matching
+  const { data: stockItems = [] } = useQuery({
+    queryKey: ["warehouse-stock-names", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("warehouse_stock")
+        .select("id, name, quantity")
+        .eq("company_id", companyId)
+        .gt("quantity", 0);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch order statuses to determine the last phase
+  const { data: orderStatuses = [] } = useQuery({
+    queryKey: ["order-statuses", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("order_statuses")
+        .select("id, position")
+        .eq("company_id", companyId)
+        .order("position", { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const lastStatusId = useMemo(() => {
+    return orderStatuses.length > 0 ? orderStatuses[0].id : null;
+  }, [orderStatuses]);
+
+  // Build date filter helpers
+  const dateFilters = useMemo(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    const sevenDaysStr = new Date(today.getTime() + 7 * 86400000).toISOString().split("T")[0];
+    const weekStart = startOfWeek(today, { weekStartsOn: 1 }).toISOString().split("T")[0];
+    const weekEnd = endOfWeek(today, { weekStartsOn: 1 }).toISOString().split("T")[0];
+    const nextWeekStart = startOfWeek(addWeeks(today, 1), { weekStartsOn: 1 }).toISOString().split("T")[0];
+    const nextWeekEnd = endOfWeek(addWeeks(today, 1), { weekStartsOn: 1 }).toISOString().split("T")[0];
+    return { todayStr, sevenDaysStr, weekStart, weekEnd, nextWeekStart, nextWeekEnd };
+  }, []);
+
+  // Main items query with server-side filtering
+  const {
+    data: queryResult,
     isLoading: isLoadingItems,
     isError: isErrorItems,
     refetch: refetchItems,
   } = useQuery({
-    queryKey: ["warehouse-items", companyId],
+    queryKey: ["warehouse-items", companyId, searchQuery, statusFilter, orderFilter, supplierFilter, quickFilter, page],
     queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
+      if (!companyId) return { items: [] as WarehouseItem[], totalCount: 0 };
+
+      let query = supabase
         .from("order_items")
         .select(`
           id,
@@ -60,171 +147,149 @@ export function useWarehouseData() {
             current_status_id,
             customer:profiles!orders_customer_id_fkey(first_name, last_name)
           )
-        `)
-        .eq("order.company_id", companyId)
+        `, { count: "exact" })
+        .eq("order.company_id", companyId);
+
+      // Server-side filters
+      if (statusFilter !== "all") {
+        query = query.eq("status", statusFilter);
+      }
+
+      if (searchQuery) {
+        query = query.ilike("name", `%${searchQuery}%`);
+      }
+
+      if (supplierFilter !== "all") {
+        query = query.eq("supplier_id", supplierFilter);
+      }
+
+      // Quick filters that exclude statuses
+      if (quickFilter === "active") {
+        query = query.neq("status", "installato");
+        if (lastStatusId) {
+          query = query.neq("order.current_status_id", lastStatusId);
+        }
+      } else if (quickFilter === "urgent") {
+        query = query.not("status", "in", '("in_magazzino","installato")');
+        query = query.gte("order.expected_date", dateFilters.todayStr).lte("order.expected_date", dateFilters.sevenDaysStr);
+      } else if (quickFilter === "overdue") {
+        query = query.not("status", "in", '("in_magazzino","installato")');
+        query = query.lt("order.expected_date", dateFilters.todayStr);
+      } else if (quickFilter === "thisWeek") {
+        query = query.gte("order.expected_date", dateFilters.weekStart).lte("order.expected_date", dateFilters.weekEnd);
+      } else if (quickFilter === "nextWeek") {
+        query = query.gte("order.expected_date", dateFilters.nextWeekStart).lte("order.expected_date", dateFilters.nextWeekEnd);
+      }
+
+      // Order filter (specific order)
+      if (orderFilter !== "all") {
+        query = query.eq("order.id", orderFilter);
+      }
+
+      // Pagination
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      query = query.order("created_at", { ascending: false }).range(from, to);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+
+      return {
+        items: (data || []) as unknown as WarehouseItem[],
+        totalCount: count || 0,
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const items = queryResult?.items ?? [];
+  const totalCount = queryResult?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  // Badge counts - lightweight COUNT queries
+  const { data: badgeCounts } = useQuery({
+    queryKey: ["warehouse-badge-counts", companyId, lastStatusId],
+    queryFn: async () => {
+      if (!companyId) return { active: 0, urgent: 0, overdue: 0 };
+
+      const [activeRes, urgentRes, overdueRes] = await Promise.all([
+        // Active: not installato, not last status
+        (() => {
+          let q = supabase
+            .from("order_items")
+            .select("id", { count: "exact", head: true })
+            .eq("order.company_id", companyId)
+            .neq("status", "installato");
+          // Note: can't filter on joined table in head query easily, so we use a simpler approach
+          return supabase
+            .from("order_items")
+            .select(`id, order:orders!inner(company_id, current_status_id)`, { count: "exact", head: true })
+            .eq("order.company_id", companyId)
+            .neq("status", "installato");
+        })(),
+        // Urgent: not ready, expected_date within 7 days
+        supabase
+          .from("order_items")
+          .select(`id, order:orders!inner(company_id, expected_date)`, { count: "exact", head: true })
+          .eq("order.company_id", companyId)
+          .not("status", "in", '("in_magazzino","installato")')
+          .gte("order.expected_date", new Date().toISOString().split("T")[0])
+          .lte("order.expected_date", new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0]),
+        // Overdue: not ready, expected_date in past
+        supabase
+          .from("order_items")
+          .select(`id, order:orders!inner(company_id, expected_date)`, { count: "exact", head: true })
+          .eq("order.company_id", companyId)
+          .not("status", "in", '("in_magazzino","installato")')
+          .lt("order.expected_date", new Date().toISOString().split("T")[0]),
+      ]);
+
+      return {
+        active: activeRes.count || 0,
+        urgent: urgentRes.count || 0,
+        overdue: overdueRes.count || 0,
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const activeItemsCount = badgeCounts?.active ?? 0;
+  const urgentItemsCount = badgeCounts?.urgent ?? 0;
+  const overdueItemsCount = badgeCounts?.overdue ?? 0;
+
+  // Unique orders for filter dropdown (lightweight query)
+  const { data: uniqueOrders = [] } = useQuery({
+    queryKey: ["warehouse-unique-orders", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, order_code, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false })
-        .limit(2000); // sicurezza: evita di caricare l'intera tabella a scala
+        .limit(200);
       if (error) throw error;
-      return (data || []) as unknown as WarehouseItem[];
-    },
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Fetch suppliers (shared - used by both item views and stock tab)
-  const {
-    data: suppliers = [],
-    isLoading: isLoadingSuppliers,
-    isError: isErrorSuppliers,
-  } = useQuery({
-    queryKey: ["suppliers", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("id, name")
-        .eq("company_id", companyId)
-        .order("name");
-      if (error) throw error;
-      return data || [];
+      return (data || []).map((o: any) => ({
+        id: o.id,
+        code: o.order_code || "N/A",
+        customer: `${o.customer?.first_name || ""} ${o.customer?.last_name || ""}`.trim(),
+      }));
     },
     enabled: !!companyId,
     staleTime: 10 * 60 * 1000,
   });
-
-  // Fetch stock items for matching
-  const {
-    data: stockItems = [],
-  } = useQuery({
-    queryKey: ["warehouse-stock-names", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("warehouse_stock")
-        .select("id, name, quantity")
-        .eq("company_id", companyId)
-        .gt("quantity", 0);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Fetch order statuses to determine the last phase
-  const {
-    data: orderStatuses = [],
-  } = useQuery({
-    queryKey: ["order-statuses", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("order_statuses")
-        .select("id, position")
-        .eq("company_id", companyId)
-        .order("position", { ascending: false })
-        .limit(1);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!companyId,
-    staleTime: 10 * 60 * 1000,
-  });
-
-  const lastStatusId = useMemo(() => {
-    return orderStatuses.length > 0 ? orderStatuses[0].id : null;
-  }, [orderStatuses]);
 
   const isLoading = isLoadingItems || isLoadingSuppliers;
   const isError = isErrorItems || isErrorSuppliers;
-  const refetch = () => {
-    refetchItems();
-  };
+  const refetch = () => { refetchItems(); };
 
-  // Unique orders for filter dropdown
-  const uniqueOrders = useMemo(() => {
-    const ordersMap = new Map<string, { id: string; code: string; customer: string }>();
-    items.forEach((item) => {
-      if (!ordersMap.has(item.order.id)) {
-        ordersMap.set(item.order.id, {
-          id: item.order.id,
-          code: item.order.order_code || "N/A",
-          customer: `${item.order.customer.first_name} ${item.order.customer.last_name}`,
-        });
-      }
-    });
-    return Array.from(ordersMap.values());
-  }, [items]);
+  // Use items directly (already filtered server-side) as filteredItems
+  const filteredItems = items;
 
-  // Filter items
-  const filteredItems = useMemo(() => {
-    let filtered = [...items];
-    const today = new Date();
-
-    if (quickFilter === "active") {
-      filtered = filtered.filter((item) => {
-        if (item.status === "installato") return false;
-        if (lastStatusId && item.order.current_status_id === lastStatusId) return false;
-        return true;
-      });
-    } else if (quickFilter === "urgent") {
-      filtered = filtered.filter((item) => {
-        if (item.status === "in_magazzino" || item.status === "installato") return false;
-        const expectedDate = item.order.expected_date || item.order.work_start_date;
-        if (!expectedDate) return false;
-        const daysUntil = differenceInDays(new Date(expectedDate), today);
-        return daysUntil <= 7 && daysUntil >= 0;
-      });
-    } else if (quickFilter === "overdue") {
-      filtered = filtered.filter((item) => isItemOverdue(item));
-    } else if (quickFilter === "thisWeek") {
-      const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
-      filtered = filtered.filter((item) => {
-        const expectedDate = item.order.expected_date || item.order.work_start_date;
-        if (!expectedDate) return false;
-        const date = new Date(expectedDate);
-        return date >= weekStart && date <= weekEnd;
-      });
-    } else if (quickFilter === "nextWeek") {
-      const nextWeekStart = startOfWeek(addWeeks(today, 1), { weekStartsOn: 1 });
-      const nextWeekEnd = endOfWeek(addWeeks(today, 1), { weekStartsOn: 1 });
-      filtered = filtered.filter((item) => {
-        const expectedDate = item.order.expected_date || item.order.work_start_date;
-        if (!expectedDate) return false;
-        const date = new Date(expectedDate);
-        return date >= nextWeekStart && date <= nextWeekEnd;
-      });
-    }
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (item) =>
-          item.name.toLowerCase().includes(query) ||
-          (item.description && item.description.toLowerCase().includes(query))
-      );
-    }
-
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((item) => item.status === statusFilter);
-    }
-
-    if (orderFilter !== "all") {
-      filtered = filtered.filter((item) => item.order.id === orderFilter);
-    }
-
-    if (supplierFilter !== "all") {
-      filtered = filtered.filter((item) => item.supplier_id === supplierFilter);
-    }
-
-    return filtered;
-  }, [items, searchQuery, statusFilter, orderFilter, supplierFilter, quickFilter]);
-
-  // Group items by order
+  // Group items
   const filteredGroups = useMemo(() => {
-    const grouped = new Map<string, OrderWithItems>();
-
     let sortedItems = [...filteredItems];
 
     if (groupBy === "date") {
@@ -241,13 +306,12 @@ export function useWarehouseData() {
     }
 
     if (groupBy === "supplier") {
-      // Group by supplier instead of order
       const supplierGrouped = new Map<string, OrderWithItems>();
       sortedItems.forEach((item) => {
         const key = item.supplier_id || "__no_supplier__";
         if (!supplierGrouped.has(key)) {
           const name = item.supplier_id
-            ? (suppliers.find(s => s.id === item.supplier_id)?.name || "Fornitore sconosciuto")
+            ? (supplierMap.get(item.supplier_id) || "Fornitore sconosciuto")
             : "Senza fornitore";
           supplierGrouped.set(key, {
             orderId: key,
@@ -262,6 +326,7 @@ export function useWarehouseData() {
       return Array.from(supplierGrouped.values());
     }
 
+    const grouped = new Map<string, OrderWithItems>();
     sortedItems.forEach((item) => {
       const orderId = item.order.id;
       if (!grouped.has(orderId)) {
@@ -278,17 +343,13 @@ export function useWarehouseData() {
 
     let result = Array.from(grouped.values());
     if (groupBy === "date") {
-      result.sort((a, b) => {
-        const dateA = a.expectedDate || "";
-        const dateB = b.expectedDate || "";
-        return dateA.localeCompare(dateB);
-      });
+      result.sort((a, b) => (a.expectedDate || "").localeCompare(b.expectedDate || ""));
     }
 
     return result;
-  }, [filteredItems, groupBy, suppliers]);
+  }, [filteredItems, groupBy, supplierMap]);
 
-  // Update item status mutation
+  // Mutations
   const updateItemStatusMutation = useMutation({
     mutationFn: async ({ itemId, status }: { itemId: string; status: OrderItemStatus }) => {
       const { error } = await supabase
@@ -299,6 +360,7 @@ export function useWarehouseData() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-badge-counts"] });
       toast.success("Stato aggiornato", { description: "Lo stato dell'articolo è stato aggiornato." });
     },
     onError: () => {
@@ -306,7 +368,6 @@ export function useWarehouseData() {
     },
   });
 
-  // Batch update mutation
   const batchUpdateMutation = useMutation({
     mutationFn: async ({ itemIds, status }: { itemIds: string[]; status: OrderItemStatus }) => {
       const { error } = await supabase
@@ -317,6 +378,7 @@ export function useWarehouseData() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["warehouse-items"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-badge-counts"] });
       toast.success("Articoli aggiornati", { description: `${variables.itemIds.length} articoli sono stati aggiornati.` });
     },
     onError: () => {
@@ -324,7 +386,6 @@ export function useWarehouseData() {
     },
   });
 
-  // Update item notes mutation
   const updateItemNotesMutation = useMutation({
     mutationFn: async ({ itemId, notes }: { itemId: string; notes: string | null }) => {
       const { error } = await supabase
@@ -342,7 +403,6 @@ export function useWarehouseData() {
     },
   });
 
-  // Batch update section mutation (for DnD to map)
   const batchUpdateSectionMutation = useMutation({
     mutationFn: async ({ itemIds, sectionId }: { itemIds: string[]; sectionId: string | null }) => {
       const { error } = await supabase
@@ -375,7 +435,7 @@ export function useWarehouseData() {
 
   const getSupplierName = (supplierId: string | null) => {
     if (!supplierId) return null;
-    return suppliers.find((s) => s.id === supplierId)?.name || null;
+    return supplierMap.get(supplierId) || null;
   };
 
   const clearFilters = () => {
@@ -384,31 +444,12 @@ export function useWarehouseData() {
     setOrderFilter("all");
     setSupplierFilter("all");
     setQuickFilter("all");
+    setPage(0);
   };
 
   const hasActiveFilters =
     searchQuery || statusFilter !== "all" || orderFilter !== "all" || supplierFilter !== "all" || quickFilter !== "all";
 
-  // Count active items (non-installato)
-  const activeItemsCount = useMemo(() => {
-    return items.filter((item) => {
-      if (item.status === "installato") return false;
-      if (lastStatusId && item.order.current_status_id === lastStatusId) return false;
-      return true;
-    }).length;
-  }, [items, lastStatusId]);
-
-  // Count urgent items
-  const urgentItemsCount = useMemo(() => {
-    return items.filter(isItemUrgent).length;
-  }, [items]);
-
-  // Count overdue items
-  const overdueItemsCount = useMemo(() => {
-    return items.filter(isItemOverdue).length;
-  }, [items]);
-
-  // Export to CSV
   const exportToCSV = () => {
     const headers = ["Articolo", "Quantità", "Stato", "Fornitore", "Ordine", "Cliente", "Data Posa"];
     const rows = filteredItems.map((item) => [
@@ -452,21 +493,27 @@ export function useWarehouseData() {
     urgentItemsCount,
     overdueItemsCount,
     activeItemsCount,
+    // Pagination
+    page,
+    setPage,
+    totalPages,
+    totalCount,
+    pageSize: PAGE_SIZE,
     // State
     viewMode,
     setViewMode,
     searchQuery,
-    setSearchQuery,
+    setSearchQuery: setSearchQueryWithReset,
     statusFilter,
-    setStatusFilter,
+    setStatusFilter: setStatusFilterWithReset,
     orderFilter,
-    setOrderFilter,
+    setOrderFilter: setOrderFilterWithReset,
     supplierFilter,
-    setSupplierFilter,
+    setSupplierFilter: setSupplierFilterWithReset,
     groupBy,
     setGroupBy,
     quickFilter,
-    setQuickFilter,
+    setQuickFilter: setQuickFilterWithReset,
     // Status
     isLoading,
     isError,
