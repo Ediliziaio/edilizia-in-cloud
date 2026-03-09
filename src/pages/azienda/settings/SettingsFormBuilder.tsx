@@ -259,35 +259,6 @@ function FormEditor({
         </div>
       </div>
 
-      {/* Theme settings */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Colore accento</Label>
-          <Input
-            type="color"
-            value={theme.accent_color || "#2563eb"}
-            onChange={(e) => setTheme({ ...theme, accent_color: e.target.value })}
-            className="h-8"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Testo bottone</Label>
-          <Input
-            value={settings.submit_label || "Invia"}
-            onChange={(e) => setSettings({ ...settings, submit_label: e.target.value })}
-            className="h-8 text-sm"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Messaggio successo</Label>
-          <Input
-            value={settings.success_message || ""}
-            onChange={(e) => setSettings({ ...settings, success_message: e.target.value })}
-            className="h-8 text-sm"
-          />
-        </div>
-      </div>
-
       {/* 3-column editor */}
       <div className="grid grid-cols-[180px_1fr_220px] gap-4 min-h-[400px]">
         {/* Left: field library */}
