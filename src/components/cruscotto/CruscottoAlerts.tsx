@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { AlertTriangle, Clock, CreditCard, TrendingDown, Users, CalendarCheck } from "lucide-react";
+import { AlertTriangle, Clock, CreditCard, TrendingDown, Users, CalendarCheck, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { AlertsData } from "@/hooks/useMarketingDashboard";
@@ -7,12 +7,21 @@ import type { OperationsData, FinanceData, CompanyTargets } from "@/hooks/useCru
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertThresholdsDialog } from "./AlertThresholdsDialog";
 
+interface InvoiceStats {
+  total_outstanding: number;
+  overdue_count: number;
+  overdue_amount: number;
+  due_this_week_count: number;
+  due_this_week_amount: number;
+}
+
 interface Props {
   marketingAlerts: AlertsData | undefined;
   operations: OperationsData;
   finance: FinanceData;
   isLoading: boolean;
   companyTargets?: CompanyTargets | null;
+  invoiceStats?: InvoiceStats | null;
 }
 
 interface AlertItem {
