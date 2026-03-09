@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
@@ -11,7 +11,7 @@ import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 
 type ViewMode = "login" | "forgot";
 
-export function LoginForm() {
+export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, ref) {
   const [view, setView] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
