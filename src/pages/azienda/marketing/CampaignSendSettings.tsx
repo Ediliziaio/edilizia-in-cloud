@@ -139,6 +139,12 @@ export default function CampaignSendSettings() {
       setUtmTracking(campaign.utm_tracking || false);
       setAutoTag(campaign.auto_tag || false);
       setResendToUnopened(campaign.resend_to_unopened || false);
+      // A/B Testing
+      setAbTestEnabled(campaign.ab_test_enabled || false);
+      setAbSubjectB(campaign.ab_subject_b || "");
+      setAbSplitPercent((campaign as any).ab_split_percent ?? 50);
+      setAbWinnerCriteria((campaign as any).ab_winner_criteria || "open_rate");
+      setAbTestDurationHours((campaign as any).ab_test_duration_hours ?? 4);
     }
   }, [campaign]);
 
