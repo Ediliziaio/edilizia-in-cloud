@@ -28,6 +28,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
   const [dueDate, setDueDate] = useState("");
   const [method, setMethod] = useState("bonifico");
   const [notes, setNotes] = useState("");
+  const [alertDays, setAlertDays] = useState("7");
 
   const reset = () => {
     setTipo("incasso_cliente");
