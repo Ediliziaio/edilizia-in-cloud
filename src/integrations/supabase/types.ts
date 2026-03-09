@@ -5076,6 +5076,396 @@ export type Database = {
           },
         ]
       }
+      internal_automation_connections: {
+        Row: {
+          company_id: string
+          created_at: string
+          flow_id: string
+          from_node_id: string
+          id: string
+          label: string | null
+          to_node_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          flow_id: string
+          from_node_id: string
+          id?: string
+          label?: string | null
+          to_node_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          flow_id?: string
+          from_node_id?: string
+          id?: string
+          label?: string | null
+          to_node_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_automation_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_connections_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_connections_from_node_id_fkey"
+            columns: ["from_node_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_connections_to_node_id_fkey"
+            columns: ["to_node_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_automation_enrollments: {
+        Row: {
+          company_id: string
+          context_json: Json
+          created_at: string
+          current_node_id: string | null
+          entity_id: string
+          entity_type: string
+          flow_id: string
+          id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          context_json?: Json
+          created_at?: string
+          current_node_id?: string | null
+          entity_id: string
+          entity_type?: string
+          flow_id: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          context_json?: Json
+          created_at?: string
+          current_node_id?: string | null
+          entity_id?: string
+          entity_type?: string
+          flow_id?: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_automation_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_enrollments_current_node_id_fkey"
+            columns: ["current_node_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_enrollments_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_automation_execution_log: {
+        Row: {
+          company_id: string
+          created_at: string
+          enrollment_id: string | null
+          error_message: string | null
+          flow_id: string
+          id: string
+          input_json: Json | null
+          node_id: string | null
+          node_type: string | null
+          output_json: Json | null
+          status: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          enrollment_id?: string | null
+          error_message?: string | null
+          flow_id: string
+          id?: string
+          input_json?: Json | null
+          node_id?: string | null
+          node_type?: string | null
+          output_json?: Json | null
+          status?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          enrollment_id?: string | null
+          error_message?: string | null
+          flow_id?: string
+          id?: string
+          input_json?: Json | null
+          node_id?: string | null
+          node_type?: string | null
+          output_json?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_automation_execution_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_execution_log_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_execution_log_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_execution_log_node_id_fkey"
+            columns: ["node_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_automation_flows: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          failed_runs: number
+          id: string
+          last_run_at: string | null
+          name: string
+          status: string
+          successful_runs: number
+          total_runs: number
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          failed_runs?: number
+          id?: string
+          last_run_at?: string | null
+          name?: string
+          status?: string
+          successful_runs?: number
+          total_runs?: number
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          failed_runs?: number
+          id?: string
+          last_run_at?: string | null
+          name?: string
+          status?: string
+          successful_runs?: number
+          total_runs?: number
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_automation_flows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_automation_nodes: {
+        Row: {
+          company_id: string
+          config_json: Json
+          created_at: string
+          flow_id: string
+          id: string
+          label: string | null
+          node_type: string
+          position_x: number
+          position_y: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          config_json?: Json
+          created_at?: string
+          flow_id: string
+          id?: string
+          label?: string | null
+          node_type: string
+          position_x?: number
+          position_y?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          config_json?: Json
+          created_at?: string
+          flow_id?: string
+          id?: string
+          label?: string | null
+          node_type?: string
+          position_x?: number
+          position_y?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_automation_nodes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_nodes_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_automation_queue: {
+        Row: {
+          attempts: number
+          company_id: string
+          context_json: Json | null
+          created_at: string
+          enrollment_id: string
+          entity_id: string
+          entity_type: string
+          execute_at: string
+          flow_id: string
+          id: string
+          last_error: string | null
+          max_attempts: number
+          node_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          company_id: string
+          context_json?: Json | null
+          created_at?: string
+          enrollment_id: string
+          entity_id: string
+          entity_type?: string
+          execute_at?: string
+          flow_id: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          node_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          company_id?: string
+          context_json?: Json | null
+          created_at?: string
+          enrollment_id?: string
+          entity_id?: string
+          entity_type?: string
+          execute_at?: string
+          flow_id?: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          node_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_automation_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_queue_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_queue_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_queue_node_id_fkey"
+            columns: ["node_id"]
+            isOneToOne: false
+            referencedRelation: "internal_automation_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       internal_call_logs: {
         Row: {
           agent_id: string
