@@ -727,6 +727,9 @@ export default function CampaignSendSettings() {
               </CardContent>
             </Card>
 
+            {/* A/B Results */}
+            {id && <CampaignAbResults campaignId={id} />}
+
             {/* Email preview */}
             <Card>
               <CardHeader className="pb-3">
