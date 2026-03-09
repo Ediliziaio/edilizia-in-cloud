@@ -74,6 +74,19 @@ export interface Company {
   allowed_ips: string[] | null;
   password_expiry_days: number;
   max_failed_attempts: number;
+  // White-label addon
+  white_label_enabled: boolean;
+  brand_primary_color: string | null;
+  brand_secondary_color: string | null;
+  brand_accent_color: string | null;
+  brand_text_on_primary: string | null;
+  brand_platform_name: string | null;
+  brand_favicon_url: string | null;
+  brand_login_bg_url: string | null;
+  brand_hide_powered_by: boolean;
+  white_label_enabled_at: string | null;
+  white_label_enabled_by: string | null;
+  white_label_monthly_price: number;
 }
 
 export interface AuthState {
