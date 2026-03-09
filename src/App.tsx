@@ -139,6 +139,9 @@ const MyOrders = lazy(() => import("@/pages/venditore/MyOrders"));
 const MyEarnings = lazy(() => import("@/pages/venditore/MyEarnings"));
 const SalespersonProfile = lazy(() => import("@/pages/venditore/SalespersonProfile"));
 
+// Partner
+const PartnerPortal = lazy(() => import("@/pages/partner/PartnerPortal"));
+
 // Auth
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
