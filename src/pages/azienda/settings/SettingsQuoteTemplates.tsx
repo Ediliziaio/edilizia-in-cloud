@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Plus, Trash2, Pencil, Star, Loader2, Upload,
+  Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon,
   LayoutGrid, Sparkles, Minus, Maximize, Download, Copy,
 } from "lucide-react";
 
@@ -30,6 +30,9 @@ const FONTS: { key: FontFamily; label: string; desc: string }[] = [
   { key: 'times', label: 'Times New Roman', desc: 'Classico, formale' },
   { key: 'courier', label: 'Courier', desc: 'Monospace' },
 ];
+
+const getLogoPublicUrl = (path: string) =>
+  supabase.storage.from("quote-template-assets").getPublicUrl(path).data.publicUrl;
 
 export default function SettingsQuoteTemplates() {
   const { role, effectiveCompany } = useAuth();
@@ -149,9 +152,18 @@ export default function SettingsQuoteTemplates() {
             <Card key={tmpl.id} className="relative overflow-hidden">
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold">{tmpl.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{tmpl.layout}</p>
+                  <div className="flex items-center gap-2">
+                    {tmpl.logo_url ? (
+                      <img src={getLogoPublicUrl(tmpl.logo_url)} alt="" className="h-8 w-8 rounded object-contain border border-border bg-muted/50 p-0.5" />
+                    ) : (
+                      <div className="h-8 w-8 rounded border border-dashed border-muted-foreground/25 flex items-center justify-center bg-muted/30">
+                        <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold">{tmpl.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{tmpl.layout}</p>
+                    </div>
                   </div>
                   {tmpl.is_default && <Badge variant="secondary"><Star className="h-3 w-3 mr-1" />Default</Badge>}
                 </div>
@@ -244,8 +256,22 @@ export default function SettingsQuoteTemplates() {
                           {uploading ? "Caricamento..." : "Scegli file"}
                           <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
                         </label>
-                        {form.logo_url && <span className="text-xs text-muted-foreground truncate max-w-[200px]">{form.logo_url.split('/').pop()}</span>}
+                        {form.logo_url && (
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => updateForm({ logo_url: null })}>
+                            <Trash2 className="h-4 w-4 mr-1" />Rimuovi
+                          </Button>
+                        )}
                       </div>
+                      {form.logo_url && (
+                        <div className="mt-3 flex items-center gap-3">
+                          <img
+                            src={getLogoPublicUrl(form.logo_url)}
+                            alt="Logo template"
+                            className="h-20 w-20 rounded-lg border border-border object-contain bg-muted/50 p-1"
+                          />
+                          <span className="text-xs text-muted-foreground truncate max-w-[200px]">{form.logo_url.split('/').pop()}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
