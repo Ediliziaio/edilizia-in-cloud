@@ -175,7 +175,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         console.error("Error fetching impersonated company:", error);
         setImpersonatedCompany(null);
-        sessionStorage.removeItem(IMPERSONATION_KEY);
         setImpersonatedCompanyId(null);
       } else {
         setImpersonatedCompany(data as Company);
