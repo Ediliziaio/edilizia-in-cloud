@@ -164,3 +164,24 @@ verify_jwt = false
 
 [functions.get-security-report]
 verify_jwt = false
+
+[functions.bank-test-connection]
+verify_jwt = false
+
+[functions.bank-list-institutions]
+verify_jwt = false
+
+[functions.bank-connect-start]
+verify_jwt = false
+
+[functions.bank-connect-complete]
+verify_jwt = false
+
+[functions.bank-sync]
+verify_jwt = false
+
+[functions.bank-disconnect]
+verify_jwt = false
+
+[functions.bank-sync-all-companies]
+verify_jwt = false
