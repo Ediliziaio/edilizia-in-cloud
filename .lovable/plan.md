@@ -1,165 +1,95 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
+
+# Piano di Implementazione — Banking Integration Service (Tesoreria Open Banking)
+
+## Panoramica
+Modulo completo di tesoreria bancaria con integrazione GoCardless PSD2 per collegare conti bancari, sincronizzare saldi e transazioni, e visualizzare cash flow in tempo reale.
 
 ---
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+## Fase 1 — Database Schema
+Migration SQL con 6 nuove tabelle + 2 RPC functions + colonna `tesoreria_enabled` su companies:
+
+| Tabella | Scopo |
+|---|---|
+| `bank_provider_configs` | Config provider (GoCardless), gestita da SuperAdmin |
+| `bank_connections` | Connessioni banca per azienda (requisition GoCardless) |
+| `bank_accounts` | Conti bancari con saldo, IBAN, valuta |
+| `bank_transactions` | Transazioni sincronizzate con categorizzazione |
+| `bank_sync_logs` | Log sincronizzazioni |
+| `bank_categorization_rules` | Regole auto-categorizzazione per azienda |
+
+RPC: `get_treasury_summary(company_id)`, `get_cash_flow_by_month(company_id, months)`
+
+RLS tenant-scoped su tutte le tabelle, SuperAdmin bypass.
 
 ---
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+## Fase 2 — SuperAdmin Banking Settings
+Nuovo tab "Banking" in `AdminSettings.tsx` con componente `BankingSettingsTab.tsx`:
+- Configurazione credenziali GoCardless (Secret ID/Key) salvate in `platform_settings`
+- Test connessione via edge function
+- Lista aziende con tesoreria attiva + toggle enable/disable
 
 ---
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+## Fase 3 — Routing + Navigazione
+- Lazy import `Tesoreria` in `App.tsx` + route `/azienda/tesoreria`
+- Voce "Tesoreria" con icona `Landmark` in `sidebarConfig.ts` (visibile solo se `tesoreria_enabled`)
+- Pagina skeleton `Tesoreria.tsx` con 4 tab: Overview, Conti, Transazioni, Connessioni
+- Guard: se `tesoreria_enabled = false` mostra messaggio "non attivo"
 
 ---
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+## Fase 4 — Edge Functions (6 funzioni)
+Tutte seguono il pattern esistente: `corsHeaders` + `secureHeaders` da `_shared/headers.ts`, `getPlatformSetting` per credenziali, `Deno.serve()`.
+
+| Function | Scopo |
+|---|---|
+| `bank-test-connection` | Testa credenziali GoCardless (token/new) |
+| `bank-connect-start` | Crea requisition GoCardless, salva in bank_connections |
+| `bank-connect-complete` | Completa connessione, scarica account + saldi |
+| `bank-sync` | Sincronizza saldi e transazioni per tutti i conti |
+| `bank-disconnect` | Disconnette connessione, marca inattivi |
+| `bank-list-institutions` | Lista banche disponibili per paese |
 
 ---
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+## Fase 5 — UI Connessioni + Conti
+- `BankConnectionsList.tsx`: card per connessione con status, azioni (sync/disconnect), dialog selezione banca con ricerca
+- Flow connessione: selezione banca → conferma PSD2 → redirect login banca → completamento
+- Gestione callback URL (`?bank_callback=1`)
+- `BankAccountsList.tsx`: griglia card conti con saldo, IBAN mascherato, toggle visibilità, rinomina
 
 ---
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+## Fase 6 — UI Overview + Transazioni
+- `TreasuryOverview.tsx`: 4 KPI cards (liquidità, entrate, uscite, netto), grafico cash flow 6 mesi (recharts BarChart + Line), ultime 5 transazioni, alert liquidità
+- `TransactionsFeed.tsx`: tabella paginata con filtri (testo, conto, tipo, categoria, date), Sheet dettaglio, modifica categoria/note, export CSV, summary footer
 
 ---
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+## File da creare/modificare
 
----
+**Nuovi file (10):**
+- `src/components/admin/settings/BankingSettingsTab.tsx`
+- `src/pages/azienda/Tesoreria.tsx`
+- `src/components/tesoreria/BankConnectionsList.tsx`
+- `src/components/tesoreria/BankAccountsList.tsx`
+- `src/components/tesoreria/TreasuryOverview.tsx`
+- `src/components/tesoreria/TransactionsFeed.tsx`
+- `supabase/functions/bank-test-connection/index.ts`
+- `supabase/functions/bank-connect-start/index.ts`
+- `supabase/functions/bank-connect-complete/index.ts`
+- `supabase/functions/bank-sync/index.ts`
+- `supabase/functions/bank-disconnect/index.ts`
+- `supabase/functions/bank-list-institutions/index.ts`
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+**File modificati (3):**
+- `src/pages/admin/AdminSettings.tsx` — nuovo tab Banking
+- `src/App.tsx` — lazy import + route Tesoreria
+- `src/lib/sidebarConfig.ts` — voce Tesoreria con Landmark
 
----
+**Migration (1):**
+- Tutte le 6 tabelle, RLS, RPC, indici, trigger, seed in una singola migration
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
-
----
-
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
-
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
