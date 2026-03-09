@@ -394,7 +394,7 @@ export default function CreateOrder() {
             if (dbError) throw dbError;
             uploaded++;
           } catch (err) {
-            loggererror("File upload error:", err);
+            logger.error("File upload error:", err);
             toast.error("Errore caricamento", { description: `Errore nel caricare "${pf.file.name}".` });
           }
         }
