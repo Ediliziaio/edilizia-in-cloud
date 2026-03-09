@@ -264,6 +264,7 @@ export default function OrderDetail() {
       return data as OrderStatus[];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 600_000,
   });
 
   // Fetch status history
