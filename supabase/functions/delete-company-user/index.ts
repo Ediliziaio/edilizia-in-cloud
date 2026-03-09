@@ -96,7 +96,10 @@ Deno.serve(async (req) => {
     const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(userId);
     if (deleteAuthError) {
       console.error("Error deleting auth user:", deleteAuthError);
-      // Profile already deleted, log but don't fail
+      return new Response(JSON.stringify({ error: "Errore eliminazione account: " + deleteAuthError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({ success: true }), {
