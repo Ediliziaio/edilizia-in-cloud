@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Plus, Trash2, Pencil, Star, Loader2, Upload,
+  Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon,
   LayoutGrid, Sparkles, Minus, Maximize, Download, Copy,
 } from "lucide-react";
 
