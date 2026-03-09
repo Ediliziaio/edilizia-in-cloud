@@ -36,7 +36,6 @@ Deno.serve(async (req) => {
 
     if (revoke_all_for_user) {
       // Revoke all active sessions for a specific user
-      const { target_user_id } = await req.json().catch(() => ({}));
       const targetId = revoke_all_for_user;
 
       const { data: updated, error } = await supabaseAdmin
