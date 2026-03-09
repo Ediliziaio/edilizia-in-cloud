@@ -343,4 +343,4 @@ export const ContactsTable = memo(function ContactsTable({
       </div>
     </div>
   );
-}
+});
