@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { calculateNetFromGross } from "@/lib/vatUtils";
+import { exportToCSV } from "@/lib/csvExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -604,32 +605,38 @@ export default function OrdersList() {
 
   // Export CSV
   const exportOrdersCSV = useCallback(() => {
-    const rows = [["Codice Ordine", "Cliente", "Descrizione", "Importo Totale", "Acconto 1", "Acconto 2", "Saldo", "Stato", "Data Contratto", "Data Magazzino", "Data Posa", "Stato Pagamenti"]];
-    filteredOrders.forEach((o) => {
+    const columns: { key: string; label: string }[] = [
+      { key: "order_code", label: "Codice Ordine" },
+      { key: "customer", label: "Cliente" },
+      { key: "description", label: "Descrizione" },
+      { key: "total_amount", label: "Importo Totale" },
+      { key: "deposit_amount", label: "Acconto 1" },
+      { key: "deposit_2_amount", label: "Acconto 2" },
+      { key: "balance_amount", label: "Saldo" },
+      { key: "status", label: "Stato" },
+      { key: "created_at", label: "Data Contratto" },
+      { key: "warehouse_arrival_date", label: "Data Magazzino" },
+      { key: "expected_date", label: "Data Posa" },
+      { key: "payment_status", label: "Stato Pagamenti" },
+    ];
+    const rows = filteredOrders.map((o) => {
       const pending = getPendingPayments(o);
-      rows.push([
-        o.order_code || "",
-        o.customer ? `${o.customer.first_name} ${o.customer.last_name}` : "",
-        o.description,
-        String(o.total_amount),
-        String(o.deposit_amount || 0),
-        String(o.deposit_2_amount || 0),
-        String(o.balance_amount || 0),
-        o.status?.name || "",
-        o.created_at ? format(new Date(o.created_at), "dd/MM/yyyy") : "",
-        o.warehouse_arrival_date ? format(new Date(o.warehouse_arrival_date), "dd/MM/yyyy") : "",
-        o.expected_date ? format(new Date(o.expected_date), "dd/MM/yyyy") : "",
-        pending.length > 0 ? pending.join(", ") : "Tutto pagato",
-      ]);
+      return {
+        order_code: o.order_code || "",
+        customer: o.customer ? `${o.customer.first_name} ${o.customer.last_name}` : "",
+        description: o.description,
+        total_amount: String(o.total_amount),
+        deposit_amount: String(o.deposit_amount || 0),
+        deposit_2_amount: String(o.deposit_2_amount || 0),
+        balance_amount: String(o.balance_amount || 0),
+        status: o.status?.name || "",
+        created_at: o.created_at ? format(new Date(o.created_at), "dd/MM/yyyy") : "",
+        warehouse_arrival_date: o.warehouse_arrival_date ? format(new Date(o.warehouse_arrival_date), "dd/MM/yyyy") : "",
+        expected_date: o.expected_date ? format(new Date(o.expected_date), "dd/MM/yyyy") : "",
+        payment_status: pending.length > 0 ? pending.join(", ") : "Tutto pagato",
+      };
     });
-    const csv = rows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ordini-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    exportToCSV(rows, columns, `ordini-${format(new Date(), "yyyy-MM-dd")}.csv`);
     toast({ title: "CSV esportato" });
   }, [filteredOrders, toast]);
 

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, addWeeks } from "date-fns";
+import { exportToCSV as exportCsvUtil } from "@/lib/csvExport";
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
@@ -451,28 +452,25 @@ export function useWarehouseData() {
     searchQuery || statusFilter !== "all" || orderFilter !== "all" || supplierFilter !== "all" || quickFilter !== "all";
 
   const exportToCSV = () => {
-    const headers = ["Articolo", "Quantità", "Stato", "Fornitore", "Ordine", "Cliente", "Data Posa"];
-    const rows = filteredItems.map((item) => [
-      item.name,
-      item.quantity || 1,
-      STATUS_CONFIG[item.status].label,
-      getSupplierName(item.supplier_id) || "",
-      item.order.order_code || "",
-      `${item.order.customer.first_name} ${item.order.customer.last_name}`,
-      item.order.expected_date || item.order.work_start_date || "",
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `magazzino_${format(new Date(), "yyyy-MM-dd")}.csv`;
-    link.click();
-
+    const columns = [
+      { key: "articolo", label: "Articolo" },
+      { key: "quantita", label: "Quantità" },
+      { key: "stato", label: "Stato" },
+      { key: "fornitore", label: "Fornitore" },
+      { key: "ordine", label: "Ordine" },
+      { key: "cliente", label: "Cliente" },
+      { key: "data_posa", label: "Data Posa" },
+    ];
+    const rows = filteredItems.map((item) => ({
+      articolo: item.name,
+      quantita: String(item.quantity || 1),
+      stato: STATUS_CONFIG[item.status].label,
+      fornitore: getSupplierName(item.supplier_id) || "",
+      ordine: item.order.order_code || "",
+      cliente: `${item.order.customer.first_name} ${item.order.customer.last_name}`,
+      data_posa: item.order.expected_date || item.order.work_start_date || "",
+    }));
+    exportCsvUtil(rows, columns, `magazzino_${format(new Date(), "yyyy-MM-dd")}.csv`);
     toast.success("Esportazione completata", { description: `${filteredItems.length} articoli esportati.` });
   };
 

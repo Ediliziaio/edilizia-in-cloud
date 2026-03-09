@@ -260,52 +260,41 @@ export default function MarketingContacts() {
     }
   }, [companyId, exporting, selectedIds, contactCustomFields, filters, search]);
 
-  // Pipelines with stages for opportunity filters
-  const { data: pipelines = [] } = useQuery({
-    queryKey: ["marketing_pipelines_for_filters", companyId],
+  // Consolidated filter data query (pipelines, tags, list count)
+  const { data: filterData } = useQuery({
+    queryKey: ["marketing-filter-data", companyId],
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("marketing_pipelines")
-        .select("id, name, marketing_pipeline_stages(id, name, position)")
-        .eq("company_id", companyId)
-        .order("position");
-      if (error) throw error;
-      return (data || []) as PipelineWithStages[];
+      const [pipelinesRes, tagsRes, countRes] = await Promise.all([
+        supabase
+          .from("marketing_pipelines")
+          .select("id, name, marketing_pipeline_stages(id, name, position)")
+          .eq("company_id", companyId!)
+          .order("position"),
+        supabase
+          .from("marketing_tags")
+          .select("name")
+          .eq("company_id", companyId!)
+          .order("name"),
+        supabase
+          .from("marketing_contact_lists")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!),
+      ]);
+      if (pipelinesRes.error) throw pipelinesRes.error;
+      if (tagsRes.error) throw tagsRes.error;
+      return {
+        pipelines: (pipelinesRes.data || []) as PipelineWithStages[],
+        availableTags: (tagsRes.data || []).map((t) => t.name),
+        listCount: countRes.count || 0,
+      };
     },
     enabled: !!companyId,
   });
-
-  // Available tags for filter
-  const { data: availableTags = [] } = useQuery({
-    queryKey: ["marketing-tags-list", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("marketing_tags")
-        .select("name")
-        .eq("company_id", companyId)
-        .order("name");
-      if (error) throw error;
-      return (data || []).map((t) => t.name);
-    },
-    enabled: !!companyId,
-  });
-
-  // List count for tab badge
-  const { data: listCount = 0 } = useQuery({
-    queryKey: ["marketing-contact-lists-count", companyId],
-    queryFn: async () => {
-      if (!companyId) return 0;
-      const { count, error } = await supabase
-        .from("marketing_contact_lists")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId);
-      if (error) throw error;
-      return count || 0;
-    },
-    enabled: !!companyId,
-  });
+  const pipelines = filterData?.pipelines ?? [];
+  const availableTags = filterData?.availableTags ?? [];
+  const listCount = filterData?.listCount ?? 0;
 
   // Helper: apply a single group's rules to get matching contact IDs
   async function applyGroupRules(group: FilterGroup, companyId: string): Promise<string[] | null> {
