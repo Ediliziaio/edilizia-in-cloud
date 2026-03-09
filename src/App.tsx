@@ -108,7 +108,7 @@ const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
 const InvoiceDetail = lazy(() => import("@/pages/azienda/billing/InvoiceDetail"));
 const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
-const Suppliers = lazy(() => import("@/pages/azienda/Suppliers"));
+
 const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
