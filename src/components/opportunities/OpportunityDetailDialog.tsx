@@ -46,7 +46,7 @@ interface Props {
   initialTab?: string;
 }
 
-type Tab = "details" | "notes" | "appointments" | "activities" | "documents";
+type Tab = "details" | "notes" | "appointments" | "activities" | "documents" | "quotes";
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab }: Props) {
   const navigate = useNavigate();
