@@ -294,7 +294,7 @@ export function StaffUserDialog({
                   <Separator />
 
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marketing e Vendita</p>
-                  {MARKETING_SECTIONS.map(renderSection)}
+                  {MARKETING_SECTIONS_LOCAL.map(renderSection)}
 
                   <Separator />
 
