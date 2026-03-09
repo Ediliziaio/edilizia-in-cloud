@@ -699,6 +699,17 @@ export default function OrderDetail() {
             </CardContent>
           </Card>
 
+          <LinkedPurchaseOrdersCard
+            orderId={id!}
+            orderCode={order.order_code}
+            items={displayItems.map(i => ({
+              name: i.name,
+              quantity: i.quantity,
+              purchase_price: i.purchase_price,
+              supplier_id: i.supplier_id,
+              vat_rate: i.vat_rate,
+            }))}
+          />
           <LinkedTasks orderId={id} category="ordini" />
           <LinkedAppointments orderId={id!} />
         </div>
