@@ -174,7 +174,7 @@ export function useMarketingDashboard() {
       return data as unknown as DashboardStats;
     },
     enabled: !!companyId,
-    staleTime: 60_000,
+    staleTime: 300_000,
   });
 
   const updateFilters = useCallback((partial: Partial<DashboardFiltersState>) => {

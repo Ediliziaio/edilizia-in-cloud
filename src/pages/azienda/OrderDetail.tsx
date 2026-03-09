@@ -280,6 +280,7 @@ export default function OrderDetail() {
       return data as StatusHistoryEntry[];
     },
     enabled: !!id && !!user,
+    staleTime: 120_000,
   });
 
   // Update status mutation

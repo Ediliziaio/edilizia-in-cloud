@@ -158,7 +158,7 @@ export default function MarketingContacts() {
       while (hasMore) {
         let query = supabase
           .from("marketing_contacts")
-          .select("*")
+          .select("id, first_name, last_name, email, phone, source, tags, assigned_to, company_id, created_at, updated_at, lead_score, last_activity_at, lifecycle_stage, call_center_status, call_center_assigned_to, call_center_last_call_at, call_center_next_call_at, call_center_call_count, call_center_notes")
           .eq("company_id", companyId)
           .order("created_at", { ascending: false })
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);

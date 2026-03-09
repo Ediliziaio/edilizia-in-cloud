@@ -80,7 +80,7 @@ export function EmailCampaignsTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_folders")
-        .select("*")
+        .select("id, name, parent_id")
         .eq("company_id", company!.id)
         .eq("folder_type", "campaign");
       if (error) throw error;
