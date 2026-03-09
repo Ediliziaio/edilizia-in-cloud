@@ -1,49 +1,42 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+## Stato Completamento — Analisi SuperAdmin SaaS v2
 
-## Gestione Utenti — Completamento 100% ✅
+### ✅ Completato
 
-### Database + Security ✅
-- ✅ 6 tabelle + `password_history`, 20+ colonne security, 9 permessi granulari, RLS completo
-- ✅ Colonne complexity: `password_min_length`, `password_require_uppercase/numbers/special`
-- ✅ Colonne policy: `lockout_duration_minutes`, `enforce_2fa_roles`, `security_notifications`
+| # | Funzionalità | Prompt | Stato |
+|---|---|---|---|
+| P0 | **Feature Flags System** | Prompt 3 | ✅ Tabelle, hook, pagina admin, CompanySaaSTab, sidebar/routing |
+| P1 | **Bulk Operations + Export CSV** | Prompt 4 | ✅ Checkbox, azioni bulk (cambia piano, estendi trial, sospendi, riattiva), export CSV |
+| — | **Bug fix Sez. 3.7** | Custom | ✅ sessionStorage rimosso, trial extension flessibile, allowed_company_ids enforced, confirm dialog aggiunti |
 
-### Edge Functions ✅
-- ✅ track-user-session, revoke-user-session, manage-permission-template, get-security-report
-- ✅ **check-login-security**: IP allowlist, brute force con durata blocco configurabile
-- ✅ **cleanup-sessions**: cron giornaliero (03:00) per eliminare sessioni > 30 giorni
+### ❌ Ancora da Implementare
 
-### UI Core ✅
-- ✅ Security Dashboard, Team Management, CreateUserWizard, Tabella utenti arricchita
-- ✅ Session Tracking integrato in AuthContext, Unlock Account
-- ✅ **3 Tab Dettaglio Utente**: Sessioni, Log Attività, Sicurezza
-- ✅ **Filtri Avanzati**: Stato + Ruolo + Ricerca + Team
-- ✅ **Colonna "Sessioni Attive"** separata con badge count
-- ✅ **Import/Export utenti CSV**
+| Priorità | Funzionalità | Prompt/Ref | Note |
+|---|---|---|---|
+| 🔴 P0 | **Separazione Subdomain** (admin. vs app.) | Prompt 1 | Vite multi-build, AdminLoginPage, Cloudflare Worker security. **Non implementabile su Lovable** — richiede Cloudflare Pages + DNS config esterno |
+| 🔴 P0 | **Stripe Billing Completo** | Prompt 2 | Webhook handler, dunning automatico, Stripe Portal, fatture PDF, tabella stripe_events_log, colonne companies (stripe_subscription_status, payment_failure_count, ecc.) |
+| 🟠 P1 | **2FA TOTP + Secure Impersonation** | Prompt 5 | otplib TOTP, QR setup, backup codes, login 2-step, impersonation via JWT HttpOnly cookie |
+| 🟠 P1 | **Health Score Engine** (pg_cron) | Sez. 4.3 | Funzione PostgreSQL schedulata per calcolo score notturno, churn prediction, upsell signals |
+| 🟠 P1 | **Customer Success Platform** | Sez. 4.4 | Onboarding checklist configurabile, CS tasks, playbook automatici, NPS survey, account manager assignment |
+| 🟡 P2 | **API Platform per Aziende** | Sez. 4.6 | API key management, webhook subscriptions, rate limiting, Swagger docs |
+| 🟡 P2 | **GDPR & Compliance Tools** | Sez. 4.7 | Data export ZIP, account deletion workflow, data retention policies, cookie consent |
+| 🔵 P3 | **White-Label & Personalizzazione** | Sez. 4.8 | Custom domain, theme, custom email domain, branded login |
+| 🔵 P3 | **Partner Portal per Referrer** | Sez. 3.5 | Landing page pubblica, dashboard referrer, payout automatico, commissioni ricorrenti |
 
-### Policy Sicurezza ✅
-- ✅ **CompanySecuritySettings** completo:
-  - Brute force: slider tentativi + durata blocco (15m/30m/1h/24h/Manuale)
-  - Password: scadenza + complessità (lunghezza min, maiuscole, numeri, caratteri speciali)
-  - 2FA: globale + per ruoli specifici
-  - IP Allowlist
-  - Notifiche sicurezza (login IP sconosciuto, account bloccato, modifica permessi)
-- ✅ **ChangePasswordForm** con validazione complessità in tempo reale
-- ✅ **PermissionTemplatesManager**: CRUD + "Applica a Utente"
-- ✅ **Password History** (tabella DB pronta, RLS bloccato lato client)
+### ⚠️ Gap Parziali (miglioramenti a funzionalità esistenti)
 
----
+| Area | Gap dal documento | Ref |
+|---|---|---|
+| **AdminDashboard** | Waterfall chart MRR, cohort verification, health score lato server, dunning con azioni, feature usage trend | Sez. 3.1 |
+| **Company Management** | Drag & drop pipeline, email diretta da admin, onboarding steps configurabili | Sez. 3.2 |
+| **Subscription Plans** | Sync automatico Stripe, Stripe Checkout self-service, fatture PDF | Sez. 3.3 |
+| **Super Admins** | 2FA, login lockout + notifica email, session management (vedi/forza logout) | Sez. 3.4 |
+| **Referral** | Auto-gen codici, landing pubblica, partner portal, payout Stripe Connect | Sez. 3.5 |
+| **Support/Tickets** | SLA tracking, assegnazione a admin, canned responses, KB pubblica, escalation automatica | Sez. 3.6 |
+| **SyncLogs** | Pagina vuota/incompleta — implementare o rimuovere | Sez. 3.7 |
 
-## ⏳ Funzionalità Rimanenti (Priorità Bassa)
+### Prossimo passo consigliato
 
-- ⬜ Round-robin assegnazione team
-- ⬜ KPI per team nella dashboard
-- ⬜ Drag & Drop utenti tra team
+**Stripe Billing Completo** (P0) — è l'unico P0 rimanente implementabile su Lovable (il subdomain richiede infrastruttura esterna). Include: edge function webhook, dunning automatico, Stripe Portal, fatture.
+
