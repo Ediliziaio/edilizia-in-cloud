@@ -298,7 +298,9 @@ const App = () => (
                 <Route path="messaggistica-beta" element={<MessagingBeta />} />
                 <Route path="chat" element={<InternalChat />} />
                 <Route path="tesoreria" element={<Tesoreria />} />
-                <Route path="automazioni" element={<Automations />} />
+                <Route path="automazioni" element={<InternalAutomations />} />
+                <Route path="automazioni/:id" element={<InternalAutomations />} />
+                <Route path="automazioni-legacy" element={<Automations />} />
 
                 {/* Marketing Routes */}
                 <Route path="marketing" element={<MarketingDashboard />} />
