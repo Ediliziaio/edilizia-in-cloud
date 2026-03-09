@@ -272,7 +272,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const exitImpersonation = () => {
-    sessionStorage.removeItem(IMPERSONATION_KEY);
     setImpersonatedCompanyId(null);
     setImpersonatedCompany(null);
   };
