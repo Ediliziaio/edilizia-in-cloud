@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { AlertTriangle, Clock, CreditCard, TrendingDown, Users, CalendarCheck } from "lucide-react";
+import { AlertTriangle, Clock, CreditCard, TrendingDown, Users, CalendarCheck, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { AlertsData } from "@/hooks/useMarketingDashboard";
@@ -7,12 +7,21 @@ import type { OperationsData, FinanceData, CompanyTargets } from "@/hooks/useCru
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertThresholdsDialog } from "./AlertThresholdsDialog";
 
+interface InvoiceStats {
+  total_outstanding: number;
+  overdue_count: number;
+  overdue_amount: number;
+  due_this_week_count: number;
+  due_this_week_amount: number;
+}
+
 interface Props {
   marketingAlerts: AlertsData | undefined;
   operations: OperationsData;
   finance: FinanceData;
   isLoading: boolean;
   companyTargets?: CompanyTargets | null;
+  invoiceStats?: InvoiceStats | null;
 }
 
 interface AlertItem {
@@ -24,7 +33,7 @@ interface AlertItem {
   link?: string;
 }
 
-export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, operations, finance, isLoading, companyTargets }: Props) {
+export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, operations, finance, isLoading, companyTargets, invoiceStats }: Props) {
   if (isLoading) {
     return <Skeleton className="h-12 w-full rounded-lg" />;
   }
@@ -134,6 +143,30 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
       action: "Sollecitare incassi o posticipare uscite",
       link: "/azienda/costi",
     });
+  }
+
+  // Invoice alerts (from real invoices data)
+  if (invoiceStats) {
+    if (invoiceStats.overdue_count > 0) {
+      alerts.push({
+        id: "overdue-invoices",
+        level: "critical",
+        icon: FileText,
+        message: `${invoiceStats.overdue_count} fattur${invoiceStats.overdue_count === 1 ? "a scaduta" : "e scadute"} (€${Math.round(invoiceStats.overdue_amount).toLocaleString("it-IT")})`,
+        action: "Verificare incassi e sollecitare pagamenti",
+        link: "/azienda/fatturazione/scadenzario",
+      });
+    }
+    if (invoiceStats.due_this_week_count > 0) {
+      alerts.push({
+        id: "due-this-week-invoices",
+        level: "warning",
+        icon: FileText,
+        message: `${invoiceStats.due_this_week_count} fattur${invoiceStats.due_this_week_count === 1 ? "a in scadenza" : "e in scadenza"} entro 7 giorni (€${Math.round(invoiceStats.due_this_week_amount).toLocaleString("it-IT")})`,
+        action: "Monitorare incassi previsti",
+        link: "/azienda/fatturazione/scadenzario",
+      });
+    }
   }
 
   // Sort: critical first, then warning, then info

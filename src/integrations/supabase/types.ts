@@ -11814,6 +11814,10 @@ export type Database = {
           user_count: number
         }[]
       }
+      get_cruscotto_invoice_stats: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
       get_cruscotto_stats: {
         Args: { p_company_id: string; p_date_from: string; p_date_to: string }
         Returns: Json

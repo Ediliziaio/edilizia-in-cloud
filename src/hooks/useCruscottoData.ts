@@ -264,6 +264,29 @@ export function useCruscottoData() {
     staleTime: 120_000,
   });
 
+  // Invoice stats from RPC
+  const { data: invoiceStats } = useQuery({
+    queryKey: ["cruscotto-invoice-stats", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_cruscotto_invoice_stats" as any, {
+        p_company_id: companyId!,
+      });
+      if (error) throw error;
+      return data as {
+        total_outstanding: number;
+        overdue_count: number;
+        overdue_amount: number;
+        due_this_week_count: number;
+        due_this_week_amount: number;
+        paid_this_month: number;
+        issued_this_month: number;
+        issued_this_month_amount: number;
+      } | null;
+    },
+    enabled: !!companyId,
+    staleTime: 120_000,
+  });
+
   // Company targets/thresholds
   const { data: companyTargets } = useQuery({
     queryKey: ["cruscotto-targets", companyId],
@@ -345,6 +368,7 @@ export function useCruscottoData() {
     operations: opsData || { activeOrders: 0, lateOrders: 0, openTickets: 0, overduePayments: 0, overdueAmount: 0 },
     finance: financeData || { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, cashFlowNet: 0, thisMonthIncome: 0, thisMonthOutflow: 0, pendingRevenue: 0, supplierDebt: 0 },
     weeklyAgenda: weeklyData || { incomingPayments: 0, incomingPaymentsCount: 0, dueCosts: 0, dueCostsCount: 0, deliveries: 0, appointments: 0 },
+    invoiceStats: invoiceStats || null,
     companyTargets: companyTargets || null,
     isLoading: marketingLoading || opsLoading || financeLoading || weeklyLoading,
     error: marketingError as Error | null,

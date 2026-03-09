@@ -1,54 +1,165 @@
+# Stato Progetto — Aggiornato
 
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
-## Analisi: Spec TXT vs Implementazione Attuale (solo integrazione, no creazione fatture)
+---
 
-### Riepilogo: cosa c'e e cosa manca
+## Gestione Utenti — Completamento 100% ✅
+- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
 
-Il documento specifica 6 prompt. Escludendo tutta la logica di **creazione fatture** (InvoiceEditor, pushInvoice, cancelInvoice, mapInvoiceToProviderData, route `/nuova`), ecco lo stato:
+---
 
-| Componente (da spec) | Stato | Note |
-|---|---|---|
-| **DB Schema** — tabelle `billing_integrations`, `invoices`, `invoice_lines`, `invoice_payments`, `billing_sync_log` | ✅ Presente | Migrazione completa con RLS, trigger, funzioni, indici |
-| **DB** — `generate_invoice_number()` RPC | ✅ Presente | Non usata in modalita integrazione, ma innocua |
-| **DB** — `recalculate_invoice_totals()` + trigger | ✅ Presente | Utile per import |
-| **DB** — `trg_update_paid_amount()` trigger | ✅ Presente | Funziona con invoice_payments |
-| **DB** — `get_scadenzario()` RPC | ✅ Presente | Usata da Scadenzario.tsx |
-| **DB** — Storage bucket `invoices-pdf` | ❌ **MANCANTE** | Nessuna migrazione crea il bucket |
-| **DB** — `get_cruscotto_invoice_stats()` RPC | ❌ **MANCANTE** | Funzione RPC per statistiche fatture nel cruscotto |
-| **billingAdapter.ts** — testConnection + fetchStatus | ✅ Presente | Pulito: solo lettura/monitoraggio |
-| **billing-connect/** — OAuth2 FIC, API key setup, test, disconnect, set_primary, toggle_auto_sync | ✅ Presente | Tutte le action implementate |
-| **billing-sync/** — fetch_status (solo pull) | ✅ Presente | Semplificato correttamente |
-| **billing-import/** — pull fatture da provider | ✅ Presente | Import per tutti i 4 provider |
-| **billing-webhook/** — notifiche push FIC + Invoicetronic | ✅ Presente | Aggiorna stato SDI |
-| **generate-invoice-pdf/** — genera PDF con pdf-lib | ✅ Presente | Ma il bucket storage manca |
-| **send-invoice-email/** — invio email fattura | ✅ Presente | Funzionante |
-| **InvoicesList.tsx** — lista sola lettura, sync, badge | ✅ Presente | |
-| **InvoiceDetail.tsx** — vista read-only | ✅ Presente | |
-| **SettingsBilling.tsx** — gestione multi-provider | ✅ Presente | |
-| **Scadenzario.tsx** — monitoraggio scadenze, segna pagato | ✅ Presente | |
-| **BillingReports.tsx** — analytics/grafici | ✅ Presente | |
-| **Cruscotto** — banner fatture scadute/in scadenza | ⚠️ **PARZIALE** | C'e un alert generico `overduePayments` ma NON usa dati reali dalla tabella `invoices`. Manca la RPC `get_cruscotto_invoice_stats` |
-| **Contatti** — Tab "Fatture" nel dettaglio contatto | ❌ **MANCANTE** | Nessun tab fatture nel dettaglio contatto |
-| **Ordini → Fattura** | ⛔ ESCLUSO | Creazione fatture non prevista |
-| **Preventivi → Fattura** | ⛔ ESCLUSO | Creazione fatture non prevista |
+## Stripe Billing Completo ✅
+- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
+- ✅ Colonne dunning su `companies`
+- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
+- ✅ **customer-portal** edge function per Stripe Customer Portal
+- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
 
-### Cosa manca (da implementare)
+---
 
-1. **Storage bucket `invoices-pdf`** — migrazione SQL per creare il bucket + policy RLS (necessario per `generate-invoice-pdf` che gia lo usa)
-2. **RPC `get_cruscotto_invoice_stats`** — funzione DB per statistiche fatture (crediti totali, scaduti, pagati nel mese, emesse nel mese)
-3. **Cruscotto: integrazione dati fatture reali** — collegare il cruscotto alla RPC sopra, mostrare banner scadute + KPI fatturazione
-4. **Contatti: tab "Fatture"** — nel dettaglio contatto, aggiungere un tab che mostra le fatture emesse a quel cliente con totali fatturato/incassato/da incassare
+## 2FA TOTP ✅
+- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
+- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
+- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
+- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
+- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
+- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
 
-### Piano di implementazione
+---
 
-**Step 1 — Migrazione DB**
-- Creare bucket `invoices-pdf` con policy RLS per company
-- Creare funzione `get_cruscotto_invoice_stats(p_company_id, p_month)`
+## Health Score Engine ✅
+- ✅ Tabella `company_health_scores` con RLS super_admin
+- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
+- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
+- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
+- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
 
-**Step 2 — Cruscotto: KPI fatturazione reali**
-- Aggiornare `useCruscottoData` (o hook equivalente) per chiamare la RPC
-- Aggiornare `CruscottoAlerts` per mostrare banner fatture scadute con link allo Scadenzario
+---
 
-**Step 3 — Contatti: tab Fatture**
-- Aggiungere tab "Fatture" nel dettaglio contatto con lista fatture del cliente, totali fatturato/incassato/residuo
+## Support Migliorato ✅
+- ✅ **support_canned_responses** tabella con RLS
+- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
+- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
+- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
+- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
+- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
 
+---
+
+## Customer Success Platform ✅
+- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
+- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
+- ✅ **company_onboarding_completions**: tracking completamento step per azienda
+- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
+- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
+- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
+- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
+- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+
+---
+
+## API Platform per Aziende ✅
+- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
+- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
+- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
+- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
+- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
+- ✅ Sidebar aziendale aggiornata con link "API Platform"
+
+---
+
+## GDPR & Compliance Tools ✅
+- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
+- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
+- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
+- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
+- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+
+---
+
+## White-Label & Branding ✅
+- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
+- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
+- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
+- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
+- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
+- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
+- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+
+---
+
+## Partner Portal Referrer ✅
+- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
+- ✅ **user_id** su tabella `referrers` per collegamento account partner
+- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
+- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
+- ✅ **PartnerLayout** layout dedicato con sidebar minima
+- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
+- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
+- ✅ Rotta `/partner` protetta in App.tsx
+
+---
+
+## Team Management Avanzato ✅
+- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
+- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
+- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
+
+---
+
+## ✅ Tutte le funzionalità pianificate sono state completate!
+
+---
+
+## Dashboard Analytics Avanzata (Admin) ✅
+- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
+- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
+- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
+
+---
+
+## Messaggistica Interna ✅
+- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
+- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
+- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
+- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
+- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
+- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
+
+---
+
+## Gap Analysis — Implementazione Completata ✅
+
+### Secure Impersonation JWT ✅
+- ✅ **active_impersonations** tabella con RLS, indici, expiry
+- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
+- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
+- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
+
+### AdminLoginPage Separata ✅
+- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
+- ✅ **Rotta /admin-login** configurata in App.tsx
+- ✅ **2FA step** integrato nel flusso admin login
+- ✅ **Access denied** per utenti non super_admin
+
+### IP Allowlist Pannello Super Admin ✅
+- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
+- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
+- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
+- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
+
+### Build Multi-Target Vite ✅
+- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
+- ✅ Preparato per build scripts separati (build:app / build:admin)
+
+### Fix Tecnici Minori ✅
+- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
+- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
+- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
+- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive

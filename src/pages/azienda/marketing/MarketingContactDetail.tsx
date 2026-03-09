@@ -48,6 +48,7 @@ import { ContactDndTab } from "@/components/marketing/ContactDndTab";
 import { ContactActionsTab } from "@/components/marketing/ContactActionsTab";
 import { ContactMergeDialog } from "@/components/marketing/ContactMergeDialog";
 import { ContactSmsLog } from "@/components/marketing/ContactSmsLog";
+import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPanel";
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
 
 // ── Contact Appointments Panel ──
@@ -276,7 +277,7 @@ function getDateLabel(dateStr: string) {
 }
 
 // ── RIGHT SIDEBAR TABS ──
-type RightTab = "activities" | "notes" | "appointments" | "opportunities" | "quotes" | "documents" | "ai_conversations" | "sms_log" | "settings";
+type RightTab = "activities" | "notes" | "appointments" | "opportunities" | "quotes" | "invoices" | "documents" | "ai_conversations" | "sms_log" | "settings";
 const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
   { key: "documents", icon: FileText, label: "Documenti" },
   { key: "activities", icon: Activity, label: "Attività" },
@@ -284,6 +285,7 @@ const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
   { key: "appointments", icon: CalendarDays, label: "Calendario" },
   { key: "opportunities", icon: Target, label: "Opportunità" },
   { key: "quotes", icon: FileSignature, label: "Preventivi" },
+  { key: "invoices", icon: FileText, label: "Fatture" },
   { key: "ai_conversations", icon: Bot, label: "Conversazioni AI" },
   { key: "sms_log", icon: Smartphone, label: "Log SMS" },
   { key: "settings", icon: Settings, label: "Impostazioni" },
@@ -1276,6 +1278,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* Quotes panel */}
               {rightTab === "quotes" && id && companyId && (
                 <ContactQuotesPanel contactId={id} companyId={companyId} />
+              )}
+
+              {/* Invoices panel */}
+              {rightTab === "invoices" && id && companyId && (
+                <ContactInvoicesPanel contactId={id} companyId={companyId} />
               )}
 
               {/* Settings panel */}

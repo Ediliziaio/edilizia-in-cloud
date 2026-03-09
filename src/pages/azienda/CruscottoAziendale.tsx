@@ -21,7 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 export default function CruscottoAziendale() {
-  const { marketing, operations, finance, weeklyAgenda, companyTargets, isLoading, error, filters, updateFilters } = useCruscottoData();
+  const { marketing, operations, finance, weeklyAgenda, invoiceStats, companyTargets, isLoading, error, filters, updateFilters } = useCruscottoData();
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
 
   const hasOrders = operations.activeOrders > 0 || finance.revenueThisMonth > 0;
@@ -107,6 +107,7 @@ export default function CruscottoAziendale() {
           finance={finance}
           isLoading={isLoading}
           companyTargets={companyTargets}
+          invoiceStats={invoiceStats}
         />
       </SectionErrorBoundary>
 
