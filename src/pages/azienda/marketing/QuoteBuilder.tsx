@@ -229,6 +229,16 @@ export default function QuoteBuilder() {
     }
   }, [existingAttachments]);
 
+  // Auto-select contact from URL param
+  useEffect(() => {
+    if (!isEdit && contacts.length > 0 && !contactId) {
+      const urlContactId = searchParams.get("contact_id");
+      if (urlContactId) {
+        handleContactSelect(urlContactId);
+      }
+    }
+  }, [contacts, isEdit, searchParams]);
+
   // Contact selection
   const handleContactSelect = (cId: string) => {
     setContactId(cId);
@@ -238,6 +248,13 @@ export default function QuoteBuilder() {
       setClientEmail(c.email || "");
       setClientPhone(c.phone || "");
       setClientCompany(c.company_name || "");
+      setClientFiscalCode((c as any).fiscal_code || "");
+      setClientVatNumber((c as any).vat_number || "");
+      // Compose address from contact fields
+      const addressParts = [c.address, c.postal_code, c.city, c.province].filter(Boolean);
+      if (addressParts.length > 0) {
+        setClientAddress(addressParts.join(", "));
+      }
     }
   };
 
