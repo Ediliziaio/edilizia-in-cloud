@@ -63,6 +63,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
                 <SelectItem value="pagamento_fornitore">Pagamento fornitore</SelectItem>
                 <SelectItem value="costo_aziendale">Costo aziendale</SelectItem>
                 <SelectItem value="scadenza_fiscale">Scadenza fiscale</SelectItem>
+                <SelectItem value="altro">Altro</SelectItem>
               </SelectContent>
             </Select>
           </div>
