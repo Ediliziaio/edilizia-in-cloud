@@ -46,8 +46,8 @@ export default function QuoteDetail() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
-
-  const { data: quote, isLoading } = useQuery({
+  const [generating, setGenerating] = useState(false);
+  const [sending, setSending] = useState(false);
     queryKey: ["quote", id],
     enabled: !!id,
     queryFn: async () => {
