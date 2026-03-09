@@ -110,6 +110,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
       return counts;
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 120_000,
   });
 
   const deleteMutation = useMutation({
