@@ -33,6 +33,7 @@ const ROLE_COLORS: Record<AppRole, string> = {
   employee: "bg-amber-100 text-amber-800",
   salesperson: "bg-cyan-100 text-cyan-800",
   call_center: "bg-indigo-100 text-indigo-800",
+  referrer: "bg-orange-100 text-orange-800",
 };
 
 const ROLE_ORDER: AppRole[] = [
