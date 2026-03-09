@@ -2125,6 +2125,54 @@ export type Database = {
           },
         ]
       }
+      company_feature_overrides: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          expires_at: string | null
+          feature_key: string
+          id: string
+          is_enabled: boolean
+          override_by: string | null
+          override_reason: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          expires_at?: string | null
+          feature_key: string
+          id?: string
+          is_enabled: boolean
+          override_by?: string | null
+          override_reason?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          expires_at?: string | null
+          feature_key?: string
+          id?: string
+          is_enabled?: boolean
+          override_by?: string | null
+          override_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_feature_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_feature_overrides_feature_key_fkey"
+            columns: ["feature_key"]
+            isOneToOne: false
+            referencedRelation: "platform_feature_flags"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       company_notes: {
         Row: {
           author_id: string
@@ -6462,6 +6510,51 @@ export type Database = {
           id?: string
           markup_multiplier?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_feature_flags: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          default_value: boolean | null
+          description: string | null
+          icon: string | null
+          id: string
+          is_beta: boolean | null
+          key: string
+          name: string
+          plans_included: string[] | null
+          price_per_month: number | null
+          sort_order: number | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          default_value?: boolean | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_beta?: boolean | null
+          key: string
+          name: string
+          plans_included?: string[] | null
+          price_per_month?: number | null
+          sort_order?: number | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          default_value?: boolean | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_beta?: boolean | null
+          key?: string
+          name?: string
+          plans_included?: string[] | null
+          price_per_month?: number | null
+          sort_order?: number | null
         }
         Relationships: []
       }
