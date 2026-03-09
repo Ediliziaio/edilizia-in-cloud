@@ -22,7 +22,7 @@ interface ColDef {
   group: string;
 }
 
-const GROUP_ORDER = ["Contatto", "Date", "Tag", "Opportunità", "Assegnazione", "Campi personalizzati"];
+const GROUP_ORDER = ["Contatto", "Date", "Tag", "Opportunità", "Assegnazione", "Attribuzione", "Campi personalizzati"];
 
 function groupBy(cols: ColDef[]) {
   const groups: Record<string, ColDef[]> = {};

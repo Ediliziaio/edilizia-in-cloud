@@ -202,6 +202,10 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.opp_stage || "—"}</TableCell>;
     case "call_center":
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.call_center_name || "—"}</TableCell>;
+    case "attr_source":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.attr_source || "—"}</TableCell>;
+    case "attr_campaign":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.attr_campaign || "—"}</TableCell>;
     default:
       return null;
   }

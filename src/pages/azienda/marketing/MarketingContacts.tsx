@@ -33,6 +33,8 @@ const FIELD_TO_COLUMN: Record<string, string> = {
   province: "province",
   created_at: "created_at",
   last_activity_at: "last_activity_at",
+  attr_source: "attr_source",
+  attr_campaign: "attr_campaign",
 };
 
 function applyRuleToQuery(query: any, rule: FilterRule) {
