@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { TwoFactorVerify } from "./TwoFactorVerify";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 
-type ViewMode = "login" | "forgot";
+type ViewMode = "login" | "forgot" | "2fa";
 
 export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, ref) {
   const [view, setView] = useState<ViewMode>("login");
@@ -33,9 +34,25 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           title: "Errore di accesso",
           description: "Email o password non validi. Riprova.",
         });
-      } else {
-        toast({ title: "Accesso effettuato", description: "Benvenuto!" });
+        setIsLoading(false);
+        return;
       }
+
+      // Check if 2FA is required
+      try {
+        const { data: totpStatus } = await supabase.functions.invoke("manage-totp", {
+          body: { action: "status" },
+        });
+        if (totpStatus?.enabled) {
+          setView("2fa");
+          setIsLoading(false);
+          return;
+        }
+      } catch {
+        // If TOTP check fails, proceed normally
+      }
+
+      toast({ title: "Accesso effettuato", description: "Benvenuto!" });
     } catch {
       toast({
         variant: "destructive",
@@ -109,6 +126,20 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     setResetSent(false);
   };
 
+  const handle2FAVerified = () => {
+    toast({ title: "Accesso effettuato", description: "Benvenuto!" });
+    // Session is already active, just close the 2FA view
+    // The auth state listener will handle navigation
+    window.location.reload();
+  };
+
+  const handle2FACancel = async () => {
+    // Sign out since 2FA wasn't completed
+    await supabase.auth.signOut();
+    setView("login");
+    toast({ title: "Accesso annullato", description: "Verifica 2FA richiesta." });
+  };
+
   return (
     <div ref={ref} className="min-h-screen flex flex-col lg:flex-row bg-background">
       {/* Left branding panel */}
@@ -140,6 +171,10 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         </div>
 
         <div className="w-full max-w-sm space-y-8">
+          {view === "2fa" && (
+            <TwoFactorVerify onVerified={handle2FAVerified} onCancel={handle2FACancel} />
+          )}
+
           {view === "login" && (
             <>
               <div className="text-center space-y-2">
