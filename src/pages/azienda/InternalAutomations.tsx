@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useInternalAutomationFlows,
@@ -40,6 +41,7 @@ import { cn } from "@/lib/utils";
 
 function FlowListView() {
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
   const { data: flows, isLoading } = useInternalAutomationFlows();
   const createFlow = useCreateInternalFlow();
   const deleteFlow = useDeleteInternalFlow();
@@ -80,7 +82,7 @@ function FlowListView() {
             Configura flussi automatici per commesse, ticket, attività e altro.
           </p>
         </div>
-        <Button onClick={handleCreate} disabled={createFlow.isPending}>
+        <Button onClick={handleCreate} disabled={createFlow.isPending || !effectiveCompany}>
           {createFlow.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
           Crea Automazione
         </Button>
@@ -136,7 +138,7 @@ function FlowListView() {
             <p className="text-sm text-muted-foreground mb-4">
               Crea la tua prima automazione per automatizzare i processi interni.
             </p>
-            <Button onClick={handleCreate}>
+            <Button onClick={handleCreate} disabled={!effectiveCompany}>
               <Plus className="h-4 w-4 mr-2" /> Crea Automazione
             </Button>
           </CardContent>

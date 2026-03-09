@@ -101,12 +101,15 @@ export function useCreateInternalFlow() {
 
   return useMutation({
     mutationFn: async (name: string) => {
+      if (!effectiveCompany?.id || !user?.id) {
+        throw new Error("Azienda o utente non ancora caricati. Riprova tra poco.");
+      }
       const { data, error } = await (supabase as any)
         .from("internal_automation_flows")
         .insert({
-          company_id: effectiveCompany!.id,
+          company_id: effectiveCompany.id,
           name,
-          created_by: user!.id,
+          created_by: user.id,
         })
         .select()
         .single();
@@ -161,7 +164,10 @@ export function useSaveInternalNodes(flowId: string | undefined) {
       nodes: InternalAutomationNode[];
       connections: InternalAutomationConnection[];
     }) => {
-      const companyId = effectiveCompany!.id;
+      if (!effectiveCompany?.id) {
+        throw new Error("Azienda non ancora caricata. Riprova tra poco.");
+      }
+      const companyId = effectiveCompany.id;
 
       // Delete existing nodes + connections then re-insert
       await (supabase as any)
