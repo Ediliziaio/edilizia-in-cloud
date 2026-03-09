@@ -27,6 +27,13 @@ export interface Profile {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  // Security fields
+  password_changed_at: string | null;
+  failed_login_count: number;
+  locked_until: string | null;
+  require_2fa: boolean;
+  last_login_at: string | null;
+  last_login_ip: string | null;
 }
 
 export interface Company {

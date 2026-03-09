@@ -14,6 +14,10 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_marketing_ai_agent: false, can_view_marketing_email: false,
   can_view_marketing_whatsapp: false, can_view_marketing_reports: false,
   can_view_cruscotto: false, only_assigned: false,
+  // New granular permissions
+  can_export_clients: false, can_delete_orders: false, can_manage_payments: false,
+  can_approve_orders: false, can_view_all_team_calendar: false, can_view_margins: false,
+  can_manage_suppliers: false, can_view_financial_reports: false, can_manage_warehouse_items: false,
 };
 
 /** Centralized permission section definitions used by PermissionsDialog and UserRolesPermissionsTab */
