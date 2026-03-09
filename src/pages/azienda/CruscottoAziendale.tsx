@@ -135,7 +135,10 @@ export default function CruscottoAziendale() {
 
         <TabsContent value="finanza">
           <SectionErrorBoundary sectionName="Finanza">
-            <FinanzaCashFlow finance={finance} isLoading={isLoading} />
+            <div className="space-y-6">
+              <FinanzaCashFlow finance={finance} isLoading={isLoading} />
+              <PrimaNotaScadenzarioWidget />
+            </div>
           </SectionErrorBoundary>
         </TabsContent>
 
