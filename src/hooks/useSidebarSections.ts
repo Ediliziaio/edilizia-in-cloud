@@ -5,15 +5,15 @@ import { internalNavItems, marketingNavItems } from "@/lib/sidebarConfig";
 const STORAGE_KEY = "sidebar_sections_state";
 
 const DEFAULT_STATE: Record<string, boolean> = {
-  mkt_crm: false,
-  mkt_comunicazione: false,
-  mkt_automation: false,
-  mkt_analisi: false,
-  gi_operazioni: false,
-  gi_supporto: false,
-  gi_finanza: false,
-  gi_team: false,
-  gi_automation: false,
+  mkt_crm: true,
+  mkt_comunicazione: true,
+  mkt_automation: true,
+  mkt_analisi: true,
+  gi_operazioni: true,
+  gi_supporto: true,
+  gi_finanza: true,
+  gi_team: true,
+  gi_automation: true,
 };
 
 // Build route → subcategory map from nav items
