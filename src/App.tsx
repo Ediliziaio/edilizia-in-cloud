@@ -126,6 +126,7 @@ const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
+const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 
 // Customer
 const CustomerOrders = lazy(() => import("@/pages/cliente/CustomerOrders"));
