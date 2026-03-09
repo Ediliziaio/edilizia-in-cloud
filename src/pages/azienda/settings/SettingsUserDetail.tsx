@@ -316,6 +316,21 @@ export default function SettingsUserDetail() {
               isChangingRole={changeRoleMutation.isPending}
             />
           )}
+          {activeTab === "sessions" && <UserSessionsTab userId={userId!} />}
+          {activeTab === "activity" && <UserActivityLogTab userId={userId!} />}
+          {activeTab === "security" && (
+            <UserSecurityTab
+              userId={userId!}
+              user={{
+                require_2fa: (userData as any).require_2fa,
+                password_changed_at: (userData as any).password_changed_at,
+                failed_login_count: (userData as any).failed_login_count,
+                locked_until: (userData as any).locked_until,
+                last_login_at: (userData as any).last_login_at,
+                last_login_ip: (userData as any).last_login_ip,
+              }}
+            />
+          )}
           {activeTab === "availability" && <UserAvailabilityTab />}
           {activeTab === "calendar" && <UserCalendarTab />}
           {activeTab === "notifications" && <UserNotificationsTab />}
