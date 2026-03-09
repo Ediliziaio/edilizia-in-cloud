@@ -267,6 +267,9 @@ export default function CompanyDashboard() {
         </div>
       </div>
 
+      {/* Onboarding Checklist */}
+      <OnboardingChecklist />
+
       {/* Filters */}
       <CompanyDashboardFilters filters={filters} onUpdate={updateFilters} />
 
