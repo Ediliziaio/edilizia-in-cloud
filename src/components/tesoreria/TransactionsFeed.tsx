@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -41,6 +41,7 @@ interface Props {
 export default function TransactionsFeed({ companyId }: Props) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [invoiceMap, setInvoiceMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -95,6 +96,21 @@ export default function TransactionsFeed({ companyId }: Props) {
     const { data, count } = await query;
     setTransactions(data || []);
     setTotalCount(count || 0);
+
+    // Load linked invoices
+    const linkedIds = (data || []).map((t: any) => t.linked_invoice_id).filter(Boolean);
+    if (linkedIds.length > 0) {
+      const { data: invData } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, client_company_name")
+        .in("id", linkedIds);
+      const map: Record<string, any> = {};
+      (invData || []).forEach((inv: any) => { map[inv.id] = inv; });
+      setInvoiceMap(map);
+    } else {
+      setInvoiceMap({});
+    }
+
     setLoading(false);
   }
 
@@ -246,9 +262,17 @@ export default function TransactionsFeed({ companyId }: Props) {
                       {tx.bank_accounts?.display_name || tx.bank_accounts?.account_name || "—"}
                     </td>
                     <td className="p-3">
-                      <Badge className={getCategoryBadge(tx.category)} variant="secondary">
-                        {tx.category || "—"}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge className={getCategoryBadge(tx.category)} variant="secondary">
+                          {tx.category || "—"}
+                        </Badge>
+                        {tx.linked_invoice_id && invoiceMap[tx.linked_invoice_id] && (
+                          <Badge variant="outline" className="text-[10px] gap-1 w-fit">
+                            <Link2 className="h-3 w-3" />
+                            {invoiceMap[tx.linked_invoice_id].invoice_number}
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3">
                       {tx.transaction_type === "credit" ? (
@@ -317,6 +341,17 @@ export default function TransactionsFeed({ companyId }: Props) {
                 <div><Label className="text-muted-foreground">IBAN Creditore</Label><p className="text-xs font-mono">{selectedTx.creditor_iban || "—"}</p></div>
                 <div><Label className="text-muted-foreground">IBAN Debitore</Label><p className="text-xs font-mono">{selectedTx.debtor_iban || "—"}</p></div>
                 <div className="col-span-2"><Label className="text-muted-foreground">Riferimento</Label><p>{selectedTx.reference || "—"}</p></div>
+                {selectedTx.linked_invoice_id && invoiceMap[selectedTx.linked_invoice_id] && (
+                  <div className="col-span-2">
+                    <Label className="text-muted-foreground">Fattura collegata</Label>
+                    <p className="flex items-center gap-1">
+                      <Link2 className="h-3 w-3 text-primary" />
+                      <span className="font-medium">{invoiceMap[selectedTx.linked_invoice_id].invoice_number}</span>
+                      {" — "}
+                      {invoiceMap[selectedTx.linked_invoice_id].client_company_name}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

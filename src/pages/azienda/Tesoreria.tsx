@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, RefreshCw, Loader2, ShieldOff } from "lucide-react";
+import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, ShieldOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import TreasuryOverview from "@/components/tesoreria/TreasuryOverview";
 import BankAccountsList from "@/components/tesoreria/BankAccountsList";
 import TransactionsFeed from "@/components/tesoreria/TransactionsFeed";
 import BankConnectionsList from "@/components/tesoreria/BankConnectionsList";
+import BankReconciliation from "@/components/tesoreria/BankReconciliation";
 
 export default function Tesoreria() {
   const { effectiveCompany } = useAuth();
@@ -115,6 +116,9 @@ export default function Tesoreria() {
           <TabsTrigger value="connessioni" className="gap-2">
             <Link className="h-4 w-4" /> Connessioni
           </TabsTrigger>
+          <TabsTrigger value="riconciliazione" className="gap-2">
+            <Link2 className="h-4 w-4" /> Riconciliazione
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -131,6 +135,9 @@ export default function Tesoreria() {
             companyId={effectiveCompany?.id || ""}
             hasPendingCallback={bankCallback === "1"}
           />
+        </TabsContent>
+        <TabsContent value="riconciliazione">
+          <BankReconciliation companyId={effectiveCompany?.id || ""} />
         </TabsContent>
       </Tabs>
     </div>

@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, Download, Mail, Loader2, RefreshCw, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, Mail, Loader2, RefreshCw, ExternalLink, Link2 } from "lucide-react";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
   draft:     { label: "Bozza",       color: "bg-muted text-muted-foreground",       emoji: "📝" },
@@ -48,6 +48,20 @@ export default function InvoiceDetail() {
         .single();
       if (error) throw error;
       return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: linkedTransactions } = useQuery({
+    queryKey: ["invoice-reconciliations", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("bank_reconciliations")
+        .select("*, bank_transactions:transaction_id(id, booking_date, amount, description, creditor_name, debtor_name, bank_accounts:account_id(display_name))")
+        .eq("invoice_id", id!)
+        .is("unmatched_at", null)
+        .order("matched_at", { ascending: false });
+      return data || [];
     },
     enabled: !!id,
   });
@@ -270,6 +284,40 @@ export default function InvoiceDetail() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Linked bank transactions */}
+          {linkedTransactions && linkedTransactions.length > 0 && (
+            <Card className="border-green-200 dark:border-green-800">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-green-600" /> Pagamenti bancari collegati
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {linkedTransactions.map((rec: any) => {
+                    const tx = rec.bank_transactions;
+                    return (
+                      <div key={rec.id} className="flex items-center justify-between border rounded-lg p-3 text-sm">
+                        <div>
+                          <p className="font-medium">{tx?.description || "Transazione"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {tx?.booking_date} · {tx?.creditor_name || tx?.debtor_name || ""} · {(tx?.bank_accounts as any)?.display_name || ""}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-green-600">{fmtEur(Number(rec.matched_amount))}</p>
+                          <Badge variant="outline" className="text-[10px]">
+                            {rec.match_type === "auto" ? "Auto" : "Manuale"}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Payment & Notes */}
           <Card>

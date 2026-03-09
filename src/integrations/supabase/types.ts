@@ -2081,6 +2081,73 @@ export type Database = {
         }
         Relationships: []
       }
+      bank_reconciliations: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          invoice_id: string
+          match_score: number | null
+          match_type: string
+          matched_amount: number
+          matched_at: string
+          matched_by: string | null
+          notes: string | null
+          transaction_id: string
+          unmatched_at: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          invoice_id: string
+          match_score?: number | null
+          match_type?: string
+          matched_amount?: number
+          matched_at?: string
+          matched_by?: string | null
+          notes?: string | null
+          transaction_id: string
+          unmatched_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          match_score?: number | null
+          match_type?: string
+          matched_amount?: number
+          matched_at?: string
+          matched_by?: string | null
+          notes?: string | null
+          transaction_id?: string
+          unmatched_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_reconciliations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliations_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliations_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_sync_logs: {
         Row: {
           accounts_synced: number
