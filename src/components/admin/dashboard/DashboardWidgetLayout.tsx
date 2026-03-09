@@ -52,6 +52,7 @@ export const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "system-health", label: "System Health", category: "tables", visible: true, span: 1 },
   { id: "recent-companies", label: "Aziende Recenti", category: "tables", visible: true, span: 1 },
   { id: "recent-activity", label: "Attività Recente", category: "tables", visible: true, span: 1 },
+  { id: "addon-summary", label: "Addon Attivi", category: "kpi", visible: true, span: 1 },
 ];
 
 function loadLayout(): DashboardWidget[] {

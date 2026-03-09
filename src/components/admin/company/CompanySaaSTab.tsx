@@ -8,6 +8,8 @@ import { ALL_MODULES } from "@/lib/adminConstants";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { CompanyAddonsSection } from "./CompanyAddonsSection";
+import type { Company } from "@/types/auth";
 
 interface CompanySaaSTabProps {
   currentPlan: any;
@@ -16,9 +18,10 @@ interface CompanySaaSTabProps {
   plans: any[] | undefined;
   companyPlanId: string | null | undefined;
   companyId?: string;
+  company?: Company | null;
 }
 
-export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, companyPlanId, companyId }: CompanySaaSTabProps) {
+export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, companyPlanId, companyId, company }: CompanySaaSTabProps) {
   const queryClient = useQueryClient();
   const maxOrders = currentPlan?.max_orders ?? -1;
   const maxUsers = currentPlan?.max_users ?? -1;
@@ -95,6 +98,9 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
 
   return (
     <div className="space-y-6">
+      {/* Addon a Pagamento */}
+      {company && <CompanyAddonsSection company={company} />}
+
       {/* Piano e limiti */}
       <div className="grid gap-6 lg:grid-cols-3">
         <Card>

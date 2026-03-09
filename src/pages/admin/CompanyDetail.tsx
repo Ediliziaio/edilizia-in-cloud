@@ -159,6 +159,7 @@ export default function CompanyDetail() {
             currentPlan={h.currentPlan} stats={h.stats}
             includedModules={includedModules} plans={h.plans} companyPlanId={h.company.subscription_plan_id}
             companyId={h.company.id}
+            company={h.company}
           />
         </TabsContent>
 

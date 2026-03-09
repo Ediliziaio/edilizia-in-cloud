@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { 
   ClipboardList, 
   HeadphonesIcon,
@@ -28,7 +30,35 @@ const navItems = [
 
 export function CustomerLayout() {
   const { signOut, company, profile } = useAuth();
-  
+  const { effectiveBrand } = useBrandSettings(company?.id);
+
+  // Apply CSS variables for brand colors
+  useEffect(() => {
+    const root = document.documentElement;
+    if (effectiveBrand.isWhiteLabel) {
+      root.style.setProperty("--brand-primary", effectiveBrand.primaryColor);
+      root.style.setProperty("--brand-secondary", effectiveBrand.secondaryColor);
+      root.style.setProperty("--brand-accent", effectiveBrand.accentColor);
+      root.style.setProperty("--brand-text-on-primary", effectiveBrand.textOnPrimary);
+      if (effectiveBrand.faviconUrl) {
+        let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+        link.href = effectiveBrand.faviconUrl;
+      }
+      if (effectiveBrand.platformName) document.title = effectiveBrand.platformName;
+    } else {
+      root.style.removeProperty("--brand-primary");
+      root.style.removeProperty("--brand-secondary");
+      root.style.removeProperty("--brand-accent");
+      root.style.removeProperty("--brand-text-on-primary");
+    }
+    return () => {
+      root.style.removeProperty("--brand-primary");
+      root.style.removeProperty("--brand-secondary");
+      root.style.removeProperty("--brand-accent");
+      root.style.removeProperty("--brand-text-on-primary");
+    };
+  }, [effectiveBrand]);
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
       <QuickLoginReturnBanner />
@@ -38,6 +68,8 @@ export function CustomerLayout() {
           <Link to="/cliente" className="flex items-center gap-2">
             {company?.logo_url ? (
               <img src={company.logo_url} alt={company.name} className="h-8 max-h-8 object-contain" />
+            ) : effectiveBrand.platformName ? (
+              <span className="font-semibold text-sm">{effectiveBrand.platformName}</span>
             ) : (
               <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
             )}
@@ -103,6 +135,11 @@ export function CustomerLayout() {
           <Outlet />
         </div>
       </main>
+      {!effectiveBrand.hidePoweredBy && (
+        <footer className="text-center py-2 text-xs text-muted-foreground border-t bg-background">
+          Powered by EdiliziaInCloud
+        </footer>
+      )}
     </div>
   );
 }

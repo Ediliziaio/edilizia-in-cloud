@@ -4,6 +4,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useBranding } from "@/hooks/useBranding";
+import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { 
   HeadphonesIcon,
@@ -50,7 +51,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
 import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
@@ -99,10 +100,43 @@ function CompanySidebar() {
   const { isModuleEnabled } = useSubscriptionLimits();
   const { isFeatureEnabled } = useFeatureFlags();
   const { branding } = useBranding();
+  const { effectiveBrand } = useBrandSettings();
   const navigate = useNavigate();
   const location = useLocation();
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
   const isAdmin = role === "company_admin" || role === "super_admin";
+
+  // Apply CSS variables for brand colors
+  useEffect(() => {
+    const root = document.documentElement;
+    if (effectiveBrand.isWhiteLabel) {
+      root.style.setProperty("--brand-primary", effectiveBrand.primaryColor);
+      root.style.setProperty("--brand-secondary", effectiveBrand.secondaryColor);
+      root.style.setProperty("--brand-accent", effectiveBrand.accentColor);
+      root.style.setProperty("--brand-text-on-primary", effectiveBrand.textOnPrimary);
+      // Favicon
+      if (effectiveBrand.faviconUrl) {
+        let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+        link.href = effectiveBrand.faviconUrl;
+      }
+      // Title
+      if (effectiveBrand.platformName) {
+        document.title = effectiveBrand.platformName;
+      }
+    } else {
+      root.style.removeProperty("--brand-primary");
+      root.style.removeProperty("--brand-secondary");
+      root.style.removeProperty("--brand-accent");
+      root.style.removeProperty("--brand-text-on-primary");
+    }
+    return () => {
+      root.style.removeProperty("--brand-primary");
+      root.style.removeProperty("--brand-secondary");
+      root.style.removeProperty("--brand-accent");
+      root.style.removeProperty("--brand-text-on-primary");
+    };
+  }, [effectiveBrand]);
   
   const handleLogoutOrExit = () => {
     if (isImpersonating) {
@@ -138,12 +172,17 @@ function CompanySidebar() {
 
   return (
     <Sidebar className="border-r">
-      <div className="flex h-14 items-center border-b px-4">
+      <div
+        className="flex h-14 items-center border-b px-4"
+        style={effectiveBrand.isWhiteLabel ? { backgroundColor: effectiveBrand.primaryColor, color: effectiveBrand.textOnPrimary } : undefined}
+      >
         <Link to="/azienda" className="flex items-center gap-2">
           {branding?.logo_url ? (
             <img src={branding.logo_url} alt={effectiveCompany?.name || "Logo"} className="h-8 max-h-8 object-contain" />
           ) : effectiveCompany?.logo_url ? (
             <img src={effectiveCompany.logo_url} alt={effectiveCompany.name} className="h-8 max-h-8 object-contain" />
+          ) : effectiveBrand.platformName ? (
+            <span className="font-semibold text-sm truncate">{effectiveBrand.platformName}</span>
           ) : (
             <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
           )}
@@ -547,6 +586,7 @@ export function CompanyLayout() {
   const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
+  const { effectiveBrand } = useBrandSettings();
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
@@ -590,6 +630,11 @@ export function CompanyLayout() {
           <main className="flex-1 p-6 bg-muted/30">
             <Outlet />
           </main>
+          {!effectiveBrand.hidePoweredBy && (
+            <footer className="text-center py-2 text-xs text-muted-foreground border-t bg-background">
+              Powered by EdiliziaInCloud
+            </footer>
+          )}
         </div>
       </div>
       {showSupport && (
