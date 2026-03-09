@@ -472,19 +472,21 @@ Deno.serve(async (req) => {
       drawWatermark(page);
     }
 
-    // ─── Merge attached PDFs ───
-    for (const att of attachmentRows) {
-      const filePath = att.quote_pdf_materials?.storage_path;
-      if (!filePath) continue;
-      try {
-        const { data: fileData, error: dlErr } = await supabaseAdmin.storage.from("quote-materials").download(filePath);
-        if (dlErr || !fileData) continue;
-        const pdfBytes = await fileData.arrayBuffer();
-        const attachedPdf = await PDFDocument.load(pdfBytes);
-        const copiedPages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
-        copiedPages.forEach((p: any) => pdfDoc.addPage(p));
-      } catch (e) {
-        console.warn("Failed to merge attachment:", filePath, e);
+    // ─── Merge attached PDFs (skip in preview mode) ───
+    if (!isPreview) {
+      for (const att of attachmentRows) {
+        const filePath = att.quote_pdf_materials?.storage_path;
+        if (!filePath) continue;
+        try {
+          const { data: fileData, error: dlErr } = await supabaseAdmin.storage.from("quote-materials").download(filePath);
+          if (dlErr || !fileData) continue;
+          const pdfBytes = await fileData.arrayBuffer();
+          const attachedPdf = await PDFDocument.load(pdfBytes);
+          const copiedPages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
+          copiedPages.forEach((p: any) => pdfDoc.addPage(p));
+        } catch (e) {
+          console.warn("Failed to merge attachment:", filePath, e);
+        }
       }
     }
 
@@ -492,6 +494,19 @@ Deno.serve(async (req) => {
     const totalPages = pdfDoc.getPageCount();
     for (let i = 0; i < totalPages; i++) {
       drawPageExtras(pdfDoc.getPage(i), i + 1, totalPages);
+    }
+
+    // ─── Preview mode: return PDF directly without storage ───
+    if (isPreview) {
+      const pdfBytes = await pdfDoc.save();
+      const uint8 = new Uint8Array(pdfBytes);
+      // Convert to base64
+      let binary = "";
+      for (let i = 0; i < uint8.length; i++) {
+        binary += String.fromCharCode(uint8[i]);
+      }
+      const base64 = btoa(binary);
+      return jsonResponse({ success: true, pdf_base64: base64 });
     }
 
     // ─── Save to storage ───
