@@ -8,7 +8,7 @@ export function useQuoteTemplates() {
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
-  const { data: templates = [], isLoading } = useQuery({
+  const { data: templates = [], isLoading, error: fetchError } = useQuery({
     queryKey: ['quote-templates', companyId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -18,7 +18,10 @@ export function useQuoteTemplates() {
         .eq('is_active', true)
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: true });
-      if (error) throw error;
+      if (error) {
+        console.error('Errore caricamento template:', error);
+        throw error;
+      }
       return (data ?? []) as unknown as QuoteTemplate[];
     },
     enabled: !!companyId,
