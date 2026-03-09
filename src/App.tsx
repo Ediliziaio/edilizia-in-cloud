@@ -215,6 +215,7 @@ const App = () => (
                 <Route path="annunci" element={<Announcements />} />
                 <Route path="customer-success" element={<CustomerSuccess />} />
                 <Route path="cs-tasks" element={<AdminCSTasks />} />
+                <Route path="gdpr" element={<AdminGDPR />} />
               </Route>
 
               {/* Full-screen Automation Builder routes - OUTSIDE CompanyLayout */}

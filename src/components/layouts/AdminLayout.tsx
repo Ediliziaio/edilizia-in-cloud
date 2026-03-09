@@ -64,6 +64,7 @@ const allNavItems = [
   { title: "CS Tasks", url: "/admin/cs-tasks", icon: ClipboardCheck, permission: "can_manage_companies" as const },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats" as const },
   { title: "Sync Logs", url: "/admin/sync-logs", icon: RefreshCw, permission: "can_view_platform_stats" as const },
+  { title: "GDPR", url: "/admin/gdpr", icon: ShieldCheckIcon, permission: "can_manage_companies" as const },
 ];
 
 const accountItems = [
