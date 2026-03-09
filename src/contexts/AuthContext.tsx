@@ -242,6 +242,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const [impersonationToken, setImpersonationToken] = useState<string | null>(null);
+
   const impersonateCompany = async (companyId: string) => {
     // Only super_admin can impersonate
     if (state.role !== "super_admin") {
@@ -249,29 +251,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    setImpersonatedCompanyId(companyId);
-
-    // Log impersonation audit event (fire-and-forget)
     try {
-      const { data: company } = await supabase
-        .from("companies")
-        .select("name")
-        .eq("id", companyId)
-        .maybeSingle();
+      // Use secure edge function to start impersonation
+      const { data, error } = await supabase.functions.invoke("secure-impersonation", {
+        body: { action: "start", companyId },
+      });
 
-      supabase.functions.invoke("manage-super-admins", {
-        body: {
-          action: "log-impersonation",
-          companyId,
-          companyName: company?.name || companyId,
-        },
-      }).catch(() => {});
-    } catch {
-      // Non-blocking
+      if (error || !data?.token) {
+        console.error("Failed to start secure impersonation:", error);
+        return;
+      }
+
+      setImpersonationToken(data.token);
+      setImpersonatedCompanyId(companyId);
+    } catch (err) {
+      console.error("Impersonation error:", err);
     }
   };
 
-  const exitImpersonation = () => {
+  const exitImpersonation = async () => {
+    try {
+      // End impersonation on server
+      await supabase.functions.invoke("secure-impersonation", {
+        body: { action: "end" },
+      });
+    } catch {
+      // Non-blocking
+    }
+    setImpersonationToken(null);
     setImpersonatedCompanyId(null);
     setImpersonatedCompany(null);
   };

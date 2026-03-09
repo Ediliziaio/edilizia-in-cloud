@@ -181,6 +181,13 @@ function AdminSettingsSidebar() {
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink to="/admin/impostazioni/ip-allowlist" className={navLinkClass} activeClassName={activeClass}>
+                      <ShieldCheck className="h-4 w-4" /><span>IP Allowlist</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

@@ -215,6 +215,7 @@ const App = () => (
                 <Route path="impostazioni/audit" element={<AdminSettingsAuditLog />} />
                 <Route path="impostazioni/email" element={<AdminSettingsEmail />} />
                 <Route path="impostazioni/agenti-ai" element={<AdminSettingsAI />} />
+                <Route path="impostazioni/ip-allowlist" element={<AdminSettingsIPAllowlist />} />
                 <Route path="piani" element={<SubscriptionPlans />} />
                 <Route path="referral" element={<ReferralDashboard />} />
                 <Route path="feature-flags" element={<FeatureFlags />} />
