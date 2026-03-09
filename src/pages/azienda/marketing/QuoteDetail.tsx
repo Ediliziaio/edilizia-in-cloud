@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -45,6 +46,43 @@ export default function QuoteDetail() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
+  const [generating, setGenerating] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const handleGeneratePdf = async () => {
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
+        body: { quote_id: id },
+      });
+      if (error) throw error;
+      if (data?.signed_url) {
+        window.open(data.signed_url, "_blank");
+      }
+      toast.success("PDF generato con successo");
+      queryClient.invalidateQueries({ queryKey: ["quote", id] });
+    } catch (e: any) {
+      toast.error("Errore generazione PDF: " + (e.message || "errore"));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleSendForSignature = async () => {
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-quote-signature", {
+        body: { quote_id: id },
+      });
+      if (error) throw error;
+      toast.success("Offerta inviata al cliente");
+      queryClient.invalidateQueries({ queryKey: ["quote", id] });
+    } catch (e: any) {
+      toast.error("Errore invio: " + (e.message || "errore"));
+    } finally {
+      setSending(false);
+    }
+  };
 
   const { data: quote, isLoading } = useQuery({
     queryKey: ["quote", id],
@@ -136,7 +174,14 @@ export default function QuoteDetail() {
           </div>
           <p className="text-muted-foreground">{quote.title}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {/* Generate PDF */}
+          <Button variant="outline" onClick={handleGeneratePdf} disabled={generating}>
+            {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
+            {generating ? "Generando..." : "Genera PDF"}
+          </Button>
+
+          {/* Edit (only draft) */}
           {quote.status === "bozza" && (
             <Button
               variant="outline"
@@ -144,6 +189,14 @@ export default function QuoteDetail() {
             >
               <Pencil className="h-4 w-4 mr-2" />
               Modifica
+            </Button>
+          )}
+
+          {/* Send for signature (draft or already sent) */}
+          {(quote.status === "bozza" || quote.status === "inviata") && quote.client_email && (
+            <Button onClick={handleSendForSignature} disabled={sending}>
+              {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              {sending ? "Invio..." : quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
             </Button>
           )}
         </div>
