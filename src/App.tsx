@@ -358,6 +358,7 @@ const App = () => (
                   <Route path="branding" element={<SettingsBranding />} />
                   <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
                   <Route path="template-preventivi" element={<SettingsQuoteTemplates />} />
+                  <Route path="fatturazione" element={<SettingsBilling />} />
                 </Route>
               </Route>
 
