@@ -64,10 +64,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate required fields
+    // Validate required fields using field.id
     const fields = (form.fields as any[]) || [];
     for (const field of fields) {
-      if (field.required && !formData[field.name]) {
+      const fieldKey = field.id || field.name;
+      if (field.required && !formData[fieldKey]) {
         return new Response(
           JSON.stringify({ error: `Campo obbligatorio: ${field.label || field.name}` }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -81,44 +82,72 @@ Deno.serve(async (req) => {
       "unknown";
     const ip_hash = await hashIP(clientIP);
 
+    const settings = (form.settings as any) || {};
+
+    // Build contact data from field mappings
+    let mappedEmail: string | null = null;
+    let mappedFirstName: string | null = null;
+    let mappedLastName: string | null = null;
+    let mappedPhone: string | null = null;
+
+    for (const field of fields) {
+      const fieldKey = field.id || field.name;
+      const value = formData[fieldKey];
+      if (!value) continue;
+
+      const mapping = (field.mapping || field.name || "").toLowerCase();
+      if (mapping === "email" || field.type === "email") mappedEmail = value;
+      else if (mapping === "first_name" || mapping === "nome") mappedFirstName = value;
+      else if (mapping === "last_name" || mapping === "cognome") mappedLastName = value;
+      else if (mapping === "phone" || mapping === "telefono" || field.type === "phone") mappedPhone = value;
+    }
+
+    // Fallback: try common field names directly
+    if (!mappedEmail) mappedEmail = formData.email || formData.Email || formData.EMAIL || null;
+    if (!mappedFirstName) mappedFirstName = formData.first_name || formData.nome || formData.name || formData.Nome || null;
+    if (!mappedLastName) mappedLastName = formData.last_name || formData.cognome || formData.surname || formData.Cognome || null;
+    if (!mappedPhone) mappedPhone = formData.phone || formData.telefono || formData.Phone || formData.Telefono || null;
+
     // Upsert contact by email if present
     let contactId: string | null = null;
-    const email = formData.email || formData.Email || formData.EMAIL;
-    if (email && typeof email === "string" && email.includes("@")) {
-      const firstName = formData.first_name || formData.nome || formData.name || formData.Nome || email.split("@")[0];
-      const lastName = formData.last_name || formData.cognome || formData.surname || formData.Cognome || null;
-      const phone = formData.phone || formData.telefono || formData.Phone || formData.Telefono || null;
+    if (mappedEmail && typeof mappedEmail === "string" && mappedEmail.includes("@")) {
+      const email = mappedEmail.toLowerCase().trim();
+      const firstName = mappedFirstName || email.split("@")[0];
 
-      // Check existing
       const { data: existing } = await supabase
         .from("marketing_contacts")
         .select("id")
         .eq("company_id", form.company_id)
-        .eq("email", email.toLowerCase().trim())
+        .eq("email", email)
         .maybeSingle();
 
       if (existing) {
         contactId = existing.id;
-        // Update last activity
         await supabase
           .from("marketing_contacts")
           .update({ last_activity_at: new Date().toISOString() })
           .eq("id", contactId);
       } else {
+        const insertPayload: Record<string, any> = {
+          company_id: form.company_id,
+          email,
+          first_name: firstName,
+          last_name: mappedLastName,
+          phone: mappedPhone,
+          source: "form",
+          attr_source: utm_source || null,
+          attr_medium: utm_medium || null,
+          attr_campaign: utm_campaign || null,
+          attr_content: utm_content || null,
+        };
+
+        // Apply settings defaults
+        if (settings.assignedUserId) insertPayload.assigned_to = settings.assignedUserId;
+        if (settings.defaultTags && Array.isArray(settings.defaultTags)) insertPayload.tags = settings.defaultTags;
+
         const { data: newContact } = await supabase
           .from("marketing_contacts")
-          .insert({
-            company_id: form.company_id,
-            email: email.toLowerCase().trim(),
-            first_name: firstName,
-            last_name: lastName,
-            phone,
-            source: "form",
-            attr_source: utm_source || null,
-            attr_medium: utm_medium || null,
-            attr_campaign: utm_campaign || null,
-            attr_content: utm_content || null,
-          })
+          .insert(insertPayload)
           .select("id")
           .single();
         if (newContact) contactId = newContact.id;
@@ -166,8 +195,23 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Trigger form automations
+    try {
+      await supabase.from("automation_trigger_events").insert({
+        company_id: form.company_id,
+        trigger_event: "form_submitted",
+        entity_type: "contact",
+        entity_id: contactId || form_id,
+        payload: { form_id, contact_id: contactId, data: formData },
+      });
+    } catch (_) {
+      // Non-blocking
+    }
+
+    const redirectUrl = settings.redirectUrl || null;
+
     return new Response(
-      JSON.stringify({ ok: true, contact_id: contactId }),
+      JSON.stringify({ ok: true, contact_id: contactId, redirect_url: redirectUrl }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {

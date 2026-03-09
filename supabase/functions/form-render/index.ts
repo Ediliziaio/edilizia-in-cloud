@@ -53,25 +53,27 @@ Deno.serve(async (req) => {
   const formTitle = settings.title || form.name;
   const successMessage = settings.success_message || "Grazie! La tua richiesta è stata inviata.";
   const submitLabel = settings.submit_label || "Invia";
+  const redirectUrl = settings.redirectUrl || "";
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
   const fieldsHTML = fields
     .map((f: any) => {
       const req = f.required ? "required" : "";
+      const fieldKey = f.id || f.name;
       const inputType = f.type === "email" ? "email" : f.type === "phone" ? "tel" : f.type === "number" ? "number" : "text";
 
       if (f.type === "textarea") {
-        return `<div class="field"><label>${f.label || f.name}${f.required ? ' *' : ''}</label><textarea name="${f.name}" ${req} rows="4"></textarea></div>`;
+        return `<div class="field"><label>${f.label || f.name}${f.required ? ' *' : ''}</label><textarea name="${fieldKey}" ${req} rows="4"></textarea></div>`;
       }
       if (f.type === "select" && f.options) {
         const opts = (f.options as string[]).map((o: string) => `<option value="${o}">${o}</option>`).join("");
-        return `<div class="field"><label>${f.label || f.name}${f.required ? ' *' : ''}</label><select name="${f.name}" ${req}><option value="">Seleziona...</option>${opts}</select></div>`;
+        return `<div class="field"><label>${f.label || f.name}${f.required ? ' *' : ''}</label><select name="${fieldKey}" ${req}><option value="">Seleziona...</option>${opts}</select></div>`;
       }
       if (f.type === "checkbox") {
-        return `<div class="field checkbox"><label><input type="checkbox" name="${f.name}" ${req}> ${f.label || f.name}</label></div>`;
+        return `<div class="field checkbox"><label><input type="checkbox" name="${fieldKey}" ${req}> ${f.label || f.name}</label></div>`;
       }
-      return `<div class="field"><label>${f.label || f.name}${f.required ? ' *' : ''}</label><input type="${inputType}" name="${f.name}" ${req} placeholder="${f.placeholder || ''}"></div>`;
+      return `<div class="field"><label>${f.label || f.name}${f.required ? ' *' : ''}</label><input type="${inputType}" name="${fieldKey}" ${req} placeholder="${f.placeholder || ''}"></div>`;
     })
     .join("\n");
 
@@ -121,6 +123,33 @@ Deno.serve(async (req) => {
   </div>
   <script>
   (function(){
+    // Attribution tracking snippet
+    var CID='${companyId}';
+    var BASE='${supabaseUrl}';
+    function uuid(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)});}
+    function getCookie(n){var m=document.cookie.match(new RegExp('(^| )'+n+'=([^;]+)'));return m?m[2]:null;}
+    function setCookie(n,v,d){var e=new Date();e.setTime(e.getTime()+d*864e5);document.cookie=n+'='+v+';expires='+e.toUTCString()+';path=/;SameSite=Lax';}
+    var vid=getCookie('_attr_vid');if(!vid){vid=uuid();setCookie('_attr_vid',vid,365);}
+    var sid=getCookie('_attr_sid');if(!sid){sid=uuid();setCookie('_attr_sid',sid,1);}
+    window._attrSessionId=sid;
+    var p=new URLSearchParams(window.location.search);
+    fetch(BASE+'/functions/v1/attribution-capture',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        company_id:CID,session_id:sid,visitor_id:vid,
+        landing_url:window.location.href,
+        referrer:document.referrer||null,
+        utm_source:p.get('utm_source'),utm_medium:p.get('utm_medium'),
+        utm_campaign:p.get('utm_campaign'),utm_content:p.get('utm_content'),
+        utm_term:p.get('utm_term'),
+        gclid:p.get('gclid'),fbclid:p.get('fbclid'),
+        ttclid:p.get('ttclid'),msclkid:p.get('msclkid'),
+        li_fat_id:p.get('li_fat_id')
+      })
+    }).catch(function(){});
+
+    // Form submit handler
     var params=new URLSearchParams(window.location.search);
     document.getElementById('leadForm').addEventListener('submit',function(e){
       e.preventDefault();
@@ -129,13 +158,13 @@ Deno.serve(async (req) => {
       document.getElementById('errorMsg').classList.add('hidden');
       var fd=new FormData(e.target);
       var data={};fd.forEach(function(v,k){data[k]=v;});
-      fetch('${supabaseUrl}/functions/v1/form-submit',{
+      fetch(BASE+'/functions/v1/form-submit',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           form_id:'${form.id}',
           data:data,
-          session_id:getCookie('_attr_sid')||null,
+          session_id:window._attrSessionId||getCookie('_attr_sid')||null,
           utm_source:params.get('utm_source'),
           utm_medium:params.get('utm_medium'),
           utm_campaign:params.get('utm_campaign'),
@@ -144,6 +173,8 @@ Deno.serve(async (req) => {
         })
       }).then(function(r){return r.json()}).then(function(r){
         if(r.ok){
+          var redir='${redirectUrl}';
+          if(redir){window.location.href=redir;return;}
           document.getElementById('formSection').classList.add('hidden');
           document.getElementById('successSection').classList.remove('hidden');
         }else{
@@ -155,7 +186,6 @@ Deno.serve(async (req) => {
         btn.disabled=false;btn.textContent='${submitLabel}';
       });
     });
-    function getCookie(n){var m=document.cookie.match(new RegExp('(^| )'+n+'=([^;]+)'));return m?m[2]:null;}
   })();
   </script>
 </body>
