@@ -311,7 +311,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
         company_id: "",
         from_node_id: parentId,
         to_node_id: id,
-        label: null,
+        label: addAfterBranch,
         created_at: new Date().toISOString(),
       });
     }
