@@ -34,17 +34,17 @@ export interface StaffUserFormData {
   permissions?: StaffPermissions;
 }
 
-import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
+import { DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
 
 const MARKETING_SECTION_KEYS = [
   "can_view_marketing_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
   "can_view_marketing_activities", "can_view_marketing_appointments", "can_view_marketing_automations",
   "can_view_marketing_ai_agent", "can_view_marketing_email", "can_view_marketing_whatsapp", "can_view_marketing_reports",
 ];
-const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s =>
+const INTERNAL_SECTIONS_LOCAL = ALL_PERMISSION_SECTIONS.filter(s =>
   !MARKETING_SECTION_KEYS.includes(s.viewKey as string)
 );
-const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s =>
+const MARKETING_SECTIONS_LOCAL = ALL_PERMISSION_SECTIONS.filter(s =>
   MARKETING_SECTION_KEYS.includes(s.viewKey as string)
 );
 
