@@ -37,7 +37,7 @@ const getLogoPublicUrl = (path: string) =>
 export default function SettingsQuoteTemplates() {
   const { role, effectiveCompany } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
-  const { templates, isLoading, upsertTemplate, deleteTemplate } = useQuoteTemplates();
+  const { templates, isLoading, fetchError, upsertTemplate, deleteTemplate } = useQuoteTemplates();
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
@@ -147,6 +147,20 @@ export default function SettingsQuoteTemplates() {
 
       {!editing ? (
         /* Template list */
+        fetchError ? (
+          <Card className="p-8 text-center">
+            <p className="text-destructive font-medium">Errore nel caricamento dei template</p>
+            <p className="text-sm text-muted-foreground mt-1">{(fetchError as Error).message}</p>
+          </Card>
+        ) : !isLoading && templates.length === 0 ? (
+          <Card className="p-8 text-center space-y-3">
+            <ImageIcon className="h-10 w-10 mx-auto text-muted-foreground/40" />
+            <p className="text-muted-foreground">Nessun template trovato</p>
+            {isAdmin && (
+              <Button onClick={handleNew}><Plus className="h-4 w-4 mr-2" />Crea il primo template</Button>
+            )}
+          </Card>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {templates.map(tmpl => (
             <Card key={tmpl.id} className="relative overflow-hidden">
@@ -186,14 +200,8 @@ export default function SettingsQuoteTemplates() {
               </CardContent>
             </Card>
           ))}
-          {templates.length === 0 && (
-            <div className="col-span-full text-center py-12 text-muted-foreground">
-              <LayoutGrid className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p>Nessun template creato.</p>
-              <Button variant="link" onClick={handleNew}>Crea il primo template</Button>
-            </div>
-          )}
         </div>
+        )
       ) : (
         /* Editor with preview */
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
