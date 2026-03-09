@@ -161,6 +161,20 @@ Deno.serve(async (req) => {
               break;
             }
 
+            case "send_email": {
+              // Log email intent (actual sending requires email service integration)
+              const { error } = await supabase.from("lifecycle_notifications").insert({
+                company_id: job.company_id,
+                type: "email",
+                title: interpolate(config.email_subject || "Email automatica", context),
+                message: interpolate(config.email_body || "", context),
+                target_user_id: config.notify_user_id || null,
+              });
+              if (error) throw error;
+              actionResult = { sent: "email", to: config.email_to };
+              break;
+            }
+
             case "webhook": {
               if (config.webhook_url) {
                 const body = JSON.stringify({
