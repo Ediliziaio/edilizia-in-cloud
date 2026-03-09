@@ -693,7 +693,7 @@ export default function MarketingContacts() {
       if (data && customKeys.length > 0) {
         const fieldValues: { contact_id: string; field_id: string; value: string | null }[] = [];
         data.forEach((contact, idx) => {
-          const row = parsed[idx]?.row;
+          const row = finalParsed[idx]?.row;
           if (!row) return;
           customKeys.forEach(key => {
             const val = row[key]?.trim();
