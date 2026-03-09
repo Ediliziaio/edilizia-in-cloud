@@ -40,6 +40,7 @@ import {
   BarChart3,
   Headphones,
   Landmark,
+  FileSignature,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
