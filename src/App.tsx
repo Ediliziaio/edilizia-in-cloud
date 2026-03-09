@@ -351,6 +351,7 @@ const App = () => (
                   <Route path="stati-ordine" element={<SettingsOrderStatus />} />
                   <Route path="fornitori" element={<SettingsSuppliers />} />
                   <Route path="categorie-costi" element={<SettingsCostCategories />} />
+                  <Route path="automazioni-finanza" element={<SettingsFinanceAutomation />} />
                   <Route path="tag" element={<SettingsTags />} />
                   <Route path="campi-personalizzati" element={<SettingsCustomFields />} />
                   <Route path="sequenze" element={<SettingsPipelines />} />
