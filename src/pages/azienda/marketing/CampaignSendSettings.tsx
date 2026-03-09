@@ -35,6 +35,8 @@ import {
   Smartphone,
 } from "lucide-react";
 
+import { Slider } from "@/components/ui/slider";
+
 export default function CampaignSendSettings() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
