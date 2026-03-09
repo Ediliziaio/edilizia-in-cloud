@@ -361,6 +361,7 @@ const App = () => (
                   <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
                   <Route path="template-preventivi" element={<SettingsQuoteTemplates />} />
                   <Route path="fatturazione" element={<SettingsBilling />} />
+                  <Route path="form-builder" element={<SettingsFormBuilder />} />
                 </Route>
               </Route>
 
