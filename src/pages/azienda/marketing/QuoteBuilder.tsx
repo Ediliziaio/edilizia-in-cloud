@@ -64,6 +64,7 @@ const STEPS = [
 
 export default function QuoteBuilder() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const isEdit = !!id;
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
