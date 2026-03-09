@@ -122,6 +122,9 @@ const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDr
 const MarketingWhatsApp = lazy(() => import("@/pages/azienda/marketing/MarketingWhatsApp"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
+const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
+const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
+const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 
 // Customer
@@ -305,6 +308,10 @@ const App = () => (
                 <Route path="marketing/whatsapp" element={<MarketingWhatsApp />} />
                 <Route path="marketing/lead-forms" element={<FacebookFormsPage />} />
                 <Route path="marketing/reportistica" element={<ReportisticaPage />} />
+                <Route path="marketing/preventivi" element={<Preventivi />} />
+                <Route path="marketing/preventivi/nuovo" element={<QuoteBuilder />} />
+                <Route path="marketing/preventivi/:id" element={<QuoteDetail />} />
+                <Route path="marketing/preventivi/:id/modifica" element={<QuoteBuilder />} />
                 
                 <Route path="impostazioni" element={<SettingsLayout />}>
                   <Route index element={<Navigate to="profilo" replace />} />
