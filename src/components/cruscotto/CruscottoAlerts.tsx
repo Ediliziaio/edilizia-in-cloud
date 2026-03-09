@@ -154,7 +154,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         icon: FileText,
         message: `${invoiceStats.overdue_count} fattur${invoiceStats.overdue_count === 1 ? "a scaduta" : "e scadute"} (€${Math.round(invoiceStats.overdue_amount).toLocaleString("it-IT")})`,
         action: "Verificare incassi e sollecitare pagamenti",
-        link: "/azienda/fatturazione/scadenzario",
+        link: "/azienda/scadenzario",
       });
     }
     if (invoiceStats.due_this_week_count > 0) {
@@ -164,7 +164,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
         icon: FileText,
         message: `${invoiceStats.due_this_week_count} fattur${invoiceStats.due_this_week_count === 1 ? "a in scadenza" : "e in scadenza"} entro 7 giorni (€${Math.round(invoiceStats.due_this_week_amount).toLocaleString("it-IT")})`,
         action: "Monitorare incassi previsti",
-        link: "/azienda/fatturazione/scadenzario",
+        link: "/azienda/scadenzario",
       });
     }
   }
