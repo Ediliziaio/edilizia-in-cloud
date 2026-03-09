@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
     .eq("company_id", companyId)
     .eq("slug", slug)
     .eq("is_published", true)
+    .eq("is_active", true)
     .single();
 
   if (error || !form) {
