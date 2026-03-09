@@ -369,9 +369,61 @@ export default function InvoiceEditor() {
           </Badge>
         )}
         {id && !isNew && (
-          <Button variant="outline" size="sm" onClick={downloadPdf}>
-            <Download className="h-4 w-4 mr-2" /> Scarica PDF
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={downloadPdf}>
+              <Download className="h-4 w-4 mr-2" /> Scarica PDF
+            </Button>
+            <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Mail className="h-4 w-4 mr-2" /> Invia via Email
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Invia fattura via email</DialogTitle>
+                  <DialogDescription>
+                    Il cliente riceverà un'email con i dettagli della fattura.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div>
+                    <Label>Email destinatario *</Label>
+                    <Input
+                      type="email"
+                      value={emailTo}
+                      onChange={(e) => setEmailTo(e.target.value)}
+                      placeholder="cliente@esempio.it"
+                    />
+                  </div>
+                  <div>
+                    <Label>Oggetto (opzionale)</Label>
+                    <Input
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      placeholder={`Fattura N° ${form.invoice_number || "—"}`}
+                    />
+                  </div>
+                  <div>
+                    <Label>Messaggio personalizzato (opzionale)</Label>
+                    <Textarea
+                      value={emailMessage}
+                      onChange={(e) => setEmailMessage(e.target.value)}
+                      placeholder="Aggiungi un messaggio da includere nell'email..."
+                      rows={3}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setEmailOpen(false)}>Annulla</Button>
+                  <Button onClick={sendInvoiceEmail} disabled={sendingEmail || !emailTo}>
+                    {sendingEmail ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />}
+                    Invia
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         )}
       </div>
 
