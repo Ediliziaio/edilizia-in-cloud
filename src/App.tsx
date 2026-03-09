@@ -150,7 +150,12 @@ const MyEarnings = lazy(() => import("@/pages/venditore/MyEarnings"));
 const SalespersonProfile = lazy(() => import("@/pages/venditore/SalespersonProfile"));
 
 // Partner
-const PartnerPortal = lazy(() => import("@/pages/partner/PartnerPortal"));
+const PartnerDashboard = lazy(() => import("@/pages/partner/PartnerDashboard"));
+const PartnerLink = lazy(() => import("@/pages/partner/PartnerLink"));
+const PartnerCommissions = lazy(() => import("@/pages/partner/PartnerCommissions"));
+const PartnerPayout = lazy(() => import("@/pages/partner/PartnerPayout"));
+const PartnerMaterials = lazy(() => import("@/pages/partner/PartnerMaterials"));
+const PartnerProfile = lazy(() => import("@/pages/partner/PartnerProfile"));
 
 // Auth
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
