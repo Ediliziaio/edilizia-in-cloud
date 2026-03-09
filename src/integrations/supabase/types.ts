@@ -9380,6 +9380,7 @@ export type Database = {
       }
       prima_nota_entries: {
         Row: {
+          account_label: string | null
           amount: number
           attachment_name: string | null
           attachment_url: string | null
@@ -9397,6 +9398,7 @@ export type Database = {
           is_auto: boolean
           notes: string | null
           order_id: string | null
+          order_item_id: string | null
           payment_method: string | null
           reference_number: string | null
           scadenza_id: string | null
@@ -9404,6 +9406,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_label?: string | null
           amount: number
           attachment_name?: string | null
           attachment_url?: string | null
@@ -9421,6 +9424,7 @@ export type Database = {
           is_auto?: boolean
           notes?: string | null
           order_id?: string | null
+          order_item_id?: string | null
           payment_method?: string | null
           reference_number?: string | null
           scadenza_id?: string | null
@@ -9428,6 +9432,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_label?: string | null
           amount?: number
           attachment_name?: string | null
           attachment_url?: string | null
@@ -9445,6 +9450,7 @@ export type Database = {
           is_auto?: boolean
           notes?: string | null
           order_id?: string | null
+          order_item_id?: string | null
           payment_method?: string | null
           reference_number?: string | null
           scadenza_id?: string | null
@@ -9478,6 +9484,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
           {
@@ -9587,6 +9600,7 @@ export type Database = {
           id: string
           line_total: number | null
           notes: string | null
+          order_item_id: string | null
           purchase_order_id: string
           quantity: number
           quantity_received: number
@@ -9608,6 +9622,7 @@ export type Database = {
           id?: string
           line_total?: number | null
           notes?: string | null
+          order_item_id?: string | null
           purchase_order_id: string
           quantity?: number
           quantity_received?: number
@@ -9629,6 +9644,7 @@ export type Database = {
           id?: string
           line_total?: number | null
           notes?: string | null
+          order_item_id?: string | null
           purchase_order_id?: string
           quantity?: number
           quantity_received?: number
@@ -9657,6 +9673,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "purchase_order_items_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
             columns: ["purchase_order_id"]
             isOneToOne: false
@@ -9670,8 +9693,10 @@ export type Database = {
           actual_delivery_date: string | null
           attachment_url: string | null
           company_id: string
+          confirmed_at: string | null
           created_at: string
           created_by: string | null
+          delivery_address: string | null
           expected_delivery_date: string | null
           id: string
           internal_notes: string | null
@@ -9681,9 +9706,11 @@ export type Database = {
           order_id: string | null
           payment_method: string | null
           payment_terms: string | null
+          sent_at: string | null
           status: string
           subtotal: number
           supplier_id: string
+          supplier_reference: string | null
           total: number
           updated_at: string
           vat_total: number
@@ -9692,8 +9719,10 @@ export type Database = {
           actual_delivery_date?: string | null
           attachment_url?: string | null
           company_id: string
+          confirmed_at?: string | null
           created_at?: string
           created_by?: string | null
+          delivery_address?: string | null
           expected_delivery_date?: string | null
           id?: string
           internal_notes?: string | null
@@ -9703,9 +9732,11 @@ export type Database = {
           order_id?: string | null
           payment_method?: string | null
           payment_terms?: string | null
+          sent_at?: string | null
           status?: string
           subtotal?: number
           supplier_id: string
+          supplier_reference?: string | null
           total?: number
           updated_at?: string
           vat_total?: number
@@ -9714,8 +9745,10 @@ export type Database = {
           actual_delivery_date?: string | null
           attachment_url?: string | null
           company_id?: string
+          confirmed_at?: string | null
           created_at?: string
           created_by?: string | null
+          delivery_address?: string | null
           expected_delivery_date?: string | null
           id?: string
           internal_notes?: string | null
@@ -9725,9 +9758,11 @@ export type Database = {
           order_id?: string | null
           payment_method?: string | null
           payment_terms?: string | null
+          sent_at?: string | null
           status?: string
           subtotal?: number
           supplier_id?: string
+          supplier_reference?: string | null
           total?: number
           updated_at?: string
           vat_total?: number
@@ -10722,7 +10757,10 @@ export type Database = {
       }
       scadenze: {
         Row: {
+          alert_days_before: number | null
+          alert_sent_at: string | null
           amount: number
+          auto_source: string | null
           company_id: string
           contact_id: string | null
           cost_id: string | null
@@ -10733,12 +10771,15 @@ export type Database = {
           due_date: string
           id: string
           invoice_id: string | null
+          is_auto_generated: boolean | null
           is_recurring: boolean
           notes: string | null
           order_id: string | null
+          order_item_id: string | null
           paid_amount: number
           paid_date: string | null
           payment_method: string | null
+          prima_nota_entry_id: string | null
           recurrence_rule: string | null
           status: string
           supplier_id: string | null
@@ -10746,7 +10787,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          alert_days_before?: number | null
+          alert_sent_at?: string | null
           amount: number
+          auto_source?: string | null
           company_id: string
           contact_id?: string | null
           cost_id?: string | null
@@ -10757,12 +10801,15 @@ export type Database = {
           due_date: string
           id?: string
           invoice_id?: string | null
+          is_auto_generated?: boolean | null
           is_recurring?: boolean
           notes?: string | null
           order_id?: string | null
+          order_item_id?: string | null
           paid_amount?: number
           paid_date?: string | null
           payment_method?: string | null
+          prima_nota_entry_id?: string | null
           recurrence_rule?: string | null
           status?: string
           supplier_id?: string | null
@@ -10770,7 +10817,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          alert_days_before?: number | null
+          alert_sent_at?: string | null
           amount?: number
+          auto_source?: string | null
           company_id?: string
           contact_id?: string | null
           cost_id?: string | null
@@ -10781,12 +10831,15 @@ export type Database = {
           due_date?: string
           id?: string
           invoice_id?: string | null
+          is_auto_generated?: boolean | null
           is_recurring?: boolean
           notes?: string | null
           order_id?: string | null
+          order_item_id?: string | null
           paid_amount?: number
           paid_date?: string | null
           payment_method?: string | null
+          prima_nota_entry_id?: string | null
           recurrence_rule?: string | null
           status?: string
           supplier_id?: string | null
@@ -10827,6 +10880,20 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scadenze_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scadenze_prima_nota_entry_id_fkey"
+            columns: ["prima_nota_entry_id"]
+            isOneToOne: false
+            referencedRelation: "prima_nota_entries"
             referencedColumns: ["id"]
           },
           {
@@ -12626,21 +12693,33 @@ export type Database = {
         Args: { p_ip_address?: unknown; p_success: boolean; p_user_id: string }
         Returns: Json
       }
-      check_overdue_scadenze: { Args: never; Returns: number }
+      check_overdue_scadenze:
+        | { Args: never; Returns: number }
+        | { Args: { p_company_id: string }; Returns: Json }
       check_staff_visibility: {
         Args: { _assigned_to: string; _user_id: string }
         Returns: boolean
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
-      create_oda_from_order: {
-        Args: {
-          p_company_id: string
-          p_order_id: string
-          p_supplier_id: string
-          p_user_id: string
-        }
-        Returns: string
-      }
+      create_oda_from_order:
+        | {
+            Args: {
+              p_company_id: string
+              p_item_ids?: string[]
+              p_order_id: string
+              p_supplier_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_company_id: string
+              p_order_id: string
+              p_supplier_id: string
+              p_user_id: string
+            }
+            Returns: string
+          }
       create_order_atomic: {
         Args: {
           p_installments?: Json
@@ -12946,16 +13025,28 @@ export type Database = {
         Returns: undefined
       }
       is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
-      mark_scadenza_paid: {
-        Args: {
-          p_amount: number
-          p_notes?: string
-          p_payment_date?: string
-          p_payment_method?: string
-          p_scadenza_id: string
-        }
-        Returns: Json
-      }
+      mark_scadenza_paid:
+        | {
+            Args: {
+              p_amount: number
+              p_notes?: string
+              p_payment_date?: string
+              p_payment_method?: string
+              p_scadenza_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_account_label?: string
+              p_amount: number
+              p_notes?: string
+              p_payment_date?: string
+              p_payment_method?: string
+              p_scadenza_id: string
+            }
+            Returns: Json
+          }
       recalculate_invoice_totals: {
         Args: { p_invoice_id: string }
         Returns: undefined
