@@ -18,21 +18,22 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body; // list, create, update, delete, apply
 
-    // Get actor's company_id
+    // Get actor's company_id (support super_admin impersonation via body.company_id)
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("company_id")
       .eq("id", userId)
       .single();
 
-    if (!profile?.company_id) {
+    // Super admins can pass company_id explicitly for impersonation
+    const companyId = profile?.company_id || body.company_id;
+
+    if (!companyId) {
       return new Response(JSON.stringify({ error: "No company found" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const companyId = profile.company_id;
 
     if (action === "list") {
       // Return company templates + system defaults

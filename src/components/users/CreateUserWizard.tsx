@@ -83,7 +83,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   useEffect(() => {
     if (open && effectiveCompany?.id) {
       supabase.functions.invoke("manage-permission-template", {
-        body: { action: "list" },
+        body: { action: "list", company_id: effectiveCompany.id },
       }).then(({ data }) => {
         if (data?.templates) setTemplates(data.templates);
       });
