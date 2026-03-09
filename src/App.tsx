@@ -183,6 +183,7 @@ const App = () => (
               {/* Public Routes */}
               <Route path="/home" element={<Home />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />
