@@ -289,7 +289,7 @@ export function StaffUserDialog({
                   <Separator />
 
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gestione Interna</p>
-                  {INTERNAL_SECTIONS.map(renderSection)}
+                  {INTERNAL_SECTIONS_LOCAL.map(renderSection)}
 
                   <Separator />
 
