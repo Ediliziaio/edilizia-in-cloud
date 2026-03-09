@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const slug = url.searchParams.get("slug");
-  const companyId = url.searchParams.get("company_id");
+  const companyId = url.searchParams.get("company_id") || url.searchParams.get("company");
 
   if (!slug || !companyId) {
     return new Response("Missing slug or company_id", {
@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
   const accentColor = theme.accent_color || "#2563eb";
   const fontFamily = theme.font_family || "system-ui, sans-serif";
   const formTitle = settings.title || form.name;
+  const successTitle = theme.success_title || settings.success_title || "✓";
   const successMessage = settings.success_message || "Grazie! La tua richiesta è stata inviata.";
   const submitLabel = settings.submit_label || "Invia";
   const redirectUrl = settings.redirectUrl || "";
@@ -142,38 +143,57 @@ Deno.serve(async (req) => {
       </form>
     </div>
     <div id="successSection" class="success hidden">
-      <h2>✓</h2>
-      <p>${successMessage}</p>
+      <h2 id="successTitle">${successTitle}</h2>
+      <p id="successMsg">${successMessage}</p>
     </div>
   </div>
   <script>
   (function(){
     var CID='${companyId}';
     var BASE='${supabaseUrl}';
-    function uuid(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)});}
-    function getCookie(n){var m=document.cookie.match(new RegExp('(^| )'+n+'=([^;]+)'));return m?m[2]:null;}
-    function setCookie(n,v,d){var e=new Date();e.setTime(e.getTime()+d*864e5);document.cookie=n+'='+v+';expires='+e.toUTCString()+';path=/;SameSite=Lax';}
-    var vid=getCookie('_attr_vid');if(!vid){vid=uuid();setCookie('_attr_vid',vid,365);}
-    var sid=getCookie('_attr_sid');if(!sid){sid=uuid();setCookie('_attr_sid',sid,1);}
-    window._attrSessionId=sid;
-    var p=new URLSearchParams(window.location.search);
-    fetch(BASE+'/functions/v1/attribution-capture',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        company_id:CID,session_id:sid,visitor_id:vid,
-        landing_url:window.location.href,
-        referrer:document.referrer||null,
-        utm_source:p.get('utm_source'),utm_medium:p.get('utm_medium'),
-        utm_campaign:p.get('utm_campaign'),utm_content:p.get('utm_content'),
-        utm_term:p.get('utm_term'),
-        gclid:p.get('gclid'),fbclid:p.get('fbclid'),
-        ttclid:p.get('ttclid'),msclkid:p.get('msclkid'),
-        li_fat_id:p.get('li_fat_id')
-      })
-    }).catch(function(){});
 
-    var params=new URLSearchParams(window.location.search);
+    function uuid(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)});}
+
+    // V4: localStorage/sessionStorage instead of cookies
+    var vid=localStorage.getItem('_attr_vid');
+    if(!vid){vid=uuid();localStorage.setItem('_attr_vid',vid);}
+    var sid=sessionStorage.getItem('_attr_sid');
+    var isNew=!sid;
+    if(!sid){sid=uuid();sessionStorage.setItem('_attr_sid',sid);}
+    window._attrSessionId=sid;
+    window._attrVisitorId=vid;
+
+    var p=new URLSearchParams(window.location.search);
+
+    // Persist UTMs in localStorage
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(function(k){
+      var v=p.get(k);if(v)localStorage.setItem('_attr_'+k,v);
+    });
+    function getUtm(k){return p.get(k)||localStorage.getItem('_attr_'+k)||null;}
+
+    // Send attribution capture
+    var payload={
+      company_id:CID,session_id:sid,visitor_id:vid,
+      landing_url:window.location.href,
+      landing_page:window.location.pathname,
+      referrer:document.referrer||null,
+      user_agent:navigator.userAgent||null,
+      utm_source:getUtm('utm_source'),utm_medium:getUtm('utm_medium'),
+      utm_campaign:getUtm('utm_campaign'),utm_content:getUtm('utm_content'),
+      utm_term:getUtm('utm_term'),
+      gclid:p.get('gclid'),fbclid:p.get('fbclid'),
+      ttclid:p.get('ttclid'),msclkid:p.get('msclkid'),
+      li_fat_id:p.get('li_fat_id')
+    };
+    var hasAttr=payload.utm_source||payload.gclid||payload.fbclid||payload.ttclid||payload.msclkid||payload.li_fat_id;
+    if(hasAttr||isNew){
+      fetch(BASE+'/functions/v1/attribution-capture',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload),keepalive:true
+      }).catch(function(){});
+    }
+
+    // Form submit handler
     document.getElementById('leadForm').addEventListener('submit',function(e){
       e.preventDefault();
       var btn=document.getElementById('submitBtn');
@@ -187,17 +207,21 @@ Deno.serve(async (req) => {
         body:JSON.stringify({
           form_id:'${form.id}',
           data:data,
-          session_id:window._attrSessionId||getCookie('_attr_sid')||null,
-          utm_source:params.get('utm_source'),
-          utm_medium:params.get('utm_medium'),
-          utm_campaign:params.get('utm_campaign'),
-          utm_content:params.get('utm_content'),
-          utm_term:params.get('utm_term')
+          session_id:window._attrSessionId||null,
+          visitor_id:window._attrVisitorId||null,
+          utm_source:getUtm('utm_source'),
+          utm_medium:getUtm('utm_medium'),
+          utm_campaign:getUtm('utm_campaign'),
+          utm_content:getUtm('utm_content'),
+          utm_term:getUtm('utm_term'),
+          gclid:p.get('gclid')||null,
+          fbclid:p.get('fbclid')||null
         })
       }).then(function(r){return r.json()}).then(function(r){
         if(r.ok){
-          var redir='${redirectUrl}';
-          if(redir){window.location.href=redir;return;}
+          if(r.redirect_url){window.location.href=r.redirect_url;return;}
+          if(r.success_title)document.getElementById('successTitle').textContent=r.success_title;
+          if(r.success_message)document.getElementById('successMsg').textContent=r.success_message;
           document.getElementById('formSection').classList.add('hidden');
           document.getElementById('successSection').classList.remove('hidden');
         }else{
