@@ -150,7 +150,7 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
 }
 
 // ========== DETAIL VIEW ==========
-function SupplierDetail({ supplierId }: { supplierId: string }) {
+function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: () => void }) {
   const navigate = useNavigate();
   const { suppliers, isLoading: isSupLoading, update } = useOperationalSuppliers();
   const supplier = suppliers.find((s) => s.id === supplierId);
