@@ -10,58 +10,37 @@
 ---
 
 ## Gestione Utenti — Completamento 100% ✅
-
-### Database + Security ✅
-- ✅ 6 tabelle + `password_history`, 20+ colonne security, 9 permessi granulari, RLS completo
-- ✅ Colonne complexity: `password_min_length`, `password_require_uppercase/numbers/special`
-- ✅ Colonne policy: `lockout_duration_minutes`, `enforce_2fa_roles`, `security_notifications`
-
-### Edge Functions ✅
-- ✅ track-user-session, revoke-user-session, manage-permission-template, get-security-report
-- ✅ **check-login-security**: IP allowlist, brute force con durata blocco configurabile
-- ✅ **cleanup-sessions**: cron giornaliero (03:00) per eliminare sessioni > 30 giorni
-
-### UI Core ✅
-- ✅ Security Dashboard, Team Management, CreateUserWizard, Tabella utenti arricchita
-- ✅ Session Tracking integrato in AuthContext, Unlock Account
-- ✅ **3 Tab Dettaglio Utente**: Sessioni, Log Attività, Sicurezza
-- ✅ **Filtri Avanzati**: Stato + Ruolo + Ricerca + Team
-- ✅ **Colonna "Sessioni Attive"** separata con badge count
-- ✅ **Import/Export utenti CSV**
-
-### Policy Sicurezza ✅
-- ✅ **CompanySecuritySettings** completo
-- ✅ **ChangePasswordForm** con validazione complessità in tempo reale
-- ✅ **PermissionTemplatesManager**: CRUD + "Applica a Utente"
-- ✅ **Password History** (tabella DB pronta, RLS bloccato lato client)
+- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
 
 ---
 
 ## Stripe Billing Completo ✅
-
-### Database ✅
 - ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne `companies`: `stripe_subscription_status`, `payment_failure_count`, `dunning_status`, `last_payment_failure_at`, `dunning_started_at`
-
-### Edge Functions ✅
-- ✅ **stripe-webhook** refactored: idempotenza via `stripe_events_log`, handler modulari, gestione `invoice.payment_failed` con dunning automatico (warning → escalated → critical), `customer.subscription.updated`
-- ✅ **customer-portal**: Stripe Customer Portal per self-service gestione abbonamenti
-
-### UI ✅
-- ✅ **AdminDunning** arricchito: query real-time aziende in dunning dal DB, conteggio fallimenti, badge status
-- ✅ **CompanySubscriptionTab**: mostra stato dunning e conteggio fallimenti pagamento
+- ✅ Colonne dunning su `companies`
+- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
+- ✅ **customer-portal** edge function per Stripe Customer Portal
+- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
 
 ---
 
-## ⏳ Funzionalità Rimanenti (Priorità Bassa)
+## 2FA TOTP ✅
+- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
+- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
+- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
+- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
+- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
+- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
 
-- ⬜ Round-robin assegnazione team
-- ⬜ KPI per team nella dashboard
-- ⬜ Drag & Drop utenti tra team
-- ⬜ 2FA TOTP + Secure Impersonation (P1)
+---
+
+## ⏳ Funzionalità Rimanenti
+
 - ⬜ Health Score Engine pg_cron (P1)
 - ⬜ Customer Success Platform (P1)
 - ⬜ API Platform per Aziende (P2)
 - ⬜ GDPR & Compliance Tools (P2)
 - ⬜ White-Label (P3)
 - ⬜ Partner Portal Referrer (P3)
+- ⬜ Round-robin assegnazione team
+- ⬜ KPI per team nella dashboard
+- ⬜ Drag & Drop utenti tra team
