@@ -298,6 +298,7 @@ const App = () => (
                   <Route path="utenti/:userId" element={<SettingsUserDetail />} />
                   <Route path="venditori" element={<SettingsSalespeople />} />
                   <Route path="staff" element={<SettingsStaff />} />
+                  <Route path="team" element={<SettingsTeams />} />
                   <Route path="sicurezza" element={<SettingsSecurity />} />
                   <Route path="security-dashboard" element={<SettingsSecurityDashboard />} />
                   <Route path="attivita" element={<SettingsActivityLog />} />
