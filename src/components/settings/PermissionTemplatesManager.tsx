@@ -54,7 +54,7 @@ export function PermissionTemplatesManager() {
       if (error) throw error;
       return data as unknown as Template[];
     },
-    enabled: !!effectiveCompany,
+    enabled: !!effectiveCompany?.id,
   });
 
   const saveMutation = useMutation({
