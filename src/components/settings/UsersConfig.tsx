@@ -423,7 +423,14 @@ export function UsersConfig() {
     const matchesSearch = searchQuery === "" ||
       `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === "all" || u.effectiveRole === roleFilter;
-    return matchesSearch && matchesRole;
+    const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
+    const isActive = u.active_sessions > 0;
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && isActive) ||
+      (statusFilter === "locked" && isLocked) ||
+      (statusFilter === "inactive" && !isActive && !isLocked);
+    return matchesSearch && matchesRole && matchesStatus;
   });
 
   const isCurrentUser = (userId: string) => userId === user?.id;
