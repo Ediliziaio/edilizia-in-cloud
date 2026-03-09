@@ -2188,6 +2188,59 @@ export type Database = {
           },
         ]
       }
+      company_health_scores: {
+        Row: {
+          calculated_at: string
+          churn_risk: number
+          company_id: string
+          engagement_score: number
+          features_score: number
+          health: string
+          id: string
+          login_score: number
+          orders_score: number
+          score: number
+          signals: Json | null
+          team_score: number
+        }
+        Insert: {
+          calculated_at?: string
+          churn_risk?: number
+          company_id: string
+          engagement_score?: number
+          features_score?: number
+          health?: string
+          id?: string
+          login_score?: number
+          orders_score?: number
+          score?: number
+          signals?: Json | null
+          team_score?: number
+        }
+        Update: {
+          calculated_at?: string
+          churn_risk?: number
+          company_id?: string
+          engagement_score?: number
+          features_score?: number
+          health?: string
+          id?: string
+          login_score?: number
+          orders_score?: number
+          score?: number
+          signals?: Json | null
+          team_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_health_scores_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_notes: {
         Row: {
           author_id: string
@@ -7323,6 +7376,8 @@ export type Database = {
           position: number
           price_monthly: number
           price_yearly: number
+          sla_resolution_hours: number | null
+          sla_response_hours: number | null
           slug: string
           stripe_price_monthly_id: string | null
           stripe_price_yearly_id: string | null
@@ -7342,6 +7397,8 @@ export type Database = {
           position?: number
           price_monthly?: number
           price_yearly?: number
+          sla_resolution_hours?: number | null
+          sla_response_hours?: number | null
           slug: string
           stripe_price_monthly_id?: string | null
           stripe_price_yearly_id?: string | null
@@ -7361,6 +7418,8 @@ export type Database = {
           position?: number
           price_monthly?: number
           price_yearly?: number
+          sla_resolution_hours?: number | null
+          sla_response_hours?: number | null
           slug?: string
           stripe_price_monthly_id?: string | null
           stripe_price_yearly_id?: string | null
@@ -7484,15 +7543,56 @@ export type Database = {
           },
         ]
       }
+      support_canned_responses: {
+        Row: {
+          category: string | null
+          content: string
+          created_at: string
+          created_by: string
+          id: string
+          shortcut: string | null
+          sort_order: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          content: string
+          created_at?: string
+          created_by: string
+          id?: string
+          shortcut?: string | null
+          sort_order?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          shortcut?: string | null
+          sort_order?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       support_conversations: {
         Row: {
           assigned_to: string | null
           company_id: string
           created_at: string
+          first_response_at: string | null
           id: string
           internal_notes: string | null
           priority: string
           resolved_at: string | null
+          sla_resolution_breached: boolean | null
+          sla_resolution_due_at: string | null
+          sla_response_breached: boolean | null
+          sla_response_due_at: string | null
           status: string
           updated_at: string
         }
@@ -7500,10 +7600,15 @@ export type Database = {
           assigned_to?: string | null
           company_id: string
           created_at?: string
+          first_response_at?: string | null
           id?: string
           internal_notes?: string | null
           priority?: string
           resolved_at?: string | null
+          sla_resolution_breached?: boolean | null
+          sla_resolution_due_at?: string | null
+          sla_response_breached?: boolean | null
+          sla_response_due_at?: string | null
           status?: string
           updated_at?: string
         }
@@ -7511,10 +7616,15 @@ export type Database = {
           assigned_to?: string | null
           company_id?: string
           created_at?: string
+          first_response_at?: string | null
           id?: string
           internal_notes?: string | null
           priority?: string
           resolved_at?: string | null
+          sla_resolution_breached?: boolean | null
+          sla_resolution_due_at?: string | null
+          sla_response_breached?: boolean | null
+          sla_response_due_at?: string | null
           status?: string
           updated_at?: string
         }
