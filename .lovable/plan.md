@@ -1,21 +1,49 @@
+# Stato Progetto — Aggiornato
 
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
-## Fix: Add vertical scroll to Step 3 (Permissions) in CreateUserWizard
+---
 
-**Problem**: The permissions step (Step 2) in the "Nuovo Utente" wizard overflows the dialog without showing a scrollbar, making Marketing permissions and the "Only Assigned" toggle inaccessible.
+## Gestione Utenti — Completamento 100% ✅
 
-**Root cause**: The `ScrollArea` component on line 227 has `className="flex-1 pr-4"` but lacks `overflow-y-auto` behavior because it needs an explicit height constraint within the flex container.
+### Database + Security ✅
+- ✅ 6 tabelle + `password_history`, 20+ colonne security, 9 permessi granulari, RLS completo
+- ✅ Colonne complexity: `password_min_length`, `password_require_uppercase/numbers/special`
+- ✅ Colonne policy: `lockout_duration_minutes`, `enforce_2fa_roles`, `security_notifications`
 
-**Fix**: Add `overflow-hidden` to the `ScrollArea` wrapper and set `min-h-0` so the flex child properly constrains its height, allowing Radix ScrollArea to calculate its viewport correctly.
+### Edge Functions ✅
+- ✅ track-user-session, revoke-user-session, manage-permission-template, get-security-report
+- ✅ **check-login-security**: IP allowlist, brute force con durata blocco configurabile
+- ✅ **cleanup-sessions**: cron giornaliero (03:00) per eliminare sessioni > 30 giorni
 
-**Change**: In `src/components/users/CreateUserWizard.tsx`, line 227:
-```tsx
-// Before
-<ScrollArea className="flex-1 pr-4">
+### UI Core ✅
+- ✅ Security Dashboard, Team Management, CreateUserWizard, Tabella utenti arricchita
+- ✅ Session Tracking integrato in AuthContext, Unlock Account
+- ✅ **3 Tab Dettaglio Utente**: Sessioni, Log Attività, Sicurezza
+- ✅ **Filtri Avanzati**: Stato + Ruolo + Ricerca + Team
+- ✅ **Colonna "Sessioni Attive"** separata con badge count
+- ✅ **Import/Export utenti CSV**
 
-// After  
-<ScrollArea className="flex-1 min-h-0 pr-4">
-```
+### Policy Sicurezza ✅
+- ✅ **CompanySecuritySettings** completo:
+  - Brute force: slider tentativi + durata blocco (15m/30m/1h/24h/Manuale)
+  - Password: scadenza + complessità (lunghezza min, maiuscole, numeri, caratteri speciali)
+  - 2FA: globale + per ruoli specifici
+  - IP Allowlist
+  - Notifiche sicurezza (login IP sconosciuto, account bloccato, modifica permessi)
+- ✅ **ChangePasswordForm** con validazione complessità in tempo reale
+- ✅ **PermissionTemplatesManager**: CRUD + "Applica a Utente"
+- ✅ **Password History** (tabella DB pronta, RLS bloccato lato client)
 
-This single change ensures the flex child shrinks properly within `max-h-[85vh]`, enabling the scrollbar for all permission sections including Marketing.
+---
 
+## ⏳ Funzionalità Rimanenti (Priorità Bassa)
+
+- ⬜ Round-robin assegnazione team
+- ⬜ KPI per team nella dashboard
+- ⬜ Drag & Drop utenti tra team
