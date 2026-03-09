@@ -121,6 +121,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
         payment_method: params.payment_method || null,
         reference_number: params.reference_number || null,
         supplier_id: params.supplier_id || null,
+        account_label: params.account_label || "banca",
         notes: params.notes || null,
         is_auto: false,
         created_by: (await supabase.auth.getUser()).data.user?.id,
