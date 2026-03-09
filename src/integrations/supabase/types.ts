@@ -2273,6 +2273,93 @@ export type Database = {
           },
         ]
       }
+      company_onboarding: {
+        Row: {
+          assigned_cs: string | null
+          company_id: string
+          completed_at: string | null
+          id: string
+          started_at: string
+          status: string
+          template_id: string
+        }
+        Insert: {
+          assigned_cs?: string | null
+          company_id: string
+          completed_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          template_id: string
+        }
+        Update: {
+          assigned_cs?: string | null
+          company_id?: string
+          completed_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_onboarding_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_onboarding_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_onboarding_completions: {
+        Row: {
+          company_id: string
+          completed_at: string
+          completed_by: string | null
+          id: string
+          notes: string | null
+          step_id: string
+        }
+        Insert: {
+          company_id: string
+          completed_at?: string
+          completed_by?: string | null
+          id?: string
+          notes?: string | null
+          step_id: string
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string
+          completed_by?: string | null
+          id?: string
+          notes?: string | null
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_onboarding_completions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_onboarding_completions_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_subscriptions: {
         Row: {
           billing_period: string
@@ -2473,6 +2560,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cost_categories_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cs_tasks: {
+        Row: {
+          assigned_to: string | null
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: string
+          status: string
+          task_type: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string
+          status?: string
+          task_type?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string
+          status?: string
+          task_type?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cs_tasks_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -5728,6 +5871,77 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      onboarding_steps: {
+        Row: {
+          auto_check_key: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_required: boolean | null
+          sort_order: number
+          template_id: string
+          title: string
+        }
+        Insert: {
+          auto_check_key?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_required?: boolean | null
+          sort_order?: number
+          template_id: string
+          title: string
+        }
+        Update: {
+          auto_check_key?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_required?: boolean | null
+          sort_order?: number
+          template_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onboarding_templates: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       opportunity_loss_reasons: {
         Row: {
