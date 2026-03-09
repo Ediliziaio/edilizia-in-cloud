@@ -490,10 +490,28 @@ export function UsersConfig() {
                 Gestisci gli accessi del tuo team
               </CardDescription>
             </div>
-            <Button onClick={() => setCreateDialogOpen(true)} size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuovo Utente
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setCreateDialogOpen(true)} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuovo Utente
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportCSV} title="Esporta CSV">
+                <Download className="h-4 w-4 mr-2" />
+                Esporta
+              </Button>
+              <div className="relative">
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  onChange={handleImportCSV}
+                />
+                <Button variant="outline" size="sm" title="Importa CSV">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importa
+                </Button>
+              </div>
+            </div>
           </div>
 
           {/* Filters */}
