@@ -482,7 +482,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
               )}
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
           {step === 4 ? (
