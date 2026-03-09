@@ -23,6 +23,7 @@ import {
   FileSignature,
   FileText,
   BookOpen,
+  Truck,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
