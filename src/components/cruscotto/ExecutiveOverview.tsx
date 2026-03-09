@@ -17,6 +17,7 @@ interface Props {
   finance: FinanceData;
   operations: OperationsData;
   isLoading: boolean;
+  onDrilldown?: (type: string) => void;
 }
 
 interface KpiDef {
