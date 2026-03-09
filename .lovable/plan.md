@@ -1,165 +1,113 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
+
+# White Label come Addon a Pagamento — Piano di Implementazione
+
+Questa è una feature complessa che tocca database, admin panel, settings azienda e layout. La suddivido in 4 fasi sequenziali.
 
 ---
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+## Fase 1 — Migrazione Database
+
+**SQL Migration** — Aggiunge colonne white-label su `companies`, crea `company_addons_log`, e bucket storage.
+
+Colonne su `companies`:
+- `white_label_enabled` (boolean, default false)
+- `brand_primary_color`, `brand_secondary_color`, `brand_accent_color`, `brand_text_on_primary` (text con default)
+- `brand_platform_name`, `brand_favicon_url`, `brand_login_bg_url` (text nullable)
+- `brand_hide_powered_by` (boolean, default false)
+- `white_label_enabled_at` (timestamptz), `white_label_enabled_by` (uuid ref auth.users), `white_label_monthly_price` (numeric)
+
+Tabella `company_addons_log`:
+- RLS: solo super_admin (tramite `has_role`)
+- Colonne: company_id, addon_key, action, performed_by, performed_by_email, old_value, new_value, notes, created_at
+
+Storage bucket `white-label-assets` (public) con policy upload per company members e lettura pubblica.
+
+Funzione helper `is_super_admin()`.
+
+Aggiorno `Company` in `src/types/auth.ts` con i nuovi campi.
 
 ---
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+## Fase 2 — SuperAdmin: Gestione Addon nel CompanyDetail
+
+**Nuovo componente**: `src/components/admin/company/CompanyAddonsSection.tsx`
+
+Nella sezione "SaaS" tab del CompanyDetail, aggiungo SOPRA i moduli una sezione "Addon a Pagamento" con:
+
+1. **Card White Label**: toggle on/off, campo prezzo mensile editabile, stato (attivo/non attivo con data e autore), note interne
+2. **Card Messaggistica Beta**: toggle semplice (riusa `messaging_beta_enabled` esistente)
+3. **Dialog di conferma** attivazione con input prezzo + note
+4. **Dialog di conferma** disattivazione con avviso
+5. **Modal storico** attivazioni da `company_addons_log`
+
+Logica: al toggle ON → dialog conferma → update `companies` + insert `company_addons_log`. Al toggle OFF → dialog conferma → update + log.
+
+**Dashboard Admin**: nuovo widget `AdminAddonsSummary` che mostra conteggio aziende con WL attivo e totale ricavi mensili. Aggiunto come widget opzionale nel `DashboardWidgetLayout`.
 
 ---
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+## Fase 3 — Settings Azienda: Configurazione Branding
+
+**Ristruttura**: `src/pages/azienda/settings/SettingsBranding.tsx`
+
+- **Se `white_label_enabled = false`**: banner "Funzione Premium" con CTA "Contatta il Supporto". Il logo rimane editabile (funzione gratuita base).
+- **Se `white_label_enabled = true`**: form completo con:
+  - Nome piattaforma (input testo)
+  - Palette colori con color picker HEX (4 colori: primary, secondary, accent, text-on-primary) + palette predefinite rapide (8 preset)
+  - Preview live inline (strip visuale)
+  - Upload favicon (32-64px)
+  - Upload sfondo login (1920x1080)
+  - Toggle "Nascondi Powered by"
+  - Bottone Salva → update `companies` + log `branding_updated`
+
+**Nuovo hook**: `src/hooks/useBrandSettings.ts` — legge i campi `brand_*` e `white_label_enabled` dalla tabella `companies` (non più `company_branding`). Espone `effectiveBrand` con fallback ai default.
+
+La pagina `SettingsBranding` esistente verrà riscritta per usare il nuovo hook e i campi su `companies` invece di `company_branding`.
 
 ---
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+## Fase 4 — Applicazione Brand nell'App
+
+**CompanyLayout.tsx**:
+- Importa `useBrandSettings` al posto di `useBranding`
+- `useEffect` per iniettare CSS variables (`--brand-primary`, etc.) quando WL attivo
+- Sidebar header: usa `effectiveBrand.platformName` al posto del nome fisso
+- Active menu items: inline style condizionale con colori brand
+- Favicon e `document.title` dinamici
+
+**CustomerLayout.tsx**:
+- Stesso `useBrandSettings`, applica CSS variables e nome brand
+
+**Footer "Powered by"**:
+- In entrambi i layout, mostra "Powered by EdiliziaInCloud" solo se `!effectiveBrand.hidePoweredBy`
+
+L'hook `useBranding` esistente e la tabella `company_branding` rimangono in piedi (non li eliminiamo), ma il nuovo `useBrandSettings` prende precedenza per il white-label. Il vecchio sistema serve come fallback se necessario.
 
 ---
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+## File modificati/creati
+
+| File | Azione |
+|------|--------|
+| Migrazione SQL | Crea colonne, tabella log, bucket, funzione |
+| `src/types/auth.ts` | Aggiunge campi brand su Company |
+| `src/hooks/useBrandSettings.ts` | **Nuovo** — hook brand da companies |
+| `src/components/admin/company/CompanyAddonsSection.tsx` | **Nuovo** — sezione addon |
+| `src/components/admin/company/CompanySaaSTab.tsx` | Integra CompanyAddonsSection |
+| `src/components/admin/dashboard/AdminAddonsSummary.tsx` | **Nuovo** — widget dashboard |
+| `src/pages/admin/AdminDashboard.tsx` | Aggiunge widget addon |
+| `src/pages/azienda/settings/SettingsBranding.tsx` | Riscrittura completa |
+| `src/components/layouts/CompanyLayout.tsx` | Applica brand dinamico |
+| `src/components/layouts/CustomerLayout.tsx` | Applica brand dinamico |
+| `src/hooks/useCompanyDetail.ts` | Espone campi WL del company |
 
 ---
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+## Note tecniche
 
----
+- Tutti i colori brand applicati via **inline style** (non classi Tailwind dinamiche)
+- Fallback ai colori default della piattaforma quando WL è disattivato o dati mancanti
+- La sicurezza è garantita: solo super_admin può attivare/disattivare il flag, l'azienda può solo configurare il branding se abilitata
+- Non viene modificata la logica di autenticazione o permessi
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
-
----
-
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
-
----
-
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
-
----
-
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
-
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
