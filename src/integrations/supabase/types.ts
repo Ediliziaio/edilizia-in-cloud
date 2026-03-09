@@ -9577,6 +9577,185 @@ export type Database = {
           },
         ]
       }
+      purchase_order_items: {
+        Row: {
+          article_template_id: string | null
+          company_id: string
+          created_at: string
+          description: string
+          discount_percent: number
+          id: string
+          line_total: number | null
+          notes: string | null
+          purchase_order_id: string
+          quantity: number
+          quantity_received: number
+          received_date: string | null
+          sku: string | null
+          sort_order: number
+          unit_of_measure: string | null
+          unit_price: number
+          updated_at: string
+          vat_amount: number | null
+          vat_rate: number
+        }
+        Insert: {
+          article_template_id?: string | null
+          company_id: string
+          created_at?: string
+          description: string
+          discount_percent?: number
+          id?: string
+          line_total?: number | null
+          notes?: string | null
+          purchase_order_id: string
+          quantity?: number
+          quantity_received?: number
+          received_date?: string | null
+          sku?: string | null
+          sort_order?: number
+          unit_of_measure?: string | null
+          unit_price?: number
+          updated_at?: string
+          vat_amount?: number | null
+          vat_rate?: number
+        }
+        Update: {
+          article_template_id?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string
+          discount_percent?: number
+          id?: string
+          line_total?: number | null
+          notes?: string | null
+          purchase_order_id?: string
+          quantity?: number
+          quantity_received?: number
+          received_date?: string | null
+          sku?: string | null
+          sort_order?: number
+          unit_of_measure?: string | null
+          unit_price?: number
+          updated_at?: string
+          vat_amount?: number | null
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_article_template_id_fkey"
+            columns: ["article_template_id"]
+            isOneToOne: false
+            referencedRelation: "article_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          actual_delivery_date: string | null
+          attachment_url: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          expected_delivery_date: string | null
+          id: string
+          internal_notes: string | null
+          issue_date: string
+          notes: string | null
+          oda_number: string
+          order_id: string | null
+          payment_method: string | null
+          payment_terms: string | null
+          status: string
+          subtotal: number
+          supplier_id: string
+          total: number
+          updated_at: string
+          vat_total: number
+        }
+        Insert: {
+          actual_delivery_date?: string | null
+          attachment_url?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          expected_delivery_date?: string | null
+          id?: string
+          internal_notes?: string | null
+          issue_date?: string
+          notes?: string | null
+          oda_number: string
+          order_id?: string | null
+          payment_method?: string | null
+          payment_terms?: string | null
+          status?: string
+          subtotal?: number
+          supplier_id: string
+          total?: number
+          updated_at?: string
+          vat_total?: number
+        }
+        Update: {
+          actual_delivery_date?: string | null
+          attachment_url?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          expected_delivery_date?: string | null
+          id?: string
+          internal_notes?: string | null
+          issue_date?: string
+          notes?: string | null
+          oda_number?: string
+          order_id?: string | null
+          payment_method?: string | null
+          payment_terms?: string | null
+          status?: string
+          subtotal?: number
+          supplier_id?: string
+          total?: number
+          updated_at?: string
+          vat_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quote_items: {
         Row: {
           article_template_id: string | null
@@ -11083,14 +11262,20 @@ export type Database = {
       suppliers: {
         Row: {
           address: string | null
+          bank_name: string | null
           city: string | null
           company_id: string
           country: string | null
           created_at: string
+          credit_limit: number | null
           email: string | null
           fiscal_code: string | null
+          iban: string | null
           id: string
+          is_active: boolean
           is_foreign: boolean
+          lead_time_days: number | null
+          min_order_amount: number | null
           name: string
           notes: string | null
           payment_method: string | null
@@ -11098,20 +11283,28 @@ export type Database = {
           postal_code: string | null
           product_category: string | null
           province: string | null
+          rating: number | null
+          updated_at: string
           vat_number: string | null
           vat_rate: number | null
           website: string | null
         }
         Insert: {
           address?: string | null
+          bank_name?: string | null
           city?: string | null
           company_id: string
           country?: string | null
           created_at?: string
+          credit_limit?: number | null
           email?: string | null
           fiscal_code?: string | null
+          iban?: string | null
           id?: string
+          is_active?: boolean
           is_foreign?: boolean
+          lead_time_days?: number | null
+          min_order_amount?: number | null
           name: string
           notes?: string | null
           payment_method?: string | null
@@ -11119,20 +11312,28 @@ export type Database = {
           postal_code?: string | null
           product_category?: string | null
           province?: string | null
+          rating?: number | null
+          updated_at?: string
           vat_number?: string | null
           vat_rate?: number | null
           website?: string | null
         }
         Update: {
           address?: string | null
+          bank_name?: string | null
           city?: string | null
           company_id?: string
           country?: string | null
           created_at?: string
+          credit_limit?: number | null
           email?: string | null
           fiscal_code?: string | null
+          iban?: string | null
           id?: string
+          is_active?: boolean
           is_foreign?: boolean
+          lead_time_days?: number | null
+          min_order_amount?: number | null
           name?: string
           notes?: string | null
           payment_method?: string | null
@@ -11140,6 +11341,8 @@ export type Database = {
           postal_code?: string | null
           product_category?: string | null
           province?: string | null
+          rating?: number | null
+          updated_at?: string
           vat_number?: string | null
           vat_rate?: number | null
           website?: string | null
@@ -12429,6 +12632,15 @@ export type Database = {
         Returns: boolean
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      create_oda_from_order: {
+        Args: {
+          p_company_id: string
+          p_order_id: string
+          p_supplier_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       create_order_atomic: {
         Args: {
           p_installments?: Json
@@ -12472,6 +12684,7 @@ export type Database = {
           progressive_number: number
         }[]
       }
+      generate_oda_number: { Args: { p_company_id: string }; Returns: string }
       generate_quote_number: { Args: { p_company_id: string }; Returns: string }
       get_attribution_report:
         | {
