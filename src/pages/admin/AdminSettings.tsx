@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, ShieldCheck, Server, Bell, ScrollText, Plug } from "lucide-react";
+import { User, ShieldCheck, Server, Bell, ScrollText, Plug, Landmark } from "lucide-react";
 import ProfileTab from "@/components/admin/settings/ProfileTab";
 import SuperAdminUsersTab from "@/components/admin/settings/SuperAdminUsersTab";
 import PlatformInfoTab from "@/components/admin/settings/PlatformInfoTab";
