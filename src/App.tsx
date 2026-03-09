@@ -330,6 +330,7 @@ const App = () => (
                   <Route path="api" element={<SettingsApiKeys />} />
                   <Route path="privacy" element={<SettingsPrivacy />} />
                   <Route path="branding" element={<SettingsBranding />} />
+                  <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
                 </Route>
               </Route>
 

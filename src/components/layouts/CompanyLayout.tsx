@@ -32,6 +32,7 @@ import {
   Wallet,
   Shield,
   Paintbrush,
+  FileStack,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
