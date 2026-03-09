@@ -72,6 +72,8 @@ export const COLUMNS = [
   { key: "opp_pipeline", label: "Pipeline", group: "Opportunità" },
   { key: "opp_stage", label: "Fase pipeline", group: "Opportunità" },
   { key: "call_center", label: "Call Center", group: "Assegnazione" },
+  { key: "attr_source", label: "Sorgente", group: "Attribuzione" },
+  { key: "attr_campaign", label: "Campagna", group: "Attribuzione" },
 ] as const;
 
 export type ColumnKey = (typeof COLUMNS)[number]["key"];
