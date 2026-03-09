@@ -818,7 +818,7 @@ export default function MarketingContacts() {
         defaultObjectType="contacts"
         contactFields={importFields}
         opportunityFields={[]}
-        onImportContacts={async (rows) => handleImport(rows)}
+        onImportContacts={async (rows, opts) => handleImport(rows, opts)}
         onImportOpportunities={async () => ({ success: 0, errors: [] })}
       />
     );
