@@ -61,7 +61,9 @@ import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 
 import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { internalNavItems, marketingNavItems, cruscottoNavItem, type NavItem } from "@/lib/sidebarConfig";
+import { internalNavItems, marketingNavItems, cruscottoNavItem, internalSubcategories, marketingSubcategories, type NavItem } from "@/lib/sidebarConfig";
+import { useSidebarSections } from "@/hooks/useSidebarSections";
+import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 
 function ImpersonationBanner() {
   const { isImpersonating, impersonatedCompany, exitImpersonation } = useAuth();
