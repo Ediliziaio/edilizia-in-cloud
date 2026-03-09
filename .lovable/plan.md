@@ -9,28 +9,30 @@
 
 ---
 
-## Gestione Utenti — Completamento ~90% ✅
+## Gestione Utenti — Completamento ~95% ✅
 
 ### Database + Security ✅
-- ✅ 6 tabelle, 15 colonne security, 9 permessi granulari, RLS completo, 5 template sistema
+- ✅ 6 tabelle, 15+ colonne security, 9 permessi granulari, RLS completo, 5 template sistema
+- ✅ Colonne aggiuntive: `lockout_duration_minutes`, `enforce_2fa_roles`, `security_notifications`
 
 ### Edge Functions ✅
 - ✅ track-user-session, revoke-user-session, manage-permission-template, get-security-report
-- ✅ **check-login-security**: verifica IP allowlist, brute force, registra login_attempts
+- ✅ **check-login-security**: verifica IP allowlist, brute force con durata blocco configurabile
 
 ### UI Core ✅
 - ✅ Security Dashboard, Team Management, CreateUserWizard, Tabella utenti arricchita
 - ✅ Session Tracking integrato in AuthContext, Unlock Account
+- ✅ **3 Tab Dettaglio Utente**: Sessioni, Log Attività, Sicurezza
 
-### UI Avanzate — Fase 6 ✅
-- ✅ **3 nuovi Tab nel Dettaglio Utente**:
-  - Sessioni (lista attive/storiche, revoca singola/tutte)
-  - Log Attività (timeline filtrata per utente, export CSV)
-  - Sicurezza (stato 2FA, blocco, reset password, tentativi falliti)
-- ✅ **Pagina Impostazioni Sicurezza Aziendale** (`SettingsSecurity.tsx`):
-  - Tab Password + Tab Policy Sicurezza (slider tentativi, scadenza password, 2FA, IP allowlist)
-  - Tab Template Permessi (lista, crea, modifica, duplica, elimina)
-- ✅ **Filtri Avanzati Tabella Utenti**: Stato (Attivo/Inattivo/Bloccato) + Ruolo + Ricerca
+### UI Avanzate ✅
+- ✅ **Filtri Avanzati Tabella Utenti**: Stato + Ruolo + Ricerca + **Team**
+- ✅ **Colonna "Sessioni Attive"** separata con badge count
+- ✅ **PermissionTemplatesManager**: lista, crea, modifica, duplica, elimina + **"Applica a Utente"**
+- ✅ **CompanySecuritySettings** completo:
+  - Slider tentativi massimi + **durata blocco configurabile** (15m/30m/1h/24h/Manuale)
+  - Scadenza password, IP allowlist
+  - 2FA obbligatoria globale + **2FA per ruoli specifici**
+  - **Notifiche sicurezza** (login IP sconosciuto, account bloccato, modifica permessi admin)
 
 ---
 
@@ -41,3 +43,5 @@
 - ⬜ Import/Export utenti CSV
 - ⬜ Password history (ultime 5)
 - ⬜ Drag & Drop utenti tra team
+- ⬜ Password complexity enforcement (slider lunghezza, toggle caratteri)
+- ⬜ Pulizia automatica sessioni 30+ giorni (cron)
