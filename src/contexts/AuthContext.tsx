@@ -12,7 +12,7 @@ interface AuthContextType extends AuthState {
   impersonatedCompany: Company | null;
   isImpersonating: boolean;
   impersonateCompany: (companyId: string) => Promise<void>;
-  exitImpersonation: () => void;
+  exitImpersonation: () => Promise<void>;
   // Effective company (real or impersonated)
   effectiveCompany: Company | null;
 }
