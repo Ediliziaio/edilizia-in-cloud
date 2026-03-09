@@ -116,18 +116,18 @@
 - ✅ **Tab Email AdminSettings**: Già esistente (`AdminSettingsEmail.tsx`)
 - ✅ **Crediti Stripe**: Già esistente (`SettingsCredits.tsx`)
 
-### Fase 2 — P1 (TODO)
+### Fase 2 — P1 ✅
 
-- [ ] **Probabilità + Close Date + Motivo perdita opportunità**: Migration + UI in OpportunityDetailDialog
-- [ ] **Conferma + Promemoria appuntamenti**: Email conferma + promemoria in check-scheduled-triggers
-- [ ] **Google Calendar push notifications**: Edge function google-calendar-webhook + registra watch
-- [ ] **SMS/Email opt-out visibile in UI**: Già implementato nel tab settings contatto (toggle + badge unsubscribed)
+- ✅ **Probabilità + Close Date + Motivo perdita opportunità**: Migration + UI in OpportunityDetailDialog
+- ✅ **Conferma + Promemoria appuntamenti**: Email conferma + promemoria in check-scheduled-triggers
+- ✅ **Google Calendar push notifications**: Edge function google-calendar-webhook + registra watch
+- ✅ **SMS/Email opt-out visibile in UI**: Già implementato nel tab settings contatto (toggle + badge unsubscribed)
 
-### Fase 3 — P2 (TODO)
+### Fase 3 — P2 ✅
 
-- [ ] **WhatsApp/Stripe in SettingsIntegrations**: Card stato per ogni integrazione
-- [ ] **Merge contatti duplicati**: UI + backend merge
-- [ ] **Tab Azioni nel dettaglio contatto**: Azioni rapide (email, SMS, WhatsApp)
+- ✅ **WhatsApp/Stripe in SettingsIntegrations**: Card stato per ogni integrazione
+- ✅ **Merge contatti duplicati**: UI + backend merge
+- ✅ **Tab Azioni nel dettaglio contatto**: Azioni rapide (email, SMS, WhatsApp)
 
 ---
 
