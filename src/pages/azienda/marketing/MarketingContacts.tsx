@@ -672,9 +672,19 @@ export default function MarketingContacts() {
       }
     }
 
+    // Remove internal duplicates from parsed (keep first occurrence)
+    const seenEmailsForDedup = new Set<string>();
+    const finalParsed = parsed.filter(p => {
+      if (!p.data.email) return true;
+      const key = p.data.email.toLowerCase();
+      if (seenEmailsForDedup.has(key)) return false;
+      seenEmailsForDedup.add(key);
+      return true;
+    });
+
     if (mode === "create") {
       // Simple insert
-      const toInsert = parsed.map(p => p.data);
+      const toInsert = finalParsed.map(p => p.data);
       const { error, data } = await supabase.from("marketing_contacts").insert(toInsert).select("id");
       if (error) return { success: 0, errors: [...errors, error.message] };
       created = data?.length || 0;

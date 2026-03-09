@@ -36,7 +36,9 @@ Deno.serve(async (req) => {
     let determined = 0;
 
     for (const campaign of campaigns || []) {
-      const completedAt = new Date(campaign.completed_at);
+      const referenceDate = campaign.completed_at || campaign.sent_at;
+      if (!referenceDate) continue; // Skip if neither date is available
+      const completedAt = new Date(referenceDate);
       const durationHours = campaign.ab_test_duration_hours ?? 4;
       const cutoff = new Date(completedAt.getTime() + durationHours * 60 * 60 * 1000);
 
