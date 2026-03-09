@@ -7954,6 +7954,329 @@ export type Database = {
           },
         ]
       }
+      quote_items: {
+        Row: {
+          article_template_id: string | null
+          company_id: string
+          created_at: string
+          description: string | null
+          discount_percent: number | null
+          id: string
+          image_url: string | null
+          item_type: string
+          line_total: number | null
+          name: string
+          quantity: number | null
+          quote_id: string
+          sort_order: number | null
+          unit_of_measure: string | null
+          unit_price: number | null
+          vat_rate: number | null
+        }
+        Insert: {
+          article_template_id?: string | null
+          company_id: string
+          created_at?: string
+          description?: string | null
+          discount_percent?: number | null
+          id?: string
+          image_url?: string | null
+          item_type?: string
+          line_total?: number | null
+          name: string
+          quantity?: number | null
+          quote_id: string
+          sort_order?: number | null
+          unit_of_measure?: string | null
+          unit_price?: number | null
+          vat_rate?: number | null
+        }
+        Update: {
+          article_template_id?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          discount_percent?: number | null
+          id?: string
+          image_url?: string | null
+          item_type?: string
+          line_total?: number | null
+          name?: string
+          quantity?: number | null
+          quote_id?: string
+          sort_order?: number | null
+          unit_of_measure?: string | null
+          unit_price?: number | null
+          vat_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_items_article_template_id_fkey"
+            columns: ["article_template_id"]
+            isOneToOne: false
+            referencedRelation: "article_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_pdf_attachments: {
+        Row: {
+          created_at: string
+          id: string
+          material_id: string
+          quote_id: string
+          sort_order: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          material_id: string
+          quote_id: string
+          sort_order?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          material_id?: string
+          quote_id?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_pdf_attachments_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "quote_pdf_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_pdf_attachments_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_pdf_materials: {
+        Row: {
+          article_template_id: string | null
+          category: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          file_size_bytes: number | null
+          id: string
+          name: string
+          sort_order: number | null
+          storage_path: string
+          updated_at: string
+        }
+        Insert: {
+          article_template_id?: string | null
+          category?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          file_size_bytes?: number | null
+          id?: string
+          name: string
+          sort_order?: number | null
+          storage_path: string
+          updated_at?: string
+        }
+        Update: {
+          article_template_id?: string | null
+          category?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          file_size_bytes?: number | null
+          id?: string
+          name?: string
+          sort_order?: number | null
+          storage_path?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_pdf_materials_article_template_id_fkey"
+            columns: ["article_template_id"]
+            isOneToOne: false
+            referencedRelation: "article_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_pdf_materials_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          assigned_to: string | null
+          client_address: string | null
+          client_company: string | null
+          client_email: string | null
+          client_fiscal_code: string | null
+          client_name: string | null
+          client_phone: string | null
+          client_vat_number: string | null
+          company_id: string
+          contact_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          discount_amount: number | null
+          discount_percent: number | null
+          expires_at: string | null
+          id: string
+          internal_notes: string | null
+          notes: string | null
+          opportunity_id: string | null
+          pdf_generated_at: string | null
+          pdf_storage_path: string | null
+          quote_number: string
+          refused_at: string | null
+          refused_reason: string | null
+          sent_at: string | null
+          signature_token: string | null
+          signed_at: string | null
+          signed_by_ip: string | null
+          signed_by_name: string | null
+          status: string
+          subtotal: number | null
+          terms_and_conditions: string | null
+          title: string | null
+          total: number | null
+          updated_at: string
+          validity_days: number | null
+          vat_amount: number | null
+          viewed_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          client_address?: string | null
+          client_company?: string | null
+          client_email?: string | null
+          client_fiscal_code?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          client_vat_number?: string | null
+          company_id: string
+          contact_id?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
+          expires_at?: string | null
+          id?: string
+          internal_notes?: string | null
+          notes?: string | null
+          opportunity_id?: string | null
+          pdf_generated_at?: string | null
+          pdf_storage_path?: string | null
+          quote_number: string
+          refused_at?: string | null
+          refused_reason?: string | null
+          sent_at?: string | null
+          signature_token?: string | null
+          signed_at?: string | null
+          signed_by_ip?: string | null
+          signed_by_name?: string | null
+          status?: string
+          subtotal?: number | null
+          terms_and_conditions?: string | null
+          title?: string | null
+          total?: number | null
+          updated_at?: string
+          validity_days?: number | null
+          vat_amount?: number | null
+          viewed_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          client_address?: string | null
+          client_company?: string | null
+          client_email?: string | null
+          client_fiscal_code?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          client_vat_number?: string | null
+          company_id?: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
+          expires_at?: string | null
+          id?: string
+          internal_notes?: string | null
+          notes?: string | null
+          opportunity_id?: string | null
+          pdf_generated_at?: string | null
+          pdf_storage_path?: string | null
+          quote_number?: string
+          refused_at?: string | null
+          refused_reason?: string | null
+          sent_at?: string | null
+          signature_token?: string | null
+          signed_at?: string | null
+          signed_by_ip?: string | null
+          signed_by_name?: string | null
+          status?: string
+          subtotal?: number | null
+          terms_and_conditions?: string | null
+          title?: string | null
+          total?: number | null
+          updated_at?: string
+          validity_days?: number | null
+          vat_amount?: number | null
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       referral_companies: {
         Row: {
           company_id: string
@@ -10031,6 +10354,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      generate_quote_number: { Args: { p_company_id: string }; Returns: string }
       get_cash_flow_by_month: {
         Args: { p_company_id: string; p_months?: number }
         Returns: {
