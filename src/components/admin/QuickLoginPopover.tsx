@@ -65,6 +65,7 @@ const REDIRECT_MAP: Record<AppRole, string> = {
   customer: "/cliente",
   employee: "/dipendente",
   salesperson: "/venditore",
+  referrer: "/partner",
 };
 
 interface UserWithRole {
