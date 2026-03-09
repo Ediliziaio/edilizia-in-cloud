@@ -20,6 +20,7 @@ interface MonthlyOrderData {
 }
 
 interface CompanyOverviewTabProps {
+  companyId?: string;
   stats: CompanyStats | null;
   totalTeam: number;
   recentOrders: any[] | undefined;
