@@ -120,6 +120,8 @@ export function useOpportunities(pipelineId: string | null) {
       }));
     },
     enabled: !!companyId && !!pipelineId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 
