@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     const {
       form_id, data: formData, session_id, visitor_id,
       utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-      gclid, fbclid
+      gclid, fbclid, ttclid, msclkid, li_fat_id
     } = body;
 
     if (!form_id || !formData) {
@@ -189,6 +189,9 @@ Deno.serve(async (req) => {
       ip_hash,
       gclid: gclid || null,
       fbclid: fbclid || null,
+      ttclid: ttclid || null,
+      msclkid: msclkid || null,
+      li_fat_id: li_fat_id || null,
       user_agent: userAgent || null,
       device_type: deviceType,
     }).select("id").single();

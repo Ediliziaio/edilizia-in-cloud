@@ -23,6 +23,7 @@ export function useContactAttribution(contactId: string | undefined, companyId: 
         .from("attribution_sessions")
         .select("*")
         .eq("contact_id", contactId!)
+        .eq("company_id", companyId!)
         .order("started_at", { ascending: false })
         .limit(20);
       if (error) throw error;

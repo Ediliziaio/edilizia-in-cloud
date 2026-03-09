@@ -4595,8 +4595,11 @@ export type Database = {
           gclid: string | null
           id: string
           ip_hash: string | null
+          li_fat_id: string | null
+          msclkid: string | null
           session_id: string | null
           submitted_at: string
+          ttclid: string | null
           user_agent: string | null
           utm_campaign: string | null
           utm_content: string | null
@@ -4614,8 +4617,11 @@ export type Database = {
           gclid?: string | null
           id?: string
           ip_hash?: string | null
+          li_fat_id?: string | null
+          msclkid?: string | null
           session_id?: string | null
           submitted_at?: string
+          ttclid?: string | null
           user_agent?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
@@ -4633,8 +4639,11 @@ export type Database = {
           gclid?: string | null
           id?: string
           ip_hash?: string | null
+          li_fat_id?: string | null
+          msclkid?: string | null
           session_id?: string | null
           submitted_at?: string
+          ttclid?: string | null
           user_agent?: string | null
           utm_campaign?: string | null
           utm_content?: string | null

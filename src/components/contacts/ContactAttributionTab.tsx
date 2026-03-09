@@ -131,7 +131,7 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
       )}
 
       {/* Last Touch */}
-      {attribution?.last_source && attribution.last_source !== attribution.first_source && (
+      {attribution?.last_touch_at && attribution.last_touch_at !== attribution.first_touch_at && (
         <TouchCard
           label="LAST TOUCH"
           icon={<Globe className="h-3 w-3" />}
