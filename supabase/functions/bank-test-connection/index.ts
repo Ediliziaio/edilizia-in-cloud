@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { getGoCardlessToken } from "../_shared/goCardless.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -20,26 +20,12 @@ Deno.serve(async (req) => {
     const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "super_admin").maybeSingle();
     if (!role) return errorResponse("Forbidden", 403);
 
-    const secretId = await getPlatformSetting("bank_gocardless_secret_id");
-    const secretKey = await getPlatformSetting("bank_gocardless_secret_key");
-
-    if (!secretId || !secretKey) {
-      return jsonResponse({ success: false, error: "Credenziali GoCardless non configurate" });
+    try {
+      await getGoCardlessToken();
+      return jsonResponse({ success: true, message: "Connessione GoCardless OK" });
+    } catch (e) {
+      return jsonResponse({ success: false, error: e.message });
     }
-
-    const tokenRes = await fetch("https://bankaccountdata.gocardless.com/api/v2/token/new/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ secret_id: secretId, secret_key: secretKey }),
-    });
-
-    const tokenBody = await tokenRes.json();
-
-    if (!tokenRes.ok) {
-      return jsonResponse({ success: false, error: tokenBody?.detail || tokenBody?.summary || "Credenziali non valide" });
-    }
-
-    return jsonResponse({ success: true, message: "Connessione GoCardless OK" });
   } catch (e) {
     console.error("bank-test-connection error:", e);
     return errorResponse(e.message, 500);

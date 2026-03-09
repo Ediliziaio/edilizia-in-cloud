@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getGoCardlessToken } from "../_shared/goCardless.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -21,7 +21,6 @@ Deno.serve(async (req) => {
     const { connection_id } = await req.json();
     if (!connection_id) return errorResponse("connection_id richiesto", 400);
 
-    // Verify ownership
     const { data: conn } = await supabase
       .from("bank_connections")
       .select("*")
@@ -31,27 +30,17 @@ Deno.serve(async (req) => {
 
     if (!conn) return errorResponse("Connessione non trovata", 404);
 
-    // Mark disconnected
     await supabase.from("bank_connections").update({ status: "disconnected" }).eq("id", connection_id);
     await supabase.from("bank_accounts").update({ is_active: false }).eq("connection_id", connection_id);
 
     // Try to revoke on GoCardless (non-critical)
     try {
       if (conn.requisition_id) {
-        const secretId = await getPlatformSetting("bank_gocardless_secret_id");
-        const secretKey = await getPlatformSetting("bank_gocardless_secret_key");
-        const tokenRes = await fetch("https://bankaccountdata.gocardless.com/api/v2/token/new/", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ secret_id: secretId, secret_key: secretKey }),
+        const token = await getGoCardlessToken();
+        await fetch(`https://bankaccountdata.gocardless.com/api/v2/requisitions/${conn.requisition_id}/`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
         });
-        const tokenData = await tokenRes.json();
-        if (tokenRes.ok) {
-          await fetch(`https://bankaccountdata.gocardless.com/api/v2/requisitions/${conn.requisition_id}/`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${tokenData.access}` },
-          });
-        }
       }
     } catch (e) {
       console.warn("GoCardless revoke failed (non-critical):", e);

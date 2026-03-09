@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getGoCardlessToken, gcFetch } from "../_shared/goCardless.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -17,24 +17,8 @@ Deno.serve(async (req) => {
 
     const { country = "IT" } = await req.json().catch(() => ({}));
 
-    const secretId = await getPlatformSetting("bank_gocardless_secret_id");
-    const secretKey = await getPlatformSetting("bank_gocardless_secret_key");
-    if (!secretId || !secretKey) return errorResponse("GoCardless non configurato", 400);
-
-    // Get token
-    const tokenRes = await fetch("https://bankaccountdata.gocardless.com/api/v2/token/new/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ secret_id: secretId, secret_key: secretKey }),
-    });
-    const tokenData = await tokenRes.json();
-    if (!tokenRes.ok) return errorResponse("Token GoCardless fallito", 500);
-
-    // Fetch institutions
-    const instRes = await fetch(`https://bankaccountdata.gocardless.com/api/v2/institutions/?country=${country}`, {
-      headers: { Authorization: `Bearer ${tokenData.access}` },
-    });
-    const institutions = await instRes.json();
+    const token = await getGoCardlessToken();
+    const { data: institutions } = await gcFetch(`/institutions/?country=${country}`, token);
 
     return jsonResponse({ success: true, institutions });
   } catch (e) {
