@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
