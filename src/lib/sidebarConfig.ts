@@ -19,6 +19,7 @@ import {
   Gauge,
   BarChart3,
   Headphones,
+  Landmark,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
