@@ -313,8 +313,6 @@ const App = () => (
                 <Route path="scadenzario" element={<Scadenzario />} />
                 
                 <Route path="prima-nota" element={<PrimaNota />} />
-                <Route path="fornitori" element={<Suppliers />} />
-                <Route path="fornitori/:id" element={<Suppliers />} />
                 <Route path="ordini-acquisto" element={<PurchaseOrdersList />} />
                 <Route path="ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
                 <Route path="automazioni" element={<InternalAutomations />} />

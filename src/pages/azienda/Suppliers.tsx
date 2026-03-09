@@ -680,6 +680,16 @@ function StatsTab({ supplier, oda, scadenze, primaNota }: { supplier: SupplierWi
   );
 }
 
+// ========== EMBEDDED EXPORT (for Settings page) ==========
+export function SuppliersOperational() {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  if (selectedId) {
+    return <SupplierDetail supplierId={selectedId} onBack={() => setSelectedId(null)} />;
+  }
+  return <SuppliersList onSelectSupplier={(id) => setSelectedId(id)} />;
+}
+
 // ========== MAIN EXPORT ==========
 export default function Suppliers() {
   const { id } = useParams();
