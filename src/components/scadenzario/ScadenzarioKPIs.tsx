@@ -70,8 +70,8 @@ export default function ScadenzarioKPIs({ summary, isLoading }: Props) {
             {fmtEur(saldoNetto)}
           </p>
           <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
-            <span className="text-green-600">↑ {fmtEur(summary.entrate_attese)}</span>
-            <span className="text-destructive">↓ {fmtEur(summary.uscite_attese)}</span>
+            <span className="text-green-600">↑ {fmtEur(summary.entrate_previste)}</span>
+            <span className="text-destructive">↓ {fmtEur(summary.uscite_previste)}</span>
           </div>
         </CardContent>
       </Card>
