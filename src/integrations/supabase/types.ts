@@ -6992,6 +6992,7 @@ export type Database = {
           can_view_orders: boolean | null
           can_view_settings: boolean | null
           can_view_tickets: boolean | null
+          can_view_users: boolean
           can_view_warehouse: boolean | null
           company_id: string
           created_at: string | null
@@ -7039,6 +7040,7 @@ export type Database = {
           can_view_orders?: boolean | null
           can_view_settings?: boolean | null
           can_view_tickets?: boolean | null
+          can_view_users?: boolean
           can_view_warehouse?: boolean | null
           company_id: string
           created_at?: string | null
@@ -7086,6 +7088,7 @@ export type Database = {
           can_view_orders?: boolean | null
           can_view_settings?: boolean | null
           can_view_tickets?: boolean | null
+          can_view_users?: boolean
           can_view_warehouse?: boolean | null
           company_id?: string
           created_at?: string | null
