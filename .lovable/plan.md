@@ -1,47 +1,165 @@
+# Stato Progetto — Aggiornato
 
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
-# Analisi Automazioni — Risultati
+---
 
-## Stato Attuale
+## Gestione Utenti — Completamento 100% ✅
+- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
 
-### ✅ Funzionante
-| Componente | Stato |
-|------------|-------|
-| **11 trigger DB** (ia_*) | Tutti attaccati alle tabelle (verificato via `pg_trigger`) |
-| **INSERT triggers** (order_created, ticket_created, task_created, employee_added, cost_created, appointment_created) | Usano `trigger_internal_automations` → inserimento diretto in enrollments + queue → **OK** |
-| **Stock trigger** (ia_warehouse_stock) | Usa `trigger_internal_auto_stock_events` con pattern corretto → **OK** |
-| **Edge Function** `process-internal-automation` | Logica corretta: azioni, condizioni con branch true/false, delay, interpolazione variabili, retry |
-| **UI Builder** | Save, load, canvas, nodi, connessioni, branching label → **OK** |
-| **Cron job** | Invoca la funzione ogni minuto → **OK** |
+---
 
-### ❌ BUG CRITICO: 4 funzioni UPDATE inseriscono in tabella inesistente
+## Stripe Billing Completo ✅
+- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
+- ✅ Colonne dunning su `companies`
+- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
+- ✅ **customer-portal** edge function per Stripe Customer Portal
+- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
 
-Le funzioni seguenti fanno `INSERT INTO internal_automation_trigger_events` — ma questa tabella **non esiste**:
+---
 
-- `trigger_internal_auto_order_status()` → crash su UPDATE di qualsiasi ordine
-- `trigger_internal_auto_ticket_events()` → crash su UPDATE di qualsiasi ticket
-- `trigger_internal_auto_task_events()` → crash su UPDATE di qualsiasi task
-- `trigger_internal_auto_appointment_events()` → crash su UPDATE di qualsiasi appuntamento
+## 2FA TOTP ✅
+- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
+- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
+- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
+- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
+- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
+- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
 
-Questo significa che **order_updated, order_status_changed, order_completed, ticket_updated, ticket_status_changed, ticket_assigned, task_updated, task_completed, appointment_updated** non funzionano mai. Peggio ancora, l'errore del trigger potrebbe far fallire silenziosamente le operazioni di UPDATE sulle tabelle stesse.
+---
 
-La funzione `trigger_internal_auto_stock_events()` usa il pattern corretto (inserimento diretto in enrollments + queue), quindi funziona.
+## Health Score Engine ✅
+- ✅ Tabella `company_health_scores` con RLS super_admin
+- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
+- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
+- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
+- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
 
-## Fix
+---
 
-### SQL Migration — Riscrivere le 4 funzioni con pattern diretto
+## Support Migliorato ✅
+- ✅ **support_canned_responses** tabella con RLS
+- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
+- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
+- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
+- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
+- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
 
-Riscrivere `trigger_internal_auto_order_status`, `trigger_internal_auto_ticket_events`, `trigger_internal_auto_task_events`, e `trigger_internal_auto_appointment_events` per usare lo stesso pattern di `trigger_internal_auto_stock_events`:
+---
 
-- Per ogni evento emesso, cercare i flow pubblicati con `trigger_type` corrispondente
-- Creare enrollment + queue item direttamente
-- Nessun riferimento a `internal_automation_trigger_events`
+## Customer Success Platform ✅
+- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
+- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
+- ✅ **company_onboarding_completions**: tracking completamento step per azienda
+- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
+- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
+- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
+- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
+- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
 
-I trigger non cambiano (sono già attaccati), solo il corpo delle funzioni viene aggiornato con `CREATE OR REPLACE FUNCTION`.
+---
 
-### File modificati
+## API Platform per Aziende ✅
+- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
+- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
+- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
+- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
+- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
+- ✅ Sidebar aziendale aggiornata con link "API Platform"
 
-| File | Modifica |
-|------|----------|
-| SQL migration | `CREATE OR REPLACE FUNCTION` per le 4 funzioni rotte |
+---
 
+## GDPR & Compliance Tools ✅
+- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
+- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
+- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
+- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
+- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+
+---
+
+## White-Label & Branding ✅
+- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
+- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
+- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
+- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
+- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
+- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
+- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+
+---
+
+## Partner Portal Referrer ✅
+- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
+- ✅ **user_id** su tabella `referrers` per collegamento account partner
+- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
+- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
+- ✅ **PartnerLayout** layout dedicato con sidebar minima
+- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
+- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
+- ✅ Rotta `/partner` protetta in App.tsx
+
+---
+
+## Team Management Avanzato ✅
+- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
+- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
+- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
+
+---
+
+## ✅ Tutte le funzionalità pianificate sono state completate!
+
+---
+
+## Dashboard Analytics Avanzata (Admin) ✅
+- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
+- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
+- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
+
+---
+
+## Messaggistica Interna ✅
+- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
+- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
+- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
+- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
+- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
+- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
+
+---
+
+## Gap Analysis — Implementazione Completata ✅
+
+### Secure Impersonation JWT ✅
+- ✅ **active_impersonations** tabella con RLS, indici, expiry
+- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
+- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
+- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
+
+### AdminLoginPage Separata ✅
+- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
+- ✅ **Rotta /admin-login** configurata in App.tsx
+- ✅ **2FA step** integrato nel flusso admin login
+- ✅ **Access denied** per utenti non super_admin
+
+### IP Allowlist Pannello Super Admin ✅
+- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
+- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
+- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
+- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
+
+### Build Multi-Target Vite ✅
+- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
+- ✅ Preparato per build scripts separati (build:app / build:admin)
+
+### Fix Tecnici Minori ✅
+- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
+- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
+- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
+- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
