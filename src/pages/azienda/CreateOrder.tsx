@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { logger } from "@/utils/logger";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
@@ -393,7 +394,7 @@ export default function CreateOrder() {
             if (dbError) throw dbError;
             uploaded++;
           } catch (err) {
-            console.error("File upload error:", err);
+            logger.error("File upload error:", err);
             toast.error("Errore caricamento", { description: `Errore nel caricare "${pf.file.name}".` });
           }
         }
@@ -408,7 +409,7 @@ export default function CreateOrder() {
     },
     onError: (error) => {
       toast.error("Errore", { description: "Si è verificato un errore durante la creazione dell'ordine." });
-      console.error("Create order error:", error);
+     logger.error("Create order error:", error);
     },
   });
 

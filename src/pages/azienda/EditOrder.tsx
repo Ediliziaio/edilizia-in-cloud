@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { logger } from "@/utils/logger";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle } from "lucide-react";
@@ -603,7 +604,7 @@ export default function EditOrder() {
     },
     onError: (error) => {
       toast.error("Errore", { description: "Si è verificato un errore durante l'aggiornamento dell'ordine." });
-      console.error("Update order error:", error);
+      logger.error("Update order error:", error);
     },
   });
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logger } from "@/utils/logger";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, User, Save, Loader2, Mail, ClipboardList, Trash2, ExternalLink, Phone, Calendar, CreditCard } from "lucide-react";
@@ -138,7 +139,7 @@ export default function CompanyCustomerDetail() {
 
       toast({ title: "Cliente aggiornato", description: "I dati del cliente sono stati salvati con successo" });
     } catch (error) {
-      console.error("Error updating customer:", error);
+      logger.error("Error updating customer:", error);
       toast({ title: "Errore", description: "Impossibile aggiornare i dati del cliente.", variant: "destructive" });
     } finally {
       setIsSaving(false);
@@ -169,7 +170,7 @@ export default function CompanyCustomerDetail() {
       toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo." });
       navigate("/azienda/clienti");
     } catch (error) {
-      console.error("Error deleting customer:", error);
+     logger.error("Error deleting customer:", error);
       toast({ title: "Errore", description: "Impossibile eliminare il cliente.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
