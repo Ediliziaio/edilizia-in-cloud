@@ -25,8 +25,12 @@ Deno.serve(async (req) => {
       .eq("id", user.id)
       .single();
 
-    if (!profile?.company_id) return errorResponse("Profilo non trovato", 403);
-    const companyId = profile.company_id;
+    // Super admins may not have a company_id — allow them through
+    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
+    const isSuperAdmin = roles?.some((r: any) => r.role === "super_admin");
+
+    if (!profile?.company_id && !isSuperAdmin) return errorResponse("Profilo non trovato", 403);
+    const companyId = profile?.company_id || null;
 
     switch (action) {
       // ── Request Data Export ──
