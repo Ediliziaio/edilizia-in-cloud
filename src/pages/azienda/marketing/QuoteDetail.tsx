@@ -85,6 +85,7 @@ export default function QuoteDetail() {
   };
 
   const { data: quote, isLoading } = useQuery({
+    queryKey: ["quote", id],
     enabled: !!id,
     queryFn: async () => {
       const { data, error } = await supabase
