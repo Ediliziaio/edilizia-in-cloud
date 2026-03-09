@@ -420,9 +420,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data || [];
     },
     enabled: !!companyId,
-  });
-
-  // ── Fetch staff users for appointment dialog ──
+    staleTime: 300_000,
   const { data: staffUsers = [] } = useQuery({
     queryKey: ["staff-users-for-contact", companyId],
     queryFn: async () => {
