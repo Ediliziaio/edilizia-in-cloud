@@ -45,7 +45,7 @@ const AdminSettingsEmail = lazy(() => import("@/pages/admin/settings/AdminSettin
 const AdminSettingsAI = lazy(() => import("@/pages/admin/settings/AdminSettingsAI"));
 const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
-const Implementations = lazy(() => import("@/pages/admin/Implementations"));
+const FeatureFlags = lazy(() => import("@/pages/admin/FeatureFlags"));
 const SyncLogs = lazy(() => import("@/pages/admin/SyncLogs"));
 const CompanyLifecycle = lazy(() => import("@/pages/admin/CompanyLifecycle"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
