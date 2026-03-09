@@ -51,7 +51,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
 import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
