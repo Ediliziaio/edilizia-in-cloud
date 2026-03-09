@@ -44,9 +44,8 @@ function getBrowserInfo() {
 async function startSession() {
   try {
     const info = getBrowserInfo();
-    const impersonatedCompanyId = sessionStorage.getItem(IMPERSONATION_KEY);
     const { data } = await supabase.functions.invoke("track-user-session", {
-      body: { action: "start", company_id: impersonatedCompanyId, ...info },
+      body: { action: "start", ...info },
     });
     if (data?.session_id) {
       sessionStorage.setItem(SESSION_ID_KEY, data.session_id);
