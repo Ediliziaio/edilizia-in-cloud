@@ -1,10 +1,10 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback } from "react";
 import type { InternalAutomationNode, InternalAutomationConnection } from "@/types/internalAutomationBuilder";
-import { findTriggerLabel, findActionLabel, INTERNAL_NODE_TYPE_LABELS } from "@/types/internalAutomationBuilder";
+import { InternalAutomationNodeComponent } from "./InternalAutomationNode";
+import { InternalConnectionLine } from "./InternalConnectionLine";
+import { Plus, MousePointer2, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, ZoomIn, ZoomOut, Maximize2, Trash2, Copy } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface Props {
   nodes: InternalAutomationNode[];
@@ -18,42 +18,6 @@ interface Props {
   onOpenTriggerPicker: () => void;
   onOpenActionPicker: () => void;
 }
-
-const NODE_W = 220;
-const NODE_H = 72;
-
-function getNodeLabel(node: InternalAutomationNode): string {
-  const config = node.config_json || {};
-  if (node.label) return node.label;
-  if (node.node_type === "trigger") return findTriggerLabel(config.trigger_type || "");
-  if (node.node_type === "action") return findActionLabel(config.action_type || "");
-  if (node.node_type === "condition") return "Condizione";
-  if (node.node_type === "delay") {
-    const d = Number(config.delay_days || 0);
-    const h = Number(config.delay_hours || 0);
-    const m = Number(config.delay_minutes || 0);
-    const parts = [];
-    if (d) parts.push(`${d}g`);
-    if (h) parts.push(`${h}h`);
-    if (m) parts.push(`${m}m`);
-    return parts.length ? `Attendi ${parts.join(" ")}` : "Attesa";
-  }
-  return INTERNAL_NODE_TYPE_LABELS[node.node_type] || node.node_type;
-}
-
-const NODE_COLORS: Record<string, string> = {
-  trigger: "border-emerald-500 bg-emerald-500/5",
-  action: "border-blue-500 bg-blue-500/5",
-  condition: "border-amber-500 bg-amber-500/5",
-  delay: "border-violet-500 bg-violet-500/5",
-};
-
-const NODE_DOT_COLORS: Record<string, string> = {
-  trigger: "bg-emerald-500",
-  action: "bg-blue-500",
-  condition: "bg-amber-500",
-  delay: "bg-violet-500",
-};
 
 export function InternalAutomationCanvas({
   nodes, connections, selectedNodeId,
@@ -71,6 +35,8 @@ export function InternalAutomationCanvas({
 
   const panRef = useRef(pan);
   panRef.current = pan;
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
 
@@ -111,165 +77,155 @@ export function InternalAutomationCanvas({
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.05 : 0.05;
-    setZoom((z) => Math.min(2, Math.max(0.3, z + delta)));
+    setZoom(prev => Math.max(0.3, Math.min(2, prev + delta)));
   }, []);
 
-  const handleNodeMouseDown = useCallback((e: React.MouseEvent, node: InternalAutomationNode) => {
-    e.stopPropagation();
-    onSelectNode(node.id);
-    setDragNodeId(node.id);
+  const handleNodeDragStart = useCallback((id: string, e: React.MouseEvent) => {
+    const node = nodesRef.current.find(n => n.id === id);
+    if (!node) return;
+    setDragNodeId(id);
     dragStart.current = { x: e.clientX, y: e.clientY, nodeX: node.position_x, nodeY: node.position_y };
-  }, [onSelectNode]);
+  }, []);
 
-  const resetView = useCallback(() => { setPan({ x: 0, y: 0 }); setZoom(1); }, []);
+  const fitToScreen = useCallback(() => {
+    if (nodes.length === 0 || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const padding = 80;
+    const minX = Math.min(...nodes.map(n => n.position_x));
+    const minY = Math.min(...nodes.map(n => n.position_y));
+    const maxX = Math.max(...nodes.map(n => n.position_x + 224));
+    const maxY = Math.max(...nodes.map(n => n.position_y + 80));
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+    const scaleX = (rect.width - padding * 2) / contentW;
+    const scaleY = (rect.height - padding * 2) / contentH;
+    const newZoom = Math.max(0.3, Math.min(1.5, Math.min(scaleX, scaleY)));
+    const centerX = (rect.width - contentW * newZoom) / 2 - minX * newZoom;
+    const centerY = (rect.height - contentH * newZoom) / 2 - minY * newZoom;
+    setZoom(newZoom);
+    setPan({ x: centerX, y: centerY });
+  }, [nodes]);
 
-  const hasTrigger = nodes.some((n) => n.node_type === "trigger");
-
-  // SVG connections
-  const svgLines = useMemo(() => {
-    return connections.map((conn) => {
-      const fromNode = nodes.find((n) => n.id === conn.from_node_id);
-      const toNode = nodes.find((n) => n.id === conn.to_node_id);
-      if (!fromNode || !toNode) return null;
-
-      let fx = fromNode.position_x;
-      let fy = fromNode.position_y;
-      let tx = toNode.position_x;
-      let ty = toNode.position_y;
-
-      if (dragNodeId === fromNode.id && dragOffset) { fx += dragOffset.x; fy += dragOffset.y; }
-      if (dragNodeId === toNode.id && dragOffset) { tx += dragOffset.x; ty += dragOffset.y; }
-
-      const x1 = fx + NODE_W / 2;
-      const y1 = fy + NODE_H;
-      const x2 = tx + NODE_W / 2;
-      const y2 = ty;
-      const cy1 = y1 + Math.abs(y2 - y1) * 0.4;
-      const cy2 = y2 - Math.abs(y2 - y1) * 0.4;
-
-      return (
-        <g key={conn.id}>
-          <path
-            d={`M ${x1} ${y1} C ${x1} ${cy1}, ${x2} ${cy2}, ${x2} ${y2}`}
-            fill="none"
-            stroke="hsl(var(--border))"
-            strokeWidth={2}
-            strokeDasharray={conn.label ? "6 3" : undefined}
-          />
-          {conn.label && (
-            <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 6} textAnchor="middle" className="fill-muted-foreground text-[10px]">
-              {conn.label === "true" ? "Sì" : conn.label === "false" ? "No" : conn.label}
-            </text>
-          )}
-        </g>
-      );
-    });
-  }, [connections, nodes, dragNodeId, dragOffset]);
+  const hasTrigger = nodes.some(n => n.node_type === "trigger");
 
   return (
-    <div
-      ref={canvasRef}
-      data-canvas="true"
-      className="relative flex-1 overflow-hidden bg-muted/30 cursor-grab active:cursor-grabbing select-none"
-      onMouseDown={handleCanvasMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
-    >
-      {/* Toolbar */}
-      <div className="absolute top-3 right-3 z-10 flex gap-1">
-        <Tooltip><TooltipTrigger asChild>
-          <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(2, z + 0.1))}>
-            <ZoomIn className="h-4 w-4" />
+    <div className="flex-1 overflow-hidden relative flex flex-col">
+      {/* Canvas area */}
+      <div
+        ref={canvasRef}
+        className="flex-1 overflow-hidden relative cursor-grab active:cursor-grabbing"
+        onMouseDown={handleCanvasMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
+        data-canvas="true"
+        style={{
+          background: "radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)",
+          backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
+        }}
+      >
+        <div
+          data-canvas="true"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: "0 0",
+            position: "absolute",
+            top: 0, left: 0, width: "100%", height: "100%",
+          }}
+        >
+          {/* SVG connections */}
+          <svg data-canvas="true" className="absolute inset-0 w-full h-full" style={{ overflow: "visible" }}>
+            {connections.map(conn => {
+              const displayNodes = (dragNodeId && dragOffset)
+                ? nodes.map(n => n.id === dragNodeId
+                    ? { ...n, position_x: dragStart.current.nodeX + dragOffset.x, position_y: dragStart.current.nodeY + dragOffset.y }
+                    : n)
+                : nodes;
+              return <InternalConnectionLine key={conn.id} connection={conn} nodes={displayNodes} />;
+            })}
+          </svg>
+
+          {/* Nodes */}
+          {nodes.map(node => {
+            const isDragging = dragNodeId === node.id && dragOffset;
+            const displayNode = isDragging
+              ? { ...node, position_x: dragStart.current.nodeX + dragOffset.x, position_y: dragStart.current.nodeY + dragOffset.y }
+              : node;
+            return (
+              <InternalAutomationNodeComponent
+                key={node.id}
+                node={displayNode}
+                isSelected={selectedNodeId === node.id}
+                onSelect={onSelectNode}
+                onDelete={onDeleteNode}
+                onDuplicate={onDuplicateNode}
+                onAddAfter={onAddAfterNode}
+                onDragStart={handleNodeDragStart}
+              />
+            );
+          })}
+
+          {/* Empty state */}
+          {!hasTrigger && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button
+                onClick={onOpenTriggerPicker}
+                className="pointer-events-auto flex flex-col items-center gap-3 p-8 rounded-xl border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-accent/50 transition-all cursor-pointer"
+              >
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Plus className="h-6 w-6 text-primary" />
+                </div>
+                <span className="text-sm font-medium text-muted-foreground">Aggiungi il primo trigger</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* + Aggiungi button top-right */}
+        <div className="absolute top-3 right-3 z-10">
+          <Button size="sm" variant="default" onClick={hasTrigger ? onOpenActionPicker : onOpenTriggerPicker}>
+            <Plus className="h-4 w-4 mr-1" /> Aggiungi
           </Button>
-        </TooltipTrigger><TooltipContent>Zoom +</TooltipContent></Tooltip>
-        <Tooltip><TooltipTrigger asChild>
-          <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))}>
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger><TooltipContent>Zoom -</TooltipContent></Tooltip>
-        <Tooltip><TooltipTrigger asChild>
-          <Button size="icon" variant="outline" className="h-8 w-8" onClick={resetView}>
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger><TooltipContent>Reset vista</TooltipContent></Tooltip>
+        </div>
       </div>
 
-      {/* Canvas content */}
-      <div
-        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "0 0" }}
-        className="absolute inset-0"
-        data-canvas="true"
-      >
-        {/* SVG connections */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: "visible" }}>
-          {svgLines}
-        </svg>
-
-        {/* Nodes */}
-        {nodes.map((node) => {
-          let x = node.position_x;
-          let y = node.position_y;
-          if (dragNodeId === node.id && dragOffset) { x += dragOffset.x; y += dragOffset.y; }
-
-          return (
-            <div
-              key={node.id}
-              onMouseDown={(e) => handleNodeMouseDown(e, node)}
-              style={{ left: x, top: y, width: NODE_W }}
-              className={cn(
-                "absolute rounded-lg border-2 p-3 shadow-sm transition-shadow cursor-pointer",
-                NODE_COLORS[node.node_type] || "border-border bg-background",
-                selectedNodeId === node.id && "ring-2 ring-primary shadow-md"
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <div className={cn("h-2.5 w-2.5 rounded-full shrink-0", NODE_DOT_COLORS[node.node_type])} />
-                <span className="text-xs font-semibold truncate">{getNodeLabel(node)}</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate">
-                {INTERNAL_NODE_TYPE_LABELS[node.node_type]}
-              </p>
-
-              {/* Node actions */}
-              {selectedNodeId === node.id && (
-                <div className="absolute -top-8 right-0 flex gap-1">
-                  {node.node_type !== "trigger" && (
-                    <Button size="icon" variant="outline" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onDeleteNode(node.id); }}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  )}
-                  <Button size="icon" variant="outline" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onDuplicateNode(node.id); }}>
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                  <Button size="icon" variant="outline" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onAddAfterNode(node.id); }}>
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Empty state */}
-        {nodes.length === 0 && (
-          <div className="absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 text-center" data-canvas="true">
-            <p className="text-sm text-muted-foreground mb-3">Inizia aggiungendo un trigger</p>
-            <Button onClick={onOpenTriggerPicker} variant="outline" size="sm">
-              <Plus className="h-4 w-4 mr-1" /> Aggiungi Trigger
+      {/* Bottom toolbar */}
+      <div className="h-10 border-t bg-background flex items-center justify-center gap-1 px-3 shrink-0">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7">
+              <MousePointer2 className="h-4 w-4" />
             </Button>
-          </div>
-        )}
-
-        {/* Add node button when trigger exists */}
-        {hasTrigger && (
-          <div className="absolute left-1/2 -translate-x-1/2" style={{ top: Math.max(...nodes.map((n) => n.position_y + NODE_H + 40), 200) }} data-canvas="true">
-            <Button onClick={onOpenActionPicker} variant="outline" size="sm" className="shadow-sm">
-              <Plus className="h-4 w-4 mr-1" /> Aggiungi Nodo
+          </TooltipTrigger>
+          <TooltipContent>Seleziona</TooltipContent>
+        </Tooltip>
+        <div className="w-px h-5 bg-border mx-1" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={fitToScreen}>
+              <Maximize2 className="h-4 w-4" />
             </Button>
-          </div>
-        )}
+          </TooltipTrigger>
+          <TooltipContent>Adatta allo schermo</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}>
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Zoom out</TooltipContent>
+        </Tooltip>
+        <span className="text-xs text-muted-foreground w-10 text-center">{Math.round(zoom * 100)}%</span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(2, z + 0.1))}>
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Zoom in</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
