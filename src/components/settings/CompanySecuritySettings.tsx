@@ -33,7 +33,7 @@ export function CompanySecuritySettings() {
       if (error) throw error;
       return data;
     },
-    enabled: !!effectiveCompany && isAdmin,
+    enabled: !!effectiveCompany?.id && isAdmin,
   });
 
   const [enforce2fa, setEnforce2fa] = useState(false);
