@@ -76,17 +76,12 @@ export function usePurchaseOrders() {
 
   const createMutation = useMutation({
     mutationFn: async (params: { supplier_id: string; notes?: string; expected_delivery_date?: string }) => {
-      // Generate OdA number
-      const { data: odaNum, error: numErr } = await supabase.rpc("generate_oda_number", { p_company_id: companyId! });
-      if (numErr) throw numErr;
-
       const user = (await supabase.auth.getUser()).data.user;
       const { data, error } = await supabase
         .from("purchase_orders")
         .insert({
           company_id: companyId!,
           supplier_id: params.supplier_id,
-          oda_number: odaNum as string,
           notes: params.notes || null,
           expected_delivery_date: params.expected_delivery_date || null,
           created_by: user?.id,
