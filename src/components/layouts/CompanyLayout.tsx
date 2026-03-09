@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { useBranding } from "@/hooks/useBranding";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { 
   HeadphonesIcon,
@@ -30,6 +31,7 @@ import {
   CalendarDays,
   Wallet,
   Shield,
+  Paintbrush,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";

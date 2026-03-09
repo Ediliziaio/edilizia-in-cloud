@@ -316,6 +316,7 @@ const App = () => (
                   <Route path="crediti" element={<SettingsCredits />} />
                   <Route path="api" element={<SettingsApiKeys />} />
                   <Route path="privacy" element={<SettingsPrivacy />} />
+                  <Route path="branding" element={<SettingsBranding />} />
                 </Route>
               </Route>
 
