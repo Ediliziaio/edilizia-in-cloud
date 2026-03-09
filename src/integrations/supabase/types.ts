@@ -8467,6 +8467,7 @@ export type Database = {
           id: string
           leader_id: string | null
           name: string
+          round_robin_index: number
           updated_at: string
         }
         Insert: {
@@ -8477,6 +8478,7 @@ export type Database = {
           id?: string
           leader_id?: string | null
           name: string
+          round_robin_index?: number
           updated_at?: string
         }
         Update: {
@@ -8487,6 +8489,7 @@ export type Database = {
           id?: string
           leader_id?: string | null
           name?: string
+          round_robin_index?: number
           updated_at?: string
         }
         Relationships: [
@@ -9378,6 +9381,7 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_round_robin: { Args: { p_team_id: string }; Returns: string }
       auto_expire_trials: { Args: never; Returns: number }
       check_and_update_login_attempt: {
         Args: { p_ip_address?: unknown; p_success: boolean; p_user_id: string }
