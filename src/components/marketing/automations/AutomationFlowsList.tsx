@@ -97,7 +97,8 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
       const { data, error } = await supabase
         .from("automation_enrollments")
         .select("flow_id, status")
-        .eq("company_id", effectiveCompany!.id);
+        .eq("company_id", effectiveCompany!.id)
+        .limit(5000);
       if (error) throw error;
 
       const counts: Record<string, { total: number; active: number }> = {};
