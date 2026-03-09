@@ -1,133 +1,163 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+# Analisi Documento vs Implementazione — Gap Analysis
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+## Struttura del Documento
+
+Il documento "Analisi SuperAdmin SaaS" (18 pagine) definisce **11 macro-aree** con una roadmap da P0 a P3. Analizziamo punto per punto cosa è stato implementato e cosa manca.
 
 ---
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+## 1. Scorecard Esecutiva (Pag. 2-3) — Stato Verificato
+
+| Area del Documento | Stato nel Codice | Note |
+|---|---|---|
+| Routing & Layout separato | ✅ Implementato | `/admin/*` vs `/azienda/*` con layout separati |
+| Separazione subdomain | ❌ NON IMPLEMENTATO | Il doc richiede `admin.ediliziaincloud.it` vs `app.ediliziaincloud.it` con build Vite separate. La SPA resta unica |
+| Protezione route (super_admin) | ✅ Implementato | `ProtectedRoute` con `allowedRoles` |
+| Permissions granulari | ✅ Implementato | 6 permessi in `super_admin_permissions` |
+| Company Management | ✅ Implementato | 7+ tab, impersonation, quick actions |
+| Impersonation system | ⚠️ PARZIALE | Il doc segnala XSS risk via sessionStorage. Il codice ora usa stato in-memory (`useState`) — il rischio sessionStorage è stato risolto. MA il doc richiede **JWT temporaneo via edge function con cookie HttpOnly** → NON implementato |
+| Billing & Stripe | ✅ Implementato | Webhook, dunning, customer portal |
+| Analytics & MRR | ✅ Implementato | MRR, ARR, NRR, LTV, cohort, forecast, health |
+| Feature flags / rollout | ✅ Implementato | Tabelle `platform_feature_flags` + `company_feature_overrides`, UI admin, hook |
+| Bulk operations | ✅ Implementato | `BulkActionsBar` in `CompaniesList`, checkbox, azioni bulk |
+| 2FA Super Admin | ✅ Implementato | TOTP con `manage-totp` edge function, QR, backup codes |
+| Audit log | ✅ Implementato | `admin_audit_log` + `company_activity_log` |
+| GDPR tools | ✅ Implementato | Export, cancellazione, consensi, audit GDPR |
+| API marketplace / webhook UI | ✅ Implementato | `api-gateway`, API keys, usage, docs |
+| Referral system | ✅ Implementato | Partner Portal, ruolo referrer, RLS |
+| Helpdesk integrato | ✅ Implementato | SLA tracking, canned responses, assegnazione |
 
 ---
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+## 2. Separazione Subdomain (Pag. 4-6) — Prompt 1
+
+| Requisito | Stato |
+|---|---|
+| Variabile `VITE_APP_MODE` in vite.config.ts | ❌ Non implementato |
+| Build scripts separati (build:app / build:admin) | ❌ Non implementato |
+| Route condizionali basate su `__APP_MODE__` | ❌ Non implementato |
+| AdminLoginPage separata | ❌ Non implementato |
+| Cloudflare Worker per sicurezza admin | ❌ Non implementato (infrastruttura esterna) |
+
+**Nota**: Questa è una funzionalità di **infrastruttura/deployment** che Lovable non può implementare completamente (richiede configurazione Cloudflare esterna). Si può implementare la parte Vite + route condizionali ma non il deployment multi-dominio.
 
 ---
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+## 3. Prompt 2 — Stripe Billing Completo ✅ FATTO
+
+Tutti i requisiti del documento sono implementati: webhook, dunning, customer portal, `stripe_events_log`.
 
 ---
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+## 4. Prompt 3 — Feature Flags System ✅ FATTO
+
+Tabelle, hook `useFeatureFlags`, pagina admin `FeatureFlags.tsx`, override per azienda — tutto implementato.
 
 ---
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+## 5. Prompt 4 — Bulk Operations + Export ✅ FATTO
+
+`BulkActionsBar`, checkbox nella lista aziende, export CSV — implementato in `CompaniesList.tsx`.
 
 ---
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+## 6. Prompt 5 — 2FA + Secure Impersonation ⚠️ PARZIALE
+
+| Requisito | Stato |
+|---|---|
+| 2FA TOTP per Super Admin | ✅ Implementato |
+| Backup codes | ✅ Implementato |
+| Login flow 2FA (step 2) | ✅ Implementato |
+| Secure Impersonation via JWT + HttpOnly cookie | ❌ NON implementato |
+| Edge function `secure-impersonation` | ❌ NON implementato |
+| Tabella `active_impersonations` | ❌ NON implementato |
+
+L'impersonation usa `useState` in-memory (meglio di sessionStorage) ma **non** il JWT sicuro con cookie HttpOnly richiesto dal documento.
 
 ---
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+## 7. Health Score Engine (Pag. 11) ✅ FATTO
+
+Edge function `compute-health-scores`, tabella `company_health_scores`, hooks, UI.
 
 ---
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+## 8. Customer Success Platform (Pag. 11) ✅ FATTO
+
+Onboarding templates, CS tasks, checklist widget — tutto implementato.
 
 ---
 
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
+## 9. Security Avanzata (Pag. 11-12)
+
+| Requisito | Stato |
+|---|---|
+| 2FA TOTP | ✅ |
+| Login attempt rate limiting | ✅ `check-login-security` edge function con lockout |
+| IP Allowlist per admin panel | ⚠️ Solo per aziende (campo `allowed_ips` su companies), NON per il pannello super admin |
+| Secure Impersonation (JWT HttpOnly) | ❌ |
+| Session management UI (vedi sessioni, forza logout) | ⚠️ Presente per aziende (`get-security-report`), non specifico per super admin panel |
+| Audit log con IP, user agent, geolocation | ⚠️ Parziale — login_attempts ha IP, ma non tutte le azioni admin |
 
 ---
 
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
+## 10. API Platform (Pag. 12) ✅ FATTO
 
 ---
 
-## ✅ Tutte le funzionalità pianificate sono state completate!
+## 11. GDPR & Compliance (Pag. 12) ✅ FATTO
 
 ---
 
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
+## 12. White-Label & Branding (Pag. 12) ✅ FATTO
 
 ---
 
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
+## 13. Bug & Technical Debt (Pag. 9)
+
+| Problema segnalato | Stato |
+|---|---|
+| sessionStorage per impersonation (XSS) | ✅ Risolto — ora usa `useState` in-memory |
+| Trial extension hardcoded (+7/+14/+30) | ⚠️ Da verificare se ora è configurabile |
+| Implementations solo 1 toggle hardcoded | ✅ Risolto — sostituito con Feature Flags |
+| SyncLogs page vuota/incompleta | ⚠️ La pagina esiste (`SyncLogs.tsx`) ma sembra rudimentale |
+| allowed_company_ids non enforced | ⚠️ Da verificare nel `CompaniesList.tsx` |
+| Nessun confirm dialog su azioni destructive | ⚠️ Da verificare |
+
+---
+
+## RIEPILOGO GAP RIMANENTI
+
+### Non implementati (richiedono lavoro):
+1. **Secure Impersonation via JWT + HttpOnly cookie** — Edge function + tabella `active_impersonations`
+2. **Separazione Subdomain** — Build multi-target Vite (parte implementabile), Cloudflare (infrastruttura esterna)
+3. **IP Allowlist specifico per pannello super admin** — Non solo per aziende
+4. **AdminLoginPage separata** — Login dedicato per super admin
+
+### Parziali / Da Verificare:
+5. SyncLogs page — potrebbe necessitare miglioramento
+6. `allowed_company_ids` enforcement nel `CompaniesList`
+7. Alert Slack/email su System Health threshold
+8. NPS survey automatica (menzionata in Customer Success ma non verificata)
+9. Data retention policies configurabili (GDPR)
+10. Playbook automatici Customer Success
+
+### Non implementabili in Lovable:
+- Cloudflare Workers / Pages deployment
+- Custom domain DNS configuration
+- pg_cron scheduling (Cloud non lo supporta nativamente)
+
+---
+
+## Piano di Implementazione Suggerito
+
+Se vuoi procedere con i gap, in ordine di priorità:
+
+1. **Secure Impersonation** (P1) — Edge function JWT + active_impersonations table
+2. **AdminLoginPage separata** (P0) — Pagina login dedicata per super admin
+3. **IP Allowlist super admin** (P1) — Protezione aggiuntiva pannello admin
+4. **Build multi-target Vite** (P0) — `VITE_APP_MODE` + route condizionali
+5. **Fix tecnici minori** — SyncLogs, allowed_company_ids enforcement, confirm dialogs
+
