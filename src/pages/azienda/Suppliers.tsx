@@ -113,7 +113,7 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
             <Card
               key={s.id}
               className={`cursor-pointer hover:shadow-md transition-shadow ${!s.is_active ? "opacity-60" : ""}`}
-              onClick={() => navigate(`/azienda/fornitori/${s.id}`)}
+              onClick={() => onSelectSupplier ? onSelectSupplier(s.id) : navigate(`/azienda/fornitori/${s.id}`)}
             >
               <CardContent className="pt-4 pb-3 space-y-2">
                 <div className="flex items-start justify-between">
