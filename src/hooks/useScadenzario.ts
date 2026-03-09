@@ -20,6 +20,12 @@ export interface Scadenza {
   supplier_id: string | null;
   cost_id: string | null;
   contact_id: string | null;
+  order_item_id: string | null;
+  prima_nota_entry_id: string | null;
+  alert_days_before: number;
+  alert_sent_at: string | null;
+  is_auto_generated: boolean;
+  auto_source: string | null;
   notes: string | null;
   is_recurring: boolean;
   created_at: string;
