@@ -37,7 +37,7 @@ const getLogoPublicUrl = (path: string) =>
 export default function SettingsQuoteTemplates() {
   const { role, effectiveCompany } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
-  const { templates, isLoading, upsertTemplate, deleteTemplate } = useQuoteTemplates();
+  const { templates, isLoading, fetchError, upsertTemplate, deleteTemplate } = useQuoteTemplates();
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
