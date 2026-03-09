@@ -25,7 +25,7 @@ import { TagSelector } from "@/components/marketing/TagSelector";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import {
-  Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
+  Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity, Receipt,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder, AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -36,6 +36,7 @@ import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
+import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuotesTab";
 import { STATUS_OPTIONS } from "@/types/opportunities";
 
 interface Props {
@@ -46,7 +47,7 @@ interface Props {
   initialTab?: string;
 }
 
-type Tab = "details" | "notes" | "appointments" | "activities" | "documents";
+type Tab = "details" | "notes" | "appointments" | "activities" | "documents" | "quotes";
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab }: Props) {
   const navigate = useNavigate();
@@ -378,6 +379,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: "Note", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
+    { key: "quotes", label: "Preventivi", icon: <Receipt className="h-4 w-4" />, enabled: true },
   ];
 
   const searchTrimmed = contactSearch.trim();
@@ -835,6 +837,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   opportunityId={opportunity.id}
                   companyId={companyId!}
                   linkToOpportunity
+                />
+              )}
+
+              {tab === "quotes" && (
+                <OpportunityQuotesTab
+                  contactId={opportunity.contact_id}
+                  companyId={companyId}
                 />
               )}
             </div>
