@@ -440,9 +440,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return profiles.filter((p) => validIds.includes(p.id));
     },
     enabled: !!companyId,
-  });
-
-  // ── Fetch contact ──
+    staleTime: 600_000,
   const { data: contact, isLoading, isError, refetch } = useQuery({
     queryKey: ["marketing_contact", id],
     queryFn: async () => {
