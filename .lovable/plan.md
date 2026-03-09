@@ -131,3 +131,35 @@
 - ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
 - ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
 - ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
+
+---
+
+## Gap Analysis — Implementazione Completata ✅
+
+### Secure Impersonation JWT ✅
+- ✅ **active_impersonations** tabella con RLS, indici, expiry
+- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
+- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
+- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
+
+### AdminLoginPage Separata ✅
+- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
+- ✅ **Rotta /admin-login** configurata in App.tsx
+- ✅ **2FA step** integrato nel flusso admin login
+- ✅ **Access denied** per utenti non super_admin
+
+### IP Allowlist Pannello Super Admin ✅
+- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
+- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
+- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
+- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
+
+### Build Multi-Target Vite ✅
+- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
+- ✅ Preparato per build scripts separati (build:app / build:admin)
+
+### Fix Tecnici Minori ✅
+- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
+- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
+- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
+- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
