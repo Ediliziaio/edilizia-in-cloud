@@ -244,6 +244,36 @@ export function UsersConfig() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [teamFilter, setTeamFilter] = useState<string>("all");
+
+  // Fetch teams for filter
+  const { data: teams = [] } = useQuery({
+    queryKey: ["teams-filter", effectiveCompanyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("company_id", effectiveCompanyId!)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!effectiveCompanyId,
+  });
+
+  // Fetch team memberships
+  const { data: teamMemberships = [] } = useQuery({
+    queryKey: ["team-memberships-filter", effectiveCompanyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("team_members")
+        .select("user_id, team_id")
+        .in("team_id", teams.map(t => t.id));
+      if (error) throw error;
+      return data;
+    },
+    enabled: teams.length > 0,
+  });
 
   const { data: companyUsers = [], isLoading } = useQuery({
     queryKey: ["company-users", effectiveCompanyId],
