@@ -486,7 +486,7 @@ function CompanySidebar() {
             )}
 
             {/* Gestione Interna */}
-            <Collapsible defaultOpen={!isMarketingRoute && !isCruscottoRoute}>
+            <Collapsible defaultOpen={false}>
               <SidebarGroup>
                 <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
                   <span className="flex items-center gap-2">
