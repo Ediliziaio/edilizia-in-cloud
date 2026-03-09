@@ -14,7 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const MONTHS_IT = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const PIE_COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))"];
 
-export default function BillingReports() {
+export default function BillingReports({ embedded = false }: { embedded?: boolean }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const currentYear = new Date().getFullYear();
