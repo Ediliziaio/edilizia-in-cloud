@@ -45,11 +45,12 @@ function getHealthColor(days: number | null): { color: string; label: string; bg
 }
 
 export function CompanyOverviewTab({
-  stats, totalTeam, recentOrders, recentTickets,
+  companyId, stats, totalTeam, recentOrders, recentTickets,
   currentPlan, currentSubscription, monthlyOrders, daysSinceLastOrder,
   companyCreatedAt, companyStatus, trialEndsAt, paymentMethod,
   onExtendTrial, isExtendingTrial,
 }: CompanyOverviewTabProps) {
+  const { data: serverHealth } = useCompanyHealthScore(companyId);
   const avgOrderValue = stats && stats.ordersCount > 0 ? stats.ordersValue / stats.ordersCount : 0;
   const mrr = currentPlan?.price_monthly || 0;
   const health = getHealthColor(daysSinceLastOrder);
