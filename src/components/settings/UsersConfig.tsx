@@ -467,6 +467,95 @@ export function UsersConfig() {
 
   const isCurrentUser = (userId: string) => userId === user?.id;
 
+  const roleLabelsMap: Record<string, string> = {
+    company_admin: "Amministratore",
+    company_staff: "Operatore",
+    salesperson: "Venditore",
+    call_center: "Call Center",
+  };
+
+  const handleExportCSV = () => {
+    const headers = ["Nome", "Cognome", "Email", "Telefono", "Ruolo", "Ultimo Accesso", "Stato"];
+    const rows = filteredUsers.map((u) => {
+      const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
+      const status = isLocked ? "Bloccato" : u.active_sessions > 0 ? "Attivo" : "Inattivo";
+      return [
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.phone || "",
+        roleLabelsMap[u.effectiveRole] || u.effectiveRole,
+        u.last_login_at ? new Date(u.last_login_at).toLocaleString("it-IT") : "Mai",
+        status,
+      ];
+    });
+
+    const csvContent = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `utenti_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Export completato");
+  };
+
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const text = await file.text();
+    const lines = text.split("\n").filter((l) => l.trim());
+    if (lines.length < 2) {
+      toast.error("File CSV vuoto o non valido");
+      return;
+    }
+
+    // Parse headers (skip first row)
+    const dataRows = lines.slice(1);
+    let imported = 0;
+    let errors = 0;
+
+    for (const line of dataRows) {
+      const cols = line.split(",").map((c) => c.replace(/^"|"$/g, "").trim());
+      const [firstName, lastName, email, , roleLabel] = cols;
+
+      if (!firstName || !lastName || !email) {
+        errors++;
+        continue;
+      }
+
+      const roleMap: Record<string, string> = {
+        amministratore: "company_admin",
+        operatore: "company_staff",
+        venditore: "salesperson",
+        "call center": "call_center",
+      };
+      const roleType = roleMap[(roleLabel || "").toLowerCase()] || "company_staff";
+
+      try {
+        const { error } = await supabase.functions.invoke("create-company-staff", {
+          body: {
+            first_name: firstName,
+            last_name: lastName,
+            email,
+            company_id: effectiveCompanyId,
+            role_type: roleType,
+          },
+        });
+        if (error) throw error;
+        imported++;
+      } catch {
+        errors++;
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["company-users"] });
+    toast.success(`Importazione completata: ${imported} utenti importati${errors > 0 ? `, ${errors} errori` : ""}`);
+    e.target.value = "";
+  };
+
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
