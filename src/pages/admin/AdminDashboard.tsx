@@ -16,6 +16,7 @@ import { AdminRecentActivity } from "@/components/admin/dashboard/AdminRecentAct
 import { AdminDunning } from "@/components/admin/dashboard/AdminDunning";
 import { AdminFeatureUsage } from "@/components/admin/dashboard/AdminFeatureUsage";
 import { AdminSystemHealth } from "@/components/admin/dashboard/AdminSystemHealth";
+import { AdminAddonsSummary } from "@/components/admin/dashboard/AdminAddonsSummary";
 import { AdminCohortAnalysis } from "@/components/admin/dashboard/AdminCohortAnalysis";
 import { AdminRevenueForecast } from "@/components/admin/dashboard/AdminRevenueForecast";
 import { AdminUpsellAlerts } from "@/components/admin/dashboard/AdminUpsellAlerts";
