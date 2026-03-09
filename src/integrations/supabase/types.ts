@@ -7451,6 +7451,7 @@ export type Database = {
           referral_code: string
           total_earned: number
           total_paid: number
+          user_id: string | null
         }
         Insert: {
           commission_type?: string
@@ -7465,6 +7466,7 @@ export type Database = {
           referral_code: string
           total_earned?: number
           total_paid?: number
+          user_id?: string | null
         }
         Update: {
           commission_type?: string
@@ -7479,6 +7481,7 @@ export type Database = {
           referral_code?: string
           total_earned?: number
           total_paid?: number
+          user_id?: string | null
         }
         Relationships: []
       }
