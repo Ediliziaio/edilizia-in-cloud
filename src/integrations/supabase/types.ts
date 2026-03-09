@@ -6071,6 +6071,7 @@ export type Database = {
           invoice_number: string | null
           invoice_year: number | null
           issue_date: string
+          last_synced_at: string | null
           notes: string | null
           order_id: string | null
           paid_amount: number | null
@@ -6118,6 +6119,7 @@ export type Database = {
           invoice_number?: string | null
           invoice_year?: number | null
           issue_date?: string
+          last_synced_at?: string | null
           notes?: string | null
           order_id?: string | null
           paid_amount?: number | null
@@ -6165,6 +6167,7 @@ export type Database = {
           invoice_number?: string | null
           invoice_year?: number | null
           issue_date?: string
+          last_synced_at?: string | null
           notes?: string | null
           order_id?: string | null
           paid_amount?: number | null
