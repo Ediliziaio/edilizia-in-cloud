@@ -211,8 +211,8 @@ export const INTERNAL_TRIGGER_CATEGORIES: {
     label: "Costi",
     icon: "Receipt",
     items: [
-      { id: "cost_created", label: "Costo registrato", icon: "Plus", category: "costi", description: "Quando viene inserito un nuovo costo", availableVariables: COS, disabled: true, disabledReason: "Prossimamente"T_VARIABLES },
-      { id: "cost_due", label: "Costo in scadenza", icon: "Calendar", category: "co, disabled: true, disabledReason: "Prossimamente"sti", description: "Quando un costo si avvicina alla scadenza", availableVariables: COST_VARIABLES },
+      { id: "cost_created", label: "Costo registrato", icon: "Plus", category: "costi", description: "Quando viene inserito un nuovo costo", availableVariables: COST_VARIABLES },
+      { id: "cost_due", label: "Costo in scadenza", icon: "Calendar", category: "costi", description: "Quando un costo si avvicina alla scadenza", availableVariables: COST_VARIABLES, disabled: true, disabledReason: "Prossimamente" },
     ],
   },
   {
