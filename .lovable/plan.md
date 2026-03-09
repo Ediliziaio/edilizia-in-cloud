@@ -106,8 +106,11 @@
 
 ---
 
-## ⏳ Funzionalità Rimanenti
+## Team Management Avanzato ✅
+- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
+- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
+- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
 
-- ⬜ Round-robin assegnazione team
-- ⬜ KPI per team nella dashboard
-- ⬜ Drag & Drop utenti tra team
+---
+
+## ✅ Tutte le funzionalità pianificate sono state completate!
