@@ -65,3 +65,12 @@
 - ✅ KPI cards (totale, admin, operatori, venditori, call center)
 - ✅ Colonne "Ultimo accesso" e "Stato" con tooltip e badge
 - ✅ `CreateUserWizard` con template selector e validazione step
+
+---
+
+## Gestione Utenti — Fase 5: UI Avanzate ✅
+
+- ✅ **Security Dashboard**: KPI, sessioni attive con revoca, login attempts, audit log
+- ✅ **Team Management**: CRUD team con colori, gestione membri, assegnazione leader
+- ✅ **Session Tracking**: Integrazione automatica `track-user-session` su login/logout in AuthContext
+- ✅ **Unlock Account**: Bottone "Sblocca account" nel dropdown utenti (reset `locked_until` e `failed_login_count`)
