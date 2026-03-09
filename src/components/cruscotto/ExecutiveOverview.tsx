@@ -279,7 +279,7 @@ const HIDDEN_FINANCIAL_LABELS = new Set(["Proiezione Mese", "Costo Medio Ordine"
 const VISIBLE_FINANCIAL = FINANCIAL_KPIS.filter(d => !HIDDEN_FINANCIAL_LABELS.has(d.label));
 const EXTRA_FINANCIAL = FINANCIAL_KPIS.filter(d => HIDDEN_FINANCIAL_LABELS.has(d.label));
 
-export const ExecutiveOverview = memo(function ExecutiveOverview({ kpi, kpiPrev, finance, operations, isLoading }: Props) {
+export const ExecutiveOverview = memo(function ExecutiveOverview({ kpi, kpiPrev, finance, operations, isLoading, onDrilldown }: Props) {
   const [showAll, setShowAll] = useState(false);
 
   return (
