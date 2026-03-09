@@ -69,7 +69,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
     queryFn: async () => {
       let query = supabase
         .from("automation_flows")
-        .select("*")
+        .select("id, name, description, status, folder_id, company_id, created_at, updated_at, created_by")
         .eq("company_id", effectiveCompany!.id)
         .order("updated_at", { ascending: false });
 
