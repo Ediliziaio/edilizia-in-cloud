@@ -15,6 +15,7 @@ import { EmptyStateGuide } from "@/components/cruscotto/EmptyStateGuide";
 import { SectionErrorBoundary } from "@/components/cruscotto/SectionErrorBoundary";
 import { DrilldownDrawer, type DrilldownType } from "@/components/cruscotto/DrilldownDrawer";
 import { TargetProgressBar } from "@/components/cruscotto/TargetProgressBar";
+import { PrimaNotaScadenzarioWidget } from "@/components/cruscotto/PrimaNotaScadenzarioWidget";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Landmark, Megaphone, Handshake, Settings2, Download } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -134,7 +135,10 @@ export default function CruscottoAziendale() {
 
         <TabsContent value="finanza">
           <SectionErrorBoundary sectionName="Finanza">
-            <FinanzaCashFlow finance={finance} isLoading={isLoading} />
+            <div className="space-y-6">
+              <FinanzaCashFlow finance={finance} isLoading={isLoading} />
+              <PrimaNotaScadenzarioWidget />
+            </div>
           </SectionErrorBoundary>
         </TabsContent>
 
