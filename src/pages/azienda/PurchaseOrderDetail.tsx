@@ -115,7 +115,11 @@ export default function PurchaseOrderDetail() {
           <div className="flex items-center gap-2 mt-1">
             <Badge className="text-xs">{STATUS_LABELS[order.status] || order.status}</Badge>
             {order.orders?.order_number && (
-              <Badge variant="outline" className="text-xs">Ord. {order.orders.order_number}</Badge>
+              <Link to={`/azienda/ordini/${order.order_id}`} className="inline-flex">
+                <Badge variant="outline" className="text-xs hover:bg-accent cursor-pointer">
+                  Ord. {order.orders.order_number} <ExternalLink className="h-3 w-3 ml-1" />
+                </Badge>
+              </Link>
             )}
           </div>
         </div>
