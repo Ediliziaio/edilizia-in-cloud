@@ -414,7 +414,12 @@ const App = () => (
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<PartnerPortal />} />
+                <Route index element={<PartnerDashboard />} />
+                <Route path="link" element={<PartnerLink />} />
+                <Route path="commissioni" element={<PartnerCommissions />} />
+                <Route path="payout" element={<PartnerPayout />} />
+                <Route path="materiali" element={<PartnerMaterials />} />
+                <Route path="profilo" element={<PartnerProfile />} />
               </Route>
 
               {/* Catch-all */}
