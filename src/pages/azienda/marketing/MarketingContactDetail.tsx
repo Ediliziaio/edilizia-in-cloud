@@ -48,6 +48,7 @@ import { ContactDndTab } from "@/components/marketing/ContactDndTab";
 import { ContactActionsTab } from "@/components/marketing/ContactActionsTab";
 import { ContactMergeDialog } from "@/components/marketing/ContactMergeDialog";
 import { ContactSmsLog } from "@/components/marketing/ContactSmsLog";
+import { ContactAttributionTab } from "@/components/contacts/ContactAttributionTab";
 import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPanel";
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
 
@@ -1017,6 +1018,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     </CollapsibleContent>
                   </Collapsible>
                 )}
+
+                {/* Collapsible: Attribuzione UTM */}
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
+                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                    Attribuzione
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    {companyId && id && (
+                      <ContactAttributionTab contactId={id} companyId={companyId} />
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
 
                 {/* Created info */}
                 <div className="pt-2 text-[10px] text-muted-foreground px-1">

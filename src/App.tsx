@@ -84,6 +84,7 @@ const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiK
 const SettingsPrivacy = lazy(() => import("@/pages/azienda/settings/SettingsPrivacy"));
 const SettingsBranding = lazy(() => import("@/pages/azienda/settings/SettingsBranding"));
 const SettingsBilling = lazy(() => import("@/pages/azienda/settings/SettingsBilling"));
+const SettingsFormBuilder = lazy(() => import("@/pages/azienda/settings/SettingsFormBuilder"));
 const OrdersList = lazy(() => import("@/pages/azienda/OrdersList"));
 const CreateOrder = lazy(() => import("@/pages/azienda/CreateOrder"));
 const OrderDetail = lazy(() => import("@/pages/azienda/OrderDetail"));
@@ -360,6 +361,7 @@ const App = () => (
                   <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
                   <Route path="template-preventivi" element={<SettingsQuoteTemplates />} />
                   <Route path="fatturazione" element={<SettingsBilling />} />
+                  <Route path="form-builder" element={<SettingsFormBuilder />} />
                 </Route>
               </Route>
 

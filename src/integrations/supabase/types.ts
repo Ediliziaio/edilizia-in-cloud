@@ -1315,6 +1315,102 @@ export type Database = {
           },
         ]
       }
+      attribution_sessions: {
+        Row: {
+          browser: string | null
+          city: string | null
+          company_id: string
+          contact_id: string | null
+          country: string | null
+          created_at: string
+          device_type: string | null
+          ended_at: string | null
+          fbclid: string | null
+          gclid: string | null
+          id: string
+          ip_hash: string | null
+          landing_page: string | null
+          os: string | null
+          pages_viewed: number | null
+          referrer: string | null
+          session_id: string
+          started_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          browser?: string | null
+          city?: string | null
+          company_id: string
+          contact_id?: string | null
+          country?: string | null
+          created_at?: string
+          device_type?: string | null
+          ended_at?: string | null
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          ip_hash?: string | null
+          landing_page?: string | null
+          os?: string | null
+          pages_viewed?: number | null
+          referrer?: string | null
+          session_id: string
+          started_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          browser?: string | null
+          city?: string | null
+          company_id?: string
+          contact_id?: string | null
+          country?: string | null
+          created_at?: string
+          device_type?: string | null
+          ended_at?: string | null
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          ip_hash?: string | null
+          landing_page?: string | null
+          os?: string | null
+          pages_viewed?: number | null
+          referrer?: string | null
+          session_id?: string
+          started_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attribution_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attribution_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_connections: {
         Row: {
           company_id: string
@@ -3430,6 +3526,95 @@ export type Database = {
           },
         ]
       }
+      contact_attributions: {
+        Row: {
+          attribution_model: string | null
+          company_id: string
+          contact_id: string
+          created_at: string
+          first_campaign: string | null
+          first_medium: string | null
+          first_source: string | null
+          first_touch_at: string | null
+          first_touch_session_id: string | null
+          id: string
+          last_campaign: string | null
+          last_medium: string | null
+          last_source: string | null
+          last_touch_at: string | null
+          last_touch_session_id: string | null
+          total_sessions: number | null
+          updated_at: string
+        }
+        Insert: {
+          attribution_model?: string | null
+          company_id: string
+          contact_id: string
+          created_at?: string
+          first_campaign?: string | null
+          first_medium?: string | null
+          first_source?: string | null
+          first_touch_at?: string | null
+          first_touch_session_id?: string | null
+          id?: string
+          last_campaign?: string | null
+          last_medium?: string | null
+          last_source?: string | null
+          last_touch_at?: string | null
+          last_touch_session_id?: string | null
+          total_sessions?: number | null
+          updated_at?: string
+        }
+        Update: {
+          attribution_model?: string | null
+          company_id?: string
+          contact_id?: string
+          created_at?: string
+          first_campaign?: string | null
+          first_medium?: string | null
+          first_source?: string | null
+          first_touch_at?: string | null
+          first_touch_session_id?: string | null
+          id?: string
+          last_campaign?: string | null
+          last_medium?: string | null
+          last_source?: string | null
+          last_touch_at?: string | null
+          last_touch_session_id?: string | null
+          total_sessions?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_attributions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_attributions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_attributions_first_touch_session_id_fkey"
+            columns: ["first_touch_session_id"]
+            isOneToOne: false
+            referencedRelation: "attribution_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_attributions_last_touch_session_id_fkey"
+            columns: ["last_touch_session_id"]
+            isOneToOne: false
+            referencedRelation: "attribution_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_messages: {
         Row: {
           channel: string
@@ -4341,6 +4526,127 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_submissions: {
+        Row: {
+          company_id: string
+          contact_id: string | null
+          data: Json
+          form_id: string
+          id: string
+          ip_hash: string | null
+          session_id: string | null
+          submitted_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          company_id: string
+          contact_id?: string | null
+          data?: Json
+          form_id: string
+          id?: string
+          ip_hash?: string | null
+          session_id?: string | null
+          submitted_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string | null
+          data?: Json
+          form_id?: string
+          id?: string
+          ip_hash?: string | null
+          session_id?: string | null
+          submitted_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "lead_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_views: {
+        Row: {
+          company_id: string
+          form_id: string
+          id: string
+          ip_hash: string | null
+          referrer: string | null
+          session_id: string | null
+          user_agent: string | null
+          viewed_at: string
+          visitor_id: string | null
+        }
+        Insert: {
+          company_id: string
+          form_id: string
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          viewed_at?: string
+          visitor_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          form_id?: string
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          viewed_at?: string
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_views_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_views_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "lead_forms"
             referencedColumns: ["id"]
           },
         ]
@@ -6290,6 +6596,65 @@ export type Database = {
           },
         ]
       }
+      lead_forms: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          fields: Json
+          id: string
+          is_published: boolean
+          name: string
+          settings: Json
+          slug: string
+          theme: Json
+          total_submissions: number
+          total_views: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          fields?: Json
+          id?: string
+          is_published?: boolean
+          name: string
+          settings?: Json
+          slug: string
+          theme?: Json
+          total_submissions?: number
+          total_views?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          fields?: Json
+          id?: string
+          is_published?: boolean
+          name?: string
+          settings?: Json
+          slug?: string
+          theme?: Json
+          total_submissions?: number
+          total_views?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_forms_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lifecycle_notifications: {
         Row: {
           company_id: string
@@ -6791,6 +7156,11 @@ export type Database = {
         Row: {
           address: string | null
           assigned_to: string | null
+          attr_campaign: string | null
+          attr_content: string | null
+          attr_medium: string | null
+          attr_model: string | null
+          attr_source: string | null
           call_center_id: string | null
           city: string | null
           company_id: string
@@ -6829,6 +7199,11 @@ export type Database = {
         Insert: {
           address?: string | null
           assigned_to?: string | null
+          attr_campaign?: string | null
+          attr_content?: string | null
+          attr_medium?: string | null
+          attr_model?: string | null
+          attr_source?: string | null
           call_center_id?: string | null
           city?: string | null
           company_id: string
@@ -6867,6 +7242,11 @@ export type Database = {
         Update: {
           address?: string | null
           assigned_to?: string | null
+          attr_campaign?: string | null
+          attr_content?: string | null
+          attr_medium?: string | null
+          attr_model?: string | null
+          attr_source?: string | null
           call_center_id?: string | null
           city?: string | null
           company_id?: string
@@ -11712,6 +12092,14 @@ export type Database = {
         Returns: Json
       }
       assign_round_robin: { Args: { p_team_id: string }; Returns: string }
+      attach_attribution_to_contact: {
+        Args: {
+          p_company_id: string
+          p_contact_id: string
+          p_session_id: string
+        }
+        Returns: undefined
+      }
       auto_expire_trials: { Args: never; Returns: number }
       calculate_monthly_commissions: {
         Args: { p_month: number; p_year: number }
@@ -11770,6 +12158,21 @@ export type Database = {
         }[]
       }
       generate_quote_number: { Args: { p_company_id: string }; Returns: string }
+      get_attribution_report: {
+        Args: {
+          p_company_id: string
+          p_date_from: string
+          p_date_to: string
+          p_group_by?: string
+        }
+        Returns: {
+          contacts_created: number
+          conversions: number
+          dimension: string
+          sessions: number
+          unique_visitors: number
+        }[]
+      }
       get_cash_flow_by_month: {
         Args: { p_company_id: string; p_months?: number }
         Returns: {
