@@ -103,7 +103,7 @@ const InternalAutomations = lazy(() => import("@/pages/azienda/InternalAutomatio
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
-const InvoiceEditor = lazy(() => import("@/pages/azienda/billing/InvoiceEditor"));
+const InvoiceDetail = lazy(() => import("@/pages/azienda/billing/InvoiceDetail"));
 const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 const BillingReports = lazy(() => import("@/pages/azienda/billing/BillingReports"));
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
@@ -304,8 +304,7 @@ const App = () => (
                 <Route path="chat" element={<InternalChat />} />
                 <Route path="tesoreria" element={<Tesoreria />} />
                 <Route path="fatturazione" element={<InvoicesList />} />
-                <Route path="fatturazione/nuova" element={<InvoiceEditor />} />
-                <Route path="fatturazione/:id" element={<InvoiceEditor />} />
+                <Route path="fatturazione/:id" element={<InvoiceDetail />} />
                 <Route path="scadenzario" element={<Scadenzario />} />
                 <Route path="report-fatturazione" element={<BillingReports />} />
                 <Route path="automazioni" element={<InternalAutomations />} />
