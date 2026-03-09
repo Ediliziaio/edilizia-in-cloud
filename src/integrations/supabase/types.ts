@@ -7739,6 +7739,45 @@ export type Database = {
           },
         ]
       }
+      partner_materials: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          file_url: string
+          id: string
+          is_active: boolean | null
+          min_tier: string | null
+          name: string
+          sort_order: number | null
+          thumbnail_url: string | null
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          file_url: string
+          id?: string
+          is_active?: boolean | null
+          min_tier?: string | null
+          name: string
+          sort_order?: number | null
+          thumbnail_url?: string | null
+          type: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          file_url?: string
+          id?: string
+          is_active?: boolean | null
+          min_tier?: string | null
+          name?: string
+          sort_order?: number | null
+          thumbnail_url?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
       password_history: {
         Row: {
           created_at: string
@@ -8490,6 +8529,145 @@ export type Database = {
           },
         ]
       }
+      referral_clicks: {
+        Row: {
+          converted: boolean | null
+          converted_at: string | null
+          converted_company_id: string | null
+          created_at: string | null
+          id: string
+          ip_address: string | null
+          landing_page: string | null
+          referral_code: string
+          referrer_id: string
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          converted?: boolean | null
+          converted_at?: string | null
+          converted_company_id?: string | null
+          created_at?: string | null
+          id?: string
+          ip_address?: string | null
+          landing_page?: string | null
+          referral_code: string
+          referrer_id: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          converted?: boolean | null
+          converted_at?: string | null
+          converted_company_id?: string | null
+          created_at?: string | null
+          id?: string
+          ip_address?: string | null
+          landing_page?: string | null
+          referral_code?: string
+          referrer_id?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_clicks_converted_company_id_fkey"
+            columns: ["converted_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_clicks_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "referrers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_commission_ledger: {
+        Row: {
+          calculated_at: string | null
+          commission_amount: number | null
+          commission_rate: number | null
+          commission_type: string | null
+          company_id: string
+          id: string
+          notes: string | null
+          payout_id: string | null
+          period_month: number
+          period_year: number
+          plan_mrr: number | null
+          referrer_id: string
+          status: string | null
+          subscription_plan_name: string | null
+          tier_multiplier: number | null
+        }
+        Insert: {
+          calculated_at?: string | null
+          commission_amount?: number | null
+          commission_rate?: number | null
+          commission_type?: string | null
+          company_id: string
+          id?: string
+          notes?: string | null
+          payout_id?: string | null
+          period_month: number
+          period_year: number
+          plan_mrr?: number | null
+          referrer_id: string
+          status?: string | null
+          subscription_plan_name?: string | null
+          tier_multiplier?: number | null
+        }
+        Update: {
+          calculated_at?: string | null
+          commission_amount?: number | null
+          commission_rate?: number | null
+          commission_type?: string | null
+          company_id?: string
+          id?: string
+          notes?: string | null
+          payout_id?: string | null
+          period_month?: number
+          period_year?: number
+          plan_mrr?: number | null
+          referrer_id?: string
+          status?: string | null
+          subscription_plan_name?: string | null
+          tier_multiplier?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_commission_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_commission_ledger_payout_id_fkey"
+            columns: ["payout_id"]
+            isOneToOne: false
+            referencedRelation: "referral_payouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_commission_ledger_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "referrers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       referral_companies: {
         Row: {
           company_id: string
@@ -8535,6 +8713,8 @@ export type Database = {
       referral_payouts: {
         Row: {
           amount: number
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           id: string
           notes: string | null
@@ -8543,9 +8723,15 @@ export type Database = {
           period_end: string
           period_start: string
           referrer_id: string
+          rejection_reason: string | null
+          requested_by_referrer: boolean | null
+          status: string | null
+          transaction_reference: string | null
         }
         Insert: {
           amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -8554,9 +8740,15 @@ export type Database = {
           period_end: string
           period_start: string
           referrer_id: string
+          rejection_reason?: string | null
+          requested_by_referrer?: boolean | null
+          status?: string | null
+          transaction_reference?: string | null
         }
         Update: {
           amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -8565,6 +8757,10 @@ export type Database = {
           period_end?: string
           period_start?: string
           referrer_id?: string
+          rejection_reason?: string | null
+          requested_by_referrer?: boolean | null
+          status?: string | null
+          transaction_reference?: string | null
         }
         Relationships: [
           {
@@ -8576,53 +8772,136 @@ export type Database = {
           },
         ]
       }
+      referral_tiers: {
+        Row: {
+          color: string | null
+          commission_multiplier: number | null
+          created_at: string | null
+          icon: string | null
+          id: string
+          min_active_companies: number
+          name: string
+          perks: Json | null
+          position: number | null
+          slug: string
+        }
+        Insert: {
+          color?: string | null
+          commission_multiplier?: number | null
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          min_active_companies?: number
+          name: string
+          perks?: Json | null
+          position?: number | null
+          slug: string
+        }
+        Update: {
+          color?: string | null
+          commission_multiplier?: number | null
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          min_active_companies?: number
+          name?: string
+          perks?: Json | null
+          position?: number | null
+          slug?: string
+        }
+        Relationships: []
+      }
       referrers: {
         Row: {
           commission_type: string
           commission_value: number
+          conversion_rate: number | null
           created_at: string
           email: string
+          has_accepted_terms: boolean | null
           id: string
           is_active: boolean
           name: string
           notes: string | null
+          partner_type: string | null
+          payout_details: Json | null
+          payout_method: string | null
           phone: string | null
+          public_profile_enabled: boolean | null
           referral_code: string
+          terms_accepted_at: string | null
+          tier_id: string | null
+          tier_updated_at: string | null
+          total_clicks: number | null
+          total_conversions: number | null
           total_earned: number
           total_paid: number
           user_id: string | null
+          utm_source: string | null
         }
         Insert: {
           commission_type?: string
           commission_value?: number
+          conversion_rate?: number | null
           created_at?: string
           email: string
+          has_accepted_terms?: boolean | null
           id?: string
           is_active?: boolean
           name: string
           notes?: string | null
+          partner_type?: string | null
+          payout_details?: Json | null
+          payout_method?: string | null
           phone?: string | null
+          public_profile_enabled?: boolean | null
           referral_code: string
+          terms_accepted_at?: string | null
+          tier_id?: string | null
+          tier_updated_at?: string | null
+          total_clicks?: number | null
+          total_conversions?: number | null
           total_earned?: number
           total_paid?: number
           user_id?: string | null
+          utm_source?: string | null
         }
         Update: {
           commission_type?: string
           commission_value?: number
+          conversion_rate?: number | null
           created_at?: string
           email?: string
+          has_accepted_terms?: boolean | null
           id?: string
           is_active?: boolean
           name?: string
           notes?: string | null
+          partner_type?: string | null
+          payout_details?: Json | null
+          payout_method?: string | null
           phone?: string | null
+          public_profile_enabled?: boolean | null
           referral_code?: string
+          terms_accepted_at?: string | null
+          tier_id?: string | null
+          tier_updated_at?: string | null
+          total_clicks?: number | null
+          total_conversions?: number | null
           total_earned?: number
           total_paid?: number
           user_id?: string | null
+          utm_source?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "referrers_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "referral_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reporting_preferences: {
         Row: {
@@ -10522,6 +10801,10 @@ export type Database = {
       }
       assign_round_robin: { Args: { p_team_id: string }; Returns: string }
       auto_expire_trials: { Args: never; Returns: number }
+      calculate_monthly_commissions: {
+        Args: { p_month: number; p_year: number }
+        Returns: number
+      }
       check_and_update_login_attempt: {
         Args: { p_ip_address?: unknown; p_success: boolean; p_user_id: string }
         Returns: Json
@@ -10763,7 +11046,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_referrer_clicks: {
+        Args: { p_referrer_id: string }
+        Returns: undefined
+      }
       is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
+      update_referrer_tier: {
+        Args: { p_referrer_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role:
