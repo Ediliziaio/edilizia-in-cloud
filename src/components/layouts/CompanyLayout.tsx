@@ -34,6 +34,7 @@ import {
   Shield,
   Paintbrush,
   FileStack,
+  FileText,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -428,6 +429,13 @@ function CompanySidebar() {
                       <SidebarMenuButton asChild>
                         <NavLink to="/azienda/impostazioni/branding" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
                           <Paintbrush className="h-4 w-4" /><span>White-Label</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/fatturazione" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <FileText className="h-4 w-4" /><span>Fatturazione</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
