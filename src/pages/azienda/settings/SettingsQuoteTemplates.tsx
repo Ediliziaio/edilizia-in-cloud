@@ -162,6 +162,9 @@ export default function SettingsQuoteTemplates() {
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(tmpl)}>
                     <Pencil className="h-3 w-3 mr-1" />Modifica
                   </Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleDuplicate(tmpl)} title="Duplica">
+                    <Copy className="h-3 w-3" />
+                  </Button>
                   {!tmpl.is_default && (
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(tmpl.id)}>
                       <Trash2 className="h-3 w-3" />
