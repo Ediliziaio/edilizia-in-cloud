@@ -131,6 +131,7 @@ export function useScadenzario() {
       cost_id?: string | null;
       notes?: string;
       payment_method?: string;
+      alert_days_before?: number;
     }) => {
       const { error } = await supabase.from("scadenze").insert({
         company_id: companyId!,
@@ -145,6 +146,7 @@ export function useScadenzario() {
         cost_id: params.cost_id || null,
         notes: params.notes || null,
         payment_method: params.payment_method || null,
+        alert_days_before: params.alert_days_before ?? 7,
         created_by: (await supabase.auth.getUser()).data.user?.id,
       });
       if (error) throw error;

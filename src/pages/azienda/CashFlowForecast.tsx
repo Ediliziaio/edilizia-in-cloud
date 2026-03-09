@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { Download, Printer } from "lucide-react";
+import { Download, Printer, CalendarClock, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,9 +9,11 @@ import { CostsForecastTab } from "@/components/forecast/CostsForecastTab";
 import { CashForecastTab } from "@/components/forecast/CashForecastTab";
 import { TreasuryTab } from "@/components/forecast/TreasuryTab";
 import { MarginTab } from "@/components/forecast/MarginTab";
+import { useNavigate } from "react-router-dom";
 
 
 export default function CashFlowForecast() {
+  const navigate = useNavigate();
   const {
     isLoading,
     orders,
@@ -127,6 +129,14 @@ export default function CashFlowForecast() {
           </p>
         </div>
         <div className="flex items-center gap-2 print:hidden">
+          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/scadenzario")} className="gap-1">
+            <CalendarClock className="h-4 w-4" />
+            Scadenzario
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/prima-nota")} className="gap-1">
+            <BookOpen className="h-4 w-4" />
+            Prima Nota
+          </Button>
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1">
             <Download className="h-4 w-4" />
             Esporta CSV
