@@ -85,7 +85,7 @@ export function usePurchaseOrders() {
           notes: params.notes || null,
           expected_delivery_date: params.expected_delivery_date || null,
           created_by: user?.id,
-        })
+        } as any)
         .select()
         .single();
       if (error) throw error;
