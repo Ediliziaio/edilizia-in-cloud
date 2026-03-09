@@ -574,9 +574,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
-  });
-
-  // ── Fetch activities ──
+    staleTime: 120_000,
   const { data: activities = [] } = useQuery({
     queryKey: ["marketing_contact_activities", id],
     queryFn: async () => {
