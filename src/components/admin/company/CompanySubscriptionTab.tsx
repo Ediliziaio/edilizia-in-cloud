@@ -97,6 +97,14 @@ export function CompanySubscriptionTab({
               <span className="font-medium font-mono text-xs">{company.stripe_customer_id}</span>
             </div>
           )}
+          {(company as any).dunning_status && (company as any).dunning_status !== "none" && (
+            <div className="flex justify-between py-2 border-b text-sm">
+              <span className="text-muted-foreground">Stato Dunning</span>
+              <Badge variant={(company as any).dunning_status === "critical" ? "destructive" : "secondary"}>
+                {(company as any).dunning_status} — {(company as any).payment_failure_count || 0} fallimenti
+              </Badge>
+            </div>
+          )}
           {currentSubscription?.current_period_start && (
             <div className="flex justify-between py-2 border-b text-sm">
               <span className="text-muted-foreground">Inizio periodo</span>
