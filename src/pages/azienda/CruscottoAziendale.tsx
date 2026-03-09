@@ -107,6 +107,7 @@ export default function CruscottoAziendale() {
           finance={finance}
           isLoading={isLoading}
           companyTargets={companyTargets}
+          invoiceStats={invoiceStats}
         />
       </SectionErrorBoundary>
 
