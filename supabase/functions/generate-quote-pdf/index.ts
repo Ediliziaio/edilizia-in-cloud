@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     // Load attached PDF materials
     const { data: attachmentRows = [] } = await supabaseAdmin
       .from("quote_pdf_attachments")
-      .select("*, quote_pdf_materials(name, storage_path)")
+      .select("*, quote_pdf_materials(name, storagrage_path)")
       .eq("quote_id", quote_id)
       .order("sort_order");
 
