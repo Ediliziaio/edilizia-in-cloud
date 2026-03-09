@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Send } from "lucide-react";
+import { CannedResponsesPicker } from "./CannedResponsesPicker";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { playNotificationSound } from "@/lib/notificationSound";
