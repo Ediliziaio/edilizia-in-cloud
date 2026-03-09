@@ -24,6 +24,7 @@ import {
   FileText,
   BookOpen,
   Truck,
+  Package,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
