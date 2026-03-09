@@ -43,6 +43,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Query squadre esterne non pagate
@@ -64,6 +65,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Query provvigioni non pagate
@@ -85,6 +87,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Query articoli da ordinare/ordinati
@@ -107,6 +110,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Query supplier payment tracking (installments from order_items)
@@ -132,6 +136,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Query costi aziendali non pagati
@@ -150,6 +155,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // === TREASURY: paid data queries ===
@@ -170,6 +176,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Paid external teams
@@ -191,6 +198,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Paid commissions
@@ -212,6 +220,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Paid supplier items (order_items with supplier)
@@ -240,6 +249,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Active employees for salary calculation
@@ -256,6 +266,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Treasury categories
@@ -272,6 +283,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Open scadenze (da_pagare, parziale) for forecast integration
@@ -290,6 +302,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Prima Nota saldo (current cash position)
@@ -304,6 +317,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories || loadingScadenze || loadingSaldo;

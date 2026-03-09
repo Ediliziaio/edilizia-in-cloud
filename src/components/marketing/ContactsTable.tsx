@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Trash2, Pencil, ChevronUp, ChevronDown } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
@@ -211,7 +211,7 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
   }
 }
 
-export function ContactsTable({
+export const ContactsTable = memo(function ContactsTable({
   contacts, totalCount, selectedIds, onToggleSelect, onToggleAll,
   onEdit, onDelete, page, pageSize, onPageChange, onPageSizeChange,
   sortField, sortDirection, onSort, bulkActions, visibleColumns,
@@ -343,4 +343,4 @@ export function ContactsTable({
       </div>
     </div>
   );
-}
+});
