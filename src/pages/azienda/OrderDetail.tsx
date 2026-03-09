@@ -187,6 +187,7 @@ export default function OrderDetail() {
       return data as OrderDetail;
     },
     enabled: !!id && !!user,
+    staleTime: 120_000,
   });
 
   // Fetch order installments from DB
@@ -202,6 +203,7 @@ export default function OrderDetail() {
       return (data || []) as unknown as (Installment & { id: string })[];
     },
     enabled: !!id && !!user,
+    staleTime: 120_000,
   });
 
   // Build installments for display
