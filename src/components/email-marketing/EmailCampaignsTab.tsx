@@ -71,6 +71,7 @@ export function EmailCampaignsTab() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 120_000,
   });
 
   const { data: folders = [] } = useQuery({
