@@ -1,4 +1,4 @@
-import { Copy, Eye, CreditCard, Pencil, ToggleLeft, ToggleRight, Gift } from "lucide-react";
+import { Copy, Eye, CreditCard, Pencil, ToggleLeft, ToggleRight, Gift, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,6 +7,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { toast as sonnerToast } from "sonner";
 import type { Referrer } from "@/pages/admin/ReferralDashboard";
 
 interface Props {
@@ -31,6 +33,15 @@ export function ReferralTable({
     const url = `${window.location.origin}/login?ref=${code}`;
     navigator.clipboard.writeText(url);
     toast({ title: "Link copiato!", description: url });
+  };
+
+  const recalcTier = async (referrerId: string) => {
+    try {
+      await supabase.rpc("update_referrer_tier", { p_referrer_id: referrerId });
+      sonnerToast.success("Tier ricalcolato");
+    } catch {
+      sonnerToast.error("Errore nel ricalcolo tier");
+    }
   };
 
   return (
@@ -62,11 +73,13 @@ export function ReferralTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Referrer</TableHead>
+                <TableHead>Tier</TableHead>
                 <TableHead>Codice</TableHead>
                 <TableHead>Commissione</TableHead>
                 <TableHead className="text-center">Aziende</TableHead>
+                <TableHead className="text-center">Click</TableHead>
+                <TableHead className="text-center">Conv. %</TableHead>
                 <TableHead className="text-right">Maturato/mese</TableHead>
-                <TableHead className="text-right">Pagato</TableHead>
                 <TableHead className="text-right">Da pagare</TableHead>
                 <TableHead>Stato</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>
@@ -76,6 +89,7 @@ export function ReferralTable({
               {referrers.map((r) => {
                 const monthly = getMonthlyCommission(r);
                 const toPay = r.total_earned - r.total_paid;
+                const tier = r.referral_tiers;
                 return (
                   <TableRow key={r.id}>
                     <TableCell>
@@ -83,6 +97,19 @@ export function ReferralTable({
                         <div className="font-medium">{r.name}</div>
                         <div className="text-xs text-muted-foreground">{r.email}</div>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {tier ? (
+                        <Badge
+                          variant="outline"
+                          className="text-xs"
+                          style={{ borderColor: tier.color, color: tier.color }}
+                        >
+                          {tier.icon} {tier.name}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <code className="text-xs bg-muted px-2 py-1 rounded">{r.referral_code}</code>
@@ -93,8 +120,13 @@ export function ReferralTable({
                         : formatCurrency(r.commission_value)}
                     </TableCell>
                     <TableCell className="text-center">{getCompanyCount(r.id)}</TableCell>
+                    <TableCell className="text-center">{r.total_clicks || 0}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={r.conversion_rate >= 10 ? "default" : "secondary"}>
+                        {(r.conversion_rate || 0).toFixed(1)}%
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right">{formatCurrency(monthly)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(r.total_paid)}</TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(toPay > 0 ? toPay : 0)}
                     </TableCell>
@@ -136,6 +168,14 @@ export function ReferralTable({
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Modifica</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={() => recalcTier(r.id)}>
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ricalcola Tier</TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
