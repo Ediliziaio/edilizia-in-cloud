@@ -60,7 +60,7 @@ interface UnifiedTransaction {
   orderId: string | null;
 }
 
-export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts }: CashForecastTabProps) {
+export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast = [], primaNotaSaldo }: CashForecastTabProps) {
   const navigate = useNavigate();
   const now = new Date();
   const [filter, setFilter] = useState<FilterCategory>("all");
