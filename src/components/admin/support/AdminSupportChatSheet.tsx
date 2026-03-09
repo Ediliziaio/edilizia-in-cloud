@@ -236,12 +236,13 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
         )}
 
         <div className="border-t p-4 flex gap-2">
+          <CannedResponsesPicker onSelect={(content) => setNewMessage(content)} />
           <Textarea
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Scrivi una risposta..."
-            className="min-h-[44px] max-h-[120px] resize-none"
+            className="min-h-[44px] max-h-[120px] resize-none flex-1"
             rows={1}
           />
           <Button size="icon" onClick={handleSend} disabled={!newMessage.trim() || sending}>
