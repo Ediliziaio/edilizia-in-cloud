@@ -4530,6 +4530,127 @@ export type Database = {
           },
         ]
       }
+      form_submissions: {
+        Row: {
+          company_id: string
+          contact_id: string | null
+          data: Json
+          form_id: string
+          id: string
+          ip_hash: string | null
+          session_id: string | null
+          submitted_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          company_id: string
+          contact_id?: string | null
+          data?: Json
+          form_id: string
+          id?: string
+          ip_hash?: string | null
+          session_id?: string | null
+          submitted_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string | null
+          data?: Json
+          form_id?: string
+          id?: string
+          ip_hash?: string | null
+          session_id?: string | null
+          submitted_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "lead_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_views: {
+        Row: {
+          company_id: string
+          form_id: string
+          id: string
+          ip_hash: string | null
+          referrer: string | null
+          session_id: string | null
+          user_agent: string | null
+          viewed_at: string
+          visitor_id: string | null
+        }
+        Insert: {
+          company_id: string
+          form_id: string
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          viewed_at?: string
+          visitor_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          form_id?: string
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          viewed_at?: string
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_views_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_views_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "lead_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gdpr_audit_log: {
         Row: {
           action: string
@@ -6471,6 +6592,65 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_forms: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          fields: Json
+          id: string
+          is_published: boolean
+          name: string
+          settings: Json
+          slug: string
+          theme: Json
+          total_submissions: number
+          total_views: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          fields?: Json
+          id?: string
+          is_published?: boolean
+          name: string
+          settings?: Json
+          slug: string
+          theme?: Json
+          total_submissions?: number
+          total_views?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          fields?: Json
+          id?: string
+          is_published?: boolean
+          name?: string
+          settings?: Json
+          slug?: string
+          theme?: Json
+          total_submissions?: number
+          total_views?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_forms_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
