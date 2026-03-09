@@ -166,7 +166,7 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground mb-4">Fornitore non trovato</p>
-        <Button variant="outline" onClick={() => navigate("/azienda/fornitori")}>Torna alla lista</Button>
+        <Button variant="outline" onClick={() => onBack ? onBack() : navigate("/azienda/fornitori")}>Torna alla lista</Button>
       </div>
     );
   }
