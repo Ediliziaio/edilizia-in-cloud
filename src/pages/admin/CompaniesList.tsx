@@ -487,6 +487,12 @@ export default function CompaniesList() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10 px-2">
+                    <Checkbox
+                      checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead className="w-10" />
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("name")}>
                     <span className="inline-flex items-center">Azienda<SortIcon col="name" /></span>
