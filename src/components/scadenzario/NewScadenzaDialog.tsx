@@ -145,7 +145,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
               <Popover open={orderOpen} onOpenChange={setOrderOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-                    {selectedOrder ? `${selectedOrder.order_number} - ${selectedOrder.client_company_name || ""}` : "Seleziona ordine..."}
+                    {selectedOrder ? `${selectedOrder.order_code || "—"} - ${selectedOrder.customers?.company_name || ""}` : "Seleziona ordine..."}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
