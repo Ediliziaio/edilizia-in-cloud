@@ -38,7 +38,7 @@ export function FinanceAutomationSettings() {
         .eq("company_id", companyId!)
         .maybeSingle();
       if (error) throw error;
-      return data as AlertPrefs | null;
+      return data as unknown as AlertPrefs | null;
     },
     enabled: !!companyId,
   });
