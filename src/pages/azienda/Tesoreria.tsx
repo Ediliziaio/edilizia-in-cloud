@@ -116,6 +116,9 @@ export default function Tesoreria() {
           <TabsTrigger value="connessioni" className="gap-2">
             <Link className="h-4 w-4" /> Connessioni
           </TabsTrigger>
+          <TabsTrigger value="riconciliazione" className="gap-2">
+            <Link2 className="h-4 w-4" /> Riconciliazione
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
