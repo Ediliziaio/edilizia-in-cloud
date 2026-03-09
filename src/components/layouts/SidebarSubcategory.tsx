@@ -10,7 +10,7 @@ interface SidebarSubcategoryProps {
 
 export function SidebarSubcategory({ label, isOpen, onToggle, children }: SidebarSubcategoryProps) {
   return (
-    <div className="mt-1">
+    <div className="mt-1 border-b border-border/40 pb-1">
       <button
         type="button"
         onClick={onToggle}
