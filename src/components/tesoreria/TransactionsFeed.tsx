@@ -262,9 +262,17 @@ export default function TransactionsFeed({ companyId }: Props) {
                       {tx.bank_accounts?.display_name || tx.bank_accounts?.account_name || "—"}
                     </td>
                     <td className="p-3">
-                      <Badge className={getCategoryBadge(tx.category)} variant="secondary">
-                        {tx.category || "—"}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge className={getCategoryBadge(tx.category)} variant="secondary">
+                          {tx.category || "—"}
+                        </Badge>
+                        {tx.linked_invoice_id && invoiceMap[tx.linked_invoice_id] && (
+                          <Badge variant="outline" className="text-[10px] gap-1 w-fit">
+                            <Link2 className="h-3 w-3" />
+                            {invoiceMap[tx.linked_invoice_id].invoice_number}
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3">
                       {tx.transaction_type === "credit" ? (
