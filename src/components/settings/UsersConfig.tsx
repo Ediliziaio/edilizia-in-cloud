@@ -530,6 +530,19 @@ export function UsersConfig() {
                 <SelectItem value="locked">Bloccato</SelectItem>
               </SelectContent>
             </Select>
+            {teams.length > 0 && (
+              <Select value={teamFilter} onValueChange={setTeamFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtra per team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i team</SelectItem>
+                  {teams.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardHeader>
         <CardContent>
