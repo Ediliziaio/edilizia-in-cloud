@@ -180,7 +180,7 @@ export const INTERNAL_TRIGGER_CATEGORIES: {
       { id: "order_created", label: "Ordine creato", icon: "Plus", category: "ordini", description: "Quando viene creato un nuovo ordine", availableVariables: ORDER_VARIABLES },
       { id: "order_updated", label: "Ordine modificato", icon: "Edit", category: "ordini", description: "Quando un ordine viene aggiornato", availableVariables: ORDER_VARIABLES },
       { id: "order_status_changed", label: "Stato ordine cambiato", icon: "RefreshCw", category: "ordini", description: "Quando lo stato di un ordine cambia", availableVariables: [...ORDER_VARIABLES, { key: "_old.current_status_id", label: "Stato precedente" }] },
-      { id: "order_overdue", label: "Ordine in ritardo", icon: "AlertTriangle", category: "ordini", description: "Quando un ordine supera la data prevista", availableVariables: ORDER_VARIABLES, disabled: true, disabledReason: "Prossimamente", disabled: true, disabledReason: "Prossimamente", disabled: true, disabledReason: "Prossimamente" },
+      { id: "order_overdue", label: "Ordine in ritardo", icon: "AlertTriangle", category: "ordini", description: "Quando un ordine supera la data prevista", availableVariables: ORDER_VARIABLES, disabled: true, disabledReason: "Prossimamente", disabled: true, disabledReason: "Prossimamente", disabled: true, disabledReason: "Prossimamente", disabled: true, disabledReason: "Prossimamente" },
       { id: "order_completed", label: "Ordine completato", icon: "CheckCircle", category: "ordini", description: "Quando un ordine viene completato", availableVariables: ORDER_VARIABLES },
     ],
   },
@@ -203,7 +203,7 @@ export const INTERNAL_TRIGGER_CATEGORIES: {
       { id: "task_created", label: "Attività creata", icon: "Plus", category: "task", description: "Quando viene creata una nuova attività", availableVariables: TASK_VARIABLES },
       { id: "task_completed", label: "Attività completata", icon: "CheckCircle", category: "task", description: "Quando un'attività viene completata", availableVariables: TASK_VARIABLES },
       { id: "task_updated", label: "Attività modificata", icon: "Edit", category: "task", description: "Quando un'attività viene aggiornata", availableVariables: TASK_VARIABLES },
-      { id: "task_overdue", label: "Attività scaduta", icon: "AlertTriangle", category:, disabled: true, disabledReason: "Prossimamente" "task", description: "Quando un'attività supera, disabled: true, disabledReason: "Prossimamente" la scadenza", availableVariables: TASK_VARIABLES },
+      { id: "task_overdue", label: "Att, disabled: true, disabledReason: "Prossimamente"ività scaduta", icon: "AlertTriangle", category:, disabled: true, disabledReason: "Prossimamente" "task", description: "Quando un'attività supera, disabled: true, disabledReason: "Prossimamente" la scadenza", availableVariables: TASK_VARIABLES },
     ],
   },
   {
@@ -220,7 +220,7 @@ export const INTERNAL_TRIGGER_CATEGORIES: {
     label: "Costi",
     icon: "Receipt",
     items: [
-      { id: "cost_created", label: "Costo registrato", icon: "Plus", category: "costi", description: "Quando viene inserito un nuovo costo", availableVariables: COST_VARIABLES },
+      { id: "cost_created", label: "Costo registrato", icon: "Plus", category: "costi", description: "Quando viene inserito un nuovo costo", availableVariables: COS, disabled: true, disabledReason: "Prossimamente"T_VARIABLES },
       { id: "cost_due", label: "Costo in scadenza", icon: "Calendar", category: "co, disabled: true, disabledReason: "Prossimamente"sti", description: "Quando un costo si avvicina alla scadenza", availableVariables: COST_VARIABLES },
     ],
   },
@@ -239,7 +239,7 @@ export const INTERNAL_TRIGGER_CATEGORIES: {
     items: [
       { id: "appointment_created", label: "Appuntamento creato", icon: "Plus", category: "calendario", description: "Quando viene creato un appuntamento", availableVariables: APPOINTMENT_VARIABLES },
       { id: "appointment_updated", label: "Appuntamento modificato", icon: "Edit", category: "calendario", description: "Quando un appuntamento viene aggiornato", availableVariables: APPOINTMENT_VARIABLES },
-      { id: "appointment_reminder", label: "Promemoria appuntamento", icon: "Bell", category: "calendario", description: "Promemoria prima dell'appuntamento", availableVariables: APPOINTMENT_VARIABLES },
+      { id: "appointment_reminder", label: "Promemori, disabled: true, disabledReason: "Prossimamente"a appuntamento", icon: "Bell", category: "calendario", description: "Promemoria prima dell'appuntamento", availableVariables: APPOINTMENT_VARIABLES },
     ],
   },
 ];
