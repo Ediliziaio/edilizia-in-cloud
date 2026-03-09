@@ -42,6 +42,10 @@ export function CompanySecuritySettings() {
   const [lockoutDuration, setLockoutDuration] = useState("30");
   const [passwordExpiryDays, setPasswordExpiryDays] = useState(0);
   const [allowedIps, setAllowedIps] = useState("");
+  const [passwordMinLength, setPasswordMinLength] = useState(8);
+  const [passwordRequireUppercase, setPasswordRequireUppercase] = useState(false);
+  const [passwordRequireNumbers, setPasswordRequireNumbers] = useState(false);
+  const [passwordRequireSpecial, setPasswordRequireSpecial] = useState(false);
   const [notifications, setNotifications] = useState({
     login_unknown_ip: false,
     account_locked: false,
