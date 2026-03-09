@@ -92,18 +92,18 @@
 - ✅ Hook `useInternalCallLogs` + `useInternalCallActions`
 - ✅ Route `/azienda/agente-interno/chiamate` nel modulo
 
-### Fase 4 — Webhook + Smart Routing (TODO)
+### Fase 4 — Webhook + Smart Routing ✅
 
-- [ ] Edge function `internal-agent-webhook`
-- [ ] Estendere `telnyx-webhook` con Smart Routing
-- [ ] Tabella `call_routing_log`
+- ✅ Edge function `internal-agent-webhook` — post-processing chiamate, crediti, azioni CRM
+- ✅ Estendere `telnyx-webhook` con Smart Routing (`resolveAgent` per routing_mode)
+- ✅ Config `verify_jwt = false` per webhook
 
-### Fase 5 — Campagne Outbound (TODO)
+### Fase 5 — Campagne Outbound ✅
 
-- [ ] `InternalCampaignsPage` con dashboard
-- [ ] `CampaignBuilder` — wizard 4 step
-- [ ] Edge function `internal-outbound-call`
-- [ ] Edge function `internal-campaign-manager`
+- ✅ `InternalCampaignsPage` con dashboard KPI e tabella filtrata
+- ✅ `CampaignBuilder` — wizard 4 step (tipo, target, scheduling, preview)
+- ✅ Edge function `internal-campaign-manager` — batch execution con rate limiting
+- ✅ Hook `useInternalCampaigns` con CRUD e stats
 
 ---
 
