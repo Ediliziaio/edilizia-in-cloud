@@ -96,6 +96,21 @@ export default function TransactionsFeed({ companyId }: Props) {
     const { data, count } = await query;
     setTransactions(data || []);
     setTotalCount(count || 0);
+
+    // Load linked invoices
+    const linkedIds = (data || []).map((t: any) => t.linked_invoice_id).filter(Boolean);
+    if (linkedIds.length > 0) {
+      const { data: invData } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, client_company_name")
+        .in("id", linkedIds);
+      const map: Record<string, any> = {};
+      (invData || []).forEach((inv: any) => { map[inv.id] = inv; });
+      setInvoiceMap(map);
+    } else {
+      setInvoiceMap({});
+    }
+
     setLoading(false);
   }
 
