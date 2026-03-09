@@ -21,6 +21,9 @@ import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 const SIDEBAR_TABS = [
   { id: "profile", label: "Informazioni Utente", icon: User },
   { id: "permissions", label: "Ruoli & Autorizzazioni", icon: Shield },
+  { id: "sessions", label: "Sessioni", icon: Wifi },
+  { id: "activity", label: "Log Attività", icon: FileText },
+  { id: "security", label: "Sicurezza", icon: Lock },
   { id: "availability", label: "Disponibilità", icon: Clock },
   { id: "calendar", label: "Calendario", icon: Calendar },
   { id: "notifications", label: "Notifiche", icon: Bell },
