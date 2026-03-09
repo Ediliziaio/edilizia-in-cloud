@@ -335,6 +335,11 @@ export default function InvoiceEditor() {
             Fattura emessa — non modificabile
           </Badge>
         )}
+        {id && !isNew && (
+          <Button variant="outline" size="sm" onClick={downloadPdf}>
+            <Download className="h-4 w-4 mr-2" /> Scarica PDF
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
