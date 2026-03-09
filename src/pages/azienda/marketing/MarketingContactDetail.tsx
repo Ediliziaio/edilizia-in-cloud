@@ -1019,6 +1019,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   </Collapsible>
                 )}
 
+                {/* Collapsible: Attribuzione UTM */}
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
+                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                    Attribuzione
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    {companyId && id && (
+                      <ContactAttributionTab contactId={id} companyId={companyId} />
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+
                 {/* Created info */}
                 <div className="pt-2 text-[10px] text-muted-foreground px-1">
                   <p>Creato il: {format(new Date(contact.created_at), "dd MMM yyyy, HH:mm", { locale: it })}</p>
