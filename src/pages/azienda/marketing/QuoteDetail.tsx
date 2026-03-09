@@ -48,7 +48,43 @@ export default function QuoteDetail() {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
-    queryKey: ["quote", id],
+
+  const handleGeneratePdf = async () => {
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
+        body: { quote_id: id },
+      });
+      if (error) throw error;
+      if (data?.signed_url) {
+        window.open(data.signed_url, "_blank");
+      }
+      toast.success("PDF generato con successo");
+      queryClient.invalidateQueries({ queryKey: ["quote", id] });
+    } catch (e: any) {
+      toast.error("Errore generazione PDF: " + (e.message || "errore"));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleSendForSignature = async () => {
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-quote-signature", {
+        body: { quote_id: id },
+      });
+      if (error) throw error;
+      toast.success("Offerta inviata al cliente");
+      queryClient.invalidateQueries({ queryKey: ["quote", id] });
+    } catch (e: any) {
+      toast.error("Errore invio: " + (e.message || "errore"));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const { data: quote, isLoading } = useQuery({
     enabled: !!id,
     queryFn: async () => {
       const { data, error } = await supabase
