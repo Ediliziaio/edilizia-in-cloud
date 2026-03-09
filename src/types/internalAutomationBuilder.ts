@@ -81,6 +81,8 @@ export interface CatalogItem {
   description?: string;
   configFields?: ConfigField[];
   availableVariables?: AvailableVariable[];
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 // ── PickerItem (backward compat) ─────────────────────
