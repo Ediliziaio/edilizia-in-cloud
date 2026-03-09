@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { useQueryClient } from "@tanstack/react-query";
 import { LaborCostsStats } from "@/components/dashboard/LaborCostsStats";
+import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { SupplierPaymentsSummary } from "@/components/dashboard/SupplierPaymentsSummary";
 import { DashboardCeoStrip } from "@/components/dashboard/DashboardCeoStrip";
 import { WeeklyDeadlines } from "@/components/dashboard/WeeklyDeadlines";
