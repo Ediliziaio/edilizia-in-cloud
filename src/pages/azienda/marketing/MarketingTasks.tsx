@@ -119,7 +119,8 @@ export default function MarketingTasks() {
       })
       .eq("id", task.id);
     if (error) {
-      toast({ title: "Err.error("Errore", { description: error.messagee {
+      toast.error("Errore", { description: error.message });
+    } else {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
     }
   };
