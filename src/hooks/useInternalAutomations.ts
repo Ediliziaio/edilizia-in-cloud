@@ -164,7 +164,10 @@ export function useSaveInternalNodes(flowId: string | undefined) {
       nodes: InternalAutomationNode[];
       connections: InternalAutomationConnection[];
     }) => {
-      const companyId = effectiveCompany!.id;
+      if (!effectiveCompany?.id) {
+        throw new Error("Azienda non ancora caricata. Riprova tra poco.");
+      }
+      const companyId = effectiveCompany.id;
 
       // Delete existing nodes + connections then re-insert
       await (supabase as any)

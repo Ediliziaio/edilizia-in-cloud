@@ -137,7 +137,7 @@ function FlowListView() {
             <p className="text-sm text-muted-foreground mb-4">
               Crea la tua prima automazione per automatizzare i processi interni.
             </p>
-            <Button onClick={handleCreate}>
+            <Button onClick={handleCreate} disabled={!effectiveCompany}>
               <Plus className="h-4 w-4 mr-2" /> Crea Automazione
             </Button>
           </CardContent>
