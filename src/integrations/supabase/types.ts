@@ -2237,6 +2237,137 @@ export type Database = {
           },
         ]
       }
+      billing_integrations: {
+        Row: {
+          access_token: string | null
+          api_key: string | null
+          auto_sync: boolean | null
+          company_external_id: string | null
+          company_id: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          is_primary: boolean | null
+          last_sync_at: string | null
+          last_sync_error: string | null
+          last_sync_status: string | null
+          provider: string
+          provider_company_name: string | null
+          provider_vat_number: string | null
+          refresh_token: string | null
+          sync_direction: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          api_key?: string | null
+          auto_sync?: boolean | null
+          company_external_id?: string | null
+          company_id: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_primary?: boolean | null
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          provider: string
+          provider_company_name?: string | null
+          provider_vat_number?: string | null
+          refresh_token?: string | null
+          sync_direction?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          api_key?: string | null
+          auto_sync?: boolean | null
+          company_external_id?: string | null
+          company_id?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_primary?: boolean | null
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          provider?: string
+          provider_company_name?: string | null
+          provider_vat_number?: string | null
+          refresh_token?: string | null
+          sync_direction?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_sync_log: {
+        Row: {
+          action: string
+          company_id: string
+          direction: string
+          error_message: string | null
+          executed_at: string | null
+          id: string
+          invoice_id: string | null
+          provider: string
+          request_payload: Json | null
+          response_payload: Json | null
+          status: string
+        }
+        Insert: {
+          action: string
+          company_id: string
+          direction: string
+          error_message?: string | null
+          executed_at?: string | null
+          id?: string
+          invoice_id?: string | null
+          provider: string
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status: string
+        }
+        Update: {
+          action?: string
+          company_id?: string
+          direction?: string
+          error_message?: string | null
+          executed_at?: string | null
+          id?: string
+          invoice_id?: string | null
+          provider?: string
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_sync_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_sync_log_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_logs: {
         Row: {
           company_id: string
@@ -5782,6 +5913,309 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_lines: {
+        Row: {
+          created_at: string | null
+          description: string
+          discount_percent: number | null
+          id: string
+          invoice_id: string
+          line_gross: number
+          line_net: number
+          line_tax: number
+          product_code: string | null
+          quantity: number
+          sort_order: number | null
+          tax_nature: string | null
+          tax_rate: number
+          unit: string | null
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          discount_percent?: number | null
+          id?: string
+          invoice_id: string
+          line_gross?: number
+          line_net?: number
+          line_tax?: number
+          product_code?: string | null
+          quantity?: number
+          sort_order?: number | null
+          tax_nature?: string | null
+          tax_rate?: number
+          unit?: string | null
+          unit_price?: number
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          discount_percent?: number | null
+          id?: string
+          invoice_id?: string
+          line_gross?: number
+          line_net?: number
+          line_tax?: number
+          product_code?: string | null
+          quantity?: number
+          sort_order?: number | null
+          tax_nature?: string | null
+          tax_rate?: number
+          unit?: string | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_payments: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          invoice_id: string
+          notes: string | null
+          payment_date: string
+          payment_method: string | null
+          reference: string | null
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          invoice_id: string
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string | null
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          invoice_id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string | null
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          bank_iban: string | null
+          client_address: string | null
+          client_city: string | null
+          client_company_name: string
+          client_country: string | null
+          client_email: string | null
+          client_fiscal_code: string | null
+          client_id: string | null
+          client_pec: string | null
+          client_sdi_code: string | null
+          client_vat_number: string | null
+          client_zip: string | null
+          company_id: string
+          created_at: string | null
+          created_by: string | null
+          credited_invoice_id: string | null
+          document_type: string
+          due_date: string | null
+          external_id: string | null
+          external_provider: string | null
+          external_sdi_id: string | null
+          external_status: string | null
+          external_sync_at: string | null
+          external_xml_url: string | null
+          footer_text: string | null
+          id: string
+          invoice_number: string | null
+          invoice_year: number | null
+          issue_date: string
+          notes: string | null
+          order_id: string | null
+          paid_amount: number | null
+          payment_date: string | null
+          payment_days: number | null
+          payment_method: string | null
+          payment_terms: string | null
+          pdf_generated_at: string | null
+          pdf_url: string | null
+          progressive_number: number | null
+          quote_id: string | null
+          status: string
+          subtotal: number | null
+          tax_amount: number | null
+          total: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          bank_iban?: string | null
+          client_address?: string | null
+          client_city?: string | null
+          client_company_name: string
+          client_country?: string | null
+          client_email?: string | null
+          client_fiscal_code?: string | null
+          client_id?: string | null
+          client_pec?: string | null
+          client_sdi_code?: string | null
+          client_vat_number?: string | null
+          client_zip?: string | null
+          company_id: string
+          created_at?: string | null
+          created_by?: string | null
+          credited_invoice_id?: string | null
+          document_type?: string
+          due_date?: string | null
+          external_id?: string | null
+          external_provider?: string | null
+          external_sdi_id?: string | null
+          external_status?: string | null
+          external_sync_at?: string | null
+          external_xml_url?: string | null
+          footer_text?: string | null
+          id?: string
+          invoice_number?: string | null
+          invoice_year?: number | null
+          issue_date?: string
+          notes?: string | null
+          order_id?: string | null
+          paid_amount?: number | null
+          payment_date?: string | null
+          payment_days?: number | null
+          payment_method?: string | null
+          payment_terms?: string | null
+          pdf_generated_at?: string | null
+          pdf_url?: string | null
+          progressive_number?: number | null
+          quote_id?: string | null
+          status?: string
+          subtotal?: number | null
+          tax_amount?: number | null
+          total?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          bank_iban?: string | null
+          client_address?: string | null
+          client_city?: string | null
+          client_company_name?: string
+          client_country?: string | null
+          client_email?: string | null
+          client_fiscal_code?: string | null
+          client_id?: string | null
+          client_pec?: string | null
+          client_sdi_code?: string | null
+          client_vat_number?: string | null
+          client_zip?: string | null
+          company_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          credited_invoice_id?: string | null
+          document_type?: string
+          due_date?: string | null
+          external_id?: string | null
+          external_provider?: string | null
+          external_sdi_id?: string | null
+          external_status?: string | null
+          external_sync_at?: string | null
+          external_xml_url?: string | null
+          footer_text?: string | null
+          id?: string
+          invoice_number?: string | null
+          invoice_year?: number | null
+          issue_date?: string
+          notes?: string | null
+          order_id?: string | null
+          paid_amount?: number | null
+          payment_date?: string | null
+          payment_days?: number | null
+          payment_method?: string | null
+          payment_terms?: string | null
+          pdf_generated_at?: string | null
+          pdf_url?: string | null
+          progressive_number?: number | null
+          quote_id?: string | null
+          status?: string
+          subtotal?: number | null
+          tax_amount?: number | null
+          total?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_credited_invoice_id_fkey"
+            columns: ["credited_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -11258,6 +11692,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      generate_invoice_number: {
+        Args: { p_company_id: string; p_year?: number }
+        Returns: {
+          invoice_number: string
+          progressive_number: number
+        }[]
+      }
       generate_quote_number: { Args: { p_company_id: string }; Returns: string }
       get_cash_flow_by_month: {
         Args: { p_company_id: string; p_months?: number }
@@ -11415,6 +11856,21 @@ export type Database = {
           total_unsubscribed: number
         }[]
       }
+      get_scadenzario: {
+        Args: { p_company_id: string; p_from_date?: string; p_to_date?: string }
+        Returns: {
+          client_name: string
+          days_until_due: number
+          due_date: string
+          invoice_id: string
+          invoice_number: string
+          paid_amount: number
+          remaining: number
+          status: string
+          total: number
+          urgency: string
+        }[]
+      }
       get_top_companies_by_email: {
         Args: { p_limit?: number }
         Returns: {
@@ -11463,6 +11919,10 @@ export type Database = {
         Returns: undefined
       }
       is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
+      recalculate_invoice_totals: {
+        Args: { p_invoice_id: string }
+        Returns: undefined
+      }
       update_referrer_tier: {
         Args: { p_referrer_id: string }
         Returns: undefined
