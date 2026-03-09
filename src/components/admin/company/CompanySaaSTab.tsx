@@ -8,6 +8,8 @@ import { ALL_MODULES } from "@/lib/adminConstants";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { CompanyAddonsSection } from "./CompanyAddonsSection";
+import type { Company } from "@/types/auth";
 
 interface CompanySaaSTabProps {
   currentPlan: any;
@@ -16,6 +18,7 @@ interface CompanySaaSTabProps {
   plans: any[] | undefined;
   companyPlanId: string | null | undefined;
   companyId?: string;
+  company?: Company | null;
 }
 
 export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, companyPlanId, companyId }: CompanySaaSTabProps) {
