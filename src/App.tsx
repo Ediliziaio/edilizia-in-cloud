@@ -28,6 +28,7 @@ const PageLoader = () => (
 
 // --- Lazy Pages ---
 const Login = lazy(() => import("@/pages/Login"));
+const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const Home = lazy(() => import("@/pages/Home"));
 
@@ -53,6 +54,7 @@ const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 const AdminCSTasks = lazy(() => import("@/pages/admin/AdminCSTasks"));
 const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
+const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
 
 // Company
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
@@ -181,6 +183,7 @@ const App = () => (
               {/* Public Routes */}
               <Route path="/home" element={<Home />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />
@@ -212,6 +215,7 @@ const App = () => (
                 <Route path="impostazioni/audit" element={<AdminSettingsAuditLog />} />
                 <Route path="impostazioni/email" element={<AdminSettingsEmail />} />
                 <Route path="impostazioni/agenti-ai" element={<AdminSettingsAI />} />
+                <Route path="impostazioni/ip-allowlist" element={<AdminSettingsIPAllowlist />} />
                 <Route path="piani" element={<SubscriptionPlans />} />
                 <Route path="referral" element={<ReferralDashboard />} />
                 <Route path="feature-flags" element={<FeatureFlags />} />

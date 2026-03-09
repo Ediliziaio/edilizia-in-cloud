@@ -69,17 +69,54 @@ function SyncLogs() {
     return formatDistanceStrict(new Date(row.completed_at), new Date(row.started_at), { locale: it });
   };
 
+  // Stats summary
+  const stats = {
+    total: logs.length,
+    completed: logs.filter((l: any) => l.status === "completed").length,
+    failed: logs.filter((l: any) => l.status === "failed" || l.status === "error").length,
+    running: logs.filter((l: any) => l.status === "running").length,
+    totalSynced: logs.reduce((acc: number, l: any) => acc + (l.connections_synced || 0), 0),
+    totalFailed: logs.reduce((acc: number, l: any) => acc + (l.connections_failed || 0), 0),
+  };
+  const successRate = stats.total > 0 ? Math.round(((stats.total - stats.failed) / stats.total) * 100) : 100;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Sync Logs</h1>
-          <p className="text-sm text-muted-foreground">Log di sincronizzazione Google Calendar (cron ogni 5 min)</p>
+          <p className="text-sm text-muted-foreground">Log di sincronizzazione Google Calendar</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
           <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
           Aggiorna
         </Button>
+      </div>
+
+      {/* Stats strip */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="rounded-lg border p-3 text-center">
+          <p className="text-2xl font-bold">{stats.total}</p>
+          <p className="text-xs text-muted-foreground">Esecuzioni totali</p>
+        </div>
+        <div className="rounded-lg border p-3 text-center">
+          <p className="text-2xl font-bold text-emerald-600">{stats.completed}</p>
+          <p className="text-xs text-muted-foreground">Completate</p>
+        </div>
+        <div className="rounded-lg border p-3 text-center">
+          <p className="text-2xl font-bold text-destructive">{stats.failed}</p>
+          <p className="text-xs text-muted-foreground">Fallite</p>
+        </div>
+        <div className="rounded-lg border p-3 text-center">
+          <p className="text-2xl font-bold">{stats.totalSynced}</p>
+          <p className="text-xs text-muted-foreground">Sincronizzazioni</p>
+        </div>
+        <div className="rounded-lg border p-3 text-center">
+          <p className={`text-2xl font-bold ${successRate >= 90 ? "text-emerald-600" : successRate >= 70 ? "text-yellow-600" : "text-destructive"}`}>
+            {successRate}%
+          </p>
+          <p className="text-xs text-muted-foreground">Success rate</p>
+        </div>
       </div>
 
       <div className="flex gap-3">

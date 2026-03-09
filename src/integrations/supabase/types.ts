@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      active_impersonations: {
+        Row: {
+          admin_user_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          ip_address: string | null
+          target_company_id: string
+          token: string
+          user_agent: string | null
+        }
+        Insert: {
+          admin_user_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          target_company_id: string
+          token: string
+          user_agent?: string | null
+        }
+        Update: {
+          admin_user_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          target_company_id?: string
+          token?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "active_impersonations_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_audit_log: {
         Row: {
           action: string
@@ -84,6 +125,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      admin_ip_allowlist: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          ip_address: string
+          label: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          ip_address: string
+          label?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          ip_address?: string
+          label?: string | null
+        }
+        Relationships: []
       }
       admin_notification_prefs: {
         Row: {
