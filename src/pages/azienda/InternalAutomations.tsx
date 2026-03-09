@@ -81,7 +81,7 @@ function FlowListView() {
             Configura flussi automatici per commesse, ticket, attività e altro.
           </p>
         </div>
-        <Button onClick={handleCreate} disabled={createFlow.isPending}>
+        <Button onClick={handleCreate} disabled={createFlow.isPending || !effectiveCompany}>
           {createFlow.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
           Crea Automazione
         </Button>
