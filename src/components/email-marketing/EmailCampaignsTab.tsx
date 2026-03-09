@@ -65,12 +65,13 @@ export function EmailCampaignsTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_campaigns")
-        .select("*")
+        .select("id, name, status, type, subject, sender_name, sender_email, folder_id, json_content, html_content, preview_text, scheduled_at, created_at, updated_at")
         .eq("company_id", company!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
+    staleTime: 120_000,
   });
 
   const { data: folders = [] } = useQuery({
@@ -79,7 +80,7 @@ export function EmailCampaignsTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_folders")
-        .select("*")
+        .select("id, name, parent_id")
         .eq("company_id", company!.id)
         .eq("folder_type", "campaign");
       if (error) throw error;

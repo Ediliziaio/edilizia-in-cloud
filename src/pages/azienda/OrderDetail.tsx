@@ -187,6 +187,7 @@ export default function OrderDetail() {
       return data as OrderDetail;
     },
     enabled: !!id && !!user,
+    staleTime: 120_000,
   });
 
   // Fetch order installments from DB
@@ -202,6 +203,7 @@ export default function OrderDetail() {
       return (data || []) as unknown as (Installment & { id: string })[];
     },
     enabled: !!id && !!user,
+    staleTime: 120_000,
   });
 
   // Build installments for display
@@ -232,6 +234,7 @@ export default function OrderDetail() {
       return data as OrderItemData[];
     },
     enabled: !!id && !!user,
+    staleTime: 120_000,
   });
 
   // Fetch attachments for all order items
@@ -246,6 +249,7 @@ export default function OrderDetail() {
       return data as OrderItemAttachmentData[];
     },
     enabled: orderItems.length > 0,
+    staleTime: 120_000,
   });
 
   // Fetch order statuses
@@ -260,6 +264,7 @@ export default function OrderDetail() {
       return data as OrderStatus[];
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 600_000,
   });
 
   // Fetch status history
@@ -275,6 +280,7 @@ export default function OrderDetail() {
       return data as StatusHistoryEntry[];
     },
     enabled: !!id && !!user,
+    staleTime: 120_000,
   });
 
   // Update status mutation

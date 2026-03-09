@@ -47,7 +47,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
     queryFn: async () => {
       let query = supabase
         .from("automation_folders")
-        .select("*")
+        .select("id, name, parent_id, created_at")
         .eq("company_id", effectiveCompany!.id)
         .order("name");
 
@@ -69,7 +69,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
     queryFn: async () => {
       let query = supabase
         .from("automation_flows")
-        .select("*")
+        .select("id, name, description, status, folder_id, company_id, created_at, updated_at, created_by")
         .eq("company_id", effectiveCompany!.id)
         .order("updated_at", { ascending: false });
 
@@ -97,7 +97,8 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
       const { data, error } = await supabase
         .from("automation_enrollments")
         .select("flow_id, status")
-        .eq("company_id", effectiveCompany!.id);
+        .eq("company_id", effectiveCompany!.id)
+        .limit(5000);
       if (error) throw error;
 
       const counts: Record<string, { total: number; active: number }> = {};
@@ -109,6 +110,7 @@ export function AutomationFlowsList({ statusFilter, searchQuery = "", folderId =
       return counts;
     },
     enabled: !!effectiveCompany?.id,
+    staleTime: 120_000,
   });
 
   const deleteMutation = useMutation({
