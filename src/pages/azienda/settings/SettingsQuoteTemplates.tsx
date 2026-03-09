@@ -152,9 +152,18 @@ export default function SettingsQuoteTemplates() {
             <Card key={tmpl.id} className="relative overflow-hidden">
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold">{tmpl.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{tmpl.layout}</p>
+                  <div className="flex items-center gap-2">
+                    {tmpl.logo_url ? (
+                      <img src={getLogoPublicUrl(tmpl.logo_url)} alt="" className="h-8 w-8 rounded object-contain border border-border bg-muted/50 p-0.5" />
+                    ) : (
+                      <div className="h-8 w-8 rounded border border-dashed border-muted-foreground/25 flex items-center justify-center bg-muted/30">
+                        <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold">{tmpl.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{tmpl.layout}</p>
+                    </div>
                   </div>
                   {tmpl.is_default && <Badge variant="secondary"><Star className="h-3 w-3 mr-1" />Default</Badge>}
                 </div>
