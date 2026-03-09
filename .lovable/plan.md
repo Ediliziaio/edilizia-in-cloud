@@ -64,9 +64,18 @@
 
 ---
 
+## API Platform per Aziende ✅
+- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
+- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
+- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
+- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
+- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
+- ✅ Sidebar aziendale aggiornata con link "API Platform"
+
+---
+
 ## ⏳ Funzionalità Rimanenti
 
-- ⬜ API Platform per Aziende (P2)
 - ⬜ GDPR & Compliance Tools (P2)
 - ⬜ White-Label (P3)
 - ⬜ Partner Portal Referrer (P3)
