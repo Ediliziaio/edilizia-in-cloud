@@ -200,6 +200,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               ...userData,
               isLoading: false,
             });
+            // Start session tracking (fire-and-forget)
+            if (!sessionStorage.getItem(SESSION_ID_KEY)) {
+              startSession();
+            }
           }, 0);
         } else if (event === "SIGNED_OUT") {
           setState({
