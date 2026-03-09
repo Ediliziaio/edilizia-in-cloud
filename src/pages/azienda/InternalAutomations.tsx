@@ -511,7 +511,6 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
             flowId={flowId}
             open={true}
             onClose={() => setActiveTab("builder")}
-            embedded
           />
         </div>
       )}
