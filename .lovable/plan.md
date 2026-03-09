@@ -1,165 +1,129 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
+
+# Sistema Partner/Referral Stile GHL — Piano di Implementazione
+
+Questo è un sistema molto complesso con 6 prompt. Lo suddivido in fasi gestibili, partendo dal database e costruendo iterativamente.
 
 ---
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+## Stato Attuale
+
+- Tabelle esistenti: `referrers` (con `user_id`), `referral_companies`, `referral_payouts`
+- RLS: referrer self-access via `user_id`, super_admin bypass
+- Portale partner base: `/partner` con `PartnerPortal.tsx` (dashboard semplice con stats e tabelle aziende/pagamenti)
+- `PartnerLayout.tsx` con sidebar (solo Dashboard e Profilo)
+- Ruolo `referrer` già gestito nel routing (`/partner`)
+- **Mancante**: tier system, click tracking, commission ledger, materiali, payout workflow, notifiche, URL tracking
 
 ---
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+## Fase 1 — Migrazione Database
+
+Una singola migrazione SQL che crea:
+
+| Oggetto | Descrizione |
+|---------|-------------|
+| `referral_tiers` | 4 tier default (Bronze/Silver/Gold/Platinum) con soglie e moltiplicatori |
+| Colonne su `referrers` | `tier_id`, `partner_type`, `payout_method`, `payout_details`, `has_accepted_terms`, `terms_accepted_at`, `total_clicks`, `total_conversions`, `conversion_rate` |
+| `referral_clicks` | Tracking click con IP, user agent, UTM, converted flag |
+| `referral_commission_ledger` | Registro commissioni mensili per referrer/company/periodo |
+| Colonne su `referral_payouts` | `status`, `requested_by_referrer`, `approved_by`, `approved_at`, `rejection_reason`, `transaction_reference` |
+| `partner_materials` | Materiali marketing scaricabili con tier minimo |
+| Funzioni SQL | `update_referrer_tier()`, `calculate_monthly_commissions()`, `increment_referrer_clicks()` |
+| RLS | Super admin full access su tutte le nuove tabelle; partner self-access su ledger e clicks propri; accesso materiali basato su tier |
 
 ---
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+## Fase 2 — Edge Function + URL Tracking
+
+**Edge function `track-referral-click`**: endpoint pubblico (verify_jwt=false) che riceve `referral_code` + UTM params, registra il click e incrementa `total_clicks`.
+
+**Login page** (`LoginForm.tsx`): cattura `?ref=` dall'URL, salva in `sessionStorage`, invoca la edge function per tracking. Il codice viene passato automaticamente alla creazione company.
 
 ---
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+## Fase 3 — Portale Partner Completo
+
+Espando il portale `/partner` da 1 pagina a 6 pagine:
+
+| Route | Componente | Contenuto |
+|-------|-----------|-----------|
+| `/partner` | `PartnerDashboard.tsx` | KPI cards, progressi tier, link referral, ultime aziende, grafico click/conversioni |
+| `/partner/link` | `PartnerLink.tsx` | Link con UTM builder, QR code, condivisione WhatsApp/Email, stats click per sorgente |
+| `/partner/commissioni` | `PartnerCommissions.tsx` | Ledger commissioni filtrato per mese/anno, KPI strip, grafico mensile |
+| `/partner/payout` | `PartnerPayout.tsx` | Richiesta pagamento self-service, storico pagamenti con status |
+| `/partner/materiali` | `PartnerMaterials.tsx` | Grid materiali scaricabili filtrati per tier, lock su materiali superiori |
+| `/partner/profilo` | `PartnerProfile.tsx` | Dati personali, dati pagamento (IBAN/PayPal), tipo partner, termini |
+
+**PartnerLayout.tsx**: sidebar aggiornata con tutte le 6 voci + badge tier + user info.
+
+**Onboarding**: modal obbligatorio al primo accesso se `has_accepted_terms = false`.
 
 ---
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+## Fase 4 — Admin Dashboard Migliorato
+
+Aggiornamenti al `ReferralDashboard.tsx`:
+
+- **Tab "Payout"** con badge: lista richieste pending, azioni Approva/Rifiuta, storico, export CSV
+- **Tab "Tier & Materiali"**: gestione tier (visualizzazione), CRUD materiali marketing
+- **ReferralTable.tsx**: nuove colonne (tier badge, click, conversion rate), azione ricalcola tier
+- **Tab Analytics**: bottone "Calcola Commissioni Mese", leaderboard top partner, export CSV ledger
+- **ReferrerDialog.tsx**: campi aggiuntivi (partner_type, payout_method)
 
 ---
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+## Fase 5 — Notifiche Email
+
+**Edge function `send-partner-notification`**: gestisce 5 tipi di notifica (welcome, conversion, commission_calculated, payout_approved, tier_upgrade). Invocata automaticamente nei momenti chiave.
+
+Integrazione nei flussi esistenti:
+- Creazione referrer → welcome
+- Nuova conversione → conversion
+- Calcolo commissioni → commission_calculated
+- Approvazione payout → payout_approved
+- Cambio tier → tier_upgrade
 
 ---
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+## Fase 6 — Integrazione nel Routing
+
+**App.tsx**: aggiunta route figlie sotto `/partner` per le 6 pagine.
 
 ---
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+## File Creati/Modificati
+
+| File | Azione |
+|------|--------|
+| Migrazione SQL | Crea tabelle, colonne, funzioni, RLS |
+| `supabase/functions/track-referral-click/index.ts` | **Nuovo** |
+| `supabase/functions/send-partner-notification/index.ts` | **Nuovo** |
+| `supabase/config.toml` | Aggiunta verify_jwt=false per le 2 nuove functions |
+| `src/pages/partner/PartnerDashboard.tsx` | **Nuovo** (riscrive PartnerPortal) |
+| `src/pages/partner/PartnerLink.tsx` | **Nuovo** |
+| `src/pages/partner/PartnerCommissions.tsx` | **Nuovo** |
+| `src/pages/partner/PartnerPayout.tsx` | **Nuovo** |
+| `src/pages/partner/PartnerMaterials.tsx` | **Nuovo** |
+| `src/pages/partner/PartnerProfile.tsx` | **Nuovo** |
+| `src/pages/partner/PartnerOnboardingModal.tsx` | **Nuovo** |
+| `src/components/layouts/PartnerLayout.tsx` | Aggiorna sidebar con 6 voci + tier badge |
+| `src/components/auth/LoginForm.tsx` | Aggiunge cattura `?ref=` e tracking |
+| `src/pages/admin/ReferralDashboard.tsx` | Aggiunge tab Payout e Tier & Materiali |
+| `src/components/admin/referral/ReferralTable.tsx` | Colonne tier, click, conversion |
+| `src/components/admin/referral/ReferralAnalytics.tsx` | Leaderboard + calcolo commissioni + CSV |
+| `src/components/admin/referral/PayoutApprovalTab.tsx` | **Nuovo** |
+| `src/components/admin/referral/TierMaterialsTab.tsx` | **Nuovo** |
+| `src/components/admin/referral/ReferrerDialog.tsx` | Campi aggiuntivi |
+| `src/App.tsx` | Route partner figlie |
 
 ---
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+## Note
 
----
+- Il QR code verrà generato lato client con una libreria leggera (o inline SVG) senza dipendenze aggiuntive pesanti
+- L'export CSV usa generazione client-side con `Blob` + download
+- I tier si aggiornano automaticamente — nessun intervento manuale admin
+- Le commissioni nel ledger partono come `pending` — richiedono approvazione admin
+- La edge function `track-referral-click` è pubblica (no JWT) perché viene invocata prima del login
 
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
-
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
