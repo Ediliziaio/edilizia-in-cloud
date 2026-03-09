@@ -1,103 +1,165 @@
+# Stato Progetto — Aggiornato
 
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
-# Analisi Completa — Automazioni Interne: Tutti i Problemi
+---
 
-## CRITICO: Trigger DB ancora non attaccati alle tabelle
+## Gestione Utenti — Completamento 100% ✅
+- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
 
-Tutte e 3 le migrazioni hanno tentato di creare trigger sulle stesse tabelle con nomi diversi (`trg_internal_auto_*`, `internal_auto_*`). Le migrazioni successive hanno fallito per conflitti di nomi. La query `information_schema.triggers` conferma **zero trigger attivi**.
+---
 
-La coda `internal_automation_queue` ha **0 righe** — nessuna automazione si è mai attivata.
+## Stripe Billing Completo ✅
+- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
+- ✅ Colonne dunning su `companies`
+- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
+- ✅ **customer-portal** edge function per Stripe Customer Portal
+- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
 
-**Fix**: Nuova migrazione che:
-1. Fa `DROP TRIGGER IF EXISTS` di tutti i nomi usati nelle 3 migrazioni precedenti (sia `trg_internal_auto_*` che `internal_auto_*`)
-2. Ricrea i trigger con nomi univoci definitivi
+---
 
-## BUG: Mismatch `cost_created` vs `cost_added`
+## 2FA TOTP ✅
+- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
+- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
+- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
+- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
+- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
+- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
 
-- Il **catalogo UI** definisce il trigger come `cost_created` (riga 221 di `internalAutomationBuilder.ts`)
-- La **migrazione più recente** (20260309142218) passa `'cost_added'` alla funzione trigger
-- Risultato: un flusso con trigger `cost_created` non verrebbe mai attivato
+---
 
-**Fix**: Allineare a `cost_created` (come nel catalogo UI) nella nuova migrazione.
+## Health Score Engine ✅
+- ✅ Tabella `company_health_scores` con RLS super_admin
+- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
+- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
+- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
+- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
 
-## BUG: Trigger `employee_added` in catalogo ma le migrazioni miste
+---
 
-- La prima migrazione non ha un trigger dedicato per `employee_added` con la funzione giusta
-- La terza migrazione usa `trigger_internal_automations('employee_added', 'employee')` — corretto ma non è stato applicato
+## Support Migliorato ✅
+- ✅ **support_canned_responses** tabella con RLS
+- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
+- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
+- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
+- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
+- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
 
-**Fix**: Incluso nella migrazione correttiva.
+---
 
-## BUG: Mancano trigger per `appointment_created` / `appointment_updated`
+## Customer Success Platform ✅
+- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
+- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
+- ✅ **company_onboarding_completions**: tracking completamento step per azienda
+- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
+- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
+- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
+- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
+- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
 
-Il catalogo UI definisce trigger per calendario (`appointment_created`, `appointment_updated`, `appointment_reminder`) ma nessuna migrazione recente li include.
+---
 
-**Fix**: Aggiungere trigger sulla tabella `appointments` per `INSERT` e `UPDATE`.
+## API Platform per Aziende ✅
+- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
+- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
+- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
+- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
+- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
+- ✅ Sidebar aziendale aggiornata con link "API Platform"
 
-## BUG: Mancano trigger per `order_completed` e `order_overdue`
+---
 
-Il catalogo UI li definisce ma non esistono handler dedicati. La funzione `trigger_internal_auto_order_status()` gestisce solo `order_status_changed` e `order_updated`, non `order_completed`.
+## GDPR & Compliance Tools ✅
+- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
+- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
+- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
+- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
+- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
 
-**Fix**: Aggiornare `trigger_internal_auto_order_status()` per controllare se il nuovo stato corrisponde a "completato" e aggiungere il trigger type `order_completed`.
+---
 
-## BUG: Mancano handler per `ticket_assigned`, `ticket_updated`
+## White-Label & Branding ✅
+- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
+- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
+- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
+- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
+- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
+- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
+- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
 
-La funzione `trigger_internal_auto_ticket_events()` esiste ma le sue logiche interne non sono visibili — probabilmente non gestisce `ticket_assigned` come trigger separato.
+---
 
-**Fix**: Verificare e aggiornare la funzione.
+## Partner Portal Referrer ✅
+- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
+- ✅ **user_id** su tabella `referrers` per collegamento account partner
+- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
+- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
+- ✅ **PartnerLayout** layout dedicato con sidebar minima
+- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
+- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
+- ✅ Rotta `/partner` protetta in App.tsx
 
-## BUG: `task_overdue`, `cost_due`, `appointment_reminder` — trigger temporali non implementati
+---
 
-Questi sono trigger **temporali** (non basati su INSERT/UPDATE) e richiederebbero un cron job dedicato per controllare scadenze. Attualmente non c'è nessun cron job che li gestisce.
+## Team Management Avanzato ✅
+- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
+- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
+- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
 
-**Fix**: Documentare come "non ancora implementati" o creare un cron job dedicato. Per ora, rimuoverli dal catalogo o segnalarli come "Prossimamente".
+---
 
-## Stato componenti UI
+## ✅ Tutte le funzionalità pianificate sono state completate!
 
-| Componente | Stato |
-|------------|-------|
-| Canvas (dot grid, zoom, pan, drag) | ✅ Funzionante |
-| Nodi (handle, hover actions, branching) | ✅ Funzionante |
-| Connessioni (colori branch, label) | ✅ Funzionante |
-| Side panel trigger/action | ✅ Funzionante |
-| Node panel (config, variabili) | ✅ Funzionante |
-| Branching connection label | ✅ Fixato (usa `addAfterBranch`) |
-| Log inline tab | ✅ Fixato |
-| Keyboard shortcuts | ✅ Funzionante (Ctrl+S, Delete) |
-| Salvataggio/caricamento | ✅ Funzionante |
+---
 
-## Piano di Fix
+## Dashboard Analytics Avanzata (Admin) ✅
+- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
+- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
+- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
 
-### 1. SQL Migration — Drop e ricrea tutti i trigger
-```
-DROP TRIGGER IF EXISTS trg_internal_auto_* (6 nomi dalla migrazione 1)
-DROP TRIGGER IF EXISTS internal_auto_* (9 nomi dalla migrazione 2 e 3)
-CREATE TRIGGER definitivi con nomi univoci
-```
+---
 
-Trigger da creare:
-- `orders` INSERT → `order_created`
-- `orders` UPDATE → funzione order_status (gestisce `order_status_changed`, `order_updated`, `order_completed`)  
-- `tickets` INSERT → `ticket_created`
-- `tickets` UPDATE → funzione ticket_events (gestisce `ticket_status_changed`, `ticket_assigned`, `ticket_updated`)
-- `tasks` INSERT → `task_created`
-- `tasks` UPDATE → funzione task_events (gestisce `task_completed`, `task_updated`)
-- `employees` INSERT → `employee_added`
-- `warehouse_stock` UPDATE → funzione stock_events
-- `company_costs` INSERT → `cost_created` (non `cost_added`)
-- `appointments` INSERT → `appointment_created`
-- `appointments` UPDATE → `appointment_updated`
+## Messaggistica Interna ✅
+- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
+- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
+- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
+- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
+- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
+- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
 
-### 2. Fix funzione `trigger_internal_auto_order_status` — aggiungere `order_completed`
+---
 
-### 3. Fix funzione `trigger_internal_auto_ticket_events` — verificare/aggiungere `ticket_assigned` e `ticket_updated`
+## Gap Analysis — Implementazione Completata ✅
 
-### 4. Marcare trigger temporali come non disponibili nel catalogo UI
-Aggiungere `disabled: true` o rimuovere `order_overdue`, `task_overdue`, `cost_due`, `appointment_reminder` dal catalogo finché non implementati.
+### Secure Impersonation JWT ✅
+- ✅ **active_impersonations** tabella con RLS, indici, expiry
+- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
+- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
+- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
 
-### File modificati
+### AdminLoginPage Separata ✅
+- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
+- ✅ **Rotta /admin-login** configurata in App.tsx
+- ✅ **2FA step** integrato nel flusso admin login
+- ✅ **Access denied** per utenti non super_admin
 
-| File | Modifica |
-|------|----------|
-| SQL migration | Drop + ricrea tutti i trigger, fix funzioni |
-| `src/types/internalAutomationBuilder.ts` | Rimuovere/disabilitare trigger temporali non implementati |
+### IP Allowlist Pannello Super Admin ✅
+- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
+- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
+- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
+- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
 
+### Build Multi-Target Vite ✅
+- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
+- ✅ Preparato per build scripts separati (build:app / build:admin)
+
+### Fix Tecnici Minori ✅
+- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
+- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
+- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
+- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
