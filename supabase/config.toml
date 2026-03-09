@@ -152,3 +152,15 @@ verify_jwt = false
 
 [functions.internal-campaign-manager]
 verify_jwt = false
+
+[functions.track-user-session]
+verify_jwt = false
+
+[functions.revoke-user-session]
+verify_jwt = false
+
+[functions.manage-permission-template]
+verify_jwt = false
+
+[functions.get-security-report]
+verify_jwt = false
