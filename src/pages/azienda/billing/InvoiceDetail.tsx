@@ -187,7 +187,7 @@ export default function InvoiceDetail() {
                     <p className="text-sm font-medium">Importata da {PROVIDER_LABELS[invoice.external_provider] || invoice.external_provider}</p>
                     <p className="text-xs text-muted-foreground">
                       ID esterno: {invoice.external_id || "—"}
-                      {invoice.last_synced_at && ` · Ultimo sync: ${format(new Date(invoice.last_synced_at), "dd/MM/yyyy HH:mm", { locale: it })}`}
+                      {(invoice as any).last_synced_at && ` · Ultimo sync: ${format(new Date((invoice as any).last_synced_at), "dd/MM/yyyy HH:mm", { locale: it })}`}
                     </p>
                   </div>
                   {invoice.external_id && (
