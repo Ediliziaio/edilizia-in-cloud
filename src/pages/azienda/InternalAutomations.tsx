@@ -345,6 +345,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
 
   const handleAddAfterNode = useCallback((id: string, branch?: string) => {
     setAddAfterNodeId(id);
+    setAddAfterBranch(branch || null);
     setActionPickerOpen(true);
   }, []);
 
