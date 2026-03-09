@@ -4,15 +4,21 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export type FormFieldType =
+  | "text" | "email" | "phone" | "number" | "textarea"
+  | "select" | "checkbox" | "radio" | "date"
+  | "heading" | "paragraph" | "divider" | "hidden";
+
 export interface FormField {
   id: string;
   name: string;
   label: string;
-  type: "text" | "email" | "phone" | "number" | "textarea" | "select" | "checkbox";
+  type: FormFieldType;
   required: boolean;
   placeholder?: string;
   options?: string[];
-  mapping?: string; // maps to marketing_contacts field
+  mapping?: string;
+  defaultValue?: string; // for hidden fields
 }
 
 export interface LeadForm {

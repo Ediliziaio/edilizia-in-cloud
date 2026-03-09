@@ -1,7 +1,10 @@
 import { FormField } from "@/hooks/useFormBuilder";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Mail, Phone, Type, Hash, AlignLeft, List, CheckSquare } from "lucide-react";
+import {
+  GripVertical, Mail, Phone, Type, Hash, AlignLeft, List, CheckSquare,
+  CircleDot, Calendar, Heading, FileText, Minus, EyeOff,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -12,6 +15,19 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   textarea: <AlignLeft className="h-3.5 w-3.5" />,
   select: <List className="h-3.5 w-3.5" />,
   checkbox: <CheckSquare className="h-3.5 w-3.5" />,
+  radio: <CircleDot className="h-3.5 w-3.5" />,
+  date: <Calendar className="h-3.5 w-3.5" />,
+  heading: <Heading className="h-3.5 w-3.5" />,
+  paragraph: <FileText className="h-3.5 w-3.5" />,
+  divider: <Minus className="h-3.5 w-3.5" />,
+  hidden: <EyeOff className="h-3.5 w-3.5" />,
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  text: "testo", email: "email", phone: "telefono", number: "numero",
+  textarea: "testo lungo", select: "selezione", checkbox: "checkbox",
+  radio: "scelta singola", date: "data", heading: "titolo",
+  paragraph: "paragrafo", divider: "separatore", hidden: "nascosto",
 };
 
 function SortableField({
@@ -32,6 +48,8 @@ function SortableField({
     transition,
   };
 
+  const isStructural = ["heading", "paragraph", "divider"].includes(field.type);
+
   return (
     <div
       ref={setNodeRef}
@@ -39,7 +57,8 @@ function SortableField({
       className={cn(
         "border rounded-lg p-3 cursor-pointer transition-colors",
         isSelected ? "border-primary bg-primary/5" : "hover:border-primary/50",
-        isDragging && "opacity-50"
+        isDragging && "opacity-50",
+        isStructural && "border-dashed"
       )}
       onClick={onClick}
     >
@@ -49,10 +68,10 @@ function SortableField({
         </button>
         {ICON_MAP[field.type] || ICON_MAP.text}
         <span className="text-sm font-medium flex-1">{field.label}</span>
-        {field.required && <span className="text-destructive text-xs">*</span>}
+        {field.required && !isStructural && <span className="text-destructive text-xs">*</span>}
       </div>
       <p className="text-[10px] text-muted-foreground mt-1 ml-6">
-        {field.type} · {field.name}
+        {TYPE_LABELS[field.type] || field.type}{field.type !== "divider" ? ` · ${field.name}` : ""}
       </p>
     </div>
   );

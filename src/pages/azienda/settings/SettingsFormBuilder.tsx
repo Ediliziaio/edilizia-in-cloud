@@ -279,13 +279,23 @@ function FormEditor({
           </DndContext>
         </div>
 
-        {/* Right: properties */}
+        {/* Right: properties or settings panel */}
         <div className="border rounded-lg p-3">
-          <FormFieldProperties
-            field={selectedField}
-            onUpdate={handleUpdateField}
-            onDelete={handleDeleteField}
-          />
+          {selectedField ? (
+            <FormFieldProperties
+              field={selectedField}
+              onUpdate={handleUpdateField}
+              onDelete={handleDeleteField}
+            />
+          ) : (
+            <FormSettingsPanel
+              form={form}
+              theme={theme}
+              settings={settings}
+              onThemeChange={setTheme}
+              onSettingsChange={setSettings}
+            />
+          )}
         </div>
       </div>
     </div>

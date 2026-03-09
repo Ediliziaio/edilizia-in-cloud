@@ -6,6 +6,44 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function renderField(f: any): string {
+  const req = f.required ? "required" : "";
+  const fieldKey = f.id || f.name;
+  const label = f.label || f.name;
+  const ph = f.placeholder || "";
+
+  switch (f.type) {
+    case "heading":
+      return `<h2 class="heading">${label}</h2>`;
+    case "paragraph":
+      return `<p class="paragraph">${label}</p>`;
+    case "divider":
+      return `<hr class="divider">`;
+    case "hidden":
+      return `<input type="hidden" name="${fieldKey}" value="${f.defaultValue || ''}">`;
+    case "textarea":
+      return `<div class="field"><label>${label}${f.required ? ' *' : ''}</label><textarea name="${fieldKey}" ${req} rows="4" placeholder="${ph}"></textarea></div>`;
+    case "select": {
+      const opts = ((f.options || []) as string[]).map((o: string) => `<option value="${o}">${o}</option>`).join("");
+      return `<div class="field"><label>${label}${f.required ? ' *' : ''}</label><select name="${fieldKey}" ${req}><option value="">Seleziona...</option>${opts}</select></div>`;
+    }
+    case "radio": {
+      const radios = ((f.options || []) as string[]).map((o: string) =>
+        `<label class="radio-opt"><input type="radio" name="${fieldKey}" value="${o}" ${req}> ${o}</label>`
+      ).join("");
+      return `<div class="field"><label>${label}${f.required ? ' *' : ''}</label><div class="radio-group">${radios}</div></div>`;
+    }
+    case "checkbox":
+      return `<div class="field checkbox"><label><input type="checkbox" name="${fieldKey}" ${req}> ${label}</label></div>`;
+    case "date":
+      return `<div class="field"><label>${label}${f.required ? ' *' : ''}</label><input type="date" name="${fieldKey}" ${req}></div>`;
+    default: {
+      const inputType = f.type === "email" ? "email" : f.type === "phone" ? "tel" : f.type === "number" ? "number" : "text";
+      return `<div class="field"><label>${label}${f.required ? ' *' : ''}</label><input type="${inputType}" name="${fieldKey}" ${req} placeholder="${ph}"></div>`;
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -54,28 +92,9 @@ Deno.serve(async (req) => {
   const successMessage = settings.success_message || "Grazie! La tua richiesta è stata inviata.";
   const submitLabel = settings.submit_label || "Invia";
   const redirectUrl = settings.redirectUrl || "";
-
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
-  const fieldsHTML = fields
-    .map((f: any) => {
-      const req = f.required ? "required" : "";
-      const fieldKey = f.id || f.name;
-      const inputType = f.type === "email" ? "email" : f.type === "phone" ? "tel" : f.type === "number" ? "number" : "text";
-
-      if (f.type === "textarea") {
-        return `<div class="field"><label>${f.label || f.name}${f.required ? ' *' : ''}</label><textarea name="${fieldKey}" ${req} rows="4"></textarea></div>`;
-      }
-      if (f.type === "select" && f.options) {
-        const opts = (f.options as string[]).map((o: string) => `<option value="${o}">${o}</option>`).join("");
-        return `<div class="field"><label>${f.label || f.name}${f.required ? ' *' : ''}</label><select name="${fieldKey}" ${req}><option value="">Seleziona...</option>${opts}</select></div>`;
-      }
-      if (f.type === "checkbox") {
-        return `<div class="field checkbox"><label><input type="checkbox" name="${fieldKey}" ${req}> ${f.label || f.name}</label></div>`;
-      }
-      return `<div class="field"><label>${f.label || f.name}${f.required ? ' *' : ''}</label><input type="${inputType}" name="${fieldKey}" ${req} placeholder="${f.placeholder || ''}"></div>`;
-    })
-    .join("\n");
+  const fieldsHTML = fields.map(renderField).join("\n");
 
   const html = `<!DOCTYPE html>
 <html lang="it">
@@ -89,13 +108,19 @@ Deno.serve(async (req) => {
     .container{max-width:520px;width:100%;background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:32px}
     h1{font-size:1.5rem;margin-bottom:8px}
     .desc{font-size:0.9rem;color:#666;margin-bottom:24px}
+    .heading{font-size:1.15rem;font-weight:600;margin:20px 0 8px}
+    .paragraph{font-size:0.85rem;color:#666;margin:8px 0 16px}
+    .divider{border:none;border-top:1px solid #e5e7eb;margin:16px 0}
     .field{margin-bottom:16px}
     .field.checkbox{display:flex;align-items:center;gap:8px}
     .field.checkbox label{display:flex;align-items:center;gap:6px;font-size:0.85rem}
+    .radio-group{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+    .radio-opt{display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer}
     label{display:block;font-size:0.85rem;font-weight:500;margin-bottom:4px}
     input,textarea,select{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.9rem;font-family:inherit;outline:none;transition:border-color 0.2s}
     input:focus,textarea:focus,select:focus{border-color:${accentColor}}
-    input[type=checkbox]{width:auto}
+    input[type=checkbox],input[type=radio]{width:auto}
+    input[type=date]{color-scheme:light}
     button{width:100%;padding:12px;background:${accentColor};color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:opacity 0.2s}
     button:hover{opacity:0.9}
     button:disabled{opacity:0.5;cursor:not-allowed}
@@ -123,7 +148,6 @@ Deno.serve(async (req) => {
   </div>
   <script>
   (function(){
-    // Attribution tracking snippet
     var CID='${companyId}';
     var BASE='${supabaseUrl}';
     function uuid(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16)});}
@@ -149,7 +173,6 @@ Deno.serve(async (req) => {
       })
     }).catch(function(){});
 
-    // Form submit handler
     var params=new URLSearchParams(window.location.search);
     document.getElementById('leadForm').addEventListener('submit',function(e){
       e.preventDefault();
