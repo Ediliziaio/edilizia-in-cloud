@@ -22,7 +22,20 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { WaterfallChart } from "@/components/forecast/WaterfallChart";
+import { CashFlowForecast306090 } from "@/components/forecast/CashFlowForecast306090";
 import type { ForecastStats, ExpectedPayment, ExpectedExpense, ExpectedCommission, ExpectedSupplierPayment, CompanyCostEntry } from "@/lib/forecastTypes";
+
+interface ScadenzaForecastEntry {
+  id: string;
+  description: string;
+  amount: number;
+  expectedDate: Date | null;
+  direction: "entrata" | "uscita";
+  tipo: string;
+  supplierName: string | null;
+  orderNumber: string | null;
+  orderId: string | null;
+}
 
 interface CashForecastTabProps {
   stats: ForecastStats;
@@ -31,6 +44,8 @@ interface CashForecastTabProps {
   expectedCommissions: ExpectedCommission[];
   expectedSupplierPayments: ExpectedSupplierPayment[];
   expectedCompanyCosts: CompanyCostEntry[];
+  scadenzeForForecast?: ScadenzaForecastEntry[];
+  primaNotaSaldo?: { entrate: number; uscite: number; saldo: number; entry_count: number };
 }
 
 type FilterCategory = "all" | "income" | "expenses";
