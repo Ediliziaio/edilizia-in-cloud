@@ -1321,6 +1321,7 @@ export type Database = {
           city: string | null
           company_id: string
           contact_id: string | null
+          converted_at: string | null
           country: string | null
           created_at: string
           device_type: string | null
@@ -1330,11 +1331,16 @@ export type Database = {
           id: string
           ip_hash: string | null
           landing_page: string | null
+          landing_url: string | null
+          li_fat_id: string | null
+          msclkid: string | null
           os: string | null
           pages_viewed: number | null
           referrer: string | null
           session_id: string
           started_at: string
+          ttclid: string | null
+          user_agent: string | null
           utm_campaign: string | null
           utm_content: string | null
           utm_medium: string | null
@@ -1347,6 +1353,7 @@ export type Database = {
           city?: string | null
           company_id: string
           contact_id?: string | null
+          converted_at?: string | null
           country?: string | null
           created_at?: string
           device_type?: string | null
@@ -1356,11 +1363,16 @@ export type Database = {
           id?: string
           ip_hash?: string | null
           landing_page?: string | null
+          landing_url?: string | null
+          li_fat_id?: string | null
+          msclkid?: string | null
           os?: string | null
           pages_viewed?: number | null
           referrer?: string | null
           session_id: string
           started_at?: string
+          ttclid?: string | null
+          user_agent?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
@@ -1373,6 +1385,7 @@ export type Database = {
           city?: string | null
           company_id?: string
           contact_id?: string | null
+          converted_at?: string | null
           country?: string | null
           created_at?: string
           device_type?: string | null
@@ -1382,11 +1395,16 @@ export type Database = {
           id?: string
           ip_hash?: string | null
           landing_page?: string | null
+          landing_url?: string | null
+          li_fat_id?: string | null
+          msclkid?: string | null
           os?: string | null
           pages_viewed?: number | null
           referrer?: string | null
           session_id?: string
           started_at?: string
+          ttclid?: string | null
+          user_agent?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
@@ -3537,12 +3555,24 @@ export type Database = {
           first_source: string | null
           first_touch_at: string | null
           first_touch_session_id: string | null
+          ft_content: string | null
+          ft_fbclid: string | null
+          ft_gclid: string | null
+          ft_landing_url: string | null
+          ft_term: string | null
+          ft_ttclid: string | null
           id: string
           last_campaign: string | null
           last_medium: string | null
           last_source: string | null
           last_touch_at: string | null
           last_touch_session_id: string | null
+          lt_content: string | null
+          lt_fbclid: string | null
+          lt_gclid: string | null
+          lt_landing_url: string | null
+          lt_term: string | null
+          lt_ttclid: string | null
           total_sessions: number | null
           updated_at: string
         }
@@ -3556,12 +3586,24 @@ export type Database = {
           first_source?: string | null
           first_touch_at?: string | null
           first_touch_session_id?: string | null
+          ft_content?: string | null
+          ft_fbclid?: string | null
+          ft_gclid?: string | null
+          ft_landing_url?: string | null
+          ft_term?: string | null
+          ft_ttclid?: string | null
           id?: string
           last_campaign?: string | null
           last_medium?: string | null
           last_source?: string | null
           last_touch_at?: string | null
           last_touch_session_id?: string | null
+          lt_content?: string | null
+          lt_fbclid?: string | null
+          lt_gclid?: string | null
+          lt_landing_url?: string | null
+          lt_term?: string | null
+          lt_ttclid?: string | null
           total_sessions?: number | null
           updated_at?: string
         }
@@ -3575,12 +3617,24 @@ export type Database = {
           first_source?: string | null
           first_touch_at?: string | null
           first_touch_session_id?: string | null
+          ft_content?: string | null
+          ft_fbclid?: string | null
+          ft_gclid?: string | null
+          ft_landing_url?: string | null
+          ft_term?: string | null
+          ft_ttclid?: string | null
           id?: string
           last_campaign?: string | null
           last_medium?: string | null
           last_source?: string | null
           last_touch_at?: string | null
           last_touch_session_id?: string | null
+          lt_content?: string | null
+          lt_fbclid?: string | null
+          lt_gclid?: string | null
+          lt_landing_url?: string | null
+          lt_term?: string | null
+          lt_ttclid?: string | null
           total_sessions?: number | null
           updated_at?: string
         }
@@ -12158,21 +12212,38 @@ export type Database = {
         }[]
       }
       generate_quote_number: { Args: { p_company_id: string }; Returns: string }
-      get_attribution_report: {
-        Args: {
-          p_company_id: string
-          p_date_from: string
-          p_date_to: string
-          p_group_by?: string
-        }
-        Returns: {
-          contacts_created: number
-          conversions: number
-          dimension: string
-          sessions: number
-          unique_visitors: number
-        }[]
-      }
+      get_attribution_report:
+        | {
+            Args: {
+              p_company_id: string
+              p_date_from: string
+              p_date_to: string
+              p_group_by?: string
+            }
+            Returns: {
+              contacts_created: number
+              conversions: number
+              dimension: string
+              sessions: number
+              unique_visitors: number
+            }[]
+          }
+        | {
+            Args: {
+              p_company_id: string
+              p_date_from: string
+              p_date_to: string
+              p_filter_source?: string
+              p_group_by?: string
+            }
+            Returns: {
+              contacts_created: number
+              conversions: number
+              dimension: string
+              sessions: number
+              unique_visitors: number
+            }[]
+          }
       get_cash_flow_by_month: {
         Args: { p_company_id: string; p_months?: number }
         Returns: {
