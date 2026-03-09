@@ -21,7 +21,7 @@ type QuoteData = {
   notes: string;
   client_name: string;
   client_company: string;
-  expires_atring | null;
+  expires_at: string | null;
   subtotal: number;
   discount_percent: number;
   discount_amount: number;
