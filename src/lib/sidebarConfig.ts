@@ -22,6 +22,7 @@ import {
   Landmark,
   FileSignature,
   FileText,
+  BookOpen,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
