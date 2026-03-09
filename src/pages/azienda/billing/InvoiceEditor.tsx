@@ -299,6 +299,25 @@ export default function InvoiceEditor() {
     onSettled: () => setSaving(false),
   });
 
+  const downloadPdf = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
+        body: { invoice_id: id },
+      });
+      if (error) throw error;
+      const html = data?.html;
+      if (!html) throw new Error("Empty response");
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(html);
+        w.document.close();
+        setTimeout(() => w.print(), 500);
+      }
+    } catch (e) {
+      toast.error("Errore generazione PDF", { description: String(e) });
+    }
+  };
+
   const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
 
   return (
