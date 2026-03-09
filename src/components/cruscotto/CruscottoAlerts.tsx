@@ -3,14 +3,16 @@ import { AlertTriangle, Clock, CreditCard, TrendingDown, Users, CalendarCheck } 
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { AlertsData } from "@/hooks/useMarketingDashboard";
-import type { OperationsData, FinanceData } from "@/hooks/useCruscottoData";
+import type { OperationsData, FinanceData, CompanyTargets } from "@/hooks/useCruscottoData";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertThresholdsDialog } from "./AlertThresholdsDialog";
 
 interface Props {
   marketingAlerts: AlertsData | undefined;
   operations: OperationsData;
   finance: FinanceData;
   isLoading: boolean;
+  companyTargets?: CompanyTargets | null;
 }
 
 interface AlertItem {
@@ -22,10 +24,17 @@ interface AlertItem {
   link?: string;
 }
 
-export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, operations, finance, isLoading }: Props) {
+export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, operations, finance, isLoading, companyTargets }: Props) {
   if (isLoading) {
     return <Skeleton className="h-12 w-full rounded-lg" />;
   }
+
+  const thresholds = {
+    lateOrders: companyTargets?.alert_late_orders_threshold ?? 1,
+    openTickets: companyTargets?.alert_open_tickets_threshold ?? 5,
+    marginMin: companyTargets?.alert_margin_min_pct ?? 10,
+    runwayDays: companyTargets?.alert_runway_days_warning ?? 30,
+  };
 
   const alerts: AlertItem[] = [];
 
@@ -93,7 +102,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
     }
   }
 
-  // Operations alerts
+  // Operations alerts — using configurable thresholds
   if (operations.overduePayments > 0) {
     alerts.push({
       id: "overdue-payments",
@@ -104,7 +113,7 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
       link: "/azienda/ordini",
     });
   }
-  if (operations.lateOrders > 0) {
+  if (operations.lateOrders >= thresholds.lateOrders) {
     alerts.push({
       id: "late-orders",
       level: "warning",
@@ -127,8 +136,6 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
     });
   }
 
-  if (alerts.length === 0) return null;
-
   // Sort: critical first, then warning, then info
   const sortedAlerts = [...alerts].sort((a, b) => {
     const order = { critical: 0, warning: 1, info: 2 };
@@ -136,34 +143,46 @@ export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, 
   });
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {sortedAlerts.map(alert => {
-        const Icon = alert.icon;
-        const content = (
-          <div
-            className={cn(
-              "flex items-start gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer",
-              alert.level === "critical" && "bg-destructive/10 text-destructive hover:bg-destructive/20",
-              alert.level === "warning" && "bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20",
-              alert.level === "info" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-500/20",
-            )}
-          >
-            <Icon className="h-4 w-4 shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <span>{alert.message}</span>
-              {alert.action && (
-                <div className="text-xs font-normal opacity-75 mt-0.5">→ {alert.action}</div>
-              )}
-            </div>
-          </div>
-        );
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        {sortedAlerts.length > 0 && (
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {sortedAlerts.length} Alert{sortedAlerts.length > 1 ? "s" : ""}
+          </span>
+        )}
+        <AlertThresholdsDialog targets={companyTargets || null} />
+      </div>
+      {sortedAlerts.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {sortedAlerts.map(alert => {
+            const Icon = alert.icon;
+            const content = (
+              <div
+                className={cn(
+                  "flex items-start gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer",
+                  alert.level === "critical" && "bg-destructive/10 text-destructive hover:bg-destructive/20",
+                  alert.level === "warning" && "bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20",
+                  alert.level === "info" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-500/20",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <span>{alert.message}</span>
+                  {alert.action && (
+                    <div className="text-xs font-normal opacity-75 mt-0.5">→ {alert.action}</div>
+                  )}
+                </div>
+              </div>
+            );
 
-        return alert.link ? (
-          <Link key={alert.id} to={alert.link}>{content}</Link>
-        ) : (
-          <div key={alert.id}>{content}</div>
-        );
-      })}
+            return alert.link ? (
+              <Link key={alert.id} to={alert.link}>{content}</Link>
+            ) : (
+              <div key={alert.id}>{content}</div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 });

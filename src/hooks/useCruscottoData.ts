@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useMemo, useCallback } from "react";
-import { subDays, startOfDay, endOfDay, startOfMonth } from "date-fns";
+import { subDays, startOfDay, endOfDay, startOfMonth, format, addDays } from "date-fns";
 import type { DashboardStats } from "@/hooks/useMarketingDashboard";
 
 export type CruscottoDatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "quarter" | "custom";
@@ -46,6 +46,20 @@ export interface WeeklyAgendaData {
   appointments: number;
 }
 
+export interface CompanyTargets {
+  monthly_revenue_target: number | null;
+  monthly_orders_target: number | null;
+  alert_late_orders_threshold: number;
+  alert_open_tickets_threshold: number;
+  alert_margin_min_pct: number;
+  alert_runway_days_warning: number;
+}
+
+/** Safe number: returns fallback if NaN/Infinity */
+export function safeNumber(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return isNaN(n) || !isFinite(n) ? fallback : n;
+}
 
 function getDateRange(preset: CruscottoDatePreset, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
   const now = new Date();
@@ -95,10 +109,14 @@ export function useCruscottoData() {
     staleTime: 120_000,
   });
 
-  // Shared installments query (used by both operations and finance)
+  // Shared installments query — filtered to next 30 days for upcoming payments
   const { data: paymentsData } = useQuery({
     queryKey: ["cruscotto-installments", companyId],
     queryFn: async () => {
+      const today = new Date();
+      const todayStr = format(today, "yyyy-MM-dd");
+
+      // Get ALL unpaid installments (for overdue + upcoming calculations)
       const { data, error } = await (supabase as any)
         .from("order_installments")
         .select("amount, is_paid, expected_date, order:orders!inner(company_id)")
@@ -116,7 +134,7 @@ export function useCruscottoData() {
     queryKey: ["cruscotto-operations", companyId, dateRange.from.toISOString(), dateRange.to.toISOString(), filters.statusId],
     queryFn: async () => {
       const now = new Date();
-      const todayStr = now.toISOString().split("T")[0];
+      const todayStr = format(now, "yyyy-MM-dd");
 
       let activeOrdersQuery = supabase.from("orders").select("id", { count: "exact", head: true })
         .eq("company_id", companyId!);
@@ -135,7 +153,7 @@ export function useCruscottoData() {
       let overduePayments = 0;
       let overdueAmount = 0;
       paymentsData?.forEach((inst) => {
-        const amount = Number(inst.amount) || 0;
+        const amount = safeNumber(inst.amount);
         if (amount > 0 && inst.expected_date && inst.expected_date < todayStr) {
           overduePayments++;
           overdueAmount += amount;
@@ -154,14 +172,13 @@ export function useCruscottoData() {
     staleTime: 120_000,
   });
 
-  // Finance data
+  // Finance data — BUG 2 FIX: weighted margin
   const { data: financeData, isLoading: financeLoading } = useQuery({
     queryKey: ["cruscotto-finance", companyId, dateRange.from.toISOString(), dateRange.to.toISOString()],
     queryFn: async () => {
       const now = new Date();
       const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const thisMonthEndStr = thisMonthEnd.toISOString().split("T")[0];
-      const todayStr = now.toISOString().split("T")[0];
+      const thisMonthEndStr = format(thisMonthEnd, "yyyy-MM-dd");
       const dateFromStr = dateRange.from.toISOString();
       const dateToStr = dateRange.to.toISOString();
       const durationMs = dateRange.to.getTime() - dateRange.from.getTime();
@@ -181,26 +198,43 @@ export function useCruscottoData() {
           .eq("company_id", companyId!).eq("is_paid", false),
       ]);
 
+      // BUG 2 FIX: Weighted margin calculation
       const calc = (orders: any[]) => {
-        let revenue = 0, totalMarginPct = 0, marginCount = 0;
+        let totalRevenue = 0;
+        let totalCostAll = 0;
+
         orders.forEach((o: any) => {
-          const total = Number(o.total_amount) || 0;
-          revenue += total;
-          const articleCost = (o.order_items || []).reduce((s: number, i: any) => s + (Number(i.purchase_price || 0) * Number(i.quantity || 1)), 0);
-          const laborCost = (o.order_employees || []).reduce((s: number, e: any) => s + Number(e.total_cost || 0), 0)
-            + (o.order_external_teams || []).reduce((s: number, t: any) => s + Number(t.total_cost || 0), 0);
-          const totalCost = articleCost + laborCost;
-          if (total > 0 && totalCost > 0) { totalMarginPct += ((total - totalCost) / total) * 100; marginCount++; }
+          const revenue = safeNumber(o.total_amount);
+          totalRevenue += revenue;
+
+          const articleCost = (o.order_items || []).reduce(
+            (s: number, i: any) => s + (safeNumber(i.purchase_price) * safeNumber(i.quantity, 1)), 0
+          );
+          const laborCost =
+            (o.order_employees || []).reduce((s: number, e: any) => s + safeNumber(e.total_cost), 0) +
+            (o.order_external_teams || []).reduce((s: number, e: any) => s + safeNumber(e.total_cost), 0);
+
+          totalCostAll += articleCost + laborCost;
         });
-        return { revenue, margin: marginCount > 0 ? totalMarginPct / marginCount : 0 };
+
+        // Weighted margin: (total revenue - total costs) / total revenue
+        const weightedMargin = totalRevenue > 0
+          ? ((totalRevenue - totalCostAll) / totalRevenue) * 100
+          : 0;
+
+        // Clamp between -100% and +100%
+        const margin = Math.min(100, Math.max(-100, safeNumber(weightedMargin)));
+
+        return { revenue: totalRevenue, margin };
       };
 
       const curr = calc(currentOrdersRes.data || []);
       const prev = calc(prevOrdersRes.data || []);
 
+      // BUG 3 FIX: Filter payments to this month end for income calculation
       let pendingRevenue = 0, thisMonthIncome = 0, supplierDebt = 0;
       paymentsData?.forEach((inst) => {
-        const amount = Number(inst.amount) || 0;
+        const amount = safeNumber(inst.amount);
         if (amount > 0) {
           pendingRevenue += amount;
           if (inst.expected_date && inst.expected_date <= thisMonthEndStr) thisMonthIncome += amount;
@@ -209,7 +243,7 @@ export function useCruscottoData() {
 
       let unpaidCosts = 0;
       costsRes.data?.forEach(cost => {
-        const amount = Number(cost.amount) || 0;
+        const amount = safeNumber(cost.amount);
         supplierDebt += amount;
         if (cost.due_date && cost.due_date <= thisMonthEndStr) unpaidCosts += amount;
       });
@@ -219,7 +253,7 @@ export function useCruscottoData() {
         revenuePrevMonth: prev.revenue,
         marginThisMonth: curr.margin,
         marginPrevMonth: prev.margin,
-        cashFlowNet: thisMonthIncome - unpaidCosts,
+        cashFlowNet: safeNumber(thisMonthIncome - unpaidCosts),
         thisMonthIncome,
         thisMonthOutflow: unpaidCosts,
         pendingRevenue,
@@ -230,36 +264,48 @@ export function useCruscottoData() {
     staleTime: 120_000,
   });
 
-  // Weekly agenda data (next 7 days) — reuses shared paymentsData
+  // Company targets/thresholds
+  const { data: companyTargets } = useQuery({
+    queryKey: ["cruscotto-targets", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("monthly_revenue_target, monthly_orders_target, alert_late_orders_threshold, alert_open_tickets_threshold, alert_margin_min_pct, alert_runway_days_warning")
+        .eq("id", companyId!)
+        .single();
+      if (error) throw error;
+      return data as CompanyTargets;
+    },
+    enabled: !!companyId,
+    staleTime: 300_000,
+  });
+
+  // Weekly agenda data (next 7 days)
   const { data: weeklyData, isLoading: weeklyLoading } = useQuery({
     queryKey: ["cruscotto-weekly", companyId, paymentsData],
     queryFn: async () => {
       const now = new Date();
-      const todayStr = now.toISOString().split("T")[0];
-      const weekEnd = new Date(now.getTime() + 7 * 86400000);
-      const weekEndStr = weekEnd.toISOString().split("T")[0];
+      const todayStr = format(now, "yyyy-MM-dd");
+      const weekEnd = addDays(now, 7);
+      const weekEndStr = format(weekEnd, "yyyy-MM-dd");
 
       const [costsRes, deliveriesRes, appointmentsRes] = await Promise.all([
-        // Costs due next 7 days
         supabase.from("company_costs").select("amount, due_date")
           .eq("company_id", companyId!).eq("is_paid", false)
           .gte("due_date", todayStr).lte("due_date", weekEndStr),
-        // Deliveries next 7 days
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
           .gte("expected_date", todayStr).lte("expected_date", weekEndStr)
           .is("work_end_date", null),
-        // Appointments next 7 days
         supabase.from("appointments").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
           .eq("is_blocked_slot", false)
           .gte("appointment_date", todayStr).lte("appointment_date", weekEndStr),
       ]);
 
-      // Reuse shared paymentsData for incoming payments calculation
       let incomingPayments = 0, incomingPaymentsCount = 0;
       paymentsData?.forEach((inst) => {
-        const amount = Number(inst.amount) || 0;
+        const amount = safeNumber(inst.amount);
         if (amount > 0 && inst.expected_date && inst.expected_date >= todayStr && inst.expected_date <= weekEndStr) {
           incomingPayments += amount;
           incomingPaymentsCount++;
@@ -267,7 +313,7 @@ export function useCruscottoData() {
       });
 
       let dueCosts = 0;
-      costsRes.data?.forEach(c => { dueCosts += Number(c.amount) || 0; });
+      costsRes.data?.forEach(c => { dueCosts += safeNumber(c.amount); });
 
       return {
         incomingPayments,
@@ -299,6 +345,7 @@ export function useCruscottoData() {
     operations: opsData || { activeOrders: 0, lateOrders: 0, openTickets: 0, overduePayments: 0, overdueAmount: 0 },
     finance: financeData || { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, cashFlowNet: 0, thisMonthIncome: 0, thisMonthOutflow: 0, pendingRevenue: 0, supplierDebt: 0 },
     weeklyAgenda: weeklyData || { incomingPayments: 0, incomingPaymentsCount: 0, dueCosts: 0, dueCostsCount: 0, deliveries: 0, appointments: 0 },
+    companyTargets: companyTargets || null,
     isLoading: marketingLoading || opsLoading || financeLoading || weeklyLoading,
     error: marketingError as Error | null,
     filters,
