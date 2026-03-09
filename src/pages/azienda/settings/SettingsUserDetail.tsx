@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2 } from "lucide-react";
+import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2, Wifi, FileText, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserProfileTab } from "@/components/users/UserProfileTab";
@@ -12,6 +12,9 @@ import { UserRolesPermissionsTab } from "@/components/users/UserRolesPermissions
 import { UserAvailabilityTab } from "@/components/users/UserAvailabilityTab";
 import { UserCalendarTab } from "@/components/users/UserCalendarTab";
 import { UserNotificationsTab } from "@/components/users/UserNotificationsTab";
+import { UserSessionsTab } from "@/components/users/UserSessionsTab";
+import { UserActivityLogTab } from "@/components/users/UserActivityLogTab";
+import { UserSecurityTab } from "@/components/users/UserSecurityTab";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
