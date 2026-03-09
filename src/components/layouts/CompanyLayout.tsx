@@ -100,10 +100,43 @@ function CompanySidebar() {
   const { isModuleEnabled } = useSubscriptionLimits();
   const { isFeatureEnabled } = useFeatureFlags();
   const { branding } = useBranding();
+  const { effectiveBrand } = useBrandSettings();
   const navigate = useNavigate();
   const location = useLocation();
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
   const isAdmin = role === "company_admin" || role === "super_admin";
+
+  // Apply CSS variables for brand colors
+  useEffect(() => {
+    const root = document.documentElement;
+    if (effectiveBrand.isWhiteLabel) {
+      root.style.setProperty("--brand-primary", effectiveBrand.primaryColor);
+      root.style.setProperty("--brand-secondary", effectiveBrand.secondaryColor);
+      root.style.setProperty("--brand-accent", effectiveBrand.accentColor);
+      root.style.setProperty("--brand-text-on-primary", effectiveBrand.textOnPrimary);
+      // Favicon
+      if (effectiveBrand.faviconUrl) {
+        let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+        link.href = effectiveBrand.faviconUrl;
+      }
+      // Title
+      if (effectiveBrand.platformName) {
+        document.title = effectiveBrand.platformName;
+      }
+    } else {
+      root.style.removeProperty("--brand-primary");
+      root.style.removeProperty("--brand-secondary");
+      root.style.removeProperty("--brand-accent");
+      root.style.removeProperty("--brand-text-on-primary");
+    }
+    return () => {
+      root.style.removeProperty("--brand-primary");
+      root.style.removeProperty("--brand-secondary");
+      root.style.removeProperty("--brand-accent");
+      root.style.removeProperty("--brand-text-on-primary");
+    };
+  }, [effectiveBrand]);
   
   const handleLogoutOrExit = () => {
     if (isImpersonating) {
