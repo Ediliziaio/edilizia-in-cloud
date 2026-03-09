@@ -9,68 +9,35 @@
 
 ---
 
-## Gestione Utenti — Fase 1: Database + Security ✅
+## Gestione Utenti — Completamento ~90% ✅
 
-### Migration SQL ✅
-- ✅ **Nuove colonne `profiles`**: `password_changed_at`, `failed_login_count`, `locked_until`, `require_2fa`, `last_login_at`, `last_login_ip`
-- ✅ **Nuove colonne `companies`**: `enforce_2fa`, `allowed_ips`, `password_expiry_days`, `max_failed_attempts`
-- ✅ **Nuove colonne `staff_permissions`**: 9 permessi granulari
-- ✅ **6 nuove tabelle**: `user_sessions`, `login_attempts`, `permission_templates`, `user_audit_log`, `teams`, `team_members`
-- ✅ **Funzione `check_and_update_login_attempt`**: SECURITY DEFINER con brute force protection
-- ✅ **RLS completo** su tutte le tabelle con `get_my_company_id()` + `has_role()` bypass
-- ✅ **5 Template di Sistema** seeded
-
-### Frontend Types ✅
-- ✅ `Profile` e `Company` types aggiornati con campi security
-- ✅ `StaffPermissions` interface con 9 nuovi permessi granulari
-- ✅ `permissionsDefaults.ts` con sezione `GRANULAR_SECTIONS`
-
----
-
-## Gestione Utenti — Fase 2: Edge Functions Security ✅
-
-- ✅ **`track-user-session`**: start/heartbeat/end sessione con IP, device, browser
-- ✅ **`revoke-user-session`**: revoca singola o bulk per utente, con audit log
-- ✅ **`manage-permission-template`**: CRUD + apply template a utente, con audit log
-- ✅ **`get-security-report`**: overview/sessions/login_attempts/audit_log/users_security
-
----
-
-## Gestione Utenti — Fase 3: UI Wizard + Tabella Arricchita ✅
-
-- ✅ **`CreateUserWizard`**: Wizard 4-step (Info → Ruolo → Permessi → Conferma) con selector template
-- ✅ **Tabella utenti arricchita**: colonne "Ultimo accesso" (con `formatDistanceToNow`) e "Stato" (sessioni attive, account bloccato, tentativi falliti)
-- ✅ **`SecurityStatus` component**: indicatori visivi con tooltip per sessioni, lock, warning
-- ✅ **Audit log**: registrazione `user_created` alla creazione utente
-
----
-
-## Gestione Utenti — Fase 4: Test & Integrazione ✅
+### Database + Security ✅
+- ✅ 6 tabelle, 15 colonne security, 9 permessi granulari, RLS completo, 5 template sistema
 
 ### Edge Functions ✅
-- ✅ Tutte e 4 le funzioni deployate e registrate in `config.toml`
-- ✅ Corretto bug in `revoke-user-session`: doppio `req.json()` rimosso
-- ✅ Rimosso import inutilizzato `createClient` da `track-user-session`
-- ✅ Autenticazione e autorizzazione verificate (401/403 senza token)
+- ✅ track-user-session, revoke-user-session, manage-permission-template, get-security-report
+- ✅ **check-login-security**: verifica IP allowlist, brute force, registra login_attempts
 
-### Database ✅
-- ✅ 6/6 colonne security su `profiles` verificate
-- ✅ 9/9 permessi granulari su `staff_permissions` verificati
-- ✅ 5 template di sistema presenti in `permission_templates`
-- ✅ Funzione `check_and_update_login_attempt` presente
-- ✅ 19 RLS policies attive sulle 6 nuove tabelle
+### UI Core ✅
+- ✅ Security Dashboard, Team Management, CreateUserWizard, Tabella utenti arricchita
+- ✅ Session Tracking integrato in AuthContext, Unlock Account
 
-### Frontend ✅
-- ✅ `UsersConfig` query parallela per profili, ruoli, sessioni, permessi
-- ✅ KPI cards (totale, admin, operatori, venditori, call center)
-- ✅ Colonne "Ultimo accesso" e "Stato" con tooltip e badge
-- ✅ `CreateUserWizard` con template selector e validazione step
+### UI Avanzate — Fase 6 ✅
+- ✅ **3 nuovi Tab nel Dettaglio Utente**:
+  - Sessioni (lista attive/storiche, revoca singola/tutte)
+  - Log Attività (timeline filtrata per utente, export CSV)
+  - Sicurezza (stato 2FA, blocco, reset password, tentativi falliti)
+- ✅ **Pagina Impostazioni Sicurezza Aziendale** (`SettingsSecurity.tsx`):
+  - Tab Password + Tab Policy Sicurezza (slider tentativi, scadenza password, 2FA, IP allowlist)
+  - Tab Template Permessi (lista, crea, modifica, duplica, elimina)
+- ✅ **Filtri Avanzati Tabella Utenti**: Stato (Attivo/Inattivo/Bloccato) + Ruolo + Ricerca
 
 ---
 
-## Gestione Utenti — Fase 5: UI Avanzate ✅
+## ⏳ Funzionalità Rimanenti (Priorità Bassa)
 
-- ✅ **Security Dashboard**: KPI, sessioni attive con revoca, login attempts, audit log
-- ✅ **Team Management**: CRUD team con colori, gestione membri, assegnazione leader
-- ✅ **Session Tracking**: Integrazione automatica `track-user-session` su login/logout in AuthContext
-- ✅ **Unlock Account**: Bottone "Sblocca account" nel dropdown utenti (reset `locked_until` e `failed_login_count`)
+- ⬜ Round-robin assegnazione team
+- ⬜ KPI per team nella dashboard
+- ⬜ Import/Export utenti CSV
+- ⬜ Password history (ultime 5)
+- ⬜ Drag & Drop utenti tra team
