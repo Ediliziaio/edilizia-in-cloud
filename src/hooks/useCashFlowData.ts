@@ -565,6 +565,24 @@ export function useCashFlowData() {
     };
   }, [expectedPayments, expectedExpenses, expectedCommissions, expectedCompanyCosts, expectedSupplierPayments, companyCosts]);
 
+  // Scadenze as forecast entries (not already covered by order_installments/company_costs)
+  const scadenzeForForecast = useMemo(() => {
+    return openScadenze.map((s: any) => {
+      const remaining = Number(s.amount) - Number(s.paid_amount || 0);
+      return {
+        id: s.id,
+        description: s.description,
+        amount: remaining,
+        expectedDate: s.due_date ? new Date(s.due_date) : null,
+        direction: s.direction as "entrata" | "uscita",
+        tipo: s.tipo,
+        supplierName: s.suppliers?.name || null,
+        orderNumber: s.orders?.order_number || null,
+        orderId: s.order_id,
+      };
+    }).filter((s: any) => s.amount > 0);
+  }, [openScadenze]);
+
   return {
     isLoading,
     orders,
@@ -582,5 +600,8 @@ export function useCashFlowData() {
     activeEmployees,
     treasuryCategories,
     companyId,
+    // New: scadenze + prima nota
+    scadenzeForForecast,
+    primaNotaSaldo: primaNotaSaldo || { entrate: 0, uscite: 0, saldo: 0, entry_count: 0 },
   };
 }
