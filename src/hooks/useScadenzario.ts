@@ -94,6 +94,7 @@ export function useScadenzario() {
       paymentMethod?: string;
       paymentDate?: string;
       notes?: string;
+      accountLabel?: string;
     }) => {
       const { data, error } = await supabase.rpc("mark_scadenza_paid", {
         p_scadenza_id: params.scadenzaId,

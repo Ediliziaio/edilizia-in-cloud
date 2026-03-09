@@ -109,6 +109,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}) {
       payment_method?: string;
       reference_number?: string;
       supplier_id?: string | null;
+      account_label?: string;
       notes?: string;
     }) => {
       const { error } = await supabase.from("prima_nota_entries").insert({

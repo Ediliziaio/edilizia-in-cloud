@@ -49,6 +49,7 @@ export interface PurchaseOrderItem {
   quantity_received: number;
   received_date: string | null;
   article_template_id: string | null;
+  order_item_id: string | null;
   sort_order: number;
   notes: string | null;
   created_at: string;

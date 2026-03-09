@@ -160,6 +160,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
               entry_date: entryDate,
               payment_method: method,
               reference_number: reference || undefined,
+              account_label: accountLabel,
               notes: notes || undefined,
             })}
           >

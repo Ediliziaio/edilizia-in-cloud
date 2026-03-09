@@ -123,6 +123,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
               due_date: dueDate,
               notes: notes || undefined,
               payment_method: method,
+              alert_days_before: Number(alertDays) || 7,
             })}
           >
             {isPending ? "Salvataggio..." : "Crea Scadenza"}

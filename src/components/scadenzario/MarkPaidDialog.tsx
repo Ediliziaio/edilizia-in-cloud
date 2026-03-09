@@ -110,6 +110,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
               paymentMethod: method,
               paymentDate: date,
               notes: notes || undefined,
+              accountLabel,
             })}
             disabled={isPending || !amount || Number(amount) <= 0 || Number(amount) > remaining}
           >
