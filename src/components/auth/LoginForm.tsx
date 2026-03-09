@@ -110,7 +110,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-background">
+    <div ref={ref} className="min-h-screen flex flex-col lg:flex-row bg-background">
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-primary items-center justify-center p-12">
         <div className="max-w-md text-center space-y-8">
