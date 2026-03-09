@@ -4,6 +4,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useBranding } from "@/hooks/useBranding";
+import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { 
   HeadphonesIcon,
