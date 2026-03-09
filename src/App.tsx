@@ -377,6 +377,20 @@ const App = () => (
                 <Route path="profilo" element={<SalespersonProfile />} />
               </Route>
 
+              {/* Partner Routes */}
+              <Route
+                path="/partner"
+                element={
+                  <ProtectedRoute allowedRoles={["referrer", "super_admin"]}>
+                    <ErrorBoundary title="Errore nel portale partner">
+                      <PartnerLayout />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<PartnerPortal />} />
+              </Route>
+
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>

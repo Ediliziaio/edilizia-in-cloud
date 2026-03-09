@@ -90,6 +90,8 @@ export function RoleBasedRedirect() {
       return <Navigate to="/venditore" replace />;
     case "call_center":
       return <Navigate to="/azienda" replace />;
+    case "referrer":
+      return <Navigate to="/partner" replace />;
     default:
       return <Navigate to="/login" replace />;
   }
