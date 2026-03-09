@@ -4589,11 +4589,15 @@ export type Database = {
           company_id: string
           contact_id: string | null
           data: Json
+          device_type: string | null
+          fbclid: string | null
           form_id: string
+          gclid: string | null
           id: string
           ip_hash: string | null
           session_id: string | null
           submitted_at: string
+          user_agent: string | null
           utm_campaign: string | null
           utm_content: string | null
           utm_medium: string | null
@@ -4604,11 +4608,15 @@ export type Database = {
           company_id: string
           contact_id?: string | null
           data?: Json
+          device_type?: string | null
+          fbclid?: string | null
           form_id: string
+          gclid?: string | null
           id?: string
           ip_hash?: string | null
           session_id?: string | null
           submitted_at?: string
+          user_agent?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
@@ -4619,11 +4627,15 @@ export type Database = {
           company_id?: string
           contact_id?: string | null
           data?: Json
+          device_type?: string | null
+          fbclid?: string | null
           form_id?: string
+          gclid?: string | null
           id?: string
           ip_hash?: string | null
           session_id?: string | null
           submitted_at?: string
+          user_agent?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
@@ -6658,6 +6670,7 @@ export type Database = {
           description: string | null
           fields: Json
           id: string
+          is_active: boolean
           is_published: boolean
           name: string
           settings: Json
@@ -6674,6 +6687,7 @@ export type Database = {
           description?: string | null
           fields?: Json
           id?: string
+          is_active?: boolean
           is_published?: boolean
           name: string
           settings?: Json
@@ -6690,6 +6704,7 @@ export type Database = {
           description?: string | null
           fields?: Json
           id?: string
+          is_active?: boolean
           is_published?: boolean
           name?: string
           settings?: Json
@@ -12469,6 +12484,10 @@ export type Database = {
       is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
       recalculate_invoice_totals: {
         Args: { p_invoice_id: string }
+        Returns: undefined
+      }
+      trigger_form_automations: {
+        Args: { p_submission_id: string }
         Returns: undefined
       }
       update_referrer_tier: {
