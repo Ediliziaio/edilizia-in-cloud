@@ -198,7 +198,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {step === 4 ? "Utente Creato" : `Nuovo Utente — Step ${step + 1}/${totalSteps}`}
@@ -224,7 +224,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
           </div>
         )}
 
-        <ScrollArea className="flex-1 min-h-0 pr-4">
+        <ScrollArea className="flex-1 min-h-0 max-h-[60vh] pr-4">
           {/* Step 0: Basic info */}
           {step === 0 && (
             <div className="space-y-4 py-2">
