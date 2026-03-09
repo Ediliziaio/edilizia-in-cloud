@@ -1723,12 +1723,14 @@ export type Database = {
       }
       companies: {
         Row: {
+          allowed_ips: string[] | null
           bank_account_holder: string | null
           bank_iban: string | null
           bank_name: string | null
           business_name: string | null
           created_at: string
           email: string
+          enforce_2fa: boolean
           fiscal_code: string | null
           id: string
           legal_address: string | null
@@ -1736,6 +1738,7 @@ export type Database = {
           legal_postal_code: string | null
           legal_province: string | null
           logo_url: string | null
+          max_failed_attempts: number
           messaging_beta_enabled: boolean
           name: string
           notes: string | null
@@ -1745,6 +1748,7 @@ export type Database = {
           operational_lng: number | null
           operational_postal_code: string | null
           operational_province: string | null
+          password_expiry_days: number
           payment_method: string
           payment_notes: string | null
           pec: string | null
@@ -1762,12 +1766,14 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          allowed_ips?: string[] | null
           bank_account_holder?: string | null
           bank_iban?: string | null
           bank_name?: string | null
           business_name?: string | null
           created_at?: string
           email: string
+          enforce_2fa?: boolean
           fiscal_code?: string | null
           id?: string
           legal_address?: string | null
@@ -1775,6 +1781,7 @@ export type Database = {
           legal_postal_code?: string | null
           legal_province?: string | null
           logo_url?: string | null
+          max_failed_attempts?: number
           messaging_beta_enabled?: boolean
           name: string
           notes?: string | null
@@ -1784,6 +1791,7 @@ export type Database = {
           operational_lng?: number | null
           operational_postal_code?: string | null
           operational_province?: string | null
+          password_expiry_days?: number
           payment_method?: string
           payment_notes?: string | null
           pec?: string | null
@@ -1801,12 +1809,14 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          allowed_ips?: string[] | null
           bank_account_holder?: string | null
           bank_iban?: string | null
           bank_name?: string | null
           business_name?: string | null
           created_at?: string
           email?: string
+          enforce_2fa?: boolean
           fiscal_code?: string | null
           id?: string
           legal_address?: string | null
@@ -1814,6 +1824,7 @@ export type Database = {
           legal_postal_code?: string | null
           legal_province?: string | null
           logo_url?: string | null
+          max_failed_attempts?: number
           messaging_beta_enabled?: boolean
           name?: string
           notes?: string | null
@@ -1823,6 +1834,7 @@ export type Database = {
           operational_lng?: number | null
           operational_postal_code?: string | null
           operational_province?: string | null
+          password_expiry_days?: number
           payment_method?: string
           payment_notes?: string | null
           pec?: string | null
@@ -4070,6 +4082,39 @@ export type Database = {
           },
         ]
       }
+      login_attempts: {
+        Row: {
+          created_at: string
+          email: string
+          failure_reason: string | null
+          id: string
+          ip_address: unknown
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          failure_reason?: string | null
+          id?: string
+          ip_address?: unknown
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          failure_reason?: string | null
+          id?: string
+          ip_address?: unknown
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       marketing_calendar_availability: {
         Row: {
           calendar_id: string
@@ -6274,6 +6319,50 @@ export type Database = {
           },
         ]
       }
+      permission_templates: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_system_default: boolean
+          name: string
+          permissions: Json
+          updated_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_system_default?: boolean
+          name: string
+          permissions?: Json
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_system_default?: boolean
+          name?: string
+          permissions?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_announcements: {
         Row: {
           content: string
@@ -6400,12 +6489,18 @@ export type Database = {
           company_id: string | null
           created_at: string
           email: string
+          failed_login_count: number
           first_name: string
           fiscal_code: string | null
           id: string
+          last_login_at: string | null
+          last_login_ip: unknown
           last_name: string
+          locked_until: string | null
           notes: string | null
+          password_changed_at: string | null
           phone: string | null
+          require_2fa: boolean
           salesperson_id: string | null
           site_address: string | null
           updated_at: string
@@ -6415,12 +6510,18 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           email: string
+          failed_login_count?: number
           first_name: string
           fiscal_code?: string | null
           id: string
+          last_login_at?: string | null
+          last_login_ip?: unknown
           last_name: string
+          locked_until?: string | null
           notes?: string | null
+          password_changed_at?: string | null
           phone?: string | null
+          require_2fa?: boolean
           salesperson_id?: string | null
           site_address?: string | null
           updated_at?: string
@@ -6430,12 +6531,18 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           email?: string
+          failed_login_count?: number
           first_name?: string
           fiscal_code?: string | null
           id?: string
+          last_login_at?: string | null
+          last_login_ip?: unknown
           last_name?: string
+          locked_until?: string | null
           notes?: string | null
+          password_changed_at?: string | null
           phone?: string | null
+          require_2fa?: boolean
           salesperson_id?: string | null
           site_address?: string | null
           updated_at?: string
@@ -6806,6 +6913,8 @@ export type Database = {
       }
       staff_permissions: {
         Row: {
+          can_approve_orders: boolean
+          can_delete_orders: boolean
           can_edit_customers: boolean | null
           can_edit_marketing: boolean
           can_edit_marketing_contacts: boolean | null
@@ -6814,12 +6923,19 @@ export type Database = {
           can_edit_settings: boolean | null
           can_edit_tickets: boolean | null
           can_edit_warehouse: boolean | null
+          can_export_clients: boolean
+          can_manage_payments: boolean
+          can_manage_suppliers: boolean
+          can_manage_warehouse_items: boolean
+          can_view_all_team_calendar: boolean
           can_view_calendar: boolean | null
           can_view_cruscotto: boolean
           can_view_customers: boolean | null
           can_view_dashboard: boolean | null
           can_view_employees: boolean | null
+          can_view_financial_reports: boolean
           can_view_forecast: boolean | null
+          can_view_margins: boolean
           can_view_marketing: boolean
           can_view_marketing_activities: boolean | null
           can_view_marketing_ai_agent: boolean | null
@@ -6844,6 +6960,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          can_approve_orders?: boolean
+          can_delete_orders?: boolean
           can_edit_customers?: boolean | null
           can_edit_marketing?: boolean
           can_edit_marketing_contacts?: boolean | null
@@ -6852,12 +6970,19 @@ export type Database = {
           can_edit_settings?: boolean | null
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
+          can_export_clients?: boolean
+          can_manage_payments?: boolean
+          can_manage_suppliers?: boolean
+          can_manage_warehouse_items?: boolean
+          can_view_all_team_calendar?: boolean
           can_view_calendar?: boolean | null
           can_view_cruscotto?: boolean
           can_view_customers?: boolean | null
           can_view_dashboard?: boolean | null
           can_view_employees?: boolean | null
+          can_view_financial_reports?: boolean
           can_view_forecast?: boolean | null
+          can_view_margins?: boolean
           can_view_marketing?: boolean
           can_view_marketing_activities?: boolean | null
           can_view_marketing_ai_agent?: boolean | null
@@ -6882,6 +7007,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          can_approve_orders?: boolean
+          can_delete_orders?: boolean
           can_edit_customers?: boolean | null
           can_edit_marketing?: boolean
           can_edit_marketing_contacts?: boolean | null
@@ -6890,12 +7017,19 @@ export type Database = {
           can_edit_settings?: boolean | null
           can_edit_tickets?: boolean | null
           can_edit_warehouse?: boolean | null
+          can_export_clients?: boolean
+          can_manage_payments?: boolean
+          can_manage_suppliers?: boolean
+          can_manage_warehouse_items?: boolean
+          can_view_all_team_calendar?: boolean
           can_view_calendar?: boolean | null
           can_view_cruscotto?: boolean
           can_view_customers?: boolean | null
           can_view_dashboard?: boolean | null
           can_view_employees?: boolean | null
+          can_view_financial_reports?: boolean
           can_view_forecast?: boolean | null
+          can_view_margins?: boolean
           can_view_marketing?: boolean
           can_view_marketing_activities?: boolean | null
           can_view_marketing_ai_agent?: boolean | null
@@ -7391,6 +7525,89 @@ export type Database = {
           },
         ]
       }
+      team_members: {
+        Row: {
+          company_id: string
+          id: string
+          joined_at: string
+          role_in_team: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          joined_at?: string
+          role_in_team?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          joined_at?: string
+          role_in_team?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          color: string | null
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          leader_id: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          leader_id?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          leader_id?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       telnyx_settings: {
         Row: {
           api_key_encrypted: string
@@ -7620,6 +7837,47 @@ export type Database = {
           },
         ]
       }
+      user_audit_log: {
+        Row: {
+          action: string
+          actor_id: string
+          company_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          ip_address: unknown
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          company_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_address?: unknown
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          company_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_address?: unknown
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -7637,6 +7895,65 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_sessions: {
+        Row: {
+          browser: string | null
+          company_id: string
+          device_type: string | null
+          ended_at: string | null
+          id: string
+          ip_address: unknown
+          is_active: boolean
+          last_active_at: string
+          os: string | null
+          revoke_reason: string | null
+          revoked_by: string | null
+          started_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          browser?: string | null
+          company_id: string
+          device_type?: string | null
+          ended_at?: string | null
+          id?: string
+          ip_address?: unknown
+          is_active?: boolean
+          last_active_at?: string
+          os?: string | null
+          revoke_reason?: string | null
+          revoked_by?: string | null
+          started_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          browser?: string | null
+          company_id?: string
+          device_type?: string | null
+          ended_at?: string | null
+          id?: string
+          ip_address?: unknown
+          is_active?: boolean
+          last_active_at?: string
+          os?: string | null
+          revoke_reason?: string | null
+          revoked_by?: string | null
+          started_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       warehouse_movements: {
         Row: {
@@ -8117,6 +8434,10 @@ export type Database = {
         Returns: Json
       }
       auto_expire_trials: { Args: never; Returns: number }
+      check_and_update_login_attempt: {
+        Args: { p_ip_address?: unknown; p_success: boolean; p_user_id: string }
+        Returns: Json
+      }
       check_staff_visibility: {
         Args: { _assigned_to: string; _user_id: string }
         Returns: boolean

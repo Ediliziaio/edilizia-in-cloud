@@ -50,6 +50,16 @@ export interface StaffPermissions {
   can_view_marketing_reports: boolean;
   can_view_cruscotto: boolean;
   only_assigned: boolean;
+  // New granular permissions
+  can_export_clients: boolean;
+  can_delete_orders: boolean;
+  can_manage_payments: boolean;
+  can_approve_orders: boolean;
+  can_view_all_team_calendar: boolean;
+  can_view_margins: boolean;
+  can_manage_suppliers: boolean;
+  can_view_financial_reports: boolean;
+  can_manage_warehouse_items: boolean;
 }
 
 interface PermissionsDialogProps {
