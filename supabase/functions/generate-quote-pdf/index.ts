@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     // Load attached PDF materials
     const { data: attachmentRows = [] } = await supabaseAdmin
       .from("quote_pdf_attachments")
-      .select("*, quote_pdf_materials(name, storagrage_path)")
+      .select("*, quote_pdf_materials(name, storagragrage_path)")
       .eq("quote_id", quote_id)
       .order("sort_order");
 
@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
 
     // ─── Merge attached PDFs ───
     for (const att of attachmentRows) {
-      const filePath = att.quote_pdf_materials?.file_path;
+      const filePath = att.quote_pdf_materialstoragfile_path;
       if (!filePath) continue;
 
       try {
