@@ -2203,6 +2203,80 @@ export type Database = {
           },
         ]
       }
+      company_branding: {
+        Row: {
+          accent_color: string | null
+          company_id: string
+          created_at: string
+          custom_domain: string | null
+          email_footer_text: string | null
+          email_header_logo_url: string | null
+          favicon_url: string | null
+          hide_platform_branding: boolean | null
+          id: string
+          login_bg_color: string | null
+          login_logo_url: string | null
+          login_subtitle: string | null
+          login_title: string | null
+          logo_url: string | null
+          primary_color: string | null
+          secondary_color: string | null
+          sidebar_bg_color: string | null
+          sidebar_text_color: string | null
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string | null
+          company_id: string
+          created_at?: string
+          custom_domain?: string | null
+          email_footer_text?: string | null
+          email_header_logo_url?: string | null
+          favicon_url?: string | null
+          hide_platform_branding?: boolean | null
+          id?: string
+          login_bg_color?: string | null
+          login_logo_url?: string | null
+          login_subtitle?: string | null
+          login_title?: string | null
+          logo_url?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          sidebar_bg_color?: string | null
+          sidebar_text_color?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string | null
+          company_id?: string
+          created_at?: string
+          custom_domain?: string | null
+          email_footer_text?: string | null
+          email_header_logo_url?: string | null
+          favicon_url?: string | null
+          hide_platform_branding?: boolean | null
+          id?: string
+          login_bg_color?: string | null
+          login_logo_url?: string | null
+          login_subtitle?: string | null
+          login_title?: string | null
+          logo_url?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          sidebar_bg_color?: string | null
+          sidebar_text_color?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_branding_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_costs: {
         Row: {
           amount: number

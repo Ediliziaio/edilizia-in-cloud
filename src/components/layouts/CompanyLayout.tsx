@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { useBranding } from "@/hooks/useBranding";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { 
   HeadphonesIcon,
@@ -30,6 +31,7 @@ import {
   CalendarDays,
   Wallet,
   Shield,
+  Paintbrush,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -95,6 +97,7 @@ function CompanySidebar() {
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
   const { isFeatureEnabled } = useFeatureFlags();
+  const { branding } = useBranding();
   const navigate = useNavigate();
   const location = useLocation();
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
@@ -136,7 +139,9 @@ function CompanySidebar() {
     <Sidebar className="border-r">
       <div className="flex h-14 items-center border-b px-4">
         <Link to="/azienda" className="flex items-center gap-2">
-          {effectiveCompany?.logo_url ? (
+          {branding?.logo_url ? (
+            <img src={branding.logo_url} alt={effectiveCompany?.name || "Logo"} className="h-8 max-h-8 object-contain" />
+          ) : effectiveCompany?.logo_url ? (
             <img src={effectiveCompany.logo_url} alt={effectiveCompany.name} className="h-8 max-h-8 object-contain" />
           ) : (
             <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
@@ -357,6 +362,13 @@ function CompanySidebar() {
                       <SidebarMenuButton asChild>
                         <NavLink to="/azienda/impostazioni/api" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
                           <Key className="h-4 w-4" /><span>API Platform</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/azienda/impostazioni/branding" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                          <Paintbrush className="h-4 w-4" /><span>White-Label</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
