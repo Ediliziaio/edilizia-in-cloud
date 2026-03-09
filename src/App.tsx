@@ -341,6 +341,7 @@ const App = () => (
                   <Route path="privacy" element={<SettingsPrivacy />} />
                   <Route path="branding" element={<SettingsBranding />} />
                   <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
+                  <Route path="template-preventivi" element={<SettingsQuoteTemplates />} />
                 </Route>
               </Route>
 
