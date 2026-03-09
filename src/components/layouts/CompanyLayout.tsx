@@ -2,6 +2,7 @@ import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { 
   HeadphonesIcon,
@@ -93,6 +94,7 @@ function CompanySidebar() {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
+  const { isFeatureEnabled } = useFeatureFlags();
   const navigate = useNavigate();
   const location = useLocation();
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
@@ -111,7 +113,6 @@ function CompanySidebar() {
   const isCruscottoRoute = location.pathname.startsWith("/azienda/cruscotto");
 
   const filterNavItems = (items: NavItem[]) => {
-    const messagingEnabled = (effectiveCompany as any)?.messaging_beta_enabled === true;
     return items.filter((item) => {
       if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
         return false;
@@ -119,7 +120,7 @@ function CompanySidebar() {
       if (item.moduleKey && !isModuleEnabled(item.moduleKey)) {
         return false;
       }
-      if (item.isBeta && item.url.includes("messaggistica") && !messagingEnabled) {
+      if (item.featureKey && !isFeatureEnabled(item.featureKey)) {
         return false;
       }
       return true;
@@ -127,9 +128,8 @@ function CompanySidebar() {
   };
 
   const companyId = effectiveCompany?.id;
-  const messagingBetaEnabled = (effectiveCompany as any)?.messaging_beta_enabled;
-  const visibleInternalItems = useMemo(() => filterNavItems(internalNavItems), [permissions, isModuleEnabled, companyId, messagingBetaEnabled]);
-  const visibleMarketingItems = useMemo(() => filterNavItems(marketingNavItems), [permissions, isModuleEnabled, companyId, messagingBetaEnabled]);
+  const visibleInternalItems = useMemo(() => filterNavItems(internalNavItems), [permissions, isModuleEnabled, isFeatureEnabled, companyId]);
+  const visibleMarketingItems = useMemo(() => filterNavItems(marketingNavItems), [permissions, isModuleEnabled, isFeatureEnabled, companyId]);
   const showCruscotto = permissions.canViewCruscotto;
 
   return (

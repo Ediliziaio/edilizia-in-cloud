@@ -1,9 +1,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Package, ClipboardList, Users, HardDrive, CheckCircle, XCircle, ArrowUpRight } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Package, ClipboardList, Users, CheckCircle, XCircle, ArrowUpRight, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { ALL_MODULES } from "@/lib/adminConstants";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface CompanySaaSTabProps {
   currentPlan: any;
@@ -11,14 +15,83 @@ interface CompanySaaSTabProps {
   includedModules: string[];
   plans: any[] | undefined;
   companyPlanId: string | null | undefined;
+  companyId?: string;
 }
 
-export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, companyPlanId }: CompanySaaSTabProps) {
+export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, companyPlanId, companyId }: CompanySaaSTabProps) {
+  const queryClient = useQueryClient();
   const maxOrders = currentPlan?.max_orders ?? -1;
   const maxUsers = currentPlan?.max_users ?? -1;
-  const maxStorage = currentPlan?.max_storage_mb ?? 500;
   const ordersPercent = maxOrders === -1 ? 0 : Math.min(100, ((stats?.ordersCount || 0) / maxOrders) * 100);
   const usersPercent = maxUsers === -1 ? 0 : Math.min(100, ((stats?.customersCount || 0) / maxUsers) * 100);
+
+  // Feature flags
+  const { data: flags = [], isLoading: flagsLoading } = useQuery({
+    queryKey: ["platform-feature-flags"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_feature_flags")
+        .select("*")
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: overrides = [], isLoading: overridesLoading } = useQuery({
+    queryKey: ["company-feature-overrides", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("company_feature_overrides")
+        .select("*")
+        .eq("company_id", companyId!);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const toggleOverrideMutation = useMutation({
+    mutationFn: async ({ flagKey, enabled }: { flagKey: string; enabled: boolean }) => {
+      if (enabled) {
+        const { error } = await supabase
+          .from("company_feature_overrides")
+          .upsert(
+            { company_id: companyId!, feature_key: flagKey, is_enabled: true },
+            { onConflict: "company_id,feature_key" }
+          );
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("company_feature_overrides")
+          .delete()
+          .eq("company_id", companyId!)
+          .eq("feature_key", flagKey);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-feature-overrides", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-all-overrides"] });
+      toast.success("Feature flag aggiornato");
+    },
+    onError: () => toast.error("Errore nell'aggiornamento"),
+  });
+
+  const getOverrideForFlag = (key: string) =>
+    overrides.find((o: any) => o.feature_key === key);
+
+  const getFlagSource = (flag: any): { enabled: boolean; source: string } => {
+    const override = getOverrideForFlag(flag.key);
+    const overrideValid = override && (!override.expires_at || new Date(override.expires_at) > new Date());
+    if (overrideValid) return { enabled: override.is_enabled, source: "Override" };
+    if (flag.plans_included?.length > 0 && currentPlan?.name && flag.plans_included.includes(currentPlan.name.toLowerCase())) {
+      return { enabled: true, source: "Piano" };
+    }
+    return { enabled: flag.default_value, source: "Default" };
+  };
 
   return (
     <div className="space-y-6">
@@ -118,6 +191,76 @@ export function CompanySaaSTab({ currentPlan, stats, includedModules, plans, com
           </div>
         </CardContent>
       </Card>
+
+      {/* Feature Flags */}
+      {companyId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Feature Flags</CardTitle>
+            <CardDescription>Override delle funzionalità per questa azienda</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {flagsLoading || overridesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {flags.map((flag: any) => {
+                  const { enabled, source } = getFlagSource(flag);
+                  const hasOverride = !!getOverrideForFlag(flag.key);
+                  const sourceBadgeClass =
+                    source === "Override"
+                      ? "bg-primary/10 text-primary"
+                      : source === "Piano"
+                        ? "bg-blue-500/10 text-blue-600"
+                        : "bg-muted text-muted-foreground";
+
+                  return (
+                    <div
+                      key={flag.id}
+                      className={`flex items-center justify-between rounded-lg border p-3 transition-colors ${
+                        enabled ? "border-primary/20 bg-primary/5" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`h-8 w-8 rounded-md flex items-center justify-center ${enabled ? "bg-primary/10" : "bg-muted"}`}>
+                          {enabled ? (
+                            <CheckCircle className="h-4 w-4 text-primary" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{flag.name}</span>
+                            {flag.is_beta && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-300">
+                                BETA
+                              </Badge>
+                            )}
+                            <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${sourceBadgeClass}`}>
+                              {source}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{flag.description}</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={hasOverride ? enabled : false}
+                        onCheckedChange={(checked) =>
+                          toggleOverrideMutation.mutate({ flagKey: flag.key, enabled: checked })
+                        }
+                        disabled={toggleOverrideMutation.isPending}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Confronto piani */}
       {plans && plans.length > 1 && (
