@@ -135,6 +135,11 @@ export function CustomerLayout() {
           <Outlet />
         </div>
       </main>
+      {!effectiveBrand.hidePoweredBy && (
+        <footer className="text-center py-2 text-xs text-muted-foreground border-t bg-background">
+          Powered by EdiliziaInCloud
+        </footer>
+      )}
     </div>
   );
 }
