@@ -1852,6 +1852,385 @@ export type Database = {
           },
         ]
       }
+      bank_accounts: {
+        Row: {
+          account_name: string | null
+          account_owner_name: string | null
+          account_type: string | null
+          available_balance: number | null
+          balance_updated_at: string | null
+          bban: string | null
+          company_id: string
+          connection_id: string
+          created_at: string
+          currency: string
+          current_balance: number | null
+          display_name: string | null
+          external_account_id: string
+          iban: string | null
+          id: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string | null
+          account_owner_name?: string | null
+          account_type?: string | null
+          available_balance?: number | null
+          balance_updated_at?: string | null
+          bban?: string | null
+          company_id: string
+          connection_id: string
+          created_at?: string
+          currency?: string
+          current_balance?: number | null
+          display_name?: string | null
+          external_account_id: string
+          iban?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string | null
+          account_owner_name?: string | null
+          account_type?: string | null
+          available_balance?: number | null
+          balance_updated_at?: string | null
+          bban?: string | null
+          company_id?: string
+          connection_id?: string
+          created_at?: string
+          currency?: string
+          current_balance?: number | null
+          display_name?: string | null
+          external_account_id?: string
+          iban?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "bank_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_categorization_rules: {
+        Row: {
+          auto_apply: boolean
+          category: string
+          category_icon: string | null
+          company_id: string
+          created_at: string
+          id: string
+          match_field: string
+          match_type: string
+          match_value: string
+          priority: number
+        }
+        Insert: {
+          auto_apply?: boolean
+          category: string
+          category_icon?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          match_field?: string
+          match_type?: string
+          match_value: string
+          priority?: number
+        }
+        Update: {
+          auto_apply?: boolean
+          category?: string
+          category_icon?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          match_field?: string
+          match_type?: string
+          match_value?: string
+          priority?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_categorization_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_connections: {
+        Row: {
+          accounts_count: number | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          institution_country: string | null
+          institution_id: string
+          institution_logo: string | null
+          institution_name: string
+          last_sync_at: string | null
+          provider_slug: string
+          requisition_id: string | null
+          requisition_link: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accounts_count?: number | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          institution_country?: string | null
+          institution_id: string
+          institution_logo?: string | null
+          institution_name: string
+          last_sync_at?: string | null
+          provider_slug?: string
+          requisition_id?: string | null
+          requisition_link?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accounts_count?: number | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          institution_country?: string | null
+          institution_id?: string
+          institution_logo?: string | null
+          institution_name?: string
+          last_sync_at?: string | null
+          provider_slug?: string
+          requisition_id?: string | null
+          requisition_link?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_provider_configs: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_enabled: boolean
+          logo_url: string | null
+          provider_name: string
+          provider_slug: string
+          supported_countries: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          logo_url?: string | null
+          provider_name: string
+          provider_slug: string
+          supported_countries?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          logo_url?: string | null
+          provider_name?: string
+          provider_slug?: string
+          supported_countries?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bank_sync_logs: {
+        Row: {
+          accounts_synced: number
+          company_id: string
+          completed_at: string | null
+          connection_id: string | null
+          error_message: string | null
+          id: string
+          started_at: string
+          status: string
+          sync_type: string
+          transactions_fetched: number
+          triggered_by: string | null
+        }
+        Insert: {
+          accounts_synced?: number
+          company_id: string
+          completed_at?: string | null
+          connection_id?: string | null
+          error_message?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          sync_type?: string
+          transactions_fetched?: number
+          triggered_by?: string | null
+        }
+        Update: {
+          accounts_synced?: number
+          company_id?: string
+          completed_at?: string | null
+          connection_id?: string | null
+          error_message?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          sync_type?: string
+          transactions_fetched?: number
+          triggered_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_sync_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_sync_logs_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "bank_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_transactions: {
+        Row: {
+          account_id: string
+          amount: number
+          booking_date: string | null
+          category: string | null
+          category_icon: string | null
+          company_id: string
+          created_at: string
+          creditor_iban: string | null
+          creditor_name: string | null
+          currency: string
+          debtor_iban: string | null
+          debtor_name: string | null
+          description: string | null
+          external_transaction_id: string
+          id: string
+          linked_cost_id: string | null
+          linked_invoice_id: string | null
+          merchant_name: string | null
+          metadata: Json
+          note: string | null
+          reference: string | null
+          status: string
+          synced_at: string
+          transaction_type: string
+          value_date: string | null
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          booking_date?: string | null
+          category?: string | null
+          category_icon?: string | null
+          company_id: string
+          created_at?: string
+          creditor_iban?: string | null
+          creditor_name?: string | null
+          currency?: string
+          debtor_iban?: string | null
+          debtor_name?: string | null
+          description?: string | null
+          external_transaction_id: string
+          id?: string
+          linked_cost_id?: string | null
+          linked_invoice_id?: string | null
+          merchant_name?: string | null
+          metadata?: Json
+          note?: string | null
+          reference?: string | null
+          status?: string
+          synced_at?: string
+          transaction_type?: string
+          value_date?: string | null
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          booking_date?: string | null
+          category?: string | null
+          category_icon?: string | null
+          company_id?: string
+          created_at?: string
+          creditor_iban?: string | null
+          creditor_name?: string | null
+          currency?: string
+          debtor_iban?: string | null
+          debtor_name?: string | null
+          description?: string | null
+          external_transaction_id?: string
+          id?: string
+          linked_cost_id?: string | null
+          linked_invoice_id?: string | null
+          merchant_name?: string | null
+          metadata?: Json
+          note?: string | null
+          reference?: string | null
+          status?: string
+          synced_at?: string
+          transaction_type?: string
+          value_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_logs: {
         Row: {
           company_id: string
@@ -1994,6 +2373,7 @@ export type Database = {
           stripe_customer_id: string | null
           stripe_subscription_status: string | null
           subscription_plan_id: string | null
+          tesoreria_enabled: boolean | null
           trial_ends_at: string | null
           trial_extensions_count: number
           updated_at: string
@@ -2049,6 +2429,7 @@ export type Database = {
           stripe_customer_id?: string | null
           stripe_subscription_status?: string | null
           subscription_plan_id?: string | null
+          tesoreria_enabled?: boolean | null
           trial_ends_at?: string | null
           trial_extensions_count?: number
           updated_at?: string
@@ -2104,6 +2485,7 @@ export type Database = {
           stripe_customer_id?: string | null
           stripe_subscription_status?: string | null
           subscription_plan_id?: string | null
+          tesoreria_enabled?: boolean | null
           trial_ends_at?: string | null
           trial_extensions_count?: number
           updated_at?: string
@@ -9643,6 +10025,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      get_cash_flow_by_month: {
+        Args: { p_company_id: string; p_months?: number }
+        Returns: {
+          expenses: number
+          income: number
+          month: string
+          net: number
+        }[]
+      }
       get_company_health_data: {
         Args: never
         Returns: {
@@ -9801,6 +10192,20 @@ export type Database = {
         Returns: {
           total_count: number
           total_value: number
+        }[]
+      }
+      get_treasury_summary: {
+        Args: { p_company_id: string }
+        Returns: {
+          accounts_count: number
+          connections_count: number
+          last_sync_at: string
+          monthly_expenses: number
+          monthly_income: number
+          monthly_net: number
+          total_balance: number
+          total_credit_balance: number
+          total_debit_balance: number
         }[]
       }
       get_user_company_id: { Args: { _user_id: string }; Returns: string }

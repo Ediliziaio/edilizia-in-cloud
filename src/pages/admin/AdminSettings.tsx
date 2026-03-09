@@ -1,11 +1,12 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, ShieldCheck, Server, Bell, ScrollText, Plug } from "lucide-react";
+import { User, ShieldCheck, Server, Bell, ScrollText, Plug, Landmark } from "lucide-react";
 import ProfileTab from "@/components/admin/settings/ProfileTab";
 import SuperAdminUsersTab from "@/components/admin/settings/SuperAdminUsersTab";
 import PlatformInfoTab from "@/components/admin/settings/PlatformInfoTab";
 import NotificationsTab from "@/components/admin/settings/NotificationsTab";
 import AuditLogTab from "@/components/admin/settings/AuditLogTab";
 import AdminSettingsIntegrations from "@/components/admin/settings/AdminSettingsIntegrations";
+import BankingSettingsTab from "@/components/admin/settings/BankingSettingsTab";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 
 export default function AdminSettings() {
@@ -32,6 +33,9 @@ export default function AdminSettings() {
           {permissions.can_manage_admins && (
             <TabsTrigger value="audit" className="gap-2"><ScrollText className="h-4 w-4" /> Registro Attività</TabsTrigger>
           )}
+          {permissions.can_manage_admins && (
+            <TabsTrigger value="banking" className="gap-2"><Landmark className="h-4 w-4" /> Banking</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profilo"><ProfileTab /></TabsContent>
@@ -45,6 +49,9 @@ export default function AdminSettings() {
         <TabsContent value="notifiche"><NotificationsTab /></TabsContent>
         {permissions.can_manage_admins && (
           <TabsContent value="audit"><AuditLogTab /></TabsContent>
+        )}
+        {permissions.can_manage_admins && (
+          <TabsContent value="banking"><BankingSettingsTab /></TabsContent>
         )}
       </Tabs>
     </div>

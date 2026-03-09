@@ -19,6 +19,7 @@ import {
   Gauge,
   BarChart3,
   Headphones,
+  Landmark,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
@@ -48,6 +49,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Chat Interna", url: "/azienda/chat", icon: MessageCircle, category: "internal" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewSettings", category: "internal" },
   { title: "Agenti AI Interni", url: "/azienda/agente-interno", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal" },
+  { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewDashboard", featureKey: "tesoreria", category: "internal" },
 ];
 
 export const cruscottoNavItem: NavItem = {

@@ -97,6 +97,7 @@ const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
 const MessagingBeta = lazy(() => import("@/pages/azienda/MessagingBeta"));
 const Automations = lazy(() => import("@/pages/azienda/Automations"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
+const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
@@ -283,6 +284,7 @@ const App = () => (
                 <Route path="errori" element={<GlobalErrors />} />
                 <Route path="messaggistica-beta" element={<MessagingBeta />} />
                 <Route path="chat" element={<InternalChat />} />
+                <Route path="tesoreria" element={<Tesoreria />} />
                 <Route path="automazioni" element={<Automations />} />
 
                 {/* Marketing Routes */}
