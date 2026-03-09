@@ -36,6 +36,7 @@ export interface PrimaNotaSaldo {
   entrate: number;
   uscite: number;
   saldo: number;
+  entry_count: number;
 }
 
 export interface PrimaNotaFilters {
