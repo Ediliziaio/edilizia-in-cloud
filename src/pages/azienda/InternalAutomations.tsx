@@ -320,6 +320,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     setLocalConnections(newConns);
     setDirty(true);
     setAddAfterNodeId(null);
+    setAddAfterBranch(null);
     setSelectedNodeId(id);
   }, [flowId, localNodes, localConnections, addAfterNodeId]);
 
