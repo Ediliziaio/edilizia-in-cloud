@@ -311,6 +311,8 @@ const App = () => (
                 <Route path="scadenzario" element={<Scadenzario />} />
                 <Route path="report-fatturazione" element={<BillingReports />} />
                 <Route path="prima-nota" element={<PrimaNota />} />
+                <Route path="fornitori" element={<Suppliers />} />
+                <Route path="fornitori/:id" element={<Suppliers />} />
                 <Route path="automazioni" element={<InternalAutomations />} />
                 <Route path="automazioni/:id" element={<InternalAutomations />} />
                 <Route path="automazioni-legacy" element={<Automations />} />
