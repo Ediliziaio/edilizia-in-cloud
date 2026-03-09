@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizontal, Lock, UserCheck, Phone, TrendingUp } from "lucide-react";
+import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizontal, Lock, UserCheck, Phone, TrendingUp, Clock, Wifi, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { formatDistanceToNow } from "date-fns";
+import { it } from "date-fns/locale";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -24,7 +27,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { StaffUserDialog, StaffUserFormData } from "@/components/users/StaffUserDialog";
+import { CreateUserWizard, type WizardUserFormData } from "@/components/users/CreateUserWizard";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center";
@@ -37,6 +40,10 @@ interface CompanyUser {
   phone: string | null;
   effectiveRole: EffectiveRole;
   permissions: StaffPermissions | null;
+  last_login_at: string | null;
+  locked_until: string | null;
+  failed_login_count: number;
+  active_sessions: number;
 }
 
 // --- KPI Card Component ---
@@ -162,6 +169,62 @@ function RoleBadge({ role, onlyAssigned }: { role: EffectiveRole; onlyAssigned?:
   );
 }
 
+// --- Security Status ---
+function SecurityStatus({ u }: { u: CompanyUser }) {
+  const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
+
+  return (
+    <TooltipProvider>
+      <div className="flex items-center gap-1.5">
+        {/* Active sessions indicator */}
+        {u.active_sessions > 0 && (
+          <Tooltip>
+            <TooltipTrigger>
+              <span className="flex items-center gap-0.5 text-emerald-600">
+                <Wifi className="h-3 w-3" />
+                <span className="text-[11px]">{u.active_sessions}</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {u.active_sessions} sessione/i attiva/e
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Locked indicator */}
+        {isLocked && (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                <Lock className="h-2.5 w-2.5 mr-0.5" />
+                Bloccato
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Bloccato fino a {new Date(u.locked_until!).toLocaleString("it-IT")}
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Failed attempts warning */}
+        {!isLocked && u.failed_login_count > 0 && (
+          <Tooltip>
+            <TooltipTrigger>
+              <span className="flex items-center gap-0.5 text-orange-500">
+                <AlertTriangle className="h-3 w-3" />
+                <span className="text-[11px]">{u.failed_login_count}</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {u.failed_login_count} tentativi falliti
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </TooltipProvider>
+  );
+}
+
 function determineEffectiveRole(roles: string[]): EffectiveRole {
   if (roles.includes("company_admin")) return "company_admin";
   if (roles.includes("salesperson")) return "salesperson";
@@ -186,23 +249,36 @@ export function UsersConfig() {
     queryFn: async () => {
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone")
+        .select("id, first_name, last_name, email, phone, last_login_at, locked_until, failed_login_count")
         .eq("company_id", effectiveCompanyId!);
 
       if (profilesError) throw profilesError;
 
       const userIds = profiles.map((p) => p.id);
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds);
+      
+      // Fetch roles and active sessions in parallel
+      const [rolesRes, sessionsRes, permsRes] = await Promise.all([
+        supabase.from("user_roles").select("user_id, role").in("user_id", userIds),
+        supabase.from("user_sessions").select("user_id").eq("company_id", effectiveCompanyId!).eq("is_active", true),
+        supabase.from("staff_permissions").select("*").in("user_id", userIds),
+      ]);
 
       // Group roles by user
       const rolesByUser: Record<string, string[]> = {};
-      roles?.forEach((r) => {
+      rolesRes.data?.forEach((r) => {
         if (!rolesByUser[r.user_id]) rolesByUser[r.user_id] = [];
         rolesByUser[r.user_id].push(r.role);
       });
+
+      // Count active sessions per user
+      const sessionsByUser: Record<string, number> = {};
+      sessionsRes.data?.forEach((s) => {
+        sessionsByUser[s.user_id] = (sessionsByUser[s.user_id] || 0) + 1;
+      });
+
+      // Permissions map
+      const permissionsMap: Record<string, any> = {};
+      permsRes.data?.forEach((p) => { permissionsMap[p.user_id] = p; });
 
       // Filter to only company-relevant users
       const companyUserIds = Object.entries(rolesByUser)
@@ -213,26 +289,13 @@ export function UsersConfig() {
 
       if (companyUserIds.length === 0) return [];
 
-      // Get staff permissions for users with company_staff role
-      const staffUserIds = companyUserIds.filter((uid) =>
-        rolesByUser[uid]?.includes("company_staff")
-      );
-
-      let permissionsMap: Record<string, any> = {};
-      if (staffUserIds.length > 0) {
-        const { data: permissions } = await supabase
-          .from("staff_permissions")
-          .select("*")
-          .in("user_id", staffUserIds);
-        permissions?.forEach((p) => { permissionsMap[p.user_id] = p; });
-      }
-
       const result: CompanyUser[] = companyUserIds.map((uid) => {
         const profile = profiles.find((p) => p.id === uid)!;
         return {
           ...profile,
           effectiveRole: determineEffectiveRole(rolesByUser[uid] || []),
           permissions: permissionsMap[uid] || null,
+          active_sessions: sessionsByUser[uid] || 0,
         };
       });
 
@@ -249,7 +312,7 @@ export function UsersConfig() {
   const salespersonCount = companyUsers.filter((u) => u.effectiveRole === "salesperson").length;
   const callCenterCount = companyUsers.filter((u) => u.effectiveRole === "call_center").length;
 
-  const handleCreateUser = async (data: StaffUserFormData): Promise<{ temporaryPassword?: string }> => {
+  const handleCreateUser = async (data: WizardUserFormData): Promise<{ temporaryPassword?: string }> => {
     setIsCreating(true);
     try {
       const response = await supabase.functions.invoke("create-company-staff", {
@@ -281,6 +344,17 @@ export function UsersConfig() {
           .from("staff_permissions")
           .update({ ...permFields, only_assigned: only_assigned || false })
           .eq("user_id", response.data.user_id);
+      }
+
+      // Audit log
+      if (effectiveCompanyId) {
+        await supabase.from("user_audit_log").insert({
+          company_id: effectiveCompanyId,
+          actor_id: user!.id,
+          target_user_id: response.data.user_id,
+          action: "user_created",
+          details: { role: data.role_type, email: data.email },
+        });
       }
 
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
@@ -424,6 +498,8 @@ export function UsersConfig() {
                   <TableHead>Email</TableHead>
                   <TableHead>Ruolo</TableHead>
                   <TableHead>Permessi</TableHead>
+                  <TableHead>Ultimo accesso</TableHead>
+                  <TableHead>Stato</TableHead>
                   <TableHead className="text-right w-12"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -460,6 +536,28 @@ export function UsersConfig() {
                     </TableCell>
                     <TableCell>
                       <PermissionBadges u={u} />
+                    </TableCell>
+                    <TableCell>
+                      {u.last_login_at ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatDistanceToNow(new Date(u.last_login_at), { addSuffix: true, locale: it })}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {new Date(u.last_login_at).toLocaleString("it-IT")}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Mai</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <SecurityStatus u={u} />
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       {!isCurrentUser(u.id) && (
@@ -517,7 +615,7 @@ export function UsersConfig() {
           )}
         </CardContent>
 
-        <StaffUserDialog
+        <CreateUserWizard
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
           onSubmit={handleCreateUser}
