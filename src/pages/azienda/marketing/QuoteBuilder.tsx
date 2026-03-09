@@ -364,6 +364,7 @@ export default function QuoteBuilder() {
         validity_days: validityDays,
         discount_percent: discountPercent,
         created_by: user.id,
+        template_id: selectedTemplateId || null,
       };
 
       let quoteId = id;
