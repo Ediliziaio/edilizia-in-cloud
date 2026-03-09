@@ -25,7 +25,9 @@ import {
   ShieldCheck,
   ScrollText,
   Mail,
-  Bot
+  Bot,
+  ListChecks,
+  ClipboardCheck
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
@@ -57,6 +59,8 @@ const allNavItems = [
   { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals" as const },
   { title: "Feature Flags", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies" as const },
   { title: "Lifecycle", url: "/admin/lifecycle", icon: LifeBuoy, permission: "can_manage_companies" as const },
+  { title: "CS Onboarding", url: "/admin/customer-success", icon: ListChecks, permission: "can_manage_companies" as const },
+  { title: "CS Tasks", url: "/admin/cs-tasks", icon: ClipboardCheck, permission: "can_manage_companies" as const },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats" as const },
   { title: "Sync Logs", url: "/admin/sync-logs", icon: RefreshCw, permission: "can_view_platform_stats" as const },
 ];

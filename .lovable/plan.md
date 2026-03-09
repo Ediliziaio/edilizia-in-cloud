@@ -46,15 +46,26 @@
 - ✅ **support_canned_responses** tabella con RLS
 - ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
 - ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi `sla_response_due_at`, `sla_resolution_due_at`, `first_response_at`, breached flags su `support_conversations`
-- ✅ **SLA per piano**: `sla_response_hours`, `sla_resolution_hours` su `subscription_plans`
-- ✅ **Assegnazione ticket**: campo `assigned_to` su `support_conversations`
+- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
+- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
+- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+
+---
+
+## Customer Success Platform ✅
+- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
+- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
+- ✅ **company_onboarding_completions**: tracking completamento step per azienda
+- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
+- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
+- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
+- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
+- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
 
 ---
 
 ## ⏳ Funzionalità Rimanenti
 
-- ⬜ Customer Success Platform (P1) — onboarding checklist, CS tasks, NPS
 - ⬜ API Platform per Aziende (P2)
 - ⬜ GDPR & Compliance Tools (P2)
 - ⬜ White-Label (P3)
