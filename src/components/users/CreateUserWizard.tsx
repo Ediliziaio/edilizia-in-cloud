@@ -224,7 +224,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
           </div>
         )}
 
-        <ScrollArea className="flex-1 min-h-0 max-h-[60vh] pr-4">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-4">
           {/* Step 0: Basic info */}
           {step === 0 && (
             <div className="space-y-4 py-2">
