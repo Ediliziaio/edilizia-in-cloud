@@ -33,6 +33,9 @@ export default function AdminSettings() {
           {permissions.can_manage_admins && (
             <TabsTrigger value="audit" className="gap-2"><ScrollText className="h-4 w-4" /> Registro Attività</TabsTrigger>
           )}
+          {permissions.can_manage_admins && (
+            <TabsTrigger value="banking" className="gap-2"><Landmark className="h-4 w-4" /> Banking</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profilo"><ProfileTab /></TabsContent>
