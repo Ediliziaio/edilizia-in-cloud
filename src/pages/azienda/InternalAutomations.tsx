@@ -322,7 +322,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     setAddAfterNodeId(null);
     setAddAfterBranch(null);
     setSelectedNodeId(id);
-  }, [flowId, localNodes, localConnections, addAfterNodeId]);
+  }, [flowId, localNodes, localConnections, addAfterNodeId, addAfterBranch]);
 
   const handleDeleteNode = useCallback((id: string) => {
     setLocalNodes((prev) => prev.filter((n) => n.id !== id));
