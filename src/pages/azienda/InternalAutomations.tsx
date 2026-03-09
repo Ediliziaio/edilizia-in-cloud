@@ -21,6 +21,7 @@ import { InternalNodePanel } from "@/components/internalAutomationBuilder/Intern
 import { InternalTriggerSelector } from "@/components/internalAutomationBuilder/InternalTriggerSelector";
 import { InternalActionSelector } from "@/components/internalAutomationBuilder/InternalActionSelector";
 import { InternalAutomationLogDrawer } from "@/components/internalAutomationBuilder/InternalAutomationLogDrawer";
+import { InternalAutomationLogInline } from "@/components/internalAutomationBuilder/InternalAutomationLogInline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -229,20 +230,16 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
   const [addAfterNodeId, setAddAfterNodeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("builder");
 
-  // Sync from DB on load
-  useState(() => {
-    if (dbNodes) setLocalNodes(dbNodes);
-    if (dbConnections) setLocalConnections(dbConnections);
-    if (flow) setFlowName(flow.name);
-  });
+  const [addAfterBranch, setAddAfterBranch] = useState<string | null>(null);
 
-  useMemo(() => {
+  // Sync from DB on load
+  useEffect(() => {
     if (dbNodes && !dirty) setLocalNodes(dbNodes);
   }, [dbNodes]);
-  useMemo(() => {
+  useEffect(() => {
     if (dbConnections && !dirty) setLocalConnections(dbConnections);
   }, [dbConnections]);
-  useMemo(() => {
+  useEffect(() => {
     if (flow && !dirty) setFlowName(flow.name);
   }, [flow]);
 
@@ -314,7 +311,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
         company_id: "",
         from_node_id: parentId,
         to_node_id: id,
-        label: null,
+        label: addAfterBranch,
         created_at: new Date().toISOString(),
       });
     }
@@ -323,8 +320,9 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     setLocalConnections(newConns);
     setDirty(true);
     setAddAfterNodeId(null);
+    setAddAfterBranch(null);
     setSelectedNodeId(id);
-  }, [flowId, localNodes, localConnections, addAfterNodeId]);
+  }, [flowId, localNodes, localConnections, addAfterNodeId, addAfterBranch]);
 
   const handleDeleteNode = useCallback((id: string) => {
     setLocalNodes((prev) => prev.filter((n) => n.id !== id));
@@ -348,6 +346,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
 
   const handleAddAfterNode = useCallback((id: string, branch?: string) => {
     setAddAfterNodeId(id);
+    setAddAfterBranch(branch || null);
     setActionPickerOpen(true);
   }, []);
 
@@ -507,11 +506,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
 
       {activeTab === "log" && (
         <div className="flex-1 overflow-y-auto">
-          <InternalAutomationLogDrawer
-            flowId={flowId}
-            open={true}
-            onClose={() => setActiveTab("builder")}
-          />
+          <InternalAutomationLogInline flowId={flowId} />
         </div>
       )}
     </div>
