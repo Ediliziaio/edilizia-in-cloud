@@ -180,8 +180,7 @@ export const INTERNAL_TRIGGER_CATEGORIES: {
       { id: "order_created", label: "Ordine creato", icon: "Plus", category: "ordini", description: "Quando viene creato un nuovo ordine", availableVariables: ORDER_VARIABLES },
       { id: "order_updated", label: "Ordine modificato", icon: "Edit", category: "ordini", description: "Quando un ordine viene aggiornato", availableVariables: ORDER_VARIABLES },
       { id: "order_status_changed", label: "Stato ordine cambiato", icon: "RefreshCw", category: "ordini", description: "Quando lo stato di un ordine cambia", availableVariables: [...ORDER_VARIABLES, { key: "_old.current_status_id", label: "Stato precedente" }] },
-      { id: "order_overdue", label: "Ordine in ritardo", icon: "AlertTriangle", category: "ordini", description: "Quando un ordine supera la data prevista", availableVariables: ORDER_VARIABLES, disabled: true, disabledReason: "Prossimamente" },
-      { id: "order_completed", label: "Ordine completato", icon: "CheckCircle", category: "ordini", description: "Quando un ordine viene completato", availableVariables: ORDER_VARIABLES },
+      { id: "order_overdue", label: "Ordine in ritardo", icon: "AlertTriangle", category: "ordini", description: "Quando un ordine supera la data prevista", availableVariables: ORDER_VARIABLES, disabled: true, disabledReason: "Prossimamente"tato", availableVariables: ORDER_VARIABLES },
     ],
   },
   {
@@ -203,15 +202,7 @@ export const INTERNAL_TRIGGER_CATEGORIES: {
       { id: "task_created", label: "Attività creata", icon: "Plus", category: "task", description: "Quando viene creata una nuova attività", availableVariables: TASK_VARIABLES },
       { id: "task_completed", label: "Attività completata", icon: "CheckCircle", category: "task", description: "Quando un'attività viene completata", availableVariables: TASK_VARIABLES },
       { id: "task_updated", label: "Attività modificata", icon: "Edit", category: "task", description: "Quando un'attività viene aggiornata", availableVariables: TASK_VARIABLES },
-      { id: "task_overdue", label: "Att, disabled: true, disabledReason: "Prossimamente"ività scaduta", icon: "AlertTriangle", category:, disabled: true, disabledReason: "Prossimamente" "task", description: "Quando un'attività supera, disabled: true, disabledReason: "Prossimamente" la scadenza", availableVariables: TASK_VARIABLES },
-    ],
-  },
-  {
-    key: "magazzino",
-    label: "Magazzino",
-    icon: "Warehouse",
-    items: [
-      { id: "stock_below_minimum", label: "Sotto scorta minima", icon: "AlertTriangle", category: "magazzino", description: "Quando la quantità scende sotto il minimo", availableVariables: STOCK_VARIABLES },
+      { id: "task_overdue", label: "Att, disabled: true, disabledReason: "Prossimamente"ività scaduta", icon: "AlertTriangle", category:, disabled: true, disabledReason: "Prossimamente"ività scaduta", icon: "AlertTriangle", category: "task", description: "Quando un'attività supera la scadenza", availableVariables: TASK_VARIABLES, disabled: true, disabledReason: "Prossimamente"tto scorta minima", icon: "AlertTriangle", category: "magazzino", description: "Quando la quantità scende sotto il minimo", availableVariables: STOCK_VARIABLES },
       { id: "stock_updated", label: "Giacenza aggiornata", icon: "RefreshCw", category: "magazzino", description: "Quando la quantità viene modificata", availableVariables: STOCK_VARIABLES },
     ],
   },
