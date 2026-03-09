@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { Download, Printer, CalendarClock, BookOpen } from "lucide-react";
+import { exportToCSV } from "@/lib/csvExport";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
