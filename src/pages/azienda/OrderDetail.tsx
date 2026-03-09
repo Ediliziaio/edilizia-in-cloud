@@ -249,6 +249,7 @@ export default function OrderDetail() {
       return data as OrderItemAttachmentData[];
     },
     enabled: orderItems.length > 0,
+    staleTime: 120_000,
   });
 
   // Fetch order statuses
