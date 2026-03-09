@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { Download, Printer } from "lucide-react";
+import { Download, Printer, CalendarClock, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +9,7 @@ import { CostsForecastTab } from "@/components/forecast/CostsForecastTab";
 import { CashForecastTab } from "@/components/forecast/CashForecastTab";
 import { TreasuryTab } from "@/components/forecast/TreasuryTab";
 import { MarginTab } from "@/components/forecast/MarginTab";
+import { useNavigate } from "react-router-dom";
 
 
 export default function CashFlowForecast() {
