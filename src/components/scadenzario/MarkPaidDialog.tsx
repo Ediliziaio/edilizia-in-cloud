@@ -85,6 +85,17 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
           </div>
 
           <div className="space-y-2">
+            <Label>Conto</Label>
+            <Select value={accountLabel} onValueChange={setAccountLabel}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="banca">Banca</SelectItem>
+                <SelectItem value="cassa">Cassa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
             <Label>Note (opzionale)</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
