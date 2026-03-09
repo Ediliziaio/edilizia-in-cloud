@@ -1280,6 +1280,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <ContactQuotesPanel contactId={id} companyId={companyId} />
               )}
 
+              {/* Invoices panel */}
+              {rightTab === "invoices" && id && companyId && (
+                <ContactInvoicesPanel contactId={id} companyId={companyId} />
+              )}
+
               {/* Settings panel */}
               {rightTab === "settings" && (
                 <div className="space-y-4">
