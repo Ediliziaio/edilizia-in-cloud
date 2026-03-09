@@ -99,4 +99,6 @@ const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
   }
 
   return <LoginForm />;
-}
+});
+
+export default Login;
