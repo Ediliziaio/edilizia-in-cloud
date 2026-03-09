@@ -51,7 +51,7 @@ export function DashboardExport({ data }: { data: ExportData }) {
       if (data.revenueData.healthSummary) {
         rows.push(
           ["Health: Sane", String(data.revenueData.healthSummary.healthy)],
-          ["Health: A Rischio", String(data.revenueData.healthSummary.at_risk)],
+          ["Health: A Rischio", String(data.revenueData.healthSummary.atRisk)],
           ["Health: Critiche", String(data.revenueData.healthSummary.critical)],
         );
       }
