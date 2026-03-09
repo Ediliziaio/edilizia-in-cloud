@@ -193,8 +193,12 @@ Deno.serve(async (req) => {
     let recipientsB: any[] = [];
 
     if (isAbTest) {
-      // Shuffle recipients for random split
-      const shuffled = [...recipients].sort(() => Math.random() - 0.5);
+      // Fisher-Yates shuffle for uniform distribution
+      const shuffled = [...recipients];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
       const splitIdx = Math.round(shuffled.length * (abSplitPercent / 100));
       recipientsA = shuffled.slice(0, splitIdx);
       recipientsB = shuffled.slice(splitIdx);

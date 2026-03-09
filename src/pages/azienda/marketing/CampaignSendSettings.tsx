@@ -285,6 +285,7 @@ export default function CampaignSendSettings() {
     { label: "Email mittente", ok: !!senderEmail },
     { label: "Oggetto", ok: !!subject },
     { label: "Contenuto email", ok: !!(campaign?.html_content) },
+    ...(abTestEnabled ? [{ label: "Oggetto variante B", ok: !!abSubjectB?.trim() }] : []),
   ];
   const missingCount = requiredFields.filter((f) => !f.ok).length;
 
