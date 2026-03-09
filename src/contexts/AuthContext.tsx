@@ -211,7 +211,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isLoading: false,
           });
           // Clear impersonation on logout
-          sessionStorage.removeItem(IMPERSONATION_KEY);
           setImpersonatedCompanyId(null);
           setImpersonatedCompany(null);
         }
