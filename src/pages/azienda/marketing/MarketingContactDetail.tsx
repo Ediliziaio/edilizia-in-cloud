@@ -48,6 +48,7 @@ import { ContactDndTab } from "@/components/marketing/ContactDndTab";
 import { ContactActionsTab } from "@/components/marketing/ContactActionsTab";
 import { ContactMergeDialog } from "@/components/marketing/ContactMergeDialog";
 import { ContactSmsLog } from "@/components/marketing/ContactSmsLog";
+import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPanel";
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
 
 // ── Contact Appointments Panel ──
