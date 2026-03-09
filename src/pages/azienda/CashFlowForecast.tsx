@@ -129,6 +129,14 @@ export default function CashFlowForecast() {
           </p>
         </div>
         <div className="flex items-center gap-2 print:hidden">
+          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/scadenzario")} className="gap-1">
+            <CalendarClock className="h-4 w-4" />
+            Scadenzario
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/prima-nota")} className="gap-1">
+            <BookOpen className="h-4 w-4" />
+            Prima Nota
+          </Button>
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1">
             <Download className="h-4 w-4" />
             Esporta CSV
