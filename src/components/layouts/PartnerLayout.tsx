@@ -1,8 +1,11 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
-import { Gift, LogOut, User } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Gift, LogOut, User, Link2, DollarSign, Wallet, FolderDown, LayoutDashboard } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
@@ -17,37 +20,69 @@ import {
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
 
+const MENU_ITEMS = [
+  { to: "/partner", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/partner/link", label: "Il Mio Link", icon: Link2 },
+  { to: "/partner/commissioni", label: "Commissioni", icon: DollarSign },
+  { to: "/partner/payout", label: "Payout", icon: Wallet },
+  { to: "/partner/materiali", label: "Materiali", icon: FolderDown },
+  { to: "/partner/profilo", label: "Profilo", icon: User },
+];
+
 function PartnerSidebar() {
-  const { signOut, profile } = useAuth();
-  const navigate = useNavigate();
+  const { signOut, profile, user } = useAuth();
+
+  const { data: referrer } = useQuery({
+    queryKey: ["my-referrer-sidebar", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("referrers")
+        .select("name, referral_tiers(name, icon, color)")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const initials = `${profile?.first_name?.[0] || ""}${profile?.last_name?.[0] || ""}`.toUpperCase() || "P";
+  const tier = (referrer as any)?.referral_tiers;
 
   return (
     <Sidebar className="border-r">
-      <div className="flex h-14 items-center border-b px-4">
+      <div className="flex h-14 items-center border-b px-4 justify-between">
         <Link to="/partner" className="flex items-center gap-2">
           <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
         </Link>
+        {tier && (
+          <Badge
+            className="text-xs px-2 py-0.5"
+            style={{ backgroundColor: tier.color, color: "#fff" }}
+          >
+            {tier.icon} {tier.name}
+          </Badge>
+        )}
       </div>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <NavLink to="/partner" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                    <Gift className="h-4 w-4" /><span>Dashboard</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <NavLink to="/profilo" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
-                    <User className="h-4 w-4" /><span>Profilo</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {MENU_ITEMS.map((item) => (
+                <SidebarMenuItem key={item.to}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.to}
+                      end={item.end}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      activeClassName="bg-muted text-foreground font-medium"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -59,7 +94,7 @@ function PartnerSidebar() {
             <AvatarFallback className="text-xs">{initials}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{profile?.first_name} {profile?.last_name}</p>
+            <p className="text-sm font-medium truncate">{referrer?.name || `${profile?.first_name} ${profile?.last_name}`}</p>
             <p className="text-xs text-muted-foreground truncate">{profile?.email}</p>
           </div>
         </div>

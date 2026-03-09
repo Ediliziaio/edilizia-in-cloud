@@ -194,3 +194,9 @@ verify_jwt = false
 
 [functions.quote-sign]
 verify_jwt = false
+
+[functions.track-referral-click]
+verify_jwt = false
+
+[functions.send-partner-notification]
+verify_jwt = false

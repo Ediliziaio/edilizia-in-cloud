@@ -150,7 +150,12 @@ const MyEarnings = lazy(() => import("@/pages/venditore/MyEarnings"));
 const SalespersonProfile = lazy(() => import("@/pages/venditore/SalespersonProfile"));
 
 // Partner
-const PartnerPortal = lazy(() => import("@/pages/partner/PartnerPortal"));
+const PartnerDashboard = lazy(() => import("@/pages/partner/PartnerDashboard"));
+const PartnerLink = lazy(() => import("@/pages/partner/PartnerLink"));
+const PartnerCommissions = lazy(() => import("@/pages/partner/PartnerCommissions"));
+const PartnerPayout = lazy(() => import("@/pages/partner/PartnerPayout"));
+const PartnerMaterials = lazy(() => import("@/pages/partner/PartnerMaterials"));
+const PartnerProfile = lazy(() => import("@/pages/partner/PartnerProfile"));
 
 // Auth
 const ChangePassword = lazy(() => import("@/pages/auth/ChangePassword"));
@@ -409,7 +414,12 @@ const App = () => (
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<PartnerPortal />} />
+                <Route index element={<PartnerDashboard />} />
+                <Route path="link" element={<PartnerLink />} />
+                <Route path="commissioni" element={<PartnerCommissions />} />
+                <Route path="payout" element={<PartnerPayout />} />
+                <Route path="materiali" element={<PartnerMaterials />} />
+                <Route path="profilo" element={<PartnerProfile />} />
               </Route>
 
               {/* Catch-all */}
