@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useFormBuilder, type FormField, type LeadForm } from "@/hooks/useFormBuilder";
+import { useFormBuilder, type FormField, type FormFieldType, type LeadForm } from "@/hooks/useFormBuilder";
 import { TrackingSnippetSettings } from "@/components/settings/TrackingSnippetSettings";
 import { FormFieldLibrary } from "@/components/settings/FormFieldLibrary";
 import { FormEditorCanvas } from "@/components/settings/FormEditorCanvas";
 import { FormFieldProperties } from "@/components/settings/FormFieldProperties";
+import { FormSettingsPanel } from "@/components/settings/FormSettingsPanel";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -188,15 +189,20 @@ function FormEditor({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const selectedField = fields.find((f) => f.id === selectedFieldId) || null;
 
-  const handleAddField = (type: FormField["type"]) => {
+  const handleAddField = (type: FormFieldType) => {
+    const labelMap: Partial<Record<FormFieldType, string>> = {
+      email: "Email", phone: "Telefono", heading: "Titolo sezione",
+      paragraph: "Testo descrittivo", divider: "Separatore", hidden: "Campo nascosto",
+      date: "Data", radio: "Scelta", select: "Selezione", checkbox: "Accetto",
+    };
     const newField: FormField = {
       id: crypto.randomUUID(),
-      name: `field_${fields.length + 1}`,
-      label: type === "email" ? "Email" : type === "phone" ? "Telefono" : `Campo ${fields.length + 1}`,
+      name: type === "divider" ? `divider_${fields.length + 1}` : `field_${fields.length + 1}`,
+      label: labelMap[type] || `Campo ${fields.length + 1}`,
       type,
       required: type === "email",
       placeholder: "",
-      options: type === "select" ? ["Opzione 1", "Opzione 2"] : undefined,
+      options: (type === "select" || type === "radio") ? ["Opzione 1", "Opzione 2"] : undefined,
     };
     setFields([...fields, newField]);
     setSelectedFieldId(newField.id);
@@ -253,35 +259,6 @@ function FormEditor({
         </div>
       </div>
 
-      {/* Theme settings */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Colore accento</Label>
-          <Input
-            type="color"
-            value={theme.accent_color || "#2563eb"}
-            onChange={(e) => setTheme({ ...theme, accent_color: e.target.value })}
-            className="h-8"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Testo bottone</Label>
-          <Input
-            value={settings.submit_label || "Invia"}
-            onChange={(e) => setSettings({ ...settings, submit_label: e.target.value })}
-            className="h-8 text-sm"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Messaggio successo</Label>
-          <Input
-            value={settings.success_message || ""}
-            onChange={(e) => setSettings({ ...settings, success_message: e.target.value })}
-            className="h-8 text-sm"
-          />
-        </div>
-      </div>
-
       {/* 3-column editor */}
       <div className="grid grid-cols-[180px_1fr_220px] gap-4 min-h-[400px]">
         {/* Left: field library */}
@@ -302,13 +279,23 @@ function FormEditor({
           </DndContext>
         </div>
 
-        {/* Right: properties */}
+        {/* Right: properties or settings panel */}
         <div className="border rounded-lg p-3">
-          <FormFieldProperties
-            field={selectedField}
-            onUpdate={handleUpdateField}
-            onDelete={handleDeleteField}
-          />
+          {selectedField ? (
+            <FormFieldProperties
+              field={selectedField}
+              onUpdate={handleUpdateField}
+              onDelete={handleDeleteField}
+            />
+          ) : (
+            <FormSettingsPanel
+              form={form}
+              theme={theme}
+              settings={settings}
+              onThemeChange={setTheme}
+              onSettingsChange={setSettings}
+            />
+          )}
         </div>
       </div>
     </div>
