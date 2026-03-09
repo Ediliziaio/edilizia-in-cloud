@@ -274,7 +274,39 @@ export function useCashFlowData() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories;
+  // Open scadenze (da_pagare, parziale) for forecast integration
+  const { data: openScadenze = [], isLoading: loadingScadenze } = useQuery({
+    queryKey: ["forecast-scadenze", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("scadenze")
+        .select("id, tipo, direction, description, amount, paid_amount, due_date, status, supplier_id, order_id, suppliers(name), orders(order_number)")
+        .eq("company_id", companyId!)
+        .in("status", ["da_pagare", "parziale"])
+        .order("due_date", { ascending: true })
+        .limit(10000);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Prima Nota saldo (current cash position)
+  const { data: primaNotaSaldo, isLoading: loadingSaldo } = useQuery({
+    queryKey: ["forecast-prima-nota-saldo", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
+        p_company_id: companyId!,
+      });
+      if (error) throw error;
+      return data as { entrate: number; uscite: number; saldo: number; entry_count: number } | null;
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories || loadingScadenze || loadingSaldo;
 
   // Backwards-compat: expose installmentsData as "orders" for treasury module
   const orders = installmentsData;
@@ -533,6 +565,24 @@ export function useCashFlowData() {
     };
   }, [expectedPayments, expectedExpenses, expectedCommissions, expectedCompanyCosts, expectedSupplierPayments, companyCosts]);
 
+  // Scadenze as forecast entries (not already covered by order_installments/company_costs)
+  const scadenzeForForecast = useMemo(() => {
+    return openScadenze.map((s: any) => {
+      const remaining = Number(s.amount) - Number(s.paid_amount || 0);
+      return {
+        id: s.id,
+        description: s.description,
+        amount: remaining,
+        expectedDate: s.due_date ? new Date(s.due_date) : null,
+        direction: s.direction as "entrata" | "uscita",
+        tipo: s.tipo,
+        supplierName: s.suppliers?.name || null,
+        orderNumber: s.orders?.order_number || null,
+        orderId: s.order_id,
+      };
+    }).filter((s: any) => s.amount > 0);
+  }, [openScadenze]);
+
   return {
     isLoading,
     orders,
@@ -550,5 +600,8 @@ export function useCashFlowData() {
     activeEmployees,
     treasuryCategories,
     companyId,
+    // New: scadenze + prima nota
+    scadenzeForForecast,
+    primaNotaSaldo: primaNotaSaldo || { entrate: 0, uscite: 0, saldo: 0, entry_count: 0 },
   };
 }

@@ -22,7 +22,20 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { WaterfallChart } from "@/components/forecast/WaterfallChart";
+import { CashFlowForecast306090 } from "@/components/forecast/CashFlowForecast306090";
 import type { ForecastStats, ExpectedPayment, ExpectedExpense, ExpectedCommission, ExpectedSupplierPayment, CompanyCostEntry } from "@/lib/forecastTypes";
+
+interface ScadenzaForecastEntry {
+  id: string;
+  description: string;
+  amount: number;
+  expectedDate: Date | null;
+  direction: "entrata" | "uscita";
+  tipo: string;
+  supplierName: string | null;
+  orderNumber: string | null;
+  orderId: string | null;
+}
 
 interface CashForecastTabProps {
   stats: ForecastStats;
@@ -31,6 +44,8 @@ interface CashForecastTabProps {
   expectedCommissions: ExpectedCommission[];
   expectedSupplierPayments: ExpectedSupplierPayment[];
   expectedCompanyCosts: CompanyCostEntry[];
+  scadenzeForForecast?: ScadenzaForecastEntry[];
+  primaNotaSaldo?: { entrate: number; uscite: number; saldo: number; entry_count: number };
 }
 
 type FilterCategory = "all" | "income" | "expenses";
@@ -45,7 +60,7 @@ interface UnifiedTransaction {
   orderId: string | null;
 }
 
-export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts }: CashForecastTabProps) {
+export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast = [], primaNotaSaldo }: CashForecastTabProps) {
   const navigate = useNavigate();
   const now = new Date();
   const [filter, setFilter] = useState<FilterCategory>("all");
@@ -115,6 +130,17 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     expectedCommissions.forEach(c => items.push({ date: c.expectedDate, description: c.salespersonName, orderCode: c.orderCode, category: "Provvigione", amount: c.amount, direction: "out", orderId: c.orderId }));
     expectedSupplierPayments.filter(p => !p.isPaid).forEach(s => items.push({ date: s.expectedDate, description: s.supplierName, orderCode: s.orderCode, category: s.type, amount: s.amount, direction: "out", orderId: s.orderId }));
     expectedCompanyCosts.forEach(c => items.push({ date: c.expectedDate, description: c.name, orderCode: null, category: c.type, amount: c.amount, direction: "out", orderId: null }));
+
+    // Add scadenze as transactions
+    scadenzeForForecast.forEach(s => items.push({
+      date: s.expectedDate,
+      description: s.description + (s.supplierName ? ` (${s.supplierName})` : ""),
+      orderCode: s.orderNumber || null,
+      category: `Scadenza: ${s.tipo.replace(/_/g, " ")}`,
+      amount: s.amount,
+      direction: s.direction === "entrata" ? "in" : "out",
+      orderId: s.orderId,
+    }));
 
     return items
       .filter(t => filter === "all" || (filter === "income" ? t.direction === "in" : t.direction === "out"))
@@ -212,7 +238,19 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
         </Alert>
       )}
 
-      {/* Cumulative balance hero card */}
+      {/* 30/60/90 Forecast Widget */}
+      {primaNotaSaldo && (
+        <CashFlowForecast306090
+          scadenze={scadenzeForForecast}
+          primaNotaSaldo={primaNotaSaldo}
+          expectedPayments={expectedPayments}
+          expectedExpenses={expectedExpenses}
+          expectedCommissions={expectedCommissions}
+          expectedSupplierPayments={expectedSupplierPayments}
+          expectedCompanyCosts={expectedCompanyCosts}
+        />
+      )}
+
       <Card className={cn(
         "border",
         cumulativeNet >= 0
