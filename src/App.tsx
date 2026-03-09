@@ -284,6 +284,7 @@ const App = () => (
                 <Route path="errori" element={<GlobalErrors />} />
                 <Route path="messaggistica-beta" element={<MessagingBeta />} />
                 <Route path="chat" element={<InternalChat />} />
+                <Route path="tesoreria" element={<Tesoreria />} />
                 <Route path="automazioni" element={<Automations />} />
 
                 {/* Marketing Routes */}

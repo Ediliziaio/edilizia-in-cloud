@@ -50,6 +50,9 @@ export default function AdminSettings() {
         {permissions.can_manage_admins && (
           <TabsContent value="audit"><AuditLogTab /></TabsContent>
         )}
+        {permissions.can_manage_admins && (
+          <TabsContent value="banking"><BankingSettingsTab /></TabsContent>
+        )}
       </Tabs>
     </div>
   );
