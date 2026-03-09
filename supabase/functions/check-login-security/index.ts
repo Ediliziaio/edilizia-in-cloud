@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     if (profile.company_id && ip_address) {
       const { data: company } = await supabaseAdmin
         .from("companies")
-        .select("allowed_ips, max_failed_attempts")
+        .select("allowed_ips, max_failed_attempts, lockout_duration_minutes")
         .eq("id", profile.company_id)
         .single();
 
