@@ -2,13 +2,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ClipboardList, Users, MessageSquare, BarChart3, TrendingUp, Heart, DollarSign, Calendar } from "lucide-react";
+import { ClipboardList, Users, MessageSquare, BarChart3, TrendingUp, Heart, DollarSign, Calendar, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { ticketStatusLabels } from "@/lib/adminConstants";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { CompanyConversionCard } from "./CompanyConversionCard";
+import { Progress } from "@/components/ui/progress";
+import { useCompanyHealthScore } from "@/hooks/useHealthScores";
 import type { CompanyStats } from "@/hooks/useCompanyDetail";
 
 interface MonthlyOrderData {
@@ -18,6 +20,7 @@ interface MonthlyOrderData {
 }
 
 interface CompanyOverviewTabProps {
+  companyId?: string;
   stats: CompanyStats | null;
   totalTeam: number;
   recentOrders: any[] | undefined;
@@ -42,11 +45,12 @@ function getHealthColor(days: number | null): { color: string; label: string; bg
 }
 
 export function CompanyOverviewTab({
-  stats, totalTeam, recentOrders, recentTickets,
+  companyId, stats, totalTeam, recentOrders, recentTickets,
   currentPlan, currentSubscription, monthlyOrders, daysSinceLastOrder,
   companyCreatedAt, companyStatus, trialEndsAt, paymentMethod,
   onExtendTrial, isExtendingTrial,
 }: CompanyOverviewTabProps) {
+  const { data: serverHealth } = useCompanyHealthScore(companyId);
   const avgOrderValue = stats && stats.ordersCount > 0 ? stats.ordersValue / stats.ordersCount : 0;
   const mrr = currentPlan?.price_monthly || 0;
   const health = getHealthColor(daysSinceLastOrder);
@@ -168,6 +172,57 @@ export function CompanyOverviewTab({
           </CardContent>
         </Card>
       </div>
+
+      {/* Server-side Health Score Breakdown */}
+      {serverHealth && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              Health Score Dettagliato
+              <Badge variant={serverHealth.health === "healthy" ? "default" : serverHealth.health === "at_risk" ? "secondary" : "destructive"} className="ml-auto">
+                {serverHealth.score}/100 — {serverHealth.health === "healthy" ? "Sano" : serverHealth.health === "at_risk" ? "A Rischio" : "Critico"}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-5 gap-4">
+              {[
+                { label: "Login", value: serverHealth.login_score, max: 25 },
+                { label: "Ordini", value: serverHealth.orders_score, max: 25 },
+                { label: "Funzionalità", value: serverHealth.features_score, max: 20 },
+                { label: "Team", value: serverHealth.team_score, max: 15 },
+                { label: "Engagement", value: serverHealth.engagement_score, max: 15 },
+              ].map((item) => (
+                <div key={item.label} className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">{item.label}</span>
+                    <span className="font-medium">{item.value}/{item.max}</span>
+                  </div>
+                  <Progress value={(item.value / item.max) * 100} className="h-1.5" />
+                </div>
+              ))}
+            </div>
+            {serverHealth.signals.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {serverHealth.signals.map((s) => (
+                  <Badge key={s} variant="outline" className="text-xs">
+                    {s.replace(/_/g, " ")}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-xs text-muted-foreground">Rischio Churn:</span>
+              <Progress value={serverHealth.churn_risk} className="h-1.5 flex-1" />
+              <span className="text-xs font-medium">{serverHealth.churn_risk}%</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Ultimo calcolo: {format(new Date(serverHealth.calculated_at), "dd/MM/yyyy HH:mm", { locale: it })}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Orders Chart */}
       {monthlyOrders.length > 0 && (
