@@ -1,4 +1,5 @@
-import { useState, forwardRef } from "react";
+import { useState, useEffect, forwardRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
@@ -22,6 +23,34 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const [resetSent, setResetSent] = useState(false);
   const { signIn } = useAuth();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  // Capture referral code from URL
+  useEffect(() => {
+    const refCode = searchParams.get("ref");
+    if (refCode) {
+      sessionStorage.setItem("referral_code", refCode);
+
+      // Track the click (fire and forget)
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || "guqgszwelffntrgtsycm";
+      fetch(`https://${projectId}.supabase.co/functions/v1/track-referral-click`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          referral_code: refCode,
+          landing_page: window.location.pathname,
+          utm_source: searchParams.get("utm_source") || undefined,
+          utm_medium: searchParams.get("utm_medium") || undefined,
+          utm_campaign: searchParams.get("utm_campaign") || undefined,
+        }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.click_id) sessionStorage.setItem("referral_click_id", d.click_id);
+        })
+        .catch(() => {}); // Ignore tracking errors
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
