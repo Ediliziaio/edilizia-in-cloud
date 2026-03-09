@@ -53,6 +53,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     setEntryDate(new Date().toISOString().split("T")[0]);
     setMethod("bonifico");
     setReference("");
+    setAccountLabel("banca");
     setNotes("");
   };
 
