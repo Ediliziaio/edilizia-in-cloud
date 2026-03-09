@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 
 
 export default function CashFlowForecast() {
+  const navigate = useNavigate();
   const {
     isLoading,
     orders,
