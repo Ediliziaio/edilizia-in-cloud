@@ -161,6 +161,12 @@ export default function MarketingContacts() {
           .order("created_at", { ascending: false })
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
+        // Apply search filter if active
+        if (search && search.trim()) {
+          const s = `%${search.trim()}%`;
+          query = query.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
+        }
+
         if (finalIds) query = query.in("id", finalIds);
 
         const { data, error } = await query;
