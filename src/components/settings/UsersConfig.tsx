@@ -578,6 +578,12 @@ export function UsersConfig() {
                                 Permessi
                               </DropdownMenuItem>
                             )}
+                            {(u.locked_until && new Date(u.locked_until) > new Date()) || u.failed_login_count > 0 ? (
+                              <DropdownMenuItem onClick={() => unlockAccountMutation.mutate(u.id)}>
+                                <LockOpen className="h-4 w-4 mr-2" />
+                                Sblocca account
+                              </DropdownMenuItem>
+                            ) : null}
                             <DropdownMenuSeparator />
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
