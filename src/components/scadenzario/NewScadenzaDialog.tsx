@@ -99,6 +99,13 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
             </Select>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Alert (giorni prima)</Label>
+              <Input type="number" min="0" max="90" value={alertDays} onChange={(e) => setAlertDays(e.target.value)} />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label>Note (opzionale)</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
