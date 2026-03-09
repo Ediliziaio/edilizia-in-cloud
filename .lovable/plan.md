@@ -163,3 +163,32 @@
 - ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
 - ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
 - ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
+
+---
+
+## UTM Attribution Tracking ✅
+- ✅ **attribution_sessions** tabella: session tracking con UTM, click IDs (gclid/fbclid), device info, IP hash
+- ✅ **contact_attributions** tabella: first/last touch per contatto con upsert automatico
+- ✅ **ALTER marketing_contacts**: colonne attr_source, attr_medium, attr_campaign, attr_content, attr_model
+- ✅ **RPC get_attribution_report**: report aggregato per source/medium/campaign/content con filtri data
+- ✅ **Funzione attach_attribution_to_contact**: collegamento sessione-contatto con aggiornamento first/last touch
+- ✅ **attribution-capture** edge function pubblica: cattura UTM via POST, hash IP SHA-256, device detection
+- ✅ **trackingSnippet.ts**: generatore snippet JS per siti esterni con cookie visitor/session
+- ✅ **ContactAttributionTab**: sezione collapsible nella sidebar contatto con badge source colorati, first/last touch, storico sessioni
+- ✅ **AttributionReport** riscritto: KPI cards, BarChart recharts, tabella dettaglio, GroupBy tabs (Source/Medium/Campaign/Content)
+- ✅ **useContactAttribution** + **useAttributionReport** hooks
+
+---
+
+## Form Builder + Lead Capture ✅
+- ✅ **lead_forms** tabella: definizione form con fields JSONB, theme, settings, stats denormalizzati
+- ✅ **form_views** + **form_submissions** tabelle: tracking visualizzazioni e invii con UTM
+- ✅ **Trigger automatici**: trg_update_form_stats e trg_update_form_views per contatori
+- ✅ **form-submit** edge function pubblica: validazione campi, upsert contatto per email, salvataggio submission, attach attribution
+- ✅ **form-render** edge function: genera pagina HTML standalone con CSS inline, tracking snippet integrato
+- ✅ **SettingsFormBuilder** pagina: lista form con stats + editor 3 colonne (libreria campi | canvas dnd-kit | proprietà)
+- ✅ **FormFieldLibrary** + **FormEditorCanvas** + **FormFieldProperties** componenti
+- ✅ **useFormBuilder** hook: CRUD form con mutations
+- ✅ **TrackingSnippetSettings**: card snippet con copia, "Come funziona" 3 step, tabella parametri, URL tester
+- ✅ **Tab "Tracking UTM"** integrata in SettingsFormBuilder
+- ✅ Rotta `/azienda/impostazioni/form-builder` + link "Form & UTM" in sidebar impostazioni
