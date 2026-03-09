@@ -308,6 +308,10 @@ const App = () => (
                 <Route path="marketing/whatsapp" element={<MarketingWhatsApp />} />
                 <Route path="marketing/lead-forms" element={<FacebookFormsPage />} />
                 <Route path="marketing/reportistica" element={<ReportisticaPage />} />
+                <Route path="marketing/preventivi" element={<Preventivi />} />
+                <Route path="marketing/preventivi/nuovo" element={<QuoteBuilder />} />
+                <Route path="marketing/preventivi/:id" element={<QuoteDetail />} />
+                <Route path="marketing/preventivi/:id/modifica" element={<QuoteBuilder />} />
                 
                 <Route path="impostazioni" element={<SettingsLayout />}>
                   <Route index element={<Navigate to="profilo" replace />} />

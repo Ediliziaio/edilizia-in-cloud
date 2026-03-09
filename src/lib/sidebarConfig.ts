@@ -20,6 +20,26 @@ import {
   BarChart3,
   Headphones,
   Landmark,
+  FileSignature,
+} from "lucide-react";
+  HeadphonesIcon,
+  TrendingUp,
+  Receipt,
+  AlertTriangle,
+  Warehouse,
+  CalendarDays,
+  CheckSquare,
+  MessageSquare,
+  MessageCircle,
+  Zap,
+  Contact,
+  Target,
+  Bot,
+  Mail,
+  Gauge,
+  BarChart3,
+  Headphones,
+  Landmark,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
