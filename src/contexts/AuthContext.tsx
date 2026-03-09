@@ -19,7 +19,7 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const IMPERSONATION_KEY = "impersonated_company_id";
+// Impersonation is now in-memory only (no sessionStorage) to prevent manipulation
 const SESSION_ID_KEY = "user_session_id";
 
 function getBrowserInfo() {
