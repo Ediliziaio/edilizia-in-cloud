@@ -37,6 +37,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
     setDueDate("");
     setMethod("bonifico");
     setNotes("");
+    setAlertDays("7");
   };
 
   const handleOpen = (o: boolean) => {
