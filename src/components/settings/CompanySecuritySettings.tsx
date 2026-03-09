@@ -199,9 +199,9 @@ export function CompanySecuritySettings() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Policy Password</CardTitle>
-          <CardDescription>Definisci la scadenza delle password per tutti gli utenti.</CardDescription>
+          <CardDescription>Definisci scadenza e complessità delle password.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div>
             <Label className="text-sm">Scadenza Password</Label>
             <Select value={String(passwordExpiryDays)} onValueChange={(v) => setPasswordExpiryDays(Number(v))}>
@@ -219,6 +219,32 @@ export function CompanySecuritySettings() {
                 ? `Gli utenti dovranno cambiare la password ogni ${passwordExpiryDays} giorni.`
                 : "Le password non scadono mai."}
             </p>
+          </div>
+          <Separator />
+          <div>
+            <Label className="text-sm">Lunghezza minima: {passwordMinLength} caratteri</Label>
+            <Slider
+              value={[passwordMinLength]}
+              onValueChange={([v]) => setPasswordMinLength(v)}
+              min={6}
+              max={20}
+              step={1}
+              className="mt-2"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={passwordRequireUppercase} onCheckedChange={(v) => setPasswordRequireUppercase(!!v)} />
+              Richiedi almeno una lettera maiuscola
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={passwordRequireNumbers} onCheckedChange={(v) => setPasswordRequireNumbers(!!v)} />
+              Richiedi almeno un numero
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={passwordRequireSpecial} onCheckedChange={(v) => setPasswordRequireSpecial(!!v)} />
+              Richiedi almeno un carattere speciale (!@#$%...)
+            </label>
           </div>
         </CardContent>
       </Card>
