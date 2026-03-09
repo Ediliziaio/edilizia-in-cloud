@@ -325,4 +325,4 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
       </div>
     </div>
   );
-}
+});
