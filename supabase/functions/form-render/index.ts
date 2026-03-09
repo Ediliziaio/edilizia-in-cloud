@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
     .eq("company_id", companyId)
     .eq("slug", slug)
     .eq("is_published", true)
+    .eq("is_active", true)
     .single();
 
   if (error || !form) {
@@ -215,7 +216,10 @@ Deno.serve(async (req) => {
           utm_content:getUtm('utm_content'),
           utm_term:getUtm('utm_term'),
           gclid:p.get('gclid')||null,
-          fbclid:p.get('fbclid')||null
+          fbclid:p.get('fbclid')||null,
+          ttclid:p.get('ttclid')||null,
+          msclkid:p.get('msclkid')||null,
+          li_fat_id:p.get('li_fat_id')||null
         })
       }).then(function(r){return r.json()}).then(function(r){
         if(r.ok){

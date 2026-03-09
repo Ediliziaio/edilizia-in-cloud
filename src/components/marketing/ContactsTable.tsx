@@ -36,6 +36,8 @@ export interface MarketingContact {
   assigned_to: string | null;
   call_center_id: string | null;
   call_center_name: string | null;
+  attr_source: string | null;
+  attr_campaign: string | null;
   opp_name: string | null;
   opp_value: number | null;
   opp_status: string | null;
@@ -70,6 +72,8 @@ export const COLUMNS = [
   { key: "opp_pipeline", label: "Pipeline", group: "Opportunità" },
   { key: "opp_stage", label: "Fase pipeline", group: "Opportunità" },
   { key: "call_center", label: "Call Center", group: "Assegnazione" },
+  { key: "attr_source", label: "Sorgente", group: "Attribuzione" },
+  { key: "attr_campaign", label: "Campagna", group: "Attribuzione" },
 ] as const;
 
 export type ColumnKey = (typeof COLUMNS)[number]["key"];
@@ -198,6 +202,10 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.opp_stage || "—"}</TableCell>;
     case "call_center":
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.call_center_name || "—"}</TableCell>;
+    case "attr_source":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.attr_source || "—"}</TableCell>;
+    case "attr_campaign":
+      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.attr_campaign || "—"}</TableCell>;
     default:
       return null;
   }
