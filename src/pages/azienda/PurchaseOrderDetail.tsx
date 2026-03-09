@@ -8,13 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ArrowLeft, Loader2, Plus, Trash2, Send, CheckCircle2, Package,
   Truck, Save, XCircle,
 } from "lucide-react";
 import { usePurchaseOrderDetail, usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
+import { ArticleCombobox, type ArticleTemplateData } from "@/components/orders/ArticleCombobox";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const fmtEur = (n: number) => `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
 
@@ -42,6 +45,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 export default function PurchaseOrderDetail() {
   const { odaId } = useParams();
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
   const { order, isLoading, items, isItemsLoading, addItem, updateItem, deleteItem } = usePurchaseOrderDetail(odaId || null);
   const { updateStatus, update } = usePurchaseOrders();
   const [editingNotes, setEditingNotes] = useState(false);
@@ -63,6 +67,38 @@ export default function PurchaseOrderDetail() {
   const supplier = order.suppliers as any;
   const nextStatuses = STATUS_FLOW[order.status] || [];
   const isEditable = order.status === "bozza";
+
+  const handleStatusChange = async (ns: string) => {
+    updateStatus.mutate({ id: order.id, status: ns }, {
+      onSuccess: async () => {
+        // Auto-generate cost when status becomes "ricevuto"
+        if (ns === "ricevuto" && effectiveCompany?.id) {
+          try {
+            const today = format(new Date(), "yyyy-MM-dd");
+            const { error } = await supabase.from("company_costs").insert({
+              company_id: effectiveCompany.id,
+              name: `OdA ${order.oda_number} - ${supplier?.name || "Fornitore"}`,
+              cost_type: "variable",
+              amount: Number(order.subtotal),
+              vat_rate: Number(order.vat_total) > 0 && Number(order.subtotal) > 0
+                ? Math.round((Number(order.vat_total) / Number(order.subtotal)) * 100)
+                : 22,
+              category: "materiali",
+              recurrence: "once",
+              due_date: today,
+              is_paid: false,
+              supplier_id: order.supplier_id,
+              notes: `Generato automaticamente da OdA ${order.oda_number}`,
+            });
+            if (error) throw error;
+            toast.success("Costo registrato in Costi Aziendali");
+          } catch {
+            toast.error("OdA ricevuto, ma errore nella registrazione del costo");
+          }
+        }
+      },
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -91,7 +127,7 @@ export default function PurchaseOrderDetail() {
               key={ns}
               variant={ns === "annullato" ? "destructive" : "default"}
               size="sm"
-              onClick={() => updateStatus.mutate({ id: order.id, status: ns })}
+              onClick={() => handleStatusChange(ns)}
               disabled={updateStatus.isPending}
             >
               {STATUS_ICONS[ns]}
@@ -306,6 +342,28 @@ function ItemRow({
     }
   };
 
+  const handleArticleSelect = (name: string, templateData?: ArticleTemplateData) => {
+    setDesc(name);
+    const updates: Record<string, any> = { description: name };
+    if (templateData) {
+      const newPrice = String(templateData.standard_cost > 0 ? templateData.standard_cost : templateData.unit_price);
+      const newUm = templateData.unit_of_measure || "pz";
+      const newVat = String(templateData.vat_rate || 22);
+      const newSku = templateData.sku || null;
+
+      setPrice(newPrice);
+      setUm(newUm);
+      setVat(newVat);
+
+      updates.unit_price = Number(newPrice);
+      updates.unit_of_measure = newUm;
+      updates.vat_rate = Number(newVat);
+      updates.sku = newSku;
+      updates.article_template_id = templateData.id;
+    }
+    onUpdate(updates);
+  };
+
   if (!isEditable && !showReceived) {
     return (
       <tr className="border-b">
@@ -324,7 +382,11 @@ function ItemRow({
     <tr className="border-b">
       <td className="p-1 pl-2">
         {isEditable ? (
-          <Input value={desc} onChange={(e) => setDesc(e.target.value)} onBlur={handleBlur} className="h-8 text-sm" />
+          <ArticleCombobox
+            value={desc}
+            onValueChange={handleArticleSelect}
+            placeholder="Seleziona articolo..."
+          />
         ) : (
           <span className="pl-2">{item.description}</span>
         )}
