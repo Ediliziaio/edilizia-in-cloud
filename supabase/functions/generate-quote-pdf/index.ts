@@ -189,12 +189,12 @@ Deno.serve(async (req) => {
         y -= 15;
       };
 
-      drawTotal("Subtotale", `€ ${(quote.subtotal || 0).toFixed(2)}`);
-      if ((quote.discount_percent || 0) > 0) {
-        drawTotal(`Sconto ${quote.discount_percent}%`, `- € ${(quote.discount_amount || 0).toFixed(2)}`);
+      drawTotal("Subtotale", `€ ${Number(quote.subtotal || 0).toFixed(2)}`);
+      if (Number(quote.discount_percent || 0) > 0) {
+        drawTotal(`Sconto ${quote.discount_percent}%`, `- € ${Number(quote.discount_amount || 0).toFixed(2)}`);
       }
-      drawTotal("IVA", `€ ${(quote.vat_amount || 0).toFixed(2)}`);
-      drawTotal("TOTALE", `€ ${(quote.total || 0).toFixed(2)}`, true);
+      drawTotal("IVA", `€ ${Number(quote.vat_amount || 0).toFixed(2)}`);
+      drawTotal("TOTALE", `€ ${Number(quote.total || 0).toFixed(2)}`, true);
     }
 
     // ─── Notes page ───
