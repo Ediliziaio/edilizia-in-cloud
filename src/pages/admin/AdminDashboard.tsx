@@ -136,6 +136,8 @@ export default function AdminDashboard() {
         return <AdminRecentCompanies companies={recentCompanies} />;
       case "recent-activity":
         return <AdminRecentActivity activities={recentActivity} />;
+      case "addon-summary":
+        return <AdminAddonsSummary />;
       default:
         return null;
     }
