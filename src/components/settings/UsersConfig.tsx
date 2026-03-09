@@ -487,6 +487,17 @@ export function UsersConfig() {
                 <SelectItem value="call_center">Call Center</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Stato" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti gli stati</SelectItem>
+                <SelectItem value="active">Attivo</SelectItem>
+                <SelectItem value="inactive">Inattivo</SelectItem>
+                <SelectItem value="locked">Bloccato</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent>
