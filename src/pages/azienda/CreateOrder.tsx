@@ -409,7 +409,7 @@ export default function CreateOrder() {
     },
     onError: (error) => {
       toast.error("Errore", { description: "Si è verificato un errore durante la creazione dell'ordine." });
-     logger.rerror("Create order error:", error);
+     logger.error("Create order error:", error);
     },
   });
 

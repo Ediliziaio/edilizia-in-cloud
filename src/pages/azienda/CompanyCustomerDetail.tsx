@@ -170,7 +170,7 @@ export default function CompanyCustomerDetail() {
       toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo." });
       navigate("/azienda/clienti");
     } catch (error) {
-     logger.rerror("Error deleting customer:", error);
+     logger.error("Error deleting customer:", error);
       toast({ title: "Errore", description: "Impossibile eliminare il cliente.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
