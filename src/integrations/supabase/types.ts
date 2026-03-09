@@ -9378,6 +9378,124 @@ export type Database = {
         }
         Relationships: []
       }
+      prima_nota_entries: {
+        Row: {
+          amount: number
+          attachment_name: string | null
+          attachment_url: string | null
+          auto_source: string | null
+          category: string
+          company_id: string
+          cost_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          direction: string
+          entry_date: string
+          id: string
+          invoice_id: string | null
+          is_auto: boolean
+          notes: string | null
+          order_id: string | null
+          payment_method: string | null
+          reference_number: string | null
+          scadenza_id: string | null
+          supplier_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          attachment_name?: string | null
+          attachment_url?: string | null
+          auto_source?: string | null
+          category?: string
+          company_id: string
+          cost_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description: string
+          direction: string
+          entry_date?: string
+          id?: string
+          invoice_id?: string | null
+          is_auto?: boolean
+          notes?: string | null
+          order_id?: string | null
+          payment_method?: string | null
+          reference_number?: string | null
+          scadenza_id?: string | null
+          supplier_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          attachment_name?: string | null
+          attachment_url?: string | null
+          auto_source?: string | null
+          category?: string
+          company_id?: string
+          cost_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          direction?: string
+          entry_date?: string
+          id?: string
+          invoice_id?: string | null
+          is_auto?: boolean
+          notes?: string | null
+          order_id?: string | null
+          payment_method?: string | null
+          reference_number?: string | null
+          scadenza_id?: string | null
+          supplier_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prima_nota_entries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_cost_id_fkey"
+            columns: ["cost_id"]
+            isOneToOne: false
+            referencedRelation: "company_costs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_scadenza_id_fkey"
+            columns: ["scadenza_id"]
+            isOneToOne: false
+            referencedRelation: "scadenze"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prima_nota_entries_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address: string | null
@@ -10419,6 +10537,124 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scadenze: {
+        Row: {
+          amount: number
+          company_id: string
+          contact_id: string | null
+          cost_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          direction: string | null
+          due_date: string
+          id: string
+          invoice_id: string | null
+          is_recurring: boolean
+          notes: string | null
+          order_id: string | null
+          paid_amount: number
+          paid_date: string | null
+          payment_method: string | null
+          recurrence_rule: string | null
+          status: string
+          supplier_id: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          contact_id?: string | null
+          cost_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description: string
+          direction?: string | null
+          due_date: string
+          id?: string
+          invoice_id?: string | null
+          is_recurring?: boolean
+          notes?: string | null
+          order_id?: string | null
+          paid_amount?: number
+          paid_date?: string | null
+          payment_method?: string | null
+          recurrence_rule?: string | null
+          status?: string
+          supplier_id?: string | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          contact_id?: string | null
+          cost_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          direction?: string | null
+          due_date?: string
+          id?: string
+          invoice_id?: string | null
+          is_recurring?: boolean
+          notes?: string | null
+          order_id?: string | null
+          paid_amount?: number
+          paid_date?: string | null
+          payment_method?: string | null
+          recurrence_rule?: string | null
+          status?: string
+          supplier_id?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scadenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scadenze_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scadenze_cost_id_fkey"
+            columns: ["cost_id"]
+            isOneToOne: false
+            referencedRelation: "company_costs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scadenze_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scadenze_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scadenze_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
@@ -12187,6 +12423,7 @@ export type Database = {
         Args: { p_ip_address?: unknown; p_success: boolean; p_user_id: string }
         Returns: Json
       }
+      check_overdue_scadenze: { Args: never; Returns: number }
       check_staff_visibility: {
         Args: { _assigned_to: string; _user_id: string }
         Returns: boolean
@@ -12428,6 +12665,10 @@ export type Database = {
           total_unsubscribed: number
         }[]
       }
+      get_prima_nota_saldo: {
+        Args: { p_company_id: string; p_from_date?: string; p_to_date?: string }
+        Returns: Json
+      }
       get_scadenzario: {
         Args: { p_company_id: string; p_from_date?: string; p_to_date?: string }
         Returns: {
@@ -12443,6 +12684,7 @@ export type Database = {
           urgency: string
         }[]
       }
+      get_scadenzario_summary: { Args: { p_company_id: string }; Returns: Json }
       get_top_companies_by_email: {
         Args: { p_limit?: number }
         Returns: {
@@ -12491,6 +12733,16 @@ export type Database = {
         Returns: undefined
       }
       is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
+      mark_scadenza_paid: {
+        Args: {
+          p_amount: number
+          p_notes?: string
+          p_payment_date?: string
+          p_payment_method?: string
+          p_scadenza_id: string
+        }
+        Returns: Json
+      }
       recalculate_invoice_totals: {
         Args: { p_invoice_id: string }
         Returns: undefined
