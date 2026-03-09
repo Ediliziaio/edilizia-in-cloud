@@ -1,5 +1,5 @@
 import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { requireAuth } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
@@ -160,10 +160,10 @@ Deno.serve(async (req) => {
 
         const name = (item.name || "").substring(0, 35);
         const qty = `${item.quantity} ${item.unit_of_measure || ""}`.trim();
-        const price = `€ ${(item.unit_price || 0).toFixed(2)}`;
-        const disc = item.discount_percent > 0 ? `${item.discount_percent}%` : "—";
-        const vat = `${item.vat_rate || 0}%`;
-        const total = `€ ${(item.line_total || 0).toFixed(2)}`;
+        const price = `€ ${Number(item.unit_price || 0).toFixed(2)}`;
+        const disc = Number(item.discount_percent || 0) > 0 ? `${item.discount_percent}%` : "—";
+        const vat = `${Number(item.vat_rate || 0)}%`;
+        const total = `€ ${Number(item.line_total || 0).toFixed(2)}`;
 
         page.drawText(name, { x: colX[0], y, size: 9, font });
         page.drawText(qty, { x: colX[1], y, size: 9, font });
@@ -189,12 +189,12 @@ Deno.serve(async (req) => {
         y -= 15;
       };
 
-      drawTotal("Subtotale", `€ ${(quote.subtotal || 0).toFixed(2)}`);
-      if ((quote.discount_percent || 0) > 0) {
-        drawTotal(`Sconto ${quote.discount_percent}%`, `- € ${(quote.discount_amount || 0).toFixed(2)}`);
+      drawTotal("Subtotale", `€ ${Number(quote.subtotal || 0).toFixed(2)}`);
+      if (Number(quote.discount_percent || 0) > 0) {
+        drawTotal(`Sconto ${quote.discount_percent}%`, `- € ${Number(quote.discount_amount || 0).toFixed(2)}`);
       }
-      drawTotal("IVA", `€ ${(quote.vat_amount || 0).toFixed(2)}`);
-      drawTotal("TOTALE", `€ ${(quote.total || 0).toFixed(2)}`, true);
+      drawTotal("IVA", `€ ${Number(quote.vat_amount || 0).toFixed(2)}`);
+      drawTotal("TOTALE", `€ ${Number(quote.total || 0).toFixed(2)}`, true);
     }
 
     // ─── Notes page ───
