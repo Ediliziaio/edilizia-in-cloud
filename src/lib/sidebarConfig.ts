@@ -72,7 +72,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewDashboard", featureKey: "tesoreria", category: "internal", subcategory: "gi_finanza" },
   { title: "Fatturazione", url: "/azienda/fatturazione", icon: FileText, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarDays, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
-  { title: "Report Fatture", url: "/azienda/report-fatturazione", icon: BarChart3, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
+  
   { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Fornitori", url: "/azienda/fornitori", icon: Truck, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Ordini Acquisto", url: "/azienda/ordini-acquisto", icon: Package, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },

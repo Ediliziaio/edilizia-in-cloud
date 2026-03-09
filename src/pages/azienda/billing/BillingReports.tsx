@@ -133,12 +133,29 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold">Report Fatturazione</h1>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-7 w-7 text-primary" />
+            <h1 className="text-2xl font-bold">Report Fatturazione</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <Select value={year} onValueChange={setYear}>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={exportCsv} disabled={invoices.length === 0}>
+              <Download className="h-4 w-4 mr-2" /> Esporta CSV
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
+      )}
+      {embedded && (
+        <div className="flex items-center justify-end gap-3">
           <Select value={year} onValueChange={setYear}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -151,7 +168,7 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
             <Download className="h-4 w-4 mr-2" /> Esporta CSV
           </Button>
         </div>
-      </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>

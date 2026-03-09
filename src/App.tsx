@@ -312,7 +312,7 @@ const App = () => (
                 <Route path="fatturazione" element={<InvoicesList />} />
                 <Route path="fatturazione/:id" element={<InvoiceDetail />} />
                 <Route path="scadenzario" element={<Scadenzario />} />
-                <Route path="report-fatturazione" element={<BillingReports />} />
+                
                 <Route path="prima-nota" element={<PrimaNota />} />
                 <Route path="fornitori" element={<Suppliers />} />
                 <Route path="fornitori/:id" element={<Suppliers />} />
