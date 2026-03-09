@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, Loader2, Plus, Trash2, Send, CheckCircle2, Package,
-  Truck, Save, XCircle,
+  Truck, Save, XCircle, ExternalLink,
 } from "lucide-react";
 import { usePurchaseOrderDetail, usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
