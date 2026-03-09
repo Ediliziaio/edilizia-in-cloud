@@ -34,7 +34,6 @@ export interface StaffUserFormData {
   permissions?: StaffPermissions;
 }
 
-import { DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
 
 const MARKETING_SECTION_KEYS = [
   "can_view_marketing_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
