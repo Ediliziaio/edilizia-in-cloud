@@ -2,13 +2,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ClipboardList, Users, MessageSquare, BarChart3, TrendingUp, Heart, DollarSign, Calendar } from "lucide-react";
+import { ClipboardList, Users, MessageSquare, BarChart3, TrendingUp, Heart, DollarSign, Calendar, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { ticketStatusLabels } from "@/lib/adminConstants";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { CompanyConversionCard } from "./CompanyConversionCard";
+import { Progress } from "@/components/ui/progress";
+import { useCompanyHealthScore } from "@/hooks/useHealthScores";
 import type { CompanyStats } from "@/hooks/useCompanyDetail";
 
 interface MonthlyOrderData {
