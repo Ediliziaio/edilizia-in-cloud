@@ -183,6 +183,11 @@ export default function CampaignSendSettings() {
         resend_to_unopened: resendToUnopened,
         scheduled_at: sendMode === "scheduled" && scheduledAt ? scheduledAt : null,
         segment_json: buildSegmentJson(),
+        ab_test_enabled: abTestEnabled,
+        ab_subject_b: abTestEnabled ? abSubjectB || null : null,
+        ab_split_percent: abTestEnabled ? abSplitPercent : 50,
+        ab_winner_criteria: abTestEnabled ? abWinnerCriteria : "open_rate",
+        ab_test_duration_hours: abTestEnabled ? abTestDurationHours : 4,
       };
       const { error } = await supabase
         .from("email_campaigns")
