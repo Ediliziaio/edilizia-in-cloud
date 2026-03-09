@@ -4,11 +4,12 @@ import { useAttributionReport } from "@/hooks/useAttributionReport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, TrendingUp, Users, Target, Eye } from "lucide-react";
+import { CalendarIcon, TrendingUp, Users, Target, Eye, Star, ChevronRight } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -33,6 +34,23 @@ const GROUP_LABELS: Record<GroupBy, string> = {
   content: "Contenuto",
 };
 
+const SOURCE_COLORS: Record<string, string> = {
+  google: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  facebook: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
+  meta: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
+  instagram: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200",
+  linkedin: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200",
+  tiktok: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
+  organic: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  direct: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
+};
+
+function SourceBadge({ source }: { source: string }) {
+  const s = source.toLowerCase();
+  const colorClass = SOURCE_COLORS[s] || SOURCE_COLORS.direct;
+  return <Badge variant="outline" className={`text-[10px] ${colorClass}`}>{source}</Badge>;
+}
+
 export default function AttributionReport() {
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
@@ -41,8 +59,13 @@ export default function AttributionReport() {
     to: new Date(),
   });
   const [groupBy, setGroupBy] = useState<GroupBy>("source");
+  const [drillSource, setDrillSource] = useState<string | null>(null);
 
-  const { data: rows = [], isLoading } = useAttributionReport(companyId, dateRange.from, dateRange.to, groupBy);
+  const effectiveGroupBy = drillSource ? "campaign" : groupBy;
+
+  const { data: rows = [], isLoading } = useAttributionReport(
+    companyId, dateRange.from, dateRange.to, effectiveGroupBy, drillSource
+  );
 
   const totals = useMemo(() => {
     return rows.reduce(
@@ -56,12 +79,40 @@ export default function AttributionReport() {
     );
   }, [rows]);
 
+  const topSource = useMemo(() => {
+    if (!rows.length || effectiveGroupBy !== "source") return null;
+    return rows[0]?.dimension || null;
+  }, [rows, effectiveGroupBy]);
+
   const conversionRate = totals.sessions > 0
     ? ((totals.contacts / totals.sessions) * 100).toFixed(1)
     : "0";
 
+  const handleRowClick = (dimension: string) => {
+    if (groupBy === "source" && !drillSource) {
+      setDrillSource(dimension);
+    }
+  };
+
+  const handleBackToSources = () => {
+    setDrillSource(null);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Breadcrumb */}
+      {drillSource && (
+        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+          <button onClick={handleBackToSources} className="hover:text-foreground transition-colors underline">
+            Tutte le sorgenti
+          </button>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <SourceBadge source={drillSource} />
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="text-foreground font-medium">Campagne</span>
+        </div>
+      )}
+
       {/* Date controls + GroupBy */}
       <div className="flex flex-wrap items-center gap-2">
         {DATE_PRESETS.map((p) => (
@@ -94,17 +145,19 @@ export default function AttributionReport() {
           </PopoverContent>
         </Popover>
 
-        <div className="ml-auto">
-          <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-            <TabsList className="h-8">
-              {(Object.keys(GROUP_LABELS) as GroupBy[]).map((g) => (
-                <TabsTrigger key={g} value={g} className="text-xs px-3 h-7">
-                  {GROUP_LABELS[g]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
+        {!drillSource && (
+          <div className="ml-auto">
+            <Tabs value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+              <TabsList className="h-8">
+                {(Object.keys(GROUP_LABELS) as GroupBy[]).map((g) => (
+                  <TabsTrigger key={g} value={g} className="text-xs px-3 h-7">
+                    {GROUP_LABELS[g]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
+        )}
       </div>
 
       {/* Summary cards */}
@@ -133,21 +186,34 @@ export default function AttributionReport() {
           </CardHeader>
           <CardContent><p className="text-2xl font-bold">{totals.contacts.toLocaleString("it-IT")}</p></CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
-              <TrendingUp className="h-4 w-4" /> Tasso conversione
-            </CardTitle>
-          </CardHeader>
-          <CardContent><p className="text-2xl font-bold">{conversionRate}%</p></CardContent>
-        </Card>
+        {topSource && !drillSource ? (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                <Star className="h-4 w-4" /> Sorgente principale
+              </CardTitle>
+            </CardHeader>
+            <CardContent><SourceBadge source={topSource} /></CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                <TrendingUp className="h-4 w-4" /> Tasso conversione
+              </CardTitle>
+            </CardHeader>
+            <CardContent><p className="text-2xl font-bold">{conversionRate}%</p></CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Chart */}
       {!isLoading && rows.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Distribuzione per {GROUP_LABELS[groupBy].toLowerCase()}</CardTitle>
+            <CardTitle className="text-base">
+              Distribuzione per {drillSource ? "campagna" : GROUP_LABELS[groupBy].toLowerCase()}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -171,7 +237,9 @@ export default function AttributionReport() {
       {/* Attribution table */}
       <Card>
         <CardHeader>
-          <CardTitle>Dettaglio attribuzione per {GROUP_LABELS[groupBy].toLowerCase()}</CardTitle>
+          <CardTitle>
+            Dettaglio attribuzione per {drillSource ? "campagna" : GROUP_LABELS[groupBy].toLowerCase()}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -186,7 +254,7 @@ export default function AttributionReport() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{GROUP_LABELS[groupBy]}</TableHead>
+                  <TableHead>{drillSource ? "Campagna" : GROUP_LABELS[groupBy]}</TableHead>
                   <TableHead className="text-right">Sessioni</TableHead>
                   <TableHead className="text-right">Visitatori</TableHead>
                   <TableHead className="text-right">Contatti</TableHead>
@@ -196,8 +264,18 @@ export default function AttributionReport() {
               </TableHeader>
               <TableBody>
                 {rows.map((r, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-medium">{r.dimension}</TableCell>
+                  <TableRow
+                    key={i}
+                    className={groupBy === "source" && !drillSource ? "cursor-pointer hover:bg-muted/50" : ""}
+                    onClick={() => handleRowClick(r.dimension)}
+                  >
+                    <TableCell className="font-medium">
+                      {groupBy === "source" && !drillSource ? (
+                        <SourceBadge source={r.dimension} />
+                      ) : (
+                        r.dimension
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">{r.sessions}</TableCell>
                     <TableCell className="text-right">{r.unique_visitors}</TableCell>
                     <TableCell className="text-right">{r.contacts_created}</TableCell>
@@ -207,7 +285,6 @@ export default function AttributionReport() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {/* Totals row */}
                 <TableRow className="bg-muted/50 font-semibold">
                   <TableCell>Totale</TableCell>
                   <TableCell className="text-right">{totals.sessions}</TableCell>

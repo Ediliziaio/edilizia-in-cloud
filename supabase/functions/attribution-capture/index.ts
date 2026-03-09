@@ -58,6 +58,7 @@ Deno.serve(async (req) => {
       session_id,
       visitor_id,
       landing_page,
+      landing_url,
       referrer,
       utm_source,
       utm_medium,
@@ -66,11 +67,33 @@ Deno.serve(async (req) => {
       utm_term,
       gclid,
       fbclid,
+      ttclid,
+      msclkid,
+      li_fat_id,
     } = body;
 
     if (!company_id || !session_id) {
       return new Response(
         JSON.stringify({ error: "company_id and session_id required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Verify company exists
+    const { data: company, error: companyErr } = await supabase
+      .from("companies")
+      .select("id")
+      .eq("id", company_id)
+      .maybeSingle();
+
+    if (companyErr || !company) {
+      return new Response(
+        JSON.stringify({ error: "Invalid company_id" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -86,12 +109,9 @@ Deno.serve(async (req) => {
     const ua = req.headers.get("user-agent") || "";
     const { device_type, browser, os } = detectDevice(ua);
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const resolvedLandingUrl = landing_url || landing_page || null;
 
-    // Upsert session (update if same session_id exists)
+    // Upsert session using unique constraint (company_id, session_id)
     const { data, error } = await supabase
       .from("attribution_sessions")
       .upsert(
@@ -99,7 +119,8 @@ Deno.serve(async (req) => {
           company_id,
           session_id,
           visitor_id: visitor_id || null,
-          landing_page: landing_page || null,
+          landing_page: resolvedLandingUrl,
+          landing_url: resolvedLandingUrl,
           referrer: referrer || null,
           utm_source: utm_source || null,
           utm_medium: utm_medium || null,
@@ -108,52 +129,25 @@ Deno.serve(async (req) => {
           utm_term: utm_term || null,
           gclid: gclid || null,
           fbclid: fbclid || null,
+          ttclid: ttclid || null,
+          msclkid: msclkid || null,
+          li_fat_id: li_fat_id || null,
           device_type,
           browser,
           os,
           ip_hash,
+          user_agent: ua || null,
         },
-        { onConflict: "session_id", ignoreDuplicates: false }
+        { onConflict: "company_id,session_id", ignoreDuplicates: false }
       )
       .select("id")
       .single();
 
     if (error) {
-      // If conflict on session_id (no unique constraint), just insert
-      const { data: insertData, error: insertError } = await supabase
-        .from("attribution_sessions")
-        .insert({
-          company_id,
-          session_id,
-          visitor_id: visitor_id || null,
-          landing_page: landing_page || null,
-          referrer: referrer || null,
-          utm_source: utm_source || null,
-          utm_medium: utm_medium || null,
-          utm_campaign: utm_campaign || null,
-          utm_content: utm_content || null,
-          utm_term: utm_term || null,
-          gclid: gclid || null,
-          fbclid: fbclid || null,
-          device_type,
-          browser,
-          os,
-          ip_hash,
-        })
-        .select("id")
-        .single();
-
-      if (insertError) {
-        console.error("Insert error:", insertError);
-        return new Response(
-          JSON.stringify({ error: "Failed to capture session" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
+      console.error("Upsert error:", error);
       return new Response(
-        JSON.stringify({ ok: true, session_db_id: insertData?.id }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Failed to capture session" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
