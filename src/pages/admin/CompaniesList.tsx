@@ -538,12 +538,14 @@ export default function CompaniesList() {
 
                   return (
                     <React.Fragment key={company.id}>
-                      <TableRow className="cursor-pointer" onClick={() => navigate(`/admin/aziende/${company.id}`)}>
-                        <TableCell className="w-10 px-2">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : company.id); }}>
-                            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
-                          </Button>
+                       <TableRow className={`cursor-pointer ${selectedIds.has(company.id) ? "bg-primary/5" : ""}`} onClick={() => navigate(`/admin/aziende/${company.id}`)}>
+                        <TableCell className="w-10 px-2" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIds.has(company.id)}
+                            onCheckedChange={() => toggleSelect(company.id)}
+                          />
                         </TableCell>
+                        <TableCell className="w-10 px-2">
                         <TableCell>
                           <div className="flex items-center gap-3">
                             {company.logo_url ? (
