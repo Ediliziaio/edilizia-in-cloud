@@ -77,6 +77,7 @@ export default function CompaniesList() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
