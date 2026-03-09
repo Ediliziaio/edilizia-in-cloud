@@ -586,6 +586,7 @@ export function CompanyLayout() {
   const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
+  const { effectiveBrand } = useBrandSettings();
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
