@@ -65,7 +65,7 @@ export function EmailCampaignsTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_campaigns")
-        .select("*")
+        .select("id, name, status, type, subject, sender_name, sender_email, folder_id, json_content, html_content, preview_text, scheduled_at, created_at, updated_at")
         .eq("company_id", company!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
