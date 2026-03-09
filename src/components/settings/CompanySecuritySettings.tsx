@@ -88,6 +88,10 @@ export function CompanySecuritySettings() {
           lockout_duration_minutes: Number(lockoutDuration),
           password_expiry_days: passwordExpiryDays,
           allowed_ips: ipList.length > 0 ? ipList : null,
+          password_min_length: passwordMinLength,
+          password_require_uppercase: passwordRequireUppercase,
+          password_require_numbers: passwordRequireNumbers,
+          password_require_special: passwordRequireSpecial,
           security_notifications: notifications,
         } as any)
         .eq("id", effectiveCompany!.id);
