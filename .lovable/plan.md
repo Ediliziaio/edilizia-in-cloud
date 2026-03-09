@@ -83,9 +83,19 @@
 
 ---
 
+## White-Label & Branding ✅
+- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
+- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
+- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
+- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
+- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
+- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
+- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+
+---
+
 ## ⏳ Funzionalità Rimanenti
 
-- ⬜ White-Label (P3)
 - ⬜ Partner Portal Referrer (P3)
 - ⬜ Round-robin assegnazione team
 - ⬜ KPI per team nella dashboard
