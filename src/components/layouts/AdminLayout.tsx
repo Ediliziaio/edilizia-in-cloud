@@ -25,7 +25,9 @@ import {
   ShieldCheck,
   ScrollText,
   Mail,
-  Bot
+  Bot,
+  ListChecks,
+  ClipboardCheck
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
 import { Button } from "@/components/ui/button";
