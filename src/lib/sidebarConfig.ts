@@ -74,6 +74,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Report Fatture", url: "/azienda/report-fatturazione", icon: BarChart3, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Fornitori", url: "/azienda/fornitori", icon: Truck, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
+  { title: "Ordini Acquisto", url: "/azienda/ordini-acquisto", icon: Package, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   { title: "Attività", url: "/azienda/attivita", icon: CheckSquare, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_team" },
   { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_operazioni" },
   { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", featureKey: "messaging_beta", isBeta: true, category: "internal", subcategory: "gi_team" },
