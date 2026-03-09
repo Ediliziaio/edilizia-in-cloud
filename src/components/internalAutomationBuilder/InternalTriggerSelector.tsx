@@ -76,17 +76,25 @@ export function InternalTriggerSelector({ open, onClose, onSelect }: Props) {
                   return (
                     <button
                       key={item.id}
-                      onClick={() => { onSelect(item); onClose(); }}
+                      onClick={() => { if (!item.disabled) { onSelect(item); onClose(); } }}
+                      disabled={item.disabled}
                       className={cn(
                         "flex items-center gap-3 w-full text-left px-2 py-2 rounded-md",
-                        "hover:bg-accent/50 transition-colors"
+                        item.disabled
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-accent/50 transition-colors"
                       )}
                     >
                       <div className="shrink-0 h-7 w-7 rounded-md bg-emerald-500/10 flex items-center justify-center">
                         <Icon className="h-3.5 w-3.5 text-emerald-600" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-medium">{item.label}</p>
+                        <p className="text-xs font-medium">
+                          {item.label}
+                          {item.disabled && item.disabledReason && (
+                            <span className="ml-1.5 text-[10px] text-muted-foreground font-normal">({item.disabledReason})</span>
+                          )}
+                        </p>
                         {item.description && (
                           <p className="text-[10px] text-muted-foreground truncate">{item.description}</p>
                         )}
