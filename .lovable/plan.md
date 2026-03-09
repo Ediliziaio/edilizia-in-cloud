@@ -1,165 +1,97 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+# Analisi Completa — Automazioni Interne
 
-## Gestione Utenti — Completamento 100% ✅
-- ✅ Database + Security, Edge Functions, UI Core, Policy Sicurezza — tutto completato
+## Stato Attuale
+
+Ho verificato database, UI, Edge Function e hook. Ecco tutti i problemi trovati, divisi per gravità.
 
 ---
 
-## Stripe Billing Completo ✅
-- ✅ Tabella `stripe_events_log` con idempotenza, RLS super_admin
-- ✅ Colonne dunning su `companies`
-- ✅ **stripe-webhook** refactored con handler modulari, dunning automatico, `invoice.payment_failed`
-- ✅ **customer-portal** edge function per Stripe Customer Portal
-- ✅ **AdminDunning** con query real-time + **CompanySubscriptionTab** stato dunning
+## BUG CRITICO: Trigger DB non attaccati alle tabelle
+
+Le funzioni PostgreSQL esistono (`trigger_internal_automations`, `trigger_internal_auto_order_status`, ecc.) ma **nessun trigger è collegato alle tabelle reali**. La query `information_schema.triggers WHERE trigger_name LIKE 'internal_auto%'` ritorna **zero righe**.
+
+Questo significa che creare un ordine, un ticket o modificare uno stato NON attiva nessuna automazione, anche se il flusso è "Pubblicato".
+
+Il cron job `process-internal-automation-queue` è attivo e funziona ogni minuto, ma la coda è sempre vuota perché nessun trigger la popola.
+
+**Fix**: SQL migration per creare i 9 trigger mancanti:
+
+| Trigger | Tabella | Evento | Funzione |
+|---------|---------|--------|----------|
+| `internal_auto_order_created` | `orders` | AFTER INSERT | `trigger_internal_automations('order_created','order')` |
+| `internal_auto_order_status` | `orders` | AFTER UPDATE | `trigger_internal_auto_order_status()` |
+| `internal_auto_ticket_created` | `tickets` | AFTER INSERT | `trigger_internal_automations('ticket_created','ticket')` |
+| `internal_auto_ticket_status` | `tickets` | AFTER UPDATE | `trigger_internal_auto_ticket_events()` |
+| `internal_auto_task_created` | `tasks` | AFTER INSERT | `trigger_internal_automations('task_created','task')` |
+| `internal_auto_task_completed` | `tasks` | AFTER UPDATE | `trigger_internal_auto_task_events()` |
+| `internal_auto_employee_added` | `employees` | AFTER INSERT | `trigger_internal_automations('employee_added','employee')` |
+| `internal_auto_warehouse_low` | `warehouse_stock` | AFTER UPDATE | `trigger_internal_auto_stock_events()` |
+| `internal_auto_cost_added` | `company_costs` | AFTER INSERT | `trigger_internal_automations('cost_added','cost')` |
 
 ---
 
-## 2FA TOTP ✅
-- ✅ Tabelle `totp_secrets` + `totp_backup_codes` con RLS
-- ✅ **manage-totp** edge function: setup (QR), verify, validate, validate_backup, disable, status
-- ✅ **TwoFactorSetup** componente: configurazione con QR, verifica codice, backup codes, disattivazione
-- ✅ **TwoFactorVerify** componente: verifica TOTP o codice backup al login
-- ✅ **LoginForm** aggiornato con step 2FA dopo autenticazione
-- ✅ **SettingsSecurity** aggiornato con tab 2FA per tutti gli utenti
+## BUG UI: useState usato come effetto (riga 233)
+
+```ts
+useState(() => {
+  if (dbNodes) setLocalNodes(dbNodes);
+  ...
+});
+```
+
+`useState` con inizializzatore viene eseguito **solo al primo render**. A quel punto `dbNodes` è `undefined` (la query non ha ancora caricato). I dati vengono poi sincronizzati da `useMemo` (righe 239-247), ma `useMemo` non è pensato per side-effect — dovrebbe usare `useEffect`.
+
+**Fix**: Rimuovere il `useState` callback (righe 233-237) e convertire i 3 `useMemo` in `useEffect`.
 
 ---
 
-## Health Score Engine ✅
-- ✅ Tabella `company_health_scores` con RLS super_admin
-- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
-- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
-- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
-- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+## BUG UI: Log Drawer renderizzato come Sheet ma usato inline
+
+Nel tab "log" (riga 508-516), `InternalAutomationLogDrawer` è renderizzato come componente inline (`open={true}`), ma il componente usa internamente `<Sheet>` che è un overlay modale. Questo crea un conflitto: il log appare come drawer sovrapposto, non come contenuto del tab.
+
+**Fix**: Creare un componente `InternalAutomationLogInline` che renderizza direttamente la lista dei log senza il wrapper `<Sheet>`, da usare nel tab "log".
 
 ---
 
-## Support Migliorato ✅
-- ✅ **support_canned_responses** tabella con RLS
-- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
-- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
-- ✅ **SLA tracking**: campi sla_response_due_at, sla_resolution_due_at, first_response_at, breached flags
-- ✅ **SLA per piano**: sla_response_hours, sla_resolution_hours su subscription_plans
-- ✅ **Assegnazione ticket**: campo assigned_to su support_conversations
+## BUG UI: Branching connection non gestito nel salvataggio
+
+Quando l'utente clicca "+" su un nodo condition (ramo Sì/No), `handleAddAfterNode` viene chiamato con `branch`, ma `handleSelectAction` non utilizza `branch` per impostare il `label` della connessione. Tutte le connessioni vengono create con `label: null`, quindi il motore di esecuzione non riesce a seguire i rami corretti (cerca `label === "true"` o `"false"`).
+
+**Fix**: Salvare `addAfterBranch` nello state e usarlo come `label` della nuova connessione in `handleSelectAction`.
 
 ---
 
-## Customer Success Platform ✅
-- ✅ **onboarding_templates** + **onboarding_steps**: template configurabili con step, auto-check keys, ordinamento
-- ✅ **company_onboarding**: assegnazione template ad azienda, CS manager, stato
-- ✅ **company_onboarding_completions**: tracking completamento step per azienda
-- ✅ **cs_tasks**: attività CS con priorità, scadenza, assegnazione, stati (open/in_progress/completed)
-- ✅ **CustomerSuccess** pagina admin: CRUD template, editor step visuale
-- ✅ **AdminCSTasks** pagina admin: gestione task CS con filtri, creazione, cambio stato
-- ✅ **OnboardingChecklist** widget: checklist interattiva nella dashboard azienda con progress
-- ✅ Sidebar admin aggiornata con link CS Onboarding e CS Tasks
+## WARN: Console warnings per ref su FlowListView
+
+I warning `Function components cannot be given refs` derivano da `AlertDialog` che cerca di passare un ref a un componente funzione. Non bloccante ma visivamente spammoso.
 
 ---
 
-## API Platform per Aziende ✅
-- ✅ Tabelle `api_keys`, `api_usage_log`, `api_usage_daily` con RLS tenant-scoped
-- ✅ **api-gateway** edge function: generate_key (SHA-256 hash), list_keys, revoke_key, update_key, get_usage_stats, validate_api_key
-- ✅ **SettingsApiKeys** pagina: gestione chiavi (CRUD), scopes configurabili, rate limiting
-- ✅ **ApiUsageChart** componente: grafici utilizzo giornaliero con filtri per chiave e periodo
-- ✅ **ApiDocsTab** componente: documentazione API interattiva con endpoint, parametri, esempi cURL
-- ✅ Sidebar aziendale aggiornata con link "API Platform"
+## Piano di Fix
 
----
+### 1. SQL Migration — Creare i 9 trigger DB mancanti
+Ogni trigger con `CREATE TRIGGER IF NOT EXISTS` + `FOR EACH ROW`.
 
-## GDPR & Compliance Tools ✅
-- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
-- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
-- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
-- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
-- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+### 2. Fix FlowBuilderView state management
+- Rimuovere `useState(() => {...})` (riga 233-237)
+- Convertire i 3 `useMemo` side-effect in `useEffect`
 
----
+### 3. Fix branching connection label
+- Aggiungere `addAfterBranch` state
+- In `handleAddAfterNode`: settare sia `addAfterNodeId` che `addAfterBranch`
+- In `handleSelectAction`: usare `addAfterBranch` come `label` nella nuova connessione
 
-## White-Label & Branding ✅
-- ✅ **company_branding** tabella con RLS: logo, favicon, colori HSL, dominio custom, login personalizzato, email branding
-- ✅ **Storage bucket** `branding` con policy per upload logo/favicon/email logo
-- ✅ **useBranding** hook: fetch branding + applicazione dinamica CSS custom properties + favicon
-- ✅ **useBrandingMutation** hook: upsert branding + upload file su storage
-- ✅ **SettingsBranding** pagina: gestione completa logo, colori, login, dominio, email, opzioni avanzate
-- ✅ **CompanyLayout** sidebar aggiornata con logo da branding + link "White-Label" in impostazioni
-- ✅ Rotta `/azienda/impostazioni/branding` configurata in App.tsx
+### 4. Fix Log tab inline rendering
+- Estrarre il contenuto di `InternalAutomationLogDrawer` in un componente riusabile
+- Renderizzare direttamente nel tab senza `<Sheet>`
 
----
+### File modificati
 
-## Partner Portal Referrer ✅
-- ✅ **Ruolo `referrer`** aggiunto all'enum `app_role` e ai tipi TypeScript
-- ✅ **user_id** su tabella `referrers` per collegamento account partner
-- ✅ **RLS policies**: referrer self-access su `referrers`, `referral_companies`, `referral_payouts`
-- ✅ **PartnerPortal** pagina: dashboard con stats, lista aziende referenziate, storico pagamenti, link referral copiabile
-- ✅ **PartnerLayout** layout dedicato con sidebar minima
-- ✅ **RoleBasedRedirect** aggiornato con redirect `/partner` per ruolo `referrer`
-- ✅ **QuickLoginPopover** aggiornato con labels/colors/redirect per referrer
-- ✅ Rotta `/partner` protetta in App.tsx
+| File | Modifica |
+|------|----------|
+| SQL migration | Creare 9 trigger DB |
+| `src/pages/azienda/InternalAutomations.tsx` | Fix useState/useMemo, fix branching label, fix log tab |
+| `src/components/internalAutomationBuilder/InternalAutomationLogDrawer.tsx` | Estrarre contenuto in componente inline |
 
----
-
-## Team Management Avanzato ✅
-- ✅ **Round-robin assegnazione**: funzione DB `assign_round_robin` con tracking index per distribuzione equa
-- ✅ **KPI per team**: dashboard con contatori (team, membri totali, leader, media) + KPI bar per card
-- ✅ **Drag & Drop utenti**: spostamento membri tra team con dnd-kit, overlay visivo, drop zone evidenziate
-
----
-
-## ✅ Tutte le funzionalità pianificate sono state completate!
-
----
-
-## Dashboard Analytics Avanzata (Admin) ✅
-- ✅ **Filtro temporale globale**: DatePicker con preset (7/30/90 giorni, mese, anno) + range custom
-- ✅ **Widget personalizzabili**: Drag & drop con dnd-kit, toggle visibilità per widget, salvataggio layout in localStorage
-- ✅ **Export PDF/Excel**: Export CSV e XLSX con tutte le metriche KPI, revenue, health summary
-
----
-
-## Messaggistica Interna ✅
-- ✅ **Database**: Tabelle `internal_chat_channels`, `internal_chat_members`, `internal_chat_messages` con RLS tenant-scoped
-- ✅ **Realtime**: Sottoscrizione Postgres changes per messaggi in tempo reale
-- ✅ **UI Chat**: Layout split-panel (canali + thread), avatar, timestamp, scroll automatico
-- ✅ **Canali**: Creazione canali con nome, descrizione, selezione membri con checkbox
-- ✅ **Thread/Reply**: Rispondi a messaggi specifici con banner di contesto
-- ✅ **Routing**: Rotta `/azienda/chat` + link "Chat Interna" nella sidebar
-
----
-
-## Gap Analysis — Implementazione Completata ✅
-
-### Secure Impersonation JWT ✅
-- ✅ **active_impersonations** tabella con RLS, indici, expiry
-- ✅ **secure-impersonation** edge function: start (token crypto 32 byte), validate, end, cleanup
-- ✅ **AuthContext** refactored: impersonation via edge function con token sicuro, audit log automatico
-- ✅ Rimozione completa di sessionStorage per impersonation (XSS fix)
-
-### AdminLoginPage Separata ✅
-- ✅ **AdminLogin.tsx** pagina: login dedicato super admin con shield icon, verifica ruolo post-login
-- ✅ **Rotta /admin-login** configurata in App.tsx
-- ✅ **2FA step** integrato nel flusso admin login
-- ✅ **Access denied** per utenti non super_admin
-
-### IP Allowlist Pannello Super Admin ✅
-- ✅ **admin_ip_allowlist** tabella con RLS super_admin, unique constraint
-- ✅ **AdminSettingsIPAllowlist** pagina: CRUD IP con validazione IPv4/CIDR, etichette, confirm dialog rimozione
-- ✅ **Sidebar admin** aggiornata con link "IP Allowlist" nelle impostazioni
-- ✅ **Rotta /admin/impostazioni/ip-allowlist** configurata
-
-### Build Multi-Target Vite ✅
-- ✅ **VITE_APP_MODE** variabile definita in vite.config.ts con `__APP_MODE__`
-- ✅ Preparato per build scripts separati (build:app / build:admin)
-
-### Fix Tecnici Minori ✅
-- ✅ **Trial extension configurabile**: input giorni (1-90) con confirm dialog, non più hardcoded +14
-- ✅ **SyncLogs migliorata**: stats summary strip (totali, completate, fallite, success rate)
-- ✅ **allowed_company_ids enforcement**: già implementato in CompaniesList + AdminLayout
-- ✅ **Confirm dialogs**: AlertDialog su estensione trial, rimozione IP, azioni destructive
