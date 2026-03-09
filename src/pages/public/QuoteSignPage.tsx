@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -96,8 +97,8 @@ export default function QuoteSignPage() {
       if (result?.success) {
         setActionDone("signed");
       }
-    } catch {
-      // Error handled
+    } catch (err: any) {
+      toast.error(err?.message || "Errore durante l'accettazione. Riprova.");
     } finally {
       setSubmitting(false);
     }
@@ -113,8 +114,8 @@ export default function QuoteSignPage() {
       if (result?.success) {
         setActionDone("refused");
       }
-    } catch {
-      // Error handled
+    } catch (err: any) {
+      toast.error(err?.message || "Errore durante il rifiuto. Riprova.");
     } finally {
       setSubmitting(false);
     }
@@ -224,9 +225,9 @@ export default function QuoteSignPage() {
                 {new Date(quote.created_at).toLocaleDateString("it-IT")}
               </Badge>
             </div>
-            {quote.valid_until && (
+            {quote.expires_at && (
               <p className="text-xs text-muted-foreground mt-2">
-                Valida fino al {new Date(quote.valid_until).toLocaleDateString("it-IT")}
+                Valida fino al {new Date(quote.expires_at).toLocaleDateString("it-IT")}
               </p>
             )}
           </CardHeader>

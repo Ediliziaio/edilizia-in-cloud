@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     }
 
     // Check expiration
-    if (quote.expires_at && new Date(quote.expires_at< new Date()) {
+    if (quote.expires_at && new Date(quote.expires_at) < new Date()) {
       // Auto-expire if still in "inviata"
       if (quote.status === "inviata") {
         await supabaseAdmin
@@ -83,10 +83,10 @@ Deno.serve(async (req) => {
 
         // Check if signed PDF exists
         let pdfUrl: string | null = null;
-        if (quote.pdf_url) {
+        if (quote.pdf_storage_path) {
           const { data: signedData } = await supabaseAdmin.storage
             .from("quote-pdfs")
-            .createSignedUrl(quote.pdf_url, 3600);
+            .createSignedUrl(quote.pdf_storage_path, 3600);
           pdfUrl = signedData?.signedUrl || null;
         }
 

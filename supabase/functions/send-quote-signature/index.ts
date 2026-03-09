@@ -87,9 +87,9 @@ Deno.serve(async (req) => {
         Importo totale: <strong>€ ${Number(quote.total || 0).toFixed(2)}</strong>
       </p>
 
-      ${quote.valid_until ? `
+      ${quote.expires_at ? `
         <p style="color: #71717a; font-size: 13px; margin-bottom: 25px;">
-          Offerta valida fino al ${new Date(quote.valid_until).toLocaleDateString("it-IT")}
+          Offerta valida fino al ${new Date(quote.expires_at).toLocaleDateString("it-IT")}
         </p>
       ` : ""}
 

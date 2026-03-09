@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     // Load attached PDF materials
     const { data: attachmentRows = [] } = await supabaseAdmin
       .from("quote_pdf_attachments")
-      .select("*, quote_pdf_materials(name, storagragrage_path)")
+      .select("*, quote_pdf_materials(name, storage_path)")
       .eq("quote_id", quote_id)
       .order("sort_order");
 
@@ -101,8 +101,8 @@ Deno.serve(async (req) => {
     page.drawText(`Data: ${createdDate}`, { x: margin, y, size: 10, font });
     y -= 14;
 
-    if (quote.valid_until) {
-      const validDate = new Date(quote.valid_until).toLocaleDateString("it-IT");
+    if (quote.expires_at) {
+      const validDate = new Date(quote.expires_at).toLocaleDateString("it-IT");
       page.drawText(`Valida fino al: ${validDate}`, { x: margin, y, size: 10, font });
       y -= 14;
     }
@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
 
     // ─── Merge attached PDFs ───
     for (const att of attachmentRows) {
-      const filePath = att.quote_pdf_materialstoragfile_path;
+      const filePath = att.quote_pdf_materials?.storage_path;
       if (!filePath) continue;
 
       try {
