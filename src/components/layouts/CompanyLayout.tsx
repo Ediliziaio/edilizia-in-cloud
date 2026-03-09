@@ -630,6 +630,11 @@ export function CompanyLayout() {
           <main className="flex-1 p-6 bg-muted/30">
             <Outlet />
           </main>
+          {!effectiveBrand.hidePoweredBy && (
+            <footer className="text-center py-2 text-xs text-muted-foreground border-t bg-background">
+              Powered by EdiliziaInCloud
+            </footer>
+          )}
         </div>
       </div>
       {showSupport && (
