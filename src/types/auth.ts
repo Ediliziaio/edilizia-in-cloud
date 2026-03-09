@@ -69,6 +69,11 @@ export interface Company {
   payment_notes: string | null;
   created_at: string;
   updated_at: string;
+  // Security fields
+  enforce_2fa: boolean;
+  allowed_ips: string[] | null;
+  password_expiry_days: number;
+  max_failed_attempts: number;
 }
 
 export interface AuthState {
