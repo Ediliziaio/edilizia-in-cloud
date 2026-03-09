@@ -222,7 +222,7 @@ export default function PrimaNota() {
                 <tr key={e.id} className="border-b hover:bg-muted/30">
                   <td className="p-3">
                     <div className="flex items-center gap-1.5">
-                      {e.is_auto && <Bot className="h-3.5 w-3.5 text-muted-foreground" title="Auto-generato" />}
+                      {e.is_auto && <span title="Auto-generato"><Bot className="h-3.5 w-3.5 text-muted-foreground" /></span>}
                       {format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })}
                     </div>
                   </td>
