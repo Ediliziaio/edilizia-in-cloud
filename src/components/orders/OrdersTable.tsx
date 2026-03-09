@@ -382,4 +382,4 @@ export const OrdersTable = React.memo(function OrdersTable({
       </div>
     </Card>
   );
-}
+});
