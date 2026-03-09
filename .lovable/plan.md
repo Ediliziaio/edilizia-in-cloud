@@ -33,10 +33,28 @@
 
 ---
 
+## Health Score Engine ✅
+- ✅ Tabella `company_health_scores` con RLS super_admin
+- ✅ **compute-health-scores** edge function: calcolo score multi-dimensionale (login, ordini, features, team, engagement)
+- ✅ Churn risk + signals automatici (no_recent_login, declining_orders, trial_expiring_soon, etc.)
+- ✅ **useHealthScores** + **useCompanyHealthScore** hooks
+- ✅ **CompanyOverviewTab** card con breakdown score dettagliato e progress bars
+
+---
+
+## Support Migliorato ✅
+- ✅ **support_canned_responses** tabella con RLS
+- ✅ **CannedResponsesPicker** componente: CRUD risposte rapide, inserimento nel chat
+- ✅ **AdminSupportChatSheet** integrato con picker risposte rapide
+- ✅ **SLA tracking**: campi `sla_response_due_at`, `sla_resolution_due_at`, `first_response_at`, breached flags su `support_conversations`
+- ✅ **SLA per piano**: `sla_response_hours`, `sla_resolution_hours` su `subscription_plans`
+- ✅ **Assegnazione ticket**: campo `assigned_to` su `support_conversations`
+
+---
+
 ## ⏳ Funzionalità Rimanenti
 
-- ⬜ Health Score Engine pg_cron (P1)
-- ⬜ Customer Success Platform (P1)
+- ⬜ Customer Success Platform (P1) — onboarding checklist, CS tasks, NPS
 - ⬜ API Platform per Aziende (P2)
 - ⬜ GDPR & Compliance Tools (P2)
 - ⬜ White-Label (P3)
