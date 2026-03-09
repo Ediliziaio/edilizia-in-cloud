@@ -1751,6 +1751,10 @@ export type Database = {
           operational_postal_code: string | null
           operational_province: string | null
           password_expiry_days: number
+          password_min_length: number
+          password_require_numbers: boolean
+          password_require_special: boolean
+          password_require_uppercase: boolean
           payment_method: string
           payment_notes: string | null
           pec: string | null
@@ -1797,6 +1801,10 @@ export type Database = {
           operational_postal_code?: string | null
           operational_province?: string | null
           password_expiry_days?: number
+          password_min_length?: number
+          password_require_numbers?: boolean
+          password_require_special?: boolean
+          password_require_uppercase?: boolean
           payment_method?: string
           payment_notes?: string | null
           pec?: string | null
@@ -1843,6 +1851,10 @@ export type Database = {
           operational_postal_code?: string | null
           operational_province?: string | null
           password_expiry_days?: number
+          password_min_length?: number
+          password_require_numbers?: boolean
+          password_require_special?: boolean
+          password_require_uppercase?: boolean
           payment_method?: string
           payment_notes?: string | null
           pec?: string | null
@@ -6327,6 +6339,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      password_history: {
+        Row: {
+          created_at: string
+          id: string
+          password_hash: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          password_hash: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          password_hash?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       permission_templates: {
         Row: {
