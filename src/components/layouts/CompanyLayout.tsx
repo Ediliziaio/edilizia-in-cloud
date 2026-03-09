@@ -523,23 +523,36 @@ function CompanySidebar() {
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <SidebarGroupContent>
-                      <SidebarMenu>
-                        {visibleMarketingItems.map((item) => (
-                          <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton asChild>
-                              <NavLink 
-                                to={item.url} 
-                                end={item.url === "/azienda/marketing"}
-                                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                                activeClassName="bg-muted text-foreground font-medium"
-                              >
-                                <item.icon className="h-4 w-4" />
-                                <span>{item.title}</span>
-                              </NavLink>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
-                      </SidebarMenu>
+                      {marketingSubcategories.map((sub) => {
+                        const items = visibleMarketingItems.filter((i) => i.subcategory === sub.id);
+                        if (items.length === 0) return null;
+                        return (
+                          <SidebarSubcategory
+                            key={sub.id}
+                            label={sub.label}
+                            isOpen={isOpen(sub.id)}
+                            onToggle={() => toggle(sub.id)}
+                          >
+                            <SidebarMenu>
+                              {items.map((item) => (
+                                <SidebarMenuItem key={item.title}>
+                                  <SidebarMenuButton asChild>
+                                    <NavLink 
+                                      to={item.url} 
+                                      end={item.url === "/azienda/marketing"}
+                                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                      activeClassName="bg-muted text-foreground font-medium"
+                                    >
+                                      <item.icon className="h-4 w-4" />
+                                      <span>{item.title}</span>
+                                    </NavLink>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              ))}
+                            </SidebarMenu>
+                          </SidebarSubcategory>
+                        );
+                      })}
                     </SidebarGroupContent>
                   </CollapsibleContent>
                 </SidebarGroup>
