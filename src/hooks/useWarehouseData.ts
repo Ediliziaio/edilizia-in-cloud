@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, addWeeks } from "date-fns";
+import { exportToCSV as exportCsvUtil } from "@/lib/csvExport";
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 
