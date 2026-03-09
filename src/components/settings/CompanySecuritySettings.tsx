@@ -60,6 +60,10 @@ export function CompanySecuritySettings() {
       setLockoutDuration(String(company.lockout_duration_minutes ?? 30));
       setPasswordExpiryDays(company.password_expiry_days ?? 0);
       setAllowedIps((company.allowed_ips || []).join("\n"));
+      setPasswordMinLength(company.password_min_length ?? 8);
+      setPasswordRequireUppercase(company.password_require_uppercase ?? false);
+      setPasswordRequireNumbers(company.password_require_numbers ?? false);
+      setPasswordRequireSpecial(company.password_require_special ?? false);
       setNotifications({
         login_unknown_ip: company.security_notifications?.login_unknown_ip ?? false,
         account_locked: company.security_notifications?.account_locked ?? false,
