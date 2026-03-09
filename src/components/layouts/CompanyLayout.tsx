@@ -105,6 +105,7 @@ function CompanySidebar() {
   const { effectiveBrand } = useBrandSettings();
   const navigate = useNavigate();
   const location = useLocation();
+  const { toggle, isOpen } = useSidebarSections();
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
   const isAdmin = role === "company_admin" || role === "super_admin";
 
