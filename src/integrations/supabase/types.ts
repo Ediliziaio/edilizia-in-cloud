@@ -1731,12 +1731,14 @@ export type Database = {
           created_at: string
           email: string
           enforce_2fa: boolean
+          enforce_2fa_roles: string[] | null
           fiscal_code: string | null
           id: string
           legal_address: string | null
           legal_city: string | null
           legal_postal_code: string | null
           legal_province: string | null
+          lockout_duration_minutes: number
           logo_url: string | null
           max_failed_attempts: number
           messaging_beta_enabled: boolean
@@ -1756,6 +1758,7 @@ export type Database = {
           referred_by: string | null
           sdi_code: string | null
           sector: Database["public"]["Enums"]["company_sector"]
+          security_notifications: Json | null
           status: string
           stripe_customer_id: string | null
           subscription_plan_id: string | null
@@ -1774,12 +1777,14 @@ export type Database = {
           created_at?: string
           email: string
           enforce_2fa?: boolean
+          enforce_2fa_roles?: string[] | null
           fiscal_code?: string | null
           id?: string
           legal_address?: string | null
           legal_city?: string | null
           legal_postal_code?: string | null
           legal_province?: string | null
+          lockout_duration_minutes?: number
           logo_url?: string | null
           max_failed_attempts?: number
           messaging_beta_enabled?: boolean
@@ -1799,6 +1804,7 @@ export type Database = {
           referred_by?: string | null
           sdi_code?: string | null
           sector?: Database["public"]["Enums"]["company_sector"]
+          security_notifications?: Json | null
           status?: string
           stripe_customer_id?: string | null
           subscription_plan_id?: string | null
@@ -1817,12 +1823,14 @@ export type Database = {
           created_at?: string
           email?: string
           enforce_2fa?: boolean
+          enforce_2fa_roles?: string[] | null
           fiscal_code?: string | null
           id?: string
           legal_address?: string | null
           legal_city?: string | null
           legal_postal_code?: string | null
           legal_province?: string | null
+          lockout_duration_minutes?: number
           logo_url?: string | null
           max_failed_attempts?: number
           messaging_beta_enabled?: boolean
@@ -1842,6 +1850,7 @@ export type Database = {
           referred_by?: string | null
           sdi_code?: string | null
           sector?: Database["public"]["Enums"]["company_sector"]
+          security_notifications?: Json | null
           status?: string
           stripe_customer_id?: string | null
           subscription_plan_id?: string | null

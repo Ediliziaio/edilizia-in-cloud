@@ -244,6 +244,36 @@ export function UsersConfig() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [teamFilter, setTeamFilter] = useState<string>("all");
+
+  // Fetch teams for filter
+  const { data: teams = [] } = useQuery({
+    queryKey: ["teams-filter", effectiveCompanyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("company_id", effectiveCompanyId!)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!effectiveCompanyId,
+  });
+
+  // Fetch team memberships
+  const { data: teamMemberships = [] } = useQuery({
+    queryKey: ["team-memberships-filter", effectiveCompanyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("team_members")
+        .select("user_id, team_id")
+        .in("team_id", teams.map(t => t.id));
+      if (error) throw error;
+      return data;
+    },
+    enabled: teams.length > 0,
+  });
 
   const { data: companyUsers = [], isLoading } = useQuery({
     queryKey: ["company-users", effectiveCompanyId],
@@ -430,7 +460,9 @@ export function UsersConfig() {
       (statusFilter === "active" && isActive) ||
       (statusFilter === "locked" && isLocked) ||
       (statusFilter === "inactive" && !isActive && !isLocked);
-    return matchesSearch && matchesRole && matchesStatus;
+    const matchesTeam = teamFilter === "all" ||
+      teamMemberships.some(tm => tm.user_id === u.id && tm.team_id === teamFilter);
+    return matchesSearch && matchesRole && matchesStatus && matchesTeam;
   });
 
   const isCurrentUser = (userId: string) => userId === user?.id;
@@ -498,6 +530,19 @@ export function UsersConfig() {
                 <SelectItem value="locked">Bloccato</SelectItem>
               </SelectContent>
             </Select>
+            {teams.length > 0 && (
+              <Select value={teamFilter} onValueChange={setTeamFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtra per team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i team</SelectItem>
+                  {teams.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -535,6 +580,7 @@ export function UsersConfig() {
                   <TableHead>Ruolo</TableHead>
                   <TableHead>Permessi</TableHead>
                   <TableHead>Ultimo accesso</TableHead>
+                  <TableHead>Sessioni</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead className="text-right w-12"></TableHead>
                 </TableRow>
@@ -590,6 +636,16 @@ export function UsersConfig() {
                         </TooltipProvider>
                       ) : (
                         <span className="text-xs text-muted-foreground italic">Mai</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {u.active_sessions > 0 ? (
+                        <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">
+                          <Wifi className="h-3 w-3 mr-1" />
+                          {u.active_sessions}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell>
