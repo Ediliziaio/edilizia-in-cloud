@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   useInternalAutomationFlows,
