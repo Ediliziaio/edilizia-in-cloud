@@ -57,8 +57,8 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
     supabase.from("suppliers").select("id, name").eq("company_id", companyId).order("name").then(({ data }) => {
       if (data) setSuppliers(data);
     });
-    supabase.from("orders").select("id, order_number, client_company_name").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50).then(({ data }) => {
-      if (data) setOrders(data as OrderOption[]);
+    supabase.from("orders").select("id, order_code, customers(company_name)").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50).then(({ data }) => {
+      if (data) setOrders(data as unknown as OrderOption[]);
     });
   }, [open, companyId]);
 
