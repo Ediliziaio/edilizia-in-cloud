@@ -107,6 +107,7 @@ const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
 const InvoiceDetail = lazy(() => import("@/pages/azienda/billing/InvoiceDetail"));
 const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 const BillingReports = lazy(() => import("@/pages/azienda/billing/BillingReports"));
+const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
@@ -308,6 +309,7 @@ const App = () => (
                 <Route path="fatturazione/:id" element={<InvoiceDetail />} />
                 <Route path="scadenzario" element={<Scadenzario />} />
                 <Route path="report-fatturazione" element={<BillingReports />} />
+                <Route path="prima-nota" element={<PrimaNota />} />
                 <Route path="automazioni" element={<InternalAutomations />} />
                 <Route path="automazioni/:id" element={<InternalAutomations />} />
                 <Route path="automazioni-legacy" element={<Automations />} />
