@@ -68,6 +68,8 @@ export function CustomerLayout() {
           <Link to="/cliente" className="flex items-center gap-2">
             {company?.logo_url ? (
               <img src={company.logo_url} alt={company.name} className="h-8 max-h-8 object-contain" />
+            ) : effectiveBrand.platformName ? (
+              <span className="font-semibold text-sm">{effectiveBrand.platformName}</span>
             ) : (
               <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
             )}
