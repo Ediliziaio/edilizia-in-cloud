@@ -174,7 +174,14 @@ export default function QuoteDetail() {
           </div>
           <p className="text-muted-foreground">{quote.title}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {/* Generate PDF */}
+          <Button variant="outline" onClick={handleGeneratePdf} disabled={generating}>
+            {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
+            {generating ? "Generando..." : "Genera PDF"}
+          </Button>
+
+          {/* Edit (only draft) */}
           {quote.status === "bozza" && (
             <Button
               variant="outline"
@@ -182,6 +189,14 @@ export default function QuoteDetail() {
             >
               <Pencil className="h-4 w-4 mr-2" />
               Modifica
+            </Button>
+          )}
+
+          {/* Send for signature (draft or already sent) */}
+          {(quote.status === "bozza" || quote.status === "inviata") && quote.client_email && (
+            <Button onClick={handleSendForSignature} disabled={sending}>
+              {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              {sending ? "Invio..." : quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
             </Button>
           )}
         </div>
