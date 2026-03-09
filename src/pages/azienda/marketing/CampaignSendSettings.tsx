@@ -70,6 +70,13 @@ export default function CampaignSendSettings() {
   const [testEmailOpen, setTestEmailOpen] = useState(false);
   const [testEmailAddress, setTestEmailAddress] = useState("");
 
+  // A/B Testing state
+  const [abTestEnabled, setAbTestEnabled] = useState(false);
+  const [abSubjectB, setAbSubjectB] = useState("");
+  const [abSplitPercent, setAbSplitPercent] = useState(50);
+  const [abWinnerCriteria, setAbWinnerCriteria] = useState("open_rate");
+  const [abTestDurationHours, setAbTestDurationHours] = useState(4);
+
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["campaign-send-settings", id],
     enabled: !!id,
