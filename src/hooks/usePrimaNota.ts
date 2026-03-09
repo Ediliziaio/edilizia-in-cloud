@@ -18,6 +18,8 @@ export interface PrimaNotaEntry {
   supplier_id: string | null;
   cost_id: string | null;
   scadenza_id: string | null;
+  order_item_id: string | null;
+  account_label: string | null;
   is_auto: boolean;
   auto_source: string | null;
   attachment_url: string | null;
