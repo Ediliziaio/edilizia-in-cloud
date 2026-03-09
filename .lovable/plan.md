@@ -1,49 +1,70 @@
-# Stato Progetto — Aggiornato
 
-## AI Agents — Modulo Completo ✅
-- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
-- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
-- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
-- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
-- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
----
+## Fix critici sicurezza e robustezza — Piano di implementazione
 
-## Gestione Utenti — Completamento 100% ✅
-
-### Database + Security ✅
-- ✅ 6 tabelle + `password_history`, 20+ colonne security, 9 permessi granulari, RLS completo
-- ✅ Colonne complexity: `password_min_length`, `password_require_uppercase/numbers/special`
-- ✅ Colonne policy: `lockout_duration_minutes`, `enforce_2fa_roles`, `security_notifications`
-
-### Edge Functions ✅
-- ✅ track-user-session, revoke-user-session, manage-permission-template, get-security-report
-- ✅ **check-login-security**: IP allowlist, brute force con durata blocco configurabile
-- ✅ **cleanup-sessions**: cron giornaliero (03:00) per eliminare sessioni > 30 giorni
-
-### UI Core ✅
-- ✅ Security Dashboard, Team Management, CreateUserWizard, Tabella utenti arricchita
-- ✅ Session Tracking integrato in AuthContext, Unlock Account
-- ✅ **3 Tab Dettaglio Utente**: Sessioni, Log Attività, Sicurezza
-- ✅ **Filtri Avanzati**: Stato + Ruolo + Ricerca + Team
-- ✅ **Colonna "Sessioni Attive"** separata con badge count
-- ✅ **Import/Export utenti CSV**
-
-### Policy Sicurezza ✅
-- ✅ **CompanySecuritySettings** completo:
-  - Brute force: slider tentativi + durata blocco (15m/30m/1h/24h/Manuale)
-  - Password: scadenza + complessità (lunghezza min, maiuscole, numeri, caratteri speciali)
-  - 2FA: globale + per ruoli specifici
-  - IP Allowlist
-  - Notifiche sicurezza (login IP sconosciuto, account bloccato, modifica permessi)
-- ✅ **ChangePasswordForm** con validazione complessità in tempo reale
-- ✅ **PermissionTemplatesManager**: CRUD + "Applica a Utente"
-- ✅ **Password History** (tabella DB pronta, RLS bloccato lato client)
+### Stato attuale verificato
+- **Punto 3 (password)**: GIA' RISOLTO — `generateSecurePassword` in `_shared/securePassword.ts` usa `crypto.getRandomValues()` con Fisher-Yates shuffle
+- **Punto 1 (RLS WITH CHECK)**: Da fare — migration SQL
+- **Punti 2, 4, 5, 6, 7**: Da fare — modifiche codice
 
 ---
 
-## ⏳ Funzionalità Rimanenti (Priorità Bassa)
+### Modifiche da eseguire
 
-- ⬜ Round-robin assegnazione team
-- ⬜ KPI per team nella dashboard
-- ⬜ Drag & Drop utenti tra team
+**1. Migration SQL — RLS `staff_permissions` WITH CHECK**
+
+Aggiungere `WITH CHECK` alla policy esistente per bloccare scritture cross-tenant:
+
+```sql
+ALTER POLICY "Company admins can manage staff permissions"
+  ON public.staff_permissions
+  USING (
+    has_role(auth.uid(), 'company_admin'::app_role) AND
+    company_id = get_user_company_id(auth.uid())
+  )
+  WITH CHECK (
+    has_role(auth.uid(), 'company_admin'::app_role) AND
+    company_id = get_user_company_id(auth.uid())
+  );
+```
+
+**2. `SettingsUserDetail.tsx` — Consolidare delete ruoli in singola query**
+
+Sostituire il `for` loop (righe 166-169) con:
+```typescript
+const { error } = await supabase.from("user_roles").delete()
+  .eq("user_id", userId!).in("role", ["company_admin","company_staff","salesperson","call_center"]);
+if (error) throw error;
+```
+
+**3. `delete-company-user/index.ts` — Due fix**
+
+a) Super Admin bypass: se il caller e' super_admin, saltare il check company_id match (riga 57), altrimenti un super_admin non puo' eliminare utenti.
+
+b) Se `deleteAuthError` e' presente, restituire errore 500 invece di `{ success: true }` (righe 91-95):
+```typescript
+if (deleteAuthError) {
+  return new Response(JSON.stringify({ error: "Errore eliminazione account: " + deleteAuthError.message }), {
+    status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+```
+
+**4. `usePermissions.ts` — `canViewUsers` leggere dal DB**
+
+Riga 158: cambiare `canViewUsers: false` in `canViewUsers: permissions?.can_view_users ?? false`. Questo richiede che la colonna `can_view_users` esista in `staff_permissions` — verificheremo e aggiungeremo via migration se mancante.
+
+**5. `SettingsUserDetail.tsx` — Gestire `userData.role` undefined**
+
+Nel rendering, se `userData.role` e' undefined, mostrare un avviso nel tab Ruoli invece di passare undefined al componente.
+
+---
+
+### Riepilogo file modificati
+| File | Tipo modifica |
+|------|--------------|
+| Migration SQL | RLS WITH CHECK |
+| `supabase/functions/delete-company-user/index.ts` | Super admin bypass + error handling |
+| `src/pages/azienda/settings/SettingsUserDetail.tsx` | Singola query delete ruoli + undefined role guard |
+| `src/hooks/usePermissions.ts` | canViewUsers dal DB |
+
