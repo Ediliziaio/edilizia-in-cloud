@@ -1,131 +1,186 @@
+# Verifica Modulo AI Agents — Stato aggiornato
 
+## Completato — Blocco A, B, C ✅
 
-# Audit Stabilità: Timeline Unificata, A/B Testing Email, Import/Export CSV
+### FIX 2 ✅ — API Key ElevenLabs su DB
+- `PlatformSettingsPage`: salvataggio reale su `platform_settings` con upsert
+- `elevenlabs-proxy`: usa `getPlatformSetting()` per leggere API key da DB con fallback env
+- Banner rosso se API key non configurata
 
-Analisi approfondita delle tre funzionalità implementate. Per ciascuna: cosa funziona, cosa manca, cosa va corretto per arrivare al 100%.
+### FIX 3 ✅ — handleArchive in AgentsListPage
+- Implementato con `useUpdateAgent` → status='archived'
+- AlertDialog conferma archiviazione
+- Toggle "Mostra archiviati" con conteggio
 
----
+### FIX 4 ✅ — Tab Strumenti con persistenza DB
+- Toggle sistema salvati in `tools_config` jsonb su `ai_agents`
+- Dialog "Aggiungi strumento personalizzato" con salvataggio
+- Rimozione strumenti personalizzati
 
-## 1. Timeline Unificata Contatto
+### FIX 5 ✅ — Tab Sicurezza + Avanzato con persistenza DB
+- Migration: colonne `domain_whitelist`, `require_auth`, `rate_limit_enabled`, `rate_limit_per_minute`, `conversation_timeout`, `max_duration`, `error_message`, `auto_end_on_silence`, `silence_timeout` su `ai_agents`
+- SecurityTab e AdvancedTab ricevono `agent` e `onSave` props, salvano su DB
 
-### Funziona
-- Aggregazione da 6 sorgenti dati (activities, messages, email_logs, call_logs, appointments, notes)
-- Filtro per categoria, raggruppamento per data, popover dettagli
-- Normalizzazione eventi con icone e colori per tipo
+### FIX 6 ✅ — Tab Test con DB
+- Tabella `ai_agent_tests` con RLS + indice
+- CRUD completo: crea, esegui (simulato), elimina
+- Risultati persistiti in DB
 
-### Problemi critici
+### FIX 7 ✅ — Auto-ricarica crediti
+- Switch abilitato con form soglia/importo
+- Salvataggio su `ai_credits` con upsert
 
-**P0 — Nessun loading state visibile**
-Il componente non mostra spinner durante il caricamento delle 6 query parallele. L'utente vede "Nessuna attività registrata" per un attimo prima che i dati arrivino.
+### FIX 8 ✅ — Sync KB con ElevenLabs
+- Actions `add_kb_doc`, `remove_kb_doc`, `list_kb_docs`, `sync_kb` nel proxy
+- ProxyAction type aggiornato
 
-**P0 — Nessun error handling**
-Se una delle 6 query fallisce (es. `email_logs` ha RLS diversa), il componente non mostra errori. L'utente perde silenziosamente una categoria di eventi.
+### FIX 9 ✅ — Conversazioni AI nel CRM
+- Componente `ContactAIConversations` nel sidebar destro di `MarketingContactDetail`
+- Tab "Conversazioni AI" con icona Bot
 
-**P1 — Limite 1000 righe Supabase non gestito**
-Le query hanno `limit(200)`, `limit(100)`, `limit(50)` — va bene per ora. Ma per contatti con storico lungo, non c'è paginazione/infinite scroll. L'utente non sa che ci sono eventi più vecchi.
+### FIX 10 ✅ — Banner errore API key
+- Card destructive in PlatformSettingsPage quando API key non salvata
 
-**P1 — Nessun refresh automatico / realtime**
-Se un collega aggiunge una nota o invia un messaggio mentre la pagina è aperta, l'utente non lo vede. Serve `refetchInterval` o invalidazione tramite evento.
+### FIX 11 ✅ — Webhook HMAC verification
+- `elevenlabs-webhook`: verifica `xi-signature` con HMAC-SHA256
+- Fallback se `ELEVENLABS_WEBHOOK_SECRET` non configurato
 
-**P2 — Performance: 6 query separate per ogni contatto**
-Ogni apertura dettaglio contatto lancia 6 query. Per team con molti utenti che aprono contatti, può generare carico. Non urgente ma da monitorare.
+### FIX 12 ✅ — Documentazione
+- `docs/SETUP.md` con architettura, tabelle, configurazione
 
-**P2 — `(log as any).ab_variant` e `(msg as any).direction`**
-Cast `as any` indica che i tipi non sono allineati. Se i campi non esistono nel tipo generato, la colonna potrebbe non essere letta correttamente.
-
----
-
-## 2. A/B Testing Email
-
-### Funziona
-- UI completa: toggle, oggetto variante B, slider split, criterio vincitore, durata
-- Salvataggio DB corretto (tutte le colonne A/B)
-- Edge function: split casuale, invio con oggetto/contenuto diverso, log `ab_variant`
-
-### Problemi critici
-
-**P0 — Nessun meccanismo di determinazione del vincitore**
-Il campo `ab_winner_criteria` e `ab_test_duration_hours` vengono salvati, ma **non esiste nessuna logica** che:
-1. Dopo N ore, confronti open_rate o click_rate tra variante A e B
-2. Scriva il vincitore in `ab_winner`
-3. (Opzionale) Invii al resto dei destinatari solo con la variante vincente
-
-Questo è il cuore dell'A/B testing e **non è implementato**. Serve una Edge Function schedulata o un cron job.
-
-**P0 — Nessuna dashboard A/B per campagna**
-Non esiste una pagina di dettaglio campagna che mostri:
-- Open rate variante A vs B
-- Click rate variante A vs B
-- Vincitore dichiarato
-- Distribuzione invii
-
-L'utente può impostare un A/B test ma **non può vederne i risultati**.
-
-**P1 — Validazione mancante: A/B senza oggetto B**
-Se `abTestEnabled` è true ma `abSubjectB` è vuoto, il save non blocca. L'edge function invia variante B con lo stesso oggetto di A (fallback `campaign.subject`). Serve validazione client-side.
-
-**P1 — `ab_html_content_b` non è editabile dall'UI**
-Il campo esiste nel DB e l'edge function lo usa, ma non c'è modo di impostare un contenuto HTML diverso per la variante B. L'editor email non supporta due versioni. Attualmente l'A/B test funziona solo sull'oggetto.
-
-**P2 — Shuffle non deterministico**
-`Math.random() - 0.5` non è un shuffle uniforme (Fisher-Yates sarebbe corretto). Per campagne grandi potrebbe causare bias nella distribuzione.
+### Feature ✅ — MarketingAiAgent dashboard
+- Riepilogo agenti, saldo, KB
+- Banner chiamate bloccate
+- Azioni rapide con navigazione
 
 ---
 
-## 3. Import/Export CSV Avanzato
+## AI Agents Gestione Interna — Implementazione
 
-### Funziona
-- Export CSV e XLSX con dropdown formato
-- Export filtrato per selezione (`selectedIds`)
-- Inclusione campi custom nell'export
-- Import wizard 4 step con auto-match colonne
-- Supporto XLSX in import e export
+### Fase 1 — Database + Edge Function Tools ✅
 
-### Problemi critici
+- ✅ **Migration SQL**: 4 tabelle create (`internal_ai_agents`, `internal_call_logs`, `internal_agent_actions`, `internal_outbound_campaigns`)
+- ✅ **ALTER ai_agent_phone_numbers**: Colonne `routing_mode` (default 'marketing') e `internal_agent_id` aggiunte
+- ✅ **RLS policies**: Isolamento company_id + super_admin su tutte e 4 le tabelle
+- ✅ **Edge function `internal-agent-tools`**: 11 tool CRM implementati:
+  - `identify_caller` — Lookup per telefono in marketing_contacts
+  - `get_client_info` — Profilo completo con note e attività recenti
+  - `get_order_status` — Stato ordine con dettagli pagamento
+  - `get_orders_list` — Lista ordini del cliente
+  - `get_appointment_info` — Prossimi appuntamenti
+  - `create_note` — Crea nota su contatto
+  - `create_activity` — Crea attività/task
+  - `update_order_date` — Aggiorna expected_date ordine
+  - `send_sms_confirmation` — SMS via Telnyx
+  - `create_support_ticket` — Segnalazione/reclamo
+  - `schedule_callback` — Programma richiamo come appuntamento
 
-**P0 — Import modalità "Aggiorna" non implementata**
-Il wizard mostra 3 modalità (`create`, `update`, `create_and_update`) nel `StepUpload`, ma `handleImport` in `MarketingContacts.tsx` **ignora completamente `importMode`**. Usa sempre `supabase.insert()`. Non c'è logica di upsert per match su email/telefono.
+### Fase 2 — Modulo UI Lista + Editor ✅
 
-Questo è un bug grave: l'utente seleziona "Aggiorna esistenti", clicca importa, e tutti i record vengono **creati come nuovi** generando duplicati.
+- ✅ `src/modules/ai-agents-internal/` con routing e sidebar
+- ✅ `InternalAgentsListPage` — grid card agenti + wizard creazione + archiviazione
+- ✅ `InternalAgentEditorPage` — 8 tab (Agente, Strumenti CRM, KB, Telefono, Test, Analytics, Sicurezza, Avanzato)
+- ✅ Componenti: `InternalAgentCard`, `CreateInternalAgentWizard`, `InternalToolsTab`, `InternalAgentTab`
+- ✅ Riutilizzo `AgentKBTab` dal modulo marketing
 
-**P0 — Export non applica i filtri attivi**
-La funzione `doExport` carica TUTTI i contatti (`select("*")`) senza applicare i filtri di `ContactFiltersSheet` (tags, source, opportunity, campi custom). Se l'utente filtra per "tag = VIP" e clicca esporta, scarica **tutti** i contatti.
+### Fase 3 — Call Logs + Action Timeline ✅
 
-**P1 — Export > 1000 righe troncato**
-Supabase ha un limite default di 1000 righe per query. Se l'azienda ha > 1000 contatti, l'export taglia silenziosamente i dati. Serve paginazione lato query o `limit(10000)`.
+- ✅ `InternalCallLogsPage` con tabella filtrata, drawer dettaglio, trascrizione bubble chat
+- ✅ `ActionTimeline` — timeline verticale azioni CRM con icone e stati
+- ✅ `CallDetailDrawer` — drawer con riepilogo, tab azioni/trascrizione
+- ✅ Export CSV con BOM UTF-8
+- ✅ Hook `useInternalCallLogs` + `useInternalCallActions`
+- ✅ Route `/azienda/agente-interno/chiamate` nel modulo
 
-**P1 — Nessun report dettagliato post-import**
-Il risultato mostra solo `success` e `errors[]` generici. Non distingue tra righe create, aggiornate, saltate. Non indica quale riga ha causato l'errore (numero riga + motivo).
+### Fase 4 — Webhook + Smart Routing ✅
 
-**P1 — Nessuna validazione email pre-import**
-Le email inserite non vengono validate (formato, duplicati interni al file). Un CSV con email malformate crea contatti con email invalide nel DB.
+- ✅ Edge function `internal-agent-webhook` — post-processing chiamate, crediti, azioni CRM
+- ✅ Estendere `telnyx-webhook` con Smart Routing (`resolveAgent` per routing_mode)
+- ✅ Config `verify_jwt = false` per webhook
 
-**P2 — Import custom fields in batch senza transazione**
-L'insert dei contatti e l'insert dei `marketing_contact_field_values` sono due operazioni separate. Se la seconda fallisce, i contatti esistono senza i campi custom. Non critico ma genera dati incompleti.
+### Fase 5 — Campagne Outbound ✅
 
-**P2 — Export campi custom: query senza limite**
-La query `marketing_contact_field_values` con `.in("contact_id", ids)` potrebbe superare i limiti Supabase se ci sono molti contatti × molti campi.
+- ✅ `InternalCampaignsPage` con dashboard KPI e tabella filtrata
+- ✅ `CampaignBuilder` — wizard 4 step (tipo, target, scheduling, preview)
+- ✅ Edge function `internal-campaign-manager` — batch execution con rate limiting
+- ✅ Hook `useInternalCampaigns` con CRUD e stats
 
 ---
 
-## Riepilogo interventi necessari
+## Analisi CRM vs GHL — Piano Implementazione
 
-### Priorità 0 (Bloccanti — il feature è rotto senza)
-1. **A/B Winner Logic**: Creare Edge Function `determine-ab-winner` schedulata via cron che dopo `ab_test_duration_hours` calcola open/click rate per variante e scrive `ab_winner`
-2. **A/B Results Dashboard**: Pagina/sezione nel dettaglio campagna con confronto metriche A vs B
-3. **Import Update/Upsert**: Implementare logica di match per email/phone e upsert quando `importMode` è `update` o `create_and_update`
-4. **Export con filtri attivi**: Applicare le stesse filter rules della vista corrente alla query di export
-5. **Timeline loading + error states**: Mostrare skeleton/spinner durante caricamento e toast/badge su errore
+### Fase 1 — P0 (Critici) ✅
 
-### Priorità 1 (Importanti — degradano l'esperienza)
-6. **Validazione A/B**: Bloccare invio se A/B attivo senza oggetto B
-7. **Export paginato**: Gestire > 1000 righe
-8. **Import validation**: Controllo formato email, duplicati interni
-9. **Import report dettagliato**: Righe create/aggiornate/saltate/errore con numero riga
-10. **Timeline refetch**: `refetchInterval: 30000` o invalidazione post-azione
+- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` aggiunte a `marketing_contacts`. Toggle SMS/Chiamate nel tab impostazioni contatto. Check DND in `send-contact-message` (email/whatsapp/sms) e `process-automation` (send_email con unsubscribed+optout_email, send_whatsapp con optout_whatsapp). Badge unsubscribed visibile.
+- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` (unique). Pagina `/prenota/:slug` pubblica con calendario, slot disponibili, form prenotazione. RLS per anon (read calendari/availability/appointments, insert appointments).
+- ✅ **Tab Email AdminSettings**: Già esistente (`AdminSettingsEmail.tsx`)
+- ✅ **Crediti Stripe**: Già esistente (`SettingsCredits.tsx`)
 
-### Priorità 2 (Miglioramenti)
-11. **Editor HTML variante B** per A/B content test
-12. **Fisher-Yates shuffle** per split uniforme
-13. **Timeline performance**: Combinare query o virtualizzare lista
+### Fase 2 — P1 ✅
 
+- ✅ **Probabilità + Close Date + Motivo perdita opportunità**: Migration + UI in OpportunityDetailDialog
+- ✅ **Conferma + Promemoria appuntamenti**: Email conferma + promemoria in check-scheduled-triggers
+- ✅ **Google Calendar push notifications**: Edge function google-calendar-webhook + registra watch
+- ✅ **SMS/Email opt-out visibile in UI**: Già implementato nel tab settings contatto (toggle + badge unsubscribed)
+
+### Fase 3 — P2 ✅
+
+- ✅ **WhatsApp/Stripe in SettingsIntegrations**: Card stato per ogni integrazione
+- ✅ **Merge contatti duplicati**: UI + backend merge
+- ✅ **Tab Azioni nel dettaglio contatto**: Azioni rapide (email, SMS, WhatsApp)
+
+---
+
+## Fix Automazioni Marketing
+
+### Fase 1 — P0 (Critici) ✅
+
+- ✅ **A1**: `email-tracking` → inserisce `email_opened` / `email_clicked` in `automation_trigger_events`
+- ✅ **A2**: `whatsapp-webhook` → inserisce `whatsapp_received` in `automation_trigger_events` (con lookup contatto marketing)
+- ✅ **A3**: `fire_marketing_automation` già gestisce `opportunity_won`/`opportunity_lost` correttamente — nessun fix necessario
+- ✅ **B**: `process-automation` → `handleTrigger` arricchisce payload con dati contatto da `marketing_contacts` prima di `evaluateFilters`
+- ✅ **C**: Nuova Edge Function `check-scheduled-triggers` per trigger temporali (birthday, custom_date, opportunity_stale) + pg_cron alle 02:00
+
+### Fase 2 — P1 ✅
+
+- ✅ **D**: Azione `remove_from_automation` — UI (tipo CRM in builder) + backend (rimuove enrollment + cancella queue)
+- ✅ **E**: Azione `wait_for_event` — UI (tipo logica in builder) + backend (stato waiting, timeout, risoluzione evento)
+
+### Fase 3 — Documento v2 ✅
+
+- ✅ **Lead scoring**: Colonna `score` su `marketing_contacts` + azione `update_contact_score` (add/subtract/set) in builder e backend
+- ✅ **Re-enrollment**: Lettura `enable_reenrollment` da flow config_json.settings + fallback su trigger config
+- ✅ **Contatori per nodo**: Query aggregata su `automation_execution_log` con badge esecuzioni su ogni nodo nel builder (refresh 30s)
+- ✅ **customer_replied**: Collegato al webhook WhatsApp (inserisce evento `customer_replied` in `automation_trigger_events`)
+- ✅ **call_registered**: DB trigger `fire_call_registered_automation` su `call_logs` INSERT
+- ✅ **send_notification**: Implementato con insert reale in `lifecycle_notifications` (supporta assegnato, tutti admin, utente specifico)
+
+### Fase 4 ✅
+
+- ✅ **F**: `send_sms` già implementato via Telnyx in `process-automation` e `telnyx-proxy`
+- ✅ **G**: Enrollment bulk — `BulkEnrollAutomationDropdown` nel CRM contatti con selezione flussi pubblicati e inserimento in `automation_enrollments` + `automation_trigger_events`
+- ✅ **send_ai_message**: Integrazione con Lovable AI Gateway (`google/gemini-3-flash-preview`) — genera messaggio personalizzato con contesto contatto e dispatcha su email/WhatsApp/SMS
+
+---
+
+## Analisi CRM vs GHL
+
+### Fase 1 — P0 ✅
+
+- ✅ **DND completo**: Colonne `optout_sms`, `optout_call` su `marketing_contacts` + UI toggle nel tab Impostazioni contatto + check DND in `process-automation` e `send-contact-message` + badge unsubscribed
+- ✅ **Link prenotazione pubblica**: Colonna `booking_slug` su `marketing_calendars` + pagina pubblica `/prenota/:slug` + RLS anonima + creazione appuntamento + trigger `appointment_booked`
+- ✅ **Tab Email AdminSettings**: Già funzionante
+- ✅ **Crediti Stripe**: Già implementato
+
+### Fase 2 — P1 ✅
+
+- ✅ **Probabilità + Close Date + Loss Reason**: Colonne `probability`, `expected_close_date`, `loss_reason`, `loss_notes` su `marketing_opportunities` + tabella `opportunity_loss_reasons` + UI slider/date/dialog perdita in `OpportunityDetailDialog`
+- ✅ **Promemoria appuntamenti**: Logica 24h/1h in `check-scheduled-triggers` + tabella `appointment_reminders_sent` + notifiche interne + trigger automazione
+- ✅ **Google Calendar push**: Edge function `google-calendar-webhook` con register_watch, renew_watches, e ricezione push + colonne webhook su `google_calendar_connections`
+- ✅ **Opt-out UI**: Toggle SMS/Call/WhatsApp/Email nel dettaglio contatto + badge disiscritto (già implementato in Fase 1)
+
+### Fase 3 — P2 ✅
+
+- ✅ **WhatsApp/Stripe in SettingsIntegrations**: Card status per WhatsApp, Stripe, Email Provider, Twilio con stato connessione e dettagli
+- ✅ **Merge contatti duplicati**: Dialog di merge con ricerca, selezione master, spostamento opportunità/note/attività/appuntamenti/messaggi
+- ✅ **Tab Azioni nel dettaglio contatto**: Azioni rapide (invia WhatsApp, Email, SMS, Chiama, Aggiungi ad automazione) con check opt-out

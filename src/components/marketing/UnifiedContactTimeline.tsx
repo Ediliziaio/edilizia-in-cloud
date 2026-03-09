@@ -6,11 +6,12 @@ import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Activity, Mail, MessageSquare, Phone, CalendarDays, StickyNote,
   Target, UserPlus, Settings, ArrowRight, RefreshCw, UserCheck,
-  FileText, Smartphone, Bot, Filter,
+  FileText, Smartphone, AlertCircle, Loader2,
 } from "lucide-react";
 
 // ── Types ──
@@ -86,8 +87,10 @@ function getDateLabel(dateStr: string) {
 export function UnifiedContactTimeline({ contactId, companyId }: { contactId: string; companyId: string }) {
   const [filter, setFilter] = useState<FilterCategory>("all");
 
+  const queryOpts = { enabled: !!contactId, refetchInterval: 30000 };
+
   // Fetch all data sources in parallel
-  const { data: activities = [] } = useQuery({
+  const { data: activities = [], isLoading: loadingAct, isError: errAct } = useQuery({
     queryKey: ["unified_activities", contactId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -99,10 +102,10 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       if (error) throw error;
       return data;
     },
-    enabled: !!contactId,
+    ...queryOpts,
   });
 
-  const { data: messages = [] } = useQuery({
+  const { data: messages = [], isLoading: loadingMsg, isError: errMsg } = useQuery({
     queryKey: ["unified_messages", contactId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -114,10 +117,10 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       if (error) throw error;
       return data;
     },
-    enabled: !!contactId,
+    ...queryOpts,
   });
 
-  const { data: emailLogs = [] } = useQuery({
+  const { data: emailLogs = [], isLoading: loadingEmail, isError: errEmail } = useQuery({
     queryKey: ["unified_email_logs", contactId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -129,10 +132,10 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       if (error) throw error;
       return data;
     },
-    enabled: !!contactId,
+    ...queryOpts,
   });
 
-  const { data: callLogs = [] } = useQuery({
+  const { data: callLogs = [], isLoading: loadingCall, isError: errCall } = useQuery({
     queryKey: ["unified_call_logs", contactId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -144,10 +147,10 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       if (error) throw error;
       return data;
     },
-    enabled: !!contactId,
+    ...queryOpts,
   });
 
-  const { data: appointments = [] } = useQuery({
+  const { data: appointments = [], isLoading: loadingApt, isError: errApt } = useQuery({
     queryKey: ["unified_appointments", contactId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -161,9 +164,10 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       return data;
     },
     enabled: !!contactId && !!companyId,
+    refetchInterval: 30000,
   });
 
-  const { data: notes = [] } = useQuery({
+  const { data: notes = [], isLoading: loadingNote, isError: errNote } = useQuery({
     queryKey: ["unified_notes", contactId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -175,14 +179,23 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       if (error) throw error;
       return data;
     },
-    enabled: !!contactId,
+    ...queryOpts,
   });
+
+  const isLoading = loadingAct || loadingMsg || loadingEmail || loadingCall || loadingApt || loadingNote;
+  const errors = [
+    errAct && "attività",
+    errMsg && "messaggi",
+    errEmail && "email",
+    errCall && "chiamate",
+    errApt && "appuntamenti",
+    errNote && "note",
+  ].filter(Boolean) as string[];
 
   // Normalize all events
   const allEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
 
-    // Activities
     for (const act of activities) {
       events.push({
         id: `act-${act.id}`,
@@ -201,7 +214,6 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       });
     }
 
-    // Messages (WhatsApp, Email, SMS)
     for (const msg of messages) {
       const channelIcon = msg.channel === "whatsapp"
         ? <MessageSquare className="h-3.5 w-3.5" />
@@ -229,7 +241,6 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       });
     }
 
-    // Email campaign logs
     for (const log of emailLogs) {
       const campaignName = (log.email_campaigns as any)?.name || "Campagna";
       const subject = (log.email_campaigns as any)?.subject || "";
@@ -246,7 +257,6 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       });
     }
 
-    // Call logs
     for (const call of callLogs) {
       const userName = (call.profiles as any)?.first_name
         ? `${(call.profiles as any).first_name} ${(call.profiles as any).last_name || ""}`.trim()
@@ -264,7 +274,6 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       });
     }
 
-    // Appointments
     for (const apt of appointments) {
       events.push({
         id: `apt-${apt.id}`,
@@ -284,7 +293,6 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       });
     }
 
-    // Notes
     for (const note of notes) {
       const userName = (note.profiles as any)?.first_name
         ? `${(note.profiles as any).first_name} ${(note.profiles as any).last_name || ""}`.trim()
@@ -302,15 +310,12 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
       });
     }
 
-    // Sort by timestamp descending
     events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     return events;
   }, [activities, messages, emailLogs, callLogs, appointments, notes]);
 
-  // Apply filter
   const filtered = filter === "all" ? allEvents : allEvents.filter((e) => e.category === filter);
 
-  // Group by date
   const grouped = useMemo(() => {
     const groups: { label: string; items: TimelineEvent[] }[] = [];
     for (const event of filtered) {
@@ -348,9 +353,30 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
         ))}
       </div>
 
+      {/* Error banner */}
+      {errors.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-1.5 bg-destructive/10 text-destructive text-[11px] border-b shrink-0">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span>Errore nel caricamento di: {errors.join(", ")}</span>
+        </div>
+      )}
+
       {/* Timeline content */}
       <div className="flex-1 overflow-auto p-4 max-w-2xl mx-auto w-full">
-        {grouped.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-start gap-2.5 py-1.5">
+                <Skeleton className="h-6 w-6 rounded-full shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3 w-40" />
+                  <Skeleton className="h-2.5 w-60" />
+                  <Skeleton className="h-2.5 w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : grouped.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
             <Activity className="h-8 w-8 opacity-40" />
             <p className="text-xs font-medium">Nessuna attività registrata</p>
@@ -362,13 +388,11 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
           <div className="space-y-4">
             {grouped.map((group) => (
               <div key={group.label}>
-                {/* Date separator */}
                 <div className="flex items-center gap-3 mb-3">
                   <div className="flex-1 h-px bg-border" />
                   <span className="text-[11px] font-medium text-muted-foreground">{group.label}</span>
                   <div className="flex-1 h-px bg-border" />
                 </div>
-                {/* Events */}
                 <div className="space-y-2">
                   {group.items.map((event) => (
                     <div key={event.id} className="flex items-start gap-2.5 py-1.5">

@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 
 import { Slider } from "@/components/ui/slider";
+import { CampaignAbResults } from "@/components/email-marketing/CampaignAbResults";
 
 export default function CampaignSendSettings() {
   const { id } = useParams<{ id: string }>();
@@ -208,6 +209,7 @@ export default function CampaignSendSettings() {
     mutationFn: async () => {
       if (!senderEmail) throw new Error("Email del mittente obbligatoria");
       if (!subject) throw new Error("Oggetto obbligatorio");
+      if (abTestEnabled && !abSubjectB?.trim()) throw new Error("Oggetto variante B obbligatorio per A/B test");
 
       // Save settings first
       const payload: Record<string, any> = {
@@ -284,6 +286,7 @@ export default function CampaignSendSettings() {
     { label: "Email mittente", ok: !!senderEmail },
     { label: "Oggetto", ok: !!subject },
     { label: "Contenuto email", ok: !!(campaign?.html_content) },
+    ...(abTestEnabled ? [{ label: "Oggetto variante B", ok: !!abSubjectB?.trim() }] : []),
   ];
   const missingCount = requiredFields.filter((f) => !f.ok).length;
 
@@ -723,6 +726,9 @@ export default function CampaignSendSettings() {
                 </Button>
               </CardContent>
             </Card>
+
+            {/* A/B Results */}
+            {id && <CampaignAbResults campaignId={id} />}
 
             {/* Email preview */}
             <Card>
