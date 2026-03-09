@@ -55,7 +55,7 @@ interface OrdersTableProps {
   laborMap?: Map<string, string[]>;
 }
 
-export function OrdersTable({
+export const OrdersTable = React.memo(function OrdersTable({
   orders,
   onDelete,
   isDeleting,
