@@ -16,6 +16,7 @@ interface Props {
     due_date: string;
     notes?: string;
     payment_method?: string;
+    alert_days_before?: number;
   }) => void;
   isPending: boolean;
 }
