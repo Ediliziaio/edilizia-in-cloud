@@ -256,7 +256,7 @@ export default function MarketingContacts() {
     } finally {
       setExporting(false);
     }
-  }, [companyId, exporting, selectedIds, contactCustomFields, filters]);
+  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search]);
 
   // Pipelines with stages for opportunity filters
   const { data: pipelines = [] } = useQuery({
