@@ -621,6 +621,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     },
     enabled: !!id,
     staleTime: 120_000,
+  });
+
+  // ── Fetch contact messages ──
   const { data: contactMessages = [] } = useQuery({
     queryKey: ["contact_messages", id],
     queryFn: async () => {
