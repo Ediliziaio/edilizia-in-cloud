@@ -30,7 +30,35 @@ const navItems = [
 
 export function CustomerLayout() {
   const { signOut, company, profile } = useAuth();
-  
+  const { effectiveBrand } = useBrandSettings(company?.id);
+
+  // Apply CSS variables for brand colors
+  useEffect(() => {
+    const root = document.documentElement;
+    if (effectiveBrand.isWhiteLabel) {
+      root.style.setProperty("--brand-primary", effectiveBrand.primaryColor);
+      root.style.setProperty("--brand-secondary", effectiveBrand.secondaryColor);
+      root.style.setProperty("--brand-accent", effectiveBrand.accentColor);
+      root.style.setProperty("--brand-text-on-primary", effectiveBrand.textOnPrimary);
+      if (effectiveBrand.faviconUrl) {
+        let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+        link.href = effectiveBrand.faviconUrl;
+      }
+      if (effectiveBrand.platformName) document.title = effectiveBrand.platformName;
+    } else {
+      root.style.removeProperty("--brand-primary");
+      root.style.removeProperty("--brand-secondary");
+      root.style.removeProperty("--brand-accent");
+      root.style.removeProperty("--brand-text-on-primary");
+    }
+    return () => {
+      root.style.removeProperty("--brand-primary");
+      root.style.removeProperty("--brand-secondary");
+      root.style.removeProperty("--brand-accent");
+      root.style.removeProperty("--brand-text-on-primary");
+    };
+  }, [effectiveBrand]);
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
       <QuickLoginReturnBanner />
