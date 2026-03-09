@@ -1,23 +1,49 @@
+# Stato Progetto — Aggiornato
 
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
-## Fix: Scrollbar non funzionante nello Step 3 Permessi
+---
 
-**Problema**: Lo screenshot conferma che la sezione Marketing e il toggle "Solo assegnati" sono tagliati. Le fix precedenti (`overflow-hidden`, `flex flex-col`, `max-h-[60vh]`) non bastano perche il `DialogContent` base di shadcn ha `grid` come layout, che sovrascrive `flex flex-col`.
+## Gestione Utenti — Completamento 100% ✅
 
-**Causa root**: La classe base del `DialogContent` (riga 39 di dialog.tsx) include `grid`, che ha precedenza sul `flex flex-col` aggiunto in CreateUserWizard. In un `grid` layout, il figlio `ScrollArea` con `flex-1` non si comporta come atteso per limitare l'altezza.
+### Database + Security ✅
+- ✅ 6 tabelle + `password_history`, 20+ colonne security, 9 permessi granulari, RLS completo
+- ✅ Colonne complexity: `password_min_length`, `password_require_uppercase/numbers/special`
+- ✅ Colonne policy: `lockout_duration_minutes`, `enforce_2fa_roles`, `security_notifications`
 
-**Fix** — File `src/components/users/CreateUserWizard.tsx`:
+### Edge Functions ✅
+- ✅ track-user-session, revoke-user-session, manage-permission-template, get-security-report
+- ✅ **check-login-security**: IP allowlist, brute force con durata blocco configurabile
+- ✅ **cleanup-sessions**: cron giornaliero (03:00) per eliminare sessioni > 30 giorni
 
-1. **Riga 201** — Sovrascrivere il layout grid con `!flex !flex-col` (usando `!important` di Tailwind) e assicurare il contenimento:
-   ```tsx
-   <DialogContent className="sm:max-w-[600px] max-h-[85vh] !flex !flex-col overflow-hidden">
-   ```
+### UI Core ✅
+- ✅ Security Dashboard, Team Management, CreateUserWizard, Tabella utenti arricchita
+- ✅ Session Tracking integrato in AuthContext, Unlock Account
+- ✅ **3 Tab Dettaglio Utente**: Sessioni, Log Attività, Sicurezza
+- ✅ **Filtri Avanzati**: Stato + Ruolo + Ricerca + Team
+- ✅ **Colonna "Sessioni Attive"** separata con badge count
+- ✅ **Import/Export utenti CSV**
 
-2. **Riga 227** — Usare `overflow-y-auto` direttamente invece di affidarsi alla ScrollArea di Radix, che ha problemi con layout grid. Sostituire il `ScrollArea` con un semplice `div` scrollabile:
-   ```tsx
-   <div className="flex-1 min-h-0 overflow-y-auto pr-4">
-   ```
-   E chiudere con `</div>` al posto di `</ScrollArea>` (circa riga 500).
+### Policy Sicurezza ✅
+- ✅ **CompanySecuritySettings** completo:
+  - Brute force: slider tentativi + durata blocco (15m/30m/1h/24h/Manuale)
+  - Password: scadenza + complessità (lunghezza min, maiuscole, numeri, caratteri speciali)
+  - 2FA: globale + per ruoli specifici
+  - IP Allowlist
+  - Notifiche sicurezza (login IP sconosciuto, account bloccato, modifica permessi)
+- ✅ **ChangePasswordForm** con validazione complessità in tempo reale
+- ✅ **PermissionTemplatesManager**: CRUD + "Applica a Utente"
+- ✅ **Password History** (tabella DB pronta, RLS bloccato lato client)
 
-Questo approccio elimina la dipendenza dal componente `ScrollArea` di Radix (che richiede un'altezza fissa dal parent) e usa il native overflow del browser, garantendo lo scroll in ogni contesto di layout.
+---
 
+## ⏳ Funzionalità Rimanenti (Priorità Bassa)
+
+- ⬜ Round-robin assegnazione team
+- ⬜ KPI per team nella dashboard
+- ⬜ Drag & Drop utenti tra team
