@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus, ListTodo, ExternalLink, CheckCircle2, CheckCircle2 } from "lucide-react";
 import { format, isAfter, isBefore, addHours, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
-import { sonnerooks/use-toast";
+import { toast } from "sonner";
 import { TaskStatCards } from "@/components/tasks/TaskStatCards";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { BulkActionsBar } from "@/components/tasks/BulkActionsBar";
