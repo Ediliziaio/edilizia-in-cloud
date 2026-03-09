@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 
 import { Slider } from "@/components/ui/slider";
+import { CampaignAbResults } from "@/components/email-marketing/CampaignAbResults";
 
 export default function CampaignSendSettings() {
   const { id } = useParams<{ id: string }>();
