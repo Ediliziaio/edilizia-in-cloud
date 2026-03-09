@@ -94,6 +94,7 @@ function CompanySidebar() {
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits();
+  const { isFeatureEnabled } = useFeatureFlags();
   const navigate = useNavigate();
   const location = useLocation();
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
