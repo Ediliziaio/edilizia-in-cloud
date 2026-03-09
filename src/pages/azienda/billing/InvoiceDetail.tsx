@@ -285,6 +285,40 @@ export default function InvoiceDetail() {
             </CardContent>
           </Card>
 
+          {/* Linked bank transactions */}
+          {linkedTransactions && linkedTransactions.length > 0 && (
+            <Card className="border-green-200 dark:border-green-800">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-green-600" /> Pagamenti bancari collegati
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {linkedTransactions.map((rec: any) => {
+                    const tx = rec.bank_transactions;
+                    return (
+                      <div key={rec.id} className="flex items-center justify-between border rounded-lg p-3 text-sm">
+                        <div>
+                          <p className="font-medium">{tx?.description || "Transazione"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {tx?.booking_date} · {tx?.creditor_name || tx?.debtor_name || ""} · {(tx?.bank_accounts as any)?.display_name || ""}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-green-600">{fmtEur(Number(rec.matched_amount))}</p>
+                          <Badge variant="outline" className="text-[10px]">
+                            {rec.match_type === "auto" ? "Auto" : "Manuale"}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Payment & Notes */}
           <Card>
             <CardHeader><CardTitle className="text-base">Pagamento e note</CardTitle></CardHeader>

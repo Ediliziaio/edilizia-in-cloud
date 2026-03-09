@@ -341,6 +341,17 @@ export default function TransactionsFeed({ companyId }: Props) {
                 <div><Label className="text-muted-foreground">IBAN Creditore</Label><p className="text-xs font-mono">{selectedTx.creditor_iban || "—"}</p></div>
                 <div><Label className="text-muted-foreground">IBAN Debitore</Label><p className="text-xs font-mono">{selectedTx.debtor_iban || "—"}</p></div>
                 <div className="col-span-2"><Label className="text-muted-foreground">Riferimento</Label><p>{selectedTx.reference || "—"}</p></div>
+                {selectedTx.linked_invoice_id && invoiceMap[selectedTx.linked_invoice_id] && (
+                  <div className="col-span-2">
+                    <Label className="text-muted-foreground">Fattura collegata</Label>
+                    <p className="flex items-center gap-1">
+                      <Link2 className="h-3 w-3 text-primary" />
+                      <span className="font-medium">{invoiceMap[selectedTx.linked_invoice_id].invoice_number}</span>
+                      {" — "}
+                      {invoiceMap[selectedTx.linked_invoice_id].client_company_name}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

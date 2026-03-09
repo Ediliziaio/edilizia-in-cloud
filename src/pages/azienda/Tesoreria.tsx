@@ -136,6 +136,9 @@ export default function Tesoreria() {
             hasPendingCallback={bankCallback === "1"}
           />
         </TabsContent>
+        <TabsContent value="riconciliazione">
+          <BankReconciliation companyId={effectiveCompany?.id || ""} />
+        </TabsContent>
       </Tabs>
     </div>
   );
