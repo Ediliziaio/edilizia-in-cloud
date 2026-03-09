@@ -580,6 +580,7 @@ export function UsersConfig() {
                   <TableHead>Ruolo</TableHead>
                   <TableHead>Permessi</TableHead>
                   <TableHead>Ultimo accesso</TableHead>
+                  <TableHead>Sessioni</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead className="text-right w-12"></TableHead>
                 </TableRow>
