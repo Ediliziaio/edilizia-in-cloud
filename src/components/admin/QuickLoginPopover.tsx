@@ -22,6 +22,7 @@ const ROLE_LABELS: Record<AppRole, string> = {
   employee: "Dipendente",
   salesperson: "Venditore",
   call_center: "Call Center",
+  referrer: "Partner",
 };
 
 const ROLE_COLORS: Record<AppRole, string> = {
