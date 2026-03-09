@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createAdapter, mapInvoiceToProviderData } from "../_shared/billingAdapter.ts";
+import { createAdapter } from "../_shared/billingAdapter.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -16,14 +16,15 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
-    const { invoice_id, action, provider: preferredProvider } = await req.json();
+    const { invoice_id, provider: preferredProvider } = await req.json();
 
-    // Recupera fattura con righe
+    // Recupera fattura
     const { data: invoice } = await supabase
-      .from("invoices").select("*, invoice_lines(*)").eq("id", invoice_id).single();
+      .from("invoices").select("*").eq("id", invoice_id).single();
     if (!invoice) return json({ error: "Invoice not found" }, 404);
+    if (!invoice.external_id) return json({ error: "Invoice not synced yet" }, 400);
 
-    // Recupera integrazione: prima quella preferita/primaria, poi qualsiasi attiva, poi standalone
+    // Recupera integrazione attiva
     let query = supabase.from("billing_integrations").select("*")
       .eq("company_id", invoice.company_id).eq("is_active", true);
     if (preferredProvider) query = query.eq("provider", preferredProvider);
@@ -36,11 +37,11 @@ Deno.serve(async (req) => {
         .eq("company_id", invoice.company_id).eq("is_active", true).limit(1).maybeSingle();
       integration = fallback;
     }
-    const activeIntegration = integration || { provider: "standalone" } as Record<string, unknown>;
+    if (!integration) return json({ error: "No active integration found" }, 400);
 
     // Refresh token FIC se scaduto
-    if (activeIntegration.provider === "fattureincloud" && activeIntegration.token_expires_at) {
-      const exp = new Date(activeIntegration.token_expires_at as string);
+    if (integration.provider === "fattureincloud" && integration.token_expires_at) {
+      const exp = new Date(integration.token_expires_at as string);
       if (exp < new Date(Date.now() + 5 * 60 * 1000)) {
         const r = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
           method: "POST",
@@ -49,80 +50,51 @@ Deno.serve(async (req) => {
             grant_type: "refresh_token",
             client_id: Deno.env.get("FIC_CLIENT_ID") || "",
             client_secret: Deno.env.get("FIC_CLIENT_SECRET") || "",
-            refresh_token: activeIntegration.refresh_token as string,
+            refresh_token: integration.refresh_token as string,
           }),
         });
         if (r.ok) {
           const td = await r.json();
-          activeIntegration.access_token = td.access_token;
+          integration.access_token = td.access_token;
           await supabase.from("billing_integrations").update({
             access_token: td.access_token,
             token_expires_at: new Date(Date.now() + td.expires_in * 1000).toISOString(),
-          }).eq("id", activeIntegration.id);
+          }).eq("id", integration.id);
         }
       }
     }
 
     let adapter;
-    try { adapter = createAdapter(activeIntegration as { provider: string; access_token?: string | null; api_key?: string | null; company_external_id?: string | null }); }
-    catch (e) { return json({ error: String(e) }, 400); }
+    try {
+      adapter = createAdapter(integration as { provider: string; access_token?: string | null; api_key?: string | null; company_external_id?: string | null });
+    } catch (e) {
+      return json({ error: String(e) }, 400);
+    }
 
-    const logSync = async (act: string, status: string, response: unknown, err?: string) => {
-      await supabase.from("billing_sync_log").insert({
-        company_id: invoice.company_id,
-        invoice_id: invoice.id,
-        provider: activeIntegration.provider as string,
-        direction: "push",
-        action: act,
-        status,
-        response_payload: response as Record<string, unknown>,
-        error_message: err || null,
-      });
-    };
+    // Solo fetch_status — verifica stato fattura importata
+    const result = await adapter.fetchStatus(invoice.external_id);
 
-    // ── push_to_provider
-    if (action === "push_to_provider") {
-      const result = await adapter.pushInvoice(mapInvoiceToProviderData(invoice));
-      await logSync("create", result.success ? "success" : "error", result.rawResponse, result.error);
+    await supabase.from("billing_sync_log").insert({
+      company_id: invoice.company_id,
+      invoice_id: invoice.id,
+      provider: integration.provider as string,
+      direction: "pull",
+      action: "fetch_status",
+      status: result.success ? "success" : "error",
+      response_payload: result as unknown as Record<string, unknown>,
+      error_message: result.error || null,
+    });
 
-      if (!result.success) return json({ error: result.error }, 400);
-
+    if (result.success) {
       await supabase.from("invoices").update({
-        external_id: result.externalId,
-        external_provider: activeIntegration.provider as string,
-        external_sync_at: new Date().toISOString(),
         external_status: result.externalStatus,
-        status: "sent",
+        status: result.internalStatus,
+        external_sdi_id: result.sdiId,
+        last_synced_at: new Date().toISOString(),
       }).eq("id", invoice.id);
-
-      return json({ success: true, external_id: result.externalId });
     }
 
-    // ── fetch_status
-    if (action === "fetch_status") {
-      if (!invoice.external_id) return json({ error: "Invoice not synced yet" }, 400);
-      const result = await adapter.fetchStatus(invoice.external_id);
-      if (result.success) {
-        await supabase.from("invoices").update({
-          external_status: result.externalStatus,
-          status: result.internalStatus,
-          external_sdi_id: result.sdiId,
-        }).eq("id", invoice.id);
-      }
-      return json(result);
-    }
-
-    // ── cancel
-    if (action === "cancel") {
-      const result = await adapter.cancelInvoice(invoice.external_id || "");
-      await logSync("cancel", result.success ? "success" : "error", null, result.error);
-      if (result.success) {
-        await supabase.from("invoices").update({ status: "cancelled" }).eq("id", invoice.id);
-      }
-      return json(result);
-    }
-
-    return json({ error: "Unknown action" }, 400);
+    return json(result);
   } catch (e) {
     console.error("billing-sync error:", e);
     return json({ error: String(e) }, 500);
