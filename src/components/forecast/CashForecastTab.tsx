@@ -238,7 +238,19 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
         </Alert>
       )}
 
-      {/* Cumulative balance hero card */}
+      {/* 30/60/90 Forecast Widget */}
+      {primaNotaSaldo && (
+        <CashFlowForecast306090
+          scadenze={scadenzeForForecast}
+          primaNotaSaldo={primaNotaSaldo}
+          expectedPayments={expectedPayments}
+          expectedExpenses={expectedExpenses}
+          expectedCommissions={expectedCommissions}
+          expectedSupplierPayments={expectedSupplierPayments}
+          expectedCompanyCosts={expectedCompanyCosts}
+        />
+      )}
+
       <Card className={cn(
         "border",
         cumulativeNet >= 0
