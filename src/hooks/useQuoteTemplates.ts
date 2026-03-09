@@ -59,5 +59,5 @@ export function useQuoteTemplates() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quote-templates'] }),
   });
 
-  return { templates, defaultTemplate, isLoading, upsertTemplate, deleteTemplate };
+  return { templates, defaultTemplate, isLoading, fetchError, upsertTemplate, deleteTemplate };
 }
