@@ -378,6 +378,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: "Note", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
+    { key: "quotes", label: "Preventivi", icon: <Receipt className="h-4 w-4" />, enabled: true },
   ];
 
   const searchTrimmed = contactSearch.trim();
