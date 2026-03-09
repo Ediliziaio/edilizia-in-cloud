@@ -687,7 +687,7 @@ export default function MarketingContacts() {
             sortField={sortField}
             sortDirection={sortDirection}
             onSort={(f, d) => { setSortField(f); setSortDirection(d); setPage(1); }}
-            bulkActions={<AddToListDropdown selectedIds={selectedIds} />}
+            bulkActions={<div className="flex items-center gap-2"><AddToListDropdown selectedIds={selectedIds} /><BulkEnrollAutomationDropdown selectedIds={selectedIds} /></div>}
             visibleColumns={visibleColumns}
             customFields={contactCustomFields}
             customFieldValues={customFieldValues}
