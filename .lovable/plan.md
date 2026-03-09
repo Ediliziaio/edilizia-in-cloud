@@ -184,3 +184,26 @@
 - ✅ **WhatsApp/Stripe in SettingsIntegrations**: Card status per WhatsApp, Stripe, Email Provider, Twilio con stato connessione e dettagli
 - ✅ **Merge contatti duplicati**: Dialog di merge con ricerca, selezione master, spostamento opportunità/note/attività/appuntamenti/messaggi
 - ✅ **Tab Azioni nel dettaglio contatto**: Azioni rapide (invia WhatsApp, Email, SMS, Chiama, Aggiungi ad automazione) con check opt-out
+
+---
+
+## Gestione Utenti — Fase 1: Database + Security ✅
+
+### Migration SQL ✅
+- ✅ **Nuove colonne `profiles`**: `password_changed_at`, `failed_login_count`, `locked_until`, `require_2fa`, `last_login_at`, `last_login_ip`
+- ✅ **Nuove colonne `companies`**: `enforce_2fa`, `allowed_ips`, `password_expiry_days`, `max_failed_attempts`
+- ✅ **Nuove colonne `staff_permissions`**: 9 permessi granulari (`can_export_clients`, `can_delete_orders`, `can_manage_payments`, `can_approve_orders`, `can_view_all_team_calendar`, `can_view_margins`, `can_manage_suppliers`, `can_view_financial_reports`, `can_manage_warehouse_items`)
+- ✅ **Tabella `user_sessions`**: Traccia sessioni con IP, device, browser, revoca — RLS tenant + super_admin
+- ✅ **Tabella `login_attempts`**: Log tentativi login con indice `(email, created_at DESC)` — RLS admin-only read
+- ✅ **Tabella `permission_templates`**: Template permessi JSONB riutilizzabili — RLS admin CRUD + system_default read-only
+- ✅ **Tabella `user_audit_log`**: Log azioni utente con actor/target — RLS admin-only read
+- ✅ **Tabella `teams`**: Team aziendali con leader e colore — RLS tenant
+- ✅ **Tabella `team_members`**: Membership team con ruolo — RLS tenant, unique(team_id, user_id)
+- ✅ **Funzione `check_and_update_login_attempt`**: SECURITY DEFINER — verifica lock, resetta/incrementa contatore, blocco 30min dopo N tentativi
+- ✅ **5 Template di Sistema**: Company Admin, Manager, Tecnico Standard, Commerciale Standard, Read-Only
+
+### Frontend Updates ✅
+- ✅ `StaffPermissions` interface: 9 nuovi campi
+- ✅ `permissionsDefaults.ts`: DEFAULT_PERMISSIONS + nuova sezione `GRANULAR_SECTIONS`
+- ✅ `Profile` type: campi security
+- ✅ `Company` type: campi security
