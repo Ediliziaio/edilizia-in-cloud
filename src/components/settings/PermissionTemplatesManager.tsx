@@ -43,12 +43,12 @@ export function PermissionTemplatesManager() {
   const [permissions, setPermissions] = useState<Record<string, boolean>>({ ...DEFAULT_PERMISSIONS });
 
   const { data: templates, isLoading } = useQuery({
-    queryKey: ["permission-templates", effectiveCompany],
+    queryKey: ["permission-templates", effectiveCompany?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("permission_templates")
         .select("*")
-        .or(`company_id.is.null,company_id.eq.${effectiveCompany}`)
+        .or(`company_id.is.null,company_id.eq.${effectiveCompany!.id}`)
         .order("is_system_default", { ascending: false })
         .order("name");
       if (error) throw error;
