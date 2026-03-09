@@ -125,9 +125,21 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Riferimento (opzionale)</Label>
-            <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="es. Fatt. 2025/001" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Riferimento (opzionale)</Label>
+              <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="es. Fatt. 2025/001" />
+            </div>
+            <div className="space-y-2">
+              <Label>Conto</Label>
+              <Select value={accountLabel} onValueChange={setAccountLabel}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="banca">Banca</SelectItem>
+                  <SelectItem value="cassa">Cassa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
