@@ -460,7 +460,9 @@ export function UsersConfig() {
       (statusFilter === "active" && isActive) ||
       (statusFilter === "locked" && isLocked) ||
       (statusFilter === "inactive" && !isActive && !isLocked);
-    return matchesSearch && matchesRole && matchesStatus;
+    const matchesTeam = teamFilter === "all" ||
+      teamMemberships.some(tm => tm.user_id === u.id && tm.team_id === teamFilter);
+    return matchesSearch && matchesRole && matchesStatus && matchesTeam;
   });
 
   const isCurrentUser = (userId: string) => userId === user?.id;
