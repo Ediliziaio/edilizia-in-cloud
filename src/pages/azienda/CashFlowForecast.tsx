@@ -30,6 +30,8 @@ export default function CashFlowForecast() {
     activeEmployees,
     treasuryCategories,
     companyId,
+    scadenzeForForecast,
+    primaNotaSaldo,
   } = useCashFlowData();
 
   // Export CSV
