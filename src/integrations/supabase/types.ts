@@ -8142,6 +8142,113 @@ export type Database = {
           },
         ]
       }
+      quote_templates: {
+        Row: {
+          accent_color: string | null
+          company_id: string
+          cover_tagline: string | null
+          created_at: string | null
+          font_family: string | null
+          footer_text: string | null
+          header_text_color: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          layout: string
+          logo_position: string | null
+          logo_size: string | null
+          logo_url: string | null
+          name: string
+          primary_color: string | null
+          secondary_color: string | null
+          show_client_details: boolean | null
+          show_company_details: boolean | null
+          show_delivery_terms: boolean | null
+          show_logo: boolean | null
+          show_notes: boolean | null
+          show_page_numbers: boolean | null
+          show_payment_terms: boolean | null
+          show_quote_number: boolean | null
+          show_validity_date: boolean | null
+          show_watermark: boolean | null
+          text_color: string | null
+          updated_at: string | null
+          watermark_text: string | null
+        }
+        Insert: {
+          accent_color?: string | null
+          company_id: string
+          cover_tagline?: string | null
+          created_at?: string | null
+          font_family?: string | null
+          footer_text?: string | null
+          header_text_color?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          layout?: string
+          logo_position?: string | null
+          logo_size?: string | null
+          logo_url?: string | null
+          name?: string
+          primary_color?: string | null
+          secondary_color?: string | null
+          show_client_details?: boolean | null
+          show_company_details?: boolean | null
+          show_delivery_terms?: boolean | null
+          show_logo?: boolean | null
+          show_notes?: boolean | null
+          show_page_numbers?: boolean | null
+          show_payment_terms?: boolean | null
+          show_quote_number?: boolean | null
+          show_validity_date?: boolean | null
+          show_watermark?: boolean | null
+          text_color?: string | null
+          updated_at?: string | null
+          watermark_text?: string | null
+        }
+        Update: {
+          accent_color?: string | null
+          company_id?: string
+          cover_tagline?: string | null
+          created_at?: string | null
+          font_family?: string | null
+          footer_text?: string | null
+          header_text_color?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          layout?: string
+          logo_position?: string | null
+          logo_size?: string | null
+          logo_url?: string | null
+          name?: string
+          primary_color?: string | null
+          secondary_color?: string | null
+          show_client_details?: boolean | null
+          show_company_details?: boolean | null
+          show_delivery_terms?: boolean | null
+          show_logo?: boolean | null
+          show_notes?: boolean | null
+          show_page_numbers?: boolean | null
+          show_payment_terms?: boolean | null
+          show_quote_number?: boolean | null
+          show_validity_date?: boolean | null
+          show_watermark?: boolean | null
+          text_color?: string | null
+          updated_at?: string | null
+          watermark_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quotes: {
         Row: {
           assigned_to: string | null
@@ -8176,6 +8283,7 @@ export type Database = {
           signed_by_name: string | null
           status: string
           subtotal: number | null
+          template_id: string | null
           terms_and_conditions: string | null
           title: string | null
           total: number | null
@@ -8217,6 +8325,7 @@ export type Database = {
           signed_by_name?: string | null
           status?: string
           subtotal?: number | null
+          template_id?: string | null
           terms_and_conditions?: string | null
           title?: string | null
           total?: number | null
@@ -8258,6 +8367,7 @@ export type Database = {
           signed_by_name?: string | null
           status?: string
           subtotal?: number | null
+          template_id?: string | null
           terms_and_conditions?: string | null
           title?: string | null
           total?: number | null
@@ -8286,6 +8396,13 @@ export type Database = {
             columns: ["opportunity_id"]
             isOneToOne: false
             referencedRelation: "marketing_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "quote_templates"
             referencedColumns: ["id"]
           },
         ]

@@ -5,6 +5,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
+import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
+import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
+import { COLOR_PALETTES } from "@/types/quoteTemplate";
+import type { QuoteTemplateLayout } from "@/types/quoteTemplate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +43,7 @@ import {
   Package,
   FileStack,
   FileCheck,
+  Palette,
 } from "lucide-react";
 
 interface QuoteItem {
@@ -95,6 +100,19 @@ export default function QuoteBuilder() {
 
   // Step 3: Documents
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
+
+  // Template
+  const { templates, defaultTemplate } = useQuoteTemplates();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+
+  // Set default template on load
+  useEffect(() => {
+    if (defaultTemplate && !selectedTemplateId && !isEdit) {
+      setSelectedTemplateId(defaultTemplate.id);
+    }
+  }, [defaultTemplate]);
+
+  const selectedTemplate = templates.find(t => t.id === selectedTemplateId) ?? defaultTemplate;
 
   // Load contacts
   const { data: contacts = [] } = useQuery({
@@ -200,6 +218,9 @@ export default function QuoteBuilder() {
       setNotes(existingQuote.notes || "");
       setInternalNotes(existingQuote.internal_notes || "");
       setDiscountPercent(existingQuote.discount_percent || 0);
+      if ((existingQuote as any).template_id) {
+        setSelectedTemplateId((existingQuote as any).template_id);
+      }
     }
   }, [existingQuote]);
 
@@ -343,6 +364,7 @@ export default function QuoteBuilder() {
         validity_days: validityDays,
         discount_percent: discountPercent,
         created_by: user.id,
+        template_id: selectedTemplateId || null,
       };
 
       let quoteId = id;
@@ -801,6 +823,61 @@ export default function QuoteBuilder() {
                       <Badge key={mId} variant="secondary">{m.name}</Badge>
                     ) : null;
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Template / Aspetto Documento */}
+            {templates.length > 0 && (
+              <div className="border-t pt-4">
+                <h3 className="font-medium mb-3 flex items-center gap-2">
+                  <Palette className="h-4 w-4" />
+                  Aspetto del Documento
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm">Template</Label>
+                    <Select value={selectedTemplateId || ''} onValueChange={setSelectedTemplateId}>
+                      <SelectTrigger className="w-full max-w-xs mt-1">
+                        <SelectValue placeholder="Seleziona template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map(tmpl => (
+                          <SelectItem key={tmpl.id} value={tmpl.id}>
+                            {tmpl.name} {tmpl.is_default ? '(Default)' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Layout quick-select */}
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['classic', 'modern', 'minimal', 'bold'] as QuoteTemplateLayout[]).map(layout => (
+                      <button
+                        key={layout}
+                        className={`border rounded-lg p-2 text-center text-xs transition-all ${
+                          selectedTemplate?.layout === layout ? 'border-primary ring-1 ring-primary/30 bg-primary/5' : 'border-border opacity-60'
+                        }`}
+                      >
+                        <QuoteTemplatePreview
+                          template={{ ...selectedTemplate, layout }}
+                          companyName={effectiveCompany?.name}
+                          scale={0.06}
+                        />
+                        <span className="capitalize mt-1 block">{layout}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {/* Mini preview */}
+                  {selectedTemplate && (
+                    <div className="flex justify-center">
+                      <QuoteTemplatePreview
+                        template={selectedTemplate}
+                        companyName={effectiveCompany?.name}
+                        scale={0.25}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
