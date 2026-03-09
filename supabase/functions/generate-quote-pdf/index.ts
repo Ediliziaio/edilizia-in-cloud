@@ -1,5 +1,5 @@
 import { corsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { requireAuth } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
