@@ -202,11 +202,18 @@ export default function MarketingContacts() {
       let cfMap: Record<string, Record<string, string>> = {};
       if (cfColumns.length > 0 && all && all.length > 0) {
         const ids = all.map((c: any) => c.id);
-        const { data: vals } = await supabase
-          .from("marketing_contact_field_values")
-          .select("contact_id, field_id, value")
-          .in("contact_id", ids);
-        for (const v of vals || []) {
+        // Chunk .in() queries to avoid Supabase limits
+        const CHUNK_SIZE = 2000;
+        let allVals: any[] = [];
+        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+          const chunk = ids.slice(i, i + CHUNK_SIZE);
+          const { data: vals } = await supabase
+            .from("marketing_contact_field_values")
+            .select("contact_id, field_id, value")
+            .in("contact_id", chunk);
+          allVals = allVals.concat(vals || []);
+        }
+        for (const v of allVals) {
           if (!cfMap[v.contact_id]) cfMap[v.contact_id] = {};
           if (v.value) cfMap[v.contact_id][v.field_id] = v.value;
         }
