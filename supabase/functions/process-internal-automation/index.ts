@@ -64,7 +64,6 @@ Deno.serve(async (req) => {
 
           if (totalMs > 0) {
             const executeAt = new Date(Date.now() + totalMs).toISOString();
-            // Find next node and create a future queue item
             const nextNodeId = await getNextNode(supabase, job.flow_id, node.id);
             if (nextNodeId) {
               await supabase.from("internal_automation_queue").insert({
@@ -81,7 +80,7 @@ Deno.serve(async (req) => {
             await markJobCompleted(supabase, job);
             await logExecution(supabase, job, node, "success", {}, { delayed_until: executeAt });
             processed++;
-            continue; // Skip advancing to next node
+            continue;
           }
           actionResult = { delay: "none" };
         } else if (node.node_type === "action") {
@@ -113,7 +112,7 @@ Deno.serve(async (req) => {
               if (job.entity_type === "order" && config.new_status) {
                 const { error } = await supabase
                   .from("orders")
-                  .update({ status: config.new_status, updated_at: new Date().toISOString() })
+                  .update({ current_status_id: config.new_status, updated_at: new Date().toISOString() })
                   .eq("id", job.entity_id);
                 if (error) throw error;
                 actionResult = { updated: "order_status", new_status: config.new_status };
@@ -162,7 +161,6 @@ Deno.serve(async (req) => {
             }
 
             case "send_email": {
-              // Log email intent (actual sending requires email service integration)
               const { error } = await supabase.from("lifecycle_notifications").insert({
                 company_id: job.company_id,
                 type: "email",
@@ -172,6 +170,44 @@ Deno.serve(async (req) => {
               });
               if (error) throw error;
               actionResult = { sent: "email", to: config.email_to };
+              break;
+            }
+
+            case "assign_employee": {
+              // Assign employee to the entity (order or ticket)
+              if (config.employee_id) {
+                if (job.entity_type === "order") {
+                  // Orders don't have assigned_to, so create a task instead
+                  await supabase.from("tasks").insert({
+                    company_id: job.company_id,
+                    title: `Assegnazione ordine ${job.entity_id}`,
+                    assigned_to: config.employee_id,
+                    created_by: config.employee_id,
+                    order_id: job.entity_id,
+                    priority: "medium",
+                    category: "assignment",
+                  });
+                } else if (job.entity_type === "ticket") {
+                  await supabase
+                    .from("tickets")
+                    .update({ assigned_to: config.employee_id, updated_at: new Date().toISOString() })
+                    .eq("id", job.entity_id);
+                }
+                actionResult = { assigned: config.employee_id, entity_type: job.entity_type };
+              }
+              break;
+            }
+
+            case "add_cost_record": {
+              const { error } = await supabase.from("company_costs").insert({
+                company_id: job.company_id,
+                description: interpolate(config.cost_description || "Costo automatico", context),
+                amount: Number(config.cost_amount) || 0,
+                category: config.cost_category || "automazione",
+                order_id: job.entity_type === "order" ? job.entity_id : null,
+              });
+              if (error) throw error;
+              actionResult = { created: "cost_record" };
               break;
             }
 
@@ -198,7 +234,6 @@ Deno.serve(async (req) => {
               actionResult = { skipped: true, reason: `Unknown action: ${actionType}` };
           }
         } else if (node.node_type === "condition") {
-          // Evaluate condition and pick branch
           const field = config.condition_field || "";
           const operator = config.condition_operator || "equals";
           const value = config.condition_value || "";
@@ -216,7 +251,6 @@ Deno.serve(async (req) => {
             default: conditionMet = entityValue === value;
           }
 
-          // Find connections with label "true" or "false"
           const { data: conns } = await supabase
             .from("internal_automation_connections")
             .select("*")
@@ -241,7 +275,7 @@ Deno.serve(async (req) => {
           await markJobCompleted(supabase, job);
           await logExecution(supabase, job, node, "success", { field, operator, value, entityValue }, { branch });
           processed++;
-          continue; // Skip default next-node logic
+          continue;
         }
 
         // Mark completed and advance
@@ -308,15 +342,18 @@ async function markJobCompleted(supabase: any, job: any) {
 }
 
 async function markJobFailed(supabase: any, job: any, error: string) {
-  const status = job.attempts + 1 >= job.max_attempts ? "failed" : "pending";
+  const maxAttempts = job.max_attempts || 3;
+  const currentAttempts = (job.attempts || 0) + 1;
+  const status = currentAttempts >= maxAttempts ? "failed" : "pending";
   const executeAt = status === "pending"
-    ? new Date(Date.now() + Math.pow(2, job.attempts) * 60000).toISOString()
+    ? new Date(Date.now() + Math.pow(2, currentAttempts) * 60000).toISOString()
     : undefined;
   await supabase
     .from("internal_automation_queue")
     .update({
       status,
       last_error: error,
+      attempts: currentAttempts,
       updated_at: new Date().toISOString(),
       ...(executeAt ? { execute_at: executeAt } : {}),
     })
