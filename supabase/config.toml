@@ -185,3 +185,12 @@ verify_jwt = false
 
 [functions.bank-sync-all-companies]
 verify_jwt = false
+
+[functions.generate-quote-pdf]
+verify_jwt = false
+
+[functions.send-quote-signature]
+verify_jwt = false
+
+[functions.quote-sign]
+verify_jwt = false
