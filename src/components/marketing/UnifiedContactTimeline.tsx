@@ -241,7 +241,7 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
         color: log.status === "delivered" ? "bg-violet-100 text-violet-600" : "bg-red-100 text-red-600",
         title: `Campagna: ${campaignName}`,
         description: subject ? `Oggetto: ${subject}` : undefined,
-        timestamp: log.event_timestamp || log.created_at,
+        timestamp: log.event_timestamp,
         metadata: { status: log.status, provider: log.provider, ab_variant: (log as any).ab_variant },
       });
     }
