@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     }
 
     // Check expiration
-    if (quote.valid_until && new Date(quote.valid_until) < new Date()) {
+    if (quote.expires_at && new Date(quote.expires_at) < new Date()) {
       // Auto-expire if still in "inviata"
       if (quote.status === "inviata") {
         await supabaseAdmin
