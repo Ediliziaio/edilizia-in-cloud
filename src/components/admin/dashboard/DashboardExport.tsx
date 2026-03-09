@@ -97,7 +97,7 @@ export function DashboardExport({ data }: { data: ExportData }) {
             [],
             ["HEALTH SUMMARY"],
             ["Sane", data.revenueData.healthSummary.healthy],
-            ["A Rischio", data.revenueData.healthSummary.at_risk],
+            ["A Rischio", data.revenueData.healthSummary.atRisk],
             ["Critiche", data.revenueData.healthSummary.critical],
           );
         }
