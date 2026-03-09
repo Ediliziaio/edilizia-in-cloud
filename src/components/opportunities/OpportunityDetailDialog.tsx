@@ -25,7 +25,7 @@ import { TagSelector } from "@/components/marketing/TagSelector";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import {
-  Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
+  Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity, Receipt,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder, AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
