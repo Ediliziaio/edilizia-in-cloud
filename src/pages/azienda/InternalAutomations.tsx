@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -26,10 +26,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  Plus, ArrowLeft, Zap, Save, FileText, Trash2,
-  Play, Pause, BarChart3, Loader2, ChevronLeft,
+  Plus, Zap, Save, Trash2,
+  Play, Pause, BarChart3, Loader2, ChevronLeft, FileText, Archive,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -223,8 +224,10 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
   const [actionPickerOpen, setActionPickerOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [flowName, setFlowName] = useState("");
+  const [editingName, setEditingName] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [addAfterNodeId, setAddAfterNodeId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("builder");
 
   // Sync from DB on load
   useState(() => {
@@ -233,7 +236,6 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     if (flow) setFlowName(flow.name);
   });
 
-  // Keep synced when DB data changes
   useMemo(() => {
     if (dbNodes && !dirty) setLocalNodes(dbNodes);
   }, [dbNodes]);
@@ -245,6 +247,24 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
   }, [flow]);
 
   const selectedNode = localNodes.find((n) => n.id === selectedNodeId) || null;
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        if (dirty) handleSave();
+      }
+      if (e.key === "Delete" && selectedNodeId) {
+        const node = localNodes.find(n => n.id === selectedNodeId);
+        if (node && node.node_type !== "trigger") {
+          handleDeleteNode(selectedNodeId);
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [dirty, selectedNodeId, localNodes]);
 
   const handleSelectTrigger = useCallback((item: PickerItem) => {
     const id = crypto.randomUUID();
@@ -262,7 +282,6 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     };
     setLocalNodes((prev) => [...prev, triggerNode]);
     setDirty(true);
-    // Also update flow trigger_type
     updateFlow.mutate({ trigger_type: item.id });
   }, [flowId, updateFlow]);
 
@@ -300,11 +319,6 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
       });
     }
 
-    // If condition node, add "true" and "false" placeholder connections (visual only for now)
-    if (nodeType === "condition") {
-      // Add two placeholder child nodes for branches
-    }
-
     setLocalNodes(newNodes);
     setLocalConnections(newConns);
     setDirty(true);
@@ -332,7 +346,7 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     setDirty(true);
   }, []);
 
-  const handleAddAfterNode = useCallback((id: string) => {
+  const handleAddAfterNode = useCallback((id: string, branch?: string) => {
     setAddAfterNodeId(id);
     setActionPickerOpen(true);
   }, []);
@@ -360,29 +374,48 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
     }
   };
 
+  const handleArchive = async () => {
+    try {
+      await updateFlow.mutateAsync({ status: "archived" });
+      toast.success("Automazione archiviata");
+      navigate("/azienda/automazioni");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)]">
-      {/* Header */}
+    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+      {/* Header row 1 */}
       <div className="flex items-center gap-3 px-4 py-2 border-b bg-background shrink-0">
         <button onClick={() => navigate("/azienda/automazioni")} className="text-sm text-primary hover:underline whitespace-nowrap flex items-center gap-1">
           <ChevronLeft className="h-4 w-4" /> Indietro
         </button>
-        <Input
-          value={flowName}
-          onChange={(e) => { setFlowName(e.target.value); setDirty(true); }}
-          className="max-w-xs h-8 text-sm font-medium"
-        />
+        <div className="h-5 w-px bg-border" />
+        {editingName ? (
+          <Input
+            autoFocus
+            value={flowName}
+            onChange={(e) => { setFlowName(e.target.value); setDirty(true); }}
+            onBlur={() => setEditingName(false)}
+            onKeyDown={(e) => { if (e.key === "Enter") setEditingName(false); }}
+            className="max-w-xs h-7 text-sm font-semibold"
+          />
+        ) : (
+          <button
+            onClick={() => setEditingName(true)}
+            className="text-sm font-semibold hover:text-primary transition-colors truncate max-w-xs"
+          >
+            {flowName || "Senza nome"}
+          </button>
+        )}
         <Badge variant={flow?.status === "published" ? "default" : "secondary"} className="text-xs shrink-0">
-          {flow?.status === "published" ? "Attiva" : flow?.status === "paused" ? "In pausa" : "Bozza"}
+          {flow?.status === "published" ? "Attiva" : flow?.status === "paused" ? "In pausa" : flow?.status === "archived" ? "Archiviata" : "Bozza"}
         </Badge>
         <div className="flex-1" />
         <div className="flex items-center gap-2">
-          <Switch
-            checked={flow?.status === "published"}
-            onCheckedChange={handleToggleStatus}
-          />
-          <Button size="sm" variant="outline" onClick={() => setLogOpen(true)}>
-            <FileText className="h-4 w-4 mr-1" /> Log
+          <Button size="sm" variant="ghost" onClick={handleArchive} title="Archivia">
+            <Archive className="h-4 w-4" />
           </Button>
           <Button size="sm" onClick={handleSave} disabled={!dirty || saveNodes.isPending}>
             {saveNodes.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
@@ -391,48 +424,97 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
         </div>
       </div>
 
-      {/* Canvas + Panel */}
-      <div className="flex flex-1 min-h-0">
-        <InternalAutomationCanvas
-          nodes={localNodes}
-          connections={localConnections}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId}
-          onDeleteNode={handleDeleteNode}
-          onDuplicateNode={handleDuplicateNode}
-          onAddAfterNode={handleAddAfterNode}
-          onUpdateNode={handleUpdateNode}
-          onOpenTriggerPicker={() => setTriggerPickerOpen(true)}
-          onOpenActionPicker={() => setActionPickerOpen(true)}
-        />
-        {selectedNode && (
-          <InternalNodePanel
-            node={selectedNode}
-            flowTriggerType={flow?.trigger_type}
-            onUpdate={handleUpdateNode}
-            onClose={() => setSelectedNodeId(null)}
+      {/* Header row 2 */}
+      <div className="flex items-center justify-between px-4 py-1 border-b bg-background shrink-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+          <TabsList className="h-8">
+            <TabsTrigger value="builder" className="text-xs px-3 py-1">Builder</TabsTrigger>
+            <TabsTrigger value="settings" className="text-xs px-3 py-1">Impostazioni</TabsTrigger>
+            <TabsTrigger value="log" className="text-xs px-3 py-1">Registro esecuzioni</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {flow?.status === "published" ? "Attiva" : "In pausa"}
+          </span>
+          <Switch
+            checked={flow?.status === "published"}
+            onCheckedChange={handleToggleStatus}
           />
-        )}
+        </div>
       </div>
 
-      {/* Pickers */}
-      <InternalTriggerSelector
-        open={triggerPickerOpen}
-        onClose={() => setTriggerPickerOpen(false)}
-        onSelect={handleSelectTrigger}
-      />
-      <InternalActionSelector
-        open={actionPickerOpen}
-        onClose={() => { setActionPickerOpen(false); setAddAfterNodeId(null); }}
-        onSelect={handleSelectAction}
-      />
+      {/* Content */}
+      {activeTab === "builder" && (
+        <div className="flex flex-1 min-h-0">
+          <InternalAutomationCanvas
+            nodes={localNodes}
+            connections={localConnections}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
+            onDeleteNode={handleDeleteNode}
+            onDuplicateNode={handleDuplicateNode}
+            onAddAfterNode={handleAddAfterNode}
+            onUpdateNode={handleUpdateNode}
+            onOpenTriggerPicker={() => setTriggerPickerOpen(true)}
+            onOpenActionPicker={() => setActionPickerOpen(true)}
+          />
+          {selectedNode && (
+            <InternalNodePanel
+              node={selectedNode}
+              flowTriggerType={flow?.trigger_type}
+              onUpdate={handleUpdateNode}
+              onClose={() => setSelectedNodeId(null)}
+            />
+          )}
+          <InternalTriggerSelector
+            open={triggerPickerOpen}
+            onClose={() => setTriggerPickerOpen(false)}
+            onSelect={handleSelectTrigger}
+          />
+          <InternalActionSelector
+            open={actionPickerOpen}
+            onClose={() => { setActionPickerOpen(false); setAddAfterNodeId(null); }}
+            onSelect={handleSelectAction}
+          />
+        </div>
+      )}
 
-      {/* Log drawer */}
-      <InternalAutomationLogDrawer
-        flowId={flowId}
-        open={logOpen}
-        onClose={() => setLogOpen(false)}
-      />
+      {activeTab === "settings" && (
+        <div className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full">
+          <h2 className="text-lg font-semibold mb-4">Impostazioni Automazione</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Nome</label>
+              <Input
+                value={flowName}
+                onChange={(e) => { setFlowName(e.target.value); setDirty(true); }}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Descrizione</label>
+              <Input
+                value={flow?.description || ""}
+                onChange={(e) => { updateFlow.mutate({ description: e.target.value }); }}
+                className="mt-1"
+                placeholder="Descrizione opzionale..."
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "log" && (
+        <div className="flex-1 overflow-y-auto">
+          <InternalAutomationLogDrawer
+            flowId={flowId}
+            open={true}
+            onClose={() => setActiveTab("builder")}
+            embedded
+          />
+        </div>
+      )}
     </div>
   );
 }
