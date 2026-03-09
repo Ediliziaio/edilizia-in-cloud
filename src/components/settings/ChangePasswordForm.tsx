@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Eye, EyeOff, Loader2, Key } from "lucide-react";
+import { Eye, EyeOff, Loader2, Key, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,8 +16,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+interface PasswordPolicy {
+  password_min_length: number;
+  password_require_uppercase: boolean;
+  password_require_numbers: boolean;
+  password_require_special: boolean;
+}
+
 export function ChangePasswordForm() {
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -27,6 +35,35 @@ export function ChangePasswordForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Fetch company password policy
+  const { data: policy } = useQuery({
+    queryKey: ["password-policy", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("password_min_length, password_require_uppercase, password_require_numbers, password_require_special")
+        .eq("id", effectiveCompany!.id)
+        .single();
+      if (error) throw error;
+      return data as unknown as PasswordPolicy;
+    },
+    enabled: !!effectiveCompany?.id,
+  });
+
+  const minLength = policy?.password_min_length ?? 8;
+  const requireUppercase = policy?.password_require_uppercase ?? false;
+  const requireNumbers = policy?.password_require_numbers ?? false;
+  const requireSpecial = policy?.password_require_special ?? false;
+
+  const passwordChecks = [
+    { label: `Almeno ${minLength} caratteri`, ok: newPassword.length >= minLength },
+    ...(requireUppercase ? [{ label: "Almeno una lettera maiuscola", ok: /[A-Z]/.test(newPassword) }] : []),
+    ...(requireNumbers ? [{ label: "Almeno un numero", ok: /[0-9]/.test(newPassword) }] : []),
+    ...(requireSpecial ? [{ label: "Almeno un carattere speciale", ok: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword) }] : []),
+  ];
+
+  const allChecksPassed = newPassword.length > 0 && passwordChecks.every((c) => c.ok);
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
@@ -36,8 +73,8 @@ export function ChangePasswordForm() {
 
     if (!newPassword.trim()) {
       newErrors.newPassword = "Inserisci la nuova password";
-    } else if (newPassword.length < 8) {
-      newErrors.newPassword = "La password deve avere almeno 8 caratteri";
+    } else if (!allChecksPassed) {
+      newErrors.newPassword = "La password non soddisfa i requisiti di complessità";
     }
 
     if (!confirmPassword.trim()) {
@@ -85,6 +122,12 @@ export function ChangePasswordForm() {
         setIsLoading(false);
         return;
       }
+
+      // Update password_changed_at on profile
+      await supabase
+        .from("profiles")
+        .update({ password_changed_at: new Date().toISOString() } as any)
+        .eq("id", user.id);
 
       toast.success("Password cambiata con successo!");
       
@@ -152,7 +195,7 @@ export function ChangePasswordForm() {
               <Input
                 id="newPassword"
                 type={showNewPassword ? "text" : "password"}
-                placeholder="Inserisci la nuova password (min. 8 caratteri)"
+                placeholder={`Inserisci la nuova password (min. ${minLength} caratteri)`}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className={errors.newPassword ? "border-destructive" : ""}
@@ -173,6 +216,23 @@ export function ChangePasswordForm() {
             </div>
             {errors.newPassword && (
               <p className="text-sm text-destructive">{errors.newPassword}</p>
+            )}
+            {/* Password strength checklist */}
+            {newPassword.length > 0 && (
+              <div className="space-y-1 mt-2">
+                {passwordChecks.map((check, i) => (
+                  <div key={i} className="flex items-center gap-1.5 text-xs">
+                    {check.ok ? (
+                      <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : (
+                      <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                    <span className={check.ok ? "text-emerald-600" : "text-muted-foreground"}>
+                      {check.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 

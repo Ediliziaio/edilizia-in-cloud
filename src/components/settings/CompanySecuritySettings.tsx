@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, Save, Loader2 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -27,7 +28,7 @@ export function CompanySecuritySettings() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("enforce_2fa, allowed_ips, password_expiry_days, max_failed_attempts, lockout_duration_minutes, enforce_2fa_roles, security_notifications")
+        .select("enforce_2fa, allowed_ips, password_expiry_days, max_failed_attempts, lockout_duration_minutes, enforce_2fa_roles, security_notifications, password_min_length, password_require_uppercase, password_require_numbers, password_require_special")
         .eq("id", effectiveCompany!.id)
         .single();
       if (error) throw error;
@@ -42,6 +43,10 @@ export function CompanySecuritySettings() {
   const [lockoutDuration, setLockoutDuration] = useState("30");
   const [passwordExpiryDays, setPasswordExpiryDays] = useState(0);
   const [allowedIps, setAllowedIps] = useState("");
+  const [passwordMinLength, setPasswordMinLength] = useState(8);
+  const [passwordRequireUppercase, setPasswordRequireUppercase] = useState(false);
+  const [passwordRequireNumbers, setPasswordRequireNumbers] = useState(false);
+  const [passwordRequireSpecial, setPasswordRequireSpecial] = useState(false);
   const [notifications, setNotifications] = useState({
     login_unknown_ip: false,
     account_locked: false,
@@ -56,6 +61,10 @@ export function CompanySecuritySettings() {
       setLockoutDuration(String(company.lockout_duration_minutes ?? 30));
       setPasswordExpiryDays(company.password_expiry_days ?? 0);
       setAllowedIps((company.allowed_ips || []).join("\n"));
+      setPasswordMinLength(company.password_min_length ?? 8);
+      setPasswordRequireUppercase(company.password_require_uppercase ?? false);
+      setPasswordRequireNumbers(company.password_require_numbers ?? false);
+      setPasswordRequireSpecial(company.password_require_special ?? false);
       setNotifications({
         login_unknown_ip: company.security_notifications?.login_unknown_ip ?? false,
         account_locked: company.security_notifications?.account_locked ?? false,
@@ -80,6 +89,10 @@ export function CompanySecuritySettings() {
           lockout_duration_minutes: Number(lockoutDuration),
           password_expiry_days: passwordExpiryDays,
           allowed_ips: ipList.length > 0 ? ipList : null,
+          password_min_length: passwordMinLength,
+          password_require_uppercase: passwordRequireUppercase,
+          password_require_numbers: passwordRequireNumbers,
+          password_require_special: passwordRequireSpecial,
           security_notifications: notifications,
         } as any)
         .eq("id", effectiveCompany!.id);
@@ -187,9 +200,9 @@ export function CompanySecuritySettings() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Policy Password</CardTitle>
-          <CardDescription>Definisci la scadenza delle password per tutti gli utenti.</CardDescription>
+          <CardDescription>Definisci scadenza e complessità delle password.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div>
             <Label className="text-sm">Scadenza Password</Label>
             <Select value={String(passwordExpiryDays)} onValueChange={(v) => setPasswordExpiryDays(Number(v))}>
@@ -207,6 +220,32 @@ export function CompanySecuritySettings() {
                 ? `Gli utenti dovranno cambiare la password ogni ${passwordExpiryDays} giorni.`
                 : "Le password non scadono mai."}
             </p>
+          </div>
+          <Separator />
+          <div>
+            <Label className="text-sm">Lunghezza minima: {passwordMinLength} caratteri</Label>
+            <Slider
+              value={[passwordMinLength]}
+              onValueChange={([v]) => setPasswordMinLength(v)}
+              min={6}
+              max={20}
+              step={1}
+              className="mt-2"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={passwordRequireUppercase} onCheckedChange={(v) => setPasswordRequireUppercase(!!v)} />
+              Richiedi almeno una lettera maiuscola
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={passwordRequireNumbers} onCheckedChange={(v) => setPasswordRequireNumbers(!!v)} />
+              Richiedi almeno un numero
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={passwordRequireSpecial} onCheckedChange={(v) => setPasswordRequireSpecial(!!v)} />
+              Richiedi almeno un carattere speciale (!@#$%...)
+            </label>
           </div>
         </CardContent>
       </Card>
