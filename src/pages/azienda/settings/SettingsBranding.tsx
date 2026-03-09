@@ -1,47 +1,34 @@
-import { useState, useRef } from "react";
-import { useBranding, useBrandingMutation } from "@/hooks/useBranding";
+import { useState, useRef, useEffect } from "react";
+import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Upload, Palette, Type, Globe, Mail, Eye } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Upload, Palette, Lock, HeadphonesIcon, Eye } from "lucide-react";
 
-function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  // Convert HSL string to hex for the color picker, and back
-  const hslToDisplay = value || "";
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-sm">{label}</Label>
-      <Input
-        value={hslToDisplay}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="es. 222 47% 11%"
-        className="font-mono text-sm"
-      />
-      <p className="text-xs text-muted-foreground">Formato HSL: H S% L%</p>
-    </div>
-  );
-}
+const COLOR_PRESETS = [
+  { name: "Blu Professionale", primary: "#1E40AF", secondary: "#3B82F6", accent: "#DBEAFE", text: "#FFFFFF" },
+  { name: "Verde Fiducia", primary: "#166534", secondary: "#22C55E", accent: "#DCFCE7", text: "#FFFFFF" },
+  { name: "Rosso Energia", primary: "#991B1B", secondary: "#EF4444", accent: "#FEE2E2", text: "#FFFFFF" },
+  { name: "Grigio Elegante", primary: "#374151", secondary: "#6B7280", accent: "#F3F4F6", text: "#FFFFFF" },
+  { name: "Viola Premium", primary: "#5B21B6", secondary: "#8B5CF6", accent: "#EDE9FE", text: "#FFFFFF" },
+  { name: "Arancio", primary: "#C2410C", secondary: "#F97316", accent: "#FFF7ED", text: "#FFFFFF" },
+  { name: "Teal Moderno", primary: "#115E59", secondary: "#14B8A6", accent: "#CCFBF1", text: "#FFFFFF" },
+  { name: "Nero Lusso", primary: "#18181B", secondary: "#3F3F46", accent: "#F4F4F5", text: "#FFFFFF" },
+];
 
-function FileUploadButton({ label, onUpload, isUploading }: { label: string; onUpload: (file: File) => void; isUploading: boolean }) {
+function FileUploadButton({ label, onUpload, isUploading, accept }: { label: string; onUpload: (file: File) => void; isUploading: boolean; accept?: string }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <div>
-      <input
-        ref={ref}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onUpload(f);
-        }}
-      />
+      <input ref={ref} type="file" accept={accept || "image/*"} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); }} />
       <Button variant="outline" size="sm" onClick={() => ref.current?.click()} disabled={isUploading}>
         {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
         {label}
@@ -50,56 +37,76 @@ function FileUploadButton({ label, onUpload, isUploading }: { label: string; onU
   );
 }
 
+function HexColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-sm">{label}</Label>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-9 rounded border cursor-pointer p-0.5"
+        />
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="#1E40AF"
+          className="font-mono text-sm flex-1"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsBranding() {
-  const { branding, isLoading, refetch } = useBranding();
-  const { upsert, uploadBrandingFile, companyId } = useBrandingMutation();
+  const { effectiveCompany, user } = useAuth();
+  const { brand, effectiveBrand, saveBrand, uploadBrandFile, isLoading } = useBrandSettings();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    primary_color: "",
-    secondary_color: "",
-    accent_color: "",
-    sidebar_bg_color: "",
-    sidebar_text_color: "",
-    login_bg_color: "",
-    login_title: "",
-    login_subtitle: "",
-    custom_domain: "",
-    email_footer_text: "",
-    hide_platform_branding: false,
+    brand_primary_color: "#1E40AF",
+    brand_secondary_color: "#3B82F6",
+    brand_accent_color: "#DBEAFE",
+    brand_text_on_primary: "#FFFFFF",
+    brand_platform_name: "",
+    brand_hide_powered_by: false,
   });
 
   const [initialized, setInitialized] = useState(false);
 
-  if (!initialized && branding) {
-    setForm({
-      primary_color: branding.primary_color || "",
-      secondary_color: branding.secondary_color || "",
-      accent_color: branding.accent_color || "",
-      sidebar_bg_color: branding.sidebar_bg_color || "",
-      sidebar_text_color: branding.sidebar_text_color || "",
-      login_bg_color: branding.login_bg_color || "",
-      login_title: branding.login_title || "",
-      login_subtitle: branding.login_subtitle || "",
-      custom_domain: branding.custom_domain || "",
-      email_footer_text: branding.email_footer_text || "",
-      hide_platform_branding: branding.hide_platform_branding || false,
-    });
-    setInitialized(true);
-  }
-
-  if (!initialized && !isLoading && !branding) {
-    setInitialized(true);
-  }
+  useEffect(() => {
+    if (!initialized && brand) {
+      setForm({
+        brand_primary_color: brand.brand_primary_color || "#1E40AF",
+        brand_secondary_color: brand.brand_secondary_color || "#3B82F6",
+        brand_accent_color: brand.brand_accent_color || "#DBEAFE",
+        brand_text_on_primary: brand.brand_text_on_primary || "#FFFFFF",
+        brand_platform_name: brand.brand_platform_name || "",
+        brand_hide_powered_by: brand.brand_hide_powered_by || false,
+      });
+      setInitialized(true);
+    }
+  }, [brand, initialized]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await upsert(form);
-      await queryClient.invalidateQueries({ queryKey: ["company-branding"] });
-      toast.success("Branding salvato con successo");
+      await saveBrand.mutateAsync(form as any);
+      // Log branding update
+      if (user && effectiveCompany) {
+        await supabase.from("company_addons_log" as never).insert({
+          company_id: effectiveCompany.id,
+          addon_key: "white_label",
+          action: "branding_updated",
+          performed_by: user.id,
+          performed_by_email: user.email,
+          new_value: form,
+        } as never);
+      }
+      toast.success("Brand aggiornato con successo");
     } catch (err: any) {
       toast.error(err.message || "Errore nel salvataggio");
     } finally {
@@ -110,15 +117,24 @@ export default function SettingsBranding() {
   const handleFileUpload = async (file: File, field: string, path: string) => {
     setUploading(field);
     try {
-      const url = await uploadBrandingFile(file, path);
-      await upsert({ [field]: url });
-      await queryClient.invalidateQueries({ queryKey: ["company-branding"] });
+      const url = await uploadBrandFile(file, path);
+      await saveBrand.mutateAsync({ [field]: url } as any);
       toast.success("File caricato con successo");
     } catch (err: any) {
       toast.error(err.message || "Errore nel caricamento");
     } finally {
       setUploading(null);
     }
+  };
+
+  const applyPreset = (preset: typeof COLOR_PRESETS[0]) => {
+    setForm((f) => ({
+      ...f,
+      brand_primary_color: preset.primary,
+      brand_secondary_color: preset.secondary,
+      brand_accent_color: preset.accent,
+      brand_text_on_primary: preset.text,
+    }));
   };
 
   if (isLoading) {
@@ -129,6 +145,8 @@ export default function SettingsBranding() {
     );
   }
 
+  const isWhiteLabel = brand?.white_label_enabled ?? false;
+
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
@@ -136,171 +154,190 @@ export default function SettingsBranding() {
         <p className="text-muted-foreground">Personalizza l'aspetto della piattaforma per la tua azienda</p>
       </div>
 
-      {/* Logo & Favicon */}
+      {/* Logo — always available */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Eye className="h-5 w-5" /> Logo & Identità</CardTitle>
-          <CardDescription>Carica il logo e la favicon personalizzati</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Eye className="h-5 w-5" /> Logo Aziendale</CardTitle>
+          <CardDescription>Il logo viene mostrato nella sidebar e nelle comunicazioni</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <Label>Logo sidebar</Label>
-              {branding?.logo_url && (
-                <img src={branding.logo_url} alt="Logo" className="h-12 object-contain rounded border p-1 bg-background" />
-              )}
-              <FileUploadButton
-                label="Carica logo"
-                isUploading={uploading === "logo_url"}
-                onUpload={(f) => handleFileUpload(f, "logo_url", "logo")}
-              />
+          <div className="space-y-3">
+            {effectiveCompany?.logo_url && (
+              <img src={effectiveCompany.logo_url} alt="Logo" className="h-12 object-contain rounded border p-1 bg-background" />
+            )}
+            <FileUploadButton
+              label="Carica logo"
+              isUploading={uploading === "logo_url"}
+              onUpload={(f) => handleFileUpload(f, "logo_url", "logo")}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Premium Gate */}
+      {!isWhiteLabel && (
+        <Card className="border-dashed">
+          <CardContent className="py-8 text-center space-y-4">
+            <Lock className="h-10 w-10 text-muted-foreground mx-auto" />
+            <div>
+              <h3 className="text-lg font-semibold">White Label — Funzione Premium</h3>
+              <p className="text-muted-foreground mt-1 max-w-md mx-auto">
+                Personalizza completamente il tuo brand: colori, nome piattaforma, favicon e sfondo login.
+              </p>
             </div>
-            <div className="space-y-3">
-              <Label>Favicon</Label>
-              {branding?.favicon_url && (
-                <img src={branding.favicon_url} alt="Favicon" className="h-8 w-8 object-contain rounded border p-0.5 bg-background" />
+            <Button variant="outline" onClick={() => window.open("/cliente/assistenza", "_blank")}>
+              <HeadphonesIcon className="h-4 w-4 mr-2" />
+              Contatta il Supporto
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Full branding config — only if white-label enabled */}
+      {isWhiteLabel && (
+        <>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Palette className="h-5 w-5" /> Brand Personalizzato
+            </h2>
+            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">ATTIVO</Badge>
+          </div>
+
+          {/* Platform Name */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Nome Piattaforma</CardTitle>
+              <CardDescription>Verrà mostrato nella navbar e nel browser al posto di "EdiliziaInCloud"</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Input
+                value={form.brand_platform_name}
+                onChange={(e) => setForm((f) => ({ ...f, brand_platform_name: e.target.value }))}
+                placeholder="Lascia vuoto per il nome predefinito"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Colors */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Palette className="h-4 w-4" /> Palette Colori</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <HexColorInput label="Colore primario" value={form.brand_primary_color} onChange={(v) => setForm((f) => ({ ...f, brand_primary_color: v }))} />
+                <HexColorInput label="Colore secondario" value={form.brand_secondary_color} onChange={(v) => setForm((f) => ({ ...f, brand_secondary_color: v }))} />
+                <HexColorInput label="Sfondo leggero" value={form.brand_accent_color} onChange={(v) => setForm((f) => ({ ...f, brand_accent_color: v }))} />
+                <HexColorInput label="Testo su colore scuro" value={form.brand_text_on_primary} onChange={(v) => setForm((f) => ({ ...f, brand_text_on_primary: v }))} />
+              </div>
+
+              {/* Presets */}
+              <div>
+                <Label className="text-sm text-muted-foreground mb-2 block">Palette predefinite</Label>
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_PRESETS.map((preset) => (
+                    <Button
+                      key={preset.name}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-xs"
+                      onClick={() => applyPreset(preset)}
+                    >
+                      <div className="flex gap-0.5">
+                        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: preset.primary }} />
+                        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: preset.secondary }} />
+                      </div>
+                      {preset.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="rounded-lg border overflow-hidden">
+                <div className="px-4 py-2 flex items-center gap-3" style={{ backgroundColor: form.brand_primary_color, color: form.brand_text_on_primary }}>
+                  <span className="text-sm font-semibold">{form.brand_platform_name || "Navbar"}</span>
+                  <span className="ml-auto text-xs opacity-75">Utente ▼</span>
+                </div>
+                <div className="p-3 flex items-center gap-3" style={{ backgroundColor: form.brand_accent_color }}>
+                  <Button size="sm" style={{ backgroundColor: form.brand_primary_color, color: form.brand_text_on_primary, border: "none" }}>
+                    Salva
+                  </Button>
+                  <Badge style={{ backgroundColor: form.brand_secondary_color, color: form.brand_text_on_primary }}>Attivo</Badge>
+                  <span className="text-xs" style={{ color: form.brand_primary_color }}>Testo primario</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Favicon */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Favicon</CardTitle>
+              <CardDescription>Icona del browser (raccomandata: 64×64px, PNG o ICO)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {brand?.brand_favicon_url && (
+                <img src={brand.brand_favicon_url} alt="Favicon" className="h-8 w-8 object-contain rounded border p-0.5 bg-background" />
               )}
               <FileUploadButton
                 label="Carica favicon"
-                isUploading={uploading === "favicon_url"}
-                onUpload={(f) => handleFileUpload(f, "favicon_url", "favicon")}
+                isUploading={uploading === "brand_favicon_url"}
+                onUpload={(f) => handleFileUpload(f, "brand_favicon_url", "favicon")}
+                accept="image/png,image/x-icon,image/svg+xml"
               />
-            </div>
-          </div>
-          <Separator />
-          <div className="space-y-3">
-            <Label>Logo pagina di login</Label>
-            {branding?.login_logo_url && (
-              <img src={branding.login_logo_url} alt="Login Logo" className="h-12 object-contain rounded border p-1 bg-background" />
-            )}
-            <FileUploadButton
-              label="Carica logo login"
-              isUploading={uploading === "login_logo_url"}
-              onUpload={(f) => handleFileUpload(f, "login_logo_url", "login-logo")}
-            />
-          </div>
-          <div className="space-y-3">
-            <Label>Logo email</Label>
-            {branding?.email_header_logo_url && (
-              <img src={branding.email_header_logo_url} alt="Email Logo" className="h-10 object-contain rounded border p-1 bg-background" />
-            )}
-            <FileUploadButton
-              label="Carica logo email"
-              isUploading={uploading === "email_header_logo_url"}
-              onUpload={(f) => handleFileUpload(f, "email_header_logo_url", "email-logo")}
-            />
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      {/* Colors */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" /> Colori</CardTitle>
-          <CardDescription>Definisci la palette colori della piattaforma (formato HSL)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <ColorInput label="Colore primario" value={form.primary_color} onChange={(v) => setForm(p => ({ ...p, primary_color: v }))} />
-            <ColorInput label="Colore secondario" value={form.secondary_color} onChange={(v) => setForm(p => ({ ...p, secondary_color: v }))} />
-            <ColorInput label="Colore accento" value={form.accent_color} onChange={(v) => setForm(p => ({ ...p, accent_color: v }))} />
-            <ColorInput label="Sfondo sidebar" value={form.sidebar_bg_color} onChange={(v) => setForm(p => ({ ...p, sidebar_bg_color: v }))} />
-            <ColorInput label="Testo sidebar" value={form.sidebar_text_color} onChange={(v) => setForm(p => ({ ...p, sidebar_text_color: v }))} />
-            <ColorInput label="Sfondo login" value={form.login_bg_color} onChange={(v) => setForm(p => ({ ...p, login_bg_color: v }))} />
+          {/* Login Background */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Sfondo Pagina di Login</CardTitle>
+              <CardDescription>Immagine opzionale per la pagina di accesso (raccomandata: 1920×1080px)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {brand?.brand_login_bg_url && (
+                <img src={brand.brand_login_bg_url} alt="Login BG" className="h-24 w-40 object-cover rounded border bg-background" />
+              )}
+              <FileUploadButton
+                label="Carica sfondo"
+                isUploading={uploading === "brand_login_bg_url"}
+                onUpload={(f) => handleFileUpload(f, "brand_login_bg_url", "login-bg")}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Advanced */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Opzioni avanzate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Nascondi "Powered by EdiliziaInCloud"</Label>
+                  <p className="text-xs text-muted-foreground">Rimuove il riferimento alla piattaforma nel footer</p>
+                </div>
+                <Switch
+                  checked={form.brand_hide_powered_by}
+                  onCheckedChange={(v) => setForm((f) => ({ ...f, brand_hide_powered_by: v }))}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Save */}
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setInitialized(false)}>
+              Annulla modifiche
+            </Button>
+            <Button onClick={handleSave} disabled={saving} size="lg">
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              💾 Salva Brand
+            </Button>
           </div>
-
-          {form.primary_color && (
-            <div className="mt-4 flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">Anteprima:</span>
-              <div className="h-8 w-8 rounded-md border" style={{ backgroundColor: `hsl(${form.primary_color})` }} />
-              {form.secondary_color && <div className="h-8 w-8 rounded-md border" style={{ backgroundColor: `hsl(${form.secondary_color})` }} />}
-              {form.accent_color && <div className="h-8 w-8 rounded-md border" style={{ backgroundColor: `hsl(${form.accent_color})` }} />}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Login Page */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Type className="h-5 w-5" /> Pagina di Login</CardTitle>
-          <CardDescription>Personalizza i testi della pagina di accesso</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Titolo</Label>
-              <Input value={form.login_title} onChange={(e) => setForm(p => ({ ...p, login_title: e.target.value }))} placeholder="Es. Benvenuto nel portale" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Sottotitolo</Label>
-              <Input value={form.login_subtitle} onChange={(e) => setForm(p => ({ ...p, login_subtitle: e.target.value }))} placeholder="Es. Gestisci la tua azienda" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Custom Domain */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" /> Dominio Personalizzato</CardTitle>
-          <CardDescription>Configura un dominio custom per accedere alla piattaforma</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Dominio</Label>
-            <Input value={form.custom_domain} onChange={(e) => setForm(p => ({ ...p, custom_domain: e.target.value }))} placeholder="app.tuodominio.com" />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Per attivare il dominio personalizzato, configura un record CNAME verso la piattaforma. Contatta il supporto per assistenza.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Email Branding */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> Branding Email</CardTitle>
-          <CardDescription>Personalizza il footer delle email inviate dalla piattaforma</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-1.5">
-            <Label>Testo footer email</Label>
-            <Textarea
-              value={form.email_footer_text}
-              onChange={(e) => setForm(p => ({ ...p, email_footer_text: e.target.value }))}
-              placeholder="Es. © 2026 La Tua Azienda S.r.l. - Tutti i diritti riservati"
-              rows={2}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Misc */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Opzioni avanzate</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Nascondi branding piattaforma</Label>
-              <p className="text-xs text-muted-foreground">Rimuovi il logo e i riferimenti alla piattaforma dalla sidebar</p>
-            </div>
-            <Switch
-              checked={form.hide_platform_branding}
-              onCheckedChange={(v) => setForm(p => ({ ...p, hide_platform_branding: v }))}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving} size="lg">
-          {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          Salva branding
-        </Button>
-      </div>
+        </>
+      )}
     </div>
   );
 }
