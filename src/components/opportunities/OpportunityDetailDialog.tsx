@@ -838,6 +838,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   linkToOpportunity
                 />
               )}
+
+              {tab === "quotes" && (
+                <OpportunityQuotesTab
+                  contactId={opportunity.contact_id}
+                  companyId={companyId}
+                />
+              )}
             </div>
           </ScrollArea>
         </div>
