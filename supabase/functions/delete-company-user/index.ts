@@ -54,25 +54,30 @@ Deno.serve(async (req) => {
       .eq("id", userId)
       .single();
 
-    if (!callerProfile || !targetProfile || callerProfile.company_id !== targetProfile.company_id) {
-      return new Response(JSON.stringify({ error: "Non autorizzato: azienda diversa" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     // Verify caller has admin role
     const { data: callerRoles } = await adminClient
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id);
 
-    const isAdmin = callerRoles?.some(r => r.role === "company_admin" || r.role === "super_admin");
-    if (!isAdmin) {
+    const isSuperAdmin = callerRoles?.some(r => r.role === "super_admin");
+    const isCompanyAdmin = callerRoles?.some(r => r.role === "company_admin");
+
+    if (!isSuperAdmin && !isCompanyAdmin) {
       return new Response(JSON.stringify({ error: "Solo gli amministratori possono eliminare utenti" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Super admin can delete any user; company admin must be in the same company
+    if (!isSuperAdmin) {
+      if (!callerProfile || !targetProfile || callerProfile.company_id !== targetProfile.company_id) {
+        return new Response(JSON.stringify({ error: "Non autorizzato: azienda diversa" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Prevent self-deletion

@@ -163,10 +163,11 @@ export default function SettingsUserDetail() {
       if (!companyId) throw new Error("company_id mancante nel profilo utente");
 
       // Remove all company-level roles first
-      const rolesToRemove = ["company_admin", "company_staff", "salesperson", "call_center"] as const;
-      for (const r of rolesToRemove) {
-        await supabase.from("user_roles").delete().eq("user_id", userId!).eq("role", r);
-      }
+      // Consolidate role deletion in a single query with error checking
+      const { error: deleteError } = await supabase.from("user_roles").delete()
+        .eq("user_id", userId!)
+        .in("role", ["company_admin", "company_staff", "salesperson", "call_center"]);
+      if (deleteError) throw deleteError;
 
       if (newRole === "company_admin") {
         // Admin only gets company_admin role
