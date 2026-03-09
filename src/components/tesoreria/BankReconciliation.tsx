@@ -279,7 +279,6 @@ export default function BankReconciliation({ companyId }: Props) {
   }, [invoices, searchInv]);
 
   // Export reconciliations
-  const [exporting, setExporting] = useState(false);
   async function exportReconciliations(fmt: "csv" | "xlsx") {
     setExporting(true);
     try {
