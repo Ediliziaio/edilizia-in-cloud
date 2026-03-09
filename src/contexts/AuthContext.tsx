@@ -249,7 +249,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    sessionStorage.setItem(IMPERSONATION_KEY, companyId);
     setImpersonatedCompanyId(companyId);
 
     // Log impersonation audit event (fire-and-forget)
