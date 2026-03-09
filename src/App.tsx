@@ -300,6 +300,9 @@ const App = () => (
                 <Route path="messaggistica-beta" element={<MessagingBeta />} />
                 <Route path="chat" element={<InternalChat />} />
                 <Route path="tesoreria" element={<Tesoreria />} />
+                <Route path="fatturazione" element={<InvoicesList />} />
+                <Route path="fatturazione/nuova" element={<InvoiceEditor />} />
+                <Route path="fatturazione/:id" element={<InvoiceEditor />} />
                 <Route path="automazioni" element={<InternalAutomations />} />
                 <Route path="automazioni/:id" element={<InternalAutomations />} />
                 <Route path="automazioni-legacy" element={<Automations />} />
