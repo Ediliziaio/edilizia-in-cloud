@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Building2, Plus, Search, LogIn, ExternalLink, Loader2, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,7 +24,7 @@ import { CompaniesKPIStrip } from "@/components/admin/company/CompaniesKPIStrip"
 import { CompanyTagsCell } from "@/components/admin/company/CompanyTagsCell";
 import { CompanyQuickActions } from "@/components/admin/company/CompanyQuickActions";
 import { CompanyExpandedRow } from "@/components/admin/company/CompanyExpandedRow";
-
+import { BulkActionsBar } from "@/components/admin/company/BulkActionsBar";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
@@ -76,6 +77,7 @@ export default function CompaniesList() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { impersonateCompany } = useAuth();
   const navigate = useNavigate();
 
@@ -290,20 +292,44 @@ export default function CompaniesList() {
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all";
 
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === filteredCompanies.length) return new Set();
+      return new Set(filteredCompanies.map((c) => c.id));
+    });
+  }, [filteredCompanies]);
+
   const handleExportCSV = () => {
-    const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Utenti", "Creata il"];
-    const rows = filteredCompanies.map((c) => {
-      const plan = c.subscription_plans as { id: string; name: string } | null;
+    const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Utenti", "MRR", "Stripe Customer ID", "Data Creazione", "Fine Trial"];
+    const exportList = selectedIds.size > 0
+      ? filteredCompanies.filter((c) => selectedIds.has(c.id))
+      : filteredCompanies;
+    const rows = exportList.map((c) => {
+      const plan = c.subscription_plans as { id: string; name: string; price_monthly: number } | null;
       return [
-        c.name, c.email, sectorLabels[c.sector] || c.sector, plan?.name || "—",
-        c.status, (orderStats[c.id]?.count || 0), (userCounts[c.id] || 0), format(new Date(c.created_at), "dd/MM/yyyy"),
+        `"${c.name}"`, `"${c.email}"`, `"${sectorLabels[c.sector] || c.sector}"`, `"${plan?.name || "—"}"`,
+        c.status, (orderStats[c.id]?.count || 0), (userCounts[c.id] || 0),
+        plan?.price_monthly || 0, `"${c.stripe_customer_id || ""}"`,
+        format(new Date(c.created_at), "dd/MM/yyyy"),
+        c.trial_ends_at ? format(new Date(c.trial_ends_at), "dd/MM/yyyy") : "",
       ].join(",");
     });
     const csv = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "aziende.csv"; a.click();
+    a.href = url;
+    a.download = `aziende_${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -360,6 +386,13 @@ export default function CompaniesList() {
           subscription_plans: c.subscription_plans as { price_monthly: number } | null,
         }))}
         healthData={healthData}
+      />
+
+      {/* Bulk Actions Bar */}
+      <BulkActionsBar
+        selectedIds={selectedIds}
+        companies={filteredCompanies}
+        onClearSelection={() => setSelectedIds(new Set())}
       />
 
       <div className="flex flex-wrap gap-3">
@@ -454,6 +487,12 @@ export default function CompaniesList() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10 px-2">
+                    <Checkbox
+                      checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead className="w-10" />
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("name")}>
                     <span className="inline-flex items-center">Azienda<SortIcon col="name" /></span>
@@ -499,7 +538,13 @@ export default function CompaniesList() {
 
                   return (
                     <React.Fragment key={company.id}>
-                      <TableRow className="cursor-pointer" onClick={() => navigate(`/admin/aziende/${company.id}`)}>
+                       <TableRow className={`cursor-pointer ${selectedIds.has(company.id) ? "bg-primary/5" : ""}`} onClick={() => navigate(`/admin/aziende/${company.id}`)}>
+                        <TableCell className="w-10 px-2" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIds.has(company.id)}
+                            onCheckedChange={() => toggleSelect(company.id)}
+                          />
+                        </TableCell>
                         <TableCell className="w-10 px-2">
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : company.id); }}>
                             <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
@@ -558,7 +603,7 @@ export default function CompaniesList() {
                       </TableRow>
                       {isExpanded && (
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={13} className="p-4">
+                          <TableCell colSpan={14} className="p-4">
                             <CompanyExpandedRow
                               company={company}
                               orderStats={orderStats[company.id]}
