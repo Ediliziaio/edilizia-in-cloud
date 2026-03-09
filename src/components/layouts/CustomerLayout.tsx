@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { 
   ClipboardList, 
   HeadphonesIcon,
