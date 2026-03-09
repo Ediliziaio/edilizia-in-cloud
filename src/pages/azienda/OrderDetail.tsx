@@ -234,6 +234,7 @@ export default function OrderDetail() {
       return data as OrderItemData[];
     },
     enabled: !!id && !!user,
+    staleTime: 120_000,
   });
 
   // Fetch attachments for all order items
