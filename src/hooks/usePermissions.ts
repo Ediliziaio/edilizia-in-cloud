@@ -155,7 +155,7 @@ export function usePermissions(): Permissions {
       canEditTickets: permissions?.can_edit_tickets ?? false,
       canViewForecast: permissions?.can_view_forecast ?? false,
       canViewSettings: permissions?.can_view_settings ?? false,
-      canViewUsers: permissions?.can_view_users ?? false,
+      canViewUsers: (permissions as any)?.can_view_users ?? false,
       canViewMarketing: permissions?.can_view_marketing ?? false,
       canEditMarketing: permissions?.can_edit_marketing ?? false,
       canViewCruscotto: permissions?.can_view_cruscotto ?? false,
