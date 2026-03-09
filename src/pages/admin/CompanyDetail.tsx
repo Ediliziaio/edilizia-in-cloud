@@ -158,6 +158,7 @@ export default function CompanyDetail() {
           <CompanySaaSTab
             currentPlan={h.currentPlan} stats={h.stats}
             includedModules={includedModules} plans={h.plans} companyPlanId={h.company.subscription_plan_id}
+            companyId={h.company.id}
           />
         </TabsContent>
 
