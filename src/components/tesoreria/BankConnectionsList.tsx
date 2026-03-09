@@ -14,10 +14,10 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Landmark, Plus, Search, MoreVertical, RefreshCw, Eye, Unlink, Loader2, ShieldCheck } from "lucide-react";
+import { Landmark, Plus, Search, MoreVertical, RefreshCw, Unlink, Loader2, ShieldCheck, AlertTriangle, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, differenceInDays, isPast } from "date-fns";
 import { it } from "date-fns/locale";
 
 const statusColors: Record<string, string> = {
@@ -28,6 +28,15 @@ const statusColors: Record<string, string> = {
   pending: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   disconnected: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500",
 };
+
+function getExpiryInfo(expiresAt: string | null) {
+  if (!expiresAt) return null;
+  const expDate = new Date(expiresAt);
+  if (isPast(expDate)) return { level: "expired" as const, days: 0, text: "Connessione scaduta — ricollegati" };
+  const days = differenceInDays(expDate, new Date());
+  if (days <= 15) return { level: "warning" as const, days, text: `Scade tra ${days} giorni` };
+  return null;
+}
 
 interface Props {
   companyId: string;
@@ -55,7 +64,6 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
 
   useEffect(() => {
     if (hasPendingCallback) {
-      // Find pending connection and show complete dialog
       const pending = connections.find((c) => c.status === "authenticating");
       if (pending) {
         setPendingRequisitionId(pending.requisition_id);
@@ -209,51 +217,79 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
         </div>
       ) : (
         <div className="space-y-3">
-          {connections.map((conn) => (
-            <Card key={conn.id}>
-              <CardContent className="flex items-center justify-between py-4">
-                <div className="flex items-center gap-4">
-                  {conn.institution_logo ? (
-                    <img src={conn.institution_logo} alt="" className="h-10 w-10 rounded-lg object-contain" />
-                  ) : (
-                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-                      <Landmark className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div>
-                    <p className="font-medium">{conn.institution_name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge className={statusColors[conn.status] || ""} variant="secondary">
-                        {conn.status}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {conn.accounts_count || 0} conti
-                      </span>
-                      {conn.last_sync_at && (
+          {connections.map((conn) => {
+            const expiry = getExpiryInfo(conn.expires_at);
+            return (
+              <Card key={conn.id}>
+                {/* Expiry banner */}
+                {expiry && (
+                  <div className={`px-4 py-2 text-sm flex items-center gap-2 rounded-t-lg ${
+                    expiry.level === "expired"
+                      ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                      : "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+                  }`}>
+                    {expiry.level === "expired" ? (
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <Clock className="h-4 w-4 shrink-0" />
+                    )}
+                    <span>{expiry.text}</span>
+                    {expiry.level === "expired" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto h-7 text-xs"
+                        onClick={handleOpenSelectBank}
+                      >
+                        Ricollega
+                      </Button>
+                    )}
+                  </div>
+                )}
+                <CardContent className="flex items-center justify-between py-4">
+                  <div className="flex items-center gap-4">
+                    {conn.institution_logo ? (
+                      <img src={conn.institution_logo} alt="" className="h-10 w-10 rounded-lg object-contain" />
+                    ) : (
+                      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                        <Landmark className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium">{conn.institution_name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge className={statusColors[conn.status] || ""} variant="secondary">
+                          {conn.status}
+                        </Badge>
                         <span className="text-xs text-muted-foreground">
-                          · Sync {formatDistanceToNow(new Date(conn.last_sync_at), { addSuffix: true, locale: it })}
+                          {conn.accounts_count || 0} conti
                         </span>
-                      )}
+                        {conn.last_sync_at && (
+                          <span className="text-xs text-muted-foreground">
+                            · Sync {formatDistanceToNow(new Date(conn.last_sync_at), { addSuffix: true, locale: it })}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleSyncOne(conn.id)}>
-                      <RefreshCw className="h-4 w-4 mr-2" /> Sincronizza ora
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive" onClick={() => setDisconnectId(conn.id)}>
-                      <Unlink className="h-4 w-4 mr-2" /> Disconnetti
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardContent>
-            </Card>
-          ))}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleSyncOne(conn.id)}>
+                        <RefreshCw className="h-4 w-4 mr-2" /> Sincronizza ora
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-destructive" onClick={() => setDisconnectId(conn.id)}>
+                        <Unlink className="h-4 w-4 mr-2" /> Disconnetti
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 

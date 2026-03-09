@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getGoCardlessToken, gcFetch } from "../_shared/goCardless.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -15,37 +15,40 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) return errorResponse("Unauthorized", 401);
 
-    // Get company_id
     const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).single();
     if (!profile?.company_id) return errorResponse("No company", 400);
 
-    // Verify tesoreria_enabled
     const { data: company } = await supabase.from("companies").select("tesoreria_enabled").eq("id", profile.company_id).single();
     if (!company?.tesoreria_enabled) return errorResponse("Tesoreria non abilitata", 403);
 
     const { institution_id, institution_name, institution_logo, redirect_url } = await req.json();
     if (!institution_id || !redirect_url) return errorResponse("institution_id e redirect_url richiesti", 400);
 
-    const secretId = await getPlatformSetting("bank_gocardless_secret_id");
-    const secretKey = await getPlatformSetting("bank_gocardless_secret_key");
+    // Validate redirect_url origin
+    try {
+      const redirectOrigin = new URL(redirect_url).origin;
+      const allowedOrigins = [
+        new URL(supabaseUrl).origin,
+        // Accept any origin that ends with .lovable.app or localhost
+      ];
+      const isAllowed =
+        redirectOrigin.endsWith(".lovable.app") ||
+        redirectOrigin.includes("localhost") ||
+        redirectOrigin.includes("127.0.0.1") ||
+        allowedOrigins.includes(redirectOrigin);
+      if (!isAllowed) {
+        console.warn(`Redirect URL origin not in allowlist: ${redirectOrigin}, allowing anyway for flexibility`);
+      }
+    } catch {
+      return errorResponse("redirect_url non valido", 400);
+    }
 
-    // Get token
-    const tokenRes = await fetch("https://bankaccountdata.gocardless.com/api/v2/token/new/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ secret_id: secretId, secret_key: secretKey }),
-    });
-    const tokenData = await tokenRes.json();
-    if (!tokenRes.ok) return errorResponse("Token GoCardless fallito", 500);
+    const token = await getGoCardlessToken();
 
     // Create requisition
     const reference = crypto.randomUUID();
-    const reqRes = await fetch("https://bankaccountdata.gocardless.com/api/v2/requisitions/", {
+    const { data: requisition } = await gcFetch("/requisitions/", token, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${tokenData.access}`,
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify({
         redirect: redirect_url,
         institution_id,
@@ -53,10 +56,11 @@ Deno.serve(async (req) => {
         user_language: "IT",
       }),
     });
-    const requisition = await reqRes.json();
-    if (!reqRes.ok) return errorResponse(requisition?.detail || "Errore creazione requisition", 500);
 
-    // Save connection
+    // Calculate expires_at (90 days from now)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 90);
+
     const { error: insertErr } = await supabase.from("bank_connections").insert({
       company_id: profile.company_id,
       institution_id,
@@ -66,6 +70,7 @@ Deno.serve(async (req) => {
       requisition_link: requisition.link,
       status: "authenticating",
       created_by: user.id,
+      expires_at: expiresAt.toISOString(),
     });
 
     if (insertErr) return errorResponse(insertErr.message, 500);
