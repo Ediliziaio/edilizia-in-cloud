@@ -101,6 +101,19 @@ export default function QuoteBuilder() {
   // Step 3: Documents
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
 
+  // Template
+  const { templates, defaultTemplate } = useQuoteTemplates();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+
+  // Set default template on load
+  useEffect(() => {
+    if (defaultTemplate && !selectedTemplateId && !isEdit) {
+      setSelectedTemplateId(defaultTemplate.id);
+    }
+  }, [defaultTemplate]);
+
+  const selectedTemplate = templates.find(t => t.id === selectedTemplateId) ?? defaultTemplate;
+
   // Load contacts
   const { data: contacts = [] } = useQuery({
     queryKey: ["marketing-contacts", companyId],
