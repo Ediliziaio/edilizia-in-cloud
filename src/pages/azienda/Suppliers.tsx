@@ -36,7 +36,7 @@ function RatingStars({ rating }: { rating: number | null }) {
 }
 
 // ========== LIST VIEW ==========
-function SuppliersList() {
+function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) => void }) {
   const navigate = useNavigate();
   const { suppliers, isLoading } = useOperationalSuppliers();
   const [search, setSearch] = useState("");
