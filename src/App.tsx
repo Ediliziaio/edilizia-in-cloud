@@ -78,6 +78,7 @@ const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/S
 const SettingsIntegrations = lazy(() => import("@/pages/azienda/settings/SettingsIntegrations"));
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
 const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
+const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
 const SettingsPrivacy = lazy(() => import("@/pages/azienda/settings/SettingsPrivacy"));
 const SettingsBranding = lazy(() => import("@/pages/azienda/settings/SettingsBranding"));
@@ -329,6 +330,7 @@ const App = () => (
                   <Route path="api" element={<SettingsApiKeys />} />
                   <Route path="privacy" element={<SettingsPrivacy />} />
                   <Route path="branding" element={<SettingsBranding />} />
+                  <Route path="materiali-preventivi" element={<SettingsQuoteMaterials />} />
                 </Route>
               </Route>
 
