@@ -36,6 +36,8 @@ export interface MarketingContact {
   assigned_to: string | null;
   call_center_id: string | null;
   call_center_name: string | null;
+  attr_source: string | null;
+  attr_campaign: string | null;
   opp_name: string | null;
   opp_value: number | null;
   opp_status: string | null;
