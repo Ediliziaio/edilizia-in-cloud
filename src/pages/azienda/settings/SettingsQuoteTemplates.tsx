@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus, Trash2, Pencil, Star, Loader2, Upload,
-  LayoutGrid, Sparkles, Minus, Maximize, Download,
+  LayoutGrid, Sparkles, Minus, Maximize, Download, Copy,
 } from "lucide-react";
 
 const LAYOUTS: { key: QuoteTemplateLayout; label: string; desc: string }[] = [
