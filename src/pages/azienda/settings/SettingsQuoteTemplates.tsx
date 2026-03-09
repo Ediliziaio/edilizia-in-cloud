@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus, Trash2, Pencil, Star, Loader2, Upload,
-  LayoutGrid, Sparkles, Minus, Maximize, Download,
+  LayoutGrid, Sparkles, Minus, Maximize, Download, Copy,
 } from "lucide-react";
 
 const LAYOUTS: { key: QuoteTemplateLayout; label: string; desc: string }[] = [
@@ -56,6 +56,13 @@ export default function SettingsQuoteTemplates() {
   const handleEdit = (tmpl: QuoteTemplate) => {
     setEditId(tmpl.id);
     setForm({ ...tmpl });
+    setEditing(true);
+  };
+
+  const handleDuplicate = (tmpl: QuoteTemplate) => {
+    const { id, created_at, updated_at, ...rest } = tmpl;
+    setEditId(null);
+    setForm({ ...rest, name: `${tmpl.name} (copia)`, is_default: false });
     setEditing(true);
   };
 
@@ -154,6 +161,9 @@ export default function SettingsQuoteTemplates() {
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(tmpl)}>
                     <Pencil className="h-3 w-3 mr-1" />Modifica
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleDuplicate(tmpl)} title="Duplica">
+                    <Copy className="h-3 w-3" />
                   </Button>
                   {!tmpl.is_default && (
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(tmpl.id)}>
