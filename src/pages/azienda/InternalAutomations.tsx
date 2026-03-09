@@ -230,20 +230,16 @@ function FlowBuilderView({ flowId }: { flowId: string }) {
   const [addAfterNodeId, setAddAfterNodeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("builder");
 
-  // Sync from DB on load
-  useState(() => {
-    if (dbNodes) setLocalNodes(dbNodes);
-    if (dbConnections) setLocalConnections(dbConnections);
-    if (flow) setFlowName(flow.name);
-  });
+  const [addAfterBranch, setAddAfterBranch] = useState<string | null>(null);
 
-  useMemo(() => {
+  // Sync from DB on load
+  useEffect(() => {
     if (dbNodes && !dirty) setLocalNodes(dbNodes);
   }, [dbNodes]);
-  useMemo(() => {
+  useEffect(() => {
     if (dbConnections && !dirty) setLocalConnections(dbConnections);
   }, [dbConnections]);
-  useMemo(() => {
+  useEffect(() => {
     if (flow && !dirty) setFlowName(flow.name);
   }, [flow]);
 
