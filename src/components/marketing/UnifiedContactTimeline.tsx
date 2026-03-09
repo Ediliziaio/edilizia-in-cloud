@@ -214,6 +214,7 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
         ? "bg-violet-100 text-violet-600"
         : "bg-sky-100 text-sky-600";
       const channelLabel = msg.channel === "whatsapp" ? "WhatsApp" : msg.channel === "email" ? "Email" : "SMS";
+      const direction = (msg as any).direction;
 
       events.push({
         id: `msg-${msg.id}`,
@@ -221,7 +222,7 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
         category: "message",
         icon: channelIcon,
         color: channelColor,
-        title: `${channelLabel} ${msg.direction === "inbound" ? "ricevuto" : "inviato"}`,
+        title: `${channelLabel} ${direction === "inbound" ? "ricevuto" : "inviato"}`,
         description: msg.content?.substring(0, 120) || undefined,
         timestamp: msg.created_at,
         metadata: { status: msg.status, channel: channelLabel },
