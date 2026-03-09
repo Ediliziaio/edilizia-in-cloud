@@ -195,11 +195,18 @@ export default function Tasks() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <>
+          <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
+          <Card>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10"></TableHead>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Titolo</TableHead>
                 <TableHead>Assegnatario</TableHead>
                 <TableHead>Collegamento</TableHead>
@@ -216,14 +223,15 @@ export default function Tasks() {
                   className={cn(
                     "cursor-pointer transition-colors",
                     isOverdue(task) && "bg-destructive/5",
-                    task.status === "completata" && "opacity-60"
+                    task.status === "completata" && "opacity-60",
+                    selectedIds.has(task.id) && "bg-primary/5"
                   )}
                   onClick={() => { setEditingTask(task); setDialogOpen(true); }}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox
-                      checked={task.status === "completata"}
-                      onCheckedChange={() => handleToggleComplete(task)}
+                      checked={selectedIds.has(task.id)}
+                      onCheckedChange={() => toggleSelect(task.id)}
                     />
                   </TableCell>
                   <TableCell className="font-medium">
@@ -268,14 +276,27 @@ export default function Tasks() {
                       </span>
                     ) : "—"}
                   </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{STATUS_LABELS[task.status] || task.status}</span>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className={cn(
+                        "inline-flex items-center gap-1.5 text-sm rounded-md px-2 py-1 transition-colors",
+                        task.status === "completata"
+                          ? "text-primary hover:bg-primary/10"
+                          : "text-muted-foreground hover:bg-muted"
+                      )}
+                      onClick={() => handleToggleComplete(task)}
+                    >
+                      <CheckCircle2 className={cn("h-4 w-4", task.status === "completata" && "text-primary")} />
+                      {STATUS_LABELS[task.status] || task.status}
+                    </button>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </Card>
+        </>
+
       )}
 
       <TaskDialog
