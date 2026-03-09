@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
             notes: quote.notes,
             client_name: quote.client_name,
             client_company: quote.client_company,
-            valid_until: quote.valid_until,
+            expires_at: quote.expires_at,
             subtotal: quote.subtotal,
             discount_percent: quote.discount_percent,
             discount_amount: quote.discount_amount,

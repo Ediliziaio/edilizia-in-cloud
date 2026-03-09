@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
         Le inviamo in allegato la nostra offerta${quote.title ? ` per <strong>${quote.title}</strong>` : ""}.
       </p>
       <p style="color: #3f3f46; line-height: 1.6; margin-bottom: 25px;">
-        Importo totale: <strong>€ ${(quote.total || 0).toFixed(2)}</strong>
+        Importo totale: <strong>€ ${Number(quote.total || 0).toFixed(2)}</strong>
       </p>
 
       ${quote.valid_until ? `

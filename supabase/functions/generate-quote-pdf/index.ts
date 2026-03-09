@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
     // Update quote with pdf path
     await supabaseAdmin
       .from("quotes")
-      .update({ pdf_url: fileName, updated_at: new Date().toISOString() })
+      .update({ pdf_storage_path: fileName, pdf_generated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("id", quote_id);
 
     // Create signed URL (1 hour)
