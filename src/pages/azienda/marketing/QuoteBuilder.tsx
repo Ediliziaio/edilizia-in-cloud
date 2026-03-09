@@ -102,7 +102,7 @@ export default function QuoteBuilder() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone, company_name")
+        .select("id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, fiscal_code, vat_number")
         .eq("company_id", companyId!)
         .order("last_name");
       if (error) throw error;
