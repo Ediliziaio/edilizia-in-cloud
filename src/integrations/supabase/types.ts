@@ -9606,6 +9606,7 @@ export type Database = {
         | "employee"
         | "salesperson"
         | "call_center"
+        | "referrer"
       company_sector:
         | "serramenti"
         | "infissi"
@@ -9752,6 +9753,7 @@ export const Constants = {
         "employee",
         "salesperson",
         "call_center",
+        "referrer",
       ],
       company_sector: [
         "serramenti",
