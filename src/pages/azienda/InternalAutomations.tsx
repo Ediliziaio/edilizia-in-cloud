@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 
 function FlowListView() {
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
   const { data: flows, isLoading } = useInternalAutomationFlows();
   const createFlow = useCreateInternalFlow();
   const deleteFlow = useDeleteInternalFlow();
