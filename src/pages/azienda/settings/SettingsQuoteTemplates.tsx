@@ -31,6 +31,9 @@ const FONTS: { key: FontFamily; label: string; desc: string }[] = [
   { key: 'courier', label: 'Courier', desc: 'Monospace' },
 ];
 
+const getLogoPublicUrl = (path: string) =>
+  supabase.storage.from("quote-template-assets").getPublicUrl(path).data.publicUrl;
+
 export default function SettingsQuoteTemplates() {
   const { role, effectiveCompany } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
