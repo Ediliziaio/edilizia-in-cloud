@@ -198,6 +198,7 @@ export function useCashFlowData() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Paid commissions
