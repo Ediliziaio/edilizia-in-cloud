@@ -21,6 +21,7 @@ import { InternalNodePanel } from "@/components/internalAutomationBuilder/Intern
 import { InternalTriggerSelector } from "@/components/internalAutomationBuilder/InternalTriggerSelector";
 import { InternalActionSelector } from "@/components/internalAutomationBuilder/InternalActionSelector";
 import { InternalAutomationLogDrawer } from "@/components/internalAutomationBuilder/InternalAutomationLogDrawer";
+import { InternalAutomationLogInline } from "@/components/internalAutomationBuilder/InternalAutomationLogInline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
