@@ -28,6 +28,7 @@ export interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   permissionKey?: string;
   moduleKey?: ModuleKey;
+  featureKey?: string;
   isBeta?: boolean;
   category: "internal" | "marketing";
 }
