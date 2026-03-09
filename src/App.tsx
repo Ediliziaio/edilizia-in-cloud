@@ -304,8 +304,7 @@ const App = () => (
                 <Route path="chat" element={<InternalChat />} />
                 <Route path="tesoreria" element={<Tesoreria />} />
                 <Route path="fatturazione" element={<InvoicesList />} />
-                <Route path="fatturazione/nuova" element={<InvoiceEditor />} />
-                <Route path="fatturazione/:id" element={<InvoiceEditor />} />
+                <Route path="fatturazione/:id" element={<InvoiceDetail />} />
                 <Route path="scadenzario" element={<Scadenzario />} />
                 <Route path="report-fatturazione" element={<BillingReports />} />
                 <Route path="automazioni" element={<InternalAutomations />} />

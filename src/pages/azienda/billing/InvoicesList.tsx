@@ -12,8 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Search, MoreVertical, FileText, Download, Copy, Ban, CreditCard, FileDown, Loader2 } from "lucide-react";
+import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye } from "lucide-react";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
   draft:     { label: "Bozza",       color: "bg-muted text-muted-foreground",       emoji: "📝" },
@@ -23,6 +22,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: strin
   paid:      { label: "Pagata",      color: "bg-green-100 text-green-800",          emoji: "💰" },
   overdue:   { label: "Scaduta",     color: "bg-destructive/10 text-destructive",   emoji: "⏰" },
   cancelled: { label: "Annullata",   color: "bg-muted text-muted-foreground line-through", emoji: "❌" },
+};
+
+const PROVIDER_LABELS: Record<string, string> = {
+  fattureincloud: "Fatture in Cloud",
+  fattura24: "Fattura24",
+  aruba: "Aruba",
+  invoicetronic: "Invoicetronic",
 };
 
 export default function InvoicesList() {
@@ -47,16 +53,20 @@ export default function InvoicesList() {
     enabled: !!companyId,
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
-      if (error) throw error;
+  // Check if provider is connected
+  const { data: integration } = useQuery({
+    queryKey: ["billing_integration", companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("billing_integrations")
+        .select("*")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+      return data;
     },
-    onSuccess: () => {
-      toast.success("Fattura eliminata");
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-    },
-    onError: (e) => toast.error("Errore", { description: String(e) }),
+    enabled: !!companyId,
   });
 
   const markPaidMutation = useMutation({
@@ -76,6 +86,30 @@ export default function InvoicesList() {
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
+
+  const [syncing, setSyncing] = useState(false);
+  const syncInvoices = async () => {
+    if (!integration) {
+      toast.error("Nessun provider connesso", { description: "Vai nelle impostazioni per connettere il tuo gestionale." });
+      return;
+    }
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("billing-import", {
+        body: { provider: integration.provider },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Sincronizzazione completata", {
+        description: `${data?.imported || 0} fatture importate, ${data?.updated || 0} aggiornate`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    } catch (e) {
+      toast.error("Errore sincronizzazione", { description: String(e) });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     let list = invoices;
@@ -109,15 +143,46 @@ export default function InvoicesList() {
 
   return (
     <div className="space-y-6">
+      {/* No provider banner */}
+      {!isLoading && !integration && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="pt-4 pb-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Link2 className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-medium">Connetti il tuo gestionale di fatturazione</p>
+                <p className="text-sm text-muted-foreground">Collega Fatture in Cloud, Fattura24, Aruba o Invoicetronic per importare automaticamente le fatture.</p>
+              </div>
+            </div>
+            <Button variant="outline" onClick={() => navigate("/azienda/impostazioni")}>
+              Configura
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-bold">Fatturazione</h1>
+          {integration && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              {PROVIDER_LABELS[integration.provider] || integration.provider}
+            </Badge>
+          )}
         </div>
-        <Button onClick={() => navigate("/azienda/fatturazione/nuova")}>
-          <Plus className="h-4 w-4 mr-2" /> Nuova Fattura
-        </Button>
+        <div className="flex items-center gap-2">
+          {integration?.last_sync_at && (
+            <span className="text-xs text-muted-foreground">
+              Ultimo sync: {format(new Date(integration.last_sync_at), "dd/MM HH:mm", { locale: it })}
+            </span>
+          )}
+          <Button onClick={syncInvoices} disabled={syncing || !integration}>
+            {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Sincronizza
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -171,7 +236,11 @@ export default function InvoicesList() {
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
-          {invoices.length === 0 ? "Nessuna fattura. Crea la prima!" : "Nessun risultato per i filtri selezionati."}
+          {invoices.length === 0
+            ? integration
+              ? "Nessuna fattura importata. Premi 'Sincronizza' per importare dal gestionale."
+              : "Nessuna fattura. Connetti un gestionale per iniziare."
+            : "Nessun risultato per i filtri selezionati."}
         </div>
       ) : (
         <div className="rounded-lg border overflow-x-auto">
@@ -184,6 +253,7 @@ export default function InvoicesList() {
                 <th className="text-left p-3 font-medium">Scadenza</th>
                 <th className="text-right p-3 font-medium">Importo</th>
                 <th className="text-left p-3 font-medium">Stato</th>
+                <th className="text-left p-3 font-medium">Origine</th>
                 <th className="p-3 w-10"></th>
               </tr>
             </thead>
@@ -200,43 +270,28 @@ export default function InvoicesList() {
                     <td className="p-3">
                       <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
                     </td>
+                    <td className="p-3">
+                      {inv.external_provider ? (
+                        <Badge variant="outline" className="text-xs">
+                          {PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Locale</span>
+                      )}
+                    </td>
                     <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {inv.status === "draft" && (
-                            <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
-                              <FileText className="h-4 w-4 mr-2" /> Modifica
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/nuova?duplicate=${inv.id}`)}>
-                            <Copy className="h-4 w-4 mr-2" /> Duplica
+                          <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                            <Eye className="h-4 w-4 mr-2" /> Visualizza
                           </DropdownMenuItem>
                           {!["paid", "cancelled"].includes(inv.status) && (
                             <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total) })}>
                               <CreditCard className="h-4 w-4 mr-2" /> Segna come pagata
                             </DropdownMenuItem>
-                          )}
-                          {inv.status === "draft" && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                  <Ban className="h-4 w-4 mr-2" /> Elimina
-                                </DropdownMenuItem>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Eliminare questa fattura?</AlertDialogTitle>
-                                  <AlertDialogDescription>L'azione non può essere annullata.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteMutation.mutate(inv.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Elimina</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
