@@ -78,9 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
   });
 
-  const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(() => {
-    return sessionStorage.getItem(IMPERSONATION_KEY);
-  });
+  const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
   const [impersonatedCompany, setImpersonatedCompany] = useState<Company | null>(null);
 
   const fetchUserData = useCallback(async (userId: string) => {
