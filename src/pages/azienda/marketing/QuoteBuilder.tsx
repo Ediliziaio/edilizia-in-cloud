@@ -826,6 +826,61 @@ export default function QuoteBuilder() {
                 </div>
               </div>
             )}
+
+            {/* Template / Aspetto Documento */}
+            {templates.length > 0 && (
+              <div className="border-t pt-4">
+                <h3 className="font-medium mb-3 flex items-center gap-2">
+                  <Palette className="h-4 w-4" />
+                  Aspetto del Documento
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm">Template</Label>
+                    <Select value={selectedTemplateId || ''} onValueChange={setSelectedTemplateId}>
+                      <SelectTrigger className="w-full max-w-xs mt-1">
+                        <SelectValue placeholder="Seleziona template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map(tmpl => (
+                          <SelectItem key={tmpl.id} value={tmpl.id}>
+                            {tmpl.name} {tmpl.is_default ? '(Default)' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Layout quick-select */}
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['classic', 'modern', 'minimal', 'bold'] as QuoteTemplateLayout[]).map(layout => (
+                      <button
+                        key={layout}
+                        className={`border rounded-lg p-2 text-center text-xs transition-all ${
+                          selectedTemplate?.layout === layout ? 'border-primary ring-1 ring-primary/30 bg-primary/5' : 'border-border opacity-60'
+                        }`}
+                      >
+                        <QuoteTemplatePreview
+                          template={{ ...selectedTemplate, layout }}
+                          companyName={effectiveCompany?.name}
+                          scale={0.06}
+                        />
+                        <span className="capitalize mt-1 block">{layout}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {/* Mini preview */}
+                  {selectedTemplate && (
+                    <div className="flex justify-center">
+                      <QuoteTemplatePreview
+                        template={selectedTemplate}
+                        companyName={effectiveCompany?.name}
+                        scale={0.25}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
