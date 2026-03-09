@@ -4604,6 +4604,156 @@ export type Database = {
           },
         ]
       }
+      internal_chat_channels: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_chat_channels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_chat_members: {
+        Row: {
+          channel_id: string
+          company_id: string
+          id: string
+          joined_at: string
+          last_read_at: string | null
+          role: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          company_id: string
+          id?: string
+          joined_at?: string
+          last_read_at?: string | null
+          role?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          company_id?: string
+          id?: string
+          joined_at?: string
+          last_read_at?: string | null
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_chat_members_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "internal_chat_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_chat_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_chat_messages: {
+        Row: {
+          attachment_name: string | null
+          attachment_url: string | null
+          channel_id: string
+          company_id: string
+          content: string
+          created_at: string
+          id: string
+          is_edited: boolean
+          reply_to_id: string | null
+          sender_id: string
+          updated_at: string
+        }
+        Insert: {
+          attachment_name?: string | null
+          attachment_url?: string | null
+          channel_id: string
+          company_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_edited?: boolean
+          reply_to_id?: string | null
+          sender_id: string
+          updated_at?: string
+        }
+        Update: {
+          attachment_name?: string | null
+          attachment_url?: string | null
+          channel_id?: string
+          company_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_edited?: boolean
+          reply_to_id?: string | null
+          sender_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_chat_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "internal_chat_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_chat_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_chat_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "internal_chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       internal_outbound_campaigns: {
         Row: {
           agent_id: string

@@ -45,6 +45,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Attività", url: "/azienda/attivita", icon: CheckSquare, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal" },
   { title: "Errori", url: "/azienda/errori", icon: AlertTriangle, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal" },
   { title: "Messaggistica", url: "/azienda/messaggistica-beta", icon: MessageSquare, permissionKey: "canViewOrders", featureKey: "messaging_beta", isBeta: true, category: "internal" },
+  { title: "Chat Interna", url: "/azienda/chat", icon: MessageCircle, category: "internal" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewSettings", category: "internal" },
   { title: "Agenti AI Interni", url: "/azienda/agente-interno", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal" },
 ];
