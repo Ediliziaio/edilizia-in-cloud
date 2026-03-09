@@ -12,7 +12,7 @@ import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight,
   FileText, Activity, StickyNote, CalendarDays, Target, Plus, Send, Search,
   Bell, User, Settings, X, Filter, UserPlus, ArrowRight, RefreshCw, UserCheck,
-  Loader2, Check, AlertCircle, Bot, MessageSquare, Smartphone, Merge,
+  Loader2, Check, AlertCircle, Bot, MessageSquare, Smartphone, Merge, FileSignature,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -276,13 +276,14 @@ function getDateLabel(dateStr: string) {
 }
 
 // ── RIGHT SIDEBAR TABS ──
-type RightTab = "activities" | "notes" | "appointments" | "opportunities" | "documents" | "ai_conversations" | "sms_log" | "settings";
+type RightTab = "activities" | "notes" | "appointments" | "opportunities" | "quotes" | "documents" | "ai_conversations" | "sms_log" | "settings";
 const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
   { key: "documents", icon: FileText, label: "Documenti" },
   { key: "activities", icon: Activity, label: "Attività" },
   { key: "notes", icon: StickyNote, label: "Note" },
   { key: "appointments", icon: CalendarDays, label: "Calendario" },
   { key: "opportunities", icon: Target, label: "Opportunità" },
+  { key: "quotes", icon: FileSignature, label: "Preventivi" },
   { key: "ai_conversations", icon: Bot, label: "Conversazioni AI" },
   { key: "sms_log", icon: Smartphone, label: "Log SMS" },
   { key: "settings", icon: Settings, label: "Impostazioni" },
@@ -325,6 +326,62 @@ function OpportunitiesPanel({ contactId, companyId }: { contactId: string; compa
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Quotes Panel for right sidebar ──
+function ContactQuotesPanel({ contactId, companyId }: { contactId: string; companyId: string }) {
+  const navigate = useNavigate();
+  const { data: quotes = [], isLoading } = useQuery({
+    queryKey: ["contact_quotes", contactId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quotes")
+        .select("id, quote_number, title, total, status, created_at")
+        .eq("contact_id", contactId)
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!contactId && !!companyId,
+  });
+
+  const statusLabels: Record<string, string> = { bozza: "Bozza", inviata: "Inviata", accettata: "Accettata", rifiutata: "Rifiutata", scaduta: "Scaduta" };
+
+  if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">Caricamento...</p>;
+
+  return (
+    <div className="space-y-2">
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full text-[10px] h-7"
+        onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?contact_id=${contactId}`)}
+      >
+        <Plus className="h-3 w-3 mr-1" /> Nuovo Preventivo
+      </Button>
+      {quotes.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground text-center py-6">Nessun preventivo</p>
+      ) : (
+        quotes.map((q: any) => (
+          <div
+            key={q.id}
+            className="rounded bg-muted/50 p-2 space-y-0.5 cursor-pointer hover:bg-muted transition-colors"
+            onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}
+          >
+            <p className="text-[11px] font-medium">{q.quote_number}</p>
+            {q.title && <p className="text-[10px] text-muted-foreground truncate">{q.title}</p>}
+            <div className="flex items-center gap-1">
+              <Badge variant={q.status === "accettata" ? "default" : q.status === "rifiutata" ? "destructive" : "secondary"} className="text-[9px] h-4 px-1">
+                {statusLabels[q.status] || q.status}
+              </Badge>
+              {q.total > 0 && <span className="text-[10px] text-muted-foreground">{Number(q.total).toLocaleString("it-IT")} €</span>}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -1214,6 +1271,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
 
               {rightTab === "opportunities" && (
                 <OpportunitiesPanel contactId={id!} companyId={companyId!} />
+              )}
+
+              {/* Quotes panel */}
+              {rightTab === "quotes" && id && companyId && (
+                <ContactQuotesPanel contactId={id} companyId={companyId} />
               )}
 
               {/* Settings panel */}
