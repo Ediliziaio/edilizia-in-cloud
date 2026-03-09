@@ -7,19 +7,29 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // CRON_SECRET validation (optional — if configured, reject unauthenticated calls)
+    const cronSecret = req.headers.get("x-cron-secret");
+    const expectedSecret = Deno.env.get("CRON_SECRET");
+    if (expectedSecret && cronSecret !== expectedSecret) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Find campaigns that are A/B tests, already sent, and past their duration window, with no winner yet
+    // Find campaigns that are A/B tests, already sent, past their duration window, with no winner yet
+    // Also handle campaigns where completed_at is null by falling back to sent_at
     const { data: campaigns, error: campError } = await adminClient
       .from("email_campaigns")
-      .select("id, ab_winner_criteria, ab_test_duration_hours, completed_at, company_id, name")
+      .select("id, ab_winner_criteria, ab_test_duration_hours, completed_at, sent_at, company_id, name")
       .eq("ab_test_enabled", true)
       .eq("status", "sent")
-      .is("ab_winner", null)
-      .not("completed_at", "is", null);
+      .is("ab_winner", null);
 
     if (campError) throw campError;
 
