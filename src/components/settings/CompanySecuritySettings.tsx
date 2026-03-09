@@ -65,7 +65,7 @@ export function CompanySecuritySettings() {
           password_expiry_days: passwordExpiryDays,
           allowed_ips: ipList.length > 0 ? ipList : null,
         })
-        .eq("id", effectiveCompany!);
+        .eq("id", effectiveCompany!.id);
       if (error) throw error;
     },
     onSuccess: () => {

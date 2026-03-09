@@ -68,14 +68,14 @@ export function PermissionTemplatesManager() {
       } else {
         const { error } = await supabase
           .from("permission_templates")
-          .insert({
+          .insert([{
             name,
             description,
             permissions: permissions as any,
-            company_id: effectiveCompany,
+            company_id: effectiveCompany?.id,
             created_by: user?.id,
             is_system_default: false,
-          });
+          }]);
         if (error) throw error;
       }
     },
