@@ -6,6 +6,7 @@ import PlatformInfoTab from "@/components/admin/settings/PlatformInfoTab";
 import NotificationsTab from "@/components/admin/settings/NotificationsTab";
 import AuditLogTab from "@/components/admin/settings/AuditLogTab";
 import AdminSettingsIntegrations from "@/components/admin/settings/AdminSettingsIntegrations";
+import BankingSettingsTab from "@/components/admin/settings/BankingSettingsTab";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 
 export default function AdminSettings() {
