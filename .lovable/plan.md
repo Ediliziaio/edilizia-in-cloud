@@ -42,3 +42,26 @@
 - ✅ **Tabella utenti arricchita**: colonne "Ultimo accesso" (con `formatDistanceToNow`) e "Stato" (sessioni attive, account bloccato, tentativi falliti)
 - ✅ **`SecurityStatus` component**: indicatori visivi con tooltip per sessioni, lock, warning
 - ✅ **Audit log**: registrazione `user_created` alla creazione utente
+
+---
+
+## Gestione Utenti — Fase 4: Test & Integrazione ✅
+
+### Edge Functions ✅
+- ✅ Tutte e 4 le funzioni deployate e registrate in `config.toml`
+- ✅ Corretto bug in `revoke-user-session`: doppio `req.json()` rimosso
+- ✅ Rimosso import inutilizzato `createClient` da `track-user-session`
+- ✅ Autenticazione e autorizzazione verificate (401/403 senza token)
+
+### Database ✅
+- ✅ 6/6 colonne security su `profiles` verificate
+- ✅ 9/9 permessi granulari su `staff_permissions` verificati
+- ✅ 5 template di sistema presenti in `permission_templates`
+- ✅ Funzione `check_and_update_login_attempt` presente
+- ✅ 19 RLS policies attive sulle 6 nuove tabelle
+
+### Frontend ✅
+- ✅ `UsersConfig` query parallela per profili, ruoli, sessioni, permessi
+- ✅ KPI cards (totale, admin, operatori, venditori, call center)
+- ✅ Colonne "Ultimo accesso" e "Stato" con tooltip e badge
+- ✅ `CreateUserWizard` con template selector e validazione step
