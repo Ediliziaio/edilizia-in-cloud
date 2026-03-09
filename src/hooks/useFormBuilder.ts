@@ -92,9 +92,10 @@ export function useFormBuilder() {
   const updateForm = useMutation({
     mutationFn: async (form: Partial<LeadForm> & { id: string }) => {
       const { id, ...updates } = form;
+      const payload: Record<string, any> = { ...updates, updated_at: new Date().toISOString() };
       const { error } = await supabase
         .from("lead_forms")
-        .update({ ...updates, updated_at: new Date().toISOString() })
+        .update(payload as any)
         .eq("id", id);
       if (error) throw error;
     },
