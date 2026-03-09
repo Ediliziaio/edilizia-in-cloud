@@ -42,6 +42,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split("T")[0]);
   const [method, setMethod] = useState("bonifico");
   const [reference, setReference] = useState("");
+  const [accountLabel, setAccountLabel] = useState("banca");
   const [notes, setNotes] = useState("");
 
   const reset = () => {
