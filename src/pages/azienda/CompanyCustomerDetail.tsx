@@ -139,7 +139,7 @@ export default function CompanyCustomerDetail() {
 
       toast({ title: "Cliente aggiornato", description: "I dati del cliente sono stati salvati con successo" });
     } catch (error) {
-      logger..error("Error updating customer:", error);
+      logger.error("Error updating customer:", error);
       toast({ title: "Errore", description: "Impossibile aggiornare i dati del cliente.", variant: "destructive" });
     } finally {
       setIsSaving(false);
