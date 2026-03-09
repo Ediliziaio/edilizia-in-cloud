@@ -101,6 +101,7 @@ export function useScadenzario() {
         p_payment_method: params.paymentMethod || "bonifico",
         p_payment_date: params.paymentDate || new Date().toISOString().split("T")[0],
         p_notes: params.notes || null,
+        p_account_label: params.accountLabel || "banca",
       });
       if (error) throw error;
       const result = data as any;
