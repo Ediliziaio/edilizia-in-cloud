@@ -1935,6 +1935,7 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
+          is_case_sensitive: boolean
           match_field: string
           match_type: string
           match_value: string
@@ -1947,6 +1948,7 @@ export type Database = {
           company_id: string
           created_at?: string
           id?: string
+          is_case_sensitive?: boolean
           match_field?: string
           match_type?: string
           match_value: string
@@ -1959,6 +1961,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
+          is_case_sensitive?: boolean
           match_field?: string
           match_type?: string
           match_value?: string
@@ -1981,6 +1984,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           error_message: string | null
+          expires_at: string | null
           id: string
           institution_country: string | null
           institution_id: string
@@ -1999,6 +2003,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           error_message?: string | null
+          expires_at?: string | null
           id?: string
           institution_country?: string | null
           institution_id: string
@@ -2017,6 +2022,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           error_message?: string | null
+          expires_at?: string | null
           id?: string
           institution_country?: string | null
           institution_id?: string
