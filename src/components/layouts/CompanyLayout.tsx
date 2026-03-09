@@ -514,8 +514,8 @@ function CompanySidebar() {
                                   <NavLink 
                                     to={item.url} 
                                     end={item.url === "/azienda"}
-                                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                                    activeClassName="bg-muted text-foreground font-medium"
+                                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
+                                    activeClassName="bg-accent text-primary font-semibold"
                                   >
                                     <item.icon className="h-4 w-4" />
                                     <span>{item.title}</span>
