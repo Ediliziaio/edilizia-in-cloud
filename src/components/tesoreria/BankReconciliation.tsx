@@ -275,6 +275,62 @@ export default function BankReconciliation({ companyId }: Props) {
     );
   }, [invoices, searchInv]);
 
+  // Export reconciliations
+  const [exporting, setExporting] = useState(false);
+  async function exportReconciliations(fmt: "csv" | "xlsx") {
+    setExporting(true);
+    try {
+      const { data, error } = await supabase
+        .from("bank_reconciliations")
+        .select("*, bank_transactions:transaction_id(booking_date, amount, description, creditor_name, debtor_name), invoices:invoice_id(invoice_number, client_company_name, total)")
+        .eq("company_id", companyId)
+        .order("matched_at", { ascending: false })
+        .limit(10000);
+      if (error) throw error;
+
+      const rows = (data || []).map((rec: any) => ({
+        "Data riconciliazione": rec.matched_at ? format(new Date(rec.matched_at), "dd/MM/yyyy HH:mm") : "",
+        "Tipo": rec.match_type === "auto" ? "Auto" : "Manuale",
+        "Descrizione transazione": rec.bank_transactions?.description || "",
+        "Data transazione": rec.bank_transactions?.booking_date || "",
+        "Importo riconciliato": Number(rec.matched_amount || 0),
+        "N° Fattura": rec.invoices?.invoice_number || "",
+        "Cliente": rec.invoices?.client_company_name || "",
+        "Totale fattura": Number(rec.invoices?.total || 0),
+        "Note": rec.notes || "",
+        "Stato": rec.unmatched_at ? `Scollegata (${format(new Date(rec.unmatched_at), "dd/MM/yyyy")})` : "Attiva",
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = [
+        { wch: 22 }, { wch: 10 }, { wch: 35 }, { wch: 14 },
+        { wch: 18 }, { wch: 16 }, { wch: 25 }, { wch: 14 },
+        { wch: 25 }, { wch: 16 },
+      ];
+
+      if (fmt === "xlsx") {
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Riconciliazioni");
+        XLSX.writeFile(wb, `riconciliazioni-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+      } else {
+        const csv = XLSX.utils.sheet_to_csv(ws, { FS: ";" });
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `riconciliazioni-${format(new Date(), "yyyy-MM-dd")}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+      toast.success(`Report esportato in ${fmt.toUpperCase()}`);
+    } catch (e: any) {
+      toast.error("Errore esportazione: " + e.message);
+    }
+    setExporting(false);
+  }
+
   if (loading) {
     return <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}</div>;
   }
