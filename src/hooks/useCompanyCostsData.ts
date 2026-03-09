@@ -174,6 +174,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       return data || [];
     },
     enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // Transform order items into unified cost format (split installments)
