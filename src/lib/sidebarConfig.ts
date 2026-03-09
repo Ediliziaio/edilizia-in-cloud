@@ -21,6 +21,7 @@ import {
   Headphones,
   Landmark,
   FileSignature,
+  FileText,
 } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
 
