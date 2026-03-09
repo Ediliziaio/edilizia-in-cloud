@@ -292,20 +292,44 @@ export default function CompaniesList() {
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all";
 
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === filteredCompanies.length) return new Set();
+      return new Set(filteredCompanies.map((c) => c.id));
+    });
+  }, [filteredCompanies]);
+
   const handleExportCSV = () => {
-    const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Utenti", "Creata il"];
-    const rows = filteredCompanies.map((c) => {
-      const plan = c.subscription_plans as { id: string; name: string } | null;
+    const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Utenti", "MRR", "Stripe Customer ID", "Data Creazione", "Fine Trial"];
+    const exportList = selectedIds.size > 0
+      ? filteredCompanies.filter((c) => selectedIds.has(c.id))
+      : filteredCompanies;
+    const rows = exportList.map((c) => {
+      const plan = c.subscription_plans as { id: string; name: string; price_monthly: number } | null;
       return [
-        c.name, c.email, sectorLabels[c.sector] || c.sector, plan?.name || "—",
-        c.status, (orderStats[c.id]?.count || 0), (userCounts[c.id] || 0), format(new Date(c.created_at), "dd/MM/yyyy"),
+        `"${c.name}"`, `"${c.email}"`, `"${sectorLabels[c.sector] || c.sector}"`, `"${plan?.name || "—"}"`,
+        c.status, (orderStats[c.id]?.count || 0), (userCounts[c.id] || 0),
+        plan?.price_monthly || 0, `"${c.stripe_customer_id || ""}"`,
+        format(new Date(c.created_at), "dd/MM/yyyy"),
+        c.trial_ends_at ? format(new Date(c.trial_ends_at), "dd/MM/yyyy") : "",
       ].join(",");
     });
     const csv = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "aziende.csv"; a.click();
+    a.href = url;
+    a.download = `aziende_${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
