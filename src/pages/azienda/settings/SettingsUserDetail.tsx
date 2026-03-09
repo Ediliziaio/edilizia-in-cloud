@@ -65,7 +65,7 @@ export default function SettingsUserDetail() {
     queryFn: async () => {
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone, company_id")
+        .select("id, first_name, last_name, email, phone, company_id, password_changed_at, failed_login_count, locked_until, require_2fa, last_login_at, last_login_ip")
         .eq("id", userId!)
         .single();
       if (error) throw error;
