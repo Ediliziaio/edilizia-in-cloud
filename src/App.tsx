@@ -103,6 +103,7 @@ const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const InvoicesList = lazy(() => import("@/pages/azienda/billing/InvoicesList"));
 const InvoiceEditor = lazy(() => import("@/pages/azienda/billing/InvoiceEditor"));
+const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
