@@ -203,3 +203,12 @@ verify_jwt = false
 
 [functions.process-internal-automation]
 verify_jwt = false
+
+[functions.billing-connect]
+verify_jwt = false
+
+[functions.billing-sync]
+verify_jwt = false
+
+[functions.billing-webhook]
+verify_jwt = false
