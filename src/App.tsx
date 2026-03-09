@@ -210,6 +210,8 @@ const App = () => (
                 <Route path="sync-logs" element={<SyncLogs />} />
                 <Route path="lifecycle" element={<CompanyLifecycle />} />
                 <Route path="annunci" element={<Announcements />} />
+                <Route path="customer-success" element={<CustomerSuccess />} />
+                <Route path="cs-tasks" element={<AdminCSTasks />} />
               </Route>
 
               {/* Full-screen Automation Builder routes - OUTSIDE CompanyLayout */}
