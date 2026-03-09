@@ -41,6 +41,7 @@ interface Props {
 export default function TransactionsFeed({ companyId }: Props) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [invoiceMap, setInvoiceMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
