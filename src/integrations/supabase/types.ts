@@ -10755,6 +10755,56 @@ export type Database = {
           },
         ]
       }
+      scadenza_alert_prefs: {
+        Row: {
+          alert_email: string | null
+          alert_enabled: boolean | null
+          alert_on_overdue: boolean | null
+          alert_on_upcoming: boolean | null
+          auto_generate_from_invoices: boolean | null
+          auto_reconcile_payments: boolean | null
+          company_id: string
+          created_at: string | null
+          default_alert_days: number | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          alert_email?: string | null
+          alert_enabled?: boolean | null
+          alert_on_overdue?: boolean | null
+          alert_on_upcoming?: boolean | null
+          auto_generate_from_invoices?: boolean | null
+          auto_reconcile_payments?: boolean | null
+          company_id: string
+          created_at?: string | null
+          default_alert_days?: number | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          alert_email?: string | null
+          alert_enabled?: boolean | null
+          alert_on_overdue?: boolean | null
+          alert_on_upcoming?: boolean | null
+          auto_generate_from_invoices?: boolean | null
+          auto_reconcile_payments?: boolean | null
+          company_id?: string
+          created_at?: string | null
+          default_alert_days?: number | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scadenza_alert_prefs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scadenze: {
         Row: {
           alert_days_before: number | null
@@ -12691,6 +12741,10 @@ export type Database = {
       }
       check_and_update_login_attempt: {
         Args: { p_ip_address?: unknown; p_success: boolean; p_user_id: string }
+        Returns: Json
+      }
+      check_overdue_and_upcoming_scadenze: {
+        Args: { p_company_id: string }
         Returns: Json
       }
       check_overdue_scadenze:
