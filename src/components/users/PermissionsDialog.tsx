@@ -1,22 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Building2, LayoutDashboard, Megaphone, ChevronDown, ChevronRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  STANDALONE_SECTIONS,
-  INTERNAL_SECTIONS,
-  MARKETING_SECTIONS,
-  ALL_PERMISSION_SECTIONS,
+  STANDALONE_SECTIONS, INTERNAL_SECTIONS, MARKETING_SECTIONS,
+  ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags,
+  DEFAULT_PERMISSIONS,
+  type PermissionSectionDef, type StaffRoleType,
 } from "@/components/users/permissionsDefaults";
 
 export interface StaffPermissions {
@@ -50,16 +47,6 @@ export interface StaffPermissions {
   can_view_marketing_reports: boolean;
   can_view_cruscotto: boolean;
   only_assigned: boolean;
-  // New granular permissions
-  can_export_clients: boolean;
-  can_delete_orders: boolean;
-  can_manage_payments: boolean;
-  can_approve_orders: boolean;
-  can_view_all_team_calendar: boolean;
-  can_view_margins: boolean;
-  can_manage_suppliers: boolean;
-  can_view_financial_reports: boolean;
-  can_manage_warehouse_items: boolean;
 }
 
 interface PermissionsDialogProps {
@@ -69,15 +56,83 @@ interface PermissionsDialogProps {
   currentPermissions: StaffPermissions;
   onSave: (permissions: StaffPermissions) => Promise<void>;
   isLoading?: boolean;
+  userRole?: StaffRoleType;
+}
+
+interface PermGroupProps {
+  label: string;
+  icon: React.ElementType;
+  iconColor: string;
+  sections: PermissionSectionDef[];
+  permissions: StaffPermissions;
+  onToggle: (key: keyof StaffPermissions, value: boolean) => void;
+}
+
+function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onToggle }: PermGroupProps) {
+  const [open, setOpen] = useState(true);
+
+  const activeCount = sections.reduce((count, s) => {
+    let c = permissions[s.viewKey] ? 1 : 0;
+    if (s.editKey && permissions[s.editKey]) c++;
+    return count + c;
+  }, 0);
+
+  const totalCount = sections.reduce((count, s) => count + 1 + (s.editKey ? 1 : 0), 0);
+
+  const allActive = activeCount === totalCount;
+
+  const handleToggleAll = (checked: boolean) => {
+    sections.forEach(s => {
+      onToggle(s.viewKey, checked);
+      if (s.editKey) onToggle(s.editKey, checked);
+    });
+  };
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button type="button" className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+          <div className="flex items-center gap-2">
+            <Icon className={`h-4 w-4 ${iconColor}`} />
+            <span className="text-sm font-medium">{label}</span>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{activeCount}/{totalCount}</Badge>
+          </div>
+          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <Switch checked={allActive} onCheckedChange={handleToggleAll} />
+            {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          </div>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-3 pt-2 pb-1 space-y-2">
+        {sections.map(section => (
+          <div key={section.viewKey} className="flex items-center justify-between py-1">
+            <div className="flex items-center gap-2">
+              <Switch
+                id={section.viewKey}
+                checked={permissions[section.viewKey]}
+                onCheckedChange={(checked) => onToggle(section.viewKey, checked)}
+              />
+              <Label htmlFor={section.viewKey} className="text-sm cursor-pointer">{section.label}</Label>
+            </div>
+            {section.editKey && permissions[section.viewKey] && (
+              <div className="flex items-center gap-1.5">
+                <Switch
+                  id={section.editKey}
+                  checked={permissions[section.editKey]}
+                  onCheckedChange={(checked) => onToggle(section.editKey!, checked)}
+                />
+                <Label htmlFor={section.editKey} className="text-xs text-muted-foreground cursor-pointer">Modifica</Label>
+              </div>
+            )}
+          </div>
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 export function PermissionsDialog({
-  open,
-  onOpenChange,
-  userName,
-  currentPermissions,
-  onSave,
-  isLoading,
+  open, onOpenChange, userName, currentPermissions, onSave, isLoading, userRole,
 }: PermissionsDialogProps) {
   const [permissions, setPermissions] = useState<StaffPermissions>(currentPermissions);
 
@@ -97,7 +152,7 @@ export function PermissionsDialog({
   };
 
   const handleSubmit = async () => {
-    await onSave(permissions);
+    await onSave(syncLegacyMarketingFlags(permissions));
     onOpenChange(false);
   };
 
@@ -107,11 +162,7 @@ export function PermissionsDialog({
       (allTrue as any)[s.viewKey] = true;
       if (s.editKey) (allTrue as any)[s.editKey] = true;
     });
-    setPermissions(prev => ({
-      ...prev, ...allTrue,
-      can_view_cruscotto: true,
-      can_view_marketing: true, can_edit_marketing: true,
-    }));
+    setPermissions(prev => ({ ...prev, ...allTrue, can_view_marketing: true, can_edit_marketing: true }));
   };
 
   const handleDeselectAll = () => {
@@ -120,105 +171,98 @@ export function PermissionsDialog({
       (allFalse as any)[s.viewKey] = false;
       if (s.editKey) (allFalse as any)[s.editKey] = false;
     });
+    setPermissions(prev => ({ ...prev, ...allFalse, can_view_marketing: false, can_edit_marketing: false }));
+  };
+
+  const handleResetPreset = () => {
+    if (!userRole || userRole === "company_admin") return;
+    const preset = ROLE_PRESETS[userRole];
     setPermissions(prev => ({
-      ...prev, ...allFalse,
-      can_view_cruscotto: false,
-      can_view_marketing: false, can_edit_marketing: false,
+      ...DEFAULT_PERMISSIONS,
+      only_assigned: prev.only_assigned,
+      ...preset,
     }));
   };
 
-  const renderSection = (section: typeof INTERNAL_SECTIONS[0]) => (
-    <div key={section.viewKey} className="space-y-2">
-      <div className="flex items-center space-x-2">
-        <Checkbox
-          id={section.viewKey}
-          checked={permissions[section.viewKey]}
-          onCheckedChange={(checked) => handleToggle(section.viewKey, checked as boolean)}
-        />
-        <Label htmlFor={section.viewKey} className="font-medium">
-          {section.label}
-        </Label>
-      </div>
-      {section.editKey && permissions[section.viewKey] && (
-        <div className="ml-6 flex items-center space-x-2">
-          <Checkbox
-            id={section.editKey}
-            checked={permissions[section.editKey]}
-            onCheckedChange={(checked) => handleToggle(section.editKey!, checked as boolean)}
-          />
-          <Label htmlFor={section.editKey} className="text-sm text-muted-foreground">
-            Può modificare
-          </Label>
-        </div>
-      )}
-    </div>
-  );
+  const totalActive = useMemo(() => {
+    const excluded = new Set(["only_assigned", "can_view_marketing", "can_edit_marketing"]);
+    return Object.entries(permissions).filter(([k, v]) => v === true && !excluded.has(k)).length;
+  }, [permissions]);
+
+  const roleLabel: Record<string, string> = {
+    company_staff: "Operatore",
+    salesperson: "Venditore",
+    call_center: "Call Center",
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-[520px] max-h-[85vh] !flex !flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Permessi - {userName}</DialogTitle>
-          <DialogDescription>
-            Seleziona le sezioni a cui l'utente può accedere
-          </DialogDescription>
+          <DialogTitle className="flex items-center justify-between">
+            <span>Permessi — {userName}</span>
+            <Badge variant="outline">{totalActive} attivi</Badge>
+          </DialogTitle>
+          <DialogDescription>Seleziona le sezioni a cui l'utente può accedere</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleSelectAll}>
-              Seleziona tutti
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={handleSelectAll}>Seleziona tutti</Button>
+          <Button variant="outline" size="sm" onClick={handleDeselectAll}>Deseleziona tutti</Button>
+          {userRole && userRole !== "company_admin" && (
+            <Button variant="outline" size="sm" onClick={handleResetPreset}>
+              Ripristina preset {roleLabel[userRole] || ""}
             </Button>
-            <Button variant="outline" size="sm" onClick={handleDeselectAll}>
-              Deseleziona tutti
-            </Button>
-          </div>
+          )}
+        </div>
+
+        <Separator />
+
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-2">
+          <PermGroup
+            label="Cruscotto Aziendale"
+            icon={Building2}
+            iconColor="text-indigo-600"
+            sections={STANDALONE_SECTIONS}
+            permissions={permissions}
+            onToggle={handleToggle}
+          />
+          <PermGroup
+            label="Gestione Interna"
+            icon={LayoutDashboard}
+            iconColor="text-blue-600"
+            sections={INTERNAL_SECTIONS}
+            permissions={permissions}
+            onToggle={handleToggle}
+          />
+          <PermGroup
+            label="Marketing e Vendite"
+            icon={Megaphone}
+            iconColor="text-purple-600"
+            sections={MARKETING_SECTIONS}
+            permissions={permissions}
+            onToggle={handleToggle}
+          />
 
           <Separator />
 
-          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-            {/* Cruscotto Aziendale */}
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cruscotto Aziendale</p>
-            {STANDALONE_SECTIONS.map(renderSection)}
-
-            <Separator />
-
-            {/* Gestione Interna */}
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gestione Interna</p>
-            {INTERNAL_SECTIONS.map(renderSection)}
-
-            <Separator />
-
-            {/* Marketing e Vendita */}
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marketing e Vendita</p>
-            {MARKETING_SECTIONS.map(renderSection)}
-
-            <Separator />
-
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="only_assigned"
-                  checked={permissions.only_assigned || false}
-                  onCheckedChange={(checked) =>
-                    setPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))
-                  }
-                />
-                <Label htmlFor="only_assigned" className="font-medium">
-                  Solo elementi assegnati
-                </Label>
-              </div>
-              <p className="text-xs text-muted-foreground ml-6">
-                Se attivo, l'utente vedrà solo ordini, attività e appuntamenti assegnati a lui
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <Label htmlFor="only_assigned" className="font-medium cursor-pointer">Solo elementi assegnati</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Se attivo, l'utente vedrà SOLO ordini, attività e appuntamenti assegnati a lui
               </p>
             </div>
+            <Switch
+              id="only_assigned"
+              checked={permissions.only_assigned || false}
+              onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, only_assigned: checked }))}
+            />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-            Annulla
-          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>Annulla</Button>
           <Button onClick={handleSubmit} disabled={isLoading}>
             {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Salva Permessi

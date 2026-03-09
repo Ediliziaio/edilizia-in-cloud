@@ -371,10 +371,17 @@ export function UsersConfig() {
         const hasAnyMarketingEdit = permFields.can_edit_marketing_contacts || permFields.can_edit_marketing_opportunities;
         permFields.can_view_marketing = hasAnyMarketingView || permFields.can_view_marketing;
         permFields.can_edit_marketing = hasAnyMarketingEdit || permFields.can_edit_marketing;
-        await supabase
+        const { error: permUpdateError } = await supabase
           .from("staff_permissions")
           .update({ ...permFields, only_assigned: only_assigned || false })
           .eq("user_id", response.data.user_id);
+
+        if (permUpdateError) {
+          console.error("Failed to update permissions:", permUpdateError);
+          toast.warning("Utente creato, ma i permessi non sono stati salvati", {
+            description: "Vai nel dettaglio utente per configurare i permessi manualmente.",
+          });
+        }
       }
 
       // Audit log
