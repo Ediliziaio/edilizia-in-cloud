@@ -386,6 +386,7 @@ function ContactQuotesPanel({ contactId, companyId }: { contactId: string; compa
   );
 }
 
+const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
