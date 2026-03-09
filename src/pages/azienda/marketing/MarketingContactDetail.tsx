@@ -1020,65 +1020,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           </div>
         </div>
 
-        {/* Timeline */}
-        <ScrollArea className="flex-1">
-          <div className="p-4 max-w-2xl mx-auto w-full">
-            {groupedActivities.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
-                <Activity className="h-8 w-8 opacity-40" />
-                <p className="text-xs font-medium">Nessuna attività registrata</p>
-                <p className="text-[11px] text-center max-w-[240px]">Aggiungi una nota o modifica i dati del contatto per vedere la cronologia qui.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {groupedActivities.map((group) => (
-                  <div key={group.label}>
-                    {/* Date separator */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="flex-1 h-px bg-border" />
-                      <span className="text-[11px] font-medium text-muted-foreground">{group.label}</span>
-                      <div className="flex-1 h-px bg-border" />
-                    </div>
-                    {/* Activity entries */}
-                    <div className="space-y-2">
-                      {group.items.map((act: any) => (
-                        <div key={act.id} className="flex items-start gap-2.5 py-1.5">
-                          <div className={cn("h-6 w-6 rounded-full flex items-center justify-center shrink-0 mt-0.5", getActivityColor(act.activity_type))}>
-                            {getActivityIcon(act.activity_type)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs">{act.description}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              {format(new Date(act.created_at), "HH:mm", { locale: it })}
-                              {act.profiles && (act.profiles as any).first_name && (
-                                <> · <span className="font-medium">{(act.profiles as any).first_name} {(act.profiles as any).last_name}</span></>
-                              )}
-                            </p>
-                          </div>
-                          {act.metadata && Object.keys(act.metadata).length > 0 && (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <button className="text-[10px] text-primary hover:underline shrink-0">Dettagli</button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-56 p-2.5 text-xs space-y-1" side="left">
-                                {Object.entries(act.metadata as Record<string, any>).map(([key, val]) => (
-                                  <div key={key} className="flex justify-between gap-2">
-                                    <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
-                                    <span className="font-medium text-right truncate max-w-[120px]">{String(val)}</span>
-                                  </div>
-                                ))}
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </ScrollArea>
+        {/* Unified Timeline */}
+        <div className="flex-1 overflow-hidden">
+          <UnifiedContactTimeline contactId={id!} companyId={companyId!} />
+        </div>
 
         {/* Message input bar */}
         <div className="border-t shrink-0">
