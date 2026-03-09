@@ -230,7 +230,7 @@ export const INTERNAL_TRIGGER_CATEGORIES: {
     items: [
       { id: "appointment_created", label: "Appuntamento creato", icon: "Plus", category: "calendario", description: "Quando viene creato un appuntamento", availableVariables: APPOINTMENT_VARIABLES },
       { id: "appointment_updated", label: "Appuntamento modificato", icon: "Edit", category: "calendario", description: "Quando un appuntamento viene aggiornato", availableVariables: APPOINTMENT_VARIABLES },
-      { id: "appointment_reminder", label: "Promemori, disabled: true, disabledReason: "Prossimamente"a appuntamento", icon: "Bell", category: "calendario", description: "Promemoria prima dell'appuntamento", availableVariables: APPOINTMENT_VARIABLES },
+      { id: "appointment_reminder", label: "Promemoria appuntamento", icon: "Bell", category: "calendario", description: "Promemoria prima dell'appuntamento", availableVariables: APPOINTMENT_VARIABLES, disabled: true, disabledReason: "Prossimamente" },
     ],
   },
 ];
