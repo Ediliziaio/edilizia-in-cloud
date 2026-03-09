@@ -54,6 +54,7 @@ const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 const AdminCSTasks = lazy(() => import("@/pages/admin/AdminCSTasks"));
 const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
+const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
 
 // Company
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
