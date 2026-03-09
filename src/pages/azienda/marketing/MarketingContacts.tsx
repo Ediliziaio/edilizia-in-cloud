@@ -638,9 +638,23 @@ export default function MarketingContacts() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleExport} disabled={exporting}>
-            <Download className="h-4 w-4 mr-2" /> {exporting ? "Esportando..." : "Esporta"}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={exporting}>
+                <Download className="h-4 w-4 mr-2" />
+                {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => doExport("csv")}>
+                <Download className="h-4 w-4 mr-2" /> Esporta CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => doExport("xlsx")}>
+                <Download className="h-4 w-4 mr-2" /> Esporta XLSX
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-2" /> Importa
           </Button>
