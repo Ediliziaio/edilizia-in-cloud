@@ -62,11 +62,21 @@ export function FormSettingsPanel({ form, theme, settings, onThemeChange, onSett
           />
         </div>
         <div className="space-y-1">
+          <Label className="text-xs">Titolo successo</Label>
+          <Input
+            value={theme.success_title || ""}
+            onChange={(e) => onThemeChange({ ...theme, success_title: e.target.value })}
+            className="h-8 text-sm"
+            placeholder="✓"
+          />
+        </div>
+        <div className="space-y-1">
           <Label className="text-xs">Messaggio successo</Label>
           <Input
             value={settings.success_message || ""}
             onChange={(e) => onSettingsChange({ ...settings, success_message: e.target.value })}
             className="h-8 text-sm"
+            placeholder="Grazie! La tua richiesta è stata inviata."
           />
         </div>
       </TabsContent>

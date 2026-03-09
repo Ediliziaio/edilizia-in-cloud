@@ -15,6 +15,13 @@ async function hashIP(ip: string): Promise<string> {
     .join("");
 }
 
+function detectDeviceType(ua: string): string {
+  if (!ua) return "unknown";
+  if (/Mobile|Android.*Mobile|iPhone|iPod/i.test(ua)) return "mobile";
+  if (/iPad|Android(?!.*Mobile)|Tablet/i.test(ua)) return "tablet";
+  return "desktop";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -29,7 +36,11 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { form_id, data: formData, session_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term } = body;
+    const {
+      form_id, data: formData, session_id, visitor_id,
+      utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+      gclid, fbclid
+    } = body;
 
     if (!form_id || !formData) {
       return new Response(
@@ -46,7 +57,7 @@ Deno.serve(async (req) => {
     // Get form definition
     const { data: form, error: formError } = await supabase
       .from("lead_forms")
-      .select("id, company_id, fields, settings, is_published")
+      .select("id, company_id, fields, settings, theme, is_published, is_active")
       .eq("id", form_id)
       .single();
 
@@ -64,7 +75,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate required fields using field.id
+    if (form.is_active === false) {
+      return new Response(
+        JSON.stringify({ error: "Form is inactive" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate required fields
     const fields = (form.fields as any[]) || [];
     for (const field of fields) {
       const fieldKey = field.id || field.name;
@@ -76,6 +94,8 @@ Deno.serve(async (req) => {
       }
     }
 
+    const userAgent = req.headers.get("user-agent") || "";
+    const deviceType = detectDeviceType(userAgent);
     const clientIP =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
@@ -83,6 +103,7 @@ Deno.serve(async (req) => {
     const ip_hash = await hashIP(clientIP);
 
     const settings = (form.settings as any) || {};
+    const theme = (form.theme as any) || {};
 
     // Build contact data from field mappings
     let mappedEmail: string | null = null;
@@ -141,7 +162,6 @@ Deno.serve(async (req) => {
           attr_content: utm_content || null,
         };
 
-        // Apply settings defaults
         if (settings.assignedUserId) insertPayload.assigned_to = settings.assignedUserId;
         if (settings.defaultTags && Array.isArray(settings.defaultTags)) insertPayload.tags = settings.defaultTags;
 
@@ -154,8 +174,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Save submission
-    const { error: subError } = await supabase.from("form_submissions").insert({
+    // Save submission with click IDs and device info
+    const { data: submission, error: subError } = await supabase.from("form_submissions").insert({
       form_id,
       company_id: form.company_id,
       contact_id: contactId,
@@ -167,7 +187,11 @@ Deno.serve(async (req) => {
       utm_term: utm_term || null,
       session_id: session_id || null,
       ip_hash,
-    });
+      gclid: gclid || null,
+      fbclid: fbclid || null,
+      user_agent: userAgent || null,
+      device_type: deviceType,
+    }).select("id").single();
 
     if (subError) {
       console.error("Submission insert error:", subError);
@@ -195,23 +219,55 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Trigger form automations
-    try {
-      await supabase.from("automation_trigger_events").insert({
-        company_id: form.company_id,
-        trigger_event: "form_submitted",
-        entity_type: "contact",
-        entity_id: contactId || form_id,
-        payload: { form_id, contact_id: contactId, data: formData },
-      });
-    } catch (_) {
-      // Non-blocking
+    // Create opportunity if pipeline configured
+    if (contactId && settings.pipelineId) {
+      try {
+        const { data: stages } = await supabase
+          .from("pipeline_stages")
+          .select("id")
+          .eq("pipeline_id", settings.pipelineId)
+          .order("position", { ascending: true })
+          .limit(1);
+
+        if (stages && stages.length > 0) {
+          await supabase.from("opportunities").insert({
+            company_id: form.company_id,
+            contact_id: contactId,
+            pipeline_id: settings.pipelineId,
+            stage_id: stages[0].id,
+            title: `Lead da form: ${mappedFirstName || mappedEmail || "Nuovo"}`,
+            status: "open",
+            created_by: form.company_id,
+          });
+        }
+      } catch (_) {
+        // Non-blocking
+      }
+    }
+
+    // Trigger form automations via DB function
+    if (submission?.id) {
+      try {
+        await supabase.rpc("trigger_form_automations", {
+          p_submission_id: submission.id,
+        });
+      } catch (_) {
+        // Non-blocking
+      }
     }
 
     const redirectUrl = settings.redirectUrl || null;
+    const successTitle = theme.success_title || settings.success_title || null;
+    const successMessage = theme.success_message || settings.success_message || "Grazie! La tua richiesta è stata inviata.";
 
     return new Response(
-      JSON.stringify({ ok: true, contact_id: contactId, redirect_url: redirectUrl }),
+      JSON.stringify({
+        ok: true,
+        contact_id: contactId,
+        redirect_url: redirectUrl,
+        success_title: successTitle,
+        success_message: successMessage,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
