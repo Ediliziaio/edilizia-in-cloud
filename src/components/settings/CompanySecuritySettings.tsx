@@ -23,12 +23,12 @@ export function CompanySecuritySettings() {
   const isAdmin = role === "company_admin" || role === "super_admin";
 
   const { data: company, isLoading } = useQuery({
-    queryKey: ["company-security", effectiveCompany],
+    queryKey: ["company-security", effectiveCompany?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
         .select("enforce_2fa, allowed_ips, password_expiry_days, max_failed_attempts")
-        .eq("id", effectiveCompany!)
+        .eq("id", effectiveCompany!.id)
         .single();
       if (error) throw error;
       return data;
