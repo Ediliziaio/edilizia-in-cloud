@@ -719,6 +719,11 @@ export function UsersConfig() {
                         {isCurrentUser(u.id) && (
                           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Tu</Badge>
                         )}
+                        {u.permissions?.must_change_password && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-300 bg-amber-50">
+                            Password da cambiare
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
