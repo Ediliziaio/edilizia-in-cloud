@@ -463,6 +463,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     },
     enabled: !!id,
     staleTime: 120_000,
+  });
+
+  // ── Fetch all contact IDs for navigation ──
   const { data: contactIds = [] } = useQuery({
     queryKey: ["marketing_contact_ids", companyId],
     queryFn: async () => {
