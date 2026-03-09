@@ -109,8 +109,10 @@ Deno.serve(async (req) => {
       // Check brute force protection
       const maxAttempts = company?.max_failed_attempts || 5;
       if ((profile.failed_login_count || 0) >= maxAttempts) {
-        // Lock the account for 30 minutes
-        const lockUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+        const lockoutMinutes = company?.lockout_duration_minutes ?? 30;
+        // lockoutMinutes === 0 means manual unlock only (lock far into the future)
+        const lockMs = lockoutMinutes === 0 ? 365 * 24 * 60 * 60 * 1000 : lockoutMinutes * 60 * 1000;
+        const lockUntil = new Date(Date.now() + lockMs).toISOString();
         await supabaseAdmin
           .from("profiles")
           .update({ locked_until: lockUntil } as any)

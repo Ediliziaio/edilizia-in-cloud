@@ -639,6 +639,16 @@ export function UsersConfig() {
                       )}
                     </TableCell>
                     <TableCell>
+                      {u.active_sessions > 0 ? (
+                        <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">
+                          <Wifi className="h-3 w-3 mr-1" />
+                          {u.active_sessions}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <SecurityStatus u={u} />
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
