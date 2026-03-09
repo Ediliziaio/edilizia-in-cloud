@@ -198,7 +198,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] !flex !flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>
             {step === 4 ? "Utente Creato" : `Nuovo Utente — Step ${step + 1}/${totalSteps}`}
