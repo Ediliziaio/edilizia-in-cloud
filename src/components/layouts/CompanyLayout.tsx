@@ -139,7 +139,9 @@ function CompanySidebar() {
     <Sidebar className="border-r">
       <div className="flex h-14 items-center border-b px-4">
         <Link to="/azienda" className="flex items-center gap-2">
-          {effectiveCompany?.logo_url ? (
+          {branding?.logo_url ? (
+            <img src={branding.logo_url} alt={effectiveCompany?.name || "Logo"} className="h-8 max-h-8 object-contain" />
+          ) : effectiveCompany?.logo_url ? (
             <img src={effectiveCompany.logo_url} alt={effectiveCompany.name} className="h-8 max-h-8 object-contain" />
           ) : (
             <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
