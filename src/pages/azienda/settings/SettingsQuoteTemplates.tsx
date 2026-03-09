@@ -200,14 +200,8 @@ export default function SettingsQuoteTemplates() {
               </CardContent>
             </Card>
           ))}
-          {templates.length === 0 && (
-            <div className="col-span-full text-center py-12 text-muted-foreground">
-              <LayoutGrid className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p>Nessun template creato.</p>
-              <Button variant="link" onClick={handleNew}>Crea il primo template</Button>
-            </div>
-          )}
         </div>
+        )
       ) : (
         /* Editor with preview */
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
