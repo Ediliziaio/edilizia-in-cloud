@@ -36,6 +36,7 @@ import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
+import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuotesTab";
 import { STATUS_OPTIONS } from "@/types/opportunities";
 
 interface Props {
