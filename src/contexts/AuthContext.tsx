@@ -19,7 +19,7 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const IMPERSONATION_KEY = "impersonated_company_id";
+// Impersonation is now in-memory only (no sessionStorage) to prevent manipulation
 const SESSION_ID_KEY = "user_session_id";
 
 function getBrowserInfo() {
@@ -44,9 +44,8 @@ function getBrowserInfo() {
 async function startSession() {
   try {
     const info = getBrowserInfo();
-    const impersonatedCompanyId = sessionStorage.getItem(IMPERSONATION_KEY);
     const { data } = await supabase.functions.invoke("track-user-session", {
-      body: { action: "start", company_id: impersonatedCompanyId, ...info },
+      body: { action: "start", ...info },
     });
     if (data?.session_id) {
       sessionStorage.setItem(SESSION_ID_KEY, data.session_id);
@@ -79,9 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
   });
 
-  const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(() => {
-    return sessionStorage.getItem(IMPERSONATION_KEY);
-  });
+  const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
   const [impersonatedCompany, setImpersonatedCompany] = useState<Company | null>(null);
 
   const fetchUserData = useCallback(async (userId: string) => {
@@ -178,7 +175,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         console.error("Error fetching impersonated company:", error);
         setImpersonatedCompany(null);
-        sessionStorage.removeItem(IMPERSONATION_KEY);
         setImpersonatedCompanyId(null);
       } else {
         setImpersonatedCompany(data as Company);
@@ -215,7 +211,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isLoading: false,
           });
           // Clear impersonation on logout
-          sessionStorage.removeItem(IMPERSONATION_KEY);
           setImpersonatedCompanyId(null);
           setImpersonatedCompany(null);
         }
@@ -254,7 +249,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    sessionStorage.setItem(IMPERSONATION_KEY, companyId);
     setImpersonatedCompanyId(companyId);
 
     // Log impersonation audit event (fire-and-forget)
@@ -278,7 +272,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const exitImpersonation = () => {
-    sessionStorage.removeItem(IMPERSONATION_KEY);
     setImpersonatedCompanyId(null);
     setImpersonatedCompany(null);
   };

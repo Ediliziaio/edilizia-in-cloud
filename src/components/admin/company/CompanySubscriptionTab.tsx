@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Clock, Pause, Play, Timer, Loader2, Banknote, RefreshCw } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CreditCard, Clock, Pause, Play, Timer, Loader2, Banknote, RefreshCw, CalendarPlus } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
@@ -119,9 +123,7 @@ export function CompanySubscriptionTab({
               </Button>
             )}
             {(companyStatus === "trial" || companyStatus === "expired") && (
-              <Button variant="outline" size="sm" disabled={isExtendingTrial} onClick={() => onExtendTrial(14)}>
-                {isExtendingTrial ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Timer className="h-3 w-3 mr-1" />}+14 giorni trial
-              </Button>
+              <ExtendTrialButton onExtendTrial={onExtendTrial} isExtendingTrial={isExtendingTrial} />
             )}
           </div>
         </CardContent>
@@ -182,5 +184,47 @@ export function CompanySubscriptionTab({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function ExtendTrialButton({ onExtendTrial, isExtendingTrial }: { onExtendTrial: (days: number) => void; isExtendingTrial: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [days, setDays] = useState(7);
+
+  return (
+    <>
+      <Button variant="outline" size="sm" disabled={isExtendingTrial} onClick={() => setOpen(true)}>
+        {isExtendingTrial ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CalendarPlus className="h-3 w-3 mr-1" />}
+        Estendi Trial
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Estendi Trial</DialogTitle>
+            <DialogDescription>Scegli il numero di giorni da aggiungere al trial.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              {[7, 14, 30].map((d) => (
+                <Button key={d} size="sm" variant={days === d ? "default" : "outline"} onClick={() => setDays(d)}>
+                  {d}gg
+                </Button>
+              ))}
+            </div>
+            <div>
+              <Label>Giorni personalizzati</Label>
+              <Input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Annulla</Button>
+            <Button disabled={days < 1 || isExtendingTrial} onClick={() => { onExtendTrial(days); setOpen(false); }}>
+              {isExtendingTrial && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Estendi di {days} giorni
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
