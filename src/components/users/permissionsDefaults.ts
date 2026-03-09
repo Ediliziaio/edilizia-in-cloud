@@ -43,6 +43,18 @@ export const INTERNAL_SECTIONS: PermissionSectionDef[] = [
   { label: "Impostazioni", viewKey: "can_view_settings", editKey: "can_edit_settings" },
 ];
 
+export const GRANULAR_SECTIONS: PermissionSectionDef[] = [
+  { label: "Esporta Clienti", viewKey: "can_export_clients", editKey: null },
+  { label: "Elimina Ordini", viewKey: "can_delete_orders", editKey: null },
+  { label: "Gestisci Pagamenti", viewKey: "can_manage_payments", editKey: null },
+  { label: "Approva Ordini", viewKey: "can_approve_orders", editKey: null },
+  { label: "Calendario Team Completo", viewKey: "can_view_all_team_calendar", editKey: null },
+  { label: "Visualizza Margini", viewKey: "can_view_margins", editKey: null },
+  { label: "Gestisci Fornitori", viewKey: "can_manage_suppliers", editKey: null },
+  { label: "Report Finanziari", viewKey: "can_view_financial_reports", editKey: null },
+  { label: "Gestisci Articoli Magazzino", viewKey: "can_manage_warehouse_items", editKey: null },
+];
+
 export const MARKETING_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard Marketing", viewKey: "can_view_marketing_dashboard", editKey: null },
   { label: "Contatti", viewKey: "can_view_marketing_contacts", editKey: "can_edit_marketing_contacts" },
