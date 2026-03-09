@@ -310,7 +310,8 @@ export function useCompanySalespeople() {
         .map((p) => ({ id: p.id, name: `${p.first_name} ${p.last_name}` }));
     },
     enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 }
 
