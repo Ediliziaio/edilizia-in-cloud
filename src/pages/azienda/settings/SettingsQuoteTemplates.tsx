@@ -256,8 +256,22 @@ export default function SettingsQuoteTemplates() {
                           {uploading ? "Caricamento..." : "Scegli file"}
                           <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
                         </label>
-                        {form.logo_url && <span className="text-xs text-muted-foreground truncate max-w-[200px]">{form.logo_url.split('/').pop()}</span>}
+                        {form.logo_url && (
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => updateForm({ logo_url: null })}>
+                            <Trash2 className="h-4 w-4 mr-1" />Rimuovi
+                          </Button>
+                        )}
                       </div>
+                      {form.logo_url && (
+                        <div className="mt-3 flex items-center gap-3">
+                          <img
+                            src={getLogoPublicUrl(form.logo_url)}
+                            alt="Logo template"
+                            className="h-20 w-20 rounded-lg border border-border object-contain bg-muted/50 p-1"
+                          />
+                          <span className="text-xs text-muted-foreground truncate max-w-[200px]">{form.logo_url.split('/').pop()}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
