@@ -123,9 +123,7 @@ export function CompanySubscriptionTab({
               </Button>
             )}
             {(companyStatus === "trial" || companyStatus === "expired") && (
-              <Button variant="outline" size="sm" disabled={isExtendingTrial} onClick={() => onExtendTrial(14)}>
-                {isExtendingTrial ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Timer className="h-3 w-3 mr-1" />}+14 giorni trial
-              </Button>
+              <ExtendTrialButton onExtendTrial={onExtendTrial} isExtendingTrial={isExtendingTrial} />
             )}
           </div>
         </CardContent>
