@@ -33,7 +33,7 @@ interface AlertItem {
   link?: string;
 }
 
-export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, operations, finance, isLoading, companyTargets }: Props) {
+export const CruscottoAlerts = memo(function CruscottoAlerts({ marketingAlerts, operations, finance, isLoading, companyTargets, invoiceStats }: Props) {
   if (isLoading) {
     return <Skeleton className="h-12 w-full rounded-lg" />;
   }
