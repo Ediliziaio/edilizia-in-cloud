@@ -295,13 +295,20 @@ function CompanySidebar() {
             )}
 
             <SidebarGroup>
-              <SidebarGroupLabel>Sicurezza e log</SidebarGroupLabel>
+              <SidebarGroupLabel>Sicurezza e Privacy</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink to="/azienda/impostazioni/sicurezza" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
                         <Key className="h-4 w-4" /><span>Cambio password</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/azienda/impostazioni/privacy" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeClassName="bg-muted text-foreground font-medium">
+                        <Shield className="h-4 w-4" /><span>Privacy & GDPR</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

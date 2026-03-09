@@ -51,6 +51,7 @@ const CompanyLifecycle = lazy(() => import("@/pages/admin/CompanyLifecycle"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 const AdminCSTasks = lazy(() => import("@/pages/admin/AdminCSTasks"));
+const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
 
 // Company
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
@@ -75,6 +76,7 @@ const SettingsIntegrations = lazy(() => import("@/pages/azienda/settings/Setting
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
 const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
+const SettingsPrivacy = lazy(() => import("@/pages/azienda/settings/SettingsPrivacy"));
 const OrdersList = lazy(() => import("@/pages/azienda/OrdersList"));
 const CreateOrder = lazy(() => import("@/pages/azienda/CreateOrder"));
 const OrderDetail = lazy(() => import("@/pages/azienda/OrderDetail"));
@@ -213,6 +215,7 @@ const App = () => (
                 <Route path="annunci" element={<Announcements />} />
                 <Route path="customer-success" element={<CustomerSuccess />} />
                 <Route path="cs-tasks" element={<AdminCSTasks />} />
+                <Route path="gdpr" element={<AdminGDPR />} />
               </Route>
 
               {/* Full-screen Automation Builder routes - OUTSIDE CompanyLayout */}
@@ -311,6 +314,7 @@ const App = () => (
                   <Route path="integrazioni" element={<SettingsIntegrations />} />
                   <Route path="crediti" element={<SettingsCredits />} />
                   <Route path="api" element={<SettingsApiKeys />} />
+                  <Route path="privacy" element={<SettingsPrivacy />} />
                 </Route>
               </Route>
 

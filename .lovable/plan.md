@@ -74,9 +74,17 @@
 
 ---
 
+## GDPR & Compliance Tools ✅
+- ✅ Tabelle `gdpr_data_requests`, `gdpr_consents`, `gdpr_audit_log` con RLS
+- ✅ **gdpr-compliance** edge function: export dati (JSON + storage), richiesta cancellazione, approvazione admin, consent management, audit log
+- ✅ **SettingsPrivacy** pagina utente: gestione consensi, export dati, richiesta cancellazione account (Art. 17/20 GDPR)
+- ✅ **AdminGDPR** pagina admin: gestione richieste di cancellazione, audit trail GDPR
+- ✅ Sidebar aggiornata: "Privacy & GDPR" in impostazioni azienda, "GDPR" in sidebar admin
+
+---
+
 ## ⏳ Funzionalità Rimanenti
 
-- ⬜ GDPR & Compliance Tools (P2)
 - ⬜ White-Label (P3)
 - ⬜ Partner Portal Referrer (P3)
 - ⬜ Round-robin assegnazione team
