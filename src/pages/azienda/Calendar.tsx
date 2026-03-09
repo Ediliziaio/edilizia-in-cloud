@@ -60,19 +60,24 @@ export default function Calendar() {
     savedPrefs.visibleTeamIds ? new Set<string>(savedPrefs.visibleTeamIds) : null
   );
 
-  // Persist layer prefs to localStorage
+  // Persist layer prefs to localStorage (debounced)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    const prefs = {
-      layerPanelOpen,
-      showPosa,
-      showLavoro,
-      showAppuntamento,
-      showMerce,
-      showGoogleBusy,
-      visibleEmployeeIds: visibleEmployeeIds ? Array.from(visibleEmployeeIds) : null,
-      visibleTeamIds: visibleTeamIds ? Array.from(visibleTeamIds) : null,
-    };
-    localStorage.setItem("calendar-layer-prefs", JSON.stringify(prefs));
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const prefs = {
+        layerPanelOpen,
+        showPosa,
+        showLavoro,
+        showAppuntamento,
+        showMerce,
+        showGoogleBusy,
+        visibleEmployeeIds: visibleEmployeeIds ? Array.from(visibleEmployeeIds) : null,
+        visibleTeamIds: visibleTeamIds ? Array.from(visibleTeamIds) : null,
+      };
+      localStorage.setItem("calendar-layer-prefs", JSON.stringify(prefs));
+    }, 500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [layerPanelOpen, showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, visibleEmployeeIds, visibleTeamIds]);
 
   const { data: orders = [], isLoading, isError } = useQuery({

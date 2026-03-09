@@ -54,32 +54,25 @@ export default function CashFlowForecast() {
       ...expectedSupplierPayments.filter(p => !p.isPaid).map((s) => ({ expectedDate: s.expectedDate, amount: s.amount, direction: "out" as const, type: s.type, label: s.supplierName, orderCode: s.orderCode })),
     ];
 
-    const rows = [["Data", "Tipo", "Descrizione", "Ordine", "Direzione", "Importo"]];
-    allTransactions.forEach((t) => {
-      rows.push([
-        t.expectedDate ? format(t.expectedDate, "dd/MM/yyyy") : "",
-        t.type,
-        t.label,
-        t.orderCode || "",
-        t.direction === "in" ? "Entrata" : "Uscita",
-        String(t.amount),
-      ]);
-    });
-    rows.unshift(
-      ["RIEPILOGO PREVISIONALE", "", "", "", "", ""],
-      ["Totale Entrate", "", "", "", "", String(stats.total.income)],
-      ["Totale Uscite", "", "", "", "", String(stats.total.expenses)],
-      ["Saldo Netto", "", "", "", "", String(stats.total.net)],
-      ["", "", "", "", "", ""],
-    );
-    const csv = rows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `previsionale-cassa-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const columns = [
+      { key: "data", label: "Data" },
+      { key: "tipo", label: "Tipo" },
+      { key: "descrizione", label: "Descrizione" },
+      { key: "ordine", label: "Ordine" },
+      { key: "direzione", label: "Direzione" },
+      { key: "importo", label: "Importo" },
+    ];
+
+    const rows = allTransactions.map((t) => ({
+      data: t.expectedDate ? format(t.expectedDate, "dd/MM/yyyy") : "",
+      tipo: t.type,
+      descrizione: t.label,
+      ordine: t.orderCode || "",
+      direzione: t.direction === "in" ? "Entrata" : "Uscita",
+      importo: String(t.amount),
+    }));
+
+    exportToCSV(rows, columns, `previsionale-cassa-${format(new Date(), "yyyy-MM-dd")}.csv`);
   };
 
   if (isLoading) {
