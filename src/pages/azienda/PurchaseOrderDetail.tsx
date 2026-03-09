@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, Loader2, Plus, Trash2, Send, CheckCircle2, Package,
-  Truck, Save, XCircle,
+  Truck, Save, XCircle, ExternalLink,
 } from "lucide-react";
 import { usePurchaseOrderDetail, usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
@@ -115,7 +115,11 @@ export default function PurchaseOrderDetail() {
           <div className="flex items-center gap-2 mt-1">
             <Badge className="text-xs">{STATUS_LABELS[order.status] || order.status}</Badge>
             {order.orders?.order_number && (
-              <Badge variant="outline" className="text-xs">Ord. {order.orders.order_number}</Badge>
+              <Link to={`/azienda/ordini/${order.order_id}`} className="inline-flex">
+                <Badge variant="outline" className="text-xs hover:bg-accent cursor-pointer">
+                  Ord. {order.orders.order_number} <ExternalLink className="h-3 w-3 ml-1" />
+                </Badge>
+              </Link>
             )}
           </div>
         </div>

@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, User, Calendar, FileText, Clock, Trash2, Pencil, AlertTriangle, AlertCircle, Package, Copy } from "lucide-react";
-import { formatDate, formatDateTime } from "@/lib/formatters";
+import { ArrowLeft, User, Calendar, FileText, Clock, Trash2, Pencil, AlertTriangle, AlertCircle, Package, Copy, ExternalLink } from "lucide-react";
+import { formatDate, formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,7 +31,7 @@ import { OrderErrors } from "@/components/orders/OrderErrors";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
-import { CreatePurchaseOrderButton } from "@/components/orders/CreatePurchaseOrderButton";
+import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
 import { InlineEditableDatesCard } from "@/components/orders/InlineEditableDatesCard";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
@@ -535,17 +535,6 @@ export default function OrderDetail() {
           </div>
         </div>
         <div className="flex gap-2">
-          <CreatePurchaseOrderButton
-            orderId={id!}
-            orderCode={order.order_code}
-            items={displayItems.map(i => ({
-              name: i.name,
-              quantity: i.quantity,
-              purchase_price: i.purchase_price,
-              supplier_id: i.supplier_id,
-              vat_rate: i.vat_rate,
-            }))}
-          />
           <Button variant="outline" size="sm" onClick={() => setDuplicateDialogOpen(true)}>
             <Copy className="h-4 w-4 mr-2" />Duplica
           </Button>
@@ -710,6 +699,17 @@ export default function OrderDetail() {
             </CardContent>
           </Card>
 
+          <LinkedPurchaseOrdersCard
+            orderId={id!}
+            orderCode={order.order_code}
+            items={displayItems.map(i => ({
+              name: i.name,
+              quantity: i.quantity,
+              purchase_price: i.purchase_price,
+              supplier_id: i.supplier_id,
+              vat_rate: i.vat_rate,
+            }))}
+          />
           <LinkedTasks orderId={id} category="ordini" />
           <LinkedAppointments orderId={id!} />
         </div>
