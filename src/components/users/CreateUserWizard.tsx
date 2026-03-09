@@ -374,19 +374,6 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
             </div>
           )}
 
-          {/* STEP 3 for admin: Full access confirmation */}
-          {step === 3 && !showPermissions && !isConfirmStep && (
-            <div className="text-center py-8 space-y-3">
-              <div className="mx-auto w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <ShieldCheck className="h-8 w-8 text-blue-600" />
-              </div>
-              <h3 className="font-semibold text-lg">Accesso amministratore completo</h3>
-              <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                Gli amministratori hanno accesso a tutte le sezioni. Non è necessario configurare permessi specifici.
-              </p>
-            </div>
-          )}
-
           {/* CONFIRM STEP */}
           {isConfirmStep && (
             <div className="space-y-4 py-2">

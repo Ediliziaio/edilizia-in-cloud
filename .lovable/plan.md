@@ -1,53 +1,49 @@
+# Stato Progetto — Aggiornato
 
+## AI Agents — Modulo Completo ✅
+- ✅ **Struttura modulo**: `src/modules/ai-agents/` con lazy loading, sidebar, routing
+- ✅ **21 componenti**: Editor 10-tab, wizard creazione, analytics, KB, widget, crediti
+- ✅ **7 pagine**: Lista, Editor, KB globale, Crediti, Telefoni, WhatsApp, Impostazioni
+- ✅ **6 hooks**: useAgents, useAgentCredits, useElevenLabsProxy, useAISubscription, etc.
+- ✅ **Integrazione ElevenLabs**: proxy, webhook, knowledge base sync, crediti atomici
 
-## Analisi completata — Stato attuale e fix residui
+---
 
-### Gia' implementato correttamente (nessuna azione necessaria)
-Tutti i fix critici dal prompt sono gia' presenti nel codice:
-- RLS WITH CHECK (migration `20260309055901`)
-- `delete-company-user` ritorna 500 se Auth delete fallisce
-- Password generation con `crypto.getRandomValues()`
-- `changeRoleMutation` con singola query `.in()`
-- `canViewUsers` legge da `can_view_settings`
-- Error handling permessi in `UsersConfig.tsx`
-- `permissionsDefaults.ts` pulito (no GRANULAR_SECTIONS)
-- `PermissionsDialog.tsx` con layout a gruppi
-- `CreateUserWizard.tsx` con flusso 4-step corretto (role→info→perms→confirm)
-- Preset permessi per ruolo
-- Sync legacy marketing flags
-- Empty state, role badges, permission badges nella tabella
-- AlertDialog eliminazione utente
+## Gestione Utenti — Completamento 100% ✅
 
-### Fix residui da implementare (3 task)
+### Database + Security ✅
+- ✅ 6 tabelle + `password_history`, 20+ colonne security, 9 permessi granulari, RLS completo
+- ✅ Colonne complexity: `password_min_length`, `password_require_uppercase/numbers/special`
+- ✅ Colonne policy: `lockout_duration_minutes`, `enforce_2fa_roles`, `security_notifications`
 
-**1. Rimuovere dead code in CreateUserWizard (linea 378)**
+### Edge Functions ✅
+- ✅ track-user-session, revoke-user-session, manage-permission-template, get-security-report
+- ✅ **check-login-security**: IP allowlist, brute force con durata blocco configurabile
+- ✅ **cleanup-sessions**: cron giornaliero (03:00) per eliminare sessioni > 30 giorni
 
-Il blocco "full access confirmation" per admin ha condizione `step === 3 && !showPermissions && !isConfirmStep` che e' sempre false (per admin, `isConfirmStep = step === 3` quindi `!isConfirmStep = false`). Questo blocco non si raggiunge mai. Va rimosso per pulizia.
+### UI Core ✅
+- ✅ Security Dashboard, Team Management, CreateUserWizard, Tabella utenti arricchita
+- ✅ Session Tracking integrato in AuthContext, Unlock Account
+- ✅ **3 Tab Dettaglio Utente**: Sessioni, Log Attività, Sicurezza
+- ✅ **Filtri Avanzati**: Stato + Ruolo + Ricerca + Team
+- ✅ **Colonna "Sessioni Attive"** separata con badge count
+- ✅ **Import/Export utenti CSV**
 
-**2. Aggiungere badge "Password da cambiare" nella tabella utenti**
+### Policy Sicurezza ✅
+- ✅ **CompanySecuritySettings** completo:
+  - Brute force: slider tentativi + durata blocco (15m/30m/1h/24h/Manuale)
+  - Password: scadenza + complessità (lunghezza min, maiuscole, numeri, caratteri speciali)
+  - 2FA: globale + per ruoli specifici
+  - IP Allowlist
+  - Notifiche sicurezza (login IP sconosciuto, account bloccato, modifica permessi)
+- ✅ **ChangePasswordForm** con validazione complessità in tempo reale
+- ✅ **PermissionTemplatesManager**: CRUD + "Applica a Utente"
+- ✅ **Password History** (tabella DB pronta, RLS bloccato lato client)
 
-In `UsersConfig.tsx`, nella cella Nome della tabella (riga 716-722), aggiungere un badge amber/giallo quando `u.permissions?.must_change_password === true`. Il dato e' gia' disponibile nell'oggetto `permissions` fetchato alla riga 294.
+---
 
-```tsx
-// Dopo il badge "Tu"
-{u.permissions?.must_change_password && (
-  <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-300 bg-amber-50">
-    Password da cambiare
-  </Badge>
-)}
-```
+## ⏳ Funzionalità Rimanenti (Priorità Bassa)
 
-**3. Aggiornare StaffUserDialog.tsx per CompanyDetail (super-admin)**
-
-`StaffUserDialog.tsx` e' ancora usato da `CompanyDetail.tsx` e `useCompanyDetail.ts`. Due opzioni:
-- **Opzione A**: Sostituire StaffUserDialog con CreateUserWizard in CompanyDetail
-- **Opzione B**: Lasciare StaffUserDialog per il pannello super-admin (funziona gia')
-
-Raccomando **Opzione B** — StaffUserDialog e' funzionale per il contesto super-admin e non ha i bug segnalati (non mostra GRANULAR_SECTIONS). Non vale la pena rischiare regressioni.
-
-### Riepilogo file modificati
-| File | Modifica |
-|------|----------|
-| `CreateUserWizard.tsx` | Rimuovere blocco dead code (linee 377-388) |
-| `UsersConfig.tsx` | Aggiungere badge "Password da cambiare" |
-
+- ⬜ Round-robin assegnazione team
+- ⬜ KPI per team nella dashboard
+- ⬜ Drag & Drop utenti tra team
