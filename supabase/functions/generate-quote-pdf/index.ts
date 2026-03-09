@@ -60,69 +60,122 @@ Deno.serve(async (req) => {
 
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
-    const { quote_id } = await req.json();
+    const body = await req.json();
+    const { quote_id, preview_mode, template_data, company_name } = body;
 
-    if (!quote_id) return errorResponse("quote_id richiesto");
+    // ─── PREVIEW MODE ───
+    const isPreview = preview_mode === true && template_data;
 
-    // Load quote
-    const { data: quote, error: qErr } = await supabaseAdmin
-      .from("quotes")
-      .select("*")
-      .eq("id", quote_id)
-      .single();
-    if (qErr || !quote) return errorResponse("Preventivo non trovato", 404);
+    let quote: any;
+    let items: any[] = [];
+    let company: any = null;
+    let t: any;
+    let attachmentRows: any[] = [];
 
-    // Verify user belongs to company
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-    if (!profile || profile.company_id !== quote.company_id) {
-      return errorResponse("Non autorizzato", 403);
-    }
+    if (isPreview) {
+      // Use sample data – no DB lookups needed
+      t = { ...DEFAULT_T, ...template_data };
+      company = {
+        name: company_name || "La Tua Azienda Srl",
+        email: "info@azienda-esempio.it",
+        phone: "+39 02 1234567",
+        address: "Via Roma 1, 20100 Milano (MI)",
+        vat_number: "IT01234567890",
+        logo_url: null,
+      };
+      quote = {
+        quote_number: "OFF-2026-001",
+        title: "Fornitura e posa serramenti",
+        description: "Offerta per la fornitura e installazione di serramenti in PVC presso l'immobile sito in Via Esempio 10, Roma.",
+        client_name: "Mario Rossi",
+        client_company: "Rossi Costruzioni Srl",
+        client_email: "mario.rossi@esempio.it",
+        client_phone: "+39 333 1234567",
+        client_fiscal_code: "RSSMRA80A01H501Z",
+        client_vat_number: "IT09876543210",
+        client_address: "Via Esempio 10, 00100 Roma (RM)",
+        created_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+        subtotal: 6526.00,
+        discount_percent: 5,
+        discount_amount: 326.30,
+        vat_amount: 1363.93,
+        total: 7563.63,
+        notes: "Pagamento: 50% alla conferma, saldo alla consegna.\nTempo di consegna stimato: 4-6 settimane lavorative.\nGaranzia: 10 anni sui profili, 5 anni sugli accessori.",
+        company_id: "preview",
+      };
+      items = [
+        { name: "Finestra PVC 120x140 doppio vetro", description: "Profilo 5 camere, vetro basso-emissivo 4/16/4", quantity: 4, unit_of_measure: "pz", unit_price: 850.00, discount_percent: 0, vat_rate: 22, line_total: 3400.00 },
+        { name: "Porta finestra PVC 80x220", description: "Apertura anta-ribalta, soglia bassa", quantity: 2, unit_of_measure: "pz", unit_price: 1200.00, discount_percent: 5, vat_rate: 22, line_total: 2280.00 },
+        { name: "Installazione e posa in opera", description: "Inclusi controtelaio, schiuma, silicone e smaltimento", quantity: 1, unit_of_measure: "servizio", unit_price: 846.00, discount_percent: 0, vat_rate: 22, line_total: 846.00 },
+      ];
+    } else {
+      // ─── NORMAL MODE ───
+      if (!quote_id) return errorResponse("quote_id richiesto");
 
-    // Load template
-    let template = null;
-    if (quote.template_id) {
-      const { data: tmpl } = await supabaseAdmin
-        .from("quote_templates")
+      const { data: quoteData, error: qErr } = await supabaseAdmin
+        .from("quotes")
         .select("*")
-        .eq("id", quote.template_id)
+        .eq("id", quote_id)
         .single();
-      template = tmpl;
-    }
-    if (!template) {
-      const { data: defaultTmpl } = await supabaseAdmin
-        .from("quote_templates")
+      if (qErr || !quoteData) return errorResponse("Preventivo non trovato", 404);
+      quote = quoteData;
+
+      // Verify user belongs to company
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .single();
+      if (!profile || profile.company_id !== quote.company_id) {
+        return errorResponse("Non autorizzato", 403);
+      }
+
+      // Load template
+      let template = null;
+      if (quote.template_id) {
+        const { data: tmpl } = await supabaseAdmin
+          .from("quote_templates")
+          .select("*")
+          .eq("id", quote.template_id)
+          .single();
+        template = tmpl;
+      }
+      if (!template) {
+        const { data: defaultTmpl } = await supabaseAdmin
+          .from("quote_templates")
+          .select("*")
+          .eq("company_id", quote.company_id)
+          .eq("is_default", true)
+          .maybeSingle();
+        template = defaultTmpl;
+      }
+      t = { ...DEFAULT_T, ...(template || {}) };
+
+      // Load items
+      const { data: itemsData = [] } = await supabaseAdmin
+        .from("quote_items")
         .select("*")
-        .eq("company_id", quote.company_id)
-        .eq("is_default", true)
-        .maybeSingle();
-      template = defaultTmpl;
+        .eq("quote_id", quote_id)
+        .order("sort_order");
+      items = itemsData;
+
+      // Load company info
+      const { data: companyData } = await supabaseAdmin
+        .from("companies")
+        .select("name, email, phone, address, logo_url, vat_number")
+        .eq("id", quote.company_id)
+        .single();
+      company = companyData;
+
+      // Load attached PDF materials
+      const { data: attRows = [] } = await supabaseAdmin
+        .from("quote_pdf_attachments")
+        .select("*, quote_pdf_materials(name, storage_path)")
+        .eq("quote_id", quote_id)
+        .order("sort_order");
+      attachmentRows = attRows;
     }
-    const t = { ...DEFAULT_T, ...(template || {}) };
-
-    // Load items
-    const { data: items = [] } = await supabaseAdmin
-      .from("quote_items")
-      .select("*")
-      .eq("quote_id", quote_id)
-      .order("sort_order");
-
-    // Load company info
-    const { data: company } = await supabaseAdmin
-      .from("companies")
-      .select("name, email, phone, address, logo_url, vat_number")
-      .eq("id", quote.company_id)
-      .single();
-
-    // Load attached PDF materials
-    const { data: attachmentRows = [] } = await supabaseAdmin
-      .from("quote_pdf_attachments")
-      .select("*, quote_pdf_materials(name, storage_path)")
-      .eq("quote_id", quote_id)
-      .order("sort_order");
 
     // ─── Build PDF ───
     const pdfDoc = await PDFDocument.create();
@@ -419,19 +472,21 @@ Deno.serve(async (req) => {
       drawWatermark(page);
     }
 
-    // ─── Merge attached PDFs ───
-    for (const att of attachmentRows) {
-      const filePath = att.quote_pdf_materials?.storage_path;
-      if (!filePath) continue;
-      try {
-        const { data: fileData, error: dlErr } = await supabaseAdmin.storage.from("quote-materials").download(filePath);
-        if (dlErr || !fileData) continue;
-        const pdfBytes = await fileData.arrayBuffer();
-        const attachedPdf = await PDFDocument.load(pdfBytes);
-        const copiedPages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
-        copiedPages.forEach((p: any) => pdfDoc.addPage(p));
-      } catch (e) {
-        console.warn("Failed to merge attachment:", filePath, e);
+    // ─── Merge attached PDFs (skip in preview mode) ───
+    if (!isPreview) {
+      for (const att of attachmentRows) {
+        const filePath = att.quote_pdf_materials?.storage_path;
+        if (!filePath) continue;
+        try {
+          const { data: fileData, error: dlErr } = await supabaseAdmin.storage.from("quote-materials").download(filePath);
+          if (dlErr || !fileData) continue;
+          const pdfBytes = await fileData.arrayBuffer();
+          const attachedPdf = await PDFDocument.load(pdfBytes);
+          const copiedPages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
+          copiedPages.forEach((p: any) => pdfDoc.addPage(p));
+        } catch (e) {
+          console.warn("Failed to merge attachment:", filePath, e);
+        }
       }
     }
 
@@ -439,6 +494,19 @@ Deno.serve(async (req) => {
     const totalPages = pdfDoc.getPageCount();
     for (let i = 0; i < totalPages; i++) {
       drawPageExtras(pdfDoc.getPage(i), i + 1, totalPages);
+    }
+
+    // ─── Preview mode: return PDF directly without storage ───
+    if (isPreview) {
+      const pdfBytes = await pdfDoc.save();
+      const uint8 = new Uint8Array(pdfBytes);
+      // Convert to base64
+      let binary = "";
+      for (let i = 0; i < uint8.length; i++) {
+        binary += String.fromCharCode(uint8[i]);
+      }
+      const base64 = btoa(binary);
+      return jsonResponse({ success: true, pdf_base64: base64 });
     }
 
     // ─── Save to storage ───
