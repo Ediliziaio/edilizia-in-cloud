@@ -63,6 +63,7 @@ const SettingsUserDetail = lazy(() => import("@/pages/azienda/settings/SettingsU
 const SettingsSalespeople = lazy(() => import("@/pages/azienda/settings/SettingsSalespeople"));
 const SettingsStaff = lazy(() => import("@/pages/azienda/settings/SettingsStaff"));
 const SettingsSecurity = lazy(() => import("@/pages/azienda/settings/SettingsSecurity"));
+const SettingsSecurityDashboard = lazy(() => import("@/pages/azienda/settings/SettingsSecurityDashboard"));
 const SettingsActivityLog = lazy(() => import("@/pages/azienda/settings/SettingsActivityLog"));
 const SettingsTags = lazy(() => import("@/pages/azienda/settings/SettingsTags"));
 const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/SettingsCustomFields"));
