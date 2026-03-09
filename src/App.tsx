@@ -49,6 +49,8 @@ const FeatureFlags = lazy(() => import("@/pages/admin/FeatureFlags"));
 const SyncLogs = lazy(() => import("@/pages/admin/SyncLogs"));
 const CompanyLifecycle = lazy(() => import("@/pages/admin/CompanyLifecycle"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
+const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
+const AdminCSTasks = lazy(() => import("@/pages/admin/AdminCSTasks"));
 
 // Company
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
