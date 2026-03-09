@@ -5799,6 +5799,7 @@ export type Database = {
           date_of_birth: string | null
           email: string | null
           first_name: string
+          fiscal_code: string | null
           follower_id: string | null
           id: string
           last_activity_at: string | null
@@ -5820,6 +5821,7 @@ export type Database = {
           unsubscribed: boolean
           unsubscribed_at: string | null
           updated_at: string
+          vat_number: string | null
           website: string | null
         }
         Insert: {
@@ -5835,6 +5837,7 @@ export type Database = {
           date_of_birth?: string | null
           email?: string | null
           first_name: string
+          fiscal_code?: string | null
           follower_id?: string | null
           id?: string
           last_activity_at?: string | null
@@ -5856,6 +5859,7 @@ export type Database = {
           unsubscribed?: boolean
           unsubscribed_at?: string | null
           updated_at?: string
+          vat_number?: string | null
           website?: string | null
         }
         Update: {
@@ -5871,6 +5875,7 @@ export type Database = {
           date_of_birth?: string | null
           email?: string | null
           first_name?: string
+          fiscal_code?: string | null
           follower_id?: string | null
           id?: string
           last_activity_at?: string | null
@@ -5892,6 +5897,7 @@ export type Database = {
           unsubscribed?: boolean
           unsubscribed_at?: string | null
           updated_at?: string
+          vat_number?: string | null
           website?: string | null
         }
         Relationships: [

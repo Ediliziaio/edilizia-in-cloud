@@ -308,9 +308,21 @@ export default function QuoteDetail() {
         <TabsContent value="cliente" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Dati Cliente
+              <CardTitle className="flex items-center gap-2 justify-between">
+                <div className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Dati Cliente
+                </div>
+                {quote.contact_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/azienda/marketing/contatti/${quote.contact_id}`)}
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    Vedi nel CRM
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>

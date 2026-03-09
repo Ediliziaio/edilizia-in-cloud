@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -64,6 +64,7 @@ const STEPS = [
 
 export default function QuoteBuilder() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const isEdit = !!id;
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -102,7 +103,7 @@ export default function QuoteBuilder() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone, company_name")
+        .select("id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, fiscal_code, vat_number")
         .eq("company_id", companyId!)
         .order("last_name");
       if (error) throw error;
@@ -228,6 +229,16 @@ export default function QuoteBuilder() {
     }
   }, [existingAttachments]);
 
+  // Auto-select contact from URL param
+  useEffect(() => {
+    if (!isEdit && contacts.length > 0 && !contactId) {
+      const urlContactId = searchParams.get("contact_id");
+      if (urlContactId) {
+        handleContactSelect(urlContactId);
+      }
+    }
+  }, [contacts, isEdit, searchParams]);
+
   // Contact selection
   const handleContactSelect = (cId: string) => {
     setContactId(cId);
@@ -237,6 +248,13 @@ export default function QuoteBuilder() {
       setClientEmail(c.email || "");
       setClientPhone(c.phone || "");
       setClientCompany(c.company_name || "");
+      setClientFiscalCode((c as any).fiscal_code || "");
+      setClientVatNumber((c as any).vat_number || "");
+      // Compose address from contact fields
+      const addressParts = [c.address, c.postal_code, c.city, c.province].filter(Boolean);
+      if (addressParts.length > 0) {
+        setClientAddress(addressParts.join(", "));
+      }
     }
   };
 
