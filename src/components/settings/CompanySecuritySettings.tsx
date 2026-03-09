@@ -27,7 +27,7 @@ export function CompanySecuritySettings() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("enforce_2fa, allowed_ips, password_expiry_days, max_failed_attempts, lockout_duration_minutes, enforce_2fa_roles, security_notifications")
+        .select("enforce_2fa, allowed_ips, password_expiry_days, max_failed_attempts, lockout_duration_minutes, enforce_2fa_roles, security_notifications, password_min_length, password_require_uppercase, password_require_numbers, password_require_special")
         .eq("id", effectiveCompany!.id)
         .single();
       if (error) throw error;
