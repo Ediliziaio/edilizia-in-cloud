@@ -62,6 +62,7 @@ const SettingsUsers = lazy(() => import("@/pages/azienda/settings/SettingsUsers"
 const SettingsUserDetail = lazy(() => import("@/pages/azienda/settings/SettingsUserDetail"));
 const SettingsSalespeople = lazy(() => import("@/pages/azienda/settings/SettingsSalespeople"));
 const SettingsStaff = lazy(() => import("@/pages/azienda/settings/SettingsStaff"));
+const SettingsTeams = lazy(() => import("@/pages/azienda/settings/SettingsTeams"));
 const SettingsSecurity = lazy(() => import("@/pages/azienda/settings/SettingsSecurity"));
 const SettingsSecurityDashboard = lazy(() => import("@/pages/azienda/settings/SettingsSecurityDashboard"));
 const SettingsActivityLog = lazy(() => import("@/pages/azienda/settings/SettingsActivityLog"));
@@ -297,6 +298,7 @@ const App = () => (
                   <Route path="utenti/:userId" element={<SettingsUserDetail />} />
                   <Route path="venditori" element={<SettingsSalespeople />} />
                   <Route path="staff" element={<SettingsStaff />} />
+                  <Route path="team" element={<SettingsTeams />} />
                   <Route path="sicurezza" element={<SettingsSecurity />} />
                   <Route path="security-dashboard" element={<SettingsSecurityDashboard />} />
                   <Route path="attivita" element={<SettingsActivityLog />} />
