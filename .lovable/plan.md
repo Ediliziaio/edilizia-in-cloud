@@ -75,13 +75,13 @@
   - `create_support_ticket` — Segnalazione/reclamo
   - `schedule_callback` — Programma richiamo come appuntamento
 
-### Fase 2 — Modulo UI Lista + Editor (TODO)
+### Fase 2 — Modulo UI Lista + Editor ✅
 
-- [ ] Creare `src/modules/ai-agents-internal/` con routing
-- [ ] `InternalAgentsListPage` — grid card agenti + wizard creazione
-- [ ] `InternalAgentEditorPage` — 8 tab
-- [ ] Componenti: `InternalAgentCard`, `ToolConfigCard`, `InternalToolsTab`
-- [ ] Riutilizzo `VoiceSelector`, `LLMSelector` dal modulo marketing
+- ✅ `src/modules/ai-agents-internal/` con routing e sidebar
+- ✅ `InternalAgentsListPage` — grid card agenti + wizard creazione + archiviazione
+- ✅ `InternalAgentEditorPage` — 8 tab (Agente, Strumenti CRM, KB, Telefono, Test, Analytics, Sicurezza, Avanzato)
+- ✅ Componenti: `InternalAgentCard`, `CreateInternalAgentWizard`, `InternalToolsTab`, `InternalAgentTab`
+- ✅ Riutilizzo `AgentKBTab` dal modulo marketing
 
 ### Fase 3 — Call Logs + Action Timeline ✅
 
@@ -92,18 +92,18 @@
 - ✅ Hook `useInternalCallLogs` + `useInternalCallActions`
 - ✅ Route `/azienda/agente-interno/chiamate` nel modulo
 
-### Fase 4 — Webhook + Smart Routing (TODO)
+### Fase 4 — Webhook + Smart Routing ✅
 
-- [ ] Edge function `internal-agent-webhook`
-- [ ] Estendere `telnyx-webhook` con Smart Routing
-- [ ] Tabella `call_routing_log`
+- ✅ Edge function `internal-agent-webhook` — post-processing chiamate, crediti, azioni CRM
+- ✅ Estendere `telnyx-webhook` con Smart Routing (`resolveAgent` per routing_mode)
+- ✅ Config `verify_jwt = false` per webhook
 
-### Fase 5 — Campagne Outbound (TODO)
+### Fase 5 — Campagne Outbound ✅
 
-- [ ] `InternalCampaignsPage` con dashboard
-- [ ] `CampaignBuilder` — wizard 4 step
-- [ ] Edge function `internal-outbound-call`
-- [ ] Edge function `internal-campaign-manager`
+- ✅ `InternalCampaignsPage` con dashboard KPI e tabella filtrata
+- ✅ `CampaignBuilder` — wizard 4 step (tipo, target, scheduling, preview)
+- ✅ Edge function `internal-campaign-manager` — batch execution con rate limiting
+- ✅ Hook `useInternalCampaigns` con CRUD e stats
 
 ---
 
