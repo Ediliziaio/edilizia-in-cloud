@@ -120,18 +120,58 @@ export default function MarketingContacts() {
     if (!companyId || exporting) return;
     setExporting(true);
     try {
-      let query = supabase
-        .from("marketing_contacts")
-        .select("*")
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false });
+      // If selected, export only those; otherwise apply active filters
+      let finalIds: string[] | null = null;
 
-      // If contacts are selected, export only those
       if (selectedIds.size > 0) {
-        query = query.in("id", [...selectedIds]);
+        finalIds = [...selectedIds];
+      } else {
+        // Apply active filters to get IDs (same logic as the main query)
+        const activeGroups = filters.groups.filter((g) => g.rules.length > 0);
+        if (activeGroups.length > 0) {
+          if (activeGroups.length === 1) {
+            const ids = await applyGroupRules(activeGroups[0], companyId);
+            if (ids !== null) {
+              if (ids.length === 0) { setExporting(false); toast.info("Nessun contatto corrisponde ai filtri"); return; }
+              finalIds = ids;
+            }
+          } else {
+            const allIds = new Set<string>();
+            for (const group of activeGroups) {
+              const ids = await applyGroupRules(group, companyId);
+              if (ids !== null) ids.forEach((id) => allIds.add(id));
+            }
+            if (allIds.size === 0) { setExporting(false); toast.info("Nessun contatto corrisponde ai filtri"); return; }
+            finalIds = [...allIds];
+          }
+        }
       }
 
-      const { data: all, error } = await query;
+      // Paginated fetch to handle >1000 rows
+      const PAGE_SIZE = 1000;
+      let allRows: any[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        let query = supabase
+          .from("marketing_contacts")
+          .select("*")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+        if (finalIds) query = query.in("id", finalIds);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        allRows = allRows.concat(data || []);
+        hasMore = (data?.length || 0) === PAGE_SIZE;
+        page++;
+      }
+
+      const all = allRows;
       if (error) throw error;
 
       // Build columns including custom fields
