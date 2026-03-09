@@ -28,6 +28,7 @@ const PageLoader = () => (
 
 // --- Lazy Pages ---
 const Login = lazy(() => import("@/pages/Login"));
+const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const Home = lazy(() => import("@/pages/Home"));
 
