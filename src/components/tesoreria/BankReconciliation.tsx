@@ -489,10 +489,26 @@ export default function BankReconciliation({ companyId }: Props) {
       {/* Recent reconciliations */}
       {reconciliations.length > 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Link2 className="h-4 w-4" /> Riconciliazioni recenti
             </CardTitle>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2" disabled={exporting}>
+                  {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  <span className="hidden sm:inline">Esporta</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportReconciliations("csv")}>
+                  <FileText className="h-4 w-4 mr-2" /> Esporta CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportReconciliations("xlsx")}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Esporta Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
