@@ -21,7 +21,7 @@ interface ExportData {
     arr: number;
     nrr: number;
     avgLtv: number;
-    healthSummary?: { healthy: number; at_risk: number; critical: number };
+    healthSummary?: { healthy: number; atRisk: number; critical: number };
   } | null;
 }
 
