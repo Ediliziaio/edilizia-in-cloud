@@ -24,7 +24,7 @@ import { CompaniesKPIStrip } from "@/components/admin/company/CompaniesKPIStrip"
 import { CompanyTagsCell } from "@/components/admin/company/CompanyTagsCell";
 import { CompanyQuickActions } from "@/components/admin/company/CompanyQuickActions";
 import { CompanyExpandedRow } from "@/components/admin/company/CompanyExpandedRow";
-
+import { BulkActionsBar } from "@/components/admin/company/BulkActionsBar";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
   ({ company, ...props }, ref) => {
