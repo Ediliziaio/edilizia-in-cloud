@@ -203,7 +203,8 @@ const App = () => (
                 <Route path="impostazioni/agenti-ai" element={<AdminSettingsAI />} />
                 <Route path="piani" element={<SubscriptionPlans />} />
                 <Route path="referral" element={<ReferralDashboard />} />
-                <Route path="implementazioni" element={<Implementations />} />
+                <Route path="feature-flags" element={<FeatureFlags />} />
+                <Route path="implementazioni" element={<Navigate to="/admin/feature-flags" replace />} />
                 <Route path="sync-logs" element={<SyncLogs />} />
                 <Route path="lifecycle" element={<CompanyLifecycle />} />
                 <Route path="annunci" element={<Announcements />} />

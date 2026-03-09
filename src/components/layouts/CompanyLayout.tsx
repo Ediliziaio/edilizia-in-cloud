@@ -111,7 +111,6 @@ function CompanySidebar() {
   const isCruscottoRoute = location.pathname.startsWith("/azienda/cruscotto");
 
   const filterNavItems = (items: NavItem[]) => {
-    const messagingEnabled = (effectiveCompany as any)?.messaging_beta_enabled === true;
     return items.filter((item) => {
       if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
         return false;
@@ -119,7 +118,7 @@ function CompanySidebar() {
       if (item.moduleKey && !isModuleEnabled(item.moduleKey)) {
         return false;
       }
-      if (item.isBeta && item.url.includes("messaggistica") && !messagingEnabled) {
+      if (item.featureKey && !isFeatureEnabled(item.featureKey)) {
         return false;
       }
       return true;
