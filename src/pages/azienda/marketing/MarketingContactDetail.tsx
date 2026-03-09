@@ -309,6 +309,7 @@ function OpportunitiesPanel({ contactId, companyId }: { contactId: string; compa
     },
     enabled: !!contactId && !!companyId,
     staleTime: 120_000,
+  });
 
   if (isLoading) return <p className="text-[11px] text-muted-foreground text-center py-4">Caricamento...</p>;
 
