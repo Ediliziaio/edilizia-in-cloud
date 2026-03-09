@@ -588,9 +588,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       return data;
     },
     enabled: !!id,
-  });
-
-  // ── Fetch notes ──
+    staleTime: 120_000,
   const { data: notes = [] } = useQuery({
     queryKey: ["marketing_contact_notes", id],
     queryFn: async () => {
