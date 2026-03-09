@@ -447,6 +447,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     },
     enabled: !!companyId,
     staleTime: 600_000,
+  });
+
+  // ── Fetch contact ──
   const { data: contact, isLoading, isError, refetch } = useQuery({
     queryKey: ["marketing_contact", id],
     queryFn: async () => {
