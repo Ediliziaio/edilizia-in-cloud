@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizontal, Lock, UserCheck, Phone, TrendingUp, Clock, Wifi, AlertTriangle } from "lucide-react";
+import { Users, Plus, Shield, Trash2, Loader2, ShieldCheck, Search, MoreHorizontal, Lock, LockOpen, UserCheck, Phone, TrendingUp, Clock, Wifi, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -398,6 +398,23 @@ export function UsersConfig() {
     },
   });
 
+  const unlockAccountMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ locked_until: null, failed_login_count: 0 } as never)
+        .eq("id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      toast.success("Account sbloccato");
+    },
+    onError: () => {
+      toast.error("Errore nello sblocco dell'account");
+    },
+  });
+
   const getInitials = (firstName: string, lastName: string) =>
     `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 
@@ -578,6 +595,12 @@ export function UsersConfig() {
                                 Permessi
                               </DropdownMenuItem>
                             )}
+                            {(u.locked_until && new Date(u.locked_until) > new Date()) || u.failed_login_count > 0 ? (
+                              <DropdownMenuItem onClick={() => unlockAccountMutation.mutate(u.id)}>
+                                <LockOpen className="h-4 w-4 mr-2" />
+                                Sblocca account
+                              </DropdownMenuItem>
+                            ) : null}
                             <DropdownMenuSeparator />
                             <AlertDialog>
                               <AlertDialogTrigger asChild>

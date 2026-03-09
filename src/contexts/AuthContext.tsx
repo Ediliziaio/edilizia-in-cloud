@@ -20,6 +20,54 @@ interface AuthContextType extends AuthState {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const IMPERSONATION_KEY = "impersonated_company_id";
+const SESSION_ID_KEY = "user_session_id";
+
+function getBrowserInfo() {
+  const ua = navigator.userAgent;
+  let browser = "Unknown";
+  if (ua.includes("Chrome") && !ua.includes("Edg")) browser = "Chrome";
+  else if (ua.includes("Firefox")) browser = "Firefox";
+  else if (ua.includes("Safari") && !ua.includes("Chrome")) browser = "Safari";
+  else if (ua.includes("Edg")) browser = "Edge";
+
+  let os = "Unknown";
+  if (ua.includes("Windows")) os = "Windows";
+  else if (ua.includes("Mac")) os = "macOS";
+  else if (ua.includes("Linux")) os = "Linux";
+  else if (ua.includes("Android")) os = "Android";
+  else if (ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
+
+  const isMobile = /Mobi|Android/i.test(ua);
+  return { browser, os, device_type: isMobile ? "mobile" : "desktop", user_agent: ua };
+}
+
+async function startSession() {
+  try {
+    const info = getBrowserInfo();
+    const { data } = await supabase.functions.invoke("track-user-session", {
+      body: { action: "start", ...info },
+    });
+    if (data?.session_id) {
+      sessionStorage.setItem(SESSION_ID_KEY, data.session_id);
+    }
+  } catch {
+    // Non-blocking
+  }
+}
+
+async function endSession() {
+  try {
+    const sessionId = sessionStorage.getItem(SESSION_ID_KEY);
+    if (sessionId) {
+      await supabase.functions.invoke("track-user-session", {
+        body: { action: "end", session_id: sessionId },
+      });
+      sessionStorage.removeItem(SESSION_ID_KEY);
+    }
+  } catch {
+    // Non-blocking
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -152,6 +200,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               ...userData,
               isLoading: false,
             });
+            // Start session tracking (fire-and-forget)
+            if (!sessionStorage.getItem(SESSION_ID_KEY)) {
+              startSession();
+            }
           }, 0);
         } else if (event === "SIGNED_OUT") {
           setState({
@@ -186,6 +238,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // End session tracking before sign out
+    await endSession();
     // Clear quick login session data
     sessionStorage.removeItem("quick_login_original_email");
     sessionStorage.removeItem("quick_login_original_name");
