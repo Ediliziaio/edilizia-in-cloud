@@ -61,10 +61,12 @@ function OnboardingProgress({ steps }: { steps: OnboardingStep[] }) {
 function TrialExtensionButton({ companyId, currentEnd, extensionsCount = 0 }: { companyId: string; currentEnd: string | null; extensionsCount?: number }) {
   const queryClient = useQueryClient();
   const [showWarning, setShowWarning] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [days, setDays] = useState(14);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const newEnd = addDays(currentEnd ? new Date(currentEnd) : new Date(), 14).toISOString();
+      const newEnd = addDays(currentEnd ? new Date(currentEnd) : new Date(), days).toISOString();
       const { error } = await supabase
         .from("companies")
         .update({
@@ -77,8 +79,9 @@ function TrialExtensionButton({ companyId, currentEnd, extensionsCount = 0 }: { 
       return newEnd;
     },
     onSuccess: () => {
-      toast.success("Trial esteso di 14 giorni");
+      toast.success(`Trial esteso di ${days} giorni`);
       setShowWarning(false);
+      setShowConfirm(false);
       queryClient.invalidateQueries({ queryKey: ["admin-revenue-intelligence"] });
     },
     onError: () => toast.error("Errore nell'estensione del trial"),
@@ -88,16 +91,24 @@ function TrialExtensionButton({ companyId, currentEnd, extensionsCount = 0 }: { 
     if (extensionsCount >= 3) {
       setShowWarning(true);
     } else {
-      mutation.mutate();
+      setShowConfirm(true);
     }
   };
 
   return (
     <>
       <div className="flex items-center gap-1.5">
+        <Input
+          type="number"
+          min={1}
+          max={90}
+          value={days}
+          onChange={(e) => setDays(Math.max(1, Math.min(90, parseInt(e.target.value) || 14)))}
+          className="w-16 h-8 text-xs text-center"
+        />
         <Button size="sm" variant="outline" onClick={handleClick} disabled={mutation.isPending}>
           {mutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CalendarPlus className="h-3 w-3 mr-1" />}
-          +14gg
+          +{days}gg
         </Button>
         {extensionsCount > 0 && (
           <Badge variant={extensionsCount >= 3 ? "destructive" : "secondary"} className="text-[10px]">
@@ -105,12 +116,28 @@ function TrialExtensionButton({ companyId, currentEnd, extensionsCount = 0 }: { 
           </Badge>
         )}
       </div>
+      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conferma estensione trial</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vuoi estendere il trial di {days} giorni? Estensioni effettuate: {extensionsCount}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => mutation.mutate()}>
+              Conferma
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={showWarning} onOpenChange={setShowWarning}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Attenzione: {extensionsCount} estensioni effettuate</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azienda ha già ricevuto {extensionsCount} estensioni trial. Proseguire con un'ulteriore estensione?
+              Questa azienda ha già ricevuto {extensionsCount} estensioni trial. Proseguire con un'ulteriore estensione di {days} giorni?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
