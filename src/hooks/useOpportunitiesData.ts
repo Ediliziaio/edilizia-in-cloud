@@ -22,6 +22,8 @@ export function usePipelines() {
       }));
     },
     enabled: !!companyId,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 }
 
