@@ -603,7 +603,7 @@ export default function EditOrder() {
     },
     onError: (error) => {
       toast.error("Errore", { description: "Si è verificato un errore durante l'aggiornamento dell'ordine." });
-      console.error("Update order error:", error);
+      logger.error("Update order error:", error);
     },
   });
 

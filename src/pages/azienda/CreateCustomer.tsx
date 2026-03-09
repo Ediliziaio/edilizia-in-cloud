@@ -82,7 +82,7 @@ export default function CreateCustomer() {
       setGeneratedPassword(data.password);
       setShowSuccessDialog(true);
     } catch (error: any) {
-      console.error("Create customer error:", error);
+      logger.error("Create customer error:", error);
       toast({
         title: "Errore",
         description: error.message || "Si è verificato un errore durante la creazione del cliente.",

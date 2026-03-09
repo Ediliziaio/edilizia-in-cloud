@@ -138,7 +138,7 @@ export default function CompanyCustomerDetail() {
 
       toast({ title: "Cliente aggiornato", description: "I dati del cliente sono stati salvati con successo" });
     } catch (error) {
-      logger.error("Error updating customer:", error);
+      loggererror("Error updating customer:", error);
       toast({ title: "Errore", description: "Impossibile aggiornare i dati del cliente.", variant: "destructive" });
     } finally {
       setIsSaving(false);
@@ -169,7 +169,7 @@ export default function CompanyCustomerDetail() {
       toast({ title: "Cliente eliminato", description: "Il cliente è stato eliminato con successo." });
       navigate("/azienda/clienti");
     } catch (error) {
-      console.error("Error deleting customer:", error);
+      cloggererror("Error deleting customer:", error);
       toast({ title: "Errore", description: "Impossibile eliminare il cliente.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
