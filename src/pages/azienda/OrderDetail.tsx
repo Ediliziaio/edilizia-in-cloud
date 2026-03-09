@@ -31,6 +31,7 @@ import { OrderErrors } from "@/components/orders/OrderErrors";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
+import { CreatePurchaseOrderButton } from "@/components/orders/CreatePurchaseOrderButton";
 import { InlineEditableDatesCard } from "@/components/orders/InlineEditableDatesCard";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
@@ -534,6 +535,17 @@ export default function OrderDetail() {
           </div>
         </div>
         <div className="flex gap-2">
+          <CreatePurchaseOrderButton
+            orderId={id!}
+            orderCode={order.order_code}
+            items={displayItems.map(i => ({
+              name: i.name,
+              quantity: i.quantity,
+              purchase_price: i.purchase_price,
+              supplier_id: i.supplier_id,
+              vat_rate: i.vat_rate,
+            }))}
+          />
           <Button variant="outline" size="sm" onClick={() => setDuplicateDialogOpen(true)}>
             <Copy className="h-4 w-4 mr-2" />Duplica
           </Button>
