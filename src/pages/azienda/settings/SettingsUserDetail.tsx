@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2 } from "lucide-react";
+import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Loader2, Wifi, FileText, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserProfileTab } from "@/components/users/UserProfileTab";
@@ -12,12 +12,18 @@ import { UserRolesPermissionsTab } from "@/components/users/UserRolesPermissions
 import { UserAvailabilityTab } from "@/components/users/UserAvailabilityTab";
 import { UserCalendarTab } from "@/components/users/UserCalendarTab";
 import { UserNotificationsTab } from "@/components/users/UserNotificationsTab";
+import { UserSessionsTab } from "@/components/users/UserSessionsTab";
+import { UserActivityLogTab } from "@/components/users/UserActivityLogTab";
+import { UserSecurityTab } from "@/components/users/UserSecurityTab";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
 const SIDEBAR_TABS = [
   { id: "profile", label: "Informazioni Utente", icon: User },
   { id: "permissions", label: "Ruoli & Autorizzazioni", icon: Shield },
+  { id: "sessions", label: "Sessioni", icon: Wifi },
+  { id: "activity", label: "Log Attività", icon: FileText },
+  { id: "security", label: "Sicurezza", icon: Lock },
   { id: "availability", label: "Disponibilità", icon: Clock },
   { id: "calendar", label: "Calendario", icon: Calendar },
   { id: "notifications", label: "Notifiche", icon: Bell },
@@ -59,7 +65,7 @@ export default function SettingsUserDetail() {
     queryFn: async () => {
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email, phone, company_id")
+        .select("id, first_name, last_name, email, phone, company_id, password_changed_at, failed_login_count, locked_until, require_2fa, last_login_at, last_login_ip")
         .eq("id", userId!)
         .single();
       if (error) throw error;
@@ -308,6 +314,21 @@ export default function SettingsUserDetail() {
               onChangeRole={(role) => changeRoleMutation.mutate(role)}
               isLoading={savePermissionsMutation.isPending}
               isChangingRole={changeRoleMutation.isPending}
+            />
+          )}
+          {activeTab === "sessions" && <UserSessionsTab userId={userId!} />}
+          {activeTab === "activity" && <UserActivityLogTab userId={userId!} />}
+          {activeTab === "security" && (
+            <UserSecurityTab
+              userId={userId!}
+              user={{
+                require_2fa: (userData as any).require_2fa,
+                password_changed_at: (userData as any).password_changed_at,
+                failed_login_count: (userData as any).failed_login_count,
+                locked_until: (userData as any).locked_until,
+                last_login_at: (userData as any).last_login_at,
+                last_login_ip: (userData as any).last_login_ip,
+              }}
             />
           )}
           {activeTab === "availability" && <UserAvailabilityTab />}
