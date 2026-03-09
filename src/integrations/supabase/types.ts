@@ -2402,8 +2402,13 @@ export type Database = {
       }
       email_campaigns: {
         Row: {
+          ab_html_content_b: string | null
+          ab_split_percent: number | null
           ab_subject_b: string | null
+          ab_test_duration_hours: number | null
           ab_test_enabled: boolean
+          ab_winner: string | null
+          ab_winner_criteria: string | null
           auto_tag: boolean
           company_id: string
           completed_at: string | null
@@ -2436,8 +2441,13 @@ export type Database = {
           utm_tracking: boolean
         }
         Insert: {
+          ab_html_content_b?: string | null
+          ab_split_percent?: number | null
           ab_subject_b?: string | null
+          ab_test_duration_hours?: number | null
           ab_test_enabled?: boolean
+          ab_winner?: string | null
+          ab_winner_criteria?: string | null
           auto_tag?: boolean
           company_id: string
           completed_at?: string | null
@@ -2470,8 +2480,13 @@ export type Database = {
           utm_tracking?: boolean
         }
         Update: {
+          ab_html_content_b?: string | null
+          ab_split_percent?: number | null
           ab_subject_b?: string | null
+          ab_test_duration_hours?: number | null
           ab_test_enabled?: boolean
+          ab_winner?: string | null
+          ab_winner_criteria?: string | null
           auto_tag?: boolean
           company_id?: string
           completed_at?: string | null
@@ -2678,6 +2693,7 @@ export type Database = {
       }
       email_logs: {
         Row: {
+          ab_variant: string | null
           campaign_id: string
           clicked_at: string | null
           company_id: string
@@ -2694,6 +2710,7 @@ export type Database = {
           stream: string | null
         }
         Insert: {
+          ab_variant?: string | null
           campaign_id: string
           clicked_at?: string | null
           company_id: string
@@ -2710,6 +2727,7 @@ export type Database = {
           stream?: string | null
         }
         Update: {
+          ab_variant?: string | null
           campaign_id?: string
           clicked_at?: string | null
           company_id?: string
